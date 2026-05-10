@@ -1,4 +1,4 @@
-Welcome to your new TanStack Start app! 
+TODO app built with TanStack Start, Drizzle, and Cloudflare D1.
 
 # Getting Started
 
