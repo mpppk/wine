@@ -16,14 +16,14 @@ import { Route as OrgOrgIdIndexRouteImport } from './routes/org/$orgId/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as OrgOrgIdTeamTeamIdTodosRouteImport } from './routes/org/$orgId/team/$teamId/todos'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OrgsRoute = OrgsRouteImport.update({
   id: '/orgs',
   path: '/orgs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -110,18 +110,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/orgs': {
       id: '/orgs'
       path: '/orgs'
       fullPath: '/orgs'
       preLoaderRoute: typeof OrgsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
