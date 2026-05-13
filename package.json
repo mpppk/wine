@@ -28,12 +28,6 @@
 	},
 	"dependencies": {
 		"@cloudflare/vite-plugin": "^1.26.0",
-		"@orpc/client": "^1.13.6",
-		"@orpc/json-schema": "^1.13.6",
-		"@orpc/openapi": "^1.13.6",
-		"@orpc/server": "^1.13.6",
-		"@orpc/tanstack-query": "^1.13.6",
-		"@orpc/zod": "^1.13.6",
 		"@tailwindcss/vite": "^4.1.18",
 		"@tanstack/react-devtools": "latest",
 		"@tanstack/react-query": "latest",
