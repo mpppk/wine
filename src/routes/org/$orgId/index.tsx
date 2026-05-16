@@ -60,6 +60,8 @@ function OrgPage() {
 	const [inviteRole, setInviteRole] = useState<"member" | "admin" | "owner">(
 		"member",
 	);
+	const [inviteLink, setInviteLink] = useState<string | null>(null);
+	const [copied, setCopied] = useState(false);
 
 	const { mutate: handleCreateTeam, isPending: creatingTeam } = useMutation({
 		mutationFn: () => createTeam({ data: { orgId, name: teamName } }),
@@ -72,9 +74,14 @@ function OrgPage() {
 	const { mutate: handleInvite, isPending: inviting } = useMutation({
 		mutationFn: () =>
 			inviteMember({ data: { orgId, email: inviteEmail, role: inviteRole } }),
-		onSuccess: () => {
+		onSuccess: (data) => {
 			refetchMembers();
 			setInviteEmail("");
+			if (data?.id) {
+				setInviteLink(
+					`${window.location.origin}/accept-invitation?id=${data.id}`,
+				);
+			}
 		},
 	});
 
@@ -183,10 +190,43 @@ function OrgPage() {
 							<Button
 								type="button"
 								disabled={!inviteEmail.trim() || inviting}
-								onClick={() => handleInvite()}
+								onClick={() => {
+									setInviteLink(null);
+									handleInvite();
+								}}
 							>
-								Send Invite
+								{inviting ? "Sending..." : "Send Invite"}
 							</Button>
+							{inviteLink && (
+								<div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm dark:border-green-800 dark:bg-green-950">
+									<p className="mb-1 font-medium text-green-700 dark:text-green-300">
+										Invitation created!
+									</p>
+									<p className="mb-2 text-muted-foreground">
+										Share this link with the invitee:
+									</p>
+									<div className="flex items-center gap-2">
+										<Input
+											readOnly
+											value={inviteLink}
+											className="flex-1 font-mono text-xs"
+											onFocus={(e) => e.currentTarget.select()}
+										/>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={() => {
+												navigator.clipboard.writeText(inviteLink);
+												setCopied(true);
+												setTimeout(() => setCopied(false), 2000);
+											}}
+										>
+											{copied ? "Copied!" : "Copy"}
+										</Button>
+									</div>
+								</div>
+							)}
 						</div>
 					</div>
 				</CardContent>

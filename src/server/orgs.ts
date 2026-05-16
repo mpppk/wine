@@ -77,3 +77,36 @@ export const inviteMember = createServerFn({ method: "POST" })
 			},
 		});
 	});
+
+export const getInvitation = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ invitationId: z.string() }))
+	.handler(async ({ data }) => {
+		const request = getRequest();
+		return auth.api.getInvitation({
+			headers: request.headers,
+			query: { id: data.invitationId },
+		});
+	});
+
+export const acceptInvitation = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ invitationId: z.string() }))
+	.handler(async ({ data }) => {
+		const request = getRequest();
+		return auth.api.acceptInvitation({
+			headers: request.headers,
+			body: { invitationId: data.invitationId },
+		});
+	});
+
+export const rejectInvitation = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ invitationId: z.string() }))
+	.handler(async ({ data }) => {
+		const request = getRequest();
+		return auth.api.rejectInvitation({
+			headers: request.headers,
+			body: { invitationId: data.invitationId },
+		});
+	});
