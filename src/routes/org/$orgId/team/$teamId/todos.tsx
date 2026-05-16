@@ -129,8 +129,7 @@ function TodosPage() {
 								id={`todo-${todo.id}`}
 								checked={todo.done ?? false}
 								onCheckedChange={(checked) =>
-									canEdit &&
-									handleToggle({ todoId: todo.id, done: !!checked })
+									canEdit && handleToggle({ todoId: todo.id, done: !!checked })
 								}
 								disabled={!canEdit}
 								className="mt-0.5 shrink-0"
