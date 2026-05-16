@@ -73,7 +73,7 @@ function TodosPage() {
 					teamId,
 					title,
 					description: description || undefined,
-					assigneeId: assigneeId || undefined,
+					assigneeId: assigneeId && assigneeId !== "unassigned" ? assigneeId : undefined,
 				},
 			}),
 		onSuccess: () => {
@@ -208,7 +208,7 @@ function TodosPage() {
 										<SelectValue placeholder="No assignee" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="">No assignee</SelectItem>
+										<SelectItem value="unassigned">No assignee</SelectItem>
 										{org?.members?.map((m) => (
 											<SelectItem key={m.userId} value={m.userId}>
 												{m.user.name}
