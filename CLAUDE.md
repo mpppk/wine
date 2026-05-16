@@ -11,7 +11,7 @@
 * ブラウザでの動作確認中はスクリーンショットを適宜撮影し、Gyazo CLI経由でアップロードしてください。
 * 動作確認の完了後は、結果をPRのdescriptionに追記してください。結果には撮影したスクリーンショットのGyazo画像を記載してください。
   * 例: `![todos page](https://i.gyazo.com/c61050ac7cb4454cdaa9525f41810987.png)`
-  * **注意**: MCPツール経由でPRのbodyを更新する際、`![` の `!` が消えることがある。その場合は `!` を `&#x21;` に置き換えて記述すること（GitHubが自動的に `!` に変換して画像として表示する）。
+  * **注意**: MCPツール経由でPRのbodyを更新する際、`![` の `!` が消えMarkdown画像として認識されないことがある。その場合は `![alt](url)` の代わりに `<img src="url" alt="alt">` のHTMLタグを使うこと。
 
 ### Cloudflare Workersの環境での動作確認
 * PR作成後に、Cloudflare Workersの環境が自動で立ち上がります。この環境が作成されたら、上記記載の動作確認をCloudflare Workersの環境で行なってください。
