@@ -73,7 +73,8 @@ function TodosPage() {
 					teamId,
 					title,
 					description: description || undefined,
-					assigneeId: assigneeId && assigneeId !== "unassigned" ? assigneeId : undefined,
+					assigneeId:
+						assigneeId && assigneeId !== "unassigned" ? assigneeId : undefined,
 				},
 			}),
 		onSuccess: () => {
