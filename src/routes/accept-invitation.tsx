@@ -1,9 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import {
-	createFileRoute,
-	redirect,
-	useRouter,
-} from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 import { Button } from "#/components/ui/button";
@@ -29,8 +25,9 @@ export const Route = createFileRoute("/accept-invitation")({
 			throw redirect({ to: "/login" });
 		}
 	},
-	loader: async ({ search }) => {
-		return getInvitation({ data: { invitationId: search.id } });
+	loaderDeps: ({ search: { id } }) => ({ id }),
+	loader: async ({ deps: { id } }) => {
+		return getInvitation({ data: { invitationId: id } });
 	},
 	errorComponent: ({ error }) => (
 		<main className="flex min-h-[calc(100vh-57px)] items-center justify-center px-4">
@@ -66,7 +63,9 @@ function AcceptInvitationPage() {
 			});
 		},
 		onError: (err) => {
-			setError(err instanceof Error ? err.message : "Failed to accept invitation.");
+			setError(
+				err instanceof Error ? err.message : "Failed to accept invitation.",
+			);
 		},
 	});
 
@@ -76,7 +75,9 @@ function AcceptInvitationPage() {
 			router.navigate({ to: "/orgs" });
 		},
 		onError: (err) => {
-			setError(err instanceof Error ? err.message : "Failed to decline invitation.");
+			setError(
+				err instanceof Error ? err.message : "Failed to decline invitation.",
+			);
 		},
 	});
 
