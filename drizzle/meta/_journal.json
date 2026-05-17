@@ -15,6 +15,13 @@
       "when": 1778422748904,
       "tag": "0001_worried_rictor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1778994900000,
+      "tag": "0002_better_auth_schema",
+      "breakpoints": true
     }
   ]
 }
