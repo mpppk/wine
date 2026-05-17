@@ -11,7 +11,12 @@ export const auth = betterAuth({
 		provider: "sqlite",
 		schema: authSchema,
 	}),
-	trustedOrigins: ["http://localhost:3000", "http://localhost:3001"],
+	trustedOrigins: [
+		"http://localhost:3000",
+		"http://localhost:3001",
+		"https://todo-app2026.niboshi.workers.dev",
+		"https://*.todo-app2026.niboshi.workers.dev",
+	],
 	emailAndPassword: {
 		enabled: true,
 	},
