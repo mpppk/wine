@@ -19,7 +19,6 @@
 		"build:ci": "wrangler d1 migrations apply DB --remote && vite build",
 		"build:ci:preview": "wrangler d1 migrations apply DB --remote --env preview && CLOUDFLARE_ENV=preview vite build",
 		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate",
 		"db:migrate:local": "wrangler d1 migrations apply DB --local",
 		"db:migrate:remote": "wrangler d1 migrations apply DB --remote",
 		"db:migrate:preview": "wrangler d1 migrations apply DB --remote --env preview",
