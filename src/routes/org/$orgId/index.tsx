@@ -18,6 +18,7 @@ import {
 	inviteMember,
 	listMembers,
 	listTeams,
+	setActiveOrganization,
 } from "#/server/orgs";
 
 export const Route = createFileRoute("/org/$orgId/")({
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/org/$orgId/")({
 	},
 	loader: async ({ context, params }) => {
 		await Promise.all([
+			setActiveOrganization({ data: { orgId: params.orgId } }).catch(() => {}),
 			context.queryClient.prefetchQuery({
 				queryKey: ["teams", params.orgId],
 				queryFn: () => listTeams({ data: { orgId: params.orgId } }),

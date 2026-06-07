@@ -15,7 +15,11 @@ import {
 } from "#/components/ui/select";
 import { authClient } from "#/lib/auth-client";
 import { getSession } from "#/server/auth";
-import { listMembers } from "#/server/orgs";
+import {
+	listMembers,
+	setActiveOrganization,
+	setActiveTeam,
+} from "#/server/orgs";
 import { createTodo, deleteTodo, listTodos, updateTodo } from "#/server/todos";
 
 export const Route = createFileRoute("/org/$orgId/team/$teamId/todos")({
@@ -27,6 +31,8 @@ export const Route = createFileRoute("/org/$orgId/team/$teamId/todos")({
 	},
 	loader: async ({ context, params }) => {
 		await Promise.all([
+			setActiveOrganization({ data: { orgId: params.orgId } }).catch(() => {}),
+			setActiveTeam({ data: { teamId: params.teamId } }).catch(() => {}),
 			context.queryClient.prefetchQuery({
 				queryKey: ["todos", params.teamId],
 				queryFn: () =>
