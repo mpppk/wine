@@ -16,13 +16,15 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { authClient } from "#/lib/auth-client";
-import { getSession } from "#/server/auth";
+import { toNavigateOptions } from "#/lib/last-visited-destination";
+import { getLastVisitedDestination, getSession } from "#/server/auth";
 
 export const Route = createFileRoute("/signup")({
 	beforeLoad: async () => {
 		const session = await getSession();
 		if (session) {
-			throw redirect({ to: "/orgs" });
+			const destination = await getLastVisitedDestination();
+			throw redirect(toNavigateOptions(destination));
 		}
 	},
 	component: SignUpPage,
@@ -45,7 +47,8 @@ function SignUpPage() {
 		if (result.error) {
 			setError(result.error.message ?? "Sign up failed");
 		} else {
-			await router.navigate({ to: "/orgs" });
+			const destination = await getLastVisitedDestination();
+			await router.navigate(toNavigateOptions(destination));
 		}
 	};
 

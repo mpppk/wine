@@ -35,6 +35,28 @@ export const listTeams = createServerFn({ method: "GET" })
 		});
 	});
 
+export const setActiveOrganization = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ orgId: z.string() }))
+	.handler(async ({ data }) => {
+		const request = getRequest();
+		return auth.api.setActiveOrganization({
+			headers: request.headers,
+			body: { organizationId: data.orgId },
+		});
+	});
+
+export const setActiveTeam = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ teamId: z.string() }))
+	.handler(async ({ data }) => {
+		const request = getRequest();
+		return auth.api.setActiveTeam({
+			headers: request.headers,
+			body: { teamId: data.teamId },
+		});
+	});
+
 export const createTeam = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
 	.inputValidator(z.object({ orgId: z.string(), name: z.string().min(1) }))
