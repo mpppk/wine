@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import BetterAuthHeader from "../integrations/better-auth/header-user.tsx";
-import ThemeToggle from "./ThemeToggle";
 
 export default function Header() {
 	return (
@@ -13,18 +12,7 @@ export default function Header() {
 					TODO App
 				</Link>
 
-				<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold">
-					<Link
-						to="/orgs"
-						className="relative text-muted-foreground no-underline transition-colors hover:text-foreground [&.active]:text-foreground"
-						activeProps={{ className: "active" }}
-					>
-						Organizations
-					</Link>
-				</div>
-
 				<div className="ml-auto flex items-center gap-2">
-					<ThemeToggle />
 					<BetterAuthHeader />
 				</div>
 			</nav>

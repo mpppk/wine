@@ -9,11 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as OrgsRouteImport } from './routes/orgs'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as OrgOrgIdIndexRouteImport } from './routes/org/$orgId/index'
@@ -21,11 +21,6 @@ import { Route as ApiImagesSplatRouteImport } from './routes/api/images/$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as OrgOrgIdTeamTeamIdTodosRouteImport } from './routes/org/$orgId/team/$teamId/todos'
 
-const AcceptInvitationRoute = AcceptInvitationRouteImport.update({
-  id: '/accept-invitation',
-  path: '/accept-invitation',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -44,6 +39,11 @@ const OrgsRoute = OrgsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AcceptInvitationRoute = AcceptInvitationRouteImport.update({
+  id: '/accept-invitation',
+  path: '/accept-invitation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -175,13 +175,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/accept-invitation': {
-      id: '/accept-invitation'
-      path: '/accept-invitation'
-      fullPath: '/accept-invitation'
-      preLoaderRoute: typeof AcceptInvitationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -208,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accept-invitation': {
+      id: '/accept-invitation'
+      path: '/accept-invitation'
+      fullPath: '/accept-invitation'
+      preLoaderRoute: typeof AcceptInvitationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
