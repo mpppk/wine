@@ -24,9 +24,10 @@ describe("mcp tool input schemas", () => {
 
 	it("create_todo: requires team_id and non-empty title", () => {
 		const schema = z.object(createTodoInput);
-		expect(
-			schema.parse({ team_id: "t1", title: "buy milk" }),
-		).toMatchObject({ team_id: "t1", title: "buy milk" });
+		expect(schema.parse({ team_id: "t1", title: "buy milk" })).toMatchObject({
+			team_id: "t1",
+			title: "buy milk",
+		});
 		expect(() => schema.parse({ team_id: "t1", title: "" })).toThrow();
 		expect(() => schema.parse({ title: "x" })).toThrow();
 	});
