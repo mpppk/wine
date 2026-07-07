@@ -1,6 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useState } from "react";
+import { PlusIcon } from "lucide-react";
+import { useRef, useState } from "react";
+import { useCommandPaletteCommands } from "#/components/CommandPaletteContext";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Checkbox } from "#/components/ui/checkbox";
@@ -70,6 +72,30 @@ function TodosPage() {
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [assigneeId, setAssigneeId] = useState("");
+	const titleInputRef = useRef<HTMLInputElement>(null);
+
+	// Expose an "Add Todo" command to the palette while this page is mounted
+	// and the user can edit; selecting it focuses the title field.
+	useCommandPaletteCommands(
+		canEdit
+			? [
+					{
+						id: "todo-add",
+						label: "Todoを追加",
+						keywords: ["add", "todo", "追加", "作成", "新規", "new"],
+						icon: <PlusIcon />,
+						onSelect: () => {
+							titleInputRef.current?.scrollIntoView({
+								block: "center",
+								behavior: "smooth",
+							});
+							titleInputRef.current?.focus();
+						},
+					},
+				]
+			: [],
+		[canEdit],
+	);
 
 	const { mutate: handleCreate, isPending: creating } = useMutation({
 		mutationFn: () =>
@@ -188,6 +214,7 @@ function TodosPage() {
 							<div className="flex flex-col gap-1.5">
 								<Label htmlFor="todo-title">Title *</Label>
 								<Input
+									ref={titleInputRef}
 									id="todo-title"
 									type="text"
 									placeholder="What needs to be done?"
