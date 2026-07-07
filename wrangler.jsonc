@@ -22,9 +22,7 @@
 		{
 			"binding": "DB",
 			"database_name": "wine-db",
-			// TODO: replace with the real database_id of `wine-db` created in the
-			// niboshi Cloudflare account (`wrangler d1 create wine-db`).
-			"database_id": "REPLACE_WITH_wine-db_ID",
+			"database_id": "c79413ae-ab1e-46a0-ba80-b195422deca5",
 			"migrations_dir": "drizzle"
 		}
 	],
@@ -44,10 +42,7 @@
 				{
 					"binding": "DB",
 					"database_name": "wine-preview-db",
-					// TODO: replace with the real database_id of `wine-preview-db`
-					// created in the niboshi Cloudflare account
-					// (`wrangler d1 create wine-preview-db`).
-					"database_id": "REPLACE_WITH_wine-preview-db_ID",
+					"database_id": "843d94a3-8558-459b-a97b-86510057bd54",
 					"migrations_dir": "drizzle"
 				}
 			],
