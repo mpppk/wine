@@ -1,0 +1,3252 @@
+[
+	{
+		"id": "brouilly",
+		"idApp": 145,
+		"name": "Brouilly",
+		"shortName": "Brouilly",
+		"nameJa": "ブルイィ",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩を主体に、閃緑岩や粘土石灰質も混じる多様な土壌。",
+		"producers": ["Château de la Chaize", "Château Thivin"],
+		"description": "ブルイィ山の裾野に広がる、10クリュ中最大の面積を持つ最南端のクリュ。果実味豊かで親しみやすいスタイル。"
+	},
+	{
+		"id": "chenas",
+		"idApp": 156,
+		"name": "Chénas",
+		"shortName": "Chénas",
+		"nameJa": "シェナ",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩質の砂と石英を含む斜面。",
+		"producers": ["Château de Chénas", "Domaine Thillardon"],
+		"description": "10クリュ中最小のアペラシオン。かつて樫(シェーヌ)の森だった土地に由来する名を持ち、花のような香りと厚みのある味わい。"
+	},
+	{
+		"id": "chiroubles",
+		"idApp": 158,
+		"name": "Chiroubles",
+		"shortName": "Chiroubles",
+		"nameJa": "シルーブル",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "痩せた花崗岩質の砂(ゴール)。",
+		"producers": ["Domaine Émile Cheysson", "Domaine de la Grosse Pierre"],
+		"description": "標高250〜450mと10クリュ中最も高地にある。冷涼さを反映した、軽やかで花の香りに富むエレガントなスタイル。"
+	},
+	{
+		"id": "cote-de-brouilly",
+		"idApp": 169,
+		"name": "Côte de Brouilly",
+		"shortName": "Côte de Brouilly",
+		"nameJa": "コート・ド・ブルイィ",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "ブルイィ山の斜面を覆う青みがかった閃緑岩(ピエール・ブルー)。",
+		"producers": ["Château Thivin", "Domaine Nicole Chanrion"],
+		"description": "ブルイィ山の斜面に位置するクリュ。火山性の硬い岩盤に由来するミネラル感と引き締まった果実味が特徴。"
+	},
+	{
+		"id": "fleurie",
+		"idApp": 181,
+		"name": "Fleurie",
+		"shortName": "Fleurie",
+		"nameJa": "フルーリー",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "ピンク色の花崗岩(ゴール・ローズ)。",
+		"producers": ["Clos de la Roilette", "Domaine de la Madone"],
+		"description": "「ボジョレーの女王」と呼ばれるクリュ。ピンク花崗岩の土壌から、スミレやバラを思わせる華やかでシルキーな赤を生む。"
+	},
+	{
+		"id": "julienas",
+		"idApp": 186,
+		"name": "Juliénas",
+		"shortName": "Juliénas",
+		"nameJa": "ジュリエナ",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "西部は花崗岩、東部は粘土や古い沖積土が混じる複雑な土壌。",
+		"producers": ["Château de Juliénas", "Domaine du Clos du Fief"],
+		"description": "ユリウス・カエサルに由来する名を持つ北部のクリュ。スパイス香をともなう、構成のしっかりした赤ワインを生む。"
+	},
+	{
+		"id": "morgon",
+		"idApp": 209,
+		"name": "Morgon",
+		"shortName": "Morgon",
+		"nameJa": "モルゴン",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "風化した片岩(ロッシュ・プリー=「腐った岩」)。名区画コート・デュ・ピィは鉄・マンガンを含む。",
+		"producers": [
+			"Jean Foillard",
+			"Marcel Lapierre",
+			"Domaine Louis-Claude Desvignes"
+		],
+		"description": "ブルゴーニュの村名格にも例えられる力強いクリュ。チェリーやキルシュの風味と熟成力で知られ、自然派ワインの聖地でもある。"
+	},
+	{
+		"id": "moulin-a-vent",
+		"idApp": 210,
+		"name": "Moulin-à-Vent",
+		"shortName": "Moulin-à-Vent",
+		"nameJa": "ムーラン・ナ・ヴァン",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "マンガンを含むピンク花崗岩の風化土壌。",
+		"producers": [
+			"Château des Jacques",
+			"Château du Moulin-à-Vent",
+			"Domaine Diochon"
+		],
+		"description": "丘上の風車に名を由来する「ボジョレーの王」。10クリュ中最も骨格があり、10年を超える熟成にも耐える。"
+	},
+	{
+		"id": "regnie",
+		"idApp": 220,
+		"name": "Régnié",
+		"shortName": "Régnié",
+		"nameJa": "レニエ",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "ピンク花崗岩が風化した砂質土壌。",
+		"producers": ["Guy Breton", "Domaine Rochette"],
+		"description": "1988年に昇格した最も新しいクリュ。ラズベリーを思わせるチャーミングな果実味の、比較的早飲みのスタイル。"
+	},
+	{
+		"id": "saint-amour",
+		"idApp": 226,
+		"name": "Saint-Amour",
+		"shortName": "Saint-Amour",
+		"nameJa": "サン・タムール",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩に粘土質・珪質の層が混じる。",
+		"producers": ["Domaine des Duc", "Domaine des Billards"],
+		"description": "最北端のクリュ。「聖なる愛」を意味する名からバレンタインの定番として人気で、チャーミングかつ滑らかな味わい。"
+	},
+	{
+		"id": "beaujolais",
+		"idApp": 1032,
+		"name": "Beaujolais",
+		"shortName": "Beaujolais",
+		"nameJa": "ボジョレー",
+		"region": "beaujolais",
+		"subregionId": "beaujolais",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["red", "rose", "white"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			}
+		],
+		"soil": "北部は花崗岩・片岩質、南部(ピエール・ドレ地区)は粘土石灰質。",
+		"producers": ["Georges Duboeuf", "Domaine Dupeuble"],
+		"description": "ガメイ主体の軽快な赤で知られる地方名AOC。ボジョレー・ヌーヴォーの産地としても有名で、白はシャルドネから造られる。"
+	},
+	{
+		"id": "aloxe-corton",
+		"idApp": 126,
+		"name": "Aloxe-Corton",
+		"shortName": "Aloxe-Corton",
+		"nameJa": "アロース・コルトン",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "コルトンの丘の中腹から麓にかけて、鉄分を含む赤みがかった粘土石灰質土壌。斜面上部には泥灰岩が現れる。",
+		"producers": [
+			"Maison Louis Latour",
+			"Domaine Comte Senard",
+			"Domaine Follin-Arbelet",
+			"Domaine Tollot-Beaut"
+		],
+		"description": "グラン・クリュのコルトン、コルトン・シャルルマーニュを戴くコルトンの丘の麓に広がる村名AOC。生産の大半は赤で、タンニンのしっかりした力強く長命なピノ・ノワールを産する。白はごく少量にとどまる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "auxey-duresses",
+		"idApp": 129,
+		"name": "Auxey-Duresses",
+		"shortName": "Auxey-Duresses",
+		"nameJa": "オークセイ・デュレス",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "泥灰岩と粘土石灰質土壌が主体で、谷沿いの斜面には石灰岩が露出する。",
+		"producers": [
+			"Domaine d'Auvenay",
+			"Maison Leroy",
+			"Domaine Michel Prunier et Fille",
+			"Domaine Comte Armand"
+		],
+		"description": "ムルソーの西、オート・コートへ続く谷あいに位置する村名AOC。赤と白の両方を産し、隣接する有名村よりも控えめな価格が魅力。メゾン・ルロワやドメーヌ・ドーヴネの本拠地としても知られる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "batard-montrachet",
+		"idApp": 130,
+		"name": "Bâtard-Montrachet",
+		"shortName": "Bâtard-Montrachet",
+		"nameJa": "バタール・モンラッシェ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "モンラッシェの下方の緩斜面。より深く粘土分の多い粘土石灰質土壌で、豊満なワインを生む。",
+		"producers": [
+			"Domaine Leflaive",
+			"Domaine Ramonet",
+			"Domaine Paul Pernot",
+			"Maison Olivier Leflaive"
+		],
+		"description": "モンラッシェの斜面下側に位置し、ピュリニーとシャサーニュの両村にまたがる約12haの白のグラン・クリュ。粘土分の多い土壌から、モンラッシェ系特級の中で最も豊満でリッチ、ボリューム感のある白ワインを生む。シャルドネのみが認められる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "beaune",
+		"idApp": 134,
+		"name": "Beaune",
+		"shortName": "Beaune",
+		"nameJa": "ボーヌ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボーヌ市西側の斜面に広がり、石灰岩と泥灰岩を基盤とする粘土石灰質土壌。斜面上部ほど表土が薄く石灰質が強い。",
+		"producers": [
+			"Maison Bouchard Père et Fils",
+			"Maison Joseph Drouhin",
+			"Maison Louis Jadot",
+			"Hospices de Beaune"
+		],
+		"description": "ブルゴーニュワイン商業の中心地ボーヌ市を囲む村名AOC。グレーヴやクロ・デ・ムーシュなど多数のプルミエ・クリュを擁し、畑の多くを大手ネゴシアンが所有する。赤が主体だが、上質な白も生産される。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "bienvenues-batard-montrachet",
+		"idApp": 135,
+		"name": "Bienvenues-Bâtard-Montrachet",
+		"shortName": "Bienvenues-Bâtard-Montrachet",
+		"nameJa": "ビアンヴニュ・バタール・モンラッシェ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "バタール・モンラッシェと連続する粘土石灰質土壌。やや砂質・小石まじりで、バタールよりわずかに軽い。",
+		"producers": ["Domaine Leflaive", "Domaine Ramonet", "Domaine Paul Pernot"],
+		"description": "バタール・モンラッシェの北東角を占める約3.7haの白のグラン・クリュで、ピュリニー＝モンラッシェ村側のみに位置する。バタールに似た豊かさを持ちつつ、より繊細でエレガントなスタイル。最大の所有者はドメーヌ・ルフレーヴ。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "blagny",
+		"idApp": 136,
+		"name": "Blagny",
+		"shortName": "Blagny",
+		"nameJa": "ブラニー",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "標高350m前後の高い位置にあり、硬い石灰岩の上に薄い石灰質の表土が載る。",
+		"producers": [
+			"Domaine Matrot",
+			"Domaine Martelet de Cherisey",
+			"Domaine Robert Ampeau et Fils"
+		],
+		"description": "ムルソー村とピュリニー・モンラッシェ村にまたがる小集落(アモー)のAOCで、赤ワインだけに認められる。同じ畑の白はムルソー・ブラニーまたはピュリニー・モンラッシェとして販売されるため、ブラニー名の赤は希少。野趣のある個性的なピノ・ノワールを産する。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "bonnes-mares",
+		"idApp": 137,
+		"name": "Bonnes-Mares",
+		"shortName": "Bonnes-Mares",
+		"nameJa": "ボンヌ・マール",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "モレ・サン・ドニ寄りは石灰質泥灰土の「テール・ブランシュ(白い土)」、シャンボール寄りは鉄分を含む粘土石灰質の「テール・ルージュ(赤い土)」と、畑内で2つの土壌が対比をなす。",
+		"producers": [
+			"Domaine Comte Georges de Vogüé",
+			"Domaine Georges Roumier",
+			"Domaine Bruno Clair",
+			"Domaine Dujac",
+			"Domaine d'Auvenay",
+			"Domaine Bart"
+		],
+		"description": "シャンボール・ミュジニー村とモレ・サン・ドニ村にまたがる約15haのグラン・クリュ。同じ村のミュジニーの優雅さとは対照的に、力強く骨格のあるタンニンを備えた長期熟成型の赤ワインを生む。2種類の土壌の違いが生産者ごとのスタイルの幅にもつながっている。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "bourgogne",
+		"idApp": 138,
+		"name": "Bourgogne",
+		"shortName": "Bourgogne",
+		"nameJa": "ブルゴーニュ",
+		"region": "bourgogne",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cesar",
+				"role": "accessory"
+			}
+		],
+		"soil": "地方全域に及ぶため多様だが、ジュラ紀の石灰岩・泥灰岩を基盤とする粘土石灰質土壌が代表的。",
+		"producers": [
+			"Maison Louis Jadot",
+			"Maison Joseph Drouhin",
+			"Maison Bouchard Père & Fils",
+			"Maison Louis Latour"
+		],
+		"description": "ブルゴーニュ地方のほぼ全域をカバーする最も基本的な地方名AOC。赤・ロゼはピノ・ノワール、白はシャルドネを主体に造られ、コート・シャロネーズやオート・コートなどの地理的名称を付記できる。各生産者のスタイルを手頃に知ることができる入門的な存在。",
+		"subregionId": "bourgogne-regional"
+	},
+	{
+		"id": "bourgogne-aligote",
+		"idApp": 140,
+		"name": "Bourgogne aligoté",
+		"shortName": "Bourgogne aligoté",
+		"nameJa": "ブルゴーニュ・アリゴテ",
+		"region": "bourgogne",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "aligote",
+				"role": "principal"
+			}
+		],
+		"soil": "広域AOCのため多様。石灰岩を基盤とする粘土石灰質土壌が中心で、斜面上部や麓の冷涼な区画に植えられることが多い。",
+		"producers": [
+			"Domaine Sylvain Pataille",
+			"Domaine Coche-Dury",
+			"Domaine d'Auvenay"
+		],
+		"description": "地場品種アリゴテのみから造られる広域AOCの白。高い酸とフレッシュな柑橘の風味を持つ軽快な辛口で、カシスリキュールと合わせるキールの伝統的なベースワインとしても知られる。近年は真剣に造り込む生産者が増え再評価が進んでいる。",
+		"subregionId": "bourgogne-regional"
+	},
+	{
+		"id": "bourgogne-mousseux",
+		"idApp": 141,
+		"name": "Bourgogne mousseux",
+		"shortName": "Bourgogne mousseux",
+		"nameJa": "ブルゴーニュ・ムスー",
+		"region": "bourgogne",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["red", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cesar",
+				"role": "accessory"
+			}
+		],
+		"soil": "ブルゴーニュ全域に及ぶ広域AOCのため多様で、石灰岩・泥灰岩由来の粘土石灰質土壌が中心。",
+		"producers": ["Vitteaut-Alberti", "Parigot & Richard"],
+		"description": "1985年以降、赤のスパークリングワイン専用となった珍しい広域AOC。ガメイとピノ・ノワールを主体に瓶内二次発酵で造られる。白・ロゼの泡はクレマン・ド・ブルゴーニュへ移行したため、現在の生産量はごくわずかで希少な存在。",
+		"subregionId": "bourgogne-regional"
+	},
+	{
+		"id": "bourgogne-passe-tout-grains",
+		"idApp": 144,
+		"name": "Bourgogne Passe-tout-grains",
+		"shortName": "Bourgogne Passe-tout-grains",
+		"nameJa": "ブルゴーニュ・パス・トゥ・グラン",
+		"region": "bourgogne",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "広域AOCのため多様。ガメイが植わる平地寄りの粘土質土壌と、石灰岩由来の粘土石灰質土壌が混在する。",
+		"producers": ["Domaine Michel Lafarge", "Domaine Robert Chevillon"],
+		"description": "ピノ・ノワール(30%以上)とガメイ(15%以上)をブレンドして造る赤・ロゼ専用の広域AOC。畑での混植・混醸の伝統に由来し、気取らず親しみやすい果実味が魅力。有力ドメーヌが手掛ける掘り出し物も多い。",
+		"subregionId": "bourgogne-regional"
+	},
+	{
+		"id": "chablis",
+		"idApp": 146,
+		"name": "Chablis",
+		"shortName": "Chablis",
+		"nameJa": "シャブリ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "上部ジュラ紀キンメリジャンの石灰質泥灰土が主体で、小型の牡蠣(エクソジラ・ヴィルギュラ)の化石を多く含む。この土壌がシャブリ特有のミネラル感の源とされる。",
+		"producers": [
+			"Domaine François Raveneau",
+			"Domaine Vincent Dauvissat",
+			"Domaine William Fèvre",
+			"La Chablisienne",
+			"Domaine Christian Moreau Père & Fils",
+			"Domaine Billaud-Simon"
+		],
+		"description": "ヨンヌ県スラン川流域に広がるブルゴーニュ最北部の白ワイン産地。シャルドネ100%から、火打石を思わせるミネラルと切れの良い酸を備えた辛口白を生む。フルショーム、モンテ・ド・トネルなど多数のプルミエ・クリュを擁する。",
+		"subregionId": "chablis-grand-auxerrois"
+	},
+	{
+		"id": "chablis-grand-cru",
+		"idApp": 147,
+		"name": "Chablis Grand Cru",
+		"shortName": "Chablis Grand Cru",
+		"nameJa": "シャブリ・グラン・クリュ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "スラン川右岸の南西向き斜面に位置し、キンメリジャンの泥灰岩と石灰岩が主体。表土には粘土と石灰岩片が混じり、凝縮した果実を育む。",
+		"producers": [
+			"Domaine François Raveneau",
+			"Domaine Vincent Dauvissat",
+			"Domaine William Fèvre",
+			"Domaine Long-Depaquit",
+			"La Chablisienne"
+		],
+		"description": "シャブリの町を見下ろす右岸の一枚の丘に広がる、シャブリ地区唯一のグラン・クリュAOC。レ・クロ、ヴォーデジール、グルヌイユなど7つのクリマ(単独区画ラ・ムートンヌを含む)から成る。豊かな凝縮感と強いミネラルを備え、長期熟成に耐える偉大な辛口白を生む。",
+		"subregionId": "chablis-grand-auxerrois"
+	},
+	{
+		"id": "chambertin",
+		"idApp": 148,
+		"name": "Chambertin",
+		"shortName": "Chambertin",
+		"nameJa": "シャンベルタン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "中期ジュラ紀バジョシアン期の石灰岩を基盤とし、表土は薄い褐色の粘土石灰質土壌。水はけが良く、斜面上部には泥灰岩も混じる。",
+		"producers": [
+			"Domaine Armand Rousseau",
+			"Domaine Leroy",
+			"Domaine Trapet Père et Fils",
+			"Domaine Rossignol-Trapet",
+			"Maison Louis Jadot",
+			"Domaine Jacques Prieur"
+		],
+		"description": "ジュヴレ・シャンベルタン村の斜面中腹に広がる約13haのグラン・クリュで、ナポレオンが愛飲したことでも知られる「王のワイン」。力強く堅牢なタンニンと深遠な複雑さを備え、数十年の熟成に耐えるブルゴーニュ赤の最高峰のひとつ。村の9つのグラン・クリュすべてが「シャンベルタン」の名を冠する基準点となる畑である。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "chambertin-clos-de-beze",
+		"idApp": 149,
+		"name": "Chambertin-Clos de Bèze",
+		"shortName": "Chambertin-Clos de Bèze",
+		"nameJa": "シャンベルタン・クロ・ド・ベーズ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "バジョシアン期の石灰岩の上に約30cmほどの薄い粘土石灰質の表土が載る。水はけに優れた東向き斜面。",
+		"producers": [
+			"Domaine Armand Rousseau",
+			"Domaine Pierre Damoy",
+			"Domaine Faiveley",
+			"Domaine Bruno Clair",
+			"Domaine Drouhin-Laroze"
+		],
+		"description": "シャンベルタンの北に隣接する約15haのグラン・クリュで、7世紀のベーズ修道院による開墾に起源を持つ歴史的な畑。シャンベルタンと双璧をなし、力強さの中により優美でしなやかな質感を持つとされる。この畑のワインは「シャンベルタン」として販売できるが、その逆は認められていない。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "chambolle-musigny",
+		"idApp": 150,
+		"name": "Chambolle-Musigny",
+		"shortName": "Chambolle-Musigny",
+		"nameJa": "シャンボール・ミュジニー",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩の比率が非常に高く粘土の少ない軽い土壌。この土壌が繊細でエレガントなワインを生むとされる。",
+		"producers": [
+			"Domaine Georges Roumier",
+			"Domaine Comte Georges de Vogüé",
+			"Domaine Jacques-Frédéric Mugnier",
+			"Domaine Ghislaine Barthod",
+			"Domaine Amiot-Servelle"
+		],
+		"description": "コート・ド・ニュイで最も繊細でエレガントな赤ワインを産するといわれる村名AOC。グラン・クリュのミュジニーとボンヌ・マールを擁し、レ・ザムルーズは村を代表するプルミエ・クリュ。赤のみが認められている。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "chapelle-chambertin",
+		"idApp": 151,
+		"name": "Chapelle-Chambertin",
+		"shortName": "Chapelle-Chambertin",
+		"nameJa": "シャペル・シャンベルタン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面下部に位置し、石灰岩の岩盤の上に小石の多い薄い粘土石灰質土壌と白色泥灰岩が広がる。",
+		"producers": [
+			"Domaine Pierre Damoy",
+			"Domaine Trapet Père et Fils",
+			"Domaine Rossignol-Trapet",
+			"Maison Louis Jadot",
+			"Domaine Cécile Tremblay"
+		],
+		"description": "クロ・ド・ベーズの斜面下側に位置する約5.5haのグラン・クリュ。名は12世紀に建てられた礼拝堂（シャペル）に由来する。ジュヴレの9つのグラン・クリュの中では比較的軽やかで、赤い果実の香りとエレガントな酒質が特徴とされる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "charlemagne",
+		"idApp": 152,
+		"name": "Charlemagne",
+		"shortName": "Charlemagne",
+		"nameJa": "シャルルマーニュ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "コルトンの丘上部の急斜面。白色泥灰岩と石灰岩が主体の痩せた石灰質土壌。",
+		"producers": ["Domaine Bonneau du Martray", "Maison Louis Latour"],
+		"description": "コルトン・シャルルマーニュとほぼ同じ区域に認められた白のグラン・クリュAOCで、アロース＝コルトンとペルナン＝ヴェルジュレスにまたがる。生産者は事実上すべてコルトン・シャルルマーニュ名で販売するため、この名称が実際にラベルに使われることはほとんどない。試験対策として存在を覚えておきたい「名目上の」特級である。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "charmes-chambertin",
+		"idApp": 153,
+		"name": "Charmes-Chambertin",
+		"shortName": "Charmes-Chambertin",
+		"nameJa": "シャルム・シャンベルタン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "シャンベルタンの斜面下側に位置し、粘土石灰質土壌に砂利や小石が混じる。表土は上部の畑よりやや深い。",
+		"producers": [
+			"Domaine Denis Bachelet",
+			"Domaine Dujac",
+			"Domaine Armand Rousseau",
+			"Domaine Perrot-Minot",
+			"Domaine Joseph Roty"
+		],
+		"description": "シャンベルタンの斜面下側、街道沿いに広がるグラン・クリュ。隣接するマゾワイエール・シャンベルタンもこの名で販売できるため、実質的にジュヴレ最大（約30ha）のグラン・クリュとして流通する。しなやかで果実味豊かな、比較的早くから楽しめるスタイルが特徴。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "chassagne-montrachet",
+		"idApp": 154,
+		"name": "Chassagne-Montrachet",
+		"shortName": "Chassagne-Montrachet",
+		"nameJa": "シャサーニュ・モンラッシェ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩と粘土石灰質土壌。斜面上部は岩盤が浅く白ワイン向きで、粘土の多い区画では赤も造られる。",
+		"producers": [
+			"Domaine Ramonet",
+			"Domaine Michel Niellon",
+			"Domaine Paul Pillot",
+			"Domaine Jean-Noël Gagnard"
+		],
+		"description": "ピュリニーとモンラッシェの丘を分け合う村名AOCで、モンラッシェとバタール・モンラッシェの一部、クリオ・バタール・モンラッシェを村内に含む。現在は上質な白が主体だが、伝統的に赤の生産も盛んだった村で、今も両方が造られる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "chevalier-montrachet",
+		"idApp": 157,
+		"name": "Chevalier-Montrachet",
+		"shortName": "Chevalier-Montrachet",
+		"nameJa": "シュヴァリエ・モンラッシェ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "モンラッシェの上方の斜面に位置し、表土が非常に薄い石灰岩質(レンジナ)土壌。痩せて水はけが良い。",
+		"producers": [
+			"Domaine Leflaive",
+			"Bouchard Père & Fils",
+			"Maison Louis Jadot",
+			"Maison Louis Latour"
+		],
+		"description": "ピュリニー＝モンラッシェ村内、モンラッシェのすぐ上方斜面に位置する白のグラン・クリュ。薄い表土ゆえにモンラッシェより軽やかで、鋭いミネラルと緊張感のあるエレガントなスタイルを生む。ルフレーヴやブシャールの「ラ・カボット」などが著名。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "chorey-les-beaune",
+		"idApp": 159,
+		"name": "Chorey-lès-Beaune",
+		"shortName": "Chorey-lès-Beaune",
+		"nameJa": "ショレイ・レ・ボーヌ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面ではなく平地側に位置し、小石混じりの沖積土と粘土石灰質土壌が広がる。",
+		"producers": [
+			"Domaine Tollot-Beaut",
+			"Domaine Arnoux Père et Fils",
+			"Maison Joseph Drouhin"
+		],
+		"description": "ボーヌの北、幹線道路の東の平地に広がる村名AOC。プルミエ・クリュを持たず、生産のほとんどは赤。軽やかで果実味豊かな早飲みスタイルで、手頃な価格のブルゴーニュ入門として親しまれる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "clos-de-la-roche",
+		"idApp": 160,
+		"name": "Clos de la Roche",
+		"shortName": "Clos de la Roche",
+		"nameJa": "クロ・ド・ラ・ロッシュ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "名前の由来となった岩盤(ロッシュ)が露出するほど表土が浅く、バジョシアン期の硬い石灰岩の上に薄い粘土石灰質土壌が載る。",
+		"producers": [
+			"Domaine Ponsot",
+			"Domaine Dujac",
+			"Domaine Armand Rousseau",
+			"Domaine Leroy",
+			"Domaine Hubert Lignier",
+			"Domaine Georges Lignier"
+		],
+		"description": "モレ・サン・ドニ村最大(約17ha)のグラン・クリュで、村の北端、ジュヴレ・シャンベルタン寄りに位置する。浅い表土と石灰岩盤に由来するミネラル感と力強い骨格を備え、シャンベルタンに例えられることもある長期熟成型の赤ワイン。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "clos-de-tart",
+		"idApp": 161,
+		"name": "Clos de Tart",
+		"shortName": "Clos de Tart",
+		"nameJa": "クロ・ド・タール",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "バトニアン期の石灰岩を基盤とし、牡蠣の化石を含む泥灰土と粘土石灰質の表土が斜面を覆う。土壌流出を防ぐため畝を斜面と平行(南北ではなく東西)に仕立てることでも知られる。",
+		"producers": ["Domaine du Clos de Tart"],
+		"description": "モレ・サン・ドニ村の約7.5haを石垣で囲んだ単独所有畑(モノポール)のグラン・クリュ。1141年にタール修道院によって創設されて以来、所有者がわずか数家しか変わっていない歴史的な畑で、現在はアルテミス・グループが所有する。緻密で気品ある長期熟成型の赤ワインを生む。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "clos-de-vougeot",
+		"idApp": 162,
+		"name": "Clos de Vougeot ou Clos Vougeot",
+		"shortName": "Clos de Vougeot",
+		"nameJa": "クロ・ド・ヴージョ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面上部は石灰岩由来の浅く砂利質で水はけの良い土壌、下部は粘土が深く堆積した重い土壌と、畑内での土壌変化が大きい。この違いが区画ごとの品質差の一因とされる。",
+		"producers": [
+			"Château de la Tour",
+			"Domaine Méo-Camuzet",
+			"Domaine Leroy",
+			"Domaine Anne Gros",
+			"Domaine Jean Grivot",
+			"Domaine d'Eugénie"
+		],
+		"description": "12世紀にシトー派修道士が石垣(クロ)で囲んだ約50haの畑で、コート・ド・ニュイ最大のグラン・クリュ。現在は80以上の所有者に細分化され、区画と造り手によって品質の幅が大きいことを学ぶ好例でもある。畑内のシャトー・デュ・クロ・ド・ヴージョは利き酒騎士団の本拠地として有名。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "clos-des-lambrays",
+		"idApp": 163,
+		"name": "Clos des Lambrays",
+		"shortName": "Clos des Lambrays",
+		"nameJa": "クロ・デ・ランブレイ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面上部の標高の高い場所まで広がり、石灰岩の礫を含む泥灰土・粘土石灰質土壌。やや冷涼な立地が繊細な酸をもたらす。",
+		"producers": ["Domaine des Lambrays", "Domaine Taupenot-Merme"],
+		"description": "モレ・サン・ドニ村の約8.8haのグラン・クリュで、1981年に昇格した比較的新しい特級畑。ドメーヌ・デ・ランブレイ(現在はLVMH傘下)がほぼ単独所有し、全房発酵を活かした香り高くエレガントなスタイルで知られる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "clos-saint-denis",
+		"idApp": 164,
+		"name": "Clos Saint-Denis",
+		"shortName": "Clos Saint-Denis",
+		"nameJa": "クロ・サン・ドニ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩の基盤の上に泥灰土を含む粘土石灰質の表土が載り、クロ・ド・ラ・ロッシュよりやや土が深い。これがしなやかで繊細な味わいにつながるとされる。",
+		"producers": [
+			"Domaine Dujac",
+			"Domaine Ponsot",
+			"Domaine Georges Lignier",
+			"Domaine Bertagna"
+		],
+		"description": "モレ・サン・ドニ村の村名の由来となった約6.6haの小さなグラン・クリュ。隣のクロ・ド・ラ・ロッシュの力強さに対し、繊細で香り高くエレガントなスタイルで「モレのモーツァルト」とも評される。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "corton",
+		"idApp": 165,
+		"name": "Corton",
+		"shortName": "Corton",
+		"nameJa": "コルトン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "コルトンの丘の中腹〜下部斜面。鉄分を含む赤みがかった泥灰岩と石灰岩が主体で、赤ワイン向きの土壌。",
+		"producers": [
+			"Domaine de la Romanée-Conti",
+			"Maison Louis Latour",
+			"Domaine Comte Senard",
+			"Domaine Chandon de Briailles"
+		],
+		"description": "ラドワ＝セリニィ、アロース＝コルトン、ペルナン＝ヴェルジュレスの3村にまたがるコート・ド・ボーヌ最大のグラン・クリュで、同地区で赤が認められる唯一の特級。クロ・デュ・ロワやブレッサンドなど多数のクリマ名を併記できる。堅牢でタンニンのしっかりした長期熟成型の赤が中心だが、白もわずかに造られる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "corton-charlemagne",
+		"idApp": 166,
+		"name": "Corton-Charlemagne",
+		"shortName": "Corton-Charlemagne",
+		"nameJa": "コルトン・シャルルマーニュ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "コルトンの丘の上部の急斜面。白色泥灰岩(マール)と石灰岩が主体の痩せた土壌で、白ワインに適する。",
+		"producers": [
+			"Domaine Bonneau du Martray",
+			"Domaine Coche-Dury",
+			"Maison Louis Latour",
+			"Bouchard Père & Fils"
+		],
+		"description": "コルトンの丘の上部斜面に広がる白のグラン・クリュで、名は皇帝シャルルマーニュの伝承に由来する。シャルドネから、鋭い酸と豊かなミネラル、力強い骨格を備えた長期熟成型の白ワインを生む。コート・ド・ボーヌ北部を代表する偉大な白の産地。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "cote-de-beaune",
+		"idApp": 167,
+		"name": "Côte de Beaune",
+		"shortName": "Côte de Beaune",
+		"nameJa": "コート・ド・ボーヌ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボーヌ市の上方、モンターニュ・ド・ボーヌの高台に位置し、表土の薄い石灰岩主体の土壌。",
+		"producers": ["Domaine Emmanuel Giboulot", "Maison Joseph Drouhin"],
+		"description": "ボーヌ市を見下ろすモンターニュ・ド・ボーヌの限られた区画のみに認められる小規模なAOC。地区名のように聞こえるが独立したアペラシオンで、コート・ド・ボーヌ・ヴィラージュとは別物。赤・白ともに軽快で親しみやすいスタイル。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "cote-de-beaune-villages",
+		"idApp": 168,
+		"name": "Côte de Beaune-Villages",
+		"shortName": "Côte de Beaune-Villages",
+		"nameJa": "コート・ド・ボーヌ・ヴィラージュ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "コート・ド・ボーヌ各村に共通する石灰岩・泥灰岩由来の粘土石灰質土壌。",
+		"producers": [
+			"Maison Louis Latour",
+			"Maison Joseph Drouhin",
+			"Maison Louis Jadot"
+		],
+		"description": "コート・ド・ボーヌの村名AOC(ボーヌ、ポマール、ヴォルネイ、アロース・コルトンを除く)の赤ワインが名乗れるアペラシオン。複数村のワインをブレンドできるため、主にネゴシアンが手がける。ピノ・ノワール100%が基本の、親しみやすい赤ワイン。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "cote-de-nuits-villages",
+		"idApp": 171,
+		"name": "Côte de Nuits-Villages ou Vins fins de la Côte de Nuits",
+		"shortName": "Côte de Nuits-Villages",
+		"nameJa": "コート・ド・ニュイ・ヴィラージュ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "コンブランシアンの大理石採石場で知られる硬質石灰岩を基盤とし、粘土石灰質土壌が広がる。",
+		"producers": [
+			"Domaine Gachot-Monot",
+			"Domaine de l'Arlot",
+			"Domaine Jean Petitot et Fils",
+			"Domaine Désertaux-Ferrand"
+		],
+		"description": "フィサン、ブロション、プレモー・プリセ、コンブランシアン、コルゴロワンの5村で名乗れる村名AOC。コート・ド・ニュイの北端と南端の村々をカバーし、ピノ・ノワール主体の果実味豊かで手頃な赤が中心。シャルドネとピノ・ブランによる白も少量造られる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "cremant-de-bourgogne",
+		"idApp": 175,
+		"name": "Crémant de Bourgogne",
+		"shortName": "Crémant de Bourgogne",
+		"nameJa": "クレマン・ド・ブルゴーニュ",
+		"region": "bourgogne",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sacy",
+				"role": "accessory"
+			}
+		],
+		"soil": "地方全域が対象のため多様。ヨンヌ県の石灰質泥灰岩からコート・シャロネーズやマコネの粘土石灰質まで幅広い。",
+		"producers": [
+			"Veuve Ambal",
+			"Maison Louis Bouillot",
+			"Bailly Lapierre",
+			"Cave de Lugny"
+		],
+		"description": "瓶内二次発酵(トラディショナル方式)で造る白・ロゼのスパークリング専用の広域AOC。キュヴェにはピノ・ノワール、シャルドネ、ピノ・グリ、ピノ・ブランを合計30%以上含む規定がある。シャンパーニュに近い品質を手頃に楽しめるとして人気が高い。",
+		"subregionId": "bourgogne-regional"
+	},
+	{
+		"id": "criots-batard-montrachet",
+		"idApp": 178,
+		"name": "Criots-Bâtard-Montrachet",
+		"shortName": "Criots-Bâtard-Montrachet",
+		"nameJa": "クリオ・バタール・モンラッシェ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰岩由来の薄い粘土石灰質土壌。名前の由来とされる小石(クリオ)まじりで水はけが良い。",
+		"producers": [
+			"Domaine d'Auvenay",
+			"Domaine Blain-Gagnard",
+			"Domaine Fontaine-Gagnard",
+			"Domaine Roger Belland"
+		],
+		"description": "シャサーニュ＝モンラッシェ村側のみに位置する約1.6haの、モンラッシェ系で最小の白のグラン・クリュ。生産量が極めて少なく希少で、バタールより軽やかな、繊細で香り高いスタイルを示す。シャルドネのみが認められる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "echezeaux",
+		"idApp": 179,
+		"name": "Echezeaux",
+		"shortName": "Echezeaux",
+		"nameJa": "エシェゾー",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "バジョシアン〜バトニアンの石灰岩基盤に泥灰岩と粘土が重なる粘土石灰質土壌。標高差が大きく、区画により土壌の深さや石の多さがかなり異なる。",
+		"producers": [
+			"Domaine de la Romanée-Conti",
+			"Domaine Dujac",
+			"Domaine Georges Mugneret-Gibourg",
+			"Domaine Emmanuel Rouget",
+			"Domaine Jean Grivot"
+		],
+		"description": "フラジェ・エシェゾー村に位置する約36haの、ヴォーヌ・ロマネ系グラン・クリュでは最大の特級畑。11のリューディからなり面積が広いため、生産者や区画によるスタイルの差が大きいことで知られる。総じて香り高くしなやかで、同系の特級の中では比較的早くから楽しめる赤ワインを生む。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "fixin",
+		"idApp": 180,
+		"name": "Fixin",
+		"shortName": "Fixin",
+		"nameJa": "フィサン",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "バジョシアン期からバトニアン期の石灰岩と泥灰岩に由来する粘土石灰質土壌。斜面上部は石灰岩が浅く、下部ほど粘土が深くなる。",
+		"producers": [
+			"Domaine Pierre Gelin",
+			"Domaine Berthaut-Gerbet",
+			"Domaine Joliet",
+			"Domaine Bart"
+		],
+		"description": "マルサネの南に隣接する小さな村名AOC。クロ・ド・ラ・ペリエールやクロ・デュ・シャピトルなどのプルミエ・クリュを擁し、タンニンのしっかりした堅牢な赤ワインを産する。白はごく少量でシャルドネとピノ・ブランから造られる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "gevrey-chambertin",
+		"idApp": 182,
+		"name": "Gevrey-Chambertin",
+		"shortName": "Gevrey-Chambertin",
+		"nameJa": "ジュヴレ・シャンベルタン",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩と泥灰岩を基盤とする粘土石灰質土壌で、コート・ド・ニュイの中でも粘土の比率が高め。この土壌が力強く骨格のある赤ワインを生む。",
+		"producers": [
+			"Domaine Armand Rousseau",
+			"Domaine Denis Mortet",
+			"Domaine Fourrier",
+			"Domaine Claude Dugat",
+			"Domaine Dugat-Py",
+			"Domaine Trapet Père et Fils"
+		],
+		"description": "シャンベルタンをはじめ9つのグラン・クリュを擁するコート・ド・ニュイ北部の代表的な村。赤のみが認められ、力強く骨格のあるピノ・ノワールの代名詞的存在。クロ・サン・ジャックなど優れたプルミエ・クリュも多い。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "givry",
+		"idApp": 183,
+		"name": "Givry",
+		"shortName": "Givry",
+		"nameJa": "ジヴリ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩の丘陵斜面に広がる粘土石灰質土壌。",
+		"producers": [
+			"Domaine Joblot",
+			"Domaine François Lumpp",
+			"Domaine du Clos Salomon",
+			"Domaine Thénard"
+		],
+		"description": "コート・シャロネーズの赤ワイン中心の村名AOCで、アンリ4世が愛飲したと伝えられる。チャーミングな果実味と滑らかさを持つピノ・ノワールが主体で、シャルドネ主体の白も少量造られる。多数のプルミエ・クリュを擁する。",
+		"subregionId": "cote-chalonnaise"
+	},
+	{
+		"id": "grands-echezeaux",
+		"idApp": 184,
+		"name": "Grands-Echezeaux",
+		"shortName": "Grands-Echezeaux",
+		"nameJa": "グラン・エシェゾー",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "クロ・ド・ヴージョの西側上部に接する緩斜面で、石灰岩の基盤の上にやや深い粘土石灰質の土壌が広がる。",
+		"producers": [
+			"Domaine de la Romanée-Conti",
+			"Domaine Mongeard-Mugneret",
+			"Domaine Gros Frère et Sœur",
+			"Maison Joseph Drouhin"
+		],
+		"description": "フラジェ・エシェゾー村、クロ・ド・ヴージョに隣接する約9haのグラン・クリュ。広大なエシェゾーよりも均質で、より深みと骨格のある長熟型の赤ワインを生むと評価される。最大の所有者はドメーヌ・ド・ラ・ロマネ・コンティである。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "griotte-chambertin",
+		"idApp": 185,
+		"name": "Griotte-Chambertin",
+		"shortName": "Griotte-Chambertin",
+		"nameJa": "グリオット・シャンベルタン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "旧石切場ともいわれる窪地状の地形で、石灰岩の上に薄い赤褐色の粘土石灰質土壌が載る。",
+		"producers": [
+			"Domaine Ponsot",
+			"Domaine Fourrier",
+			"Domaine Claude Dugat",
+			"Maison Joseph Drouhin"
+		],
+		"description": "クロ・ド・ベーズの斜面下側にある約2.7haの、ジュヴレで最も小さいグラン・クリュのひとつ。窪地状の温暖なミクロクリマを持ち、名前を連想させるグリオット（サワーチェリー）の風味と官能的で柔らかな質感で知られる。生産量が極めて少なく希少性が高い。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "la-grande-rue",
+		"idApp": 189,
+		"name": "La Grande Rue",
+		"shortName": "La Grande Rue",
+		"nameJa": "ラ・グランド・リュ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "硬い石灰岩の基盤の上に薄い粘土石灰質土壌が載る斜面中腹。周囲の特級畑と連続する土壌構成をもつ。",
+		"producers": ["Domaine François Lamarche"],
+		"description": "ラ・ターシュとロマネ・コンティに挟まれた細長い約1.65haの畑で、ドメーヌ・ラマルシュ(旧ドメーヌ・フランソワ・ラマルシュ)のモノポール(単独所有)。1992年にプルミエ・クリュからグラン・クリュに昇格した。繊細で香り高く、しなやかな質感の赤ワインを生む。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "la-romanee",
+		"idApp": 190,
+		"name": "La Romanée",
+		"shortName": "La Romanée",
+		"nameJa": "ラ・ロマネ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ロマネ・コンティの直上に位置するやや急な斜面で、硬い石灰岩の上に薄い褐色の粘土石灰質土壌が載る。",
+		"producers": ["Domaine du Comte Liger-Belair"],
+		"description": "約0.85haというフランス最小のAOCで、ロマネ・コンティのすぐ上に位置する。ドメーヌ・デュ・コント・リジェ・ベレールのモノポールで、2000年代半ばまではブシャール・ペール・エ・フィスが販売を担っていた。気品と緊張感を備えた、極めて希少な赤ワインを生む。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "la-tache",
+		"idApp": 191,
+		"name": "La Tâche",
+		"shortName": "La Tâche",
+		"nameJa": "ラ・ターシュ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面中腹の石灰岩基盤の上に、石灰岩の礫を多く含む粘土石灰質土壌が載る。斜面の上部と下部で土壌の深さが異なる。",
+		"producers": ["Domaine de la Romanée-Conti"],
+		"description": "ヴォーヌ・ロマネ村の約6haのグラン・クリュで、ドメーヌ・ド・ラ・ロマネ・コンティのモノポール。スパイスや薔薇を思わせる複雑な香りと力強い骨格を併せ持ち、ロマネ・コンティと並び称される長熟の偉大な赤ワインを生む。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "ladoix",
+		"idApp": 192,
+		"name": "Ladoix",
+		"shortName": "Ladoix",
+		"nameJa": "ラドワ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "コルトンの丘の北東麓に広がり、ジュラ紀の石灰岩と泥灰岩が基盤。斜面上部は石灰質が強く、下部は鉄分を含む粘土質が混じる。",
+		"producers": [
+			"Domaine Capitain-Gagnerot",
+			"Domaine Chevalier Père et Fils",
+			"Domaine Edmond Cornu et Fils",
+			"Domaine Michel Mallard et Fils"
+		],
+		"description": "コート・ド・ボーヌ最北端の村ラドワ=セリニィの村名AOC。コルトンの丘の麓に位置し、赤を主体に白も生産される。赤はしなやかで果実味豊か、白はミネラル感のある辛口で、知名度が控えめな分お値打ちな産地として知られる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "latricieres-chambertin",
+		"idApp": 193,
+		"name": "Latricières-Chambertin",
+		"shortName": "Latricières-Chambertin",
+		"nameJa": "ラトリシエール・シャンベルタン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩の岩盤が浅く、表土の薄い痩せた粘土石灰質土壌。コンブ（谷）からの冷気の影響を受ける。",
+		"producers": [
+			"Domaine Trapet Père et Fils",
+			"Domaine Rossignol-Trapet",
+			"Domaine Leroy",
+			"Domaine Faiveley",
+			"Domaine Camus Père et Fils"
+		],
+		"description": "シャンベルタンの南に隣接する約7.3haのグラン・クリュで、モレ・サン・ドニ村との境に位置する。「痩せた土地」を意味する名の通り表土が薄く、谷からの冷気も相まって、力強さよりも張りのある酸とフィネス、ミネラル感が際立つスタイルを生む。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "maranges",
+		"idApp": 198,
+		"name": "Maranges",
+		"shortName": "Maranges",
+		"nameJa": "マランジュ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "泥灰岩と粘土石灰質土壌が主体で、褐色の石灰質表土が斜面に広がる。",
+		"producers": [
+			"Domaine Chevrot et Fils",
+			"Domaine Bachelet-Monnot",
+			"Domaine Contat-Grangé"
+		],
+		"description": "1989年にシェイィ、ドゥジズ、サンピニーの3村を統合して誕生した、コート・ド・ボーヌ最南端の村名AOC(行政的にはソーヌ・エ・ロワール県)。ラ・フュシエールなどの一級畑を持ち、素朴で果実味のある赤を中心に手頃な価格で楽しめる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "marsannay",
+		"idApp": 199,
+		"name": "Marsannay",
+		"shortName": "Marsannay",
+		"nameJa": "マルサネ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジュラ紀中期の石灰岩を基盤に、扇状地由来の礫や粘土石灰質土壌が広がる。区画により石灰の強い痩せた土壌から粘土の深い土壌まで変化に富む。",
+		"producers": [
+			"Domaine Bruno Clair",
+			"Domaine Sylvain Pataille",
+			"Domaine Bart",
+			"Domaine Fougeray de Beauclair",
+			"Château de Marsannay"
+		],
+		"description": "コート・ド・ニュイ最北端、ディジョン近郊に位置する村名AOC。ブルゴーニュの村名で唯一、赤・白・ロゼの3色すべてが認められており、特にロゼの名産地として知られる。赤は果実味豊かで比較的親しみやすいスタイル。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "mazis-chambertin",
+		"idApp": 201,
+		"name": "Mazis-Chambertin",
+		"shortName": "Mazis-Chambertin",
+		"nameJa": "マジ・シャンベルタン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "上部（マジ・オー）は石灰岩盤が浅く薄い石灰質土壌、下部（マジ・バ）はやや粘土が深くなる。",
+		"producers": [
+			"Hospices de Beaune",
+			"Domaine Faiveley",
+			"Domaine Harmand-Geoffroy",
+			"Domaine Joseph Roty",
+			"Domaine d'Auvenay"
+		],
+		"description": "クロ・ド・ベーズの北に隣接する、ジュヴレのグラン・クリュ最北端の畑（約9ha）。上部のマジ・オーと下部のマジ・バに分かれ、前者がより高く評価される。堅牢でスパイシーな骨格を持ち、オスピス・ド・ボーヌが最大の所有者としてキュヴェ・マドレーヌ・コリニョンを産することでも知られる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "mazoyeres-chambertin",
+		"idApp": 202,
+		"name": "Mazoyères-Chambertin",
+		"shortName": "Mazoyères-Chambertin",
+		"nameJa": "マゾワイエール・シャンベルタン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面最下部に位置し、沖積性の砂利や小石を多く含む比較的深い粘土石灰質土壌。",
+		"producers": [
+			"Domaine Perrot-Minot",
+			"Domaine Taupenot-Merme",
+			"Domaine de la Vougeraie",
+			"Domaine Camus Père et Fils"
+		],
+		"description": "シャルム・シャンベルタンの南に接する斜面下部のグラン・クリュ（約18.6ha）。この畑のワインは隣のシャルム・シャンベルタンの名で販売することが認められており、実際に多くの生産者がそうするため、マゾワイエールの名を冠したワインは希少。シャルムよりやや骨格のある、土やスパイスのニュアンスを持つスタイルとされる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "mercurey",
+		"idApp": 203,
+		"name": "Mercurey",
+		"shortName": "Mercurey",
+		"nameJa": "メルキュレ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジュラ紀の石灰岩・泥灰岩を基盤とする粘土石灰質土壌。鉄分を含む粘土が赤ワインに力強さを与える。",
+		"producers": [
+			"Domaine Faiveley",
+			"Château de Chamirey",
+			"Domaine Michel Juillot",
+			"Domaine Bruno Lorenzon"
+		],
+		"description": "コート・シャロネーズ最大級の生産量を誇る村名AOCで、大部分を赤が占める。しっかりしたタンニンと骨格を持つピノ・ノワールが特徴で、熟成にも耐える。30を超えるプルミエ・クリュを擁する。",
+		"subregionId": "cote-chalonnaise"
+	},
+	{
+		"id": "meursault",
+		"idApp": 204,
+		"name": "Meursault",
+		"shortName": "Meursault",
+		"nameJa": "ムルソー",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩と泥灰岩が交互に現れる斜面。上部は石の多い石灰質土壌で、白亜質の区画が上質なシャルドネを生む。",
+		"producers": [
+			"Domaine des Comtes Lafon",
+			"Domaine Coche-Dury",
+			"Domaine Roulot",
+			"Domaine Pierre Morey",
+			"Domaine Michel Bouzereau et Fils"
+		],
+		"description": "コート・ド・ボーヌを代表する白ワインの村名AOC。ナッツやバターを思わせる豊満でコクのある辛口シャルドネで世界的に名高い。グラン・クリュはないが、ペリエールやジュヌヴリエールなど傑出した一級畑を擁し、ごく少量の赤も造られる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "montagny",
+		"idApp": 205,
+		"name": "Montagny",
+		"shortName": "Montagny",
+		"nameJa": "モンタニー",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "ジュラ紀初期(リアス)の泥灰岩と石灰岩からなる粘土石灰質土壌。",
+		"producers": [
+			"Cave des Vignerons de Buxy",
+			"Domaine Stéphane Aladame",
+			"Domaine Feuillat-Juillot",
+			"Maison Louis Latour"
+		],
+		"description": "コート・シャロネーズ最南部に位置する、シャルドネのみを認める白専用の村名AOC。ふくよかで蜜や白い花のニュアンスを持つ白ワインを産する。プルミエ・クリュの区画が非常に多く、ビュクシーの協同組合が生産の中心を担う。",
+		"subregionId": "cote-chalonnaise"
+	},
+	{
+		"id": "monthelie",
+		"idApp": 206,
+		"name": "Monthélie",
+		"shortName": "Monthélie",
+		"nameJa": "モンテリー",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴォルネイから続く石灰岩と泥灰岩の斜面で、表土は薄く小石が多い。",
+		"producers": [
+			"Domaine Éric de Suremain",
+			"Domaine Paul Garaudet",
+			"Domaine des Comtes Lafon"
+		],
+		"description": "ヴォルネイとムルソーの背後の丘に隠れた小さな村名AOC。生産の大半は赤で、ヴォルネイに似た軽快で果実味豊かなピノ・ノワールを比較的手頃な価格で楽しめる。少量ながら白も造られる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "montrachet",
+		"idApp": 207,
+		"name": "Montrachet",
+		"shortName": "Montrachet",
+		"nameJa": "モンラッシェ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "バトニアン期の石灰岩の岩盤の上に、小石まじりの薄い石灰質表土が載る。水はけが極めて良い。",
+		"producers": [
+			"Domaine de la Romanée-Conti",
+			"Domaine Leflaive",
+			"Domaine Ramonet",
+			"Maison Joseph Drouhin",
+			"Domaine des Comtes Lafon"
+		],
+		"description": "ピュリニー＝モンラッシェとシャサーニュ＝モンラッシェの両村にまたがる約8haの白のグラン・クリュで、世界最高峰の辛口白ワインと称される。シャルドネのみから、厚み・凝縮感・ミネラル・長期熟成力のすべてを兼ね備えたワインを生む。周囲の4つの特級(シュヴァリエ、バタール等)の頂点に立つ存在。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "morey-saint-denis",
+		"idApp": 208,
+		"name": "Morey-Saint-Denis",
+		"shortName": "Morey-Saint-Denis",
+		"nameJa": "モレ・サン・ドニ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			}
+		],
+		"soil": "バジョシアン期の石灰岩を基盤とする浅い粘土石灰質土壌。斜面上部は石灰岩の破片が多く水はけが良い。",
+		"producers": [
+			"Domaine Dujac",
+			"Domaine Ponsot",
+			"Domaine des Lambrays",
+			"Domaine Hubert Lignier",
+			"Domaine Arlaud"
+		],
+		"description": "ジュヴレ・シャンベルタンとシャンボール・ミュジニーに挟まれた村で、クロ・ド・ラ・ロッシュやクロ・ド・タールなど5つのグラン・クリュを擁する。力強さと繊細さを併せ持つ赤が中心。プルミエ・クリュのモン・リュイザンでは例外的にアリゴテも認められた白が造られる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "musigny",
+		"idApp": 211,
+		"name": "Musigny",
+		"shortName": "Musigny",
+		"nameJa": "ミュジニー",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "コンブランシアンの硬質石灰岩の岩盤の上に、小石混じりの薄い粘土石灰質土壌が載る。水はけが極めて良く、繊細さと凝縮感を両立させる。",
+		"producers": [
+			"Domaine Comte Georges de Vogüé",
+			"Domaine Jacques-Frédéric Mugnier",
+			"Domaine Georges Roumier",
+			"Domaine Leroy",
+			"Maison Joseph Drouhin"
+		],
+		"description": "シャンボール・ミュジニー村の南端、クロ・ド・ヴージョを見下ろす斜面に位置する約11haのグラン・クリュ。「ビロードのような」と形容される、ブルゴーニュで最も優雅な赤ワインの代名詞的存在。コート・ド・ニュイのグラン・クリュで唯一白ワイン(シャルドネ)も認められており、白はコント・ジョルジュ・ド・ヴォギュエがほぼ独占的に手がける。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "nuits-saint-georges",
+		"idApp": 212,
+		"name": "Nuits-Saint-Georges",
+		"shortName": "Nuits-Saint-Georges",
+		"nameJa": "ニュイ・サン・ジョルジュ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "北部はヴォーヌ・ロマネ側から続く粘土石灰質土壌、南部は小石混じりで粘土の深い土壌。ムーザン川の谷が村を南北に二分する。",
+		"producers": [
+			"Domaine Henri Gouges",
+			"Domaine Robert Chevillon",
+			"Domaine de l'Arlot",
+			"Domaine Prieuré Roch",
+			"Maison Faiveley"
+		],
+		"description": "コート・ド・ニュイ南部の中心となる町で、その名は地区名の由来にもなった。グラン・クリュは持たないが、レ・サン・ジョルジュをはじめ多数のプルミエ・クリュを擁し、タンニンのしっかりした力強い赤を産する。ピノ・ブラン等による白もごく少量造られる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "pernand-vergelesses",
+		"idApp": 213,
+		"name": "Pernand-Vergelesses",
+		"shortName": "Pernand-Vergelesses",
+		"nameJa": "ペルナン・ヴェルジュレス",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "コルトンの丘の西側の谷あいに位置し、石灰質泥灰岩と粘土石灰質土壌の急斜面が中心。",
+		"producers": [
+			"Domaine Bonneau du Martray",
+			"Domaine Rapet Père et Fils",
+			"Domaine Rollin Père et Fils",
+			"Domaine Dubreuil-Fontaine"
+		],
+		"description": "コルトンの丘の裏手、谷あいに隠れるように位置する村。1級イル・デ・ヴェルジュレスをはじめ赤・白ともに引き締まったスタイルで、近年は特にミネラル感のある白の評価が高まっている。コルトン・シャルルマーニュの一部も村内に含まれる。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "petit-chablis",
+		"idApp": 214,
+		"name": "Petit Chablis",
+		"shortName": "Petit Chablis",
+		"nameJa": "プティ・シャブリ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "キンメリジャンより新しいポルトランディアン(チトニアン)の硬い石灰岩が主体。丘の上部の台地に畑が広がる。",
+		"producers": [
+			"La Chablisienne",
+			"Domaine William Fèvre",
+			"Domaine Jean-Marc Brocard",
+			"Domaine Louis Moreau"
+		],
+		"description": "シャブリ地区の丘の上部、台地状の区画に広がるAOCで、シャルドネのみから造られる。シャブリよりも軽快で、柑橘や白い花の香りとフレッシュな酸が特徴。早飲みに向く気軽な辛口白として親しまれる。",
+		"subregionId": "chablis-grand-auxerrois"
+	},
+	{
+		"id": "pommard",
+		"idApp": 215,
+		"name": "Pommard",
+		"shortName": "Pommard",
+		"nameJa": "ポマール",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "鉄分を多く含む赤褐色の粘土石灰質土壌。斜面下部ほど粘土が深く、構造のしっかりした赤ワインを生む。",
+		"producers": [
+			"Domaine Comte Armand",
+			"Domaine de Courcel",
+			"Château de Pommard",
+			"Domaine Parent"
+		],
+		"description": "ボーヌとヴォルネイの間に位置する赤ワイン専用の村名AOC。コート・ド・ボーヌで最も力強くタンニンのしっかりした長期熟成型のピノ・ノワールを生む。レ・リュジアンやレ・ゼプノといった著名な一級畑を擁する。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "pouilly-fuisse",
+		"idApp": 216,
+		"name": "Pouilly-Fuissé",
+		"shortName": "Pouilly-Fuissé",
+		"nameJa": "プイィ・フュイッセ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "ジュラ紀の石灰岩と粘土石灰質土壌。ソリュトレとヴェルジソンの石灰岩の岩峰(ロッシュ)が象徴的で、区画により泥灰岩や粘土の比率が変化する。",
+		"producers": [
+			"Château Fuissé",
+			"Domaine J.A. Ferret",
+			"Domaine Guffens-Heynen",
+			"Domaine Robert-Denogent",
+			"Domaine Daniel et Julien Barraud"
+		],
+		"description": "マコネ地区南部、ソリュトレとヴェルジソンの岩山の麓に広がる白ワイン専用の村名AOCで、マコネの最高峰とされる。シャルドネから樽熟成を伴う厚みとミネラルを備えたリッチな白が造られる。2020年ヴィンテージから22のプルミエ・クリュが認定された。",
+		"subregionId": "maconnais"
+	},
+	{
+		"id": "pouilly-loche",
+		"idApp": 217,
+		"name": "Pouilly-Loché",
+		"shortName": "Pouilly-Loché",
+		"nameJa": "プイィ・ロシェ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰岩を基盤とする粘土石灰質土壌。プイィ・フュイッセより緩やかな丘に泥灰岩混じりの畑が広がる。",
+		"producers": [
+			"Domaine du Clos des Rocs",
+			"Domaine Tripoz",
+			"Bret Brothers",
+			"Cave des Grands Crus Blancs"
+		],
+		"description": "プイィ・フュイッセの東隣、ロシェ村のみを範囲とする小さな白ワイン専用AOCで、「プイィ」を名乗る3つのAOCの中で最も生産量が少ない。シャルドネから親しみやすく果実味豊かな白が造られる。2024年ヴィンテージからプルミエ・クリュ(レ・ミュール)が認められた。",
+		"subregionId": "maconnais"
+	},
+	{
+		"id": "pouilly-vinzelles",
+		"idApp": 218,
+		"name": "Pouilly-Vinzelles",
+		"shortName": "Pouilly-Vinzelles",
+		"nameJa": "プイィ・ヴァンゼル",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "東向き斜面の粘土石灰質土壌。ジュラ紀の石灰岩と泥灰岩が基盤となっている。",
+		"producers": [
+			"Domaine La Soufrandière",
+			"Domaine Valette",
+			"Domaine Thibert Père et Fils",
+			"Cave des Grands Crus Blancs"
+		],
+		"description": "プイィ・フュイッセの南東、ヴァンゼル村を中心とする白ワイン専用の村名AOC。ソーヌ川を望む東向き斜面のシャルドネから、ミネラル感のある引き締まった白が生まれる。2024年ヴィンテージからレ・カールとレ・ロンジェのプルミエ・クリュが認められた。",
+		"subregionId": "maconnais"
+	},
+	{
+		"id": "puligny-montrachet",
+		"idApp": 219,
+		"name": "Puligny-Montrachet",
+		"shortName": "Puligny-Montrachet",
+		"nameJa": "ピュリニー・モンラッシェ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "バトニアン〜バジョシアン期の石灰岩基盤に薄い粘土石灰質の表土が載る。地下水位が高く、地下セラーを掘れないことでも知られる。",
+		"producers": [
+			"Domaine Leflaive",
+			"Domaine Étienne Sauzet",
+			"Domaine Paul Pernot",
+			"Domaine Jacques Carillon"
+		],
+		"description": "モンラッシェをはじめ4つのグラン・クリュを擁する、世界最高峰の辛口白ワインの村名AOC。張りのある酸と厳格なミネラルを備えたシャルドネはムルソーの豊満さとしばしば対比される。規定上は赤も認められるが生産はごくわずか。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "richebourg",
+		"idApp": 221,
+		"name": "Richebourg",
+		"shortName": "Richebourg",
+		"nameJa": "リシュブール",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面中腹〜上部に位置し、石灰岩の基盤の上に石灰岩の破片を含む赤褐色の粘土石灰質土壌が載る。",
+		"producers": [
+			"Domaine de la Romanée-Conti",
+			"Domaine Leroy",
+			"Domaine Anne Gros",
+			"Domaine A.F. Gros",
+			"Domaine Méo-Camuzet",
+			"Domaine Jean Grivot"
+		],
+		"description": "ロマネ・コンティの北側に広がる約8haのグラン・クリュで、複数の生産者が区画を分け合う。ヴォーヌ・ロマネの特級の中でも最も豊満で力強いスタイルとされ、ビロードのような質感と壮大なスケールを備えた赤ワインを生む。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "romanee-conti",
+		"idApp": 222,
+		"name": "Romanée-Conti",
+		"shortName": "Romanée-Conti",
+		"nameJa": "ロマネ・コンティ",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面中腹の理想的な立地で、硬い石灰岩の基盤の上に厚さ50cmほどの浅い褐色の粘土石灰質土壌が載る。",
+		"producers": ["Domaine de la Romanée-Conti"],
+		"description": "ヴォーヌ・ロマネ村の斜面中腹に位置する約1.8haの畑で、ドメーヌ・ド・ラ・ロマネ・コンティのモノポール。世界で最も高価なワインの代名詞であり、比類ない香りの複雑さと絹のような質感を備えた赤ワインを、年産わずか数千本のみ生み出す。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "romanee-saint-vivant",
+		"idApp": 223,
+		"name": "Romanée-Saint-Vivant",
+		"shortName": "Romanée-Saint-Vivant",
+		"nameJa": "ロマネ・サン・ヴィヴァン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面下部に位置し、泥灰岩と石灰岩の上に周囲の特級畑よりも粘土分の多い、やや深い褐色の粘土石灰質土壌が広がる。",
+		"producers": [
+			"Domaine de la Romanée-Conti",
+			"Domaine Leroy",
+			"Domaine Sylvain Cathiard",
+			"Domaine de l'Arlot",
+			"Maison Louis Latour",
+			"Domaine Hudelot-Noëllat"
+		],
+		"description": "ロマネ・コンティとリシュブールの斜面下側に広がる約9.4haのグラン・クリュで、名は中世のサン・ヴィヴァン修道院に由来する。ヴォーヌ・ロマネの特級の中では最も繊細でエレガントなスタイルとされ、薔薇やスパイスの香りをまとった気品ある赤ワインを生む。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "ruchottes-chambertin",
+		"idApp": 224,
+		"name": "Ruchottes-Chambertin",
+		"shortName": "Ruchottes-Chambertin",
+		"nameJa": "リュショット・シャンベルタン",
+		"region": "bourgogne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "名の由来とされる岩（ロシェ）の通り石灰岩の岩盤が露出するほど表土が薄い、痩せた石灰質土壌。",
+		"producers": [
+			"Domaine Armand Rousseau",
+			"Domaine Georges Mugneret-Gibourg",
+			"Domaine Christophe Roumier",
+			"Domaine Frédéric Esmonin"
+		],
+		"description": "マジ・シャンベルタンの上方、斜面最上部に位置する約3.3haの小さなグラン・クリュ。岩盤が浅く表土が極めて薄いため、ミネラル感と引き締まった構造、清冽な酸を備えたワインを生む。アルマン・ルソーがモノポールのクロ・デ・リュショットを所有することでも名高い。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "rully",
+		"idApp": 225,
+		"name": "Rully",
+		"shortName": "Rully",
+		"nameJa": "リュリー",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジュラ紀の石灰岩と泥灰岩からなる粘土石灰質土壌。斜面の白色泥灰岩は白ブドウに適する。",
+		"producers": [
+			"Domaine Vincent Dureuil-Janthial",
+			"Domaine Paul et Henri Jacqueson",
+			"Domaine de la Folie"
+		],
+		"description": "コート・シャロネーズ北部の村名AOCで、白がやや優勢。ミネラル感のあるシャルドネと軽やかで果実味豊かなピノ・ノワールを産する。ブルゴーニュのスパークリングワイン造り発祥の地の一つとしても知られ、プルミエ・クリュも擁する。",
+		"subregionId": "cote-chalonnaise"
+	},
+	{
+		"id": "saint-aubin",
+		"idApp": 227,
+		"name": "Saint-Aubin",
+		"shortName": "Saint-Aubin",
+		"nameJa": "サン・トーバン",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩の多い痩せた粘土石灰質土壌。標高が高く、石だらけの薄い表土が引き締まった白を生む。",
+		"producers": [
+			"Domaine Hubert Lamy",
+			"Domaine Marc Colin et Fils",
+			"Domaine Henri Prudhon"
+		],
+		"description": "モンラッシェの丘の裏手の谷に位置する村名AOC。村の畑の大部分が一級畑で、アン・ルミイやミュルジェ・デ・ダン・ド・シアンなど、銘醸畑に隣接する上質な白を割安に楽しめる。冷涼で引き締まったスタイルが特徴。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "saint-romain",
+		"idApp": 228,
+		"name": "Saint-Romain",
+		"shortName": "Saint-Romain",
+		"nameJa": "サン・ロマン",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "標高280〜400mの急斜面に、ジュラ紀の石灰岩と泥灰岩が層をなす。",
+		"producers": [
+			"Domaine Alain Gras",
+			"Domaine de Chassorney",
+			"Domaine Christophe Buisson"
+		],
+		"description": "オート・コートに接する標高300m超の高地に位置する村名AOC。冷涼な気候を反映した、ミネラル感のある引き締まった白と軽やかな赤を産する。一級畑を持たない素朴な村だが、近年は自然派の造り手の活躍でも注目される。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "saint-veran",
+		"idApp": 229,
+		"name": "Saint-Véran",
+		"shortName": "Saint-Véran",
+		"nameJa": "サン・ヴェラン",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "ジュラ紀の石灰岩に由来する粘土石灰質土壌が主体。区画により泥灰岩や表土の粘土の厚さが異なる。",
+		"producers": [
+			"Domaine des Deux Roches",
+			"Domaine Corsin",
+			"Domaine de la Croix Senaillet",
+			"Maison Verget",
+			"Domaine Daniel et Julien Barraud"
+		],
+		"description": "1971年に創設されたマコネ地区南端の白ワイン専用AOCで、プイィ・フュイッセ地区を挟んで北(ダヴァイエ、プリッセ等)と南(シャスラス、レンシェ等)の2つのゾーンに分かれる。シャルドネから、フレッシュでミネラル豊かな、プイィ・フュイッセより軽快な白が造られる。プルミエ・クリュの認定を申請中だが、現時点では認められていない。",
+		"subregionId": "maconnais"
+	},
+	{
+		"id": "santenay",
+		"idApp": 230,
+		"name": "Santenay",
+		"shortName": "Santenay",
+		"nameJa": "サントネイ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "泥灰岩と石灰岩の互層。北部はグラヴィエール(砂利)の名が示す石の多い土壌で、南へ行くほど粘土が増す。",
+		"producers": [
+			"Domaine Lucien Muzard et Fils",
+			"Domaine Roger Belland",
+			"Château de Santenay",
+			"Domaine Françoise et Denis Clair"
+		],
+		"description": "コート・ド・ボーヌ南部に位置する村名AOC。果実味豊かでややタンニンのしっかりした赤が主体だが、近年は白の生産も増えている。レ・グラヴィエールやクロ・ド・タヴァンヌなどの一級畑を持つ。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "savigny-les-beaune",
+		"idApp": 231,
+		"name": "Savigny-lès-Beaune",
+		"shortName": "Savigny-lès-Beaune",
+		"nameJa": "サヴィニー・レ・ボーヌ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ロワン川が刻む谷の両側の斜面に畑が広がり、砂利質の沖積土と粘土石灰質土壌が中心。",
+		"producers": [
+			"Domaine Simon Bize et Fils",
+			"Domaine Chandon de Briailles",
+			"Domaine Pavelot",
+			"Domaine Antonin Guyon"
+		],
+		"description": "ボーヌの北西、ロワン川の谷に開けた村で、レ・ラヴィエールやラ・ドミノードなど多くの1級畑を持つ。赤は赤系果実の香る親しみやすくしなやかなスタイルで、フレッシュな白も少量生産される。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "volnay",
+		"idApp": 240,
+		"name": "Volnay",
+		"shortName": "Volnay",
+		"nameJa": "ヴォルネイ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "白色のバトニアン石灰岩と泥灰岩の上に薄い石灰質の表土が載る。石が多く水はけがよい。",
+		"producers": [
+			"Domaine Marquis d'Angerville",
+			"Domaine Michel Lafarge",
+			"Domaine de la Pousse d'Or",
+			"Domaine de Montille"
+		],
+		"description": "ポマールの南に隣接する赤ワイン専用の村名AOC。薄い石灰質土壌から香り高く繊細でエレガントなピノ・ノワールを産し、隣村ポマールの力強さと好対照をなす。クロ・デ・シェーヌやカイユレなど多数の一級畑を持つ。",
+		"subregionId": "cote-de-beaune"
+	},
+	{
+		"id": "vosne-romanee",
+		"idApp": 241,
+		"name": "Vosne-Romanée",
+		"shortName": "Vosne-Romanée",
+		"nameJa": "ヴォーヌ・ロマネ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "泥灰岩と石灰岩を基盤に、鉄分を含む粘土石灰質土壌が広がる。グラン・クリュの並ぶ斜面中腹は水はけと保水のバランスが理想的とされる。",
+		"producers": [
+			"Domaine de la Romanée-Conti",
+			"Domaine Leroy",
+			"Domaine Méo-Camuzet",
+			"Domaine Sylvain Cathiard",
+			"Domaine du Comte Liger-Belair",
+			"Domaine Anne Gros"
+		],
+		"description": "ロマネ・コンティやラ・ターシュなど数々のグラン・クリュを擁する、ブルゴーニュ赤ワインの聖地と呼ばれる村。ビロードのような質感と芳醇な香りを備えた、豪奢で気品ある赤のみを産する。オー・マルコンソールやレ・スショなどのプルミエ・クリュも名高い。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "vougeot",
+		"idApp": 242,
+		"name": "Vougeot",
+		"shortName": "Vougeot",
+		"nameJa": "ヴージョ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "斜面下部に位置するため粘土と沖積物が比較的多い粘土石灰質土壌。上部ほど石灰岩が浅く水はけが良い。",
+		"producers": [
+			"Domaine Bertagna",
+			"Domaine de la Vougeraie",
+			"Château de la Tour",
+			"Domaine Hudelot-Noëllat"
+		],
+		"description": "グラン・クリュのクロ・ド・ヴージョで知られる村で、村名AOCの面積はごくわずか。プルミエ・クリュのル・クロ・ブラン(クロ・ブラン・ド・ヴージョ)では、シトー派修道士の時代に起源をもつ白ワインも造られる。",
+		"subregionId": "cote-de-nuits"
+	},
+	{
+		"id": "bouzeron",
+		"idApp": 245,
+		"name": "Bouzeron",
+		"shortName": "Bouzeron",
+		"nameJa": "ブーズロン",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "aligote",
+				"role": "principal"
+			}
+		],
+		"soil": "泥灰岩を挟むジュラ紀の石灰岩からなる急斜面の痩せた粘土石灰質土壌。アリゴテに引き締まった酸とミネラル感を与える。",
+		"producers": ["Domaine A. et P. de Villaine", "Domaine Chanzy"],
+		"description": "コート・シャロネーズ最北部にある、アリゴテ専用として唯一の村名AOC(1998年昇格)。ロマネ・コンティ共同経営者オベール・ド・ヴィレーヌの尽力で名声を高めた。上質なアリゴテ・ドレから、引き締まった辛口白を産する。",
+		"subregionId": "cote-chalonnaise"
+	},
+	{
+		"id": "vire-clesse",
+		"idApp": 246,
+		"name": "Viré-Clessé",
+		"shortName": "Viré-Clessé",
+		"nameJa": "ヴィレ・クレッセ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "ジュラ紀の石灰岩を基盤とし、泥灰岩を含む粘土石灰質土壌。東〜南東向きの斜面に畑が広がる。",
+		"producers": [
+			"Domaine de la Bongran",
+			"Domaine André Bonhomme",
+			"Domaine de Roally",
+			"Cave de Viré"
+		],
+		"description": "1999年にマコン・ヴィレとマコン・クレッセの2つの優良村を統合して誕生したマコネ北部の村名AOCで、白のみを生産する。シャルドネから、熟した果実味と豊かなミネラルを備えたふくよかな白が生まれる。貴腐や遅摘みによる残糖を持つ「ルヴルテ」と呼ばれる伝統スタイルが認められている点でも珍しい。",
+		"subregionId": "maconnais"
+	},
+	{
+		"id": "irancy",
+		"idApp": 247,
+		"name": "Irancy",
+		"shortName": "Irancy",
+		"nameJa": "イランシー",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cesar",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "キンメリジャンの石灰質泥灰土。村を囲む円形劇場状の日当たりの良い斜面に畑が広がる。",
+		"producers": [
+			"Domaine Colinot",
+			"Domaine Richoux",
+			"Domaine Benoît Cantin",
+			"Domaine Clotilde Davenne"
+		],
+		"description": "オーセール近郊、赤ワインのみを生むAOCで1999年に村名に昇格。ピノ・ノワールを主体に、土着品種セザール(およびピノ・グリ)を合計10%まで補助的に使用できる。色調が濃く、しっかりした骨格と冷涼産地らしい酸をもつ赤ワインとなる。",
+		"subregionId": "chablis-grand-auxerrois"
+	},
+	{
+		"id": "saint-bris",
+		"idApp": 478,
+		"name": "Saint-Bris",
+		"shortName": "Saint-Bris",
+		"nameJa": "サン・ブリ",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-gris",
+				"role": "principal"
+			}
+		],
+		"soil": "シャブリと同系統のキンメリジャンの石灰質泥灰土とポルトランディアンの石灰岩。粘土石灰質の斜面に畑が広がる。",
+		"producers": [
+			"Domaine Guilhem & Jean-Hugues Goisot",
+			"Domaine Jean-Marc Brocard",
+			"Domaine Bersan",
+			"Domaine Clotilde Davenne",
+			"Maison Simonnet-Febvre"
+		],
+		"description": "オーセール近郊のサン・ブリ・ル・ヴィノー村を中心とする、ソーヴィニヨン(ブランおよびグリ)を用いるブルゴーニュで唯一のAOC。2003年にVDQSからAOCに昇格した。ハーブや柑橘のアロマティックな香りと快活な酸をもつ辛口白を生む。",
+		"subregionId": "chablis-grand-auxerrois"
+	},
+	{
+		"id": "macon",
+		"idApp": 583,
+		"name": "Mâcon",
+		"shortName": "Mâcon",
+		"nameJa": "マコン",
+		"region": "bourgogne",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "粘土石灰質土壌が主体で、ジュラ紀の石灰岩や泥灰岩の丘陵が連なる。南部や西部には花崗岩質・砂質の土壌も見られる。",
+		"producers": [
+			"Les Héritiers du Comte Lafon",
+			"Domaine Leflaive",
+			"Domaine Guillot-Broux",
+			"Domaine Olivier Merlin",
+			"Cave de Lugny"
+		],
+		"description": "マコネ地区のほぼ全域をカバーする広域AOC。白はシャルドネ100%、赤・ロゼはガメイとピノ・ノワールから造られる(村名を付す場合の赤・ロゼはガメイのみ)。白のみのマコン・ヴィラージュや、Mâcon-Lugnyのように村名を付記したスタイルでも広く流通する。",
+		"subregionId": "maconnais"
+	},
+	{
+		"id": "coteaux-bourguignons",
+		"idApp": 1027,
+		"name": "Coteaux Bourguignons ou Bourgogne grand ordinaire ou Bourgogne ordinaire",
+		"shortName": "Coteaux Bourguignons",
+		"nameJa": "コトー・ブルギニョン",
+		"region": "bourgogne",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cesar",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "aligote",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "melon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			}
+		],
+		"soil": "北のヨンヌ県からボジョレーまでを含む広大な範囲が対象で、粘土石灰質から南部の花崗岩質まで土壌は極めて多様。",
+		"producers": ["Maison Louis Jadot", "Maison Albert Bichot"],
+		"description": "2011年にブルゴーニュ・グラン・トルディネールを引き継いで誕生した広域AOCで、ボジョレー地区も範囲に含む。ガメイとピノ・ノワールを自由な比率でブレンドできるなど規定が柔軟。日常的に楽しめる気軽なスタイルの赤・白・ロゼを産する。",
+		"subregionId": "bourgogne-regional"
+	},
+	{
+		"id": "vezelay",
+		"idApp": 1170,
+		"name": "Vézelay",
+		"shortName": "Vézelay",
+		"nameJa": "ヴェズレー",
+		"region": "bourgogne",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "ジュラ紀の石灰岩と泥灰岩に由来する粘土石灰質土壌。ヴェズレーの丘を囲む標高の高い斜面に畑が点在する。",
+		"producers": [
+			"Domaine de la Cadette",
+			"Domaine Elise Villiers",
+			"Domaine Maria Cuny",
+			"Domaine La Croix Montjoie",
+			"Domaine des Faverelles"
+		],
+		"description": "世界遺産ヴェズレーの丘の周辺に広がるグラン・オーセロワ南部の産地で、2017年に地方名ブルゴーニュ・ヴェズレーから村名AOCに昇格した。シャルドネ100%の辛口白のみが認められる。フレッシュな酸とミネラル感をもつ、張りのあるスタイルが特徴。",
+		"subregionId": "chablis-grand-auxerrois"
+	}
+]

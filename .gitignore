@@ -18,3 +18,6 @@ todos.json
 
 screenshots/
 *.cjs
+
+# build:geodata の作業キャッシュ(数百MBの元データ)
+.cache/

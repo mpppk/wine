@@ -1,4 +1,18 @@
-TODO app built with TanStack Start, Drizzle, and Cloudflare D1.
+ワインのAOP(原産地呼称)を地図で学ぶWebアプリ。TanStack Start + MapLibre GL JS + Cloudflare Workers/D1。
+
+## AOP境界データの生成
+
+`public/data/aop/*.geojson` は INAO のオープンデータから生成する(生成物はコミット済み。データ更新時のみ再実行):
+
+```bash
+bun run build:geodata
+```
+
+- 村名/グラン・クリュ: INAO「Délimitation parcellaire des AOC viticoles」(data.gouv.fr、約270MBのShapefileを自動ダウンロードして `.cache/` にキャッシュ)
+- 広域AOC: INAO「Aires géographiques des AOC/AOP」CSV × geo.api.gouv.fr のコミューン輪郭
+- 実行後に表示される bounds を `src/lib/wine/regions.ts` に反映する
+
+AOPのメタデータ(土壌・品種・生産者)は `src/lib/wine/aops.json` にあり、`src/lib/wine/aop-schema.ts` のスキーマで読み込み時に検証される。
 
 # Getting Started
 
