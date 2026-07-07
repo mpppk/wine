@@ -4,14 +4,14 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "todo-app2026",
+	"name": "wine",
 	"compatibility_date": "2025-09-02",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
 	"main": "@tanstack/react-start/server-entry",
 	"vars": {
-		"BETTER_AUTH_URL": "https://todo-app2026.niboshi.workers.dev"
+		"BETTER_AUTH_URL": "https://wine.niboshi.workers.dev"
 	},
 	"observability": {
 		"enabled": true
@@ -21,35 +21,40 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "todo-app2026-db",
-			"database_id": "d34fe9df-9073-4a27-884b-b90195c851bc",
+			"database_name": "wine-db",
+			// TODO: replace with the real database_id of `wine-db` created in the
+			// niboshi Cloudflare account (`wrangler d1 create wine-db`).
+			"database_id": "REPLACE_WITH_wine-db_ID",
 			"migrations_dir": "drizzle"
 		}
 	],
 	"r2_buckets": [
 		{
 			"binding": "AVATARS",
-			"bucket_name": "avatars-todo-app2026"
+			"bucket_name": "avatars-wine"
 		}
 	],
 	"env": {
 		"preview": {
-			"name": "todo-app2026-preview",
+			"name": "wine-preview",
 			"vars": {
-				"BETTER_AUTH_URL": "https://todo-app2026-preview.niboshi.workers.dev"
+				"BETTER_AUTH_URL": "https://wine-preview.niboshi.workers.dev"
 			},
 			"d1_databases": [
 				{
 					"binding": "DB",
-					"database_name": "todo-app2026-preview-db",
-					"database_id": "8163d76b-1c2e-48ce-b98b-b72d71191b6c",
+					"database_name": "wine-preview-db",
+					// TODO: replace with the real database_id of `wine-preview-db`
+					// created in the niboshi Cloudflare account
+					// (`wrangler d1 create wine-preview-db`).
+					"database_id": "REPLACE_WITH_wine-preview-db_ID",
 					"migrations_dir": "drizzle"
 				}
 			],
 			"r2_buckets": [
 				{
 					"binding": "AVATARS",
-					"bucket_name": "avatars-todo-app2026-preview"
+					"bucket_name": "avatars-wine-preview"
 				}
 			]
 		}
