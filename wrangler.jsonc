@@ -10,6 +10,9 @@
 		"nodejs_compat"
 	],
 	"main": "@tanstack/react-start/server-entry",
+	"vars": {
+		"BETTER_AUTH_URL": "https://todo-app2026.niboshi.workers.dev"
+	},
 	"observability": {
 		"enabled": true
 	},
@@ -32,6 +35,9 @@
 	"env": {
 		"preview": {
 			"name": "todo-app2026-preview",
+			"vars": {
+				"BETTER_AUTH_URL": "https://todo-app2026-preview.niboshi.workers.dev"
+			},
 			"d1_databases": [
 				{
 					"binding": "DB",
