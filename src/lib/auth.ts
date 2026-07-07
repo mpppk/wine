@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { mcp, organization } from "better-auth/plugins";
+import { mcp } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { drizzle } from "drizzle-orm/d1";
 import * as authSchema from "#/db/auth-schema";
@@ -21,17 +21,6 @@ export const auth = betterAuth({
 		enabled: true,
 	},
 	plugins: [
-		organization({
-			teams: {
-				enabled: true,
-				defaultTeam: {
-					enabled: false,
-				},
-			},
-			sendInvitationEmail: async (_data) => {
-				// TODO: implement email sending
-			},
-		}),
 		// OAuth 2.1 provider for MCP clients (Claude Code / Desktop etc.).
 		mcp({
 			loginPage: "/login",
