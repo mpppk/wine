@@ -46,7 +46,7 @@ The Drizzle demo at `/demo/drizzle` uses Cloudflare D1 through the `DB` binding 
 Create the D1 database:
 
 ```bash
-bunx --bun wrangler d1 create todo-app2026-db
+bunx --bun wrangler d1 create wine-db
 ```
 
 Copy the generated `database_id` into `wrangler.jsonc`, replacing `00000000-0000-0000-0000-000000000000`, then regenerate Worker binding types:

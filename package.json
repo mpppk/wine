@@ -1,5 +1,5 @@
 {
-	"name": "todo-app2026",
+	"name": "wine",
 	"private": true,
 	"type": "module",
 	"imports": {
@@ -15,7 +15,7 @@
 		"check": "biome check",
 		"typecheck": "tsc",
 		"deploy": "bun run build && wrangler deploy",
-		"deploy:preview": "CLOUDFLARE_ENV=preview vite build && wrangler versions upload",
+		"deploy:preview": "CLOUDFLARE_ENV=preview vite build && CLOUDFLARE_ENV=preview wrangler versions upload",
 		"build:ci": "wrangler d1 migrations apply DB --remote && vite build",
 		"build:ci:preview": "wrangler d1 migrations apply DB --remote --env preview && CLOUDFLARE_ENV=preview vite build",
 		"build:geodata": "node scripts/build-aop-geodata.mjs",

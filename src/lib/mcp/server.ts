@@ -7,7 +7,7 @@ import { registerReadTools, registerWriteTools } from "./tools";
 // forbids reusing a connected server across requests, and per-request
 // instances are what make the stateless transport safe on Workers.
 export function buildMcpServer(userId: string): McpServer {
-	const server = new McpServer({ name: "wine-aop", version: "1.0.0" });
+	const server = new McpServer({ name: "wine", version: "1.0.0" });
 	registerReadTools(server, userId);
 	registerWriteTools(server, userId);
 	registerApps(server);

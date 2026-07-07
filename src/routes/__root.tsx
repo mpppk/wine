@@ -26,15 +26,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				content: "width=device-width, initial-scale=1",
 			},
 			{
-				title: "TODO App",
+				title: "wine",
 			},
 			{
 				name: "description",
-				content: "タスクを管理できるTODOアプリ",
+				content: "wine",
 			},
 			{
 				name: "application-name",
-				content: "TODO App",
+				content: "wine",
 			},
 			{
 				name: "mobile-web-app-capable",
@@ -50,7 +50,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 			{
 				name: "apple-mobile-web-app-title",
-				content: "TODO",
+				content: "wine",
 			},
 		],
 		links: [
