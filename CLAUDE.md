@@ -1,6 +1,22 @@
+## ランタイム / 開発コマンド
+
+* このアプリは Cloudflare Workers にデプロイする（ランタイムは Node.js ではない）。ローカルのタスクランナーは Bun を使う。
+* マージ前チェック（CIと同一）: `bun run typecheck` / `bun run check` / `bun run build` / `bun run test`
+* ローカルDB: 初回・スキーマ変更後は `bun run db:migrate:local` してから `bun run dev`
+* OAuth/MCP をローカル検証する場合は `.dev.vars` に `BETTER_AUTH_URL=http://localhost:3000` を設定（`.dev.vars.example` 参照）
+
 ## 実装プランの作成
 
 プランの作成時は、検討が必要な項目を徹底的に洗い出し、曖昧性が完全に排除されるまでユーザに質問・確認を行なってください。
+
+## MCPサーバー変更時の動作確認
+
+`src/lib/mcp/` や `src/routes/api/mcp.ts`（OAuth 関連の `src/lib/auth.ts` / `.well-known/*` / `oauth/consent` / 埋め込みビュー `src/routes/embed/`）を変更したら、`mcp-inspector-verify` skill を使い、MCP Inspector で OAuth 接続〜`tools/list`〜`list_todos` 実行〜（UI に関わる変更は Apps タブでの App 描画）まで実機確認する。結果は PR の Test Plan / 動作確認結果に記載する。
+
+## DBスキーマ変更を含むPR
+
+* マイグレーションは `drizzle/` に連番SQLで追加する。better-auth 関連（`user`/`session`/`organization`/`oauth_*` 等）は better-auth のスキーマ定義と突合する。`wrangler d1 migrations apply DB` が連番SQLを適用する（`drizzle.config.ts` の `schema` は `todos` のみを追跡する点に注意）。
+* デプロイ前に `bun run db:migrate:remote`（本番）/ `bun run db:migrate:preview`（プレビュー）の適用が必要な場合、PR の description に明記する。
 
 ## PRの作成
 

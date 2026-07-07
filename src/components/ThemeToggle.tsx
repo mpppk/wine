@@ -1,26 +1,8 @@
 import { MoonIcon, SunIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { resolveInitialMode, setThemeMode, type ThemeMode } from "#/lib/theme";
 import { cn } from "#/lib/utils";
 import { Switch } from "./ui/switch";
-
-type ThemeMode = "light" | "dark";
-
-function resolveInitialMode(): ThemeMode {
-	if (typeof window === "undefined") return "light";
-	const stored = window.localStorage.getItem("theme");
-	if (stored === "light" || stored === "dark") return stored;
-	return window.matchMedia("(prefers-color-scheme: dark)").matches
-		? "dark"
-		: "light";
-}
-
-function applyTheme(mode: ThemeMode) {
-	const root = document.documentElement;
-	root.classList.remove("light", "dark");
-	root.classList.add(mode);
-	root.setAttribute("data-theme", mode);
-	root.style.colorScheme = mode;
-}
 
 export default function ThemeToggle() {
 	const [mode, setMode] = useState<ThemeMode>("light");
@@ -30,10 +12,7 @@ export default function ThemeToggle() {
 	}, []);
 
 	function handleToggle(checked: boolean) {
-		const next: ThemeMode = checked ? "dark" : "light";
-		setMode(next);
-		applyTheme(next);
-		window.localStorage.setItem("theme", next);
+		setMode(setThemeMode(checked ? "dark" : "light"));
 	}
 
 	const isDark = mode === "dark";
