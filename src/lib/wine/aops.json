@@ -16,7 +16,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -41,7 +49,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -66,7 +82,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -91,7 +115,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -116,7 +148,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -141,7 +181,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -166,7 +214,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -195,7 +251,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -224,7 +288,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -249,7 +321,15 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
 				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
 				"role": "accessory"
 			}
 		],
@@ -280,6 +360,18 @@
 			{
 				"varietyId": "aligote",
 				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
 			}
 		],
 		"soil": "北部は花崗岩・片岩質、南部(ピエール・ドレ地区)は粘土石灰質。",
@@ -293,6 +385,7 @@
 		"shortName": "Aloxe-Corton",
 		"nameJa": "アロース・コルトン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -321,16 +414,16 @@
 			"Domaine Follin-Arbelet",
 			"Domaine Tollot-Beaut"
 		],
-		"description": "グラン・クリュのコルトン、コルトン・シャルルマーニュを戴くコルトンの丘の麓に広がる村名AOC。生産の大半は赤で、タンニンのしっかりした力強く長命なピノ・ノワールを産する。白はごく少量にとどまる。",
-		"subregionId": "cote-de-beaune"
+		"description": "グラン・クリュのコルトン、コルトン・シャルルマーニュを戴くコルトンの丘の麓に広がる村名AOC。生産の大半は赤で、タンニンのしっかりした力強く長命なピノ・ノワールを産する。白はごく少量にとどまる。"
 	},
 	{
 		"id": "auxey-duresses",
 		"idApp": 129,
 		"name": "Auxey-Duresses",
 		"shortName": "Auxey-Duresses",
-		"nameJa": "オークセイ・デュレス",
+		"nameJa": "オーセイ・デュレス",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -359,8 +452,7 @@
 			"Domaine Michel Prunier et Fille",
 			"Domaine Comte Armand"
 		],
-		"description": "ムルソーの西、オート・コートへ続く谷あいに位置する村名AOC。赤と白の両方を産し、隣接する有名村よりも控えめな価格が魅力。メゾン・ルロワやドメーヌ・ドーヴネの本拠地としても知られる。",
-		"subregionId": "cote-de-beaune"
+		"description": "ムルソーの西、オート・コートへ続く谷あいに位置する村名AOC。赤と白の両方を産し、隣接する有名村よりも控えめな価格が魅力。メゾン・ルロワやドメーヌ・ドーヴネの本拠地としても知られる。"
 	},
 	{
 		"id": "batard-montrachet",
@@ -369,6 +461,7 @@
 		"shortName": "Bâtard-Montrachet",
 		"nameJa": "バタール・モンラッシェ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["white"],
@@ -385,8 +478,7 @@
 			"Domaine Paul Pernot",
 			"Maison Olivier Leflaive"
 		],
-		"description": "モンラッシェの斜面下側に位置し、ピュリニーとシャサーニュの両村にまたがる約12haの白のグラン・クリュ。粘土分の多い土壌から、モンラッシェ系特級の中で最も豊満でリッチ、ボリューム感のある白ワインを生む。シャルドネのみが認められる。",
-		"subregionId": "cote-de-beaune"
+		"description": "モンラッシェの斜面下側に位置し、ピュリニーとシャサーニュの両村にまたがる約12haの白のグラン・クリュ。粘土分の多い土壌から、モンラッシェ系特級の中で最も豊満でリッチ、ボリューム感のある白ワインを生む。シャルドネのみが認められる。"
 	},
 	{
 		"id": "beaune",
@@ -395,6 +487,7 @@
 		"shortName": "Beaune",
 		"nameJa": "ボーヌ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -423,8 +516,7 @@
 			"Maison Louis Jadot",
 			"Hospices de Beaune"
 		],
-		"description": "ブルゴーニュワイン商業の中心地ボーヌ市を囲む村名AOC。グレーヴやクロ・デ・ムーシュなど多数のプルミエ・クリュを擁し、畑の多くを大手ネゴシアンが所有する。赤が主体だが、上質な白も生産される。",
-		"subregionId": "cote-de-beaune"
+		"description": "ブルゴーニュワイン商業の中心地ボーヌ市を囲む村名AOC。グレーヴやクロ・デ・ムーシュなど多数のプルミエ・クリュを擁し、畑の多くを大手ネゴシアンが所有する。赤が主体だが、上質な白も生産される。"
 	},
 	{
 		"id": "bienvenues-batard-montrachet",
@@ -433,6 +525,7 @@
 		"shortName": "Bienvenues-Bâtard-Montrachet",
 		"nameJa": "ビアンヴニュ・バタール・モンラッシェ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["white"],
@@ -444,8 +537,7 @@
 		],
 		"soil": "バタール・モンラッシェと連続する粘土石灰質土壌。やや砂質・小石まじりで、バタールよりわずかに軽い。",
 		"producers": ["Domaine Leflaive", "Domaine Ramonet", "Domaine Paul Pernot"],
-		"description": "バタール・モンラッシェの北東角を占める約3.7haの白のグラン・クリュで、ピュリニー＝モンラッシェ村側のみに位置する。バタールに似た豊かさを持ちつつ、より繊細でエレガントなスタイル。最大の所有者はドメーヌ・ルフレーヴ。",
-		"subregionId": "cote-de-beaune"
+		"description": "バタール・モンラッシェの北東角を占める約3.7haの白のグラン・クリュで、ピュリニー＝モンラッシェ村側のみに位置する。バタールに似た豊かさを持ちつつ、より繊細でエレガントなスタイル。最大の所有者はドメーヌ・ルフレーヴ。"
 	},
 	{
 		"id": "blagny",
@@ -454,6 +546,7 @@
 		"shortName": "Blagny",
 		"nameJa": "ブラニー",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red"],
@@ -481,8 +574,7 @@
 			"Domaine Martelet de Cherisey",
 			"Domaine Robert Ampeau et Fils"
 		],
-		"description": "ムルソー村とピュリニー・モンラッシェ村にまたがる小集落(アモー)のAOCで、赤ワインだけに認められる。同じ畑の白はムルソー・ブラニーまたはピュリニー・モンラッシェとして販売されるため、ブラニー名の赤は希少。野趣のある個性的なピノ・ノワールを産する。",
-		"subregionId": "cote-de-beaune"
+		"description": "ムルソー村とピュリニー・モンラッシェ村にまたがる小集落(アモー)のAOCで、赤ワインだけに認められる。同じ畑の白はムルソー・ブラニーまたはピュリニー・モンラッシェとして販売されるため、ブラニー名の赤は希少。野趣のある個性的なピノ・ノワールを産する。"
 	},
 	{
 		"id": "bonnes-mares",
@@ -491,6 +583,7 @@
 		"shortName": "Bonnes-Mares",
 		"nameJa": "ボンヌ・マール",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -521,8 +614,7 @@
 			"Domaine d'Auvenay",
 			"Domaine Bart"
 		],
-		"description": "シャンボール・ミュジニー村とモレ・サン・ドニ村にまたがる約15haのグラン・クリュ。同じ村のミュジニーの優雅さとは対照的に、力強く骨格のあるタンニンを備えた長期熟成型の赤ワインを生む。2種類の土壌の違いが生産者ごとのスタイルの幅にもつながっている。",
-		"subregionId": "cote-de-nuits"
+		"description": "シャンボール・ミュジニー村とモレ・サン・ドニ村にまたがる約15haのグラン・クリュ。同じ村のミュジニーの優雅さとは対照的に、力強く骨格のあるタンニンを備えた長期熟成型の赤ワインを生む。2種類の土壌の違いが生産者ごとのスタイルの幅にもつながっている。"
 	},
 	{
 		"id": "bourgogne",
@@ -531,6 +623,7 @@
 		"shortName": "Bourgogne",
 		"nameJa": "ブルゴーニュ",
 		"region": "bourgogne",
+		"subregionId": "bourgogne-regional",
 		"classification": "regional",
 		"premierCru": false,
 		"colors": ["red", "white", "rose"],
@@ -567,8 +660,7 @@
 			"Maison Bouchard Père & Fils",
 			"Maison Louis Latour"
 		],
-		"description": "ブルゴーニュ地方のほぼ全域をカバーする最も基本的な地方名AOC。赤・ロゼはピノ・ノワール、白はシャルドネを主体に造られ、コート・シャロネーズやオート・コートなどの地理的名称を付記できる。各生産者のスタイルを手頃に知ることができる入門的な存在。",
-		"subregionId": "bourgogne-regional"
+		"description": "ブルゴーニュ地方のほぼ全域をカバーする最も基本的な地方名AOC。赤・ロゼはピノ・ノワール、白はシャルドネを主体に造られ、コート・シャロネーズやオート・コートなどの地理的名称を付記できる。各生産者のスタイルを手頃に知ることができる入門的な存在。"
 	},
 	{
 		"id": "bourgogne-aligote",
@@ -577,6 +669,7 @@
 		"shortName": "Bourgogne aligoté",
 		"nameJa": "ブルゴーニュ・アリゴテ",
 		"region": "bourgogne",
+		"subregionId": "bourgogne-regional",
 		"classification": "regional",
 		"premierCru": false,
 		"colors": ["white"],
@@ -592,8 +685,7 @@
 			"Domaine Coche-Dury",
 			"Domaine d'Auvenay"
 		],
-		"description": "地場品種アリゴテのみから造られる広域AOCの白。高い酸とフレッシュな柑橘の風味を持つ軽快な辛口で、カシスリキュールと合わせるキールの伝統的なベースワインとしても知られる。近年は真剣に造り込む生産者が増え再評価が進んでいる。",
-		"subregionId": "bourgogne-regional"
+		"description": "地場品種アリゴテのみから造られる広域AOCの白。高い酸とフレッシュな柑橘の風味を持つ軽快な辛口で、カシスリキュールと合わせるキールの伝統的なベースワインとしても知られる。近年は真剣に造り込む生産者が増え再評価が進んでいる。"
 	},
 	{
 		"id": "bourgogne-mousseux",
@@ -602,6 +694,7 @@
 		"shortName": "Bourgogne mousseux",
 		"nameJa": "ブルゴーニュ・ムスー",
 		"region": "bourgogne",
+		"subregionId": "bourgogne-regional",
 		"classification": "regional",
 		"premierCru": false,
 		"colors": ["red", "sparkling"],
@@ -633,8 +726,7 @@
 		],
 		"soil": "ブルゴーニュ全域に及ぶ広域AOCのため多様で、石灰岩・泥灰岩由来の粘土石灰質土壌が中心。",
 		"producers": ["Vitteaut-Alberti", "Parigot & Richard"],
-		"description": "1985年以降、赤のスパークリングワイン専用となった珍しい広域AOC。ガメイとピノ・ノワールを主体に瓶内二次発酵で造られる。白・ロゼの泡はクレマン・ド・ブルゴーニュへ移行したため、現在の生産量はごくわずかで希少な存在。",
-		"subregionId": "bourgogne-regional"
+		"description": "1985年以降、赤のスパークリングワイン専用となった珍しい広域AOC。ガメイとピノ・ノワールを主体に瓶内二次発酵で造られる。白・ロゼの泡はクレマン・ド・ブルゴーニュへ移行したため、現在の生産量はごくわずかで希少な存在。"
 	},
 	{
 		"id": "bourgogne-passe-tout-grains",
@@ -643,6 +735,7 @@
 		"shortName": "Bourgogne Passe-tout-grains",
 		"nameJa": "ブルゴーニュ・パス・トゥ・グラン",
 		"region": "bourgogne",
+		"subregionId": "bourgogne-regional",
 		"classification": "regional",
 		"premierCru": false,
 		"colors": ["red", "rose"],
@@ -670,8 +763,7 @@
 		],
 		"soil": "広域AOCのため多様。ガメイが植わる平地寄りの粘土質土壌と、石灰岩由来の粘土石灰質土壌が混在する。",
 		"producers": ["Domaine Michel Lafarge", "Domaine Robert Chevillon"],
-		"description": "ピノ・ノワール(30%以上)とガメイ(15%以上)をブレンドして造る赤・ロゼ専用の広域AOC。畑での混植・混醸の伝統に由来し、気取らず親しみやすい果実味が魅力。有力ドメーヌが手掛ける掘り出し物も多い。",
-		"subregionId": "bourgogne-regional"
+		"description": "ピノ・ノワール(30%以上)とガメイ(15%以上)をブレンドして造る赤・ロゼ専用の広域AOC。畑での混植・混醸の伝統に由来し、気取らず親しみやすい果実味が魅力。有力ドメーヌが手掛ける掘り出し物も多い。"
 	},
 	{
 		"id": "chablis",
@@ -680,6 +772,7 @@
 		"shortName": "Chablis",
 		"nameJa": "シャブリ",
 		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white"],
@@ -698,8 +791,7 @@
 			"Domaine Christian Moreau Père & Fils",
 			"Domaine Billaud-Simon"
 		],
-		"description": "ヨンヌ県スラン川流域に広がるブルゴーニュ最北部の白ワイン産地。シャルドネ100%から、火打石を思わせるミネラルと切れの良い酸を備えた辛口白を生む。フルショーム、モンテ・ド・トネルなど多数のプルミエ・クリュを擁する。",
-		"subregionId": "chablis-grand-auxerrois"
+		"description": "ヨンヌ県スラン川流域に広がるブルゴーニュ最北部の白ワイン産地。シャルドネ100%から、火打石を思わせるミネラルと切れの良い酸を備えた辛口白を生む。フルショーム、モンテ・ド・トネルなど多数のプルミエ・クリュを擁する。"
 	},
 	{
 		"id": "chablis-grand-cru",
@@ -708,6 +800,7 @@
 		"shortName": "Chablis Grand Cru",
 		"nameJa": "シャブリ・グラン・クリュ",
 		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["white"],
@@ -725,8 +818,7 @@
 			"Domaine Long-Depaquit",
 			"La Chablisienne"
 		],
-		"description": "シャブリの町を見下ろす右岸の一枚の丘に広がる、シャブリ地区唯一のグラン・クリュAOC。レ・クロ、ヴォーデジール、グルヌイユなど7つのクリマ(単独区画ラ・ムートンヌを含む)から成る。豊かな凝縮感と強いミネラルを備え、長期熟成に耐える偉大な辛口白を生む。",
-		"subregionId": "chablis-grand-auxerrois"
+		"description": "シャブリの町を見下ろす右岸の一枚の丘に広がる、シャブリ地区唯一のグラン・クリュAOC。レ・クロ、ヴォーデジール、グルヌイユなど7つのクリマから成る(このほかにヴォーデジールとプルーズにまたがる非公式の単独所有区画ラ・ムートンヌが知られる)。豊かな凝縮感と強いミネラルを備え、長期熟成に耐える偉大な辛口白を生む。"
 	},
 	{
 		"id": "chambertin",
@@ -735,6 +827,7 @@
 		"shortName": "Chambertin",
 		"nameJa": "シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -765,8 +858,7 @@
 			"Maison Louis Jadot",
 			"Domaine Jacques Prieur"
 		],
-		"description": "ジュヴレ・シャンベルタン村の斜面中腹に広がる約13haのグラン・クリュで、ナポレオンが愛飲したことでも知られる「王のワイン」。力強く堅牢なタンニンと深遠な複雑さを備え、数十年の熟成に耐えるブルゴーニュ赤の最高峰のひとつ。村の9つのグラン・クリュすべてが「シャンベルタン」の名を冠する基準点となる畑である。",
-		"subregionId": "cote-de-nuits"
+		"description": "ジュヴレ・シャンベルタン村の斜面中腹に広がる約13haのグラン・クリュで、ナポレオンが愛飲したことでも知られる「王のワイン」。力強く堅牢なタンニンと深遠な複雑さを備え、数十年の熟成に耐えるブルゴーニュ赤の最高峰のひとつ。村の9つのグラン・クリュすべてが「シャンベルタン」の名を冠する基準点となる畑である。"
 	},
 	{
 		"id": "chambertin-clos-de-beze",
@@ -775,6 +867,7 @@
 		"shortName": "Chambertin-Clos de Bèze",
 		"nameJa": "シャンベルタン・クロ・ド・ベーズ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -804,8 +897,7 @@
 			"Domaine Bruno Clair",
 			"Domaine Drouhin-Laroze"
 		],
-		"description": "シャンベルタンの北に隣接する約15haのグラン・クリュで、7世紀のベーズ修道院による開墾に起源を持つ歴史的な畑。シャンベルタンと双璧をなし、力強さの中により優美でしなやかな質感を持つとされる。この畑のワインは「シャンベルタン」として販売できるが、その逆は認められていない。",
-		"subregionId": "cote-de-nuits"
+		"description": "シャンベルタンの北に隣接する約15haのグラン・クリュで、7世紀のベーズ修道院による開墾に起源を持つ歴史的な畑。シャンベルタンと双璧をなし、力強さの中により優美でしなやかな質感を持つとされる。この畑のワインは「シャンベルタン」として販売できるが、その逆は認められていない。"
 	},
 	{
 		"id": "chambolle-musigny",
@@ -814,6 +906,7 @@
 		"shortName": "Chambolle-Musigny",
 		"nameJa": "シャンボール・ミュジニー",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red"],
@@ -843,8 +936,7 @@
 			"Domaine Ghislaine Barthod",
 			"Domaine Amiot-Servelle"
 		],
-		"description": "コート・ド・ニュイで最も繊細でエレガントな赤ワインを産するといわれる村名AOC。グラン・クリュのミュジニーとボンヌ・マールを擁し、レ・ザムルーズは村を代表するプルミエ・クリュ。赤のみが認められている。",
-		"subregionId": "cote-de-nuits"
+		"description": "コート・ド・ニュイで最も繊細でエレガントな赤ワインを産するといわれる村名AOC。グラン・クリュのミュジニーとボンヌ・マールを擁し、レ・ザムルーズは村を代表するプルミエ・クリュ。赤のみが認められている。"
 	},
 	{
 		"id": "chapelle-chambertin",
@@ -853,6 +945,7 @@
 		"shortName": "Chapelle-Chambertin",
 		"nameJa": "シャペル・シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -882,8 +975,7 @@
 			"Maison Louis Jadot",
 			"Domaine Cécile Tremblay"
 		],
-		"description": "クロ・ド・ベーズの斜面下側に位置する約5.5haのグラン・クリュ。名は12世紀に建てられた礼拝堂（シャペル）に由来する。ジュヴレの9つのグラン・クリュの中では比較的軽やかで、赤い果実の香りとエレガントな酒質が特徴とされる。",
-		"subregionId": "cote-de-nuits"
+		"description": "クロ・ド・ベーズの斜面下側に位置する約5.5haのグラン・クリュ。名は12世紀に建てられた礼拝堂（シャペル）に由来する。ジュヴレの9つのグラン・クリュの中では比較的軽やかで、赤い果実の香りとエレガントな酒質が特徴とされる。"
 	},
 	{
 		"id": "charlemagne",
@@ -892,6 +984,7 @@
 		"shortName": "Charlemagne",
 		"nameJa": "シャルルマーニュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["white"],
@@ -907,8 +1000,7 @@
 		],
 		"soil": "コルトンの丘上部の急斜面。白色泥灰岩と石灰岩が主体の痩せた石灰質土壌。",
 		"producers": ["Domaine Bonneau du Martray", "Maison Louis Latour"],
-		"description": "コルトン・シャルルマーニュとほぼ同じ区域に認められた白のグラン・クリュAOCで、アロース＝コルトンとペルナン＝ヴェルジュレスにまたがる。生産者は事実上すべてコルトン・シャルルマーニュ名で販売するため、この名称が実際にラベルに使われることはほとんどない。試験対策として存在を覚えておきたい「名目上の」特級である。",
-		"subregionId": "cote-de-beaune"
+		"description": "コルトン・シャルルマーニュとほぼ同じ区域に認められた白のグラン・クリュAOCで、アロース＝コルトンとペルナン＝ヴェルジュレスにまたがる。生産者は事実上すべてコルトン・シャルルマーニュ名で販売するため、この名称が実際にラベルに使われることはほとんどない。試験対策として存在を覚えておきたい「名目上の」特級である。"
 	},
 	{
 		"id": "charmes-chambertin",
@@ -917,6 +1009,7 @@
 		"shortName": "Charmes-Chambertin",
 		"nameJa": "シャルム・シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -946,8 +1039,7 @@
 			"Domaine Perrot-Minot",
 			"Domaine Joseph Roty"
 		],
-		"description": "シャンベルタンの斜面下側、街道沿いに広がるグラン・クリュ。隣接するマゾワイエール・シャンベルタンもこの名で販売できるため、実質的にジュヴレ最大（約30ha）のグラン・クリュとして流通する。しなやかで果実味豊かな、比較的早くから楽しめるスタイルが特徴。",
-		"subregionId": "cote-de-nuits"
+		"description": "シャンベルタンの斜面下側、街道沿いに広がるグラン・クリュ。隣接するマゾワイエール・シャンベルタンもこの名で販売できるため、実質的にジュヴレ最大（約30ha）のグラン・クリュとして流通する。しなやかで果実味豊かな、比較的早くから楽しめるスタイルが特徴。"
 	},
 	{
 		"id": "chassagne-montrachet",
@@ -956,6 +1048,7 @@
 		"shortName": "Chassagne-Montrachet",
 		"nameJa": "シャサーニュ・モンラッシェ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white", "red"],
@@ -984,8 +1077,7 @@
 			"Domaine Paul Pillot",
 			"Domaine Jean-Noël Gagnard"
 		],
-		"description": "ピュリニーとモンラッシェの丘を分け合う村名AOCで、モンラッシェとバタール・モンラッシェの一部、クリオ・バタール・モンラッシェを村内に含む。現在は上質な白が主体だが、伝統的に赤の生産も盛んだった村で、今も両方が造られる。",
-		"subregionId": "cote-de-beaune"
+		"description": "ピュリニーとモンラッシェの丘を分け合う村名AOCで、モンラッシェとバタール・モンラッシェの一部、クリオ・バタール・モンラッシェを村内に含む。現在は上質な白が主体だが、伝統的に赤の生産も盛んだった村で、今も両方が造られる。"
 	},
 	{
 		"id": "chevalier-montrachet",
@@ -994,6 +1086,7 @@
 		"shortName": "Chevalier-Montrachet",
 		"nameJa": "シュヴァリエ・モンラッシェ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["white"],
@@ -1010,8 +1103,7 @@
 			"Maison Louis Jadot",
 			"Maison Louis Latour"
 		],
-		"description": "ピュリニー＝モンラッシェ村内、モンラッシェのすぐ上方斜面に位置する白のグラン・クリュ。薄い表土ゆえにモンラッシェより軽やかで、鋭いミネラルと緊張感のあるエレガントなスタイルを生む。ルフレーヴやブシャールの「ラ・カボット」などが著名。",
-		"subregionId": "cote-de-beaune"
+		"description": "ピュリニー＝モンラッシェ村内、モンラッシェのすぐ上方斜面に位置する白のグラン・クリュ。薄い表土ゆえにモンラッシェより軽やかで、鋭いミネラルと緊張感のあるエレガントなスタイルを生む。ルフレーヴやブシャールの「ラ・カボット」などが著名。"
 	},
 	{
 		"id": "chorey-les-beaune",
@@ -1020,6 +1112,7 @@
 		"shortName": "Chorey-lès-Beaune",
 		"nameJa": "ショレイ・レ・ボーヌ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["red", "white"],
@@ -1047,8 +1140,7 @@
 			"Domaine Arnoux Père et Fils",
 			"Maison Joseph Drouhin"
 		],
-		"description": "ボーヌの北、幹線道路の東の平地に広がる村名AOC。プルミエ・クリュを持たず、生産のほとんどは赤。軽やかで果実味豊かな早飲みスタイルで、手頃な価格のブルゴーニュ入門として親しまれる。",
-		"subregionId": "cote-de-beaune"
+		"description": "ボーヌの北、幹線道路の東の平地に広がる村名AOC。プルミエ・クリュを持たず、生産のほとんどは赤。軽やかで果実味豊かな早飲みスタイルで、手頃な価格のブルゴーニュ入門として親しまれる。"
 	},
 	{
 		"id": "clos-de-la-roche",
@@ -1057,6 +1149,7 @@
 		"shortName": "Clos de la Roche",
 		"nameJa": "クロ・ド・ラ・ロッシュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1087,8 +1180,7 @@
 			"Domaine Hubert Lignier",
 			"Domaine Georges Lignier"
 		],
-		"description": "モレ・サン・ドニ村最大(約17ha)のグラン・クリュで、村の北端、ジュヴレ・シャンベルタン寄りに位置する。浅い表土と石灰岩盤に由来するミネラル感と力強い骨格を備え、シャンベルタンに例えられることもある長期熟成型の赤ワイン。",
-		"subregionId": "cote-de-nuits"
+		"description": "モレ・サン・ドニ村最大(約17ha)のグラン・クリュで、村の北端、ジュヴレ・シャンベルタン寄りに位置する。浅い表土と石灰岩盤に由来するミネラル感と力強い骨格を備え、シャンベルタンに例えられることもある長期熟成型の赤ワイン。"
 	},
 	{
 		"id": "clos-de-tart",
@@ -1097,6 +1189,7 @@
 		"shortName": "Clos de Tart",
 		"nameJa": "クロ・ド・タール",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1118,10 +1211,9 @@
 				"role": "accessory"
 			}
 		],
-		"soil": "バトニアン期の石灰岩を基盤とし、牡蠣の化石を含む泥灰土と粘土石灰質の表土が斜面を覆う。土壌流出を防ぐため畝を斜面と平行(南北ではなく東西)に仕立てることでも知られる。",
+		"soil": "バトニアン期の石灰岩を基盤とし、牡蠣の化石を含む泥灰土と粘土石灰質の表土が斜面を覆う。土壌流出を防ぐため畝を斜面の傾斜方向に対して直角(東西ではなく南北)に仕立てることでも知られる。",
 		"producers": ["Domaine du Clos de Tart"],
-		"description": "モレ・サン・ドニ村の約7.5haを石垣で囲んだ単独所有畑(モノポール)のグラン・クリュ。1141年にタール修道院によって創設されて以来、所有者がわずか数家しか変わっていない歴史的な畑で、現在はアルテミス・グループが所有する。緻密で気品ある長期熟成型の赤ワインを生む。",
-		"subregionId": "cote-de-nuits"
+		"description": "モレ・サン・ドニ村の約7.5haを石垣で囲んだ単独所有畑(モノポール)のグラン・クリュ。1141年にタール修道院によって創設されて以来、所有者がわずか数家しか変わっていない歴史的な畑で、現在はアルテミス・グループが所有する。緻密で気品ある長期熟成型の赤ワインを生む。"
 	},
 	{
 		"id": "clos-de-vougeot",
@@ -1130,6 +1222,7 @@
 		"shortName": "Clos de Vougeot",
 		"nameJa": "クロ・ド・ヴージョ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1160,8 +1253,7 @@
 			"Domaine Jean Grivot",
 			"Domaine d'Eugénie"
 		],
-		"description": "12世紀にシトー派修道士が石垣(クロ)で囲んだ約50haの畑で、コート・ド・ニュイ最大のグラン・クリュ。現在は80以上の所有者に細分化され、区画と造り手によって品質の幅が大きいことを学ぶ好例でもある。畑内のシャトー・デュ・クロ・ド・ヴージョは利き酒騎士団の本拠地として有名。",
-		"subregionId": "cote-de-nuits"
+		"description": "12世紀にシトー派修道士が石垣(クロ)で囲んだ約50haの畑で、コート・ド・ニュイ最大のグラン・クリュ。現在は80以上の所有者に細分化され、区画と造り手によって品質の幅が大きいことを学ぶ好例でもある。畑内のシャトー・デュ・クロ・ド・ヴージョは利き酒騎士団の本拠地として有名。"
 	},
 	{
 		"id": "clos-des-lambrays",
@@ -1170,6 +1262,7 @@
 		"shortName": "Clos des Lambrays",
 		"nameJa": "クロ・デ・ランブレイ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1193,8 +1286,7 @@
 		],
 		"soil": "斜面上部の標高の高い場所まで広がり、石灰岩の礫を含む泥灰土・粘土石灰質土壌。やや冷涼な立地が繊細な酸をもたらす。",
 		"producers": ["Domaine des Lambrays", "Domaine Taupenot-Merme"],
-		"description": "モレ・サン・ドニ村の約8.8haのグラン・クリュで、1981年に昇格した比較的新しい特級畑。ドメーヌ・デ・ランブレイ(現在はLVMH傘下)がほぼ単独所有し、全房発酵を活かした香り高くエレガントなスタイルで知られる。",
-		"subregionId": "cote-de-nuits"
+		"description": "モレ・サン・ドニ村の約8.8haのグラン・クリュで、1981年に昇格した比較的新しい特級畑。ドメーヌ・デ・ランブレイ(現在はLVMH傘下)がほぼ単独所有し、全房発酵を活かした香り高くエレガントなスタイルで知られる。"
 	},
 	{
 		"id": "clos-saint-denis",
@@ -1203,6 +1295,7 @@
 		"shortName": "Clos Saint-Denis",
 		"nameJa": "クロ・サン・ドニ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1231,8 +1324,7 @@
 			"Domaine Georges Lignier",
 			"Domaine Bertagna"
 		],
-		"description": "モレ・サン・ドニ村の村名の由来となった約6.6haの小さなグラン・クリュ。隣のクロ・ド・ラ・ロッシュの力強さに対し、繊細で香り高くエレガントなスタイルで「モレのモーツァルト」とも評される。",
-		"subregionId": "cote-de-nuits"
+		"description": "モレ・サン・ドニ村の村名の由来となった約6.6haの小さなグラン・クリュ。隣のクロ・ド・ラ・ロッシュの力強さに対し、繊細で香り高くエレガントなスタイルで「モレのモーツァルト」とも評される。"
 	},
 	{
 		"id": "corton",
@@ -1241,6 +1333,7 @@
 		"shortName": "Corton",
 		"nameJa": "コルトン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red", "white"],
@@ -1269,8 +1362,7 @@
 			"Domaine Comte Senard",
 			"Domaine Chandon de Briailles"
 		],
-		"description": "ラドワ＝セリニィ、アロース＝コルトン、ペルナン＝ヴェルジュレスの3村にまたがるコート・ド・ボーヌ最大のグラン・クリュで、同地区で赤が認められる唯一の特級。クロ・デュ・ロワやブレッサンドなど多数のクリマ名を併記できる。堅牢でタンニンのしっかりした長期熟成型の赤が中心だが、白もわずかに造られる。",
-		"subregionId": "cote-de-beaune"
+		"description": "ラドワ＝セリニィ、アロース＝コルトン、ペルナン＝ヴェルジュレスの3村にまたがるコート・ド・ボーヌ最大のグラン・クリュで、同地区で赤が認められる唯一の特級。クロ・デュ・ロワやブレッサンドなど多数のクリマ名を併記できる。堅牢でタンニンのしっかりした長期熟成型の赤が中心だが、白もわずかに造られる。"
 	},
 	{
 		"id": "corton-charlemagne",
@@ -1279,6 +1371,7 @@
 		"shortName": "Corton-Charlemagne",
 		"nameJa": "コルトン・シャルルマーニュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["white"],
@@ -1299,8 +1392,7 @@
 			"Maison Louis Latour",
 			"Bouchard Père & Fils"
 		],
-		"description": "コルトンの丘の上部斜面に広がる白のグラン・クリュで、名は皇帝シャルルマーニュの伝承に由来する。シャルドネから、鋭い酸と豊かなミネラル、力強い骨格を備えた長期熟成型の白ワインを生む。コート・ド・ボーヌ北部を代表する偉大な白の産地。",
-		"subregionId": "cote-de-beaune"
+		"description": "コルトンの丘の上部斜面に広がる白のグラン・クリュで、名は皇帝シャルルマーニュの伝承に由来する。シャルドネから、鋭い酸と豊かなミネラル、力強い骨格を備えた長期熟成型の白ワインを生む。コート・ド・ボーヌ北部を代表する偉大な白の産地。"
 	},
 	{
 		"id": "cote-de-beaune",
@@ -1309,6 +1401,7 @@
 		"shortName": "Côte de Beaune",
 		"nameJa": "コート・ド・ボーヌ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["red", "white"],
@@ -1332,8 +1425,7 @@
 		],
 		"soil": "ボーヌ市の上方、モンターニュ・ド・ボーヌの高台に位置し、表土の薄い石灰岩主体の土壌。",
 		"producers": ["Domaine Emmanuel Giboulot", "Maison Joseph Drouhin"],
-		"description": "ボーヌ市を見下ろすモンターニュ・ド・ボーヌの限られた区画のみに認められる小規模なAOC。地区名のように聞こえるが独立したアペラシオンで、コート・ド・ボーヌ・ヴィラージュとは別物。赤・白ともに軽快で親しみやすいスタイル。",
-		"subregionId": "cote-de-beaune"
+		"description": "ボーヌ市を見下ろすモンターニュ・ド・ボーヌの限られた区画のみに認められる小規模なAOC。地区名のように聞こえるが独立したアペラシオンで、コート・ド・ボーヌ・ヴィラージュとは別物。赤・白ともに軽快で親しみやすいスタイル。"
 	},
 	{
 		"id": "cote-de-beaune-villages",
@@ -1342,6 +1434,7 @@
 		"shortName": "Côte de Beaune-Villages",
 		"nameJa": "コート・ド・ボーヌ・ヴィラージュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1369,8 +1462,7 @@
 			"Maison Joseph Drouhin",
 			"Maison Louis Jadot"
 		],
-		"description": "コート・ド・ボーヌの村名AOC(ボーヌ、ポマール、ヴォルネイ、アロース・コルトンを除く)の赤ワインが名乗れるアペラシオン。複数村のワインをブレンドできるため、主にネゴシアンが手がける。ピノ・ノワール100%が基本の、親しみやすい赤ワイン。",
-		"subregionId": "cote-de-beaune"
+		"description": "コート・ド・ボーヌの村名AOC(ボーヌ、ポマール、ヴォルネイ、アロース・コルトンを除く)の赤ワインが名乗れるアペラシオン。複数村のワインをブレンドできるため、主にネゴシアンが手がける。ピノ・ノワール100%が基本の、親しみやすい赤ワイン。"
 	},
 	{
 		"id": "cote-de-nuits-villages",
@@ -1379,6 +1471,7 @@
 		"shortName": "Côte de Nuits-Villages",
 		"nameJa": "コート・ド・ニュイ・ヴィラージュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["red", "white"],
@@ -1407,8 +1500,7 @@
 			"Domaine Jean Petitot et Fils",
 			"Domaine Désertaux-Ferrand"
 		],
-		"description": "フィサン、ブロション、プレモー・プリセ、コンブランシアン、コルゴロワンの5村で名乗れる村名AOC。コート・ド・ニュイの北端と南端の村々をカバーし、ピノ・ノワール主体の果実味豊かで手頃な赤が中心。シャルドネとピノ・ブランによる白も少量造られる。",
-		"subregionId": "cote-de-nuits"
+		"description": "フィサン、ブロション、プレモー・プリセ、コンブランシアン、コルゴロワンの5村で名乗れる村名AOC。コート・ド・ニュイの北端と南端の村々をカバーし、ピノ・ノワール主体の果実味豊かで手頃な赤が中心。シャルドネとピノ・ブランによる白も少量造られる。"
 	},
 	{
 		"id": "cremant-de-bourgogne",
@@ -1417,6 +1509,7 @@
 		"shortName": "Crémant de Bourgogne",
 		"nameJa": "クレマン・ド・ブルゴーニュ",
 		"region": "bourgogne",
+		"subregionId": "bourgogne-regional",
 		"classification": "regional",
 		"premierCru": false,
 		"colors": ["white", "rose", "sparkling"],
@@ -1461,8 +1554,7 @@
 			"Bailly Lapierre",
 			"Cave de Lugny"
 		],
-		"description": "瓶内二次発酵(トラディショナル方式)で造る白・ロゼのスパークリング専用の広域AOC。キュヴェにはピノ・ノワール、シャルドネ、ピノ・グリ、ピノ・ブランを合計30%以上含む規定がある。シャンパーニュに近い品質を手頃に楽しめるとして人気が高い。",
-		"subregionId": "bourgogne-regional"
+		"description": "瓶内二次発酵(トラディショナル方式)で造る白・ロゼのスパークリング専用の広域AOC。キュヴェにはピノ・ノワール、シャルドネ、ピノ・グリ、ピノ・ブランを合計30%以上含む規定がある。シャンパーニュに近い品質を手頃に楽しめるとして人気が高い。"
 	},
 	{
 		"id": "criots-batard-montrachet",
@@ -1471,6 +1563,7 @@
 		"shortName": "Criots-Bâtard-Montrachet",
 		"nameJa": "クリオ・バタール・モンラッシェ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["white"],
@@ -1487,8 +1580,7 @@
 			"Domaine Fontaine-Gagnard",
 			"Domaine Roger Belland"
 		],
-		"description": "シャサーニュ＝モンラッシェ村側のみに位置する約1.6haの、モンラッシェ系で最小の白のグラン・クリュ。生産量が極めて少なく希少で、バタールより軽やかな、繊細で香り高いスタイルを示す。シャルドネのみが認められる。",
-		"subregionId": "cote-de-beaune"
+		"description": "シャサーニュ＝モンラッシェ村側のみに位置する約1.6haの、モンラッシェ系で最小の白のグラン・クリュ。生産量が極めて少なく希少で、バタールより軽やかな、繊細で香り高いスタイルを示す。シャルドネのみが認められる。"
 	},
 	{
 		"id": "echezeaux",
@@ -1497,6 +1589,7 @@
 		"shortName": "Echezeaux",
 		"nameJa": "エシェゾー",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1526,8 +1619,7 @@
 			"Domaine Emmanuel Rouget",
 			"Domaine Jean Grivot"
 		],
-		"description": "フラジェ・エシェゾー村に位置する約36haの、ヴォーヌ・ロマネ系グラン・クリュでは最大の特級畑。11のリューディからなり面積が広いため、生産者や区画によるスタイルの差が大きいことで知られる。総じて香り高くしなやかで、同系の特級の中では比較的早くから楽しめる赤ワインを生む。",
-		"subregionId": "cote-de-nuits"
+		"description": "フラジェ・エシェゾー村に位置する約36haの、ヴォーヌ・ロマネ系グラン・クリュでは最大の特級畑。11のリューディからなり面積が広いため、生産者や区画によるスタイルの差が大きいことで知られる。総じて香り高くしなやかで、同系の特級の中では比較的早くから楽しめる赤ワインを生む。"
 	},
 	{
 		"id": "fixin",
@@ -1536,6 +1628,7 @@
 		"shortName": "Fixin",
 		"nameJa": "フィサン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -1564,8 +1657,7 @@
 			"Domaine Joliet",
 			"Domaine Bart"
 		],
-		"description": "マルサネの南に隣接する小さな村名AOC。クロ・ド・ラ・ペリエールやクロ・デュ・シャピトルなどのプルミエ・クリュを擁し、タンニンのしっかりした堅牢な赤ワインを産する。白はごく少量でシャルドネとピノ・ブランから造られる。",
-		"subregionId": "cote-de-nuits"
+		"description": "マルサネの南に隣接する小さな村名AOC。クロ・ド・ラ・ペリエールやクロ・デュ・シャピトルなどのプルミエ・クリュを擁し、タンニンのしっかりした堅牢な赤ワインを産する。白はごく少量でシャルドネとピノ・ブランから造られる。"
 	},
 	{
 		"id": "gevrey-chambertin",
@@ -1574,6 +1666,7 @@
 		"shortName": "Gevrey-Chambertin",
 		"nameJa": "ジュヴレ・シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red"],
@@ -1604,8 +1697,7 @@
 			"Domaine Dugat-Py",
 			"Domaine Trapet Père et Fils"
 		],
-		"description": "シャンベルタンをはじめ9つのグラン・クリュを擁するコート・ド・ニュイ北部の代表的な村。赤のみが認められ、力強く骨格のあるピノ・ノワールの代名詞的存在。クロ・サン・ジャックなど優れたプルミエ・クリュも多い。",
-		"subregionId": "cote-de-nuits"
+		"description": "シャンベルタンをはじめ9つのグラン・クリュを擁するコート・ド・ニュイ北部の代表的な村。赤のみが認められ、力強く骨格のあるピノ・ノワールの代名詞的存在。クロ・サン・ジャックなど優れたプルミエ・クリュも多い。"
 	},
 	{
 		"id": "givry",
@@ -1614,6 +1706,7 @@
 		"shortName": "Givry",
 		"nameJa": "ジヴリ",
 		"region": "bourgogne",
+		"subregionId": "cote-chalonnaise",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -1629,6 +1722,10 @@
 			{
 				"varietyId": "pinot-blanc",
 				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
 			}
 		],
 		"soil": "石灰岩の丘陵斜面に広がる粘土石灰質土壌。",
@@ -1638,8 +1735,7 @@
 			"Domaine du Clos Salomon",
 			"Domaine Thénard"
 		],
-		"description": "コート・シャロネーズの赤ワイン中心の村名AOCで、アンリ4世が愛飲したと伝えられる。チャーミングな果実味と滑らかさを持つピノ・ノワールが主体で、シャルドネ主体の白も少量造られる。多数のプルミエ・クリュを擁する。",
-		"subregionId": "cote-chalonnaise"
+		"description": "コート・シャロネーズの赤ワイン中心の村名AOCで、アンリ4世が愛飲したと伝えられる。チャーミングな果実味と滑らかさを持つピノ・ノワールが主体で、シャルドネ主体の白も少量造られる。多数のプルミエ・クリュを擁する。"
 	},
 	{
 		"id": "grands-echezeaux",
@@ -1648,6 +1744,7 @@
 		"shortName": "Grands-Echezeaux",
 		"nameJa": "グラン・エシェゾー",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1676,8 +1773,7 @@
 			"Domaine Gros Frère et Sœur",
 			"Maison Joseph Drouhin"
 		],
-		"description": "フラジェ・エシェゾー村、クロ・ド・ヴージョに隣接する約9haのグラン・クリュ。広大なエシェゾーよりも均質で、より深みと骨格のある長熟型の赤ワインを生むと評価される。最大の所有者はドメーヌ・ド・ラ・ロマネ・コンティである。",
-		"subregionId": "cote-de-nuits"
+		"description": "フラジェ・エシェゾー村、クロ・ド・ヴージョに隣接する約9haのグラン・クリュ。広大なエシェゾーよりも均質で、より深みと骨格のある長熟型の赤ワインを生むと評価される。最大の所有者はドメーヌ・ド・ラ・ロマネ・コンティである。"
 	},
 	{
 		"id": "griotte-chambertin",
@@ -1686,6 +1782,7 @@
 		"shortName": "Griotte-Chambertin",
 		"nameJa": "グリオット・シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1714,8 +1811,7 @@
 			"Domaine Claude Dugat",
 			"Maison Joseph Drouhin"
 		],
-		"description": "クロ・ド・ベーズの斜面下側にある約2.7haの、ジュヴレで最も小さいグラン・クリュのひとつ。窪地状の温暖なミクロクリマを持ち、名前を連想させるグリオット（サワーチェリー）の風味と官能的で柔らかな質感で知られる。生産量が極めて少なく希少性が高い。",
-		"subregionId": "cote-de-nuits"
+		"description": "クロ・ド・ベーズの斜面下側にある約2.7haの、ジュヴレで最も小さいグラン・クリュのひとつ。窪地状の温暖なミクロクリマを持ち、名前を連想させるグリオット（サワーチェリー）の風味と官能的で柔らかな質感で知られる。生産量が極めて少なく希少性が高い。"
 	},
 	{
 		"id": "la-grande-rue",
@@ -1724,6 +1820,7 @@
 		"shortName": "La Grande Rue",
 		"nameJa": "ラ・グランド・リュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1747,8 +1844,7 @@
 		],
 		"soil": "硬い石灰岩の基盤の上に薄い粘土石灰質土壌が載る斜面中腹。周囲の特級畑と連続する土壌構成をもつ。",
 		"producers": ["Domaine François Lamarche"],
-		"description": "ラ・ターシュとロマネ・コンティに挟まれた細長い約1.65haの畑で、ドメーヌ・ラマルシュ(旧ドメーヌ・フランソワ・ラマルシュ)のモノポール(単独所有)。1992年にプルミエ・クリュからグラン・クリュに昇格した。繊細で香り高く、しなやかな質感の赤ワインを生む。",
-		"subregionId": "cote-de-nuits"
+		"description": "ラ・ターシュとロマネ・コンティに挟まれた細長い約1.65haの畑で、ドメーヌ・ラマルシュ(旧ドメーヌ・フランソワ・ラマルシュ)のモノポール(単独所有)。1992年にプルミエ・クリュからグラン・クリュに昇格した。繊細で香り高く、しなやかな質感の赤ワインを生む。"
 	},
 	{
 		"id": "la-romanee",
@@ -1757,6 +1853,7 @@
 		"shortName": "La Romanée",
 		"nameJa": "ラ・ロマネ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1780,8 +1877,7 @@
 		],
 		"soil": "ロマネ・コンティの直上に位置するやや急な斜面で、硬い石灰岩の上に薄い褐色の粘土石灰質土壌が載る。",
 		"producers": ["Domaine du Comte Liger-Belair"],
-		"description": "約0.85haというフランス最小のAOCで、ロマネ・コンティのすぐ上に位置する。ドメーヌ・デュ・コント・リジェ・ベレールのモノポールで、2000年代半ばまではブシャール・ペール・エ・フィスが販売を担っていた。気品と緊張感を備えた、極めて希少な赤ワインを生む。",
-		"subregionId": "cote-de-nuits"
+		"description": "約0.85haというフランス最小のAOCで、ロマネ・コンティのすぐ上に位置する。ドメーヌ・デュ・コント・リジェ・ベレールのモノポールで、2000年代半ばまではブシャール・ペール・エ・フィスが販売を担っていた。気品と緊張感を備えた、極めて希少な赤ワインを生む。"
 	},
 	{
 		"id": "la-tache",
@@ -1790,6 +1886,7 @@
 		"shortName": "La Tâche",
 		"nameJa": "ラ・ターシュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1813,8 +1910,7 @@
 		],
 		"soil": "斜面中腹の石灰岩基盤の上に、石灰岩の礫を多く含む粘土石灰質土壌が載る。斜面の上部と下部で土壌の深さが異なる。",
 		"producers": ["Domaine de la Romanée-Conti"],
-		"description": "ヴォーヌ・ロマネ村の約6haのグラン・クリュで、ドメーヌ・ド・ラ・ロマネ・コンティのモノポール。スパイスや薔薇を思わせる複雑な香りと力強い骨格を併せ持ち、ロマネ・コンティと並び称される長熟の偉大な赤ワインを生む。",
-		"subregionId": "cote-de-nuits"
+		"description": "ヴォーヌ・ロマネ村の約6haのグラン・クリュで、ドメーヌ・ド・ラ・ロマネ・コンティのモノポール。スパイスや薔薇を思わせる複雑な香りと力強い骨格を併せ持ち、ロマネ・コンティと並び称される長熟の偉大な赤ワインを生む。"
 	},
 	{
 		"id": "ladoix",
@@ -1823,6 +1919,7 @@
 		"shortName": "Ladoix",
 		"nameJa": "ラドワ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -1851,8 +1948,7 @@
 			"Domaine Edmond Cornu et Fils",
 			"Domaine Michel Mallard et Fils"
 		],
-		"description": "コート・ド・ボーヌ最北端の村ラドワ=セリニィの村名AOC。コルトンの丘の麓に位置し、赤を主体に白も生産される。赤はしなやかで果実味豊か、白はミネラル感のある辛口で、知名度が控えめな分お値打ちな産地として知られる。",
-		"subregionId": "cote-de-beaune"
+		"description": "コート・ド・ボーヌ最北端の村ラドワ=セリニィの村名AOC。コルトンの丘の麓に位置し、赤を主体に白も生産される。赤はしなやかで果実味豊か、白はミネラル感のある辛口で、知名度が控えめな分お値打ちな産地として知られる。"
 	},
 	{
 		"id": "latricieres-chambertin",
@@ -1861,6 +1957,7 @@
 		"shortName": "Latricières-Chambertin",
 		"nameJa": "ラトリシエール・シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -1890,8 +1987,7 @@
 			"Domaine Faiveley",
 			"Domaine Camus Père et Fils"
 		],
-		"description": "シャンベルタンの南に隣接する約7.3haのグラン・クリュで、モレ・サン・ドニ村との境に位置する。「痩せた土地」を意味する名の通り表土が薄く、谷からの冷気も相まって、力強さよりも張りのある酸とフィネス、ミネラル感が際立つスタイルを生む。",
-		"subregionId": "cote-de-nuits"
+		"description": "シャンベルタンの南に隣接する約7.3haのグラン・クリュで、モレ・サン・ドニ村との境に位置する。「痩せた土地」を意味する名の通り表土が薄く、谷からの冷気も相まって、力強さよりも張りのある酸とフィネス、ミネラル感が際立つスタイルを生む。"
 	},
 	{
 		"id": "maranges",
@@ -1900,6 +1996,7 @@
 		"shortName": "Maranges",
 		"nameJa": "マランジュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -1927,8 +2024,7 @@
 			"Domaine Bachelet-Monnot",
 			"Domaine Contat-Grangé"
 		],
-		"description": "1989年にシェイィ、ドゥジズ、サンピニーの3村を統合して誕生した、コート・ド・ボーヌ最南端の村名AOC(行政的にはソーヌ・エ・ロワール県)。ラ・フュシエールなどの一級畑を持ち、素朴で果実味のある赤を中心に手頃な価格で楽しめる。",
-		"subregionId": "cote-de-beaune"
+		"description": "1989年にシェイィ、ドゥジズ、サンピニーの3村を統合して誕生した、コート・ド・ボーヌ最南端の村名AOC(行政的にはソーヌ・エ・ロワール県)。ラ・フュシエールなどの一級畑を持ち、素朴で果実味のある赤を中心に手頃な価格で楽しめる。"
 	},
 	{
 		"id": "marsannay",
@@ -1937,6 +2033,7 @@
 		"shortName": "Marsannay",
 		"nameJa": "マルサネ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["red", "white", "rose"],
@@ -1966,8 +2063,7 @@
 			"Domaine Fougeray de Beauclair",
 			"Château de Marsannay"
 		],
-		"description": "コート・ド・ニュイ最北端、ディジョン近郊に位置する村名AOC。ブルゴーニュの村名で唯一、赤・白・ロゼの3色すべてが認められており、特にロゼの名産地として知られる。赤は果実味豊かで比較的親しみやすいスタイル。",
-		"subregionId": "cote-de-nuits"
+		"description": "コート・ド・ニュイ最北端、ディジョン近郊に位置する村名AOC。ブルゴーニュの村名で唯一、赤・白・ロゼの3色すべてが認められており、特にロゼの名産地として知られる。赤は果実味豊かで比較的親しみやすいスタイル。"
 	},
 	{
 		"id": "mazis-chambertin",
@@ -1976,6 +2072,7 @@
 		"shortName": "Mazis-Chambertin",
 		"nameJa": "マジ・シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -2005,8 +2102,7 @@
 			"Domaine Joseph Roty",
 			"Domaine d'Auvenay"
 		],
-		"description": "クロ・ド・ベーズの北に隣接する、ジュヴレのグラン・クリュ最北端の畑（約9ha）。上部のマジ・オーと下部のマジ・バに分かれ、前者がより高く評価される。堅牢でスパイシーな骨格を持ち、オスピス・ド・ボーヌが最大の所有者としてキュヴェ・マドレーヌ・コリニョンを産することでも知られる。",
-		"subregionId": "cote-de-nuits"
+		"description": "クロ・ド・ベーズの北に隣接する、ジュヴレのグラン・クリュ最北端の畑（約9ha）。上部のマジ・オーと下部のマジ・バに分かれ、前者がより高く評価される。堅牢でスパイシーな骨格を持ち、オスピス・ド・ボーヌが最大の所有者としてキュヴェ・マドレーヌ・コリニョンを産することでも知られる。"
 	},
 	{
 		"id": "mazoyeres-chambertin",
@@ -2015,6 +2111,7 @@
 		"shortName": "Mazoyères-Chambertin",
 		"nameJa": "マゾワイエール・シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -2040,11 +2137,10 @@
 		"producers": [
 			"Domaine Perrot-Minot",
 			"Domaine Taupenot-Merme",
-			"Domaine de la Vougeraie",
+			"Domaine Dugat-Py",
 			"Domaine Camus Père et Fils"
 		],
-		"description": "シャルム・シャンベルタンの南に接する斜面下部のグラン・クリュ（約18.6ha）。この畑のワインは隣のシャルム・シャンベルタンの名で販売することが認められており、実際に多くの生産者がそうするため、マゾワイエールの名を冠したワインは希少。シャルムよりやや骨格のある、土やスパイスのニュアンスを持つスタイルとされる。",
-		"subregionId": "cote-de-nuits"
+		"description": "シャルム・シャンベルタンの南に接する斜面下部のグラン・クリュ（約18.6ha）。この畑のワインは隣のシャルム・シャンベルタンの名で販売することが認められており、実際に多くの生産者がそうするため、マゾワイエールの名を冠したワインは希少。シャルムよりやや骨格のある、土やスパイスのニュアンスを持つスタイルとされる。"
 	},
 	{
 		"id": "mercurey",
@@ -2053,6 +2149,7 @@
 		"shortName": "Mercurey",
 		"nameJa": "メルキュレ",
 		"region": "bourgogne",
+		"subregionId": "cote-chalonnaise",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -2077,8 +2174,7 @@
 			"Domaine Michel Juillot",
 			"Domaine Bruno Lorenzon"
 		],
-		"description": "コート・シャロネーズ最大級の生産量を誇る村名AOCで、大部分を赤が占める。しっかりしたタンニンと骨格を持つピノ・ノワールが特徴で、熟成にも耐える。30を超えるプルミエ・クリュを擁する。",
-		"subregionId": "cote-chalonnaise"
+		"description": "コート・シャロネーズ最大級の生産量を誇る村名AOCで、大部分を赤が占める。しっかりしたタンニンと骨格を持つピノ・ノワールが特徴で、熟成にも耐える。30を超えるプルミエ・クリュを擁する。"
 	},
 	{
 		"id": "meursault",
@@ -2087,6 +2183,7 @@
 		"shortName": "Meursault",
 		"nameJa": "ムルソー",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white", "red"],
@@ -2116,8 +2213,7 @@
 			"Domaine Pierre Morey",
 			"Domaine Michel Bouzereau et Fils"
 		],
-		"description": "コート・ド・ボーヌを代表する白ワインの村名AOC。ナッツやバターを思わせる豊満でコクのある辛口シャルドネで世界的に名高い。グラン・クリュはないが、ペリエールやジュヌヴリエールなど傑出した一級畑を擁し、ごく少量の赤も造られる。",
-		"subregionId": "cote-de-beaune"
+		"description": "コート・ド・ボーヌを代表する白ワインの村名AOC。ナッツやバターを思わせる豊満でコクのある辛口シャルドネで世界的に名高い。グラン・クリュはないが、ペリエールやジュヌヴリエールなど傑出した一級畑を擁し、ごく少量の赤も造られる。"
 	},
 	{
 		"id": "montagny",
@@ -2126,6 +2222,7 @@
 		"shortName": "Montagny",
 		"nameJa": "モンタニー",
 		"region": "bourgogne",
+		"subregionId": "cote-chalonnaise",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white"],
@@ -2142,8 +2239,7 @@
 			"Domaine Feuillat-Juillot",
 			"Maison Louis Latour"
 		],
-		"description": "コート・シャロネーズ最南部に位置する、シャルドネのみを認める白専用の村名AOC。ふくよかで蜜や白い花のニュアンスを持つ白ワインを産する。プルミエ・クリュの区画が非常に多く、ビュクシーの協同組合が生産の中心を担う。",
-		"subregionId": "cote-chalonnaise"
+		"description": "コート・シャロネーズ最南部に位置する、シャルドネのみを認める白専用の村名AOC。ふくよかで蜜や白い花のニュアンスを持つ白ワインを産する。プルミエ・クリュの区画が非常に多く、ビュクシーの協同組合が生産の中心を担う。"
 	},
 	{
 		"id": "monthelie",
@@ -2152,6 +2248,7 @@
 		"shortName": "Monthélie",
 		"nameJa": "モンテリー",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -2179,8 +2276,7 @@
 			"Domaine Paul Garaudet",
 			"Domaine des Comtes Lafon"
 		],
-		"description": "ヴォルネイとムルソーの背後の丘に隠れた小さな村名AOC。生産の大半は赤で、ヴォルネイに似た軽快で果実味豊かなピノ・ノワールを比較的手頃な価格で楽しめる。少量ながら白も造られる。",
-		"subregionId": "cote-de-beaune"
+		"description": "ヴォルネイとムルソーの背後の丘に隠れた小さな村名AOC。生産の大半は赤で、ヴォルネイに似た軽快で果実味豊かなピノ・ノワールを比較的手頃な価格で楽しめる。少量ながら白も造られる。"
 	},
 	{
 		"id": "montrachet",
@@ -2189,6 +2285,7 @@
 		"shortName": "Montrachet",
 		"nameJa": "モンラッシェ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["white"],
@@ -2206,8 +2303,7 @@
 			"Maison Joseph Drouhin",
 			"Domaine des Comtes Lafon"
 		],
-		"description": "ピュリニー＝モンラッシェとシャサーニュ＝モンラッシェの両村にまたがる約8haの白のグラン・クリュで、世界最高峰の辛口白ワインと称される。シャルドネのみから、厚み・凝縮感・ミネラル・長期熟成力のすべてを兼ね備えたワインを生む。周囲の4つの特級(シュヴァリエ、バタール等)の頂点に立つ存在。",
-		"subregionId": "cote-de-beaune"
+		"description": "ピュリニー＝モンラッシェとシャサーニュ＝モンラッシェの両村にまたがる約8haの白のグラン・クリュで、世界最高峰の辛口白ワインと称される。シャルドネのみから、厚み・凝縮感・ミネラル・長期熟成力のすべてを兼ね備えたワインを生む。周囲の4つの特級(シュヴァリエ、バタール等)の頂点に立つ存在。"
 	},
 	{
 		"id": "morey-saint-denis",
@@ -2216,6 +2312,7 @@
 		"shortName": "Morey-Saint-Denis",
 		"nameJa": "モレ・サン・ドニ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -2249,8 +2346,7 @@
 			"Domaine Hubert Lignier",
 			"Domaine Arlaud"
 		],
-		"description": "ジュヴレ・シャンベルタンとシャンボール・ミュジニーに挟まれた村で、クロ・ド・ラ・ロッシュやクロ・ド・タールなど5つのグラン・クリュを擁する。力強さと繊細さを併せ持つ赤が中心。プルミエ・クリュのモン・リュイザンでは例外的にアリゴテも認められた白が造られる。",
-		"subregionId": "cote-de-nuits"
+		"description": "ジュヴレ・シャンベルタンとシャンボール・ミュジニーに挟まれた村で、クロ・ド・ラ・ロッシュやクロ・ド・タールなど5つのグラン・クリュを擁する。力強さと繊細さを併せ持つ赤が中心。プルミエ・クリュのモン・リュイザンでは例外的にアリゴテも認められた白が造られる。"
 	},
 	{
 		"id": "musigny",
@@ -2259,6 +2355,7 @@
 		"shortName": "Musigny",
 		"nameJa": "ミュジニー",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red", "white"],
@@ -2288,8 +2385,7 @@
 			"Domaine Leroy",
 			"Maison Joseph Drouhin"
 		],
-		"description": "シャンボール・ミュジニー村の南端、クロ・ド・ヴージョを見下ろす斜面に位置する約11haのグラン・クリュ。「ビロードのような」と形容される、ブルゴーニュで最も優雅な赤ワインの代名詞的存在。コート・ド・ニュイのグラン・クリュで唯一白ワイン(シャルドネ)も認められており、白はコント・ジョルジュ・ド・ヴォギュエがほぼ独占的に手がける。",
-		"subregionId": "cote-de-nuits"
+		"description": "シャンボール・ミュジニー村の南端、クロ・ド・ヴージョを見下ろす斜面に位置する約11haのグラン・クリュ。「ビロードのような」と形容される、ブルゴーニュで最も優雅な赤ワインの代名詞的存在。コート・ド・ニュイのグラン・クリュで唯一白ワイン(シャルドネ)も認められており、白はコント・ジョルジュ・ド・ヴォギュエがほぼ独占的に手がける。"
 	},
 	{
 		"id": "nuits-saint-georges",
@@ -2298,6 +2394,7 @@
 		"shortName": "Nuits-Saint-Georges",
 		"nameJa": "ニュイ・サン・ジョルジュ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -2327,8 +2424,7 @@
 			"Domaine Prieuré Roch",
 			"Maison Faiveley"
 		],
-		"description": "コート・ド・ニュイ南部の中心となる町で、その名は地区名の由来にもなった。グラン・クリュは持たないが、レ・サン・ジョルジュをはじめ多数のプルミエ・クリュを擁し、タンニンのしっかりした力強い赤を産する。ピノ・ブラン等による白もごく少量造られる。",
-		"subregionId": "cote-de-nuits"
+		"description": "コート・ド・ニュイ南部の中心となる町で、その名は地区名の由来にもなった。グラン・クリュは持たないが、レ・サン・ジョルジュをはじめ多数のプルミエ・クリュを擁し、タンニンのしっかりした力強い赤を産する。ピノ・ブラン等による白もごく少量造られる。"
 	},
 	{
 		"id": "pernand-vergelesses",
@@ -2337,6 +2433,7 @@
 		"shortName": "Pernand-Vergelesses",
 		"nameJa": "ペルナン・ヴェルジュレス",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -2360,13 +2457,11 @@
 		],
 		"soil": "コルトンの丘の西側の谷あいに位置し、石灰質泥灰岩と粘土石灰質土壌の急斜面が中心。",
 		"producers": [
-			"Domaine Bonneau du Martray",
 			"Domaine Rapet Père et Fils",
 			"Domaine Rollin Père et Fils",
 			"Domaine Dubreuil-Fontaine"
 		],
-		"description": "コルトンの丘の裏手、谷あいに隠れるように位置する村。1級イル・デ・ヴェルジュレスをはじめ赤・白ともに引き締まったスタイルで、近年は特にミネラル感のある白の評価が高まっている。コルトン・シャルルマーニュの一部も村内に含まれる。",
-		"subregionId": "cote-de-beaune"
+		"description": "コルトンの丘の裏手、谷あいに隠れるように位置する村。1級イル・デ・ヴェルジュレスをはじめ赤・白ともに引き締まったスタイルで、近年は特にミネラル感のある白の評価が高まっている。コルトン・シャルルマーニュの一部も村内に含まれる。"
 	},
 	{
 		"id": "petit-chablis",
@@ -2375,6 +2470,7 @@
 		"shortName": "Petit Chablis",
 		"nameJa": "プティ・シャブリ",
 		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["white"],
@@ -2391,8 +2487,7 @@
 			"Domaine Jean-Marc Brocard",
 			"Domaine Louis Moreau"
 		],
-		"description": "シャブリ地区の丘の上部、台地状の区画に広がるAOCで、シャルドネのみから造られる。シャブリよりも軽快で、柑橘や白い花の香りとフレッシュな酸が特徴。早飲みに向く気軽な辛口白として親しまれる。",
-		"subregionId": "chablis-grand-auxerrois"
+		"description": "シャブリ地区の丘の上部、台地状の区画に広がるAOCで、シャルドネのみから造られる。シャブリよりも軽快で、柑橘や白い花の香りとフレッシュな酸が特徴。早飲みに向く気軽な辛口白として親しまれる。"
 	},
 	{
 		"id": "pommard",
@@ -2401,6 +2496,7 @@
 		"shortName": "Pommard",
 		"nameJa": "ポマール",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red"],
@@ -2429,8 +2525,7 @@
 			"Château de Pommard",
 			"Domaine Parent"
 		],
-		"description": "ボーヌとヴォルネイの間に位置する赤ワイン専用の村名AOC。コート・ド・ボーヌで最も力強くタンニンのしっかりした長期熟成型のピノ・ノワールを生む。レ・リュジアンやレ・ゼプノといった著名な一級畑を擁する。",
-		"subregionId": "cote-de-beaune"
+		"description": "ボーヌとヴォルネイの間に位置する赤ワイン専用の村名AOC。コート・ド・ボーヌで最も力強くタンニンのしっかりした長期熟成型のピノ・ノワールを生む。レ・リュジアンやレ・ゼプノといった著名な一級畑を擁する。"
 	},
 	{
 		"id": "pouilly-fuisse",
@@ -2439,6 +2534,7 @@
 		"shortName": "Pouilly-Fuissé",
 		"nameJa": "プイィ・フュイッセ",
 		"region": "bourgogne",
+		"subregionId": "maconnais",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white"],
@@ -2456,8 +2552,7 @@
 			"Domaine Robert-Denogent",
 			"Domaine Daniel et Julien Barraud"
 		],
-		"description": "マコネ地区南部、ソリュトレとヴェルジソンの岩山の麓に広がる白ワイン専用の村名AOCで、マコネの最高峰とされる。シャルドネから樽熟成を伴う厚みとミネラルを備えたリッチな白が造られる。2020年ヴィンテージから22のプルミエ・クリュが認定された。",
-		"subregionId": "maconnais"
+		"description": "マコネ地区南部、ソリュトレとヴェルジソンの岩山の麓に広がる白ワイン専用の村名AOCで、マコネの最高峰とされる。シャルドネから樽熟成を伴う厚みとミネラルを備えたリッチな白が造られる。2020年ヴィンテージから22のプルミエ・クリュが認定された。"
 	},
 	{
 		"id": "pouilly-loche",
@@ -2466,6 +2561,7 @@
 		"shortName": "Pouilly-Loché",
 		"nameJa": "プイィ・ロシェ",
 		"region": "bourgogne",
+		"subregionId": "maconnais",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white"],
@@ -2482,8 +2578,7 @@
 			"Bret Brothers",
 			"Cave des Grands Crus Blancs"
 		],
-		"description": "プイィ・フュイッセの東隣、ロシェ村のみを範囲とする小さな白ワイン専用AOCで、「プイィ」を名乗る3つのAOCの中で最も生産量が少ない。シャルドネから親しみやすく果実味豊かな白が造られる。2024年ヴィンテージからプルミエ・クリュ(レ・ミュール)が認められた。",
-		"subregionId": "maconnais"
+		"description": "プイィ・フュイッセの東隣、ロシェ村のみを範囲とする小さな白ワイン専用AOCで、「プイィ」を名乗る3つのAOCの中で最も生産量が少ない。シャルドネから親しみやすく果実味豊かな白が造られる。2024年ヴィンテージからプルミエ・クリュ(レ・ミュール)が認められた。"
 	},
 	{
 		"id": "pouilly-vinzelles",
@@ -2492,6 +2587,7 @@
 		"shortName": "Pouilly-Vinzelles",
 		"nameJa": "プイィ・ヴァンゼル",
 		"region": "bourgogne",
+		"subregionId": "maconnais",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white"],
@@ -2508,8 +2604,7 @@
 			"Domaine Thibert Père et Fils",
 			"Cave des Grands Crus Blancs"
 		],
-		"description": "プイィ・フュイッセの南東、ヴァンゼル村を中心とする白ワイン専用の村名AOC。ソーヌ川を望む東向き斜面のシャルドネから、ミネラル感のある引き締まった白が生まれる。2024年ヴィンテージからレ・カールとレ・ロンジェのプルミエ・クリュが認められた。",
-		"subregionId": "maconnais"
+		"description": "プイィ・フュイッセの南東、ヴァンゼル村を中心とする白ワイン専用の村名AOC。ソーヌ川を望む東向き斜面のシャルドネから、ミネラル感のある引き締まった白が生まれる。2024年ヴィンテージからレ・カール、レ・ロンジェ、レ・ペトーの3つのプルミエ・クリュが認められた。"
 	},
 	{
 		"id": "puligny-montrachet",
@@ -2518,6 +2613,7 @@
 		"shortName": "Puligny-Montrachet",
 		"nameJa": "ピュリニー・モンラッシェ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white", "red"],
@@ -2546,8 +2642,7 @@
 			"Domaine Paul Pernot",
 			"Domaine Jacques Carillon"
 		],
-		"description": "モンラッシェをはじめ4つのグラン・クリュを擁する、世界最高峰の辛口白ワインの村名AOC。張りのある酸と厳格なミネラルを備えたシャルドネはムルソーの豊満さとしばしば対比される。規定上は赤も認められるが生産はごくわずか。",
-		"subregionId": "cote-de-beaune"
+		"description": "モンラッシェをはじめ4つのグラン・クリュを擁する、世界最高峰の辛口白ワインの村名AOC。張りのある酸と厳格なミネラルを備えたシャルドネはムルソーの豊満さとしばしば対比される。規定上は赤も認められるが生産はごくわずか。"
 	},
 	{
 		"id": "richebourg",
@@ -2556,6 +2651,7 @@
 		"shortName": "Richebourg",
 		"nameJa": "リシュブール",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -2586,8 +2682,7 @@
 			"Domaine Méo-Camuzet",
 			"Domaine Jean Grivot"
 		],
-		"description": "ロマネ・コンティの北側に広がる約8haのグラン・クリュで、複数の生産者が区画を分け合う。ヴォーヌ・ロマネの特級の中でも最も豊満で力強いスタイルとされ、ビロードのような質感と壮大なスケールを備えた赤ワインを生む。",
-		"subregionId": "cote-de-nuits"
+		"description": "ロマネ・コンティの北側に広がる約8haのグラン・クリュで、複数の生産者が区画を分け合う。ヴォーヌ・ロマネの特級の中でも最も豊満で力強いスタイルとされ、ビロードのような質感と壮大なスケールを備えた赤ワインを生む。"
 	},
 	{
 		"id": "romanee-conti",
@@ -2596,6 +2691,7 @@
 		"shortName": "Romanée-Conti",
 		"nameJa": "ロマネ・コンティ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -2619,8 +2715,7 @@
 		],
 		"soil": "斜面中腹の理想的な立地で、硬い石灰岩の基盤の上に厚さ50cmほどの浅い褐色の粘土石灰質土壌が載る。",
 		"producers": ["Domaine de la Romanée-Conti"],
-		"description": "ヴォーヌ・ロマネ村の斜面中腹に位置する約1.8haの畑で、ドメーヌ・ド・ラ・ロマネ・コンティのモノポール。世界で最も高価なワインの代名詞であり、比類ない香りの複雑さと絹のような質感を備えた赤ワインを、年産わずか数千本のみ生み出す。",
-		"subregionId": "cote-de-nuits"
+		"description": "ヴォーヌ・ロマネ村の斜面中腹に位置する約1.8haの畑で、ドメーヌ・ド・ラ・ロマネ・コンティのモノポール。世界で最も高価なワインの代名詞であり、比類ない香りの複雑さと絹のような質感を備えた赤ワインを、年産わずか数千本のみ生み出す。"
 	},
 	{
 		"id": "romanee-saint-vivant",
@@ -2629,6 +2724,7 @@
 		"shortName": "Romanée-Saint-Vivant",
 		"nameJa": "ロマネ・サン・ヴィヴァン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -2659,8 +2755,7 @@
 			"Maison Louis Latour",
 			"Domaine Hudelot-Noëllat"
 		],
-		"description": "ロマネ・コンティとリシュブールの斜面下側に広がる約9.4haのグラン・クリュで、名は中世のサン・ヴィヴァン修道院に由来する。ヴォーヌ・ロマネの特級の中では最も繊細でエレガントなスタイルとされ、薔薇やスパイスの香りをまとった気品ある赤ワインを生む。",
-		"subregionId": "cote-de-nuits"
+		"description": "ロマネ・コンティとリシュブールの斜面下側に広がる約9.4haのグラン・クリュで、名は中世のサン・ヴィヴァン修道院に由来する。ヴォーヌ・ロマネの特級の中では最も繊細でエレガントなスタイルとされ、薔薇やスパイスの香りをまとった気品ある赤ワインを生む。"
 	},
 	{
 		"id": "ruchottes-chambertin",
@@ -2669,6 +2764,7 @@
 		"shortName": "Ruchottes-Chambertin",
 		"nameJa": "リュショット・シャンベルタン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "grand-cru",
 		"premierCru": false,
 		"colors": ["red"],
@@ -2697,8 +2793,7 @@
 			"Domaine Christophe Roumier",
 			"Domaine Frédéric Esmonin"
 		],
-		"description": "マジ・シャンベルタンの上方、斜面最上部に位置する約3.3haの小さなグラン・クリュ。岩盤が浅く表土が極めて薄いため、ミネラル感と引き締まった構造、清冽な酸を備えたワインを生む。アルマン・ルソーがモノポールのクロ・デ・リュショットを所有することでも名高い。",
-		"subregionId": "cote-de-nuits"
+		"description": "マジ・シャンベルタンの上方、斜面最上部に位置する約3.3haの小さなグラン・クリュ。岩盤が浅く表土が極めて薄いため、ミネラル感と引き締まった構造、清冽な酸を備えたワインを生む。アルマン・ルソーがモノポールのクロ・デ・リュショットを所有することでも名高い。"
 	},
 	{
 		"id": "rully",
@@ -2707,6 +2802,7 @@
 		"shortName": "Rully",
 		"nameJa": "リュリー",
 		"region": "bourgogne",
+		"subregionId": "cote-chalonnaise",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -2730,8 +2826,7 @@
 			"Domaine Paul et Henri Jacqueson",
 			"Domaine de la Folie"
 		],
-		"description": "コート・シャロネーズ北部の村名AOCで、白がやや優勢。ミネラル感のあるシャルドネと軽やかで果実味豊かなピノ・ノワールを産する。ブルゴーニュのスパークリングワイン造り発祥の地の一つとしても知られ、プルミエ・クリュも擁する。",
-		"subregionId": "cote-chalonnaise"
+		"description": "コート・シャロネーズ北部の村名AOCで、白がやや優勢。ミネラル感のあるシャルドネと軽やかで果実味豊かなピノ・ノワールを産する。ブルゴーニュのスパークリングワイン造り発祥の地の一つとしても知られ、プルミエ・クリュも擁する。"
 	},
 	{
 		"id": "saint-aubin",
@@ -2740,6 +2835,7 @@
 		"shortName": "Saint-Aubin",
 		"nameJa": "サン・トーバン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["white", "red"],
@@ -2767,8 +2863,7 @@
 			"Domaine Marc Colin et Fils",
 			"Domaine Henri Prudhon"
 		],
-		"description": "モンラッシェの丘の裏手の谷に位置する村名AOC。村の畑の大部分が一級畑で、アン・ルミイやミュルジェ・デ・ダン・ド・シアンなど、銘醸畑に隣接する上質な白を割安に楽しめる。冷涼で引き締まったスタイルが特徴。",
-		"subregionId": "cote-de-beaune"
+		"description": "モンラッシェの丘の裏手の谷に位置する村名AOC。村の畑の大部分が一級畑で、アン・ルミイやミュルジェ・デ・ダン・ド・シアンなど、銘醸畑に隣接する上質な白を割安に楽しめる。冷涼で引き締まったスタイルが特徴。"
 	},
 	{
 		"id": "saint-romain",
@@ -2777,6 +2872,7 @@
 		"shortName": "Saint-Romain",
 		"nameJa": "サン・ロマン",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["white", "red"],
@@ -2804,8 +2900,7 @@
 			"Domaine de Chassorney",
 			"Domaine Christophe Buisson"
 		],
-		"description": "オート・コートに接する標高300m超の高地に位置する村名AOC。冷涼な気候を反映した、ミネラル感のある引き締まった白と軽やかな赤を産する。一級畑を持たない素朴な村だが、近年は自然派の造り手の活躍でも注目される。",
-		"subregionId": "cote-de-beaune"
+		"description": "オート・コートに接する標高300m超の高地に位置する村名AOC。冷涼な気候を反映した、ミネラル感のある引き締まった白と軽やかな赤を産する。一級畑を持たない素朴な村だが、近年は自然派の造り手の活躍でも注目される。"
 	},
 	{
 		"id": "saint-veran",
@@ -2814,6 +2909,7 @@
 		"shortName": "Saint-Véran",
 		"nameJa": "サン・ヴェラン",
 		"region": "bourgogne",
+		"subregionId": "maconnais",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["white"],
@@ -2831,8 +2927,7 @@
 			"Maison Verget",
 			"Domaine Daniel et Julien Barraud"
 		],
-		"description": "1971年に創設されたマコネ地区南端の白ワイン専用AOCで、プイィ・フュイッセ地区を挟んで北(ダヴァイエ、プリッセ等)と南(シャスラス、レンシェ等)の2つのゾーンに分かれる。シャルドネから、フレッシュでミネラル豊かな、プイィ・フュイッセより軽快な白が造られる。プルミエ・クリュの認定を申請中だが、現時点では認められていない。",
-		"subregionId": "maconnais"
+		"description": "1971年に創設されたマコネ地区南端の白ワイン専用AOCで、プイィ・フュイッセ地区を挟んで北(ダヴァイエ、プリッセ等)と南(シャスラス、レンシェ等)の2つのゾーンに分かれる。シャルドネから、フレッシュでミネラル豊かな、プイィ・フュイッセより軽快な白が造られる。プルミエ・クリュの認定を申請中だが、現時点では認められていない。"
 	},
 	{
 		"id": "santenay",
@@ -2841,6 +2936,7 @@
 		"shortName": "Santenay",
 		"nameJa": "サントネイ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -2869,8 +2965,7 @@
 			"Château de Santenay",
 			"Domaine Françoise et Denis Clair"
 		],
-		"description": "コート・ド・ボーヌ南部に位置する村名AOC。果実味豊かでややタンニンのしっかりした赤が主体だが、近年は白の生産も増えている。レ・グラヴィエールやクロ・ド・タヴァンヌなどの一級畑を持つ。",
-		"subregionId": "cote-de-beaune"
+		"description": "コート・ド・ボーヌ南部に位置する村名AOC。果実味豊かでややタンニンのしっかりした赤が主体だが、近年は白の生産も増えている。レ・グラヴィエールやクロ・ド・タヴァンヌなどの一級畑を持つ。"
 	},
 	{
 		"id": "savigny-les-beaune",
@@ -2879,6 +2974,7 @@
 		"shortName": "Savigny-lès-Beaune",
 		"nameJa": "サヴィニー・レ・ボーヌ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -2907,8 +3003,7 @@
 			"Domaine Pavelot",
 			"Domaine Antonin Guyon"
 		],
-		"description": "ボーヌの北西、ロワン川の谷に開けた村で、レ・ラヴィエールやラ・ドミノードなど多くの1級畑を持つ。赤は赤系果実の香る親しみやすくしなやかなスタイルで、フレッシュな白も少量生産される。",
-		"subregionId": "cote-de-beaune"
+		"description": "ボーヌの北西、ロワン川の谷に開けた村で、レ・ラヴィエールやラ・ドミノードなど多くの1級畑を持つ。赤は赤系果実の香る親しみやすくしなやかなスタイルで、フレッシュな白も少量生産される。"
 	},
 	{
 		"id": "volnay",
@@ -2917,6 +3012,7 @@
 		"shortName": "Volnay",
 		"nameJa": "ヴォルネイ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red"],
@@ -2945,8 +3041,7 @@
 			"Domaine de la Pousse d'Or",
 			"Domaine de Montille"
 		],
-		"description": "ポマールの南に隣接する赤ワイン専用の村名AOC。薄い石灰質土壌から香り高く繊細でエレガントなピノ・ノワールを産し、隣村ポマールの力強さと好対照をなす。クロ・デ・シェーヌやカイユレなど多数の一級畑を持つ。",
-		"subregionId": "cote-de-beaune"
+		"description": "ポマールの南に隣接する赤ワイン専用の村名AOC。薄い石灰質土壌から香り高く繊細でエレガントなピノ・ノワールを産し、隣村ポマールの力強さと好対照をなす。クロ・デ・シェーヌやカイユレなど多数の一級畑を持つ。"
 	},
 	{
 		"id": "vosne-romanee",
@@ -2955,6 +3050,7 @@
 		"shortName": "Vosne-Romanée",
 		"nameJa": "ヴォーヌ・ロマネ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red"],
@@ -2985,8 +3081,7 @@
 			"Domaine du Comte Liger-Belair",
 			"Domaine Anne Gros"
 		],
-		"description": "ロマネ・コンティやラ・ターシュなど数々のグラン・クリュを擁する、ブルゴーニュ赤ワインの聖地と呼ばれる村。ビロードのような質感と芳醇な香りを備えた、豪奢で気品ある赤のみを産する。オー・マルコンソールやレ・スショなどのプルミエ・クリュも名高い。",
-		"subregionId": "cote-de-nuits"
+		"description": "ロマネ・コンティやラ・ターシュなど数々のグラン・クリュを擁する、ブルゴーニュ赤ワインの聖地と呼ばれる村。ビロードのような質感と芳醇な香りを備えた、豪奢で気品ある赤のみを産する。オー・マルコンソールやレ・スショなどのプルミエ・クリュも名高い。"
 	},
 	{
 		"id": "vougeot",
@@ -2995,6 +3090,7 @@
 		"shortName": "Vougeot",
 		"nameJa": "ヴージョ",
 		"region": "bourgogne",
+		"subregionId": "cote-de-nuits",
 		"classification": "village",
 		"premierCru": true,
 		"colors": ["red", "white"],
@@ -3020,11 +3116,9 @@
 		"producers": [
 			"Domaine Bertagna",
 			"Domaine de la Vougeraie",
-			"Château de la Tour",
 			"Domaine Hudelot-Noëllat"
 		],
-		"description": "グラン・クリュのクロ・ド・ヴージョで知られる村で、村名AOCの面積はごくわずか。プルミエ・クリュのル・クロ・ブラン(クロ・ブラン・ド・ヴージョ)では、シトー派修道士の時代に起源をもつ白ワインも造られる。",
-		"subregionId": "cote-de-nuits"
+		"description": "グラン・クリュのクロ・ド・ヴージョで知られる村で、村名AOCの面積はごくわずか。プルミエ・クリュのル・クロ・ブラン(クロ・ブラン・ド・ヴージョ)では、シトー派修道士の時代に起源をもつ白ワインも造られる。"
 	},
 	{
 		"id": "bouzeron",
@@ -3033,6 +3127,7 @@
 		"shortName": "Bouzeron",
 		"nameJa": "ブーズロン",
 		"region": "bourgogne",
+		"subregionId": "cote-chalonnaise",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["white"],
@@ -3044,8 +3139,7 @@
 		],
 		"soil": "泥灰岩を挟むジュラ紀の石灰岩からなる急斜面の痩せた粘土石灰質土壌。アリゴテに引き締まった酸とミネラル感を与える。",
 		"producers": ["Domaine A. et P. de Villaine", "Domaine Chanzy"],
-		"description": "コート・シャロネーズ最北部にある、アリゴテ専用として唯一の村名AOC(1998年昇格)。ロマネ・コンティ共同経営者オベール・ド・ヴィレーヌの尽力で名声を高めた。上質なアリゴテ・ドレから、引き締まった辛口白を産する。",
-		"subregionId": "cote-chalonnaise"
+		"description": "コート・シャロネーズ最北部にある、アリゴテ専用として唯一の村名AOC(1998年昇格)。ロマネ・コンティ共同経営者オベール・ド・ヴィレーヌの尽力で名声を高めた。上質なアリゴテ・ドレから、引き締まった辛口白を産する。"
 	},
 	{
 		"id": "vire-clesse",
@@ -3054,6 +3148,7 @@
 		"shortName": "Viré-Clessé",
 		"nameJa": "ヴィレ・クレッセ",
 		"region": "bourgogne",
+		"subregionId": "maconnais",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["white"],
@@ -3070,8 +3165,7 @@
 			"Domaine de Roally",
 			"Cave de Viré"
 		],
-		"description": "1999年にマコン・ヴィレとマコン・クレッセの2つの優良村を統合して誕生したマコネ北部の村名AOCで、白のみを生産する。シャルドネから、熟した果実味と豊かなミネラルを備えたふくよかな白が生まれる。貴腐や遅摘みによる残糖を持つ「ルヴルテ」と呼ばれる伝統スタイルが認められている点でも珍しい。",
-		"subregionId": "maconnais"
+		"description": "1999年にマコン・ヴィレとマコン・クレッセの2つの優良村を統合して誕生したマコネ北部の村名AOCで、白のみを生産する。シャルドネから、熟した果実味と豊かなミネラルを備えたふくよかな白が生まれる。貴腐や遅摘みによる残糖を持つ「ルヴルテ」と呼ばれる伝統スタイルが認められている点でも珍しい。"
 	},
 	{
 		"id": "irancy",
@@ -3080,6 +3174,7 @@
 		"shortName": "Irancy",
 		"nameJa": "イランシー",
 		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["red"],
@@ -3104,8 +3199,7 @@
 			"Domaine Benoît Cantin",
 			"Domaine Clotilde Davenne"
 		],
-		"description": "オーセール近郊、赤ワインのみを生むAOCで1999年に村名に昇格。ピノ・ノワールを主体に、土着品種セザール(およびピノ・グリ)を合計10%まで補助的に使用できる。色調が濃く、しっかりした骨格と冷涼産地らしい酸をもつ赤ワインとなる。",
-		"subregionId": "chablis-grand-auxerrois"
+		"description": "オーセール近郊、赤ワインのみを生むAOCで1999年に村名に昇格。ピノ・ノワールを主体に、土着品種セザール(およびピノ・グリ)を合計10%まで補助的に使用できる。色調が濃く、しっかりした骨格と冷涼産地らしい酸をもつ赤ワインとなる。"
 	},
 	{
 		"id": "saint-bris",
@@ -3114,6 +3208,7 @@
 		"shortName": "Saint-Bris",
 		"nameJa": "サン・ブリ",
 		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["white"],
@@ -3135,8 +3230,7 @@
 			"Domaine Clotilde Davenne",
 			"Maison Simonnet-Febvre"
 		],
-		"description": "オーセール近郊のサン・ブリ・ル・ヴィノー村を中心とする、ソーヴィニヨン(ブランおよびグリ)を用いるブルゴーニュで唯一のAOC。2003年にVDQSからAOCに昇格した。ハーブや柑橘のアロマティックな香りと快活な酸をもつ辛口白を生む。",
-		"subregionId": "chablis-grand-auxerrois"
+		"description": "オーセール近郊のサン・ブリ・ル・ヴィノー村を中心とする、ソーヴィニヨン(ブランおよびグリ)を用いるブルゴーニュで唯一のAOC。2003年にVDQSからAOCに昇格した。ハーブや柑橘のアロマティックな香りと快活な酸をもつ辛口白を生む。"
 	},
 	{
 		"id": "macon",
@@ -3145,6 +3239,7 @@
 		"shortName": "Mâcon",
 		"nameJa": "マコン",
 		"region": "bourgogne",
+		"subregionId": "maconnais",
 		"classification": "regional",
 		"premierCru": false,
 		"colors": ["red", "white", "rose"],
@@ -3159,7 +3254,7 @@
 			},
 			{
 				"varietyId": "pinot-noir",
-				"role": "accessory"
+				"role": "principal"
 			}
 		],
 		"soil": "粘土石灰質土壌が主体で、ジュラ紀の石灰岩や泥灰岩の丘陵が連なる。南部や西部には花崗岩質・砂質の土壌も見られる。",
@@ -3170,8 +3265,7 @@
 			"Domaine Olivier Merlin",
 			"Cave de Lugny"
 		],
-		"description": "マコネ地区のほぼ全域をカバーする広域AOC。白はシャルドネ100%、赤・ロゼはガメイとピノ・ノワールから造られる(村名を付す場合の赤・ロゼはガメイのみ)。白のみのマコン・ヴィラージュや、Mâcon-Lugnyのように村名を付記したスタイルでも広く流通する。",
-		"subregionId": "maconnais"
+		"description": "マコネ地区のほぼ全域をカバーする広域AOC。白はシャルドネ100%、赤・ロゼはガメイとピノ・ノワールから造られる(村名を付す場合の赤・ロゼはガメイのみ)。白のみのマコン・ヴィラージュや、Mâcon-Lugnyのように村名を付記したスタイルでも広く流通する。"
 	},
 	{
 		"id": "coteaux-bourguignons",
@@ -3180,6 +3274,7 @@
 		"shortName": "Coteaux Bourguignons",
 		"nameJa": "コトー・ブルギニョン",
 		"region": "bourgogne",
+		"subregionId": "bourgogne-regional",
 		"classification": "regional",
 		"premierCru": false,
 		"colors": ["red", "white", "rose"],
@@ -3194,7 +3289,7 @@
 			},
 			{
 				"varietyId": "cesar",
-				"role": "accessory"
+				"role": "principal"
 			},
 			{
 				"varietyId": "aligote",
@@ -3219,8 +3314,7 @@
 		],
 		"soil": "北のヨンヌ県からボジョレーまでを含む広大な範囲が対象で、粘土石灰質から南部の花崗岩質まで土壌は極めて多様。",
 		"producers": ["Maison Louis Jadot", "Maison Albert Bichot"],
-		"description": "2011年にブルゴーニュ・グラン・トルディネールを引き継いで誕生した広域AOCで、ボジョレー地区も範囲に含む。ガメイとピノ・ノワールを自由な比率でブレンドできるなど規定が柔軟。日常的に楽しめる気軽なスタイルの赤・白・ロゼを産する。",
-		"subregionId": "bourgogne-regional"
+		"description": "2011年にブルゴーニュ・グラン・オルディネールを引き継いで誕生した広域AOCで、ボジョレー地区も範囲に含む。ガメイとピノ・ノワールを自由な比率でブレンドできるなど規定が柔軟。日常的に楽しめる気軽なスタイルの赤・白・ロゼを産する。"
 	},
 	{
 		"id": "vezelay",
@@ -3229,6 +3323,7 @@
 		"shortName": "Vézelay",
 		"nameJa": "ヴェズレー",
 		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
 		"classification": "village",
 		"premierCru": false,
 		"colors": ["white"],
@@ -3246,7 +3341,6 @@
 			"Domaine La Croix Montjoie",
 			"Domaine des Faverelles"
 		],
-		"description": "世界遺産ヴェズレーの丘の周辺に広がるグラン・オーセロワ南部の産地で、2017年に地方名ブルゴーニュ・ヴェズレーから村名AOCに昇格した。シャルドネ100%の辛口白のみが認められる。フレッシュな酸とミネラル感をもつ、張りのあるスタイルが特徴。",
-		"subregionId": "chablis-grand-auxerrois"
+		"description": "世界遺産ヴェズレーの丘の周辺に広がるグラン・オーセロワ南部の産地で、2017年に地方名ブルゴーニュ・ヴェズレーから村名AOCに昇格した。シャルドネ100%の辛口白のみが認められる。フレッシュな酸とミネラル感をもつ、張りのあるスタイルが特徴。"
 	}
 ]
