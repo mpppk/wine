@@ -130,3 +130,34 @@ body,
     @apply bg-background text-foreground;
   }
 }
+
+/* MapLibre popup (AOP hover) — アプリのテーマトークンに合わせる */
+.aop-popup .maplibregl-popup-content {
+	background: var(--background);
+	color: var(--foreground);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 8px 10px;
+	box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+.aop-popup .maplibregl-popup-tip {
+	border-top-color: var(--border);
+	border-bottom-color: var(--border);
+}
+.aop-popup-body {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 12px;
+	line-height: 1.4;
+}
+.aop-popup-body strong {
+	font-size: 13px;
+}
+.aop-popup-body span {
+	color: var(--muted-foreground);
+}
+.aop-popup-body em {
+	font-style: normal;
+	color: var(--muted-foreground);
+}

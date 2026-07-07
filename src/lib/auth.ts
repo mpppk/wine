@@ -16,6 +16,12 @@ export const auth = betterAuth({
 		"http://localhost:3001",
 		"https://wine.niboshi.workers.dev",
 		"https://*.wine.niboshi.workers.dev",
+		// wrangler の versions preview / Workers Builds のプレビューURLは
+		// 「<version|branch>-<worker名>.niboshi.workers.dev」というダッシュ連結の
+		// ホスト名になるため、ドット区切りのワイルドカードとは別に許可する。
+		"https://*-wine.niboshi.workers.dev",
+		"https://wine-preview.niboshi.workers.dev",
+		"https://*-wine-preview.niboshi.workers.dev",
 	],
 	emailAndPassword: {
 		enabled: true,

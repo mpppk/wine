@@ -3,6 +3,7 @@ import {
 	HomeIcon,
 	LogInIcon,
 	LogOutIcon,
+	MapIcon,
 	SunMoonIcon,
 	UserIcon,
 } from "lucide-react";
@@ -127,6 +128,20 @@ export function CommandPalette() {
 								<HomeIcon />
 								ホームへ移動
 							</CommandItem>
+
+							{session?.user && (
+								<CommandItem
+									keywords={["map", "地図", "aop", "ワイン", "地域", "regions"]}
+									onSelect={() =>
+										runAndClose(() => {
+											void router.navigate({ to: "/regions" });
+										})
+									}
+								>
+									<MapIcon />
+									地図でAOPを学ぶ
+								</CommandItem>
+							)}
 
 							{session?.user && (
 								<CommandItem

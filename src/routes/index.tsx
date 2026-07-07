@@ -30,8 +30,8 @@ function HomePage() {
 				<CardHeader>
 					<CardTitle className="text-2xl">ワインAOP学習アプリ</CardTitle>
 					<CardDescription>
-						国や地方から地図を辿り、区域ごとのAOP・土壌・主要ワイナリーを学べる
-						アプリのベースです。ここから機能を作り込んでいきます。
+						地図から地域ごとのAOP(原産地呼称)の区画・土壌・ブドウ品種・
+						主要な生産者を学べるアプリです。
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
@@ -39,9 +39,14 @@ function HomePage() {
 						{user?.name ? `${user.name} さん` : "ゲスト"}（{user?.email}）
 						としてログイン中です。
 					</p>
-					<Button asChild className="self-start">
-						<Link to="/profile">プロフィールを編集</Link>
-					</Button>
+					<div className="flex flex-wrap gap-2">
+						<Button asChild>
+							<Link to="/regions">地図でAOPを学ぶ</Link>
+						</Button>
+						<Button asChild variant="outline">
+							<Link to="/profile">プロフィールを編集</Link>
+						</Button>
+					</div>
 				</CardContent>
 			</Card>
 		</main>
