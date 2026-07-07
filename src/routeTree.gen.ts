@@ -11,20 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as OrgsRouteImport } from './routes/orgs'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
-import { Route as OrgOrgIdIndexRouteImport } from './routes/org/$orgId/index'
-import { Route as EmbedTeamsTeamIdRouteImport } from './routes/embed/teams/$teamId'
 import { Route as ApiImagesSplatRouteImport } from './routes/api/images/$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as OrgOrgIdTeamTeamIdTodosRouteImport } from './routes/org/$orgId/team/$teamId/todos'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -36,19 +31,9 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OrgsRoute = OrgsRouteImport.update({
-  id: '/orgs',
-  path: '/orgs',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AcceptInvitationRoute = AcceptInvitationRouteImport.update({
-  id: '/accept-invitation',
-  path: '/accept-invitation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -83,16 +68,6 @@ const DotwellKnownOauthAuthorizationServerRoute =
     path: '/.well-known/oauth-authorization-server',
     getParentRoute: () => rootRouteImport,
   } as any)
-const OrgOrgIdIndexRoute = OrgOrgIdIndexRouteImport.update({
-  id: '/org/$orgId/',
-  path: '/org/$orgId/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedTeamsTeamIdRoute = EmbedTeamsTeamIdRouteImport.update({
-  id: '/embed/teams/$teamId',
-  path: '/embed/teams/$teamId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiImagesSplatRoute = ApiImagesSplatRouteImport.update({
   id: '/api/images/$',
   path: '/api/images/$',
@@ -103,17 +78,10 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OrgOrgIdTeamTeamIdTodosRoute = OrgOrgIdTeamTeamIdTodosRouteImport.update({
-  id: '/org/$orgId/team/$teamId/todos',
-  path: '/org/$orgId/team/$teamId/todos',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/accept-invitation': typeof AcceptInvitationRoute
   '/login': typeof LoginRoute
-  '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
@@ -123,15 +91,10 @@ export interface FileRoutesByFullPath {
   '/oauth/consent': typeof OauthConsentRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
-  '/embed/teams/$teamId': typeof EmbedTeamsTeamIdRoute
-  '/org/$orgId/': typeof OrgOrgIdIndexRoute
-  '/org/$orgId/team/$teamId/todos': typeof OrgOrgIdTeamTeamIdTodosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/accept-invitation': typeof AcceptInvitationRoute
   '/login': typeof LoginRoute
-  '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
@@ -141,16 +104,11 @@ export interface FileRoutesByTo {
   '/oauth/consent': typeof OauthConsentRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
-  '/embed/teams/$teamId': typeof EmbedTeamsTeamIdRoute
-  '/org/$orgId': typeof OrgOrgIdIndexRoute
-  '/org/$orgId/team/$teamId/todos': typeof OrgOrgIdTeamTeamIdTodosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/accept-invitation': typeof AcceptInvitationRoute
   '/login': typeof LoginRoute
-  '/orgs': typeof OrgsRoute
   '/profile': typeof ProfileRoute
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
@@ -160,17 +118,12 @@ export interface FileRoutesById {
   '/oauth/consent': typeof OauthConsentRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
-  '/embed/teams/$teamId': typeof EmbedTeamsTeamIdRoute
-  '/org/$orgId/': typeof OrgOrgIdIndexRoute
-  '/org/$orgId/team/$teamId/todos': typeof OrgOrgIdTeamTeamIdTodosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/accept-invitation'
     | '/login'
-    | '/orgs'
     | '/profile'
     | '/signup'
     | '/.well-known/oauth-authorization-server'
@@ -180,15 +133,10 @@ export interface FileRouteTypes {
     | '/oauth/consent'
     | '/api/auth/$'
     | '/api/images/$'
-    | '/embed/teams/$teamId'
-    | '/org/$orgId/'
-    | '/org/$orgId/team/$teamId/todos'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/accept-invitation'
     | '/login'
-    | '/orgs'
     | '/profile'
     | '/signup'
     | '/.well-known/oauth-authorization-server'
@@ -198,15 +146,10 @@ export interface FileRouteTypes {
     | '/oauth/consent'
     | '/api/auth/$'
     | '/api/images/$'
-    | '/embed/teams/$teamId'
-    | '/org/$orgId'
-    | '/org/$orgId/team/$teamId/todos'
   id:
     | '__root__'
     | '/'
-    | '/accept-invitation'
     | '/login'
-    | '/orgs'
     | '/profile'
     | '/signup'
     | '/.well-known/oauth-authorization-server'
@@ -216,16 +159,11 @@ export interface FileRouteTypes {
     | '/oauth/consent'
     | '/api/auth/$'
     | '/api/images/$'
-    | '/embed/teams/$teamId'
-    | '/org/$orgId/'
-    | '/org/$orgId/team/$teamId/todos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AcceptInvitationRoute: typeof AcceptInvitationRoute
   LoginRoute: typeof LoginRoute
-  OrgsRoute: typeof OrgsRoute
   ProfileRoute: typeof ProfileRoute
   SignupRoute: typeof SignupRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
@@ -235,9 +173,6 @@ export interface RootRouteChildren {
   OauthConsentRoute: typeof OauthConsentRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiImagesSplatRoute: typeof ApiImagesSplatRoute
-  EmbedTeamsTeamIdRoute: typeof EmbedTeamsTeamIdRoute
-  OrgOrgIdIndexRoute: typeof OrgOrgIdIndexRoute
-  OrgOrgIdTeamTeamIdTodosRoute: typeof OrgOrgIdTeamTeamIdTodosRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -256,25 +191,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/orgs': {
-      id: '/orgs'
-      path: '/orgs'
-      fullPath: '/orgs'
-      preLoaderRoute: typeof OrgsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/accept-invitation': {
-      id: '/accept-invitation'
-      path: '/accept-invitation'
-      fullPath: '/accept-invitation'
-      preLoaderRoute: typeof AcceptInvitationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -319,20 +240,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/org/$orgId/': {
-      id: '/org/$orgId/'
-      path: '/org/$orgId'
-      fullPath: '/org/$orgId/'
-      preLoaderRoute: typeof OrgOrgIdIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/teams/$teamId': {
-      id: '/embed/teams/$teamId'
-      path: '/embed/teams/$teamId'
-      fullPath: '/embed/teams/$teamId'
-      preLoaderRoute: typeof EmbedTeamsTeamIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/images/$': {
       id: '/api/images/$'
       path: '/api/images/$'
@@ -347,21 +254,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/org/$orgId/team/$teamId/todos': {
-      id: '/org/$orgId/team/$teamId/todos'
-      path: '/org/$orgId/team/$teamId/todos'
-      fullPath: '/org/$orgId/team/$teamId/todos'
-      preLoaderRoute: typeof OrgOrgIdTeamTeamIdTodosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AcceptInvitationRoute: AcceptInvitationRoute,
   LoginRoute: LoginRoute,
-  OrgsRoute: OrgsRoute,
   ProfileRoute: ProfileRoute,
   SignupRoute: SignupRoute,
   DotwellKnownOauthAuthorizationServerRoute:
@@ -373,9 +271,6 @@ const rootRouteChildren: RootRouteChildren = {
   OauthConsentRoute: OauthConsentRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiImagesSplatRoute: ApiImagesSplatRoute,
-  EmbedTeamsTeamIdRoute: EmbedTeamsTeamIdRoute,
-  OrgOrgIdIndexRoute: OrgOrgIdIndexRoute,
-  OrgOrgIdTeamTeamIdTodosRoute: OrgOrgIdTeamTeamIdTodosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

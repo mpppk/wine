@@ -1,6 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import {
-	FolderIcon,
+	HomeIcon,
 	LogInIcon,
 	LogOutIcon,
 	SunMoonIcon,
@@ -117,15 +117,15 @@ export function CommandPalette() {
 
 						<CommandGroup heading="移動">
 							<CommandItem
-								keywords={["organizations", "組織", "一覧", "orgs"]}
+								keywords={["home", "ホーム", "トップ", "top"]}
 								onSelect={() =>
 									runAndClose(() => {
-										void router.navigate({ to: "/orgs" });
+										void router.navigate({ to: "/" });
 									})
 								}
 							>
-								<FolderIcon />
-								組織一覧へ移動
+								<HomeIcon />
+								ホームへ移動
 							</CommandItem>
 
 							{session?.user && (

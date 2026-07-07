@@ -1,16 +1,4 @@
-import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-
-export const todos = sqliteTable("todos", {
-	id: integer({ mode: "number" }).primaryKey({
-		autoIncrement: true,
-	}),
-	title: text().notNull(),
-	description: text(),
-	done: integer({ mode: "boolean" }).notNull().default(false),
-	assigneeId: text("assignee_id"),
-	teamId: text("team_id").notNull(),
-	createdAt: integer("created_at", { mode: "timestamp" }).default(
-		sql`(unixepoch())`,
-	),
-});
+// Domain schema for the wine AOP study app. The original todos tables were
+// removed with the todos feature; new tables (countries / regions / AOP areas
+// etc.) will be added here. drizzle.config.ts tracks this file for db:generate.
+export {};
