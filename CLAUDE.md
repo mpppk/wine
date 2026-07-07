@@ -33,9 +33,9 @@
 
 # 環境
 ## 本番環境
-* URL: https://todo-app2026.niboshi.workers.dev
+* URL: https://wine.niboshi.workers.dev
 
 ## プレビュー環境
 プレビュー環境はPR作成後に自動で立ち上がります。URLはPRのコメントに記載されます。
-各プレビュー環境は`https://xxx-todo-app2026-preview.niboshi.workers.dev`のようなドメインを持ちます。
-各プレビュー環境は共通のD1データベースを使用します。したがって、あるプレビュー環境で作成されたTodoは、他のプレビュー環境からも確認できます。
+各プレビュー環境は`https://xxx-wine-preview.niboshi.workers.dev`のようなドメインを持ちます。
+各プレビュー環境は共通のD1データベース（`wine-preview-db`）を使用します。したがって、あるプレビュー環境で作成されたデータは、他のプレビュー環境からも確認できます。

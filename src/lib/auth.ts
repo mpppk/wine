@@ -14,8 +14,8 @@ export const auth = betterAuth({
 	trustedOrigins: [
 		"http://localhost:3000",
 		"http://localhost:3001",
-		"https://todo-app2026.niboshi.workers.dev",
-		"https://*.todo-app2026.niboshi.workers.dev",
+		"https://wine.niboshi.workers.dev",
+		"https://*.wine.niboshi.workers.dev",
 	],
 	emailAndPassword: {
 		enabled: true,

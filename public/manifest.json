@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "TODO App",
-  "short_name": "TODO",
-  "description": "タスクを管理できるTODOアプリ",
+  "name": "wine",
+  "short_name": "wine",
+  "description": "wine",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
