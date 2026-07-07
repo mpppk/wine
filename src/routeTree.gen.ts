@@ -10,20 +10,32 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as RegionsRouteImport } from './routes/regions'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
+import { Route as MapRegionIdRouteImport } from './routes/map.$regionId'
+import { Route as EmbedMapRouteImport } from './routes/embed/map'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
+import { Route as ApiWineVarietiesRouteImport } from './routes/api/wine/varieties'
+import { Route as ApiWineRegionsRouteImport } from './routes/api/wine/regions'
 import { Route as ApiImagesSplatRouteImport } from './routes/api/images/$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiWineRegionsRegionIdRouteImport } from './routes/api/wine/regions.$regionId'
+import { Route as ApiWineAopsAopIdRouteImport } from './routes/api/wine/aops.$aopId'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegionsRoute = RegionsRouteImport.update({
+  id: '/regions',
+  path: '/regions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -44,6 +56,16 @@ const IndexRoute = IndexRouteImport.update({
 const OauthConsentRoute = OauthConsentRouteImport.update({
   id: '/oauth/consent',
   path: '/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRegionIdRoute = MapRegionIdRouteImport.update({
+  id: '/map/$regionId',
+  path: '/map/$regionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedMapRoute = EmbedMapRouteImport.update({
+  id: '/embed/map',
+  path: '/embed/map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiUploadRoute = ApiUploadRouteImport.update({
@@ -68,6 +90,16 @@ const DotwellKnownOauthAuthorizationServerRoute =
     path: '/.well-known/oauth-authorization-server',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWineVarietiesRoute = ApiWineVarietiesRouteImport.update({
+  id: '/api/wine/varieties',
+  path: '/api/wine/varieties',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWineRegionsRoute = ApiWineRegionsRouteImport.update({
+  id: '/api/wine/regions',
+  path: '/api/wine/regions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImagesSplatRoute = ApiImagesSplatRouteImport.update({
   id: '/api/images/$',
   path: '/api/images/$',
@@ -78,46 +110,77 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWineRegionsRegionIdRoute = ApiWineRegionsRegionIdRouteImport.update({
+  id: '/$regionId',
+  path: '/$regionId',
+  getParentRoute: () => ApiWineRegionsRoute,
+} as any)
+const ApiWineAopsAopIdRoute = ApiWineAopsAopIdRouteImport.update({
+  id: '/api/wine/aops/$aopId',
+  path: '/api/wine/aops/$aopId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/embed/map': typeof EmbedMapRoute
+  '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
+  '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
+  '/api/wine/varieties': typeof ApiWineVarietiesRoute
+  '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
+  '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/embed/map': typeof EmbedMapRoute
+  '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
+  '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
+  '/api/wine/varieties': typeof ApiWineVarietiesRoute
+  '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
+  '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/embed/map': typeof EmbedMapRoute
+  '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
+  '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
+  '/api/wine/varieties': typeof ApiWineVarietiesRoute
+  '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
+  '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -125,54 +188,81 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/profile'
+    | '/regions'
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/api/mcp'
     | '/api/upload'
+    | '/embed/map'
+    | '/map/$regionId'
     | '/oauth/consent'
     | '/api/auth/$'
     | '/api/images/$'
+    | '/api/wine/regions'
+    | '/api/wine/varieties'
+    | '/api/wine/aops/$aopId'
+    | '/api/wine/regions/$regionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/profile'
+    | '/regions'
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/api/mcp'
     | '/api/upload'
+    | '/embed/map'
+    | '/map/$regionId'
     | '/oauth/consent'
     | '/api/auth/$'
     | '/api/images/$'
+    | '/api/wine/regions'
+    | '/api/wine/varieties'
+    | '/api/wine/aops/$aopId'
+    | '/api/wine/regions/$regionId'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/profile'
+    | '/regions'
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/api/mcp'
     | '/api/upload'
+    | '/embed/map'
+    | '/map/$regionId'
     | '/oauth/consent'
     | '/api/auth/$'
     | '/api/images/$'
+    | '/api/wine/regions'
+    | '/api/wine/varieties'
+    | '/api/wine/aops/$aopId'
+    | '/api/wine/regions/$regionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
+  RegionsRoute: typeof RegionsRoute
   SignupRoute: typeof SignupRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
+  EmbedMapRoute: typeof EmbedMapRoute
+  MapRegionIdRoute: typeof MapRegionIdRoute
   OauthConsentRoute: typeof OauthConsentRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiImagesSplatRoute: typeof ApiImagesSplatRoute
+  ApiWineRegionsRoute: typeof ApiWineRegionsRouteWithChildren
+  ApiWineVarietiesRoute: typeof ApiWineVarietiesRoute
+  ApiWineAopsAopIdRoute: typeof ApiWineAopsAopIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -182,6 +272,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/regions': {
+      id: '/regions'
+      path: '/regions'
+      fullPath: '/regions'
+      preLoaderRoute: typeof RegionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -212,6 +309,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/map/$regionId': {
+      id: '/map/$regionId'
+      path: '/map/$regionId'
+      fullPath: '/map/$regionId'
+      preLoaderRoute: typeof MapRegionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/map': {
+      id: '/embed/map'
+      path: '/embed/map'
+      fullPath: '/embed/map'
+      preLoaderRoute: typeof EmbedMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/upload': {
       id: '/api/upload'
       path: '/api/upload'
@@ -240,6 +351,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/wine/varieties': {
+      id: '/api/wine/varieties'
+      path: '/api/wine/varieties'
+      fullPath: '/api/wine/varieties'
+      preLoaderRoute: typeof ApiWineVarietiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wine/regions': {
+      id: '/api/wine/regions'
+      path: '/api/wine/regions'
+      fullPath: '/api/wine/regions'
+      preLoaderRoute: typeof ApiWineRegionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/images/$': {
       id: '/api/images/$'
       path: '/api/images/$'
@@ -254,13 +379,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/wine/regions/$regionId': {
+      id: '/api/wine/regions/$regionId'
+      path: '/$regionId'
+      fullPath: '/api/wine/regions/$regionId'
+      preLoaderRoute: typeof ApiWineRegionsRegionIdRouteImport
+      parentRoute: typeof ApiWineRegionsRoute
+    }
+    '/api/wine/aops/$aopId': {
+      id: '/api/wine/aops/$aopId'
+      path: '/api/wine/aops/$aopId'
+      fullPath: '/api/wine/aops/$aopId'
+      preLoaderRoute: typeof ApiWineAopsAopIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface ApiWineRegionsRouteChildren {
+  ApiWineRegionsRegionIdRoute: typeof ApiWineRegionsRegionIdRoute
+}
+
+const ApiWineRegionsRouteChildren: ApiWineRegionsRouteChildren = {
+  ApiWineRegionsRegionIdRoute: ApiWineRegionsRegionIdRoute,
+}
+
+const ApiWineRegionsRouteWithChildren = ApiWineRegionsRoute._addFileChildren(
+  ApiWineRegionsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
+  RegionsRoute: RegionsRoute,
   SignupRoute: SignupRoute,
   DotwellKnownOauthAuthorizationServerRoute:
     DotwellKnownOauthAuthorizationServerRoute,
@@ -268,9 +420,14 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthProtectedResourceRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,
+  EmbedMapRoute: EmbedMapRoute,
+  MapRegionIdRoute: MapRegionIdRoute,
   OauthConsentRoute: OauthConsentRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiImagesSplatRoute: ApiImagesSplatRoute,
+  ApiWineRegionsRoute: ApiWineRegionsRouteWithChildren,
+  ApiWineVarietiesRoute: ApiWineVarietiesRoute,
+  ApiWineAopsAopIdRoute: ApiWineAopsAopIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
