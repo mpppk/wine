@@ -4,6 +4,8 @@ import {
 	HeadContent,
 	Scripts,
 } from "@tanstack/react-router";
+import { CommandPalette } from "../components/CommandPalette";
+import { CommandPaletteProvider } from "../components/CommandPaletteContext";
 import Header from "../components/Header";
 import appCss from "../styles.css?url";
 
@@ -46,8 +48,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<HeadContent />
 			</head>
 			<body className="font-sans antialiased [overflow-wrap:anywhere]">
-				<Header />
-				{children}
+				<CommandPaletteProvider>
+					<Header />
+					{children}
+					<CommandPalette />
+				</CommandPaletteProvider>
 				<Scripts />
 			</body>
 		</html>
