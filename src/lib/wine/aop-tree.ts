@@ -1,21 +1,29 @@
+import { classificationRank } from "./tags";
 import type { Aop, Region, Subregion } from "./types";
 
-// リスト表示用の階層ツリー(地区 > 村名AOC > 畑)を組み立てる。
+// リスト表示用の階層ツリー(地区 > 村名/地区AOC > 畑/シャトー)を組み立てる。
 // 複数村にまたがる畑(villageAopIds が複数)は各村の下に重複して現れる。
-// winery はツリー未対応(現状データ0件。ボルドー対応時に配置を検討する)。
+// ボルドーのシャトー(winery)は所属AOCの下に格付け順で並べる。所属先は村名AOC
+// (ポイヤック等)だけでなく地区AOC(オー・メドック等 = kind:regional)のこともあり、
+// その場合は該当の地区AOCを親ノードとして村の前に表示する。
 
 export interface VillageNode {
+	/** 親となるAOC(村名 village または子を持つ地区 regional) */
 	village: Aop;
 	vineyards: Aop[];
+	/** この村/地区AOCに属するシャトー(ボルドー)。格付け順に並ぶ */
+	wineries: Aop[];
 }
 
 export interface SubregionSection {
 	subregion: Subregion;
-	/** 地方名AOC(広域)。村の外側に位置づけて先頭に表示する */
+	/** 子(畑・シャトー)を持たない地方名AOC(広域)。村の外側に先頭表示する */
 	regionalAops: Aop[];
 	villages: VillageNode[];
 	/** villageAopIds を持たない畑のフォールバック置き場 */
 	unassignedVineyards: Aop[];
+	/** 親AOCがリストに含まれないシャトーのフォールバック置き場 */
+	unassignedWineries: Aop[];
 }
 
 export function buildAopTree(
@@ -27,34 +35,77 @@ export function buildAopTree(
 		regionalAops: [] as Aop[],
 		villages: [] as VillageNode[],
 		unassignedVineyards: [] as Aop[],
+		unassignedWineries: [] as Aop[],
 	}));
 	const bySubregion = new Map(sections.map((s) => [s.subregion.id, s]));
-	const villageNodes = new Map<string, VillageNode>();
+	// 村名AOC・地区AOCの双方を親候補ノードにする(id で引ける)
+	const parentNodes = new Map<string, VillageNode>();
+	const regionalNodes: {
+		node: VillageNode;
+		section: (typeof sections)[number];
+	}[] = [];
 
-	// 村を先に配置してから、畑を親村へぶら下げる
 	for (const aop of aops) {
 		const section = bySubregion.get(aop.subregionId);
 		if (!section) continue;
-		if (aop.kind === "regional") {
-			section.regionalAops.push(aop);
-		} else if (aop.kind === "village") {
-			const node: VillageNode = { village: aop, vineyards: [] };
-			villageNodes.set(aop.id, node);
+		if (aop.kind === "village") {
+			const node: VillageNode = { village: aop, vineyards: [], wineries: [] };
+			parentNodes.set(aop.id, node);
 			section.villages.push(node);
+		} else if (aop.kind === "regional") {
+			// 地区AOCは子が付くかどうかで表示先が変わるため、判定を後回しにする
+			const node: VillageNode = { village: aop, vineyards: [], wineries: [] };
+			parentNodes.set(aop.id, node);
+			regionalNodes.push({ node, section });
 		}
 	}
 	for (const aop of aops) {
-		if (aop.kind !== "vineyard") continue;
+		if (aop.kind !== "vineyard" && aop.kind !== "winery") continue;
 		const parents = (aop.villageAopIds ?? [])
-			.map((id) => villageNodes.get(id))
+			.map((id) => parentNodes.get(id))
 			.filter((n) => n !== undefined);
 		if (parents.length === 0) {
-			bySubregion.get(aop.subregionId)?.unassignedVineyards.push(aop);
+			const section = bySubregion.get(aop.subregionId);
+			if (aop.kind === "winery") section?.unassignedWineries.push(aop);
+			else section?.unassignedVineyards.push(aop);
 		} else {
-			for (const parent of parents) parent.vineyards.push(aop);
+			for (const parent of parents) {
+				if (aop.kind === "winery") parent.wineries.push(aop);
+				else parent.vineyards.push(aop);
+			}
+		}
+	}
+	// 地区AOC: 子(シャトー/畑)が付いたものは親ノードとして村の前に、
+	// 付かないものは従来どおりフラットな地方名AOC行にする
+	for (const { node, section } of regionalNodes) {
+		if (node.wineries.length > 0 || node.vineyards.length > 0) {
+			section.villages.unshift(node);
+		} else {
+			section.regionalAops.push(node.village);
+		}
+	}
+	// シャトーを格付け順(第1級→第5級)に整列。同順位は入力順を保つ
+	for (const node of parentNodes.values()) {
+		if (node.wineries.length > 1) {
+			node.wineries = stableSortByRank(node.wineries);
+		}
+	}
+	for (const section of sections) {
+		if (section.unassignedWineries.length > 1) {
+			section.unassignedWineries = stableSortByRank(section.unassignedWineries);
 		}
 	}
 	return sections;
+}
+
+function stableSortByRank(aops: Aop[]): Aop[] {
+	return aops
+		.map((aop, i) => ({ aop, i }))
+		.sort(
+			(a, b) =>
+				classificationRank(a.aop) - classificationRank(b.aop) || a.i - b.i,
+		)
+		.map((x) => x.aop);
 }
 
 /** 詳細パネルで「所属する親」を表示するための、あるAOPの上位階層情報 */

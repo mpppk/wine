@@ -59,9 +59,20 @@ export const REGIONS: Region[] = [
 		nameLocal: "Bordeaux",
 		country: "France",
 		countryJa: "フランス",
-		enabled: false,
-		subregions: [],
-		description: "カベルネ・ソーヴィニヨンとメルロのブレンドの本場。対応予定。",
+		enabled: true,
+		bounds: [-1.1688, 44.32404, 0.31512, 45.57516],
+		geojsonPath: "/data/aop/bordeaux.geojson",
+		subregions: [
+			{ id: "medoc", nameJa: "メドック(左岸)" },
+			{ id: "graves-sauternais", nameJa: "グラーヴ / ソーテルヌ" },
+			{ id: "libournais", nameJa: "リブルネ(右岸)" },
+			{ id: "entre-deux-mers", nameJa: "アントル・ドゥー・メール" },
+			{ id: "bordeaux-regional", nameJa: "地方名AOC(広域)" },
+		],
+		description:
+			"カベルネ・ソーヴィニヨンとメルロのブレンドの本場。畑や村ではなく" +
+			"シャトー単位で格付けが行われるのが特徴で、メドック/ソーテルヌの" +
+			"1855年格付けとサンテミリオン格付けのシャトーを地図で学べる。",
 	},
 	{
 		id: "champagne",

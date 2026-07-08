@@ -15,6 +15,7 @@ const COLOR_LABELS_JA: Record<WineColor, string> = {
 	white: "白",
 	rose: "ロゼ",
 	sparkling: "泡",
+	"sweet-white": "甘口白",
 };
 
 export function KindBadge({ aop }: { aop: Aop }) {
@@ -139,9 +140,11 @@ export function AopDetailPanel({
 			</section>
 
 			<p className="text-[11px] leading-relaxed text-muted-foreground">
-				{aop.kind === "regional"
-					? "地図はコミューン(市町村)単位の生産地域を表示しています。"
-					: "地図はINAOの区画データを簡略化して表示しています。"}
+				{aop.kind === "winery"
+					? "地図はシャトーの所在地をポイントで表示しています。"
+					: aop.kind === "regional"
+						? "地図はコミューン(市町村)単位の生産地域を表示しています。"
+						: "地図はコミューン輪郭またはINAOの区画データを表示しています。"}
 			</p>
 		</div>
 	);
