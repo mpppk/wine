@@ -7,6 +7,7 @@ import {
 	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
 import { formatAopTagJa } from "#/lib/wine/tags";
+import { getBoundarySourceNoteJa } from "#/lib/wine/terminology";
 import type { Aop, WineColor } from "#/lib/wine/types";
 import { getVariety } from "#/lib/wine/varieties";
 
@@ -15,6 +16,7 @@ const COLOR_LABELS_JA: Record<WineColor, string> = {
 	white: "白",
 	rose: "ロゼ",
 	sparkling: "泡",
+	"sweet-white": "甘口白",
 };
 
 export function KindBadge({ aop }: { aop: Aop }) {
@@ -139,9 +141,7 @@ export function AopDetailPanel({
 			</section>
 
 			<p className="text-[11px] leading-relaxed text-muted-foreground">
-				{aop.kind === "regional"
-					? "地図はコミューン(市町村)単位の生産地域を表示しています。"
-					: "地図はINAOの区画データを簡略化して表示しています。"}
+				{getBoundarySourceNoteJa(aop)}
 			</p>
 		</div>
 	);

@@ -78,9 +78,86 @@ describe("buildAopTree", () => {
 		expect(tree[0].unassignedVineyards.map((a) => a.id)).toEqual(["gc-orphan"]);
 	});
 
+	it("シャトー(winery)は親AOCの下に格付け順で並ぶ", () => {
+		const aops = [
+			aop({ id: "village-1", kind: "village" }),
+			aop({
+				id: "ch-5th",
+				kind: "winery",
+				villageAopIds: ["village-1"],
+				tags: ["cinquieme-cru-classe-1855"],
+			}),
+			aop({
+				id: "ch-1st",
+				kind: "winery",
+				villageAopIds: ["village-1"],
+				tags: ["premier-cru-classe-1855"],
+			}),
+			aop({
+				id: "ch-2nd",
+				kind: "winery",
+				villageAopIds: ["village-1"],
+				tags: ["deuxieme-cru-classe-1855"],
+			}),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		expect(tree[0].villages[0].vineyards).toEqual([]);
+		expect(tree[0].villages[0].wineries.map((a) => a.id)).toEqual([
+			"ch-1st",
+			"ch-2nd",
+			"ch-5th",
+		]);
+	});
+
+	it("親AOCがリストに無いシャトーはフォールバック置き場に入る", () => {
+		const aops = [
+			aop({
+				id: "ch-orphan",
+				kind: "winery",
+				villageAopIds: ["village-filtered-out"],
+				tags: ["premier-cru-classe-1855"],
+			}),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		expect(tree[0].unassignedWineries.map((a) => a.id)).toEqual(["ch-orphan"]);
+	});
+
+	it("地区AOC(regional)に属するシャトーは地区ノードの下に並ぶ", () => {
+		// オー・メドックのように、シャトーの親が村名でなく地区AOCのケース
+		const aops = [
+			aop({ id: "district-1", kind: "regional" }),
+			aop({ id: "village-1", kind: "village" }),
+			aop({
+				id: "ch-in-district",
+				kind: "winery",
+				villageAopIds: ["district-1"],
+				tags: ["cinquieme-cru-classe-1855"],
+			}),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		// 子を持つ地区AOCは親ノード化し、フラットな regionalAops には残らない
+		expect(tree[0].regionalAops.map((a) => a.id)).toEqual([]);
+		const districtNode = tree[0].villages.find(
+			(v) => v.village.id === "district-1",
+		);
+		expect(districtNode?.wineries.map((a) => a.id)).toEqual(["ch-in-district"]);
+	});
+
+	it("子を持たない地区AOC(regional)はフラットな地方名AOC行に残る", () => {
+		const aops = [
+			aop({ id: "district-empty", kind: "regional" }),
+			aop({ id: "village-1", kind: "village" }),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		expect(tree[0].regionalAops.map((a) => a.id)).toEqual(["district-empty"]);
+		expect(tree[0].villages.map((v) => v.village.id)).toEqual(["village-1"]);
+	});
+
 	it.each([
 		"bourgogne",
 		"champagne",
+		"bordeaux",
+		"piemonte",
 	])("実データ: %s の全AOPがツリーのどこかに1回以上現れる", (regionId) => {
 		const region = getRegion(regionId);
 		if (!region) throw new Error(`${regionId} not found`);
@@ -92,8 +169,10 @@ describe("buildAopTree", () => {
 			for (const v of section.villages) {
 				seen.add(v.village.id);
 				for (const vy of v.vineyards) seen.add(vy.id);
+				for (const w of v.wineries) seen.add(w.id);
 			}
 			for (const a of section.unassignedVineyards) seen.add(a.id);
+			for (const a of section.unassignedWineries) seen.add(a.id);
 		}
 		for (const a of aops) {
 			expect(seen.has(a.id), a.id).toBe(true);

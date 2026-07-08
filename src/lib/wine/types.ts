@@ -4,22 +4,29 @@
 import type { AopTagId } from "./tags";
 
 /** ワインのタイプ(色) */
-export type WineColor = "red" | "white" | "rose" | "sparkling";
+export type WineColor = "red" | "white" | "rose" | "sparkling" | "sweet-white";
 
 /**
  * AOPエントリの区分(何を指す呼称か)。格付けではなく実体の種類を表す。
  * グラン・クリュ等の格付けは地域によって畑・村・ワイナリーのどれを指すかが
  * 変わるため、区分にせずタグ(tags.ts)で表現する。
- * winery はボルドーのシャトー等(メゾン/ドメーヌ含む)用。現状データは0件。
+ * winery はボルドーのシャトー等(メゾン/ドメーヌ含む)用。
  */
 export type AopKind = "regional" | "village" | "vineyard" | "winery";
 
-export type RegionId = "bourgogne" | "beaujolais" | "champagne" | "alsace";
+export type RegionId =
+	| "bourgogne"
+	| "beaujolais"
+	| "champagne"
+	| "bordeaux"
+	| "piemonte"
+	| "alsace";
 
 export interface GrapeVariety {
 	id: string;
 	nameJa: string;
-	nameFr: string;
+	/** 現地語表記(仏: "Pinot noir" / 伊: "Nebbiolo") */
+	nameLocal: string;
 	color: "red" | "white";
 }
 
@@ -32,7 +39,14 @@ export interface AopGrape {
 export interface Aop {
 	/** URLセーフなスラッグ (例: "gevrey-chambertin") */
 	id: string;
-	/** INAOデータセットの id_app。GeoJSONフィーチャとの結合キー */
+	/**
+	 * GeoJSONフィーチャとの結合キー。フランス(INAO)は id_app の実値。
+	 * 実体が無いものは合成IDを割り当てる:
+	 *   - シャンパーニュの格付け村: 900001〜
+	 *   - ボルドー: 地区/村AOC 910001〜、格付けシャトー 911001〜
+	 *   - ピエモンテ(EU PDO由来): 920001〜 の連番。PDOid との対応は
+	 *     scripts/build-italy-geodata.mjs の PIEMONTE_PDO 表が真実の源(追記のみ)。
+	 */
 	idApp: number;
 	/** INAO表記の正式名称 */
 	name: string;
@@ -43,8 +57,9 @@ export interface Aop {
 	subregionId: string;
 	kind: AopKind;
 	/**
-	 * vineyard のみ: この畑が属する村名AOCのid。
-	 * 複数村にまたがる畑(例: モンラシェ)は複数持ち、ツリー表示では各村の下に現れる
+	 * vineyard / winery のみ: この畑・シャトーが属する村名AOCのid。
+	 * 複数村にまたがる畑(例: モンラシェ)は複数持ち、ツリー表示では各村の下に現れる。
+	 * winery(ボルドーのシャトー)は所属する村名/地区AOCをちょうど1つ持つ。
 	 */
 	villageAopIds?: string[];
 	/** 格付けタグ(特級/一級など)。省略時はタグなし。語彙は tags.ts が管理する */
@@ -53,7 +68,7 @@ export interface Aop {
 	grapes: AopGrape[];
 	/** 土壌の特徴(日本語) */
 	soil: string;
-	/** 主要な生産者 */
+	/** 主要な生産者。winery(シャトー)では所有者/運営体を入れる */
 	producers: string[];
 	/** 学習者向け解説(日本語) */
 	description: string;
@@ -76,6 +91,8 @@ export interface Region {
 	bounds?: [number, number, number, number];
 	/** AOP境界GeoJSONのパス(同一オリジン) */
 	geojsonPath?: string;
+	/** 境界データの出典表記(地図のattributionコントロールに表示)。外部データ利用時に設定 */
+	boundaryAttribution?: string;
 	subregions: Subregion[];
 	description: string;
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REGIONS } from "./regions";
 import {
 	aopAllowsGrape,
 	getAop,
@@ -16,9 +17,11 @@ describe("listRegions", () => {
 		expect(bourgogne?.aopCount ?? 0).toBeGreaterThan(0);
 	});
 
-	it("準備中の地域も一覧に含まれる", () => {
+	it("enabledで絞らず全地域を返す(準備中があれば準備中も含む)", () => {
 		const regions = listRegions();
-		expect(regions.some((r) => !r.enabled)).toBe(true);
+		expect(regions.map((r) => r.id).sort()).toEqual(
+			REGIONS.map((r) => r.id).sort(),
+		);
 	});
 });
 
@@ -102,6 +105,50 @@ describe("listAops", () => {
 		expect(aops.length).toBeGreaterThan(0);
 		for (const aop of aops) {
 			expect(aopAllowsGrape(aop, "meunier")).toBe(true);
+		}
+	});
+
+	it("ピエモンテは DOCG18 + DOC11 = 29 を返す", () => {
+		const aops = listAops({ regionId: "piemonte" });
+		expect(aops).toHaveLength(29);
+		expect(aops.filter((a) => a.kind === "regional")).toHaveLength(5);
+		expect(listAops({ regionId: "piemonte", tags: ["docg"] })).toHaveLength(18);
+		expect(listAops({ regionId: "piemonte", tags: ["doc"] })).toHaveLength(11);
+	});
+
+	it("ネッビオーロでピエモンテのAOPを絞り込める", () => {
+		const aops = listAops({ regionId: "piemonte", grapeVarietyId: "nebbiolo" });
+		expect(aops).toHaveLength(12);
+		for (const aop of aops) {
+			expect(aopAllowsGrape(aop, "nebbiolo")).toBe(true);
+		}
+		const ids = aops.map((a) => a.id);
+		expect(ids).toContain("barolo");
+		expect(ids).toContain("gattinara");
+		expect(ids).not.toContain("gavi"); // コルテーゼのみ
+	});
+
+	it("ボルドーは地方名6 + 村名12のAOCを持つ", () => {
+		const aops = listAops({ regionId: "bordeaux" });
+		expect(aops.filter((a) => a.kind === "regional")).toHaveLength(6);
+		expect(aops.filter((a) => a.kind === "village")).toHaveLength(12);
+		// 畑(vineyard)はボルドーには無い
+		expect(aops.filter((a) => a.kind === "vineyard")).toHaveLength(0);
+	});
+
+	it("メルロでボルドーの右岸・広域AOPを絞り込める", () => {
+		const aops = listAops({ regionId: "bordeaux", grapeVarietyId: "merlot" });
+		expect(aops.length).toBeGreaterThan(0);
+		expect(aops.some((a) => a.id === "pomerol")).toBe(true);
+		for (const aop of aops) {
+			expect(aopAllowsGrape(aop, "merlot")).toBe(true);
+		}
+	});
+
+	it("ソーテルヌ・バルサックは甘口白(sweet-white)", () => {
+		for (const id of ["sauternes", "barsac"]) {
+			const aop = getAop(id);
+			expect(aop?.colors).toEqual(["sweet-white"]);
 		}
 	});
 });
