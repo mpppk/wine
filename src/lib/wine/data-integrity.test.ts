@@ -38,8 +38,17 @@ describe("AOPメタデータの整合性", () => {
 
 	it("畑(vineyard)の親村参照が有効", () => {
 		const byId = new Map(AOPS.map((a) => [a.id, a]));
+		// 村名AOCを持つ地域では畑は必ず親村を参照する。アルザスのように
+		// 村名AOC自体が存在しない地域の畑は villageAopIds を持たない。
+		const regionsWithVillages = new Set(
+			AOPS.filter((a) => a.kind === "village").map((a) => a.region),
+		);
 		for (const aop of AOPS.filter((a) => a.kind === "vineyard")) {
-			expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
+			if (regionsWithVillages.has(aop.region)) {
+				expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
+			} else {
+				expect(aop.villageAopIds, aop.id).toBeUndefined();
+			}
 			for (const villageId of aop.villageAopIds ?? []) {
 				const village = byId.get(villageId);
 				expect(village, `${aop.id} -> ${villageId}`).toBeDefined();
@@ -58,9 +67,10 @@ describe("AOPメタデータの整合性", () => {
 	it("移行後の件数スナップショット(区分・タグ)", () => {
 		// 旧 classification/premierCru からの移行が欠落なく行われたことの回帰チェック
 		const vineyards = AOPS.filter((a) => a.kind === "vineyard");
-		expect(vineyards.length).toBe(33);
-		expect(vineyards.every((a) => a.region === "bourgogne")).toBe(true);
-		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(50);
+		expect(vineyards.length).toBe(84);
+		expect(vineyards.filter((a) => a.region === "bourgogne").length).toBe(33);
+		expect(vineyards.filter((a) => a.region === "alsace").length).toBe(51);
+		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(101);
 		expect(AOPS.filter((a) => a.tags?.includes("premier-cru")).length).toBe(73);
 		expect(AOPS.filter((a) => a.kind === "winery").length).toBe(0);
 	});

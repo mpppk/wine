@@ -14,7 +14,7 @@ export type WineColor = "red" | "white" | "rose" | "sparkling";
  */
 export type AopKind = "regional" | "village" | "vineyard" | "winery";
 
-export type RegionId = "bourgogne" | "beaujolais" | "champagne";
+export type RegionId = "bourgogne" | "beaujolais" | "champagne" | "alsace";
 
 export interface GrapeVariety {
 	id: string;

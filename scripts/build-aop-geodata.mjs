@@ -67,6 +67,14 @@ const DELEGATED_DEPARTMENTS = ["51"];
  *   Blancs-Coteaux(2018) = Vertus 51612 + Oger 51411 + Voipreux 51651 (+ Gionges)
  * 例外: Coligny は1968年合併の Val-des-Marais 51158(現行コード)で代用。
  */
+/**
+ * 広域(regional)AOCのうち、aires géographiques CSVに掲載がなく
+ * INAO区画データ(buildDetailFeatures)から境界を生成するもの。
+ * アルザスは広域でも区画数が150程度と少なく、肥大化の問題(冒頭コメント参照)が
+ * 起きないため区画経路で扱う。
+ */
+const PARCEL_REGIONAL_AOP_IDS = new Set(["alsace", "cremant-d-alsace"]);
+
 const CRU_COMMUNES_BY_AOP_ID = {
 	// 実AOC(村限定)
 	"rose-des-riceys": ["10317"], // Les Riceys
@@ -167,9 +175,13 @@ async function main() {
 	for (const [region, regionAops] of byRegion) {
 		const cruAops = regionAops.filter((a) => CRU_COMMUNES_BY_AOP_ID[a.id]);
 		const detailAops = regionAops.filter(
-			(a) => a.kind !== "regional" && !CRU_COMMUNES_BY_AOP_ID[a.id],
+			(a) =>
+				(a.kind !== "regional" || PARCEL_REGIONAL_AOP_IDS.has(a.id)) &&
+				!CRU_COMMUNES_BY_AOP_ID[a.id],
 		);
-		const regionalAops = regionAops.filter((a) => a.kind === "regional");
+		const regionalAops = regionAops.filter(
+			(a) => a.kind === "regional" && !PARCEL_REGIONAL_AOP_IDS.has(a.id),
+		);
 		const features = [];
 
 		if (detailAops.length > 0) {

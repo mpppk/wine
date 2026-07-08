@@ -1,6 +1,6 @@
 import type { GrapeVariety } from "./types";
 
-// 対応地域(ブルゴーニュ/ボジョレー/シャンパーニュ)のAOCで許可されている品種の正規化マスタ。
+// 対応地域(ブルゴーニュ/ボジョレー/シャンパーニュ/アルザス)のAOCで許可されている品種の正規化マスタ。
 // aops.generated.ts の grapes.varietyId はこの id を参照する。
 export const GRAPE_VARIETIES: GrapeVariety[] = [
 	{
@@ -51,6 +51,60 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		id: "petit-meslier",
 		nameJa: "プティ・メリエ",
 		nameFr: "Petit Meslier",
+		color: "white",
+	},
+	{
+		id: "riesling",
+		nameJa: "リースリング",
+		nameFr: "Riesling",
+		color: "white",
+	},
+	{
+		id: "gewurztraminer",
+		nameJa: "ゲヴュルツトラミネール",
+		nameFr: "Gewurztraminer",
+		color: "white",
+	},
+	{
+		id: "sylvaner",
+		nameJa: "シルヴァネール",
+		nameFr: "Sylvaner",
+		color: "white",
+	},
+	{
+		id: "muscat-blanc-a-petits-grains",
+		nameJa: "ミュスカ・ブラン・ア・プティ・グラン",
+		nameFr: "Muscat blanc à petits grains",
+		color: "white",
+	},
+	{
+		id: "muscat-rose-a-petits-grains",
+		nameJa: "ミュスカ・ローズ・ア・プティ・グラン",
+		nameFr: "Muscat rosé à petits grains",
+		color: "white",
+	},
+	{
+		id: "muscat-ottonel",
+		nameJa: "ミュスカ・オットネル",
+		nameFr: "Muscat Ottonel",
+		color: "white",
+	},
+	{
+		id: "auxerrois",
+		nameJa: "オーセロワ",
+		nameFr: "Auxerrois",
+		color: "white",
+	},
+	{
+		id: "chasselas",
+		nameJa: "シャスラ",
+		nameFr: "Chasselas",
+		color: "white",
+	},
+	{
+		id: "savagnin-rose",
+		nameJa: "サヴァニャン・ローズ(クレヴネール)",
+		nameFr: "Savagnin rose",
 		color: "white",
 	},
 ];
