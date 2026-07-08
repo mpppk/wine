@@ -12,6 +12,7 @@ import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterSelect } from "#/components/wine/GrapeFilterSelect";
+import { getAopAncestry } from "#/lib/wine/aop-tree";
 import {
 	CLASSIFICATION_COLORS,
 	CLASSIFICATION_LABELS_JA,
@@ -68,6 +69,10 @@ function MapPage() {
 		[cls],
 	);
 	const selectedAop = aops.find((a) => a.id === selectedAopId);
+	const selectedAncestry = useMemo(
+		() => (selectedAop ? getAopAncestry(selectedAop, aops, region) : undefined),
+		[selectedAop, aops, region],
+	);
 
 	// 一覧(サイドバー/リスト表示): 地図と同じフィルタを反映する
 	const visibleAopIds = useMemo(
@@ -234,6 +239,8 @@ function MapPage() {
 							<>
 								<AopDetailPanel
 									aop={selectedAop}
+									ancestry={selectedAncestry}
+									onSelectAop={(id) => setSearch({ aop: id })}
 									onClose={() => setSearch({ aop: undefined })}
 								/>
 								{isListView && (
@@ -261,6 +268,8 @@ function MapPage() {
 					<div className="absolute inset-x-2 bottom-2 max-h-[55%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur lg:hidden">
 						<AopDetailPanel
 							aop={selectedAop}
+							ancestry={selectedAncestry}
+							onSelectAop={(id) => setSearch({ aop: id })}
 							onClose={() => setSearch({ aop: undefined })}
 						/>
 						{isListView && (

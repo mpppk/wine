@@ -1,5 +1,6 @@
 import { XIcon } from "lucide-react";
 import { Button } from "#/components/ui/button";
+import type { AopAncestry } from "#/lib/wine/aop-tree";
 import {
 	CLASSIFICATION_COLORS,
 	CLASSIFICATION_LABELS_JA,
@@ -35,10 +36,16 @@ export function ClassificationBadge({ aop }: { aop: Aop }) {
 
 export function AopDetailPanel({
 	aop,
+	ancestry,
+	onSelectAop,
 	onClose,
 	compact = false,
 }: {
 	aop: Aop;
+	/** 所属する親(村名AOC・地区・地方)の情報。未指定なら所属セクションを表示しない */
+	ancestry?: AopAncestry;
+	/** 親の村名AOCをタップしたときの遷移先。未指定なら親はテキスト表示のみ */
+	onSelectAop?: (aopId: string) => void;
 	onClose?: () => void;
 	/** embed用: 余白と文字量を切り詰める */
 	compact?: boolean;
@@ -77,6 +84,10 @@ export function AopDetailPanel({
 					</span>
 				))}
 			</div>
+
+			{ancestry && (
+				<AncestrySection ancestry={ancestry} onSelectAop={onSelectAop} />
+			)}
 
 			{!compact && <p className="text-sm leading-relaxed">{aop.description}</p>}
 
@@ -129,5 +140,57 @@ export function AopDetailPanel({
 					: "地図はINAOの区画データを簡略化して表示しています。"}
 			</p>
 		</div>
+	);
+}
+
+// 所属する親(村名AOC・地区・地方)を表示する。グラン・クリュの畑は複数村に
+// またがることがあるため、親の村名AOCは複数並ぶことがある。
+function AncestrySection({
+	ancestry,
+	onSelectAop,
+}: {
+	ancestry: AopAncestry;
+	onSelectAop?: (aopId: string) => void;
+}) {
+	const { regionNameJa, subregionNameJa, villages } = ancestry;
+	const regionPath = [subregionNameJa, regionNameJa]
+		.filter(Boolean)
+		.join(" ・ ");
+
+	return (
+		<section>
+			<h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+				所属
+			</h3>
+			{villages.length > 0 && (
+				<div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+					<span className="text-xs text-muted-foreground">
+						{villages.length > 1 ? "村名AOC(複数村にまたがる)" : "村名AOC"}
+					</span>
+					{villages.map((v) =>
+						onSelectAop ? (
+							<button
+								key={v.id}
+								type="button"
+								onClick={() => onSelectAop(v.id)}
+								className="rounded-md border border-border px-2 py-0.5 text-xs font-medium hover:bg-muted"
+							>
+								{v.nameJa}
+							</button>
+						) : (
+							<span
+								key={v.id}
+								className="rounded-md border border-border px-2 py-0.5 text-xs font-medium"
+							>
+								{v.nameJa}
+							</span>
+						),
+					)}
+				</div>
+			)}
+			{regionPath && (
+				<p className="text-sm text-muted-foreground">{regionPath}</p>
+			)}
+		</section>
 	);
 }
