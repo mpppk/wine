@@ -39,7 +39,7 @@ export function CommandPalette() {
 
 	const keyboardInset = useKeyboardInset(open);
 	// The selected command runs on close (via onCloseAutoFocus) so that a command
-	// which focuses an element (e.g. "Todoを追加") wins over the dialog's focus
+	// which focuses an element (e.g. "地図でAOPを学ぶ") wins over the dialog's focus
 	// trap / focus-restore instead of being immediately stolen back.
 	const pendingActionRef = useRef<(() => void | Promise<void>) | null>(null);
 

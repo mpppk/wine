@@ -26,15 +26,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				content: "width=device-width, initial-scale=1",
 			},
 			{
-				title: "wine",
+				title: "ワインAOP学習アプリ",
 			},
 			{
 				name: "description",
-				content: "wine",
+				content: "ワインのAOP(原産地呼称)を地図で学ぶアプリ",
 			},
 			{
 				name: "application-name",
-				content: "wine",
+				content: "ワインAOP学習アプリ",
 			},
 			{
 				name: "mobile-web-app-capable",
@@ -50,7 +50,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 			{
 				name: "apple-mobile-web-app-title",
-				content: "wine",
+				content: "ワインAOP学習アプリ",
 			},
 		],
 		links: [
