@@ -1,11 +1,18 @@
 // Domain types for the wine AOP study feature. Kept free of runtime imports so
 // they can be shared by the data files, services, API routes, UI and MCP tools.
 
+import type { AopTagId } from "./tags";
+
 /** ワインのタイプ(色) */
 export type WineColor = "red" | "white" | "rose" | "sparkling";
 
-/** AOCの格付け階層。premier cru は村名AOC内の区画呼称なので独立の階層にしない */
-export type Classification = "regional" | "village" | "grand-cru";
+/**
+ * AOPエントリの区分(何を指す呼称か)。格付けではなく実体の種類を表す。
+ * グラン・クリュ等の格付けは地域によって畑・村・ワイナリーのどれを指すかが
+ * 変わるため、区分にせずタグ(tags.ts)で表現する。
+ * winery はボルドーのシャトー等(メゾン/ドメーヌ含む)用。現状データは0件。
+ */
+export type AopKind = "regional" | "village" | "vineyard" | "winery";
 
 export type RegionId = "bourgogne" | "beaujolais" | "champagne";
 
@@ -34,14 +41,14 @@ export interface Aop {
 	nameJa: string;
 	region: RegionId;
 	subregionId: string;
-	classification: Classification;
+	kind: AopKind;
 	/**
-	 * grand-cru のみ: この畑が属する村名AOCのid。
+	 * vineyard のみ: この畑が属する村名AOCのid。
 	 * 複数村にまたがる畑(例: モンラシェ)は複数持ち、ツリー表示では各村の下に現れる
 	 */
 	villageAopIds?: string[];
-	/** このAOC内にプルミエ・クリュの区画が存在するか */
-	premierCru: boolean;
+	/** 格付けタグ(特級/一級など)。省略時はタグなし。語彙は tags.ts が管理する */
+	tags?: AopTagId[];
 	colors: WineColor[];
 	grapes: AopGrape[];
 	/** 土壌の特徴(日本語) */

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { getAopAncestry } from "#/lib/wine/aop-tree";
-import { CLASSIFICATIONS } from "#/lib/wine/map-style";
+import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getRegion, getVariety, listAops } from "#/lib/wine/service";
 
 const searchSchema = z.object({
@@ -56,7 +56,7 @@ function EmbedMapPage() {
 				aops={aops}
 				selectedAopId={selectedAopId}
 				grapeVarietyId={grapeVariety?.id}
-				visibleClassifications={CLASSIFICATIONS}
+				visibleKinds={AOP_KINDS}
 				onSelectAop={setSelectedAopId}
 				className="h-full w-full"
 			/>

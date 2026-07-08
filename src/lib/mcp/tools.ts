@@ -41,8 +41,8 @@ function toAopSummary(aop: Aop) {
 		id: aop.id,
 		name: aop.shortName,
 		name_ja: aop.nameJa,
-		classification: aop.classification,
-		premier_cru: aop.premierCru,
+		kind: aop.kind,
+		tags: aop.tags ?? [],
 		subregion_id: aop.subregionId,
 		colors: aop.colors,
 		grape_variety_ids: aop.grapes.map((g) => g.varietyId),
@@ -120,12 +120,13 @@ export function registerReadTools(server: McpServer, userId: string) {
 		{
 			title: "List AOPs",
 			description:
-				"地域内のAOP(原産地呼称)一覧を返す。ブドウ品種や格付けで絞り込める。" +
+				"地域内のAOP(原産地呼称)一覧を返す。ブドウ品種・区分(地方名/村名/畑/" +
+				"ワイナリー)・格付けタグ(特級/一級)で絞り込める。" +
 				"土壌・生産者・解説などの詳細は get_aop で取得する。",
 			inputSchema: listAopsInput,
 			annotations: { readOnlyHint: true },
 		},
-		async ({ region_id, grape_variety_id, classification }) => {
+		async ({ region_id, grape_variety_id, kind, tags }) => {
 			try {
 				const region = getRegion(region_id);
 				if (!region) throw new Error(`Unknown region: ${region_id}`);
@@ -136,7 +137,8 @@ export function registerReadTools(server: McpServer, userId: string) {
 				const aops = listAops({
 					regionId: region_id,
 					grapeVarietyId: grape_variety_id,
-					classification,
+					kind,
+					tags,
 				}).map(toAopSummary);
 				return ok({
 					region_id,
@@ -155,7 +157,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 		{
 			title: "Get AOP details",
 			description:
-				"AOP(原産地呼称)1件の詳細(格付け・色・品種・土壌・主要生産者・解説)を返す。" +
+				"AOP(原産地呼称)1件の詳細(区分・格付けタグ・色・品種・土壌・主要生産者・解説)を返す。" +
 				"境界ポリゴンは geojson_url のGeoJSONに含まれる(idAppプロパティで結合)。",
 			inputSchema: getAopInput,
 			annotations: { readOnlyHint: true },
@@ -174,8 +176,8 @@ export function registerReadTools(server: McpServer, userId: string) {
 						name_ja: aop.nameJa,
 						region_id: aop.region,
 						subregion_id: aop.subregionId,
-						classification: aop.classification,
-						premier_cru: aop.premierCru,
+						kind: aop.kind,
+						tags: aop.tags ?? [],
 						colors: aop.colors,
 						grapes: aop.grapes.map((g) => ({
 							variety_id: g.varietyId,

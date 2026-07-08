@@ -26,35 +26,43 @@ describe("AOPメタデータの整合性", () => {
 		}
 	});
 
-	it("グラン・クリュにプルミエ・クリュフラグが立っていない", () => {
-		for (const aop of AOPS.filter((a) => a.classification === "grand-cru")) {
-			expect(aop.premierCru, aop.id).toBe(false);
+	it("特級と一級のタグを同時に持つAOPがない", () => {
+		for (const aop of AOPS) {
+			const tags = aop.tags ?? [];
+			expect(
+				tags.includes("grand-cru") && tags.includes("premier-cru"),
+				aop.id,
+			).toBe(false);
 		}
 	});
 
-	it("グラン・クリュの親村参照が有効(村名AOC階層を持つ地方では親必須)", () => {
+	it("畑(vineyard)の親村参照が有効", () => {
 		const byId = new Map(AOPS.map((a) => [a.id, a]));
-		for (const aop of AOPS.filter((a) => a.classification === "grand-cru")) {
-			// シャンパーニュのグラン・クリュは村の格付け(échelle des crus)であり
-			// 親となる村名AOCが存在しないため villageAopIds を持たない
-			if (aop.region === "bourgogne") {
-				expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
-			}
+		for (const aop of AOPS.filter((a) => a.kind === "vineyard")) {
+			expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
 			for (const villageId of aop.villageAopIds ?? []) {
 				const village = byId.get(villageId);
 				expect(village, `${aop.id} -> ${villageId}`).toBeDefined();
-				expect(village?.classification, `${aop.id} -> ${villageId}`).toBe(
-					"village",
-				);
+				expect(village?.kind, `${aop.id} -> ${villageId}`).toBe("village");
 				expect(village?.region, `${aop.id} -> ${villageId}`).toBe(aop.region);
 			}
 		}
 	});
 
-	it("villageAopIds はグラン・クリュのみが持つ", () => {
-		for (const aop of AOPS.filter((a) => a.classification !== "grand-cru")) {
+	it("villageAopIds は畑(vineyard)のみが持つ", () => {
+		for (const aop of AOPS.filter((a) => a.kind !== "vineyard")) {
 			expect(aop.villageAopIds, aop.id).toBeUndefined();
 		}
+	});
+
+	it("移行後の件数スナップショット(区分・タグ)", () => {
+		// 旧 classification/premierCru からの移行が欠落なく行われたことの回帰チェック
+		const vineyards = AOPS.filter((a) => a.kind === "vineyard");
+		expect(vineyards.length).toBe(33);
+		expect(vineyards.every((a) => a.region === "bourgogne")).toBe(true);
+		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(50);
+		expect(AOPS.filter((a) => a.tags?.includes("premier-cru")).length).toBe(73);
+		expect(AOPS.filter((a) => a.kind === "winery").length).toBe(0);
 	});
 
 	it("主要品種(principal)が少なくとも1つある", () => {
@@ -85,7 +93,8 @@ describe("GeoJSONとの整合性", () => {
 				properties: {
 					idApp: number;
 					aopId: string;
-					classification: string;
+					kind: string;
+					tags: string[];
 					rank: number;
 				};
 			}[];
@@ -98,7 +107,13 @@ describe("GeoJSONとの整合性", () => {
 			const meta = byIdApp.get(f.properties.idApp);
 			expect(meta, `idApp ${f.properties.idApp}`).toBeDefined();
 			expect(f.properties.aopId).toBe(meta?.id);
-			expect(f.properties.classification).toBe(meta?.classification);
+			expect(f.properties.kind).toBe(meta?.kind);
+			expect(f.properties.tags).toEqual(meta?.tags ?? []);
+			expect(f.properties.rank).toBe(
+				{ regional: 0, village: 1, vineyard: 2, winery: 3 }[
+					meta?.kind ?? "village"
+				],
+			);
 		}
 	});
 });

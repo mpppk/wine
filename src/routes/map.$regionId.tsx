@@ -14,12 +14,14 @@ import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterSelect } from "#/components/wine/GrapeFilterSelect";
 import { getAopAncestry } from "#/lib/wine/aop-tree";
 import {
-	CLASSIFICATION_COLORS,
-	CLASSIFICATION_LABELS_JA,
-	CLASSIFICATIONS,
+	AOP_KINDS,
+	GRAND_CRU_TAG_COLOR,
+	KIND_COLORS,
+	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
-import type { Classification } from "#/lib/wine/types";
+import { AOP_TAG_IDS, AOP_TAGS, type AopTagId } from "#/lib/wine/tags";
+import type { AopKind } from "#/lib/wine/types";
 import { getSession } from "#/server/auth";
 
 const searchSchema = z.object({
@@ -27,8 +29,10 @@ const searchSchema = z.object({
 	grape: z.string().optional(),
 	/** 選択中のAOP(slug) */
 	aop: z.string().optional(),
-	/** 表示する格付け(カンマ区切り)。省略時は全格付け */
+	/** 表示する区分(カンマ区切り)。省略時は全区分 */
 	cls: z.string().optional(),
+	/** 表示するタグ(カンマ区切り)。省略時はタグで絞り込まない */
+	tags: z.string().optional(),
 	/** 表示モード。省略時は地図 */
 	view: z.enum(["list"]).optional(),
 });
@@ -51,23 +55,47 @@ export const Route = createFileRoute("/map/$regionId")({
 	component: MapPage,
 });
 
-function parseClassifications(cls: string | undefined): Classification[] {
-	if (!cls) return CLASSIFICATIONS;
+// 不正値(旧 "grand-cru" を含む)や地域に存在しない区分は捨て、
+// 有効値が無ければ全区分(=その地域に実在する区分)へフォールバック
+function parseKinds(
+	cls: string | undefined,
+	presentKinds: AopKind[],
+): AopKind[] {
+	if (!cls) return presentKinds;
 	const parts = cls.split(",");
-	const valid = CLASSIFICATIONS.filter((c) => parts.includes(c));
-	return valid.length > 0 ? valid : CLASSIFICATIONS;
+	const valid = presentKinds.filter((k) => parts.includes(k));
+	return valid.length > 0 ? valid : presentKinds;
+}
+
+// タグは区分と違い「無選択=絞り込みなし」なので、空でもフォールバックしない
+function parseTags(tags: string | undefined): AopTagId[] {
+	if (!tags) return [];
+	const parts = tags.split(",");
+	return AOP_TAG_IDS.filter((t) => parts.includes(t));
 }
 
 function MapPage() {
 	const { region, aops } = Route.useLoaderData();
-	const { grape, aop: selectedAopId, cls, view } = Route.useSearch();
+	const { grape, aop: selectedAopId, cls, tags, view } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const isListView = view === "list";
 
-	const visibleClassifications = useMemo(
-		() => parseClassifications(cls),
-		[cls],
+	// この地域に実在する区分・タグだけをチップとして出す(winery等のデータ0件の
+	// 区分や、タグを持つAOPが無い地域のタグ行を出さない)
+	const presentKinds = useMemo(
+		() => AOP_KINDS.filter((k) => aops.some((a) => a.kind === k)),
+		[aops],
 	);
+	const presentTags = useMemo(
+		() => AOP_TAGS.filter((t) => aops.some((a) => a.tags?.includes(t.id))),
+		[aops],
+	);
+
+	const visibleKinds = useMemo(
+		() => parseKinds(cls, presentKinds),
+		[cls, presentKinds],
+	);
+	const visibleTags = useMemo(() => parseTags(tags), [tags]);
 	const selectedAop = aops.find((a) => a.id === selectedAopId);
 	const selectedAncestry = useMemo(
 		() => (selectedAop ? getAopAncestry(selectedAop, aops, region) : undefined),
@@ -81,18 +109,21 @@ function MapPage() {
 				aops
 					.filter(
 						(a) =>
-							visibleClassifications.includes(a.classification) &&
+							visibleKinds.includes(a.kind) &&
+							(visibleTags.length === 0 ||
+								a.tags?.some((t) => visibleTags.includes(t))) &&
 							(!grape || aopAllowsGrape(a, grape)),
 					)
 					.map((a) => a.id),
 			),
-		[aops, visibleClassifications, grape],
+		[aops, visibleKinds, visibleTags, grape],
 	);
 
 	const setSearch = (patch: {
 		grape?: string | undefined;
 		aop?: string | undefined;
 		cls?: string | undefined;
+		tags?: string | undefined;
 		view?: "list" | undefined;
 	}) => {
 		void navigate({
@@ -101,17 +132,25 @@ function MapPage() {
 		});
 	};
 
-	const toggleClassification = (c: Classification) => {
-		const next = visibleClassifications.includes(c)
-			? visibleClassifications.filter((x) => x !== c)
-			: [...visibleClassifications, c];
+	const toggleKind = (k: AopKind) => {
+		const next = visibleKinds.includes(k)
+			? visibleKinds.filter((x) => x !== k)
+			: [...visibleKinds, k];
 		// 全部OFFは意味がないので、その場合は全表示へ戻す
 		setSearch({
 			cls:
-				next.length === 0 || next.length === CLASSIFICATIONS.length
+				next.length === 0 || next.length === presentKinds.length
 					? undefined
 					: next.join(","),
 		});
+	};
+
+	const toggleTag = (t: AopTagId) => {
+		const next = visibleTags.includes(t)
+			? visibleTags.filter((x) => x !== t)
+			: [...visibleTags, t];
+		// タグは「無選択=絞り込みなし」。全選択でも無選択より狭い集合なので畳まない
+		setSearch({ tags: next.length === 0 ? undefined : next.join(",") });
 	};
 
 	const treeList = (
@@ -181,15 +220,15 @@ function MapPage() {
 
 					<fieldset
 						className="flex items-center gap-1"
-						aria-label="格付けフィルタ"
+						aria-label="区分フィルタ"
 					>
-						{CLASSIFICATIONS.map((c) => {
-							const active = visibleClassifications.includes(c);
+						{presentKinds.map((k) => {
+							const active = visibleKinds.includes(k);
 							return (
 								<button
-									key={c}
+									key={k}
 									type="button"
-									onClick={() => toggleClassification(c)}
+									onClick={() => toggleKind(k)}
 									aria-pressed={active}
 									className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
 										active
@@ -198,15 +237,49 @@ function MapPage() {
 									}`}
 									style={
 										active
-											? { backgroundColor: CLASSIFICATION_COLORS[c].fill }
+											? { backgroundColor: KIND_COLORS[k].fill }
 											: undefined
 									}
 								>
-									{CLASSIFICATION_LABELS_JA[c]}
+									{KIND_LABELS_JA[k]}
 								</button>
 							);
 						})}
 					</fieldset>
+
+					{presentTags.length > 0 && (
+						<fieldset
+							className="flex items-center gap-1"
+							aria-label="タグフィルタ"
+						>
+							{presentTags.map((tag) => {
+								const active = visibleTags.includes(tag.id);
+								return (
+									<button
+										key={tag.id}
+										type="button"
+										onClick={() => toggleTag(tag.id)}
+										aria-pressed={active}
+										className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+											active
+												? "border-transparent bg-foreground text-background"
+												: "border-border border-dashed text-muted-foreground hover:border-foreground/40"
+										}`}
+										style={
+											active && tag.id === "grand-cru"
+												? {
+														backgroundColor: GRAND_CRU_TAG_COLOR.fill,
+														color: "#fff",
+													}
+												: undefined
+										}
+									>
+										{tag.labelJa}
+									</button>
+								);
+							})}
+						</fieldset>
+					)}
 
 					<GrapeFilterSelect
 						value={grape}
@@ -226,7 +299,8 @@ function MapPage() {
 						aops={aops}
 						selectedAopId={selectedAopId}
 						grapeVarietyId={grape}
-						visibleClassifications={visibleClassifications}
+						visibleKinds={visibleKinds}
+						visibleTags={visibleTags}
 						onSelectAop={(id) => setSearch({ aop: id })}
 						className="min-w-0 flex-1"
 					/>

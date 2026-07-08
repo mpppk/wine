@@ -1,6 +1,7 @@
 import { AOPS } from "./aops-data";
 import { getRegion, REGIONS } from "./regions";
-import type { Aop, Classification, Region } from "./types";
+import type { AopTagId } from "./tags";
+import type { Aop, AopKind, Region } from "./types";
 import { GRAPE_VARIETIES, getVariety } from "./varieties";
 
 // AOPデータへの問い合わせ層。データは全て静的(ビルド時生成)なので同期関数。
@@ -23,15 +24,18 @@ export interface ListAopsOptions {
 	regionId?: string;
 	/** この品種の使用が許可されているAOPのみ返す */
 	grapeVarietyId?: string;
-	classification?: Classification;
+	kind?: AopKind;
+	/** いずれかのタグを持つAOPのみ返す(OR結合) */
+	tags?: AopTagId[];
 	subregionId?: string;
 }
 
 export function listAops(options: ListAopsOptions = {}): Aop[] {
-	const { regionId, grapeVarietyId, classification, subregionId } = options;
+	const { regionId, grapeVarietyId, kind, tags, subregionId } = options;
 	return AOPS.filter((aop) => {
 		if (regionId && aop.region !== regionId) return false;
-		if (classification && aop.classification !== classification) return false;
+		if (kind && aop.kind !== kind) return false;
+		if (tags?.length && !aop.tags?.some((t) => tags.includes(t))) return false;
 		if (subregionId && aop.subregionId !== subregionId) return false;
 		if (grapeVarietyId && !aopAllowsGrape(aop, grapeVarietyId)) return false;
 		return true;

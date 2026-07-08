@@ -1,11 +1,12 @@
 import type { Aop, Region, Subregion } from "./types";
 
-// リスト表示用の階層ツリー(地区 > 村名AOC > グラン・クリュ)を組み立てる。
-// 複数村にまたがるグラン・クリュ(villageAopIds が複数)は各村の下に重複して現れる。
+// リスト表示用の階層ツリー(地区 > 村名AOC > 畑)を組み立てる。
+// 複数村にまたがる畑(villageAopIds が複数)は各村の下に重複して現れる。
+// winery はツリー未対応(現状データ0件。ボルドー対応時に配置を検討する)。
 
 export interface VillageNode {
 	village: Aop;
-	grandCrus: Aop[];
+	vineyards: Aop[];
 }
 
 export interface SubregionSection {
@@ -13,8 +14,8 @@ export interface SubregionSection {
 	/** 地方名AOC(広域)。村の外側に位置づけて先頭に表示する */
 	regionalAops: Aop[];
 	villages: VillageNode[];
-	/** villageAopIds を持たないグラン・クリュのフォールバック置き場 */
-	unassignedGrandCrus: Aop[];
+	/** villageAopIds を持たない畑のフォールバック置き場 */
+	unassignedVineyards: Aop[];
 }
 
 export function buildAopTree(
@@ -25,32 +26,32 @@ export function buildAopTree(
 		subregion,
 		regionalAops: [] as Aop[],
 		villages: [] as VillageNode[],
-		unassignedGrandCrus: [] as Aop[],
+		unassignedVineyards: [] as Aop[],
 	}));
 	const bySubregion = new Map(sections.map((s) => [s.subregion.id, s]));
 	const villageNodes = new Map<string, VillageNode>();
 
-	// 村を先に配置してから、グラン・クリュを親村へぶら下げる
+	// 村を先に配置してから、畑を親村へぶら下げる
 	for (const aop of aops) {
 		const section = bySubregion.get(aop.subregionId);
 		if (!section) continue;
-		if (aop.classification === "regional") {
+		if (aop.kind === "regional") {
 			section.regionalAops.push(aop);
-		} else if (aop.classification === "village") {
-			const node: VillageNode = { village: aop, grandCrus: [] };
+		} else if (aop.kind === "village") {
+			const node: VillageNode = { village: aop, vineyards: [] };
 			villageNodes.set(aop.id, node);
 			section.villages.push(node);
 		}
 	}
 	for (const aop of aops) {
-		if (aop.classification !== "grand-cru") continue;
+		if (aop.kind !== "vineyard") continue;
 		const parents = (aop.villageAopIds ?? [])
 			.map((id) => villageNodes.get(id))
 			.filter((n) => n !== undefined);
 		if (parents.length === 0) {
-			bySubregion.get(aop.subregionId)?.unassignedGrandCrus.push(aop);
+			bySubregion.get(aop.subregionId)?.unassignedVineyards.push(aop);
 		} else {
-			for (const parent of parents) parent.grandCrus.push(aop);
+			for (const parent of parents) parent.vineyards.push(aop);
 		}
 	}
 	return sections;
@@ -66,7 +67,7 @@ export interface AopAncestry {
 	 */
 	subregionNameJa?: string;
 	/**
-	 * グラン・クリュが所属する村名AOC。畑は複数村にまたがることがあるため配列で返す
+	 * 畑が所属する村名AOC。畑は複数村にまたがることがあるため配列で返す
 	 * (例: モンラシェはピュリニーとシャサーニュの2村に属する)。villageAopIds の順序を保つ。
 	 */
 	villages: Aop[];
@@ -88,8 +89,7 @@ export function getAopAncestry(
 	const subregion = region.subregions.find((s) => s.id === aop.subregionId);
 	return {
 		regionNameJa: region.nameJa,
-		subregionNameJa:
-			aop.classification === "regional" ? undefined : subregion?.nameJa,
+		subregionNameJa: aop.kind === "regional" ? undefined : subregion?.nameJa,
 		villages,
 	};
 }

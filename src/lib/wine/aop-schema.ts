@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AOP_TAG_IDS } from "./tags";
 import type { Aop } from "./types";
 import { GRAPE_VARIETY_IDS } from "./varieties";
 
@@ -13,12 +14,12 @@ export const aopSchema = z.object({
 	nameJa: z.string().min(1),
 	region: z.enum(["bourgogne", "beaujolais", "champagne"]),
 	subregionId: z.string().min(1),
-	classification: z.enum(["regional", "village", "grand-cru"]),
+	kind: z.enum(["regional", "village", "vineyard", "winery"]),
 	villageAopIds: z
 		.array(z.string().regex(/^[a-z0-9-]+$/))
 		.min(1)
 		.optional(),
-	premierCru: z.boolean(),
+	tags: z.array(z.enum(AOP_TAG_IDS)).min(1).optional(),
 	colors: z.array(z.enum(["red", "white", "rose", "sparkling"])).min(1),
 	grapes: z
 		.array(
