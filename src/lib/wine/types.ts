@@ -35,6 +35,11 @@ export interface Aop {
 	region: RegionId;
 	subregionId: string;
 	classification: Classification;
+	/**
+	 * grand-cru のみ: この畑が属する村名AOCのid。
+	 * 複数村にまたがる畑(例: モンラシェ)は複数持ち、ツリー表示では各村の下に現れる
+	 */
+	villageAopIds?: string[];
 	/** このAOC内にプルミエ・クリュの区画が存在するか */
 	premierCru: boolean;
 	colors: WineColor[];
