@@ -122,6 +122,37 @@ describe("buildAopTree", () => {
 		expect(tree[0].unassignedWineries.map((a) => a.id)).toEqual(["ch-orphan"]);
 	});
 
+	it("地区AOC(regional)に属するシャトーは地区ノードの下に並ぶ", () => {
+		// オー・メドックのように、シャトーの親が村名でなく地区AOCのケース
+		const aops = [
+			aop({ id: "district-1", kind: "regional" }),
+			aop({ id: "village-1", kind: "village" }),
+			aop({
+				id: "ch-in-district",
+				kind: "winery",
+				villageAopIds: ["district-1"],
+				tags: ["cinquieme-cru-classe-1855"],
+			}),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		// 子を持つ地区AOCは親ノード化し、フラットな regionalAops には残らない
+		expect(tree[0].regionalAops.map((a) => a.id)).toEqual([]);
+		const districtNode = tree[0].villages.find(
+			(v) => v.village.id === "district-1",
+		);
+		expect(districtNode?.wineries.map((a) => a.id)).toEqual(["ch-in-district"]);
+	});
+
+	it("子を持たない地区AOC(regional)はフラットな地方名AOC行に残る", () => {
+		const aops = [
+			aop({ id: "district-empty", kind: "regional" }),
+			aop({ id: "village-1", kind: "village" }),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		expect(tree[0].regionalAops.map((a) => a.id)).toEqual(["district-empty"]);
+		expect(tree[0].villages.map((v) => v.village.id)).toEqual(["village-1"]);
+	});
+
 	it.each([
 		"bourgogne",
 		"champagne",
