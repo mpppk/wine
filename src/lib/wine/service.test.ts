@@ -53,6 +53,29 @@ describe("listAops", () => {
 		});
 		expect(aops.every((a) => a.classification === "village")).toBe(true);
 	});
+
+	it("シャンパーニュは広域2+グラン・クリュ17+プルミエ・クリュ42+村名1を返す", () => {
+		const aops = listAops({ regionId: "champagne" });
+		expect(aops).toHaveLength(62);
+		expect(aops.filter((a) => a.classification === "regional")).toHaveLength(2);
+		expect(aops.filter((a) => a.classification === "grand-cru")).toHaveLength(
+			17,
+		);
+		expect(
+			aops.filter((a) => a.classification === "village" && a.premierCru),
+		).toHaveLength(42);
+		expect(
+			aops.filter((a) => a.classification === "village" && !a.premierCru),
+		).toHaveLength(1);
+	});
+
+	it("ムニエでシャンパーニュのAOPを絞り込める", () => {
+		const aops = listAops({ regionId: "champagne", grapeVarietyId: "meunier" });
+		expect(aops.length).toBeGreaterThan(0);
+		for (const aop of aops) {
+			expect(aopAllowsGrape(aop, "meunier")).toBe(true);
+		}
+	});
 });
 
 describe("getAop / getRegion", () => {

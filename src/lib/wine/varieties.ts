@@ -1,6 +1,6 @@
 import type { GrapeVariety } from "./types";
 
-// ブルゴーニュ/ボジョレーのAOCで許可されている品種の正規化マスタ。
+// 対応地域(ブルゴーニュ/ボジョレー/シャンパーニュ)のAOCで許可されている品種の正規化マスタ。
 // aops.generated.ts の grapes.varietyId はこの id を参照する。
 export const GRAPE_VARIETIES: GrapeVariety[] = [
 	{
@@ -45,6 +45,14 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 	},
 	{ id: "melon", nameJa: "ムロン", nameFr: "Melon", color: "white" },
 	{ id: "sacy", nameJa: "サシー", nameFr: "Sacy", color: "white" },
+	{ id: "meunier", nameJa: "ムニエ", nameFr: "Meunier", color: "red" },
+	{ id: "arbane", nameJa: "アルバンヌ", nameFr: "Arbane", color: "white" },
+	{
+		id: "petit-meslier",
+		nameJa: "プティ・メリエ",
+		nameFr: "Petit Meslier",
+		color: "white",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);

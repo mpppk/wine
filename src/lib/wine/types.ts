@@ -7,7 +7,7 @@ export type WineColor = "red" | "white" | "rose" | "sparkling";
 /** AOCの格付け階層。premier cru は村名AOC内の区画呼称なので独立の階層にしない */
 export type Classification = "regional" | "village" | "grand-cru";
 
-export type RegionId = "bourgogne" | "beaujolais";
+export type RegionId = "bourgogne" | "beaujolais" | "champagne";
 
 export interface GrapeVariety {
 	id: string;
