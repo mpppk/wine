@@ -31,6 +31,9 @@ export const AOP_TAGS = [
 		labelJa: "サンテミリオン第1特別級B",
 		badgeJa: "B",
 	},
+	// イタリアの格付け(区分ではなく法的等級なのでタグで表現)
+	{ id: "docg", labelJa: "DOCG" },
+	{ id: "doc", labelJa: "DOC" },
 ] as const;
 
 export type AopTagId = (typeof AOP_TAGS)[number]["id"];

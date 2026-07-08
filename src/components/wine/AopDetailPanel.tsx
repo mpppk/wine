@@ -7,6 +7,7 @@ import {
 	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
 import { formatAopTagJa } from "#/lib/wine/tags";
+import { getBoundarySourceNoteJa } from "#/lib/wine/terminology";
 import type { Aop, WineColor } from "#/lib/wine/types";
 import { getVariety } from "#/lib/wine/varieties";
 
@@ -140,11 +141,7 @@ export function AopDetailPanel({
 			</section>
 
 			<p className="text-[11px] leading-relaxed text-muted-foreground">
-				{aop.kind === "winery"
-					? "地図はシャトーの所在地をポイントで表示しています。"
-					: aop.kind === "regional"
-						? "地図はコミューン(市町村)単位の生産地域を表示しています。"
-						: "地図はコミューン輪郭またはINAOの区画データを表示しています。"}
+				{getBoundarySourceNoteJa(aop)}
 			</p>
 		</div>
 	);

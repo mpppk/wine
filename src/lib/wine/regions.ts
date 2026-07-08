@@ -47,11 +47,24 @@ export const REGIONS: Region[] = [
 		nameLocal: "Piemonte",
 		country: "Italy",
 		countryJa: "イタリア",
-		enabled: false,
-		subregions: [],
+		enabled: true,
+		bounds: [6.84835, 44.14242, 9.21425, 46.29929],
+		geojsonPath: "/data/aop/piemonte.geojson",
+		boundaryAttribution:
+			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
+		subregions: [
+			{ id: "langhe", nameJa: "ランゲ" },
+			{ id: "roero", nameJa: "ロエロ" },
+			{ id: "monferrato-asti", nameJa: "モンフェッラート / アスティ" },
+			{ id: "gavi-tortona", nameJa: "ガヴィ / トルトーナ" },
+			{ id: "alto-piemonte", nameJa: "アルト・ピエモンテ" },
+			{ id: "canavese", nameJa: "カナヴェーゼ" },
+			{ id: "piemonte-regional", nameJa: "州名DOC(広域)" },
+		],
 		description:
-			"バローロ・バルバレスコを擁するネッビオーロの銘醸地。" +
-			"DOC/DOCGの統一境界データが公開され次第対応予定。",
+			"バローロ・バルバレスコを擁するネッビオーロの銘醸地。DOCG18・DOC11を" +
+			"収録。境界データはEU公式の区画GISが無いため、コミューン単位で集約された" +
+			"学術データセット(Candiago et al. 2022, CC0)に基づく概略値。",
 	},
 	{
 		id: "bordeaux",

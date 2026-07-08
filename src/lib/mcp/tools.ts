@@ -122,7 +122,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 			description:
 				"地域内のAOP(原産地呼称)一覧を返す。ブドウ品種・区分(地方名/村名/畑/" +
 				"ワイナリー)・格付けタグ(特級/一級、ボルドー1855年格付け・" +
-				"サンテミリオン格付け)で絞り込める。" +
+				"サンテミリオン格付け、イタリアはDOCG/DOC)で絞り込める。" +
 				"土壌・生産者・解説などの詳細は get_aop で取得する。",
 			inputSchema: listAopsInput,
 			annotations: { readOnlyHint: true },
