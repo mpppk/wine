@@ -43,6 +43,9 @@ function HomePage() {
 						<Button asChild>
 							<Link to="/regions">地図でAOPを学ぶ</Link>
 						</Button>
+						<Button asChild>
+							<Link to="/quiz">クイズでAOPを覚える</Link>
+						</Button>
 						<Button asChild variant="outline">
 							<Link to="/profile">プロフィールを編集</Link>
 						</Button>

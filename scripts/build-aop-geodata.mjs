@@ -24,6 +24,9 @@
 //
 // メタデータ(src/lib/wine/aops.json)が真実の源: 対象AOC(idApp)と
 // kind / tags はそこから読む。
+//
+// GeoJSONを再生成したら `bun run build:centroids` も実行して
+// src/lib/wine/aop-centroids.json を更新すること(位置関係クイズが参照する)。
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
