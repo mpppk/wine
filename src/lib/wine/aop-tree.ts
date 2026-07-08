@@ -1,4 +1,4 @@
-import type { Aop, Subregion } from "./types";
+import type { Aop, Region, Subregion } from "./types";
 
 // リスト表示用の階層ツリー(地区 > 村名AOC > グラン・クリュ)を組み立てる。
 // 複数村にまたがるグラン・クリュ(villageAopIds が複数)は各村の下に重複して現れる。
@@ -54,4 +54,42 @@ export function buildAopTree(
 		}
 	}
 	return sections;
+}
+
+/** 詳細パネルで「所属する親」を表示するための、あるAOPの上位階層情報 */
+export interface AopAncestry {
+	/** 地方(例: ブルゴーニュ) */
+	regionNameJa: string;
+	/**
+	 * 地区(例: コート・ド・ボーヌ)。
+	 * 地方名AOC(広域)は合成の器なので地区としては扱わず undefined を返す。
+	 */
+	subregionNameJa?: string;
+	/**
+	 * グラン・クリュが所属する村名AOC。畑は複数村にまたがることがあるため配列で返す
+	 * (例: モンラシェはピュリニーとシャサーニュの2村に属する)。villageAopIds の順序を保つ。
+	 */
+	villages: Aop[];
+}
+
+/**
+ * 選択されたAOPの所属親(村名AOC・地区・地方)を解決する。
+ * `aops` は同一地方の全AOP(親村を id で引くのに使う)。
+ */
+export function getAopAncestry(
+	aop: Aop,
+	aops: Aop[],
+	region: Region,
+): AopAncestry {
+	const byId = new Map(aops.map((a) => [a.id, a]));
+	const villages = (aop.villageAopIds ?? [])
+		.map((id) => byId.get(id))
+		.filter((a): a is Aop => a !== undefined);
+	const subregion = region.subregions.find((s) => s.id === aop.subregionId);
+	return {
+		regionNameJa: region.nameJa,
+		subregionNameJa:
+			aop.classification === "regional" ? undefined : subregion?.nameJa,
+		villages,
+	};
 }

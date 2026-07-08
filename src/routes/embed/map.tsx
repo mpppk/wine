@@ -3,6 +3,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
+import { getAopAncestry } from "#/lib/wine/aop-tree";
 import { CLASSIFICATIONS } from "#/lib/wine/map-style";
 import { getRegion, getVariety, listAops } from "#/lib/wine/service";
 
@@ -43,6 +44,9 @@ function EmbedMapPage() {
 	}
 
 	const selectedAop = aops.find((a) => a.id === selectedAopId);
+	const selectedAncestry = selectedAop
+		? getAopAncestry(selectedAop, aops, region)
+		: undefined;
 	const grapeVariety = grape ? getVariety(grape) : undefined;
 
 	return (
@@ -76,6 +80,8 @@ function EmbedMapPage() {
 				<div className="absolute inset-x-2 bottom-2 max-h-[60%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur sm:inset-x-auto sm:right-2 sm:w-80">
 					<AopDetailPanel
 						aop={selectedAop}
+						ancestry={selectedAncestry}
+						onSelectAop={setSelectedAopId}
 						compact
 						onClose={() => setSelectedAopId(undefined)}
 					/>
