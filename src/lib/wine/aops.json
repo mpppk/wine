@@ -3375,5 +3375,1761 @@
 			"Domaine des Faverelles"
 		],
 		"description": "世界遺産ヴェズレーの丘の周辺に広がるグラン・オーセロワ南部の産地で、2017年に地方名ブルゴーニュ・ヴェズレーから村名AOCに昇格した。シャルドネ100%の辛口白のみが認められる。フレッシュな酸とミネラル感をもつ、張りのあるスタイルが特徴。"
+	},
+	{
+		"id": "champagne",
+		"idApp": 54,
+		"name": "Champagne",
+		"shortName": "Champagne",
+		"nameJa": "シャンパーニュ",
+		"region": "champagne",
+		"subregionId": "champagne-regional",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["sparkling", "rose"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arbane",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-meslier",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜(チョーク)を基盤とし、地区により粘土・泥灰土・キンメリジャン泥灰土が重なる。チョークの保水性が瓶内二次発酵に耐える酸を保つ。",
+		"producers": [
+			"Moët & Chandon",
+			"Veuve Clicquot",
+			"Louis Roederer",
+			"Bollinger",
+			"Krug"
+		],
+		"description": "瓶内二次発酵によるスパークリングワインの世界的基準となるAOC。地方全域約34,000haをカバーし、村の格付け「エシェル・デ・クリュ」(グラン・クリュ17村/プルミエ・クリュ42村)が品質の目安として用いられる。"
+	},
+	{
+		"id": "coteaux-champenois",
+		"idApp": 1963,
+		"name": "Coteaux champenois",
+		"shortName": "Coteaux Champenois",
+		"nameJa": "コトー・シャンプノワ",
+		"region": "champagne",
+		"subregionId": "champagne-regional",
+		"classification": "regional",
+		"premierCru": false,
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arbane",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-meslier",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "シャンパーニュAOCと同一の生産地域。チョーク基盤に地区ごとの粘土・泥灰土が重なる。",
+		"producers": [
+			"Bollinger (La Côte aux Enfants)",
+			"Egly-Ouriet",
+			"Georges Laval"
+		],
+		"description": "シャンパーニュ地方で造られる非発泡(スティル)ワインのAOC。生産地域はシャンパーニュAOCと完全に重なる。ブジーやアイの赤が有名で、温暖化とともに注目度が上昇している。"
+	},
+	{
+		"id": "rose-des-riceys",
+		"idApp": 1961,
+		"name": "Rosé des Riceys",
+		"shortName": "Rosé des Riceys",
+		"nameJa": "ロゼ・デ・リセ",
+		"region": "champagne",
+		"subregionId": "cote-des-bar",
+		"classification": "village",
+		"premierCru": false,
+		"colors": ["rose"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "シャブリと同系統のキンメリジャン期泥灰土(石灰質泥灰岩)。コート・デ・バールの丘陵斜面に畑が広がる。",
+		"producers": ["Alexandre Bonnet", "Olivier Horiot"],
+		"description": "オーブ県レ・リセ村のピノ・ノワールから造られる、長期熟成能力を持つ非発泡ロゼの単独AOC。良年にのみ少量生産され、「フランスで最も稀少なロゼ」とも呼ばれる。"
+	},
+	{
+		"id": "ambonnay",
+		"idApp": 900001,
+		"name": "Ambonnay",
+		"shortName": "Ambonnay",
+		"nameJa": "アンボネイ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Krug (Clos d'Ambonnay)", "Eric Rodez", "Marie-Noëlle Ledru"],
+		"description": "モンターニュ南東斜面のピノ・ノワールの銘醸村。ブジーと並び称される力強い果実味が特徴で、クリュッグの単一区画「クロ・ダンボネイ」で世界的に知られる。"
+	},
+	{
+		"id": "avize",
+		"idApp": 900002,
+		"name": "Avize",
+		"shortName": "Avize",
+		"nameJa": "アヴィーズ",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Jacques Selosse", "Agrapart & Fils", "De Sousa"],
+		"description": "コート・デ・ブラン中央部のシャルドネのグラン・クリュ。ジャック・セロスをはじめ先鋭的な栽培家が集まり、テロワール表現の最前線となっている村。"
+	},
+	{
+		"id": "ay",
+		"idApp": 900003,
+		"name": "Aÿ",
+		"shortName": "Aÿ",
+		"nameJa": "アイ",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Bollinger", "Deutz", "Gosset"],
+		"description": "マルヌ川北岸の南向き斜面に広がるピノ・ノワールの歴史的銘醸村。ボランジェやドゥーツが本拠を置く。2016年に隣村と合併し現在はアイ・シャンパーニュ市の一部(地図は旧村域)。"
+	},
+	{
+		"id": "beaumont-sur-vesle",
+		"idApp": 900004,
+		"name": "Beaumont-sur-Vesle",
+		"shortName": "Beaumont-sur-Vesle",
+		"nameJa": "ボーモン・シュル・ヴェール",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Moët & Chandon", "Veuve Clicquot"],
+		"description": "モンターニュ北東端の小さなグラン・クリュ。栽培面積はわずかで、収穫のほとんどが大手メゾンに供給される。ピノ・ノワール主体。"
+	},
+	{
+		"id": "bouzy",
+		"idApp": 900005,
+		"name": "Bouzy",
+		"shortName": "Bouzy",
+		"nameJa": "ブジー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Paul Bara", "Barnaut", "Pierre Paillard"],
+		"description": "南向き斜面が生む完熟ピノ・ノワールで名高いグラン・クリュ。コトー・シャンプノワの赤「ブジー・ルージュ」の産地としても地方随一の知名度を誇る。"
+	},
+	{
+		"id": "chouilly",
+		"idApp": 900006,
+		"name": "Chouilly",
+		"shortName": "Chouilly",
+		"nameJa": "シュイィ",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["R&L Legras", "Vazart-Coquart"],
+		"description": "コート・デ・ブラン最北部、エペルネに隣接するシャルドネの村。格付けはシャルドネのみ100%(グラン・クリュ)で、ピノ・ノワールはプルミエ・クリュ扱いという珍しい二重格付けを持つ。"
+	},
+	{
+		"id": "cramant",
+		"idApp": 900007,
+		"name": "Cramant",
+		"shortName": "Cramant",
+		"nameJa": "クラマン",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Larmandier-Bernier", "Diebolt-Vallois", "Lilbert-Fils"],
+		"description": "チョークの丘に抱かれたシャルドネのグラン・クリュ。柔らかな泡立ちの「クレマン(古くはクレマン・ド・クラマン)」の語源となった村として知られる。"
+	},
+	{
+		"id": "louvois",
+		"idApp": 900008,
+		"name": "Louvois",
+		"shortName": "Louvois",
+		"nameJa": "ルーヴォワ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Guy de Chassey"],
+		"description": "モンターニュ南麓の森に囲まれた小さなグラン・クリュ。ピノ・ノワール主体で収穫の多くはメゾンへ供給される。2016年に隣村と合併し現在はヴァル・ド・リーヴル市の一部(地図は旧村域)。"
+	},
+	{
+		"id": "mailly-champagne",
+		"idApp": 900009,
+		"name": "Mailly-Champagne",
+		"shortName": "Mailly-Champagne",
+		"nameJa": "マイィ・シャンパーニュ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Champagne Mailly Grand Cru"],
+		"description": "モンターニュ北面のグラン・クリュ。村内の生産者のみで構成される協同組合「マイィ・グラン・クリュ」が高品質なグラン・クリュ100%シャンパーニュを造ることで有名。"
+	},
+	{
+		"id": "le-mesnil-sur-oger",
+		"idApp": 900010,
+		"name": "Le Mesnil-sur-Oger",
+		"shortName": "Le Mesnil-sur-Oger",
+		"nameJa": "ル・メニル・シュル・オジェ",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Salon", "Krug (Clos du Mesnil)", "Pierre Péters"],
+		"description": "シャルドネの最高峰と称される村。サロン、クリュッグの「クロ・デュ・メニル」など伝説的なブラン・ド・ブランを生む。鋭い酸と圧倒的なミネラル感が持ち味。"
+	},
+	{
+		"id": "oger",
+		"idApp": 900011,
+		"name": "Oger",
+		"shortName": "Oger",
+		"nameJa": "オジェ",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Jean Milan", "Claude Cazals"],
+		"description": "ル・メニルとアヴィーズに挟まれたシャルドネのグラン・クリュ。1985年昇格組。2018年に周辺村と合併し現在はブラン・コトー市の一部(地図は旧村域)。"
+	},
+	{
+		"id": "oiry",
+		"idApp": 900012,
+		"name": "Oiry",
+		"shortName": "Oiry",
+		"nameJa": "オワリー",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Moët & Chandon"],
+		"description": "コート・デ・ブラン北端の平坦なシャルドネの村。1985年昇格組で、収穫の大半が大手メゾンや協同組合に供給される。"
+	},
+	{
+		"id": "puisieulx",
+		"idApp": 900013,
+		"name": "Puisieulx",
+		"shortName": "Puisieulx",
+		"nameJa": "ピュイジュー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Moët & Chandon"],
+		"description": "17グラン・クリュ中最小の栽培面積しか持たない村。モンターニュ北東部に位置し、収穫はほぼ全量が大手メゾンに供給される。"
+	},
+	{
+		"id": "sillery",
+		"idApp": 900014,
+		"name": "Sillery",
+		"shortName": "Sillery",
+		"nameJa": "シルリー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["François Secondé", "Ruinart"],
+		"description": "17〜18世紀には「シルリーのワイン」として欧州宮廷で最も高名だった歴史的な村。現在は村内で瓶詰めまで行う生産者が少なく、フランソワ・スコンデが代表格。"
+	},
+	{
+		"id": "tours-sur-marne",
+		"idApp": 900015,
+		"name": "Tours-sur-Marne",
+		"shortName": "Tours-sur-Marne",
+		"nameJa": "トゥール・シュル・マルヌ",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Laurent-Perrier"],
+		"description": "ローラン・ペリエが本拠を置くマルヌ川沿いの村。格付けはピノ・ノワールのみ100%(グラン・クリュ)で、シャルドネはプルミエ・クリュ扱いという二重格付けを持つ。"
+	},
+	{
+		"id": "verzenay",
+		"idApp": 900016,
+		"name": "Verzenay",
+		"shortName": "Verzenay",
+		"nameJa": "ヴェルズネイ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["G.H. Mumm", "Michel Arnould", "Hugues Godmé"],
+		"description": "風車のランドマークで知られる北向き斜面のグラン・クリュ。北向きながら(むしろそれゆえに)緊張感ある酸を備えたピノ・ノワールを生み、多くのメゾンの骨格を担う。"
+	},
+	{
+		"id": "verzy",
+		"idApp": 900017,
+		"name": "Verzy",
+		"shortName": "Verzy",
+		"nameJa": "ヴェルジー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "grand-cru",
+		"premierCru": false,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Louis Roederer", "Etienne Lefevre"],
+		"description": "ヴェルズネイに隣接する北〜北東向き斜面の村。1985年にグラン・クリュへ昇格。引き締まった酸のピノ・ノワールとシャルドネの双方で評価が高い。"
+	},
+	{
+		"id": "avenay-val-d-or",
+		"idApp": 900101,
+		"name": "Avenay-Val-d'Or",
+		"shortName": "Avenay-Val-d'Or",
+		"nameJa": "アヴネイ・ヴァル・ドール",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Moët & Chandon"],
+		"description": "グランド・ヴァレ・ド・ラ・マルヌの支谷に位置するピノ・ノワール主体のプルミエ・クリュ。ムティニーとアイの背後の丘に畑が続く。"
+	},
+	{
+		"id": "bergeres-les-vertus",
+		"idApp": 900102,
+		"name": "Bergères-lès-Vertus",
+		"shortName": "Bergères-lès-Vertus",
+		"nameJa": "ベルジェール・レ・ヴェルテュ",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Veuve Clicquot"],
+		"description": "コート・デ・ブラン最南端、モン・エメ(聖なる丘)の麓に広がるシャルドネの村。丘を境にコート・ド・セザンヌへと続く。"
+	},
+	{
+		"id": "bezannes",
+		"idApp": 900103,
+		"name": "Bezannes",
+		"shortName": "Bezannes",
+		"nameJa": "ブザンヌ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Pommery"],
+		"description": "ランス市街の南西に隣接する小さなプルミエ・クリュ。都市化が進む中で畑が守られている、プティット・モンターニュ北端の村。"
+	},
+	{
+		"id": "billy-le-grand",
+		"idApp": 900104,
+		"name": "Billy-le-Grand",
+		"shortName": "Billy-le-Grand",
+		"nameJa": "ビイ・ル・グラン",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク層が浅く露出する石灰質土壌。モンターニュ東面では例外的にシャルドネに適した区画が広がる。",
+		"producers": ["Veuve Clicquot"],
+		"description": "モンターニュ東面(ペルト・エ・ノワール)の村。この一帯は例外的にシャルドネの比率が高く、隣のヴォードマンジュとともにブレンドの酸の供給源として重宝される。"
+	},
+	{
+		"id": "bisseuil",
+		"idApp": 900105,
+		"name": "Bisseuil",
+		"shortName": "Bisseuil",
+		"nameJa": "ビスイユ",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Moët & Chandon"],
+		"description": "マルヌ川南岸、トゥール・シュル・マルヌの対岸に位置するプルミエ・クリュ。2016年にアイ等と合併し現在はアイ・シャンパーニュ市の一部(地図は旧村域)。"
+	},
+	{
+		"id": "chamery",
+		"idApp": 900106,
+		"name": "Chamery",
+		"shortName": "Chamery",
+		"nameJa": "シャムリー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Bonnet-Ponson"],
+		"description": "プティット・モンターニュの中核をなす村のひとつ。ムニエとピノ・ノワールを中心に、当主自ら瓶詰めするレコルタン・マニピュランも多い。"
+	},
+	{
+		"id": "champillon",
+		"idApp": 900107,
+		"name": "Champillon",
+		"shortName": "Champillon",
+		"nameJa": "シャンピヨン",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Autréau de Champillon"],
+		"description": "エペルネからランスへ抜ける峠道沿い、マルヌ渓谷を見下ろす展望で知られる村。ピノ・ノワールとムニエ主体のプルミエ・クリュ。"
+	},
+	{
+		"id": "chigny-les-roses",
+		"idApp": 900108,
+		"name": "Chigny-les-Roses",
+		"shortName": "Chigny-les-Roses",
+		"nameJa": "シニー・レ・ローズ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Cattier", "Gardet"],
+		"description": "バラの村の名を持つモンターニュ北面のプルミエ・クリュ。カティエの単一区画「クロ・デュ・ムーラン」が有名。"
+	},
+	{
+		"id": "coligny",
+		"idApp": 900109,
+		"name": "Coligny",
+		"shortName": "Coligny",
+		"nameJa": "コリニー",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Nicolas Feuillatte"],
+		"description": "コート・デ・ブラン南方に飛び地のように位置するシャルドネのプルミエ・クリュ。1968年の合併で現在はヴァル・デ・マレ市の一部(地図は現行市域)。"
+	},
+	{
+		"id": "cormontreuil",
+		"idApp": 900110,
+		"name": "Cormontreuil",
+		"shortName": "Cormontreuil",
+		"nameJa": "コルモントルイユ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Taittinger"],
+		"description": "ランス市街の南に隣接するプルミエ・クリュ。商業地化が進み栽培面積はごく小さいが、格付けは維持されている。"
+	},
+	{
+		"id": "coulommes-la-montagne",
+		"idApp": 900111,
+		"name": "Coulommes-la-Montagne",
+		"shortName": "Coulommes-la-Montagne",
+		"nameJa": "クロンム・ラ・モンターニュ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["G.H. Mumm"],
+		"description": "プティット・モンターニュ西部のムニエ主体の村。小規模栽培家が多く、収穫の多くはメゾンや協同組合に供給される。"
+	},
+	{
+		"id": "cuis",
+		"idApp": 900112,
+		"name": "Cuis",
+		"shortName": "Cuis",
+		"nameJa": "キュイ",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Pierre Gimonnet & Fils"],
+		"description": "コート・デ・ブラン北部の斜面上部に畑を持つシャルドネの村。ピエール・ジモネの本拠地として、切れ味の良いブラン・ド・ブランで知られる。"
+	},
+	{
+		"id": "cumieres",
+		"idApp": 900113,
+		"name": "Cumières",
+		"shortName": "Cumières",
+		"nameJa": "キュミエール",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Georges Laval", "René Geoffroy"],
+		"description": "マルヌ川北岸の急な南向き斜面を持ち、地方で最も早く収穫が始まる村のひとつ。ビオ栽培の先駆者ジョルジュ・ラヴァルの本拠地。コトー・シャンプノワの赤でも有名。"
+	},
+	{
+		"id": "dizy",
+		"idApp": 900114,
+		"name": "Dizy",
+		"shortName": "Dizy",
+		"nameJa": "ディジー",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Jacquesson", "Gaston Chiquet"],
+		"description": "エペルネ対岸、アイの西隣に位置するプルミエ・クリュ。ジャクソンが本拠を置き、テロワール重視の造りで評価が高い。"
+	},
+	{
+		"id": "ecueil",
+		"idApp": 900115,
+		"name": "Écueil",
+		"shortName": "Écueil",
+		"nameJa": "エキュイユ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Savart", "Nicolas Maillart"],
+		"description": "プティット・モンターニュのピノ・ノワールの銘産地。サヴァールら注目の若手レコルタンが集まり、近年最も評価を上げている村のひとつ。"
+	},
+	{
+		"id": "etrechy",
+		"idApp": 900116,
+		"name": "Étréchy",
+		"shortName": "Étréchy",
+		"nameJa": "エトレシー",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Nicolas Feuillatte"],
+		"description": "コート・デ・ブラン南方の小さなシャルドネの村。栽培面積はごく小さく、収穫は協同組合等へ供給される。"
+	},
+	{
+		"id": "grauves",
+		"idApp": 900117,
+		"name": "Grauves",
+		"shortName": "Grauves",
+		"nameJa": "グローヴ",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Moët & Chandon"],
+		"description": "コート・デ・ブラン背後の谷あいに位置するシャルドネ主体のプルミエ・クリュ。キュイの背後からアヴィーズ方面へ畑が続く。"
+	},
+	{
+		"id": "hautvillers",
+		"idApp": 900118,
+		"name": "Hautvillers",
+		"shortName": "Hautvillers",
+		"nameJa": "オーヴィレール",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Moët & Chandon (アビー・ドーヴィレール)", "G. Tribaut"],
+		"description": "「シャンパーニュ発祥の地」と称される村。修道士ドン・ペリニヨンが眠るオーヴィレール修道院があり、現在はモエ・エ・シャンドンが所有する。"
+	},
+	{
+		"id": "jouy-les-reims",
+		"idApp": 900119,
+		"name": "Jouy-lès-Reims",
+		"shortName": "Jouy-lès-Reims",
+		"nameJa": "ジュイ・レ・ランス",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["L. Aubry Fils"],
+		"description": "プティット・モンターニュ西部の村。オーブリー兄弟がアルバンヌ等の歴史的品種の復活に取り組む本拠地として知られる。"
+	},
+	{
+		"id": "les-mesneux",
+		"idApp": 900120,
+		"name": "Les Mesneux",
+		"shortName": "Les Mesneux",
+		"nameJa": "レ・メヌー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Pommery"],
+		"description": "ランス南西郊外に位置するプティット・モンターニュの小さなプルミエ・クリュ。収穫の多くはメゾンへ供給される。"
+	},
+	{
+		"id": "ludes",
+		"idApp": 900121,
+		"name": "Ludes",
+		"shortName": "Ludes",
+		"nameJa": "リュード",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Canard-Duchêne", "Ployez-Jacquemart"],
+		"description": "モンターニュ北面の斜面に位置し、カナール・デュシェーヌが本拠を置く村。ピノ・ノワール主体に3品種がバランスよく植わる。"
+	},
+	{
+		"id": "mareuil-sur-ay",
+		"idApp": 900122,
+		"name": "Mareuil-sur-Aÿ",
+		"shortName": "Mareuil-sur-Aÿ",
+		"nameJa": "マルイユ・シュル・アイ",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Philipponnat (Clos des Goisses)", "Billecart-Salmon"],
+		"description": "格付け99%を持つ事実上グラン・クリュ級の村。フィリポナの銘醸単一畑「クロ・デ・ゴワス」を擁する。2016年合併で現在はアイ・シャンパーニュ市の一部(地図は旧村域)。"
+	},
+	{
+		"id": "montbre",
+		"idApp": 900123,
+		"name": "Montbré",
+		"shortName": "Montbré",
+		"nameJa": "モンブレ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Taittinger"],
+		"description": "ランス南郊のごく小さなプルミエ・クリュ。栽培面積はわずかで、収穫はメゾンに供給される。"
+	},
+	{
+		"id": "mutigny",
+		"idApp": 900124,
+		"name": "Mutigny",
+		"shortName": "Mutigny",
+		"nameJa": "ミュティニー",
+		"region": "champagne",
+		"subregionId": "vallee-de-la-marne",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
+		"producers": ["Moët & Chandon"],
+		"description": "アイの背後の丘の上に位置するピノ・ノワール主体の村。マルヌ渓谷とモンターニュを結ぶ尾根に畑が広がる。"
+	},
+	{
+		"id": "pargny-les-reims",
+		"idApp": 900125,
+		"name": "Pargny-lès-Reims",
+		"shortName": "Pargny-lès-Reims",
+		"nameJa": "パルニー・レ・ランス",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["G.H. Mumm"],
+		"description": "プティット・モンターニュ西部のムニエ主体の村。ジュイ・レ・ランスに隣接し、小規模栽培家が中心。"
+	},
+	{
+		"id": "pierry",
+		"idApp": 900126,
+		"name": "Pierry",
+		"shortName": "Pierry",
+		"nameJa": "ピエリー",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Vollereaux"],
+		"description": "エペルネ南郊、コトー・シュド・デペルネの入口に位置するプルミエ・クリュ。シャルドネとムニエが植わり、ヴォルロー等の家族経営メゾンが本拠を置く。"
+	},
+	{
+		"id": "rilly-la-montagne",
+		"idApp": 900127,
+		"name": "Rilly-la-Montagne",
+		"shortName": "Rilly-la-Montagne",
+		"nameJa": "リリー・ラ・モンターニュ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Vilmart & Cie"],
+		"description": "モンターニュ北面の中心的なプルミエ・クリュのひとつ。長期樽熟成で知られるヴィルマールの本拠地。3品種がバランスよく栽培される。"
+	},
+	{
+		"id": "sacy",
+		"idApp": 900128,
+		"name": "Sacy",
+		"shortName": "Sacy",
+		"nameJa": "サシー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Pommery"],
+		"description": "プティット・モンターニュ、エキュイユの隣村。ムニエとピノ・ノワール主体で、ランスを見晴らす斜面に畑が広がる。"
+	},
+	{
+		"id": "sermiers",
+		"idApp": 900129,
+		"name": "Sermiers",
+		"shortName": "Sermiers",
+		"nameJa": "セルミエ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["G.H. Mumm"],
+		"description": "モンターニュ北西面の森に接する村。ムニエ主体で、収穫の多くはメゾンや協同組合へ供給される。"
+	},
+	{
+		"id": "taissy",
+		"idApp": 900130,
+		"name": "Taissy",
+		"shortName": "Taissy",
+		"nameJa": "テシー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Taittinger"],
+		"description": "ランス南東郊外のプルミエ・クリュ。ヴェール川沿いの緩斜面に小さな畑が残る。"
+	},
+	{
+		"id": "tauxieres-mutry",
+		"idApp": 900131,
+		"name": "Tauxières-Mutry",
+		"shortName": "Tauxières-Mutry",
+		"nameJa": "トーシエール・ミュトリ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Moët & Chandon"],
+		"description": "格付け99%を持つ事実上グラン・クリュ級の村。ブジーとルーヴォワに挟まれたピノ・ノワールの銘産地。2016年合併で現在はヴァル・ド・リーヴル市の一部(地図は旧村域)。"
+	},
+	{
+		"id": "trepail",
+		"idApp": 900132,
+		"name": "Trépail",
+		"shortName": "Trépail",
+		"nameJa": "トレパイユ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク層が浅く露出する石灰質土壌。モンターニュ東面では例外的にシャルドネに適した区画が広がる。",
+		"producers": ["David Léclapart"],
+		"description": "モンターニュ東面ながらシャルドネが大半を占める特異な村。ビオディナミの旗手ダヴィッド・レクラパールの本拠地として世界的に知られる。"
+	},
+	{
+		"id": "trois-puits",
+		"idApp": 900133,
+		"name": "Trois-Puits",
+		"shortName": "Trois-Puits",
+		"nameJa": "トロワ・ピュイ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Pommery"],
+		"description": "ランス南郊の最小級プルミエ・クリュのひとつ。都市近郊にわずかな畑が残る。"
+	},
+	{
+		"id": "vaudemange",
+		"idApp": 900134,
+		"name": "Vaudemange",
+		"shortName": "Vaudemange",
+		"nameJa": "ヴォードマンジュ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク層が浅く露出する石灰質土壌。モンターニュ東面では例外的にシャルドネに適した区画が広がる。",
+		"producers": ["Veuve Clicquot"],
+		"description": "モンターニュ東端、ビイ・ル・グランの隣村。この一帯では例外的にシャルドネ比率が高く、ブレンドに繊細な酸をもたらす。"
+	},
+	{
+		"id": "vertus",
+		"idApp": 900135,
+		"name": "Vertus",
+		"shortName": "Vertus",
+		"nameJa": "ヴェルテュ",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Larmandier-Bernier", "Veuve Fourny & Fils"],
+		"description": "コート・デ・ブラン最大の栽培面積を持つ村。シャルドネ主体だがピノ・ノワールも植わる。ラルマンディエ・ベルニエの本拠地。2018年合併で現在はブラン・コトー市の一部(地図は旧村域)。"
+	},
+	{
+		"id": "ville-dommange",
+		"idApp": 900136,
+		"name": "Ville-Dommange",
+		"shortName": "Ville-Dommange",
+		"nameJa": "ヴィル・ドマンジュ",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Pommery"],
+		"description": "プティット・モンターニュ、サン・リエの丘の麓に位置する村。ムニエとピノ・ノワール主体で、ランス平野を一望する斜面に畑が広がる。"
+	},
+	{
+		"id": "villeneuve-renneville-chevigny",
+		"idApp": 900137,
+		"name": "Villeneuve-Renneville-Chevigny",
+		"shortName": "Villeneuve-Renneville-Chevigny",
+		"nameJa": "ヴィルヌーヴ・ランヌヴィル・シュヴィニー",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Nicolas Feuillatte"],
+		"description": "ヴェルテュの東に位置するシャルドネのプルミエ・クリュ。平坦な立地で、収穫の多くは協同組合へ供給される。"
+	},
+	{
+		"id": "villers-allerand",
+		"idApp": 900138,
+		"name": "Villers-Allerand",
+		"shortName": "Villers-Allerand",
+		"nameJa": "ヴィレール・アルラン",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["G.H. Mumm"],
+		"description": "モンターニュ北面、リリー・ラ・モンターニュの西隣の村。ムニエ比率が高く、森に接する冷涼な斜面に畑を持つ。"
+	},
+	{
+		"id": "villers-aux-noeuds",
+		"idApp": 900139,
+		"name": "Villers-aux-Nœuds",
+		"shortName": "Villers-aux-Nœuds",
+		"nameJa": "ヴィレール・オー・ヌー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Pommery"],
+		"description": "ランス南郊、プティット・モンターニュ北端の小さな村。近年は意欲的な若手レコルタンの参入も見られる。"
+	},
+	{
+		"id": "villers-marmery",
+		"idApp": 900140,
+		"name": "Villers-Marmery",
+		"shortName": "Villers-Marmery",
+		"nameJa": "ヴィレール・マルムリー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "チョーク層が浅く露出する石灰質土壌。モンターニュ東面では例外的にシャルドネに適した区画が広がる。",
+		"producers": ["A. Margaine"],
+		"description": "ピノ・ノワールの海に浮かぶシャルドネの島と呼ばれるモンターニュ東面の村。マルゲーヌのブラン・ド・ブランがその個性を象徴する。"
+	},
+	{
+		"id": "voipreux",
+		"idApp": 900141,
+		"name": "Voipreux",
+		"shortName": "Voipreux",
+		"nameJa": "ヴォワプルー",
+		"region": "champagne",
+		"subregionId": "cote-des-blancs",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
+		"producers": ["Nicolas Feuillatte"],
+		"description": "ヴェルテュ南東の小さなシャルドネの村。2018年合併で現在はブラン・コトー市の一部(地図は旧村域)。"
+	},
+	{
+		"id": "vrigny",
+		"idApp": 900142,
+		"name": "Vrigny",
+		"shortName": "Vrigny",
+		"nameJa": "ヴリニー",
+		"region": "champagne",
+		"subregionId": "montagne-de-reims",
+		"classification": "village",
+		"premierCru": true,
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
+		"producers": ["Lelarge-Pugeot"],
+		"description": "プティット・モンターニュ北西端のムニエ主体の村。ビオ栽培を実践するルラルジュ・ピュジョーの本拠地。"
 	}
 ]

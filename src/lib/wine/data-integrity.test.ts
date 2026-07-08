@@ -32,10 +32,14 @@ describe("AOPメタデータの整合性", () => {
 		}
 	});
 
-	it("グラン・クリュは同一地方の村名AOCを親に持つ", () => {
+	it("グラン・クリュの親村参照が有効(村名AOC階層を持つ地方では親必須)", () => {
 		const byId = new Map(AOPS.map((a) => [a.id, a]));
 		for (const aop of AOPS.filter((a) => a.classification === "grand-cru")) {
-			expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
+			// シャンパーニュのグラン・クリュは村の格付け(échelle des crus)であり
+			// 親となる村名AOCが存在しないため villageAopIds を持たない
+			if (aop.region === "bourgogne") {
+				expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
+			}
 			for (const villageId of aop.villageAopIds ?? []) {
 				const village = byId.get(villageId);
 				expect(village, `${aop.id} -> ${villageId}`).toBeDefined();

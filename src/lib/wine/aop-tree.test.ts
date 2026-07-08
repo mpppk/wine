@@ -79,9 +79,12 @@ describe("buildAopTree", () => {
 		expect(tree[0].unassignedGrandCrus.map((a) => a.id)).toEqual(["gc-orphan"]);
 	});
 
-	it("実データ: ブルゴーニュの全AOPがツリーのどこかに1回以上現れる", () => {
-		const region = getRegion("bourgogne");
-		if (!region) throw new Error("bourgogne not found");
+	it.each([
+		"bourgogne",
+		"champagne",
+	])("実データ: %s の全AOPがツリーのどこかに1回以上現れる", (regionId) => {
+		const region = getRegion(regionId);
+		if (!region) throw new Error(`${regionId} not found`);
 		const aops = listAops({ regionId: region.id });
 		const tree = buildAopTree(aops, region.subregions);
 		const seen = new Set<string>();

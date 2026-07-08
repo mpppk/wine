@@ -69,9 +69,21 @@ export const REGIONS: Region[] = [
 		nameLocal: "Champagne",
 		country: "France",
 		countryJa: "フランス",
-		enabled: false,
-		subregions: [],
-		description: "世界最高峰のスパークリングワイン産地。対応予定。",
+		enabled: true,
+		bounds: [3.13668, 47.92368, 4.89491, 49.45536],
+		geojsonPath: "/data/aop/champagne.geojson",
+		subregions: [
+			{ id: "montagne-de-reims", nameJa: "モンターニュ・ド・ランス" },
+			{ id: "vallee-de-la-marne", nameJa: "ヴァレ・ド・ラ・マルヌ" },
+			{ id: "cote-des-blancs", nameJa: "コート・デ・ブラン" },
+			{ id: "cote-de-sezanne", nameJa: "コート・ド・セザンヌ" },
+			{ id: "cote-des-bar", nameJa: "コート・デ・バール" },
+			{ id: "champagne-regional", nameJa: "地方名AOC(広域)" },
+		],
+		description:
+			"世界最高峰のスパークリングワインの本拠地。独立AOCではなく" +
+			"「エシェル・デ・クリュ(村の格付け)」によるグラン・クリュ17村・" +
+			"プルミエ・クリュ42村の階層を村単位の地図で学べる。",
 	},
 ];
 
