@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { buildAopTree, type VillageNode } from "#/lib/wine/aop-tree";
 import { GRAND_CRU_TAG_COLOR, KIND_COLORS } from "#/lib/wine/map-style";
+import { AOP_TAG_BADGES_JA } from "#/lib/wine/tags";
 import type { Aop, Subregion } from "#/lib/wine/types";
 
 export interface AopTreeListProps {
@@ -38,21 +39,34 @@ export function AopTreeList({
 				.map((node) => ({
 					...node,
 					vineyards: node.vineyards.filter((a) => visibleAopIds.has(a.id)),
+					wineries: node.wineries.filter((a) => visibleAopIds.has(a.id)),
 				}))
 				.filter(
 					(node) =>
-						visibleAopIds.has(node.village.id) || node.vineyards.length > 0,
+						visibleAopIds.has(node.village.id) ||
+						node.vineyards.length > 0 ||
+						node.wineries.length > 0,
 				);
 			const unassignedVineyards = section.unassignedVineyards.filter((a) =>
 				visibleAopIds.has(a.id),
 			);
-			return { ...section, regionalAops, villages, unassignedVineyards };
+			const unassignedWineries = section.unassignedWineries.filter((a) =>
+				visibleAopIds.has(a.id),
+			);
+			return {
+				...section,
+				regionalAops,
+				villages,
+				unassignedVineyards,
+				unassignedWineries,
+			};
 		})
 		.filter(
 			(s) =>
 				s.regionalAops.length > 0 ||
 				s.villages.length > 0 ||
-				s.unassignedVineyards.length > 0,
+				s.unassignedVineyards.length > 0 ||
+				s.unassignedWineries.length > 0,
 		);
 
 	if (visibleSections.length === 0) {
@@ -109,6 +123,19 @@ export function AopTreeList({
 							))}
 						</ul>
 					)}
+					{section.unassignedWineries.length > 0 && (
+						<ul>
+							{section.unassignedWineries.map((aop) => (
+								<li key={aop.id}>
+									<AopRow
+										aop={aop}
+										selected={aop.id === selectedAopId}
+										onSelect={onSelect}
+									/>
+								</li>
+							))}
+						</ul>
+					)}
 				</section>
 			))}
 		</nav>
@@ -142,9 +169,18 @@ function VillageItem({
 					{node.village.nameJa}
 				</p>
 			)}
-			{node.vineyards.length > 0 && (
+			{(node.vineyards.length > 0 || node.wineries.length > 0) && (
 				<ul className="ml-4 border-l border-border pl-1">
 					{node.vineyards.map((aop) => (
+						<li key={aop.id}>
+							<AopRow
+								aop={aop}
+								selected={aop.id === selectedAopId}
+								onSelect={onSelect}
+							/>
+						</li>
+					))}
+					{node.wineries.map((aop) => (
 						<li key={aop.id}>
 							<AopRow
 								aop={aop}
@@ -168,6 +204,10 @@ function AopRow({
 	selected: boolean;
 	onSelect: (aopId: string) => void;
 }) {
+	// 格付けバッジ(1級/2級/A 等)。定義の無いタグ(特級)はドット色で表現する
+	const badge = (aop.tags ?? [])
+		.map((t) => AOP_TAG_BADGES_JA[t])
+		.find((b) => b !== undefined);
 	return (
 		<button
 			type="button"
@@ -187,8 +227,10 @@ function AopRow({
 				}}
 			/>
 			<span className="min-w-0 flex-1 truncate">{aop.nameJa}</span>
-			{aop.tags?.includes("premier-cru") && (
-				<span className="shrink-0 text-[10px] text-muted-foreground">1er</span>
+			{badge && (
+				<span className="shrink-0 text-[10px] text-muted-foreground">
+					{badge}
+				</span>
 			)}
 		</button>
 	);

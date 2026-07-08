@@ -104,6 +104,30 @@ describe("listAops", () => {
 			expect(aopAllowsGrape(aop, "meunier")).toBe(true);
 		}
 	});
+
+	it("ボルドーは地方名6 + 村名12のAOCを持つ", () => {
+		const aops = listAops({ regionId: "bordeaux" });
+		expect(aops.filter((a) => a.kind === "regional")).toHaveLength(6);
+		expect(aops.filter((a) => a.kind === "village")).toHaveLength(12);
+		// 畑(vineyard)はボルドーには無い
+		expect(aops.filter((a) => a.kind === "vineyard")).toHaveLength(0);
+	});
+
+	it("メルロでボルドーの右岸・広域AOPを絞り込める", () => {
+		const aops = listAops({ regionId: "bordeaux", grapeVarietyId: "merlot" });
+		expect(aops.length).toBeGreaterThan(0);
+		expect(aops.some((a) => a.id === "pomerol")).toBe(true);
+		for (const aop of aops) {
+			expect(aopAllowsGrape(aop, "merlot")).toBe(true);
+		}
+	});
+
+	it("ソーテルヌ・バルサックは甘口白(sweet-white)", () => {
+		for (const id of ["sauternes", "barsac"]) {
+			const aop = getAop(id);
+			expect(aop?.colors).toEqual(["sweet-white"]);
+		}
+	});
 });
 
 describe("getAop / getRegion", () => {

@@ -53,6 +53,46 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameFr: "Petit Meslier",
 		color: "white",
 	},
+	// ボルドー系(赤): メドック/グラーヴ/リブルネのブレンド主体
+	{
+		id: "cabernet-sauvignon",
+		nameJa: "カベルネ・ソーヴィニヨン",
+		nameFr: "Cabernet sauvignon",
+		color: "red",
+	},
+	{ id: "merlot", nameJa: "メルロ", nameFr: "Merlot", color: "red" },
+	{
+		id: "cabernet-franc",
+		nameJa: "カベルネ・フラン",
+		nameFr: "Cabernet franc",
+		color: "red",
+	},
+	{
+		id: "petit-verdot",
+		nameJa: "プティ・ヴェルド",
+		nameFr: "Petit verdot",
+		color: "red",
+	},
+	{
+		id: "malbec",
+		nameJa: "マルベック(コット)",
+		nameFr: "Malbec",
+		color: "red",
+	},
+	{
+		id: "carmenere",
+		nameJa: "カルメネール",
+		nameFr: "Carménère",
+		color: "red",
+	},
+	// ボルドー系(白): グラーヴの辛口白・ソーテルヌの貴腐甘口。ソーヴィニヨンは既出
+	{ id: "semillon", nameJa: "セミヨン", nameFr: "Sémillon", color: "white" },
+	{
+		id: "muscadelle",
+		nameJa: "ミュスカデル",
+		nameFr: "Muscadelle",
+		color: "white",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);
