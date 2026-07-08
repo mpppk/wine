@@ -7,8 +7,7 @@
 		"nameJa": "ブルイィ",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -40,8 +39,7 @@
 		"nameJa": "シェナ",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -73,8 +71,7 @@
 		"nameJa": "シルーブル",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -106,8 +103,7 @@
 		"nameJa": "コート・ド・ブルイィ",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -139,8 +135,7 @@
 		"nameJa": "フルーリー",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -172,8 +167,7 @@
 		"nameJa": "ジュリエナ",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -205,8 +199,7 @@
 		"nameJa": "モルゴン",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -242,8 +235,7 @@
 		"nameJa": "ムーラン・ナ・ヴァン",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -279,8 +271,7 @@
 		"nameJa": "レニエ",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -312,8 +303,7 @@
 		"nameJa": "サン・タムール",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -345,8 +335,7 @@
 		"nameJa": "ボジョレー",
 		"region": "beaujolais",
 		"subregionId": "beaujolais",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["red", "rose", "white"],
 		"grapes": [
 			{
@@ -386,8 +375,8 @@
 		"nameJa": "アロース・コルトン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -424,8 +413,8 @@
 		"nameJa": "オーセイ・デュレス",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -462,9 +451,9 @@
 		"nameJa": "バタール・モンラッシェ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["puligny-montrachet", "chassagne-montrachet"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -489,8 +478,8 @@
 		"nameJa": "ボーヌ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -527,9 +516,9 @@
 		"nameJa": "ビアンヴニュ・バタール・モンラッシェ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["puligny-montrachet"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -549,8 +538,8 @@
 		"nameJa": "ブラニー",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -586,9 +575,9 @@
 		"nameJa": "ボンヌ・マール",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["chambolle-musigny", "morey-saint-denis"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -627,8 +616,7 @@
 		"nameJa": "ブルゴーニュ",
 		"region": "bourgogne",
 		"subregionId": "bourgogne-regional",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["red", "white", "rose"],
 		"grapes": [
 			{
@@ -673,8 +661,7 @@
 		"nameJa": "ブルゴーニュ・アリゴテ",
 		"region": "bourgogne",
 		"subregionId": "bourgogne-regional",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -698,8 +685,7 @@
 		"nameJa": "ブルゴーニュ・ムスー",
 		"region": "bourgogne",
 		"subregionId": "bourgogne-regional",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["red", "sparkling"],
 		"grapes": [
 			{
@@ -739,8 +725,7 @@
 		"nameJa": "ブルゴーニュ・パス・トゥ・グラン",
 		"region": "bourgogne",
 		"subregionId": "bourgogne-regional",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["red", "rose"],
 		"grapes": [
 			{
@@ -776,8 +761,8 @@
 		"nameJa": "シャブリ",
 		"region": "bourgogne",
 		"subregionId": "chablis-grand-auxerrois",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -804,9 +789,9 @@
 		"nameJa": "シャブリ・グラン・クリュ",
 		"region": "bourgogne",
 		"subregionId": "chablis-grand-auxerrois",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["chablis"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -832,9 +817,9 @@
 		"nameJa": "シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -873,9 +858,9 @@
 		"nameJa": "シャンベルタン・クロ・ド・ベーズ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -913,8 +898,8 @@
 		"nameJa": "シャンボール・ミュジニー",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -952,9 +937,9 @@
 		"nameJa": "シャペル・シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -992,9 +977,9 @@
 		"nameJa": "シャルルマーニュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["aloxe-corton", "pernand-vergelesses"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -1018,9 +1003,9 @@
 		"nameJa": "シャルム・シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1058,8 +1043,8 @@
 		"nameJa": "シャサーニュ・モンラッシェ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white", "red"],
 		"grapes": [
 			{
@@ -1096,9 +1081,9 @@
 		"nameJa": "シュヴァリエ・モンラッシェ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["puligny-montrachet"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -1123,8 +1108,7 @@
 		"nameJa": "ショレイ・レ・ボーヌ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -1160,9 +1144,9 @@
 		"nameJa": "クロ・ド・ラ・ロッシュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["morey-saint-denis"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1201,9 +1185,9 @@
 		"nameJa": "クロ・ド・タール",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["morey-saint-denis"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1235,9 +1219,9 @@
 		"nameJa": "クロ・ド・ヴージョ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vougeot"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1276,9 +1260,9 @@
 		"nameJa": "クロ・デ・ランブレイ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["morey-saint-denis"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1310,9 +1294,9 @@
 		"nameJa": "クロ・サン・ドニ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["morey-saint-denis"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1349,9 +1333,9 @@
 		"nameJa": "コルトン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["aloxe-corton", "ladoix", "pernand-vergelesses"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -1388,9 +1372,9 @@
 		"nameJa": "コルトン・シャルルマーニュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["aloxe-corton", "ladoix", "pernand-vergelesses"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -1419,8 +1403,7 @@
 		"nameJa": "コート・ド・ボーヌ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -1452,8 +1435,7 @@
 		"nameJa": "コート・ド・ボーヌ・ヴィラージュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1489,8 +1471,7 @@
 		"nameJa": "コート・ド・ニュイ・ヴィラージュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -1527,8 +1508,7 @@
 		"nameJa": "クレマン・ド・ブルゴーニュ",
 		"region": "bourgogne",
 		"subregionId": "bourgogne-regional",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["white", "rose", "sparkling"],
 		"grapes": [
 			{
@@ -1581,9 +1561,9 @@
 		"nameJa": "クリオ・バタール・モンラッシェ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["chassagne-montrachet"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -1608,9 +1588,9 @@
 		"nameJa": "エシェゾー",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vosne-romanee"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1648,8 +1628,8 @@
 		"nameJa": "フィサン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -1686,8 +1666,8 @@
 		"nameJa": "ジュヴレ・シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1726,8 +1706,8 @@
 		"nameJa": "ジヴリ",
 		"region": "bourgogne",
 		"subregionId": "cote-chalonnaise",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -1764,9 +1744,9 @@
 		"nameJa": "グラン・エシェゾー",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vosne-romanee"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1803,9 +1783,9 @@
 		"nameJa": "グリオット・シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1842,9 +1822,9 @@
 		"nameJa": "ラ・グランド・リュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vosne-romanee"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1876,9 +1856,9 @@
 		"nameJa": "ラ・ロマネ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vosne-romanee"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1910,9 +1890,9 @@
 		"nameJa": "ラ・ターシュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vosne-romanee"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -1944,8 +1924,8 @@
 		"nameJa": "ラドワ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -1982,9 +1962,9 @@
 		"nameJa": "ラトリシエール・シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -2022,8 +2002,8 @@
 		"nameJa": "マランジュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -2059,8 +2039,7 @@
 		"nameJa": "マルサネ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red", "white", "rose"],
 		"grapes": [
 			{
@@ -2098,9 +2077,9 @@
 		"nameJa": "マジ・シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -2138,9 +2117,9 @@
 		"nameJa": "マゾワイエール・シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -2177,8 +2156,8 @@
 		"nameJa": "メルキュレ",
 		"region": "bourgogne",
 		"subregionId": "cote-chalonnaise",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -2211,8 +2190,8 @@
 		"nameJa": "ムルソー",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white", "red"],
 		"grapes": [
 			{
@@ -2250,8 +2229,8 @@
 		"nameJa": "モンタニー",
 		"region": "bourgogne",
 		"subregionId": "cote-chalonnaise",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -2276,8 +2255,8 @@
 		"nameJa": "モンテリー",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -2313,9 +2292,9 @@
 		"nameJa": "モンラッシェ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["puligny-montrachet", "chassagne-montrachet"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -2341,8 +2320,8 @@
 		"nameJa": "モレ・サン・ドニ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -2384,9 +2363,9 @@
 		"nameJa": "ミュジニー",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["chambolle-musigny"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -2424,8 +2403,8 @@
 		"nameJa": "ニュイ・サン・ジョルジュ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -2463,8 +2442,8 @@
 		"nameJa": "ペルナン・ヴェルジュレス",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -2500,8 +2479,7 @@
 		"nameJa": "プティ・シャブリ",
 		"region": "bourgogne",
 		"subregionId": "chablis-grand-auxerrois",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -2526,8 +2504,8 @@
 		"nameJa": "ポマール",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -2564,8 +2542,8 @@
 		"nameJa": "プイィ・フュイッセ",
 		"region": "bourgogne",
 		"subregionId": "maconnais",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -2591,8 +2569,8 @@
 		"nameJa": "プイィ・ロシェ",
 		"region": "bourgogne",
 		"subregionId": "maconnais",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -2617,8 +2595,8 @@
 		"nameJa": "プイィ・ヴァンゼル",
 		"region": "bourgogne",
 		"subregionId": "maconnais",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -2643,8 +2621,8 @@
 		"nameJa": "ピュリニー・モンラッシェ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white", "red"],
 		"grapes": [
 			{
@@ -2681,9 +2659,9 @@
 		"nameJa": "リシュブール",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vosne-romanee"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -2722,9 +2700,9 @@
 		"nameJa": "ロマネ・コンティ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vosne-romanee"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -2756,9 +2734,9 @@
 		"nameJa": "ロマネ・サン・ヴィヴァン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["vosne-romanee"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -2797,9 +2775,9 @@
 		"nameJa": "リュショット・シャンベルタン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "grand-cru",
+		"kind": "vineyard",
 		"villageAopIds": ["gevrey-chambertin"],
-		"premierCru": false,
+		"tags": ["grand-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -2836,8 +2814,8 @@
 		"nameJa": "リュリー",
 		"region": "bourgogne",
 		"subregionId": "cote-chalonnaise",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -2869,8 +2847,8 @@
 		"nameJa": "サン・トーバン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["white", "red"],
 		"grapes": [
 			{
@@ -2906,8 +2884,7 @@
 		"nameJa": "サン・ロマン",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["white", "red"],
 		"grapes": [
 			{
@@ -2943,8 +2920,7 @@
 		"nameJa": "サン・ヴェラン",
 		"region": "bourgogne",
 		"subregionId": "maconnais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -2970,8 +2946,8 @@
 		"nameJa": "サントネイ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -3008,8 +2984,8 @@
 		"nameJa": "サヴィニー・レ・ボーヌ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -3046,8 +3022,8 @@
 		"nameJa": "ヴォルネイ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-beaune",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -3084,8 +3060,8 @@
 		"nameJa": "ヴォーヌ・ロマネ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -3124,8 +3100,8 @@
 		"nameJa": "ヴージョ",
 		"region": "bourgogne",
 		"subregionId": "cote-de-nuits",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["red", "white"],
 		"grapes": [
 			{
@@ -3161,8 +3137,7 @@
 		"nameJa": "ブーズロン",
 		"region": "bourgogne",
 		"subregionId": "cote-chalonnaise",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -3182,8 +3157,7 @@
 		"nameJa": "ヴィレ・クレッセ",
 		"region": "bourgogne",
 		"subregionId": "maconnais",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -3208,8 +3182,7 @@
 		"nameJa": "イランシー",
 		"region": "bourgogne",
 		"subregionId": "chablis-grand-auxerrois",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["red"],
 		"grapes": [
 			{
@@ -3242,8 +3215,7 @@
 		"nameJa": "サン・ブリ",
 		"region": "bourgogne",
 		"subregionId": "chablis-grand-auxerrois",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -3273,8 +3245,7 @@
 		"nameJa": "マコン",
 		"region": "bourgogne",
 		"subregionId": "maconnais",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["red", "white", "rose"],
 		"grapes": [
 			{
@@ -3308,8 +3279,7 @@
 		"nameJa": "コトー・ブルギニョン",
 		"region": "bourgogne",
 		"subregionId": "bourgogne-regional",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["red", "white", "rose"],
 		"grapes": [
 			{
@@ -3357,8 +3327,7 @@
 		"nameJa": "ヴェズレー",
 		"region": "bourgogne",
 		"subregionId": "chablis-grand-auxerrois",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["white"],
 		"grapes": [
 			{
@@ -3384,8 +3353,7 @@
 		"nameJa": "シャンパーニュ",
 		"region": "champagne",
 		"subregionId": "champagne-regional",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["sparkling", "rose"],
 		"grapes": [
 			{
@@ -3435,8 +3403,7 @@
 		"nameJa": "コトー・シャンプノワ",
 		"region": "champagne",
 		"subregionId": "champagne-regional",
-		"classification": "regional",
-		"premierCru": false,
+		"kind": "regional",
 		"colors": ["red", "white", "rose"],
 		"grapes": [
 			{
@@ -3484,8 +3451,7 @@
 		"nameJa": "ロゼ・デ・リセ",
 		"region": "champagne",
 		"subregionId": "cote-des-bar",
-		"classification": "village",
-		"premierCru": false,
+		"kind": "village",
 		"colors": ["rose"],
 		"grapes": [
 			{
@@ -3505,8 +3471,8 @@
 		"nameJa": "アンボネイ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3534,8 +3500,8 @@
 		"nameJa": "アヴィーズ",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3559,8 +3525,8 @@
 		"nameJa": "アイ",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3588,8 +3554,8 @@
 		"nameJa": "ボーモン・シュル・ヴェール",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3617,8 +3583,8 @@
 		"nameJa": "ブジー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3646,8 +3612,8 @@
 		"nameJa": "シュイィ",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3671,8 +3637,8 @@
 		"nameJa": "クラマン",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3696,8 +3662,8 @@
 		"nameJa": "ルーヴォワ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3725,8 +3691,8 @@
 		"nameJa": "マイィ・シャンパーニュ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3754,8 +3720,8 @@
 		"nameJa": "ル・メニル・シュル・オジェ",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3779,8 +3745,8 @@
 		"nameJa": "オジェ",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3804,8 +3770,8 @@
 		"nameJa": "オワリー",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3829,8 +3795,8 @@
 		"nameJa": "ピュイジュー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3858,8 +3824,8 @@
 		"nameJa": "シルリー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3887,8 +3853,8 @@
 		"nameJa": "トゥール・シュル・マルヌ",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3916,8 +3882,8 @@
 		"nameJa": "ヴェルズネイ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3945,8 +3911,8 @@
 		"nameJa": "ヴェルジー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "grand-cru",
-		"premierCru": false,
+		"kind": "village",
+		"tags": ["grand-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -3974,8 +3940,8 @@
 		"nameJa": "アヴネイ・ヴァル・ドール",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4003,8 +3969,8 @@
 		"nameJa": "ベルジェール・レ・ヴェルテュ",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4028,8 +3994,8 @@
 		"nameJa": "ブザンヌ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4057,8 +4023,8 @@
 		"nameJa": "ビイ・ル・グラン",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4082,8 +4048,8 @@
 		"nameJa": "ビスイユ",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4111,8 +4077,8 @@
 		"nameJa": "シャムリー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4140,8 +4106,8 @@
 		"nameJa": "シャンピヨン",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4169,8 +4135,8 @@
 		"nameJa": "シニー・レ・ローズ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4198,8 +4164,8 @@
 		"nameJa": "コリニー",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4223,8 +4189,8 @@
 		"nameJa": "コルモントルイユ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4252,8 +4218,8 @@
 		"nameJa": "クロンム・ラ・モンターニュ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4281,8 +4247,8 @@
 		"nameJa": "キュイ",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4306,8 +4272,8 @@
 		"nameJa": "キュミエール",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4335,8 +4301,8 @@
 		"nameJa": "ディジー",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4364,8 +4330,8 @@
 		"nameJa": "エキュイユ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4393,8 +4359,8 @@
 		"nameJa": "エトレシー",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4418,8 +4384,8 @@
 		"nameJa": "グローヴ",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4443,8 +4409,8 @@
 		"nameJa": "オーヴィレール",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4472,8 +4438,8 @@
 		"nameJa": "ジュイ・レ・ランス",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4501,8 +4467,8 @@
 		"nameJa": "レ・メヌー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4530,8 +4496,8 @@
 		"nameJa": "リュード",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4559,8 +4525,8 @@
 		"nameJa": "マルイユ・シュル・アイ",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4588,8 +4554,8 @@
 		"nameJa": "モンブレ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4617,8 +4583,8 @@
 		"nameJa": "ミュティニー",
 		"region": "champagne",
 		"subregionId": "vallee-de-la-marne",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4646,8 +4612,8 @@
 		"nameJa": "パルニー・レ・ランス",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4675,8 +4641,8 @@
 		"nameJa": "ピエリー",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4700,8 +4666,8 @@
 		"nameJa": "リリー・ラ・モンターニュ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4729,8 +4695,8 @@
 		"nameJa": "サシー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4758,8 +4724,8 @@
 		"nameJa": "セルミエ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4787,8 +4753,8 @@
 		"nameJa": "テシー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4816,8 +4782,8 @@
 		"nameJa": "トーシエール・ミュトリ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4845,8 +4811,8 @@
 		"nameJa": "トレパイユ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4870,8 +4836,8 @@
 		"nameJa": "トロワ・ピュイ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4899,8 +4865,8 @@
 		"nameJa": "ヴォードマンジュ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4924,8 +4890,8 @@
 		"nameJa": "ヴェルテュ",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4949,8 +4915,8 @@
 		"nameJa": "ヴィル・ドマンジュ",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -4978,8 +4944,8 @@
 		"nameJa": "ヴィルヌーヴ・ランヌヴィル・シュヴィニー",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -5003,8 +4969,8 @@
 		"nameJa": "ヴィレール・アルラン",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -5032,8 +4998,8 @@
 		"nameJa": "ヴィレール・オー・ヌー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -5061,8 +5027,8 @@
 		"nameJa": "ヴィレール・マルムリー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -5086,8 +5052,8 @@
 		"nameJa": "ヴォワプルー",
 		"region": "champagne",
 		"subregionId": "cote-des-blancs",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{
@@ -5111,8 +5077,8 @@
 		"nameJa": "ヴリニー",
 		"region": "champagne",
 		"subregionId": "montagne-de-reims",
-		"classification": "village",
-		"premierCru": true,
+		"kind": "village",
+		"tags": ["premier-cru"],
 		"colors": ["sparkling"],
 		"grapes": [
 			{

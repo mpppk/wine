@@ -1,20 +1,20 @@
 import { useMemo } from "react";
 import { buildAopTree, type VillageNode } from "#/lib/wine/aop-tree";
-import { CLASSIFICATION_COLORS } from "#/lib/wine/map-style";
+import { GRAND_CRU_TAG_COLOR, KIND_COLORS } from "#/lib/wine/map-style";
 import type { Aop, Subregion } from "#/lib/wine/types";
 
 export interface AopTreeListProps {
 	/** 地域の全AOP。ツリー構造(村→畑の親子)はフィルタに関係なく全量から組む */
 	aops: Aop[];
 	subregions: Subregion[];
-	/** フィルタ(品種・格付け)を通過したAOPのid。含まれない行は非表示になる */
+	/** フィルタ(品種・区分・タグ)を通過したAOPのid。含まれない行は非表示になる */
 	visibleAopIds: ReadonlySet<string>;
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
 }
 
 /**
- * 地区 > 村名AOC > グラン・クリュ の階層でAOPを一覧表示する。
+ * 地区 > 村名AOC > 畑 の階層でAOPを一覧表示する。
  * 地図表示時のサイドバーとリスト表示の両方で使う。
  */
 export function AopTreeList({
@@ -37,22 +37,22 @@ export function AopTreeList({
 			const villages = section.villages
 				.map((node) => ({
 					...node,
-					grandCrus: node.grandCrus.filter((a) => visibleAopIds.has(a.id)),
+					vineyards: node.vineyards.filter((a) => visibleAopIds.has(a.id)),
 				}))
 				.filter(
 					(node) =>
-						visibleAopIds.has(node.village.id) || node.grandCrus.length > 0,
+						visibleAopIds.has(node.village.id) || node.vineyards.length > 0,
 				);
-			const unassignedGrandCrus = section.unassignedGrandCrus.filter((a) =>
+			const unassignedVineyards = section.unassignedVineyards.filter((a) =>
 				visibleAopIds.has(a.id),
 			);
-			return { ...section, regionalAops, villages, unassignedGrandCrus };
+			return { ...section, regionalAops, villages, unassignedVineyards };
 		})
 		.filter(
 			(s) =>
 				s.regionalAops.length > 0 ||
 				s.villages.length > 0 ||
-				s.unassignedGrandCrus.length > 0,
+				s.unassignedVineyards.length > 0,
 		);
 
 	if (visibleSections.length === 0) {
@@ -96,9 +96,9 @@ export function AopTreeList({
 							))}
 						</ul>
 					)}
-					{section.unassignedGrandCrus.length > 0 && (
+					{section.unassignedVineyards.length > 0 && (
 						<ul>
-							{section.unassignedGrandCrus.map((aop) => (
+							{section.unassignedVineyards.map((aop) => (
 								<li key={aop.id}>
 									<AopRow
 										aop={aop}
@@ -135,16 +135,16 @@ function VillageItem({
 					onSelect={onSelect}
 				/>
 			) : (
-				// 村自体は格付けフィルタで非表示だが、配下のグラン・クリュの
-				// 位置づけを示すためグルーピングラベルとしては残す
+				// 村自体はフィルタで非表示だが、配下の畑の位置づけを示すため
+				// グルーピングラベルとしては残す
 				<p className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
 					<span aria-hidden className="size-2.5 shrink-0" />
 					{node.village.nameJa}
 				</p>
 			)}
-			{node.grandCrus.length > 0 && (
+			{node.vineyards.length > 0 && (
 				<ul className="ml-4 border-l border-border pl-1">
-					{node.grandCrus.map((aop) => (
+					{node.vineyards.map((aop) => (
 						<li key={aop.id}>
 							<AopRow
 								aop={aop}
@@ -181,11 +181,13 @@ function AopRow({
 				aria-hidden
 				className="size-2.5 shrink-0 rounded-full"
 				style={{
-					backgroundColor: CLASSIFICATION_COLORS[aop.classification].fill,
+					backgroundColor: aop.tags?.includes("grand-cru")
+						? GRAND_CRU_TAG_COLOR.fill
+						: KIND_COLORS[aop.kind].fill,
 				}}
 			/>
 			<span className="min-w-0 flex-1 truncate">{aop.nameJa}</span>
-			{aop.premierCru && (
+			{aop.tags?.includes("premier-cru") && (
 				<span className="shrink-0 text-[10px] text-muted-foreground">1er</span>
 			)}
 		</button>

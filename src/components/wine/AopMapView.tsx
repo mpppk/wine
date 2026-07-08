@@ -4,12 +4,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef } from "react";
 import {
 	BASEMAP_STYLE_URL,
-	CLASSIFICATION_COLORS,
-	CLASSIFICATION_LABELS_JA,
-	CLASSIFICATION_RANK,
+	GRAND_CRU_TAG_COLOR,
+	KIND_COLORS,
+	KIND_LABELS_JA,
+	KIND_RANK,
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape } from "#/lib/wine/service";
-import type { Aop, Classification, Region } from "#/lib/wine/types";
+import { type AopTagId, formatAopTagJa } from "#/lib/wine/tags";
+import type { Aop, AopKind, Region } from "#/lib/wine/types";
 
 const SOURCE_ID = "aops";
 const FILL_LAYER = "aop-fill";
@@ -22,8 +24,10 @@ export interface AopMapViewProps {
 	selectedAopId?: string;
 	/** ブドウ品種フィルタ。指定時、許可されていないAOPは灰色に沈む */
 	grapeVarietyId?: string;
-	/** 表示する格付け。含まれない格付けのAOPは非表示 */
-	visibleClassifications: Classification[];
+	/** 表示する区分。含まれない区分のAOPは非表示 */
+	visibleKinds: AopKind[];
+	/** 表示するタグ。空なら絞り込まない。指定時はいずれかのタグを持つAOPのみ表示 */
+	visibleTags?: AopTagId[];
 	onSelectAop?: (aopId: string | undefined) => void;
 	className?: string;
 }
@@ -60,7 +64,7 @@ function computeBounds(
 	return undefined;
 }
 
-// hover/クリック位置のフィーチャから「最も格付けの高い(=最前面の)」ものを選ぶ
+// hover/クリック位置のフィーチャから「最も区分ランクの高い(=最前面の)」ものを選ぶ
 function pickTopFeature(
 	features: MapGeoJSONFeature[],
 	aopsByIdApp: Map<number, Aop>,
@@ -70,11 +74,7 @@ function pickTopFeature(
 		const idApp = typeof f.id === "number" ? f.id : Number(f.id);
 		const aop = aopsByIdApp.get(idApp);
 		if (!aop) continue;
-		if (
-			!best ||
-			CLASSIFICATION_RANK[aop.classification] >
-				CLASSIFICATION_RANK[best.classification]
-		) {
+		if (!best || KIND_RANK[aop.kind] > KIND_RANK[best.kind]) {
 			best = aop;
 		}
 	}
@@ -86,7 +86,8 @@ export function AopMapView({
 	aops,
 	selectedAopId,
 	grapeVarietyId,
-	visibleClassifications,
+	visibleKinds,
+	visibleTags,
 	onSelectAop,
 	className,
 }: AopMapViewProps) {
@@ -167,16 +168,28 @@ export function AopMapView({
 						"fill-sort-key": ["coalesce", ["get", "rank"], 1],
 					},
 					paint: {
+						// 特級タグ持ちは区分に関わらず最濃色(シャンパーニュ特級村の見た目維持)
 						"fill-color": [
-							"match",
-							["get", "classification"],
-							"regional",
-							CLASSIFICATION_COLORS.regional.fill,
-							"village",
-							CLASSIFICATION_COLORS.village.fill,
-							"grand-cru",
-							CLASSIFICATION_COLORS["grand-cru"].fill,
-							CLASSIFICATION_COLORS.village.fill,
+							"case",
+							[
+								"in",
+								"grand-cru",
+								["coalesce", ["get", "tags"], ["literal", []]],
+							],
+							GRAND_CRU_TAG_COLOR.fill,
+							[
+								"match",
+								["get", "kind"],
+								"regional",
+								KIND_COLORS.regional.fill,
+								"village",
+								KIND_COLORS.village.fill,
+								"vineyard",
+								KIND_COLORS.vineyard.fill,
+								"winery",
+								KIND_COLORS.winery.fill,
+								KIND_COLORS.village.fill,
+							],
 						],
 						"fill-opacity": [
 							"case",
@@ -198,15 +211,26 @@ export function AopMapView({
 					source: SOURCE_ID,
 					paint: {
 						"line-color": [
-							"match",
-							["get", "classification"],
-							"regional",
-							CLASSIFICATION_COLORS.regional.line,
-							"village",
-							CLASSIFICATION_COLORS.village.line,
-							"grand-cru",
-							CLASSIFICATION_COLORS["grand-cru"].line,
-							CLASSIFICATION_COLORS.village.line,
+							"case",
+							[
+								"in",
+								"grand-cru",
+								["coalesce", ["get", "tags"], ["literal", []]],
+							],
+							GRAND_CRU_TAG_COLOR.line,
+							[
+								"match",
+								["get", "kind"],
+								"regional",
+								KIND_COLORS.regional.line,
+								"village",
+								KIND_COLORS.village.line,
+								"vineyard",
+								KIND_COLORS.vineyard.line,
+								"winery",
+								KIND_COLORS.winery.line,
+								KIND_COLORS.village.line,
+							],
 						],
 						"line-width": [
 							"case",
@@ -278,7 +302,12 @@ export function AopMapView({
 					.setHTML(
 						`<div class="aop-popup-body"><strong>${escapeHtml(aop.nameJa)}</strong>` +
 							`<span>${escapeHtml(aop.shortName)}</span>` +
-							`<em>${CLASSIFICATION_LABELS_JA[aop.classification]}${aop.premierCru ? "(1er Cru あり)" : ""}</em></div>`,
+							`<em>${escapeHtml(
+								[
+									KIND_LABELS_JA[aop.kind],
+									...(aop.tags ?? []).map((t) => formatAopTagJa(aop, t)),
+								].join(" / "),
+							)}</em></div>`,
 					)
 					.addTo(map);
 			});
@@ -306,12 +335,15 @@ export function AopMapView({
 		};
 	}, [region.id]);
 
-	// フィルタ(品種・格付け)を feature-state に反映
+	// フィルタ(品種・区分・タグ)を feature-state に反映
 	const applyFeatureStates = () => {
 		const map = mapRef.current;
 		if (!map || !loadedRef.current) return;
+		const tagFilter = visibleTags ?? [];
 		for (const aop of stateRef.current.aopsByIdApp.values()) {
-			const hidden = !visibleClassifications.includes(aop.classification);
+			const hidden =
+				!visibleKinds.includes(aop.kind) ||
+				(tagFilter.length > 0 && !aop.tags?.some((t) => tagFilter.includes(t)));
 			const dimmed =
 				!hidden &&
 				grapeVarietyId !== undefined &&
@@ -350,7 +382,7 @@ export function AopMapView({
 	stateRef.current.applyFeatureStates = applyFeatureStates;
 	stateRef.current.applySelection = applySelection;
 
-	useEffect(applyFeatureStates, [grapeVarietyId, visibleClassifications]);
+	useEffect(applyFeatureStates, [grapeVarietyId, visibleKinds, visibleTags]);
 	useEffect(applySelection, [selectedAopId]);
 
 	return (

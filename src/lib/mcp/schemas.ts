@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AOP_TAG_IDS } from "#/lib/wine/tags";
 
 // MCPツールの入力スキーマ。DB/ランタイム依存を持たせず、vitest(jsdom)で
 // ユニットテストできる形に保つ。McpServer.registerTool の inputSchema には
@@ -15,10 +16,18 @@ export const listAopsInput = {
 			"ブドウ品種ID (list_grape_varieties の id。例: 'pinot-noir')。" +
 				"指定するとその品種の使用が許可されているAOPのみ返す。",
 		),
-	classification: z
-		.enum(["regional", "village", "grand-cru"])
+	kind: z
+		.enum(["regional", "village", "vineyard", "winery"])
 		.optional()
-		.describe("格付けで絞り込む (地方名/村名/グラン・クリュ)"),
+		.describe("区分で絞り込む (地方名/村名/畑/ワイナリー)"),
+	tags: z
+		.array(z.enum(AOP_TAG_IDS))
+		.optional()
+		.describe(
+			"格付けタグで絞り込む(複数指定はOR)。grand-cru=特級, premier-cru=一級。" +
+				"村に premier-cru が付く場合、シャンパーニュでは村自体が一級、" +
+				"ブルゴーニュ等では村名AOC内に1er Cru区画があることを表す。",
+		),
 };
 
 export const getAopInput = {

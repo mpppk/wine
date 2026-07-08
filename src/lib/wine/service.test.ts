@@ -46,26 +46,54 @@ describe("listAops", () => {
 		expect(listAops({ grapeVarietyId: "no-such-grape" })).toHaveLength(0);
 	});
 
-	it("格付けで絞り込める", () => {
-		const aops = listAops({
-			regionId: "bourgogne",
-			classification: "village",
-		});
-		expect(aops.every((a) => a.classification === "village")).toBe(true);
+	it("区分(kind)で絞り込める", () => {
+		const aops = listAops({ regionId: "bourgogne", kind: "village" });
+		expect(aops.length).toBeGreaterThan(0);
+		expect(aops.every((a) => a.kind === "village")).toBe(true);
 	});
 
-	it("シャンパーニュは広域2+グラン・クリュ17+プルミエ・クリュ42+村名1を返す", () => {
+	it("タグで絞り込める(OR結合)", () => {
+		const grandCrus = listAops({ regionId: "bourgogne", tags: ["grand-cru"] });
+		expect(grandCrus).toHaveLength(33);
+		expect(grandCrus.every((a) => a.tags?.includes("grand-cru"))).toBe(true);
+
+		const crus = listAops({
+			regionId: "bourgogne",
+			tags: ["grand-cru", "premier-cru"],
+		});
+		// 特級33 + 一級区画を持つ村31 の和集合(両タグ併持は無い)
+		expect(crus).toHaveLength(64);
+		expect(
+			crus.every((a) =>
+				a.tags?.some((t) => t === "grand-cru" || t === "premier-cru"),
+			),
+		).toBe(true);
+	});
+
+	it("区分とタグの複合はANDで絞り込む", () => {
+		const aops = listAops({
+			regionId: "champagne",
+			kind: "village",
+			tags: ["grand-cru"],
+		});
+		expect(aops).toHaveLength(17);
+		expect(
+			aops.every((a) => a.kind === "village" && a.tags?.includes("grand-cru")),
+		).toBe(true);
+	});
+
+	it("シャンパーニュは広域2+特級村17+一級村42+タグなし村1を返す", () => {
 		const aops = listAops({ regionId: "champagne" });
 		expect(aops).toHaveLength(62);
-		expect(aops.filter((a) => a.classification === "regional")).toHaveLength(2);
-		expect(aops.filter((a) => a.classification === "grand-cru")).toHaveLength(
-			17,
+		expect(aops.filter((a) => a.kind === "regional")).toHaveLength(2);
+		// 特級・一級はいずれも村の格付け(échelle des crus)なので kind は village
+		expect(aops.filter((a) => a.kind === "vineyard")).toHaveLength(0);
+		expect(aops.filter((a) => a.tags?.includes("grand-cru"))).toHaveLength(17);
+		expect(aops.filter((a) => a.tags?.includes("premier-cru"))).toHaveLength(
+			42,
 		);
 		expect(
-			aops.filter((a) => a.classification === "village" && a.premierCru),
-		).toHaveLength(42);
-		expect(
-			aops.filter((a) => a.classification === "village" && !a.premierCru),
+			aops.filter((a) => a.kind === "village" && !a.tags?.length),
 		).toHaveLength(1);
 	});
 

@@ -4,7 +4,7 @@ import { AOPS } from "./aops-data";
 import { getRegion, listAops } from "./service";
 import type { Aop, Region, Subregion } from "./types";
 
-function aop(partial: Partial<Aop> & Pick<Aop, "id" | "classification">): Aop {
+function aop(partial: Partial<Aop> & Pick<Aop, "id" | "kind">): Aop {
 	return {
 		idApp: 1,
 		name: partial.id,
@@ -12,7 +12,6 @@ function aop(partial: Partial<Aop> & Pick<Aop, "id" | "classification">): Aop {
 		nameJa: partial.id,
 		region: "bourgogne",
 		subregionId: "sub-a",
-		premierCru: false,
 		colors: ["red"],
 		grapes: [{ varietyId: "pinot-noir", role: "principal" }],
 		soil: "-",
@@ -28,55 +27,55 @@ const SUBREGIONS: Subregion[] = [
 ];
 
 describe("buildAopTree", () => {
-	it("地区ごとに地方名AOC・村・グラン・クリュを階層化する", () => {
+	it("地区ごとに地方名AOC・村・畑を階層化する", () => {
 		const aops = [
-			aop({ id: "regional-1", classification: "regional" }),
-			aop({ id: "village-1", classification: "village" }),
+			aop({ id: "regional-1", kind: "regional" }),
+			aop({ id: "village-1", kind: "village" }),
 			aop({
 				id: "gc-1",
-				classification: "grand-cru",
+				kind: "vineyard",
 				villageAopIds: ["village-1"],
 			}),
-			aop({ id: "village-2", classification: "village", subregionId: "sub-b" }),
+			aop({ id: "village-2", kind: "village", subregionId: "sub-b" }),
 		];
 		const tree = buildAopTree(aops, SUBREGIONS);
 		expect(tree).toHaveLength(2);
 		expect(tree[0].regionalAops.map((a) => a.id)).toEqual(["regional-1"]);
 		expect(tree[0].villages.map((v) => v.village.id)).toEqual(["village-1"]);
-		expect(tree[0].villages[0].grandCrus.map((a) => a.id)).toEqual(["gc-1"]);
+		expect(tree[0].villages[0].vineyards.map((a) => a.id)).toEqual(["gc-1"]);
 		expect(tree[1].villages.map((v) => v.village.id)).toEqual(["village-2"]);
 	});
 
-	it("複数村にまたがるグラン・クリュは各村の下に重複して現れる", () => {
+	it("複数村にまたがる畑は各村の下に重複して現れる", () => {
 		const aops = [
-			aop({ id: "village-1", classification: "village" }),
-			aop({ id: "village-2", classification: "village" }),
+			aop({ id: "village-1", kind: "village" }),
+			aop({ id: "village-2", kind: "village" }),
 			aop({
 				id: "gc-shared",
-				classification: "grand-cru",
+				kind: "vineyard",
 				villageAopIds: ["village-1", "village-2"],
 			}),
 		];
 		const tree = buildAopTree(aops, SUBREGIONS);
-		expect(tree[0].villages[0].grandCrus.map((a) => a.id)).toEqual([
+		expect(tree[0].villages[0].vineyards.map((a) => a.id)).toEqual([
 			"gc-shared",
 		]);
-		expect(tree[0].villages[1].grandCrus.map((a) => a.id)).toEqual([
+		expect(tree[0].villages[1].vineyards.map((a) => a.id)).toEqual([
 			"gc-shared",
 		]);
 	});
 
 	it("親村がリストに含まれない場合はフォールバック置き場に入る", () => {
-		// 格付けフィルタで村が除外されたケース。グラン・クリュが消えてはいけない
+		// 区分フィルタで村が除外されたケース。畑が消えてはいけない
 		const aops = [
 			aop({
 				id: "gc-orphan",
-				classification: "grand-cru",
+				kind: "vineyard",
 				villageAopIds: ["village-filtered-out"],
 			}),
 		];
 		const tree = buildAopTree(aops, SUBREGIONS);
-		expect(tree[0].unassignedGrandCrus.map((a) => a.id)).toEqual(["gc-orphan"]);
+		expect(tree[0].unassignedVineyards.map((a) => a.id)).toEqual(["gc-orphan"]);
 	});
 
 	it.each([
@@ -92,9 +91,9 @@ describe("buildAopTree", () => {
 			for (const a of section.regionalAops) seen.add(a.id);
 			for (const v of section.villages) {
 				seen.add(v.village.id);
-				for (const gc of v.grandCrus) seen.add(gc.id);
+				for (const vy of v.vineyards) seen.add(vy.id);
 			}
-			for (const a of section.unassignedGrandCrus) seen.add(a.id);
+			for (const a of section.unassignedVineyards) seen.add(a.id);
 		}
 		for (const a of aops) {
 			expect(seen.has(a.id), a.id).toBe(true);
@@ -110,7 +109,7 @@ describe("buildAopTree", () => {
 		);
 		const beaune = tree.find((s) => s.subregion.id === "cote-de-beaune");
 		const parents = beaune?.villages
-			.filter((v) => v.grandCrus.some((gc) => gc.id === "montrachet"))
+			.filter((v) => v.vineyards.some((vy) => vy.id === "montrachet"))
 			.map((v) => v.village.id);
 		expect(parents).toEqual(["chassagne-montrachet", "puligny-montrachet"]);
 	});
@@ -131,12 +130,12 @@ describe("getAopAncestry", () => {
 		description: "-",
 	};
 
-	it("グラン・クリュは親の村名AOC・地区・地方を返す", () => {
+	it("畑は親の村名AOC・地区・地方を返す", () => {
 		const aops = [
-			aop({ id: "village-1", classification: "village" }),
+			aop({ id: "village-1", kind: "village" }),
 			aop({
 				id: "gc-1",
-				classification: "grand-cru",
+				kind: "vineyard",
 				villageAopIds: ["village-1"],
 			}),
 		];
@@ -146,13 +145,13 @@ describe("getAopAncestry", () => {
 		expect(ancestry.villages.map((v) => v.id)).toEqual(["village-1"]);
 	});
 
-	it("複数村にまたがるグラン・クリュは複数の親村を villageAopIds 順で返す", () => {
+	it("複数村にまたがる畑は複数の親村を villageAopIds 順で返す", () => {
 		const aops = [
-			aop({ id: "village-1", classification: "village" }),
-			aop({ id: "village-2", classification: "village" }),
+			aop({ id: "village-1", kind: "village" }),
+			aop({ id: "village-2", kind: "village" }),
 			aop({
 				id: "gc-shared",
-				classification: "grand-cru",
+				kind: "vineyard",
 				villageAopIds: ["village-2", "village-1"],
 			}),
 		];
@@ -166,7 +165,7 @@ describe("getAopAncestry", () => {
 	it("参照先の村がリストに無い場合は取り除く", () => {
 		const orphan = aop({
 			id: "gc-orphan",
-			classification: "grand-cru",
+			kind: "vineyard",
 			villageAopIds: ["missing"],
 		});
 		const ancestry = getAopAncestry(orphan, [orphan], region);
@@ -174,7 +173,7 @@ describe("getAopAncestry", () => {
 	});
 
 	it("村名AOCは親村を持たず地区・地方のみ返す", () => {
-		const village = aop({ id: "village-1", classification: "village" });
+		const village = aop({ id: "village-1", kind: "village" });
 		const ancestry = getAopAncestry(village, [village], region);
 		expect(ancestry.villages).toEqual([]);
 		expect(ancestry.subregionNameJa).toBe("地区A");
@@ -183,7 +182,7 @@ describe("getAopAncestry", () => {
 	it("地方名AOC(広域)は地区を持たない(合成の器のため)", () => {
 		const regional = aop({
 			id: "regional-1",
-			classification: "regional",
+			kind: "regional",
 			subregionId: "bourgogne-regional",
 		});
 		const ancestry = getAopAncestry(regional, [regional], region);

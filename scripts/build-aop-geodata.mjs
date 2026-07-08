@@ -5,7 +5,7 @@
 //   bun run build:geodata -- --source /path/to/dir-or.shp   # 区画Shapefileを指定
 //
 // データソース(いずれも公式オープンデータ):
-//  - 村名/グラン・クリュ: INAO「Délimitation parcellaire des AOC viticoles」
+//  - 村名/畑: INAO「Délimitation parcellaire des AOC viticoles」
 //    (data.gouv.fr, 区画レベルのShapefile約270MB)を id_app で抽出し、AOC単位に結合
 //  - 広域(regional)AOC: INAO「Aires géographiques des AOC/AOP」CSV(コミューン一覧)
 //    × geo.api.gouv.fr のコミューン輪郭ポリゴン。区画データだと数万の飛び地で
@@ -23,7 +23,7 @@
 //    個別に dissolve2 し、`-merge-layers` で戻すこと。
 //
 // メタデータ(src/lib/wine/aops.json)が真実の源: 対象AOC(idApp)と
-// classification はそこから読む。
+// kind / tags はそこから読む。
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -134,12 +134,12 @@ const CRU_COMMUNES_BY_AOP_ID = {
 };
 
 // 簡略化の許容誤差(m)と除去する飛び地の最小面積(m²)。
-// detail は最小のグラン・クリュ(ラ・ロマネ 約0.85ha)が残る値にする。
+// detail は最小の特級畑(ラ・ロマネ 約0.85ha)が残る値にする。
 const DETAIL_SIMPLIFY_M = 20;
 const DETAIL_MIN_ISLAND_M2 = 2000;
 const REGIONAL_SIMPLIFY_M = 50;
 
-const CLASSIFICATION_RANK = { regional: 0, village: 1, "grand-cru": 2 };
+const KIND_RANK = { regional: 0, village: 1, vineyard: 2, winery: 3 };
 
 async function main() {
 	const sourceArg = process.argv.indexOf("--source");
@@ -167,11 +167,9 @@ async function main() {
 	for (const [region, regionAops] of byRegion) {
 		const cruAops = regionAops.filter((a) => CRU_COMMUNES_BY_AOP_ID[a.id]);
 		const detailAops = regionAops.filter(
-			(a) => a.classification !== "regional" && !CRU_COMMUNES_BY_AOP_ID[a.id],
+			(a) => a.kind !== "regional" && !CRU_COMMUNES_BY_AOP_ID[a.id],
 		);
-		const regionalAops = regionAops.filter(
-			(a) => a.classification === "regional",
-		);
+		const regionalAops = regionAops.filter((a) => a.kind === "regional");
 		const features = [];
 
 		if (detailAops.length > 0) {
@@ -220,8 +218,10 @@ async function main() {
 				aopId: meta.id,
 				name: meta.shortName,
 				nameJa: meta.nameJa,
-				classification: meta.classification,
-				rank: CLASSIFICATION_RANK[meta.classification],
+				kind: meta.kind,
+				// 塗り色のタグオーバーライド(特級)にレンダラが使う
+				tags: meta.tags ?? [],
+				rank: KIND_RANK[meta.kind],
 			};
 		}
 		const found = new Set(features.map((f) => f.properties.idApp));
@@ -248,7 +248,7 @@ async function main() {
 	}
 }
 
-/** 村名/グラン・クリュ: INAO区画データをAOC単位に結合・簡略化 */
+/** 村名/畑: INAO区画データをAOC単位に結合・簡略化 */
 async function buildDetailFeatures(shp, region, detailAops) {
 	const ids = detailAops.map((a) => a.idApp);
 	const tmpOut = path.join(CACHE_DIR, `${region}.detail.geojson`);

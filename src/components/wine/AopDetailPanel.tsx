@@ -2,9 +2,11 @@ import { XIcon } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import type { AopAncestry } from "#/lib/wine/aop-tree";
 import {
-	CLASSIFICATION_COLORS,
-	CLASSIFICATION_LABELS_JA,
+	GRAND_CRU_TAG_COLOR,
+	KIND_COLORS,
+	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
+import { formatAopTagJa } from "#/lib/wine/tags";
 import type { Aop, WineColor } from "#/lib/wine/types";
 import { getVariety } from "#/lib/wine/varieties";
 
@@ -15,21 +17,23 @@ const COLOR_LABELS_JA: Record<WineColor, string> = {
 	sparkling: "泡",
 };
 
-export function ClassificationBadge({ aop }: { aop: Aop }) {
+export function KindBadge({ aop }: { aop: Aop }) {
+	// 特級タグ持ちは地図と同じく最濃色のドットで示す
+	const color = aop.tags?.includes("grand-cru")
+		? GRAND_CRU_TAG_COLOR
+		: KIND_COLORS[aop.kind];
+	const tagLabels = (aop.tags ?? []).map((t) => formatAopTagJa(aop, t));
 	return (
 		<span
 			className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs font-medium"
-			style={{ borderColor: CLASSIFICATION_COLORS[aop.classification].line }}
+			style={{ borderColor: color.line }}
 		>
 			<span
 				aria-hidden
 				className="size-2 rounded-full"
-				style={{
-					backgroundColor: CLASSIFICATION_COLORS[aop.classification].fill,
-				}}
+				style={{ backgroundColor: color.fill }}
 			/>
-			{CLASSIFICATION_LABELS_JA[aop.classification]}
-			{aop.premierCru && " / 1er Cruあり"}
+			{[KIND_LABELS_JA[aop.kind], ...tagLabels].join(" / ")}
 		</span>
 	);
 }
@@ -74,7 +78,7 @@ export function AopDetailPanel({
 			</div>
 
 			<div className="flex flex-wrap items-center gap-1.5">
-				<ClassificationBadge aop={aop} />
+				<KindBadge aop={aop} />
 				{aop.colors.map((c) => (
 					<span
 						key={c}
@@ -135,7 +139,7 @@ export function AopDetailPanel({
 			</section>
 
 			<p className="text-[11px] leading-relaxed text-muted-foreground">
-				{aop.classification === "regional"
+				{aop.kind === "regional"
 					? "地図はコミューン(市町村)単位の生産地域を表示しています。"
 					: "地図はINAOの区画データを簡略化して表示しています。"}
 			</p>
@@ -143,7 +147,7 @@ export function AopDetailPanel({
 	);
 }
 
-// 所属する親(村名AOC・地区・地方)を表示する。グラン・クリュの畑は複数村に
+// 所属する親(村名AOC・地区・地方)を表示する。畑は複数村に
 // またがることがあるため、親の村名AOCは複数並ぶことがある。
 function AncestrySection({
 	ancestry,
