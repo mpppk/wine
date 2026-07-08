@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
+import { REGION_IDS } from "#/lib/wine/regions";
 import { aopAllowsGrape } from "#/lib/wine/service";
 import type { Aop, WineColor } from "#/lib/wine/types";
 import { type OddOneOutAxis, parseKey } from "../keys";
@@ -9,7 +10,6 @@ import {
 	materializeOddOneOutQuestion,
 } from "./odd-one-out";
 
-const REGION_IDS = ["bourgogne", "beaujolais", "champagne"] as const;
 const byId = new Map(AOPS.map((a) => [a.id, a]));
 
 /** 軸ごとの「性質を持つか」述語(テスト側で独立に定義して実装と突き合わせる) */

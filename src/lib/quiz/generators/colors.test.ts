@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
+import { REGION_IDS } from "#/lib/wine/regions";
 import { colorComboId } from "../labels";
 import { mulberry32 } from "../rng";
 import { enumerateColorsKeys, materializeColorsQuestion } from "./colors";
-
-const REGION_IDS = ["bourgogne", "beaujolais", "champagne"] as const;
 
 describe("生産可能色クイズ", () => {
 	it("全AOP分のキーが列挙される", () => {

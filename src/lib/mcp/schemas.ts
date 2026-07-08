@@ -30,7 +30,8 @@ export const listAopsInput = {
 				"ブルゴーニュ等では村名AOC内に1er Cru区画があることを表す)。" +
 				"ボルドー: *-cru-classe-1855 はメドック/ソーテルヌ1855年格付け" +
 				"(第1〜5級・特別第1級)、premier-grand-cru-classe-a/b は" +
-				"サンテミリオン第1特別級A/B。",
+				"サンテミリオン第1特別級A/B。" +
+				"イタリア: docg=DOCG, doc=DOC。",
 		),
 };
 

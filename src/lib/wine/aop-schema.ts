@@ -13,7 +13,13 @@ export const aopSchema = z
 		name: z.string().min(1),
 		shortName: z.string().min(1),
 		nameJa: z.string().min(1),
-		region: z.enum(["bourgogne", "beaujolais", "champagne", "bordeaux"]),
+		region: z.enum([
+			"bourgogne",
+			"beaujolais",
+			"champagne",
+			"bordeaux",
+			"piemonte",
+		]),
 		subregionId: z.string().min(1),
 		kind: z.enum(["regional", "village", "vineyard", "winery"]),
 		villageAopIds: z

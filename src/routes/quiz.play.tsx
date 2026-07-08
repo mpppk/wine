@@ -12,6 +12,7 @@ import {
 	type QuizType,
 } from "#/lib/quiz/types";
 import { cn } from "#/lib/utils";
+import { REGION_IDS } from "#/lib/wine/regions";
 import { getRegion } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 import { getSession } from "#/server/auth";
@@ -19,10 +20,8 @@ import { getSession } from "#/server/auth";
 // URLにはセッション設定(地域・形式)のみを載せる。出題キューやタリーは
 // ローカルstate(リロードで新しいセッションが始まる)。
 const searchSchema = z.object({
-	region: z
-		.enum(["bourgogne", "beaujolais", "champagne"])
-		.optional()
-		.catch(undefined),
+	// 地域は REGIONS から導出(新地域が自動で対象になる)
+	region: z.enum(REGION_IDS).optional().catch(undefined),
 	/** 出題する形式(カンマ区切り)。省略・全滅時はその地域で成立する全形式 */
 	types: z.string().optional().catch(undefined),
 });

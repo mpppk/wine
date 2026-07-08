@@ -12,6 +12,22 @@ bun run build:geodata
 - 広域AOC: INAO「Aires géographiques des AOC/AOP」CSV × geo.api.gouv.fr のコミューン輪郭
 - 実行後に表示される bounds を `src/lib/wine/regions.ts` に反映する
 
+### イタリア(ピエモンテ)
+
+イタリアには公式の区画GISが存在しないため、別データソース・別スクリプトで生成する:
+
+```bash
+bun run build:geodata:italy            # figshareからgpkgをDL(キャッシュ)
+bun run build:geodata:italy -- --source /path/to/EU_PDO.gpkg   # ローカル指定も可
+```
+
+- 出典: Candiago, S. et al. "A geospatial inventory of regulatory information for wine
+  protected designations of origin in Europe." *Sci Data* 9, 394 (2022).
+  figshare `doi:10.6084/m9.figshare.19312094`(EU_PDO.gpkg, ライセンス **CC0**)
+- 各PDOをコミューン単位で集約した境界(フランスの区画単位より粗い概略値)
+- `PDOid` と `aops.json` の対応は `scripts/build-italy-geodata.mjs` の `PIEMONTE_PDO` 表
+- 実行後に表示される bounds を `src/lib/wine/regions.ts` の piemonte に反映する
+
 AOPのメタデータ(土壌・品種・生産者)は `src/lib/wine/aops.json` にあり、`src/lib/wine/aop-schema.ts` のスキーマで読み込み時に検証される。
 
 # Getting Started

@@ -3,11 +3,18 @@ import type { Aop, WineColor } from "#/lib/wine/types";
 // クイズの設問・選択肢・解説で使う日本語ラベル。
 
 /** 色の正規順(選択肢ラベルとコンボIDの並びを安定させる) */
-export const COLOR_ORDER: WineColor[] = ["red", "white", "rose", "sparkling"];
+export const COLOR_ORDER: WineColor[] = [
+	"red",
+	"white",
+	"sweet-white",
+	"rose",
+	"sparkling",
+];
 
 export const COLOR_LABELS_JA: Record<WineColor, string> = {
 	red: "赤",
 	white: "白",
+	"sweet-white": "甘口白",
 	rose: "ロゼ",
 	sparkling: "泡",
 };
@@ -16,6 +23,7 @@ export const COLOR_LABELS_JA: Record<WineColor, string> = {
 export const COLOR_WINE_LABELS_JA: Record<WineColor, string> = {
 	red: "赤ワイン",
 	white: "白ワイン",
+	"sweet-white": "甘口白ワイン",
 	rose: "ロゼワイン",
 	sparkling: "スパークリングワイン",
 };

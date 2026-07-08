@@ -6,6 +6,7 @@ import { AopMapView } from "#/components/wine/AopMapView";
 import { getAopAncestry } from "#/lib/wine/aop-tree";
 import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getRegion, getVariety, listAops } from "#/lib/wine/service";
+import { getAppellationTermJa } from "#/lib/wine/terminology";
 
 const searchSchema = z.object({
 	region: z.string().catch("bourgogne"),
@@ -63,8 +64,9 @@ function EmbedMapPage() {
 
 			<div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
 				<span className="pointer-events-auto rounded-md border border-border bg-background/90 px-2.5 py-1 text-xs font-medium shadow-sm backdrop-blur">
-					{region.nameJa}のAOP地図
-					{grapeVariety && ` ・ ${grapeVariety.nameJa}が許可されたAOP`}
+					{region.nameJa}の{getAppellationTermJa(region.id)}地図
+					{grapeVariety &&
+						` ・ ${grapeVariety.nameJa}が許可された${getAppellationTermJa(region.id)}`}
 				</span>
 				<a
 					href={`/map/${region.id}${grape ? `?grape=${encodeURIComponent(grape)}` : ""}`}

@@ -157,6 +157,7 @@ describe("buildAopTree", () => {
 		"bourgogne",
 		"champagne",
 		"bordeaux",
+		"piemonte",
 	])("実データ: %s の全AOPがツリーのどこかに1回以上現れる", (regionId) => {
 		const region = getRegion(regionId);
 		if (!region) throw new Error(`${regionId} not found`);

@@ -11,6 +11,7 @@ import {
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape } from "#/lib/wine/service";
 import { type AopTagId, formatAopTagJa } from "#/lib/wine/tags";
+import { getAppellationTermJa } from "#/lib/wine/terminology";
 import type { Aop, AopKind, Region } from "#/lib/wine/types";
 
 const SOURCE_ID = "aops";
@@ -172,6 +173,7 @@ export function AopMapView({
 					type: "geojson",
 					data: geojson,
 					promoteId: "idApp",
+					attribution: region.boundaryAttribution,
 				});
 				map.addLayer({
 					id: FILL_LAYER,
@@ -464,7 +466,7 @@ export function AopMapView({
 			ref={containerRef}
 			className={className}
 			role="application"
-			aria-label={`${region.nameJa}のAOP地図`}
+			aria-label={`${region.nameJa}の${getAppellationTermJa(region.id)}地図`}
 		/>
 	);
 }

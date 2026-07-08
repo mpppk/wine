@@ -36,8 +36,12 @@ function ringCentroid(ring) {
 	return { area2, cx, cy };
 }
 
-/** Polygon/MultiPolygon の面積加重セントロイド [lng, lat] */
+/** Point/Polygon/MultiPolygon の代表点 [lng, lat] */
 function geometryCentroid(geometry) {
+	// シャトー(winery)は面ではなく点フィーチャなので、その座標を代表点とする
+	if (geometry.type === "Point") {
+		return geometry.coordinates;
+	}
 	const polygons =
 		geometry.type === "Polygon"
 			? [geometry.coordinates]
@@ -93,12 +97,18 @@ function main() {
 		);
 	}
 
-	const sorted = Object.fromEntries(
-		Object.entries(centroids).sort(([a], [b]) => a.localeCompare(b)),
+	const entries = Object.entries(centroids).sort(([a], [b]) =>
+		a.localeCompare(b),
 	);
-	fs.writeFileSync(OUT_PATH, `${JSON.stringify(sorted, null, "\t")}\n`);
+	// biome の JSON フォーマッタに合わせ、座標配列は1行に収める
+	// (キーはタブインデント・末尾改行)。build:centroids の出力が
+	// `bun run check` で差分にならないようにする。
+	const body = entries
+		.map(([id, [lng, lat]]) => `\t${JSON.stringify(id)}: [${lng}, ${lat}]`)
+		.join(",\n");
+	fs.writeFileSync(OUT_PATH, `{\n${body}\n}\n`);
 	console.log(
-		`wrote ${path.relative(ROOT, OUT_PATH)} (${Object.keys(sorted).length} AOPs)`,
+		`wrote ${path.relative(ROOT, OUT_PATH)} (${entries.length} AOPs)`,
 	);
 }
 
