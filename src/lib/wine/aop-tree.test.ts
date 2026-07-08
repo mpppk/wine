@@ -78,6 +78,50 @@ describe("buildAopTree", () => {
 		expect(tree[0].unassignedVineyards.map((a) => a.id)).toEqual(["gc-orphan"]);
 	});
 
+	it("シャトー(winery)は親AOCの下に格付け順で並ぶ", () => {
+		const aops = [
+			aop({ id: "village-1", kind: "village" }),
+			aop({
+				id: "ch-5th",
+				kind: "winery",
+				villageAopIds: ["village-1"],
+				tags: ["cinquieme-cru-classe-1855"],
+			}),
+			aop({
+				id: "ch-1st",
+				kind: "winery",
+				villageAopIds: ["village-1"],
+				tags: ["premier-cru-classe-1855"],
+			}),
+			aop({
+				id: "ch-2nd",
+				kind: "winery",
+				villageAopIds: ["village-1"],
+				tags: ["deuxieme-cru-classe-1855"],
+			}),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		expect(tree[0].villages[0].vineyards).toEqual([]);
+		expect(tree[0].villages[0].wineries.map((a) => a.id)).toEqual([
+			"ch-1st",
+			"ch-2nd",
+			"ch-5th",
+		]);
+	});
+
+	it("親AOCがリストに無いシャトーはフォールバック置き場に入る", () => {
+		const aops = [
+			aop({
+				id: "ch-orphan",
+				kind: "winery",
+				villageAopIds: ["village-filtered-out"],
+				tags: ["premier-cru-classe-1855"],
+			}),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		expect(tree[0].unassignedWineries.map((a) => a.id)).toEqual(["ch-orphan"]);
+	});
+
 	it.each([
 		"bourgogne",
 		"champagne",
@@ -92,8 +136,10 @@ describe("buildAopTree", () => {
 			for (const v of section.villages) {
 				seen.add(v.village.id);
 				for (const vy of v.vineyards) seen.add(vy.id);
+				for (const w of v.wineries) seen.add(w.id);
 			}
 			for (const a of section.unassignedVineyards) seen.add(a.id);
+			for (const a of section.unassignedWineries) seen.add(a.id);
 		}
 		for (const a of aops) {
 			expect(seen.has(a.id), a.id).toBe(true);
