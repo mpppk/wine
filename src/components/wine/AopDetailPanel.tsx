@@ -16,6 +16,7 @@ const COLOR_LABELS_JA: Record<WineColor, string> = {
 	white: "白",
 	rose: "ロゼ",
 	sparkling: "泡",
+	"sweet-white": "甘口白",
 };
 
 export function KindBadge({ aop }: { aop: Aop }) {

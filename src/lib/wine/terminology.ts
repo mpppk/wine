@@ -22,7 +22,10 @@ export function getBoundarySourceNoteJa(aop: Aop): string {
 	if (region?.country === "Italy") {
 		return "地図はEU PDO境界データ(コミューン単位, Candiago et al. 2022)を簡略化して表示しています。";
 	}
+	if (aop.kind === "winery") {
+		return "地図はシャトーの所在地をポイントで表示しています。";
+	}
 	return aop.kind === "regional"
 		? "地図はコミューン(市町村)単位の生産地域を表示しています。"
-		: "地図はINAOの区画データを簡略化して表示しています。";
+		: "地図はコミューン輪郭またはINAOの区画データを表示しています。";
 }

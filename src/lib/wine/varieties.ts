@@ -125,6 +125,46 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Timorasso",
 		color: "white",
 	},
+	// ボルドー系(赤): メドック/グラーヴ/リブルネのブレンド主体
+	{
+		id: "cabernet-sauvignon",
+		nameJa: "カベルネ・ソーヴィニヨン",
+		nameLocal: "Cabernet sauvignon",
+		color: "red",
+	},
+	{ id: "merlot", nameJa: "メルロ", nameLocal: "Merlot", color: "red" },
+	{
+		id: "cabernet-franc",
+		nameJa: "カベルネ・フラン",
+		nameLocal: "Cabernet franc",
+		color: "red",
+	},
+	{
+		id: "petit-verdot",
+		nameJa: "プティ・ヴェルド",
+		nameLocal: "Petit verdot",
+		color: "red",
+	},
+	{
+		id: "malbec",
+		nameJa: "マルベック(コット)",
+		nameLocal: "Malbec",
+		color: "red",
+	},
+	{
+		id: "carmenere",
+		nameJa: "カルメネール",
+		nameLocal: "Carménère",
+		color: "red",
+	},
+	// ボルドー系(白): グラーヴの辛口白・ソーテルヌの貴腐甘口。ソーヴィニヨンは既出
+	{ id: "semillon", nameJa: "セミヨン", nameLocal: "Sémillon", color: "white" },
+	{
+		id: "muscadelle",
+		nameJa: "ミュスカデル",
+		nameLocal: "Muscadelle",
+		color: "white",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);

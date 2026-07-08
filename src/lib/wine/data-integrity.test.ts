@@ -26,17 +26,14 @@ describe("AOPメタデータの整合性", () => {
 		}
 	});
 
-	it("特級と一級のタグを同時に持つAOPがない", () => {
+	it("1つのAOPは格付けタグを高々1つしか持たない", () => {
+		// 制度が異なっても、格付けは1AOPにつき1つ(特級かつ一級のような併持は無い)
 		for (const aop of AOPS) {
-			const tags = aop.tags ?? [];
-			expect(
-				tags.includes("grand-cru") && tags.includes("premier-cru"),
-				aop.id,
-			).toBe(false);
+			expect((aop.tags ?? []).length, aop.id).toBeLessThanOrEqual(1);
 		}
 	});
 
-	it("畑(vineyard)の親村参照が有効", () => {
+	it("畑・シャトーの親AOC参照が有効", () => {
 		const byId = new Map(AOPS.map((a) => [a.id, a]));
 		for (const aop of AOPS.filter((a) => a.kind === "vineyard")) {
 			expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
@@ -47,10 +44,23 @@ describe("AOPメタデータの整合性", () => {
 				expect(village?.region, `${aop.id} -> ${villageId}`).toBe(aop.region);
 			}
 		}
+		// シャトーはちょうど1つの親を持つ。親は村名AOCまたは地区AOC(オー・メドック等)
+		for (const aop of AOPS.filter((a) => a.kind === "winery")) {
+			expect(aop.villageAopIds?.length, aop.id).toBe(1);
+			const parentId = aop.villageAopIds?.[0];
+			const parent = parentId ? byId.get(parentId) : undefined;
+			expect(parent, `${aop.id} -> ${parentId}`).toBeDefined();
+			expect(["village", "regional"], `${aop.id} -> ${parentId}`).toContain(
+				parent?.kind,
+			);
+			expect(parent?.region, `${aop.id} -> ${parentId}`).toBe(aop.region);
+		}
 	});
 
-	it("villageAopIds は畑(vineyard)のみが持つ", () => {
-		for (const aop of AOPS.filter((a) => a.kind !== "vineyard")) {
+	it("villageAopIds は畑(vineyard)とシャトー(winery)のみが持つ", () => {
+		for (const aop of AOPS.filter(
+			(a) => a.kind !== "vineyard" && a.kind !== "winery",
+		)) {
 			expect(aop.villageAopIds, aop.id).toBeUndefined();
 		}
 	});
@@ -62,7 +72,42 @@ describe("AOPメタデータの整合性", () => {
 		expect(vineyards.every((a) => a.region === "bourgogne")).toBe(true);
 		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(50);
 		expect(AOPS.filter((a) => a.tags?.includes("premier-cru")).length).toBe(73);
-		expect(AOPS.filter((a) => a.kind === "winery").length).toBe(0);
+	});
+
+	it("ボルドー: シャトー(winery)の件数と格付けの内訳", () => {
+		const wineries = AOPS.filter((a) => a.kind === "winery");
+		expect(wineries.length).toBe(102);
+		expect(wineries.every((a) => a.region === "bordeaux")).toBe(true);
+		const countTag = (t: string) =>
+			AOPS.filter((a) => a.tags?.includes(t as never)).length;
+		// メドック1855: 1級5+ソーテルヌ1級11=16 / 2級14+15=29 / 3級14 / 4級10 / 5級18
+		expect(countTag("premier-cru-superieur-1855")).toBe(1); // イケム
+		expect(countTag("premier-cru-classe-1855")).toBe(16);
+		expect(countTag("deuxieme-cru-classe-1855")).toBe(29);
+		expect(countTag("troisieme-cru-classe-1855")).toBe(14);
+		expect(countTag("quatrieme-cru-classe-1855")).toBe(10);
+		expect(countTag("cinquieme-cru-classe-1855")).toBe(18);
+		// サンテミリオン2022 1er GCC
+		expect(countTag("premier-grand-cru-classe-a")).toBe(2);
+		expect(countTag("premier-grand-cru-classe-b")).toBe(12);
+	});
+
+	it("ボルドー1855/サンテミリオン格付けタグは winery のみが持つ", () => {
+		const wineryTags = new Set([
+			"premier-cru-superieur-1855",
+			"premier-cru-classe-1855",
+			"deuxieme-cru-classe-1855",
+			"troisieme-cru-classe-1855",
+			"quatrieme-cru-classe-1855",
+			"cinquieme-cru-classe-1855",
+			"premier-grand-cru-classe-a",
+			"premier-grand-cru-classe-b",
+		]);
+		for (const aop of AOPS) {
+			if ((aop.tags ?? []).some((t) => wineryTags.has(t))) {
+				expect(aop.kind, aop.id).toBe("winery");
+			}
+		}
 	});
 
 	it("主要品種(principal)が少なくとも1つある", () => {
@@ -121,6 +166,7 @@ describe("GeoJSONとの整合性", () => {
 
 		const geojson = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as {
 			features: {
+				geometry: { type: string };
 				properties: {
 					idApp: number;
 					aopId: string;
@@ -145,6 +191,14 @@ describe("GeoJSONとの整合性", () => {
 					meta?.kind ?? "village"
 				],
 			);
+			// シャトー(winery)は点、それ以外は面
+			if (meta?.kind === "winery") {
+				expect(f.geometry.type, meta.id).toBe("Point");
+			} else {
+				expect(["Polygon", "MultiPolygon"], meta?.id).toContain(
+					f.geometry.type,
+				);
+			}
 		}
 	});
 });

@@ -17,6 +17,8 @@ import type { Aop, AopKind, Region } from "#/lib/wine/types";
 const SOURCE_ID = "aops";
 const FILL_LAYER = "aop-fill";
 const LINE_LAYER = "aop-line";
+// シャトー(winery)はポリゴンでなく点なので専用の circle レイヤで描く
+const WINERY_LAYER = "aop-winery";
 
 export interface AopMapViewProps {
 	region: Region;
@@ -62,10 +64,16 @@ function computeBounds(
 		visit(geometry.coordinates);
 		return [west, south, east, north];
 	}
+	if (geometry.type === "Point") {
+		const [x, y] = geometry.coordinates;
+		return [x, y, x, y];
+	}
 	return undefined;
 }
 
-// hover/クリック位置のフィーチャから「最も区分ランクの高い(=最前面の)」ものを選ぶ
+// hover/クリック位置のフィーチャから「最も区分ランクの高い(=最前面の)」ものを選ぶ。
+// 同ランク(例: サンテミリオンとサンテミリオン・グラン・クリュの同形ポリゴン)は
+// idApp昇順で決定的に選ぶ
 function pickTopFeature(
 	features: MapGeoJSONFeature[],
 	aopsByIdApp: Map<number, Aop>,
@@ -75,7 +83,12 @@ function pickTopFeature(
 		const idApp = typeof f.id === "number" ? f.id : Number(f.id);
 		const aop = aopsByIdApp.get(idApp);
 		if (!aop) continue;
-		if (!best || KIND_RANK[aop.kind] > KIND_RANK[best.kind]) {
+		if (!best) {
+			best = aop;
+			continue;
+		}
+		const d = KIND_RANK[aop.kind] - KIND_RANK[best.kind];
+		if (d > 0 || (d === 0 && aop.idApp < best.idApp)) {
 			best = aop;
 		}
 	}
@@ -166,6 +179,8 @@ export function AopMapView({
 					id: FILL_LAYER,
 					type: "fill",
 					source: SOURCE_ID,
+					// winery は点なので fill/line からは除外し、circle レイヤで描く
+					filter: ["!=", ["get", "kind"], "winery"],
 					layout: {
 						"fill-sort-key": ["coalesce", ["get", "rank"], 1],
 					},
@@ -211,6 +226,7 @@ export function AopMapView({
 					id: LINE_LAYER,
 					type: "line",
 					source: SOURCE_ID,
+					filter: ["!=", ["get", "kind"], "winery"],
 					paint: {
 						"line-color": [
 							"case",
@@ -252,6 +268,60 @@ export function AopMapView({
 						],
 					},
 				});
+				// シャトー(winery): ポイントマーカー。ポリゴンの最前面に置く
+				map.addLayer({
+					id: WINERY_LAYER,
+					type: "circle",
+					source: SOURCE_ID,
+					filter: ["==", ["get", "kind"], "winery"],
+					paint: {
+						"circle-color": KIND_COLORS.winery.fill,
+						"circle-stroke-color": "#ffffff",
+						"circle-radius": [
+							"interpolate",
+							["linear"],
+							["zoom"],
+							8,
+							[
+								"case",
+								["boolean", ["feature-state", "selected"], false],
+								6,
+								3.5,
+							],
+							13,
+							[
+								"case",
+								["boolean", ["feature-state", "selected"], false],
+								11,
+								7,
+							],
+						],
+						"circle-stroke-width": [
+							"case",
+							["boolean", ["feature-state", "selected"], false],
+							2.5,
+							["boolean", ["feature-state", "hover"], false],
+							2,
+							1,
+						],
+						"circle-opacity": [
+							"case",
+							["boolean", ["feature-state", "hidden"], false],
+							0,
+							["boolean", ["feature-state", "dimmed"], false],
+							0.15,
+							0.92,
+						],
+						"circle-stroke-opacity": [
+							"case",
+							["boolean", ["feature-state", "hidden"], false],
+							0,
+							["boolean", ["feature-state", "dimmed"], false],
+							0.2,
+							1,
+						],
+					},
+				});
 
 				loadedRef.current = true;
 				// 初期状態(フィルタ・選択)を反映。ロード中にpropsが変わっていても
@@ -275,7 +345,9 @@ export function AopMapView({
 			map.on("mousemove", (e) => {
 				if (!loadedRef.current) return;
 				const features = map
-					.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] })
+					.queryRenderedFeatures(e.point, {
+						layers: [FILL_LAYER, WINERY_LAYER],
+					})
 					.filter((f) => {
 						const st = map.getFeatureState({ source: SOURCE_ID, id: f.id });
 						return !st.hidden && !st.dimmed;
@@ -318,7 +390,9 @@ export function AopMapView({
 			map.on("click", (e) => {
 				if (!loadedRef.current) return;
 				const features = map
-					.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] })
+					.queryRenderedFeatures(e.point, {
+						layers: [FILL_LAYER, WINERY_LAYER],
+					})
 					.filter((f) => {
 						const st = map.getFeatureState({ source: SOURCE_ID, id: f.id });
 						return !st.hidden && !st.dimmed;

@@ -17,7 +17,7 @@
 // 仕組み(フランス版 build-aop-geodata.mjs との違い):
 //  - gpkg は 1行 = 1 PDO の MultiPolygon。dissolve/split は不要(そのまま使う)。
 //  - 座標系は EPSG:3035(ETRS89-LAEA)。mapshaper で wgs84 へ再投影する。
-//  - 公式 id_app が無いため idApp は 910001〜 の連番(PIEMONTE_PDO 表)。PDOid との
+//  - 公式 id_app が無いため idApp は 920001〜 の連番(PIEMONTE_PDO 表)。PDOid との
 //    対応もこの表が真実の源。aops.json の idApp と一致しなければ即エラーにする。
 //  - 同一区分(kind)内で包含関係(例: Nizza ⊂ Barbera d'Asti)があるため、出力の
 //    フィーチャ順は「rank昇順 → 面積降順」にする。同rankでは面積の小さいものを

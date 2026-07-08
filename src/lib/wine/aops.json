@@ -5099,8 +5099,3964 @@
 		"description": "プティット・モンターニュ北西端のムニエ主体の村。ビオ栽培を実践するルラルジュ・ピュジョーの本拠地。"
 	},
 	{
-		"id": "barolo",
+		"id": "bordeaux",
 		"idApp": 910001,
+		"name": "Bordeaux",
+		"shortName": "Bordeaux",
+		"nameJa": "ボルドー",
+		"region": "bordeaux",
+		"subregionId": "bordeaux-regional",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド県全域にわたり、砂利・粘土石灰質・砂質など多様。左岸は砂利、右岸とアントル・ドゥー・メールは粘土石灰質が主体。",
+		"producers": ["ジロンド県内の多数の生産者"],
+		"description": "ジロンド県のほぼ全域をカバーする最も基本的な地方名AOC。赤・辛口白・ロゼ・クレレを産する。より上位の村名・地区AOCを名乗れないワインの受け皿であり、格付けシャトーもこの呼称に格下げして瓶詰めできる。"
+	},
+	{
+		"id": "bordeaux-superieur",
+		"idApp": 910002,
+		"name": "Bordeaux Supérieur",
+		"shortName": "Bordeaux Supérieur",
+		"nameJa": "ボルドー・シュペリユール",
+		"region": "bordeaux",
+		"subregionId": "bordeaux-regional",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボルドーAOCと同じ生産地域。粘土石灰質・砂利質など。",
+		"producers": ["ジロンド県内の多数の生産者"],
+		"description": "ボルドーAOCと同じ区域だが、最低アルコール度数・収量・熟成などの規定がより厳しい上位の広域赤AOC。凝縮した果実味を持つ手頃な赤が多い。"
+	},
+	{
+		"id": "medoc",
+		"idApp": 910003,
+		"name": "Médoc",
+		"shortName": "Médoc",
+		"nameJa": "メドック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド川左岸、半島北部(バ・メドック)の砂利と粘土の混じる土壌。オー・メドックより粘土がち。",
+		"producers": ["Château Potensac", "Château Loudenne"],
+		"description": "メドック半島全体を包含する地区AOC。実質的には半島北部(バ・メドック)のシャトーが名乗る赤専用の呼称で、カベルネ・ソーヴィニヨンとメルロを主体とする。"
+	},
+	{
+		"id": "haut-medoc",
+		"idApp": 910004,
+		"name": "Haut-Médoc",
+		"shortName": "Haut-Médoc",
+		"nameJa": "オー・メドック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "半島南部のギュンツ氷期起源の深い砂利丘(クルップ)。排水性が高くカベルネ・ソーヴィニヨンに最適。",
+		"producers": [
+			"Château La Lagune",
+			"Château Cantemerle",
+			"Château Sociando-Mallet"
+		],
+		"description": "メドック半島南部の地区AOC。ポイヤックやマルゴーなど6つの村名AOCを内包し、それらの村名を名乗れない区画や村外のシャトーが用いる。1855年格付けのシャトーも複数含む。"
+	},
+	{
+		"id": "saint-estephe",
+		"idApp": 910005,
+		"name": "Saint-Estèphe",
+		"shortName": "Saint-Estèphe",
+		"nameJa": "サン・テステフ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "メドック最北の村名AOC。砂利丘に加え粘土の比率が高く、保水性がある。",
+		"producers": [
+			"Château Cos d'Estournel",
+			"Château Montrose",
+			"Château Calon-Ségur"
+		],
+		"description": "メドック北端の村名AOC。粘土質の影響で力強くタンニンの豊かな長熟型の赤を生む。コス・デストゥルネルやモンローズなど2級シャトーが牽引する。"
+	},
+	{
+		"id": "pauillac",
+		"idApp": 910006,
+		"name": "Pauillac",
+		"shortName": "Pauillac",
+		"nameJa": "ポイヤック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド川沿いの深く粗い砂利丘。排水性と日照でカベルネ・ソーヴィニヨンが完熟する。",
+		"producers": [
+			"Château Lafite Rothschild",
+			"Château Latour",
+			"Château Mouton Rothschild"
+		],
+		"description": "1855年格付け第1級を3つ擁するメドックの中核村。カベルネ・ソーヴィニヨン主体の重厚で長命な赤の代名詞。ラフィット・ラトゥール・ムートンが君臨する。"
+	},
+	{
+		"id": "saint-julien",
+		"idApp": 910007,
+		"name": "Saint-Julien",
+		"shortName": "Saint-Julien",
+		"nameJa": "サン・ジュリアン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "均質な砂利丘。ポイヤックより粘土がやや多く、力強さと優美さのバランスに優れる。",
+		"producers": [
+			"Château Léoville-Las Cases",
+			"Château Ducru-Beaucaillou",
+			"Château Gruaud-Larose"
+		],
+		"description": "メドックで最も格付けシャトーの密度が高い村名AOC。第1級こそ無いが、レオヴィル・ラス・カーズなど質の高い2級が揃い、調和のとれた古典的な赤を生む。"
+	},
+	{
+		"id": "margaux",
+		"idApp": 910008,
+		"name": "Margaux",
+		"shortName": "Margaux",
+		"nameJa": "マルゴー",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "メドックで最も薄く軽い砂利質土壌。5つのコミューンにまたがる。",
+		"producers": ["Château Margaux", "Château Palmer", "Château Rauzan-Ségla"],
+		"description": "メドック最南部の村名AOC。薄い砂利土壌から生まれる香り高くしなやかな赤で知られ、第1級シャトー・マルゴーを頂点に最多21の格付けシャトーを擁する。"
+	},
+	{
+		"id": "listrac-medoc",
+		"idApp": 910009,
+		"name": "Listrac-Médoc",
+		"shortName": "Listrac-Médoc",
+		"nameJa": "リストラック・メドック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "メドック内陸部の標高が高い石灰岩・砂利の丘。メルロの比率が高め。",
+		"producers": ["Château Clarke", "Château Fourcas-Hosten"],
+		"description": "メドック内陸の村名AOC。1855年格付けシャトーは持たないが、堅実で骨格のしっかりした赤を産する。クリュ・ブルジョワが中心。"
+	},
+	{
+		"id": "moulis-en-medoc",
+		"idApp": 910010,
+		"name": "Moulis-en-Médoc",
+		"shortName": "Moulis",
+		"nameJa": "ムーリス・アン・メドック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂利丘と粘土石灰質が混在するメドック最小の村名AOC。",
+		"producers": ["Château Chasse-Spleen", "Château Poujeaux"],
+		"description": "メドックで最も小さい村名AOC。1855年格付けは無いものの、シャス・スプリーンなど格付け級の品質を持つクリュ・ブルジョワが有名。"
+	},
+	{
+		"id": "graves",
+		"idApp": 910011,
+		"name": "Graves",
+		"shortName": "Graves",
+		"nameJa": "グラーヴ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "regional",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "その名の通り砂利質(グラーヴ)。ガロンヌ川左岸に沿って南北に広がる。",
+		"producers": ["Château Chantegrive", "Clos Floridène"],
+		"description": "ボルドー市の南に広がる砂利質土壌の地区AOC。赤と辛口白の両方を産する数少ない地区で、上位に村名AOCペサック・レオニャンを含む。"
+	},
+	{
+		"id": "pessac-leognan",
+		"idApp": 910012,
+		"name": "Pessac-Léognan",
+		"shortName": "Pessac-Léognan",
+		"nameJa": "ペサック・レオニャン",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "グラーヴ北部の最良の砂利丘。ボルドー市街近郊に位置する。",
+		"producers": [
+			"Château Haut-Brion",
+			"Château Pape Clément",
+			"Domaine de Chevalier"
+		],
+		"description": "1987年にグラーヴ北部から独立した村名AOC。赤・辛口白ともに最高峰を産し、1855年格付けで唯一メドック外から選ばれた第1級シャトー・オー・ブリオンを擁する。"
+	},
+	{
+		"id": "sauternes",
+		"idApp": 910013,
+		"name": "Sauternes",
+		"shortName": "Sauternes",
+		"nameJa": "ソーテルヌ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ガロンヌ川と支流シロン川の合流域。朝霧が貴腐菌(ボトリティス)の発生を促す砂利・粘土質。",
+		"producers": ["Château d'Yquem", "Château Guiraud", "Château Suduiraut"],
+		"description": "世界最高峰の貴腐甘口白ワインの産地。シロン川がもたらす秋の朝霧が貴腐菌を育み、糖と酸の凝縮した黄金色のワインを生む。1855年に甘口として独自に格付けされた。"
+	},
+	{
+		"id": "barsac",
+		"idApp": 910014,
+		"name": "Barsac",
+		"shortName": "Barsac",
+		"nameJa": "バルサック",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "シロン川右岸の石灰岩基盤に赤色粘土(テール・ルージュ)が乗る平坦地。",
+		"producers": ["Château Climens", "Château Coutet"],
+		"description": "ソーテルヌに隣接する貴腐甘口の村名AOC。バルサックの生産者は「バルサック」「ソーテルヌ」いずれの呼称も名乗れる。石灰質由来の繊細で生き生きとした酸が特徴。"
+	},
+	{
+		"id": "saint-emilion",
+		"idApp": 910015,
+		"name": "Saint-Émilion",
+		"shortName": "Saint-Émilion",
+		"nameJa": "サン・テミリオン",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩台地とその斜面(コート)、麓の砂利・砂質。メルロとカベルネ・フランに好適。",
+		"producers": ["Château Fombrande", "多数の家族経営シャトー"],
+		"description": "右岸を代表するメルロ主体の赤の産地。中世の街並みが世界遺産に登録されている。基本の村名AOCで、より厳しい規定の上位AOC「サン・テミリオン・グラン・クリュ」を持つ。"
+	},
+	{
+		"id": "saint-emilion-grand-cru",
+		"idApp": 910016,
+		"name": "Saint-Émilion Grand Cru",
+		"shortName": "Saint-Émilion Grand Cru",
+		"nameJa": "サン・テミリオン・グラン・クリュ",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "サン・テミリオンと同一区域。石灰岩台地・粘土石灰質の斜面・砂利質の麓。",
+		"producers": ["Château Pavie", "Château Figeac", "Château Angélus"],
+		"description": "サン・テミリオンと同じ区域だが、収量や熟成の規定が厳しい上位AOC。独自の格付け(2022年版)を持ち、頂点の第1特別級A/BのシャトーはこのAOCで瓶詰めする。"
+	},
+	{
+		"id": "pomerol",
+		"idApp": 910017,
+		"name": "Pomerol",
+		"shortName": "Pomerol",
+		"nameJa": "ポムロール",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "台地の砂利・粘土に鉄分を含む「クラス・ド・フェール(鉄分の錆)」が点在。メルロが個性的な深みを得る。",
+		"producers": ["Pétrus", "Château Le Pin", "Vieux Château Certan"],
+		"description": "右岸の小さな村名AOC。公式の格付け制度を持たないが、鉄分を含む粘土土壌から生まれるメルロ主体の赤は世界最高値で取引される。ペトリュスやル・パンが象徴的。"
+	},
+	{
+		"id": "entre-deux-mers",
+		"idApp": 910018,
+		"name": "Entre-deux-Mers",
+		"shortName": "Entre-deux-Mers",
+		"nameJa": "アントル・ドゥー・メール",
+		"region": "bordeaux",
+		"subregionId": "entre-deux-mers",
+		"kind": "regional",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ガロンヌ川とドルドーニュ川に挟まれた丘陵地。粘土石灰質・砂質。",
+		"producers": ["多数の協同組合・家族経営シャトー"],
+		"description": "2つの川(海)に挟まれた広大な丘陵地帯の地区AOC。呼称としては辛口白のみに用いられ(赤はボルドーAOCを名乗る)、ソーヴィニヨン・ブラン主体の爽やかな白を産する。"
+	},
+	{
+		"id": "chateau-lafite-rothschild",
+		"idApp": 911001,
+		"name": "Château Lafite Rothschild",
+		"shortName": "Château Lafite Rothschild",
+		"nameJa": "シャトー・ラフィット・ロートシルト",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩を基盤とする丘陵上の、水はけの良い深い砂利質(グラーヴ)土壌。",
+		"producers": ["ドメーヌ・バロン・ド・ロートシルト(DBR/ラフィット)"],
+		"description": "ポイヤックに位置する1855年格付け第1級。カベルネ・ソーヴィニヨン主体で、エレガントで繊細、長期熟成に向く作風を代表する。"
+	},
+	{
+		"id": "chateau-latour",
+		"idApp": 911002,
+		"name": "Château Latour",
+		"shortName": "Château Latour",
+		"nameJa": "シャトー・ラトゥール",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド川に近い『レンクロ』の粘土を含む深い砂利質の丘で、優れた水はけを持つ。",
+		"producers": ["アルテミス・グループ(フランソワ・ピノー)"],
+		"description": "ポイヤック南端の1855年格付け第1級。カベルネ・ソーヴィニヨン主体で堅牢かつ長命な力強い作風。2012年以降エン・プリムール販売から離脱している。"
+	},
+	{
+		"id": "chateau-margaux",
+		"idApp": 911003,
+		"name": "Château Margaux",
+		"shortName": "Château Margaux",
+		"nameJa": "シャトー・マルゴー",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "薄い表土の下に深い砂利層が広がる、水はけに優れたテロワール。",
+		"producers": ["コリンヌ・メンツェロプロス家"],
+		"description": "マルゴー村を代表する1855年格付け第1級。カベルネ・ソーヴィニヨン主体で、優雅で香り高く繊細な作風の典型とされる。"
+	},
+	{
+		"id": "chateau-mouton-rothschild",
+		"idApp": 911004,
+		"name": "Château Mouton Rothschild",
+		"shortName": "Château Mouton Rothschild",
+		"nameJa": "シャトー・ムートン・ロートシルト",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤック北部の砂利質土壌が卓越する丘陵。",
+		"producers": ["バロン・フィリップ・ド・ロートシルト社"],
+		"description": "ポイヤックの銘醸で、1973年に第2級から第1級へ昇格した1855年格付け唯一の事例。カベルネ主体の豊満で力強い作風と、著名画家による毎年変わるラベルで知られる。"
+	},
+	{
+		"id": "chateau-haut-brion",
+		"idApp": 911005,
+		"name": "Château Haut-Brion",
+		"shortName": "Château Haut-Brion",
+		"nameJa": "シャトー・オー・ブリオン",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂と砂利が厚く堆積した、水はけの良い都市近郊のグラーヴ土壌。",
+		"producers": ["ドメーヌ・クラレンス・ディロン(ディロン家)"],
+		"description": "ペサック・レオニャン(グラーヴ)に位置し、メドック以外で唯一1855年格付け第1級に列した歴史あるシャトー。豊かで滑らか、しばしば燻香を帯びた作風で知られる。"
+	},
+	{
+		"id": "chateau-rauzan-segla",
+		"idApp": 911006,
+		"name": "Château Rauzan-Ségla",
+		"shortName": "Château Rauzan-Ségla",
+		"nameJa": "シャトー・ローザン・セグラ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴーの水はけの良い砂利質土壌。",
+		"producers": ["シャネル(ヴェルトハイマー家)"],
+		"description": "マルゴーの1855年格付け第2級。1994年よりシャネル傘下で品質が向上し、エレガントで芳香豊かな作風を示すスーパーセカンドの一角。"
+	},
+	{
+		"id": "chateau-rauzan-gassies",
+		"idApp": 911007,
+		"name": "Château Rauzan-Gassies",
+		"shortName": "Château Rauzan-Gassies",
+		"nameJa": "シャトー・ローザン・ガシー",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴーの砂利質を主体とする土壌。",
+		"producers": ["キエ家(Quié)"],
+		"description": "マルゴーの1855年格付け第2級で、かつてローザン・セグラと同一の所領だった歴史を持つ。伝統的な作風のマルゴー・ワインを産する。"
+	},
+	{
+		"id": "chateau-leoville-las-cases",
+		"idApp": 911008,
+		"name": "Château Léoville-Las Cases",
+		"shortName": "Château Léoville-Las Cases",
+		"nameJa": "シャトー・レオヴィル・ラス・カーズ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド川沿いの自社区画『グラン・クロ』を核とする、粘土・石灰を含む砂利質土壌。",
+		"producers": ["ドロン家(Delon)"],
+		"description": "サンジュリアン北端でラトゥールに隣接する1855年格付け第2級。カベルネ・ソーヴィニヨン主体で凝縮感と長命さを備え、第1級に迫る『スーパーセカンド』の筆頭とされる。"
+	},
+	{
+		"id": "chateau-leoville-poyferre",
+		"idApp": 911009,
+		"name": "Château Léoville-Poyferré",
+		"shortName": "Château Léoville-Poyferré",
+		"nameJa": "シャトー・レオヴィル・ポワフェレ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド河に近い深い砂利質(ギュンツ期の礫層)で下層に粘土・砂を含む、水はけの良いテロワール。",
+		"producers": ["キュヴリエ家(Domaines Cuvelier)"],
+		"description": "サン・ジュリアンAOCに属する1855年格付け第2級。大所領レオヴィルが分割されて生まれた一つで、豊かな果実味と樽のふくよかさを備えた凝縮感のあるモダンな作風で知られる。"
+	},
+	{
+		"id": "chateau-leoville-barton",
+		"idApp": 911010,
+		"name": "Château Léoville-Barton",
+		"shortName": "Château Léoville-Barton",
+		"nameJa": "シャトー・レオヴィル・バルトン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "水はけの良い砂利質の丘で、下層に粘土を含む厚い礫層。",
+		"producers": ["バルトン家(Barton Familles & Associés)"],
+		"description": "サン・ジュリアンAOCの1855年格付け第2級。18世紀からアイルランド系バルトン家が所有し、自前の館を持たず同家のシャトー・ランゴア・バルトンで醸造される。カベルネ主体で骨格のしっかりした古典的スタイル。"
+	},
+	{
+		"id": "chateau-durfort-vivens",
+		"idApp": 911011,
+		"name": "Château Durfort-Vivens",
+		"shortName": "Château Durfort-Vivens",
+		"nameJa": "シャトー・デュルフォール・ヴィヴァン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴーの砂利質台地に位置し、石英質の礫を多く含む痩せた表土。",
+		"producers": ["ゴンザーグ・リュルトン(G&C Lurton)"],
+		"description": "マルゴーAOCの1855年格付け第2級。リュルトン家が所有しビオディナミ栽培を実践、カベルネ・ソーヴィニヨン比率が高くマルゴーらしい香り高くエレガントな作風。"
+	},
+	{
+		"id": "chateau-gruaud-larose",
+		"idApp": 911012,
+		"name": "Château Gruaud-Larose",
+		"shortName": "Château Gruaud-Larose",
+		"nameJa": "シャトー・グリュオー・ラローズ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "厚い砂利質の丘(ギュンツ礫層)で、下層に粘土を含む。",
+		"producers": ["メルロー家(グループ・タイヤン / Groupe Taillan)"],
+		"description": "サン・ジュリアンAOCの1855年格付け第2級。「王のワイン、ワインの王」を標語とする歴史ある大シャトーで、力強くふくよか、熟成能力の高い伝統的スタイル。"
+	},
+	{
+		"id": "chateau-lascombes",
+		"idApp": 911013,
+		"name": "Château Lascombes",
+		"shortName": "Château Lascombes",
+		"nameJa": "シャトー・ラスコンブ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴーの砂利質台地と粘土石灰質が混じり、区画が点在するパッチワーク状のテロワール。",
+		"producers": ["ローレンス・ワイン・エステーツ(Lawrence Wine Estates)"],
+		"description": "マルゴーAOCの1855年格付け第2級。広く点在する区画が特徴で、メルロー比率が比較的高くふくよかで果実味豊かな作風。2022年に現在の米国資本オーナーへ移行した。"
+	},
+	{
+		"id": "chateau-brane-cantenac",
+		"idApp": 911014,
+		"name": "Château Brane-Cantenac",
+		"shortName": "Château Brane-Cantenac",
+		"nameJa": "シャトー・ブラーヌ・カントナック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "カントナック村の「ブラーヌ台地」と呼ばれる水はけの良い砂利質の高台。",
+		"producers": ["アンリ・リュルトン(Henri Lurton)"],
+		"description": "マルゴーAOC(カントナック村)の1855年格付け第2級。リュルトン家が所有し、カベルネ・ソーヴィニヨン主体で香り高く、滑らかなタンニンのエレガントなスタイル。"
+	},
+	{
+		"id": "chateau-pichon-longueville-baron",
+		"idApp": 911015,
+		"name": "Château Pichon-Longueville Baron",
+		"shortName": "Château Pichon-Longueville Baron",
+		"nameJa": "シャトー・ピション・ロングヴィル・バロン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド河に近い南部ポイヤックの深い砂利質土壌。",
+		"producers": ["AXAミレジム(AXA Millésimes)"],
+		"description": "ポイヤックAOCの1855年格付け第2級。旧ピション・ロングヴィル家領がバロンとコンテスに分割された一方で、カベルネ主体の力強く重厚なスタイル。象徴的な尖塔のシャトーとAXA傘下の運営で知られる。"
+	},
+	{
+		"id": "chateau-pichon-longueville-comtesse-de-lalande",
+		"idApp": 911016,
+		"name": "Château Pichon-Longueville Comtesse de Lalande",
+		"shortName": "Château Pichon-Longueville Comtesse de Lalande",
+		"nameJa": "シャトー・ピション・ロングヴィル・コンテス・ド・ラランド",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤック南部の砂利質土壌で、一部の畑はサン・ジュリアンに隣接し粘土質も含む。",
+		"producers": ["ルイ・ロデレール社(Champagne Louis Roederer)"],
+		"description": "ポイヤックAOCの1855年格付け第2級。ピション家領の分割で生まれたもう一方で、メルロー比率がやや高くしなやかで芳醇、エレガントな作風。現在はシャンパーニュのルイ・ロデレール社が所有。"
+	},
+	{
+		"id": "chateau-ducru-beaucaillou",
+		"idApp": 911017,
+		"name": "Château Ducru-Beaucaillou",
+		"shortName": "Château Ducru-Beaucaillou",
+		"nameJa": "シャトー・デュクリュ・ボーカイユ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド河畔に位置し、名前の由来でもある水はけの良い厚い砂利(グラーヴ)質の丘が特徴。",
+		"producers": ["ボリー家(Borie family)"],
+		"description": "サンジュリアンを代表する1855年格付け第2級。名前の由来である「美しい小石(ボーカイユ)」の砂利質土壌から、エレガントで長期熟成に向くワインを生む。"
+	},
+	{
+		"id": "chateau-cos-d-estournel",
+		"idApp": 911018,
+		"name": "Château Cos d'Estournel",
+		"shortName": "Château Cos d'Estournel",
+		"nameJa": "シャトー・コス・デストゥルネル",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-estephe"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "パウイヤックのラフィットに隣接する砂利質の丘(コス=小石の丘)に広がり、石灰質を含む下層土をもつ。",
+		"producers": ["ミシェル・レビエ(Domaines Reybier)"],
+		"description": "サンテステフ最上級の1855年格付け第2級。東洋風の建築で知られ、力強く緻密で長期熟成に向く堅牢なスタイルが特徴。"
+	},
+	{
+		"id": "chateau-montrose",
+		"idApp": 911019,
+		"name": "Château Montrose",
+		"shortName": "Château Montrose",
+		"nameJa": "シャトー・モンローズ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-estephe"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド河畔の水はけと日照に優れた砂利質の丘(クルップ)に一枚岩状に広がる。",
+		"producers": ["ブイグ家(Bouygues family)"],
+		"description": "サンテステフの1855年格付け第2級。力強くタニックで長期熟成型のスタイルから「サンテステフのラトゥール」とも称される。"
+	},
+	{
+		"id": "chateau-kirwan",
+		"idApp": 911020,
+		"name": "Château Kirwan",
+		"shortName": "Château Kirwan",
+		"nameJa": "シャトー・キルヴァン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "カントナックの砂利質土壌に粘土・石灰質の下層土が混じるテロワール。",
+		"producers": ["シレー家(Schÿler family)"],
+		"description": "マルゴー(カントナック)の1855年格付け第3級。砂利質土壌から、マルゴーらしい香り高くしなやかで果実味のあるワインを生む。"
+	},
+	{
+		"id": "chateau-d-issan",
+		"idApp": 911021,
+		"name": "Château d'Issan",
+		"shortName": "Château d'Issan",
+		"nameJa": "シャトー・ディッサン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "カントナックの砂利質の丘に位置し、水はけの良いグラーヴ土壌が主体。",
+		"producers": ["クリュス家(エマニュエル・クリュス)"],
+		"description": "マルゴー(カントナック)の1855年格付け第3級。堀と城壁をもつ中世由来の城館で知られ、砂利質土壌から香り高くエレガントなマルゴーを生む。"
+	},
+	{
+		"id": "chateau-lagrange",
+		"idApp": 911022,
+		"name": "Château Lagrange",
+		"shortName": "Château Lagrange",
+		"nameJa": "シャトー・ラグランジュ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "サンジュリアン内陸部の高台にあり、鉄分を含む下層土をもつ砂利質の丘が広がる。",
+		"producers": ["サントリー(Suntory)"],
+		"description": "サンジュリアンの1855年格付け第3級。1983年よりサントリーが所有・再建し、砂利質の丘から安定した品質のワインを生む。"
+	},
+	{
+		"id": "chateau-langoa-barton",
+		"idApp": 911023,
+		"name": "Château Langoa-Barton",
+		"shortName": "Château Langoa-Barton",
+		"nameJa": "シャトー・ランゴア・バルトン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "粘土質の下層土の上に砂利質の丘が広がるサンジュリアンのテロワール。",
+		"producers": ["バルトン家(Lilian Barton Sartorius)"],
+		"description": "サンジュリアンの1855年格付け第3級。1821年以来バルトン家が所有し、姉妹格のレオヴィル・バルトンもこの城館で醸造される。古典的で長期熟成に向くスタイル。"
+	},
+	{
+		"id": "chateau-giscours",
+		"idApp": 911024,
+		"name": "Château Giscours",
+		"shortName": "Château Giscours",
+		"nameJa": "シャトー・ジスクール",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴー南部ラバルドの厚い砂利質の丘(クルップ)に広がる水はけの良いテロワール。",
+		"producers": ["アルバダ・イェルゲルスマ家(Albada Jelgersma family)"],
+		"description": "マルゴー(ラバルド)の1855年格付け第3級。マルゴー南部の厚い砂利質の丘から、力強く豊かでふくよかなスタイルのワインを生む。"
+	},
+	{
+		"id": "chateau-malescot-st-exupery",
+		"idApp": 911025,
+		"name": "Château Malescot St. Exupéry",
+		"shortName": "Château Malescot St. Exupéry",
+		"nameJa": "シャトー・マレスコ・サン・テグジュペリ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴー村中心部の深い砂利質(グラーヴ)土壌で、下層は粘土石灰質。",
+		"producers": ["ジュジェ家(Zuger family)"],
+		"description": "1855年格付け第3級のマルゴーAOC。1955年以来ジュジェ家が所有し、メルロー比率が比較的高く、力強く凝縮感のある濃密な作風で知られる。"
+	},
+	{
+		"id": "chateau-boyd-cantenac",
+		"idApp": 911026,
+		"name": "Château Boyd-Cantenac",
+		"shortName": "Château Boyd-Cantenac",
+		"nameJa": "シャトー・ボイド・カントナック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "カントナック村の水はけに優れた深い砂利質土壌。",
+		"producers": ["ギュメ家(Guillemet family)"],
+		"description": "1855年格付け第3級のマルゴーAOC。カントナック村に位置しギュメ家が所有する小規模シャトーで、隣接するシャトー・プジェと一体で運営され、骨格のしっかりした伝統的な赤を造る。"
+	},
+	{
+		"id": "chateau-cantenac-brown",
+		"idApp": 911027,
+		"name": "Château Cantenac-Brown",
+		"shortName": "Château Cantenac-Brown",
+		"nameJa": "シャトー・カントナック・ブラウン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "台地上のギュンツ期の深い砂利を主体に、小石まじりの砂利や粘土石灰質が混在。",
+		"producers": ["ル・ルー家(Tristan Le Lous)"],
+		"description": "1855年格付け第3級のマルゴーAOC。チューダー様式の館で知られ、2019年にル・ルー家が取得。カベルネ・ソーヴィニヨン主体の重厚で力強い作風。"
+	},
+	{
+		"id": "chateau-palmer",
+		"idApp": 911028,
+		"name": "Château Palmer",
+		"shortName": "Château Palmer",
+		"nameJa": "シャトー・パルメ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂利の丘(クルップ)を成す深い砂利質土壌で、下層に粘土を含む。",
+		"producers": ["シシェル家およびマーレル・ベス家(Sichel / Mähler-Besse)"],
+		"description": "1855年格付け第3級ながら「スーパーセカンド」と称されるマルゴーAOCの名門。メルロー比率が高くビオディナミを実践し、香り高くエレガントで長熟な赤を生む。"
+	},
+	{
+		"id": "chateau-la-lagune",
+		"idApp": 911029,
+		"name": "Château La Lagune",
+		"shortName": "Château La Lagune",
+		"nameJa": "シャトー・ラ・ラギューヌ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["haut-medoc"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ギュンツ期の細かな砂利を含む砂質・砂利質土壌。",
+		"producers": ["フレイ家(Frey family / Caroline Frey)"],
+		"description": "1855年格付け第3級のオー・メドックAOC。メドックで最も南、ボルドー市寄りのリュドン村に位置し、2000年以降フレイ家のもとビオディナミを導入。しなやかで気品ある作風。"
+	},
+	{
+		"id": "chateau-desmirail",
+		"idApp": 911030,
+		"name": "Château Desmirail",
+		"shortName": "Château Desmirail",
+		"nameJa": "シャトー・デミライユ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴーの砂利質土壌で、下層は粘土石灰質。",
+		"producers": ["ドニ・リュルトン(Denis Lurton)"],
+		"description": "1855年格付け第3級のマルゴーAOC。一時は事実上消滅した後に復活した歴史を持ち、リュルトン家のドニ・リュルトンが所有。エレガントで繊細な作風。"
+	},
+	{
+		"id": "chateau-calon-segur",
+		"idApp": 911031,
+		"name": "Château Calon-Ségur",
+		"shortName": "Château Calon-Ségur",
+		"nameJa": "シャトー・カロン・セギュール",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-estephe"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "表土は砂利と大きな小石、下層は粘土・石灰質・泥灰土。",
+		"producers": ["スュラヴニール保険(Suravenir / Crédit Mutuel Arkéa)"],
+		"description": "1855年格付け第3級で、メドック最北のサンテステフAOCを代表するシャトー。ラベルのハートマークで有名。砂利と粘土のテロワールから力強く長熟な赤を生む。"
+	},
+	{
+		"id": "chateau-ferriere",
+		"idApp": 911032,
+		"name": "Château Ferrière",
+		"shortName": "Château Ferrière",
+		"nameJa": "シャトー・フェリエール",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴー村中心部の砂利質土壌で、下層は粘土石灰質。",
+		"producers": [
+			"クレール・ヴィラール・リュルトン(Villars-Lurton / Merlaut家)"
+		],
+		"description": "1855年格付け第3級のマルゴーAOC。格付けシャトーの中でも最小規模で、クレール・ヴィラール・リュルトンのもとビオディナミを実践。凝縮感と繊細さを併せ持つ作風。"
+	},
+	{
+		"id": "chateau-marquis-d-alesme-becker",
+		"idApp": 911033,
+		"name": "Château Marquis d'Alesme Becker",
+		"shortName": "Château Marquis d'Alesme Becker",
+		"nameJa": "シャトー・マルキ・ダレーム・ベッケル",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["troisieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴーらしいギュンツ期の砂利質を主体に、下層に粘土や石灰を含むテロワール。",
+		"producers": ["ペロド家(Domaines Perrodo)"],
+		"description": "1855年格付け第3級(Troisième Cru)のマルゴーAOC。近年ペロド家のもとで一新され、2017年に環境配慮型の醸造施設を導入した小規模シャトーで、香り高くエレガントな作風で知られる。"
+	},
+	{
+		"id": "chateau-saint-pierre",
+		"idApp": 911034,
+		"name": "Château Saint-Pierre",
+		"shortName": "Château Saint-Pierre",
+		"nameJa": "シャトー・サン・ピエール",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ガロンヌ由来の厚い砂利層が粘土石灰質の下層を覆う、サンジュリアンのテロワール。",
+		"producers": ["トリオ家(Domaines Martin)"],
+		"description": "1855年格付け第4級(Quatrième Cru)のサンジュリアンAOC。格付けシャトーの中でも小規模だが、力強さと洗練を兼ね備えた濃密な赤を産する。"
+	},
+	{
+		"id": "chateau-talbot",
+		"idApp": 911035,
+		"name": "Château Talbot",
+		"shortName": "Château Talbot",
+		"nameJa": "シャトー・タルボ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "サンジュリアン中央部の砂利質台地で、下層に粘土を含む。",
+		"producers": ["コルディエ家(ナンシー・ビニョン=コルディエ)"],
+		"description": "1855年格付け第4級(Quatrième Cru)のサンジュリアンAOC。同村屈指の大規模シャトーで、しっかりした骨格の赤に加え、白ワイン「カイユ・ブラン」も産する。"
+	},
+	{
+		"id": "chateau-branaire-ducru",
+		"idApp": 911036,
+		"name": "Château Branaire-Ducru",
+		"shortName": "Château Branaire-Ducru",
+		"nameJa": "シャトー・ブラネール・デュクリュ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ギュンツ期の砂利が粘土石灰質を覆う、サンジュリアン南端のテロワール。",
+		"producers": ["マロトー家(Maroteaux)"],
+		"description": "1855年格付け第4級(Quatrième Cru)のサンジュリアンAOC。ベイシュヴェル対岸の村南端に位置し、芳香とフレッシュさ、繊細さで知られる。"
+	},
+	{
+		"id": "chateau-duhart-milon",
+		"idApp": 911037,
+		"name": "Château Duhart-Milon",
+		"shortName": "Château Duhart-Milon",
+		"nameJa": "シャトー・デュアール・ミロン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ラフィットに隣接するミロンの丘に広がる、第三紀石灰岩を覆う深い砂利質。",
+		"producers": ["ドメーヌ・バロン・ド・ロチルド(ラフィット)"],
+		"description": "1855年格付け第4級(Quatrième Cru)で、ポイヤックAOC唯一の第4級。1962年よりラフィットを擁するDBRが所有し、カベルネ・ソーヴィニヨン主体の骨格ある作風。"
+	},
+	{
+		"id": "chateau-pouget",
+		"idApp": 911038,
+		"name": "Château Pouget",
+		"shortName": "Château Pouget",
+		"nameJa": "シャトー・プジェ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴー(カントナック)の砂利質土壌で、下層に粘土石灰を含む。",
+		"producers": ["ギユメ家(シャトー・ボイド=カントナックと共同運営)"],
+		"description": "1855年格付け第4級(Quatrième Cru)のマルゴーAOC。カントナックに位置する小規模シャトーで、ギユメ家がシャトー・ボイド=カントナックと一体で運営する。"
+	},
+	{
+		"id": "chateau-la-tour-carnet",
+		"idApp": 911039,
+		"name": "Château La Tour Carnet",
+		"shortName": "Château La Tour Carnet",
+		"nameJa": "シャトー・ラ・トゥール・カルネ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["haut-medoc"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "サン=ローラン=メドックの砂利質と粘土石灰質が混じるテロワール。",
+		"producers": ["ベルナール・マグレ(Bernard Magrez)"],
+		"description": "1855年格付け第4級(Quatrième Cru)で、有名4村以外(オー・メドックAOC)の数少ない格付けシャトー。中世の塔と堀を残す古い所領で、現在はベルナール・マグレが所有する。"
+	},
+	{
+		"id": "chateau-lafon-rochet",
+		"idApp": 911040,
+		"name": "Château Lafon-Rochet",
+		"shortName": "Château Lafon-Rochet",
+		"nameJa": "シャトー・ラフォン・ロシェ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-estephe"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ラフィットやコス・デストゥルネルに隣接する丘陵の、粘土石灰質を覆う砂利質土壌。",
+		"producers": ["ジャッキー・ロレンツェッティ(Domaines Lorenzetti)"],
+		"description": "1855年格付け第4級(Quatrième Cru)で、サンテステフAOC唯一の第4級。黄土色の建物で知られ、2021年にテスロン家からジャッキー・ロレンツェッティへ所有が移った、力強い作風のシャトー。"
+	},
+	{
+		"id": "chateau-beychevelle",
+		"idApp": 911041,
+		"name": "Château Beychevelle",
+		"shortName": "Château Beychevelle",
+		"nameJa": "シャトー・ベイシュヴェル",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-julien"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド河に向かって緩やかに傾斜する砂利質(グラーヴ)土壌で、粘土・石灰質の下層を持つ。",
+		"producers": [
+			"グラン・ミレジム・ド・フランス(カステル社とサントリーの共同所有)"
+		],
+		"description": "サン・ジュリアンの1855年格付け第4級。ジロンド河畔の砂利質テロワールから生まれる、エレガントで調和のとれた作風で知られる。優美な城館は「メドックのヴェルサイユ」とも称される。"
+	},
+	{
+		"id": "chateau-prieure-lichine",
+		"idApp": 911042,
+		"name": "Château Prieuré-Lichine",
+		"shortName": "Château Prieuré-Lichine",
+		"nameJa": "シャトー・プリューレ・リシーヌ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルゴー各村に点在する砂利質の小丘(クループ)を中心とした区画で構成される。",
+		"producers": ["バランド・グループ(Groupe Ballande)"],
+		"description": "マルゴー(カントナック)の第4級。かつての修道院(プリューレ)を起源とし、20世紀にアレクシス・リシーヌが再興した。点在する区画に由来する、しなやかで親しみやすい作風。"
+	},
+	{
+		"id": "chateau-marquis-de-terme",
+		"idApp": 911043,
+		"name": "Château Marquis de Terme",
+		"shortName": "Château Marquis de Terme",
+		"nameJa": "シャトー・マルキ・ド・テルム",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["quatrieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "グラーヴ(砂利)を主体に粘土・石灰質を含む土壌。",
+		"producers": ["セネクローズ家(Famille Sénéclauze)"],
+		"description": "マルゴーの第4級。1935年以来セネクローズ家が所有し、同アペラシオンで最も長く同一家族が守る格付けシャトーの一つ。カベルネ・ソーヴィニヨン主体の凝縮した作風。"
+	},
+	{
+		"id": "chateau-pontet-canet",
+		"idApp": 911044,
+		"name": "Château Pontet-Canet",
+		"shortName": "Château Pontet-Canet",
+		"nameJa": "シャトー・ポンテ・カネ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ムートン・ロートシルトに隣接する、ギュンツ期の深い砂利層に粘土・石灰質が混じるテロワール。",
+		"producers": ["テスロン家(Famille Tesseron)"],
+		"description": "ポイヤックの第5級。第一級ムートン・ロートシルトに隣接。ビオディナミ(有機・バイオダイナミック)農法をいち早く導入し、力強く凝縮した作風で第5級を超える評価を得る。"
+	},
+	{
+		"id": "chateau-batailley",
+		"idApp": 911045,
+		"name": "Château Batailley",
+		"shortName": "Château Batailley",
+		"nameJa": "シャトー・バタイエ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤック南西部、バタイエ台地の深い砂利質(グラーヴ)土壌。",
+		"producers": ["カステジャ家(ボリー・マヌー社)"],
+		"description": "ポイヤック南西部に位置する第5級。ボリー・マヌー社(カステジャ家)が所有する広大な畑を持つ。伝統的で堅牢、長期熟成に向く安定した作風で知られる。"
+	},
+	{
+		"id": "chateau-haut-batailley",
+		"idApp": 911046,
+		"name": "Château Haut-Batailley",
+		"shortName": "Château Haut-Batailley",
+		"nameJa": "シャトー・オー・バタイエ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "バタイエ台地の砂利質土壌に、粘土・石灰質を含む区画。",
+		"producers": ["カズ家(Famille Cazes)"],
+		"description": "ポイヤックの第5級。1942年にバタイエから分割された。2017年よりランシュ・バージュを擁するカズ家が所有し醸造設備を刷新。しなやかでエレガントな作風。"
+	},
+	{
+		"id": "chateau-grand-puy-lacoste",
+		"idApp": 911047,
+		"name": "Château Grand-Puy-Lacoste",
+		"shortName": "Château Grand-Puy-Lacoste",
+		"nameJa": "シャトー・グラン・ピュイ・ラコスト",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤック村西方、周囲より約20m高いグラン・ピュイの高台の深い砂利質(グラーヴ)。",
+		"producers": ["ボリー家(François-Xavier Borie)"],
+		"description": "ポイヤックの第5級。グラン・ピュイの高台に位置しボリー家が所有。カベルネ・ソーヴィニヨン主体の典型的なポイヤックで、力強く長期熟成に向く安定した品質で名高い。"
+	},
+	{
+		"id": "chateau-grand-puy-ducasse",
+		"idApp": 911048,
+		"name": "Château Grand-Puy-Ducasse",
+		"shortName": "Château Grand-Puy-Ducasse",
+		"nameJa": "シャトー・グラン・ピュイ・デュカス",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "城館は町の河岸に建ち、畑はグラン・ピュイの砂利質台地などポイヤック各地に分散する。",
+		"producers": ["CAグラン・クリュ(クレディ・アグリコル・グループ)"],
+		"description": "ポイヤックの第5級。城館はジロンド河沿いの町なかに建つ珍しい「街なかのシャトー」。畑はグラン・ピュイの台地などに分散し、クレディ・アグリコル系のCAグラン・クリュが所有する。"
+	},
+	{
+		"id": "chateau-lynch-bages",
+		"idApp": 911049,
+		"name": "Château Lynch-Bages",
+		"shortName": "Château Lynch-Bages",
+		"nameJa": "シャトー・ランシュ・バージュ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤック南部バージュの砂利質台地にあり、ギュンツ氷期由来の水はけの良い厚い砂利層が粘土・石灰質の下層を覆う。",
+		"producers": ["ファミーユ・カーズ(JM カーズ)"],
+		"description": "ポイヤックの1855年格付け第5級。カベルネ・ソーヴィニヨン主体の豊満で力強く凝縮した長熟型の赤ワインで、第5級ながら高い評価を受けることで知られる。"
+	},
+	{
+		"id": "chateau-lynch-moussas",
+		"idApp": 911050,
+		"name": "Château Lynch-Moussas",
+		"shortName": "Château Lynch-Moussas",
+		"nameJa": "シャトー・ランシュ・ムーサス",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤック西部の森に囲まれた砂利質の高台に位置し、砂利と砂質を主体とする土壌。",
+		"producers": ["カステジャ家(ボリー・マヌー)"],
+		"description": "ポイヤックの1855年格付け第5級。シャトー・バタイエも所有するカステジャ家が運営し、均整のとれたエレガントな作風の赤ワインを産する。"
+	},
+	{
+		"id": "chateau-dauzac",
+		"idApp": 911051,
+		"name": "Château Dauzac",
+		"shortName": "Château Dauzac",
+		"nameJa": "シャトー・ドーザック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド川に近いラバルド村の、深いギュンツ氷期由来の砂利質土壌。",
+		"producers": ["クリスチャン・ルロー(グループ・サムシック)"],
+		"description": "マルゴーの1855年格付け第5級で、南部のラバルド村に位置する。ベト病防除剤「ボルドー液」誕生ゆかりの地とされ、近年はモダンで果実味豊かな作風。"
+	},
+	{
+		"id": "chateau-d-armailhac",
+		"idApp": 911052,
+		"name": "Château d'Armailhac",
+		"shortName": "Château d'Armailhac",
+		"nameJa": "シャトー・ダルマイヤック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤック北部ル・プヨレ付近、ムートン・ロートシルトに隣接する砂利質の台地(グラーヴ)。",
+		"producers": ["バロン・フィリップ・ド・ロートシルト社"],
+		"description": "ポイヤックの1855年格付け第5級。ムートン・ロートシルトと同じロートシルト家が所有し、隣接する畑からしなやかで親しみやすい赤ワインを産する。"
+	},
+	{
+		"id": "chateau-du-tertre",
+		"idApp": 911053,
+		"name": "Château du Tertre",
+		"shortName": "Château du Tertre",
+		"nameJa": "シャトー・デュ・テルトル",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["margaux"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルサック村の小高い丘(テルトル=丘の意)に位置する砂利質の croupe(隆起丘)。",
+		"producers": [
+			"エルフリッシュ家/レ・グラン・シェ・ド・フランス(長期リースで運営)"
+		],
+		"description": "マルゴーの1855年格付け第5級で、内陸のアルサック村の丘に立つ。香り高くエレガントな赤ワインを産し、2021年以降はグラン・シェ・ド・フランスのエルフリッシュ家が運営する。"
+	},
+	{
+		"id": "chateau-haut-bages-liberal",
+		"idApp": 911054,
+		"name": "Château Haut-Bages Libéral",
+		"shortName": "Château Haut-Bages Libéral",
+		"nameJa": "シャトー・オー・バージュ・リベラル",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "バージュ台地の頂部と、ラトゥールに隣接する区画にまたがる砂利質土壌。",
+		"producers": ["クレール・ヴィラール・リュルトン(G&C リュルトン)"],
+		"description": "ポイヤックの1855年格付け第5級。カベルネ・ソーヴィニヨン主体の力強い赤ワインで、近年はビオディナミ(有機・生物力学農法)への転換を進めている。"
+	},
+	{
+		"id": "chateau-pedesclaux",
+		"idApp": 911055,
+		"name": "Château Pédesclaux",
+		"shortName": "Château Pédesclaux",
+		"nameJa": "シャトー・ペデスクロー",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤックの町を見下ろす砂利質台地にあり、ムートンやラフィット、ポンテ・カネなどの畑に囲まれる。",
+		"producers": ["ジャッキー・ロレンゼッティ(ロレンゼッティ家)"],
+		"description": "ポイヤックの1855年格付け第5級。2009年以降ロレンゼッティ家のもとで畑と設備が大幅に刷新され、現代的で凝縮した赤ワインを産する。"
+	},
+	{
+		"id": "chateau-belgrave",
+		"idApp": 911056,
+		"name": "Château Belgrave",
+		"shortName": "Château Belgrave",
+		"nameJa": "シャトー・ベルグラーヴ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["haut-medoc"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "サン・ジュリアンとの境界に接するサン・ローラン・メドックの、砂利質の丘(croupe)。",
+		"producers": ["ドゥルト(CVBG)"],
+		"description": "オー・メドックの1855年格付け第5級。サン・ジュリアン境界に接する好立地にあり、ネゴシアンのドゥルト社が運営して品質向上を図っている。"
+	},
+	{
+		"id": "chateau-de-camensac",
+		"idApp": 911057,
+		"name": "Château de Camensac",
+		"shortName": "Château de Camensac",
+		"nameJa": "シャトー・ド・カマンサック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["haut-medoc"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "サン・ローラン・メドックの深い砂利質(ギュンツ氷期の礫)を主体とし、下層に粘土・石灰質を含むテロワール。",
+		"producers": ["メルロー家(グループ・タイヤン)"],
+		"description": "オー・メドックの1855年格付け第5級。サン・ジュリアンに隣接するサン・ローラン・メドックに位置し、カベルネ・ソーヴィニヨン主体で骨格のしっかりした伝統的な赤を産する。"
+	},
+	{
+		"id": "chateau-cos-labory",
+		"idApp": 911058,
+		"name": "Château Cos Labory",
+		"shortName": "Château Cos Labory",
+		"nameJa": "シャトー・コス・ラボリー",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["saint-estephe"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "コスの丘の砂利質土壌で、下層に粘土・石灰質を含む。",
+		"producers": ["ミシェル・レイビエ(ドメーヌ・レイビエ)"],
+		"description": "サン・テステフの1855年格付け第5級。名門コス・デスターネルに隣接するコスの丘に畑を持ち、カベルネ・ソーヴィニヨン主体の力強く堅実な赤を産する。"
+	},
+	{
+		"id": "chateau-clerc-milon",
+		"idApp": 911059,
+		"name": "Château Clerc-Milon",
+		"shortName": "Château Clerc-Milon",
+		"nameJa": "シャトー・クレール・ミロン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド河に近いポイヤック北部の砂利質土壌で、下層に粘土・石灰質を含む。",
+		"producers": ["バロン・フィリップ・ド・ロートシルト社"],
+		"description": "ポイヤックの1855年格付け第5級。ムートンとラフィットの間に畑を構え、バロン・フィリップ・ド・ロートシルト社が所有。カベルネにやや多めのメルローを配した表現豊かな赤を産する。"
+	},
+	{
+		"id": "chateau-croizet-bages",
+		"idApp": 911060,
+		"name": "Château Croizet-Bages",
+		"shortName": "Château Croizet-Bages",
+		"nameJa": "シャトー・クロワゼ・バージュ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["pauillac"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポイヤック南部バージュ台地の砂利質(グラーヴ)の丘にほぼ一枚畑で広がる。",
+		"producers": ["キエ家(ドメーヌ・キエ)"],
+		"description": "ポイヤックの1855年格付け第5級。バージュ台地に位置しキエ家が所有。しなやかで親しみやすい作風の赤を産する。"
+	},
+	{
+		"id": "chateau-cantemerle",
+		"idApp": 911061,
+		"name": "Château Cantemerle",
+		"shortName": "Château Cantemerle",
+		"nameJa": "シャトー・カントメルル",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "winery",
+		"villageAopIds": ["haut-medoc"],
+		"tags": ["cinquieme-cru-classe-1855"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			}
+		],
+		"soil": "メドック最南部マコー村の細かな砂利質土壌で、砂質も含む。",
+		"producers": ["SMABTP(保険グループ)"],
+		"description": "オー・メドックの1855年格付け第5級で、メドック最南部マコー村に位置する。1855年格付けに後から加えられた経緯で知られ、しなやかでエレガントな赤を産する。"
+	},
+	{
+		"id": "chateau-d-yquem",
+		"idApp": 911062,
+		"name": "Château d'Yquem",
+		"shortName": "Château d'Yquem",
+		"nameJa": "シャトー・ディケム",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-superieur-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ソーテルヌの丘の頂に位置し、粘土・砂利・石灰質が混ざり、貴腐発生に適した水はけと保水性を備える。",
+		"producers": ["LVMH"],
+		"description": "ソーテルヌ1855年格付けで唯一の特別第1級(Premier Cru Supérieur)。貴腐化したセミヨン主体の極甘口白の最高峰とされ、現在はLVMHが所有する。"
+	},
+	{
+		"id": "chateau-la-tour-blanche",
+		"idApp": 911063,
+		"name": "Château La Tour Blanche",
+		"shortName": "Château La Tour Blanche",
+		"nameJa": "シャトー・ラ・トゥール・ブランシュ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボム村の砂利と粘土・石灰質が混ざる土壌。",
+		"producers": ["フランス農業省(ラ・トゥール・ブランシュ醸造学校)"],
+		"description": "ソーテルヌの1855年格付け第1級。ボム村に位置し、フランス農業省が運営する醸造学校を併設することで知られる。貴腐によるセミヨン主体の甘口白を産する。"
+	},
+	{
+		"id": "chateau-lafaurie-peyraguey",
+		"idApp": 911064,
+		"name": "Château Lafaurie-Peyraguey",
+		"shortName": "Château Lafaurie-Peyraguey",
+		"nameJa": "シャトー・ラフォリー・ペイラゲ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボム村の砂利質土壌で、下層に粘土・石灰質を含む。",
+		"producers": ["シルヴィオ・デンツ(ラリック)"],
+		"description": "ソーテルヌの1855年格付け第1級。ボム村の高台に位置し、ラリックのオーナー、シルヴィオ・デンツが所有。貴腐によるセミヨン主体の凝縮した甘口白を産する。"
+	},
+	{
+		"id": "chateau-clos-haut-peyraguey",
+		"idApp": 911065,
+		"name": "Château Clos Haut-Peyraguey",
+		"shortName": "Château Clos Haut-Peyraguey",
+		"nameJa": "シャトー・クロ・オー・ペイラゲ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボンム高台に位置し、砂利質と粘土石灰質を主体とするテロワール。",
+		"producers": ["ベルナール・マグレ (Bernard Magrez)"],
+		"description": "ソーテルヌAOCの1855年格付け第1級。ボンム地区の丘陵頂部にある小規模なシャトーで、繊細さとフレッシュな酸を備えた古典的な貴腐甘口白を造る。"
+	},
+	{
+		"id": "chateau-de-rayne-vigneau",
+		"idApp": 911066,
+		"name": "Château de Rayne-Vigneau",
+		"shortName": "Château de Rayne-Vigneau",
+		"nameJa": "シャトー・ド・レイヌ・ヴィニョー",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "貴石・準貴石を含むことで知られる砂利質の丘に広がり、粘土石灰質を下層に持つ。",
+		"producers": [
+			"グループ・トレゾール・デュ・パトリモワンヌ (Trésor du Patrimoine)"
+		],
+		"description": "ソーテルヌAOCの1855年格付け第1級。ボンムの砂利質の丘に立地し、豊かな果実味と華やかな芳香を備えた貴腐ワインで知られる。"
+	},
+	{
+		"id": "chateau-suduiraut",
+		"idApp": 911067,
+		"name": "Château Suduiraut",
+		"shortName": "Château Suduiraut",
+		"nameJa": "シャトー・スデュイロー",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "シャトー・ディケムに隣接し、粘土を下層に持つ砂利まじりの砂質土壌。",
+		"producers": ["AXAミレジム (AXA Millésimes)"],
+		"description": "ソーテルヌAOCの1855年格付け第1級。プレニャック村のディケム隣接地にあり、凝縮感と力強く豊満な甘美さを備えたリッチな作風で名高い。"
+	},
+	{
+		"id": "chateau-coutet",
+		"idApp": 911068,
+		"name": "Château Coutet",
+		"shortName": "Château Coutet",
+		"nameJa": "シャトー・クーテ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "バルサックの石灰岩盤を覆う赤みを帯びた砂質・粘土質土壌。",
+		"producers": ["バリー家 (Famille Baly)"],
+		"description": "バルサックAOCを代表する1855年格付け第1級。石灰質土壌に由来する生き生きとした酸とエレガンスを持ち、比較的軽快で繊細な貴腐甘口白を生む。"
+	},
+	{
+		"id": "chateau-climens",
+		"idApp": 911069,
+		"name": "Château Climens",
+		"shortName": "Château Climens",
+		"nameJa": "シャトー・クリマン",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "バルサック台地の最高地点に位置し、石灰岩盤を覆う赤い砂質粘土土壌。",
+		"producers": ["ジャン=ユベール・モワトリ家 (Patrimonia)"],
+		"description": "バルサックAOCの1855年格付け第1級で「バルサックの領主」とも称される。セミヨンを主体に造られ、優美さとバランス、長熟性に秀でる。"
+	},
+	{
+		"id": "chateau-guiraud",
+		"idApp": 911070,
+		"name": "Château Guiraud",
+		"shortName": "Château Guiraud",
+		"nameJa": "シャトー・ギロー",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "深い砂利質の畝と、その下層の粘土・砂質からなるテロワール。",
+		"producers": ["フィナンシエール・ギロー (マチュー・グフレ他)"],
+		"description": "ソーテルヌAOCの1855年格付け第1級で、ボルドー有機栽培の先駆者として知られる。果実味と酸のバランスがとれた古典的な貴腐甘口白を造る。"
+	},
+	{
+		"id": "chateau-rieussec",
+		"idApp": 911071,
+		"name": "Château Rieussec",
+		"shortName": "Château Rieussec",
+		"nameJa": "シャトー・リューセック",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ディケムに近い高台に位置し、砂利質と砂質粘土が石灰質を覆う土壌。",
+		"producers": ["ドメーヌ・バロン・ド・ロチルド (ラフィット)"],
+		"description": "ソーテルヌAOCの1855年格付け第1級。ファルグ村のディケムに近い高台にあり、濃密で凝縮した力強い作風で知られ、ラフィットのロートシルト家が所有する。"
+	},
+	{
+		"id": "chateau-rabaud-promis",
+		"idApp": 911072,
+		"name": "Château Rabaud-Promis",
+		"shortName": "Château Rabaud-Promis",
+		"nameJa": "シャトー・ラボー・プロミ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボンムの丘陵斜面に広がる砂利質・粘土石灰質のテロワール。",
+		"producers": ["デジャン家 (Famille Dejean)"],
+		"description": "ソーテルヌAOCの1855年格付け第1級。ボンム地区に位置し、芳醇でふくよかな甘口を比較的手頃な価格帯で提供することでも知られる。"
+	},
+	{
+		"id": "chateau-sigalas-rabaud",
+		"idApp": 911073,
+		"name": "Château Sigalas-Rabaud",
+		"shortName": "Château Sigalas-Rabaud",
+		"nameJa": "シャトー・シガラ・ラボー",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["premier-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボンムの丘陵に位置し、砂利を含む砂質・粘土質の段丘土壌。",
+		"producers": ["ランベール・デ・グランジュ家（Lambert des Granges）"],
+		"description": "1855年格付け第1級（Premier Cru Classé）、ソーテルヌAOC。かつて一体だったラボー家の畑が分割されて生まれた格付け中最小規模のシャトーで、セミヨン主体の凝縮した貴腐甘口を産する。"
+	},
+	{
+		"id": "chateau-de-myrat",
+		"idApp": 911074,
+		"name": "Château de Myrat",
+		"shortName": "Château de Myrat",
+		"nameJa": "シャトー・ド・ミラ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "バルサックの石灰岩台地を覆う赤色砂質・砂利土壌。",
+		"producers": ["ド・ポンタック家（de Pontac）"],
+		"description": "1855年格付け第2級（Deuxième Cru）、バルサックAOC。1970年代に一度畑が引き抜かれたが1988年に再興され、セミヨン主体で繊細かつピュアな甘口を造る。"
+	},
+	{
+		"id": "chateau-doisy-daene",
+		"idApp": 911075,
+		"name": "Château Doisy-Daëne",
+		"shortName": "Château Doisy-Daëne",
+		"nameJa": "シャトー・ドワジー・デーヌ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "バルサックの石灰岩台地上に広がる赤色砂質土壌。",
+		"producers": ["ドゥニ・デュブルデュー・ドメーヌ（デュブルデュー家）"],
+		"description": "1855年格付け第2級（Deuxième Cru）、バルサックAOC。3つのドワジーの一つで、フレッシュで洗練された甘口に加え辛口白でも高く評価される。"
+	},
+	{
+		"id": "chateau-doisy-dubroca",
+		"idApp": 911076,
+		"name": "Château Doisy-Dubroca",
+		"shortName": "Château Doisy-Dubroca",
+		"nameJa": "シャトー・ドワジー・デュブロカ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "バルサックの石灰岩を基盤とする赤色砂質・砂利土壌。",
+		"producers": [
+			"ドゥニ・デュブルデュー・ドメーヌ（2014年〜、旧リュルトン家）"
+		],
+		"description": "1855年格付け第2級（Deuxième Cru）、バルサックAOC。約3haの極小区画をセミヨン100%で栽培し、2014年よりドワジー・デーヌを擁するデュブルデュー家が所有・醸造する。"
+	},
+	{
+		"id": "chateau-doisy-vedrines",
+		"idApp": 911077,
+		"name": "Château Doisy-Védrines",
+		"shortName": "Château Doisy-Védrines",
+		"nameJa": "シャトー・ドワジー・ヴェドリーヌ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "オー・バルサックの粘土石灰質の高台に位置するテロワール。",
+		"producers": ["カステジャ家（Castéja）"],
+		"description": "1855年格付け第2級（Deuxième Cru）、バルサックAOC。3つのドワジーで最大の規模を持ち、粘土石灰質のオー・バルサックからコクのある濃密な甘口を産する。"
+	},
+	{
+		"id": "chateau-d-arche",
+		"idApp": 911078,
+		"name": "Château d'Arche",
+		"shortName": "Château d'Arche",
+		"nameJa": "シャトー・ダルシュ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂利・小石・粘土・石灰岩が混じる、ソーテルヌ村を見下ろす高台のテロワール。",
+		"producers": ["投資家グループ（2005年にペロマ家から取得、有機栽培へ転換）"],
+		"description": "1855年格付け第2級（Deuxième Cru）、ソーテルヌAOC。ソーテルヌ村を望む好立地の高台にあり、セミヨン主体の甘口を産する。近年は有機栽培に取り組む。"
+	},
+	{
+		"id": "chateau-filhot",
+		"idApp": 911079,
+		"name": "Château Filhot",
+		"shortName": "Château Filhot",
+		"nameJa": "シャトー・フィヨ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ソーテルヌ村南方に広がる、砂利質・砂質を主体とした広大な畑。",
+		"producers": ["ヴォーセル家（de Vaucelles）"],
+		"description": "1855年格付け第2級（Deuxième Cru）、ソーテルヌAOC。旧リュル=サリュス家ゆかりの壮麗な城館を構える名門で、比較的軽やかで爽やかな作風の甘口を造る。"
+	},
+	{
+		"id": "chateau-broustet",
+		"idApp": 911080,
+		"name": "Château Broustet",
+		"shortName": "Château Broustet",
+		"nameJa": "シャトー・ブルーステ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "バルサック北部の赤色砂利・砂質を含む土壌。",
+		"producers": [
+			"ヴィニョーブル・ド・テロワール（Vignobles de Terroirs、2010年〜）"
+		],
+		"description": "1855年格付け第2級（Deuxième Cru）、バルサックAOC。バルサック北部、ナイラック等に近い区画に位置し、2010年以降ヴィニョーブル・ド・テロワールが所有・運営する。"
+	},
+	{
+		"id": "chateau-nairac",
+		"idApp": 911081,
+		"name": "Château Nairac",
+		"shortName": "Château Nairac",
+		"nameJa": "シャトー・ネラック",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "赤い砂質・粘土質土壌が星形化石入り石灰岩盤(calcaire à astéries)を覆い、グラヴェルも交じるバルサック台地のテロワール。",
+		"producers": [
+			"タリ家(Famille Tari)※2022年よりテール・ボルドレーズ(GCF系)が運営"
+		],
+		"description": "バルサックに位置する1855年格付け第2級のシャトー。石灰岩土壌由来のミネラルと樽熟成による骨格を備えた、凝縮感のある甘口貴腐ワインを産する。"
+	},
+	{
+		"id": "chateau-caillou",
+		"idApp": 911082,
+		"name": "Château Caillou",
+		"shortName": "Château Caillou",
+		"nameJa": "シャトー・カイユ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "硬い石灰岩盤の上に赤みを帯びた砂質粘土が乗る、水はけの良いバルサックの石灰質テロワール。",
+		"producers": ["ブラボ家(Famille Bravo-Pierre)"],
+		"description": "バルサックの1855年格付け第2級。名の由来である硬い石灰岩盤(caillou=小石)の区画から、酸を伴う繊細でエレガントな甘口貴腐ワインを生む。"
+	},
+	{
+		"id": "chateau-suau",
+		"idApp": 911083,
+		"name": "Château Suau",
+		"shortName": "Château Suau",
+		"nameJa": "シャトー・スオー",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["barsac"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "薄い砂質粘土が石灰岩盤を覆うバルサック村中心部の石灰質台地土壌。",
+		"producers": [
+			"オリヴィエ・ベルナール(ドメーヌ・ド・シュヴァリエ)が2015年より運営 ※所有はBacchus Investments(Bulgheroni)"
+		],
+		"description": "バルサック村に位置する1855年格付け第2級。近年はドメーヌ・ド・シュヴァリエのオリヴィエ・ベルナールが運営し、フレッシュで均整のとれた甘口貴腐ワインを手掛ける。"
+	},
+	{
+		"id": "chateau-de-malle",
+		"idApp": 911084,
+		"name": "Château de Malle",
+		"shortName": "Château de Malle",
+		"nameJa": "シャトー・ド・マル",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂利・砂質を主体とし粘土石灰質の下層を持つ、プレニャックの水はけの良い台地。",
+		"producers": ["ド・ブルナゼル家(Comtes de Bournazel)"],
+		"description": "行政区はプレニャックだがソーテルヌAOCに属する1855年格付け第2級。イタリア式庭園を備える歴史的建造物のシャトーで、繊細でエレガントな甘口貴腐ワインを産する(赤・辛口白のグラーヴも生産)。"
+	},
+	{
+		"id": "chateau-romer",
+		"idApp": 911085,
+		"name": "Château Romer",
+		"shortName": "Château Romer",
+		"nameJa": "シャトー・ロメール",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "シャトー・ド・マルに隣接するファルジュの丘陵で、砂利混じりの粘土石灰質土壌。",
+		"producers": ["ファルジュ家(Famille Farges)"],
+		"description": "ファルジュに位置しソーテルヌAOCに属する1855年格付け第2級。1937年の分割前は現在のロメール・デュ・エイヨと一体だった小規模なシャトーで、伝統的な甘口貴腐ワインを産する。"
+	},
+	{
+		"id": "chateau-romer-du-hayot",
+		"idApp": 911086,
+		"name": "Château Romer du Hayot",
+		"shortName": "Château Romer du Hayot",
+		"nameJa": "シャトー・ロメール・デュ・エイヨ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ファルジュの砂質・砂利質と粘土石灰質が混じるテロワール(シャトー・ロメールと隣接)。",
+		"producers": ["デュ・エイヨ家(Vignobles du Hayot)"],
+		"description": "ソーテルヌAOC(ファルジュ)の1855年格付け第2級。1937年にシャトー・ロメールから分割され、デュ・エイヨ家が手掛けるまろやかで親しみやすい作風の甘口貴腐ワイン。"
+	},
+	{
+		"id": "chateau-lamothe",
+		"idApp": 911087,
+		"name": "Château Lamothe",
+		"shortName": "Château Lamothe",
+		"nameJa": "シャトー・ラモット",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ソーテルヌ最高所の一つ『ラモットの丘』にあり、砂利・砂質を含む粘土石灰質土壌。",
+		"producers": ["デピュジョル家(Famille Despujols)"],
+		"description": "ソーテルヌ村の高台(ラモットの丘)に立つ1855年格付け第2級。デピュジョル家が所有し、伝統的で豊潤な甘口貴腐ワインを産する。"
+	},
+	{
+		"id": "chateau-lamothe-guignard",
+		"idApp": 911088,
+		"name": "Château Lamothe-Guignard",
+		"shortName": "Château Lamothe-Guignard",
+		"nameJa": "シャトー・ラモット・ギニャール",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["sauternes"],
+		"tags": ["deuxieme-cru-classe-1855"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ラモットの丘の西側斜面にあり、砂質・グラヴェルを伴う粘土石灰質土壌。",
+		"producers": ["ギニャール家(Famille Guignard)"],
+		"description": "ソーテルヌAOCの1855年格付け第2級。1961年に旧シャトー・ラモットから分割された西側の区画で、ギニャール家が運営し、厚みと甘美さを備えたソーテルヌを生む。"
+	},
+	{
+		"id": "chateau-pavie",
+		"idApp": 911089,
+		"name": "Château Pavie",
+		"shortName": "Château Pavie",
+		"nameJa": "シャトー・パヴィ",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-a"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "サンテミリオンの南向き「コート」に位置し、上部は石灰岩台地、斜面は粘土石灰質、麓は砂質を含む三段構成のテロワール。",
+		"producers": ["Vignobles Gérard Perse(ペルス家)"],
+		"description": "サンテミリオン格付け(2022)第1特別級Aで、AOCサンテミリオン・グランクリュに属する。南向きコートのテロワールを持ち、ペルス家所有のもとメルロー主体で凝縮感のある力強い作風。"
+	},
+	{
+		"id": "chateau-figeac",
+		"idApp": 911090,
+		"name": "Château Figeac",
+		"shortName": "Château Figeac",
+		"nameJa": "シャトー・フィジャック",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-a"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "サンテミリオン北西部、青粘土の上にギュンツ氷期の深い砂利質(グラーヴ)が三つの丘を成す、メドックに近い土壌。",
+		"producers": ["マノンクール家(Famille Manoncourt)"],
+		"description": "2022年格付けで第1特別級Aに昇格したAOCサンテミリオン・グランクリュ。砂利質土壌ゆえカベルネ・ソーヴィニヨンとカベルネ・フランの比率が高く、メドック的で骨格のある作風。"
+	},
+	{
+		"id": "chateau-beau-sejour-becot",
+		"idApp": 911091,
+		"name": "Château Beau-Séjour Bécot",
+		"shortName": "Château Beau-Séjour Bécot",
+		"nameJa": "シャトー・ボー・セジュール・ベコ",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "村の西、石灰岩台地(プラトー)上の粘土石灰質土壌で、下部は星形海百合(アステリー)石灰岩の岩盤。",
+		"producers": ["ベコ家(Famille Bécot)"],
+		"description": "サンテミリオン格付け(2022)第1特別級B、AOCサンテミリオン・グランクリュ。石灰岩台地のテロワールにメルロー主体で植栽され、豊潤で近づきやすい作風。"
+	},
+	{
+		"id": "chateau-beausejour-duffau-lagarrosse",
+		"idApp": 911092,
+		"name": "Château Beauséjour (Héritiers Duffau-Lagarrosse)",
+		"shortName": "Château Beauséjour (Héritiers Duffau-Lagarrosse)",
+		"nameJa": "シャトー・ボーセジュール・デュフォー・ラガロス",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "村西のプラトー縁から斜面上部にかけての粘土石灰質土壌で、石灰岩の岩盤を持つ。",
+		"producers": ["Courtin-Clarins家(Joséphine Duffau-Lagarrosseが運営)"],
+		"description": "サンテミリオン格付け(2022)第1特別級B、AOCサンテミリオン・グランクリュ。石灰質テロワールの小規模区画からメルロー主体の凝縮した赤を産する。"
+	},
+	{
+		"id": "chateau-belair-monange",
+		"idApp": 911093,
+		"name": "Château Bélair-Monange",
+		"shortName": "Château Bélair-Monange",
+		"nameJa": "シャトー・ベレール・モナンジュ",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "村南西のコートおよび石灰岩台地に広がる、石灰岩基盤を覆う粘土石灰質土壌。",
+		"producers": ["Ets. Jean-Pierre Moueix(ムエックス家)"],
+		"description": "サンテミリオン格付け(2022)第1特別級B、AOCサンテミリオン・グランクリュ。旧シャトー・ベレールで、コート上部の石灰質テロワールからメルロー主体の繊細で緻密な赤を産する。2008年よりJ.P.ムエックス社が所有。"
+	},
+	{
+		"id": "chateau-canon",
+		"idApp": 911094,
+		"name": "Château Canon",
+		"shortName": "Château Canon",
+		"nameJa": "シャトー・カノン",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "村西の石灰岩台地上に位置し、アステリー石灰岩の岩盤を覆う粘土石灰質土壌。",
+		"producers": ["シャネル(ヴェルトハイメール家)"],
+		"description": "サンテミリオン格付け(2022)第1特別級B、AOCサンテミリオン・グランクリュ。石灰岩台地のテロワールでメルロー主体、エレガントで純度の高い作風。1996年よりシャネルが所有。"
+	},
+	{
+		"id": "chateau-canon-la-gaffeliere",
+		"idApp": 911095,
+		"name": "Château Canon la Gaffelière",
+		"shortName": "Château Canon la Gaffelière",
+		"nameJa": "シャトー・カノン・ラ・ガフリエール",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "村南、斜面下部から麓にかけての砂質・粘土質を含む粘土石灰質土壌。",
+		"producers": ["ノイペルグ伯爵家(Vignobles Comtes von Neipperg)"],
+		"description": "サンテミリオン格付け(2022)第1特別級B、AOCサンテミリオン・グランクリュ。コート下部のテロワールでメルロー主体、有機栽培によるふくよかで表現力豊かな作風。ノイペルグ伯爵家が所有。"
+	},
+	{
+		"id": "chateau-la-gaffeliere",
+		"idApp": 911096,
+		"name": "Château La Gaffelière",
+		"shortName": "Château La Gaffelière",
+		"nameJa": "シャトー・ラ・ガフリエール",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "南向き斜面の粘土石灰質土壌で、斜面下部はよりシリカ(砂質)に富む。",
+		"producers": ["マレ・ロクフォール家(Famille de Malet-Roquefort)"],
+		"description": "サンテミリオン格付け(2022)第1特別級B、AOCサンテミリオン・グランクリュ。コートの粘土石灰質テロワールからメルロー主体で、伝統的で骨格のある赤を産する。マレ・ロクフォール家が3世紀以上所有。"
+	},
+	{
+		"id": "chateau-larcis-ducasse",
+		"idApp": 911097,
+		"name": "Château Larcis Ducasse",
+		"shortName": "Château Larcis Ducasse",
+		"nameJa": "シャトー・ラルシ・デュカス",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩の台地と、その真下に広がる南向きの粘土石灰質の斜面(コート・パヴィ)からなる。",
+		"producers": ["グラシオ=アルファンデリ家(運営: ニコラ・ティエンポン)"],
+		"description": "サンテミリオン格付け(2022)第1特別級Bで、AOCサンテミリオン・グランクリュに属する。パヴィに隣接する南向きの斜面と石灰岩台地にまたがる畑を持ち、メルロー主体で凝縮感とエレガンスを兼ね備えた作風。"
+	},
+	{
+		"id": "chateau-pavie-macquin",
+		"idApp": 911098,
+		"name": "Château Pavie Macquin",
+		"shortName": "Château Pavie Macquin",
+		"nameJa": "シャトー・パヴィ・マカン",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "アステリー石灰岩の台地上に粘土質土壌が乗るテロワール。",
+		"producers": ["コール=マカン家(運営: ニコラ・ティエンポン)"],
+		"description": "第1特別級B、AOCサンテミリオン・グランクリュ。台地の名は接ぎ木栽培の先駆者アルベール・マカンに由来し、ビオディナミも取り入れて力強く緻密なメルロー主体の赤を生む。"
+	},
+	{
+		"id": "chateau-troplong-mondot",
+		"idApp": 911099,
+		"name": "Château Troplong Mondot",
+		"shortName": "Château Troplong Mondot",
+		"nameJa": "シャトー・トロロン・モンド",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "丘上の粘土石灰質土壌で、下層にフロンサデ産のモラス(泥灰岩)を含む。",
+		"producers": ["SCOR(スコール)グループ"],
+		"description": "第1特別級B、AOCサンテミリオン・グランクリュ。サンテミリオンで最も標高の高い丘の一つ(モンド)に位置し、パワフルで熟成能力の高いメルロー主体の赤を産する。"
+	},
+	{
+		"id": "chateau-trottevieille",
+		"idApp": 911100,
+		"name": "Château Trottevieille",
+		"shortName": "Château Trottevieille",
+		"nameJa": "シャトー・トロットヴィエイユ",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "アステリー石灰岩の台地上に薄い粘土質土壌が広がる。",
+		"producers": ["ボリー・マヌー社(カステジャ家)"],
+		"description": "第1特別級B、AOCサンテミリオン・グランクリュ。村の東側の石灰岩台地に立地し、接ぎ木していない古樹のカベルネ・フラン区画でも知られる、骨格のある伝統的な作風。"
+	},
+	{
+		"id": "chateau-valandraud",
+		"idApp": 911101,
+		"name": "Château Valandraud",
+		"shortName": "Château Valandraud",
+		"nameJa": "シャトー・ヴァランドロー",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "粘土石灰質を中心に、複数区画にまたがる多様な土壌。",
+		"producers": ["ジャン=リュック・チュヌヴァン & ミュリエル・アンドロー"],
+		"description": "第1特別級B(2012年昇格)、AOCサンテミリオン・グランクリュ。1990年代に少量・高品質を追求した「ガレージワイン(ヴァン・ド・ガラージュ)」の草分けとして名を上げ、メルロー主体の濃密な作風で知られる。"
+	},
+	{
+		"id": "clos-fourtet",
+		"idApp": 911102,
+		"name": "Clos Fourtet",
+		"shortName": "Clos Fourtet",
+		"nameJa": "クロ・フルテ",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩台地の上に薄い粘土質土壌が乗り、地下には採石場跡のカーヴが広がる。",
+		"producers": ["キュヴェリエ家"],
+		"description": "第1特別級B、AOCサンテミリオン・グランクリュ。村の入口の石灰岩台地に位置し、地下の採石場跡のカーヴを擁する。メルロー主体でミネラル感と骨格を備えた古典的スタイル。"
+	},
+	{
+		"id": "barolo",
+		"idApp": 920001,
 		"name": "Barolo",
 		"shortName": "Barolo",
 		"nameJa": "バローロ",
@@ -5126,7 +9082,7 @@
 	},
 	{
 		"id": "barbaresco",
-		"idApp": 910002,
+		"idApp": 920002,
 		"name": "Barbaresco",
 		"shortName": "Barbaresco",
 		"nameJa": "バルバレスコ",
@@ -5147,7 +9103,7 @@
 	},
 	{
 		"id": "dogliani",
-		"idApp": 910003,
+		"idApp": 920003,
 		"name": "Dogliani",
 		"shortName": "Dogliani",
 		"nameJa": "ドリアーニ",
@@ -5168,7 +9124,7 @@
 	},
 	{
 		"id": "dolcetto-di-diano-d-alba",
-		"idApp": 910004,
+		"idApp": 920004,
 		"name": "Dolcetto di Diano d'Alba",
 		"shortName": "Diano d'Alba",
 		"nameJa": "ドルチェット・ディ・ディアーノ・ダルバ",
@@ -5189,7 +9145,7 @@
 	},
 	{
 		"id": "alta-langa",
-		"idApp": 910005,
+		"idApp": 920005,
 		"name": "Alta Langa",
 		"shortName": "Alta Langa",
 		"nameJa": "アルタ・ランガ",
@@ -5219,7 +9175,7 @@
 	},
 	{
 		"id": "roero",
-		"idApp": 910006,
+		"idApp": 920006,
 		"name": "Roero",
 		"shortName": "Roero",
 		"nameJa": "ロエロ",
@@ -5244,7 +9200,7 @@
 	},
 	{
 		"id": "terre-alfieri",
-		"idApp": 910007,
+		"idApp": 920007,
 		"name": "Terre Alfieri",
 		"shortName": "Terre Alfieri",
 		"nameJa": "テッレ・アルフィエーリ",
@@ -5269,7 +9225,7 @@
 	},
 	{
 		"id": "asti",
-		"idApp": 910008,
+		"idApp": 920008,
 		"name": "Asti",
 		"shortName": "Asti",
 		"nameJa": "アスティ",
@@ -5290,7 +9246,7 @@
 	},
 	{
 		"id": "barbera-d-asti",
-		"idApp": 910009,
+		"idApp": 920009,
 		"name": "Barbera d'Asti",
 		"shortName": "Barbera d'Asti",
 		"nameJa": "バルベーラ・ダスティ",
@@ -5311,7 +9267,7 @@
 	},
 	{
 		"id": "nizza",
-		"idApp": 910010,
+		"idApp": 920010,
 		"name": "Nizza",
 		"shortName": "Nizza",
 		"nameJa": "ニッツァ",
@@ -5332,7 +9288,7 @@
 	},
 	{
 		"id": "barbera-del-monferrato-superiore",
-		"idApp": 910011,
+		"idApp": 920011,
 		"name": "Barbera del Monferrato Superiore",
 		"shortName": "Barbera del Monferrato Sup.",
 		"nameJa": "バルベーラ・デル・モンフェッラート・スペリオーレ",
@@ -5361,7 +9317,7 @@
 	},
 	{
 		"id": "ruche-di-castagnole-monferrato",
-		"idApp": 910012,
+		"idApp": 920012,
 		"name": "Ruchè di Castagnole Monferrato",
 		"shortName": "Ruchè di Castagnole M.to",
 		"nameJa": "ルケ・ディ・カスタニョーレ・モンフェッラート",
@@ -5382,7 +9338,7 @@
 	},
 	{
 		"id": "brachetto-d-acqui",
-		"idApp": 910013,
+		"idApp": 920013,
 		"name": "Brachetto d'Acqui",
 		"shortName": "Brachetto d'Acqui",
 		"nameJa": "ブラケット・ダックイ",
@@ -5403,7 +9359,7 @@
 	},
 	{
 		"id": "dolcetto-di-ovada-superiore",
-		"idApp": 910014,
+		"idApp": 920014,
 		"name": "Dolcetto di Ovada Superiore",
 		"shortName": "Ovada Superiore",
 		"nameJa": "ドルチェット・ディ・オヴァーダ・スペリオーレ",
@@ -5424,7 +9380,7 @@
 	},
 	{
 		"id": "gavi",
-		"idApp": 910015,
+		"idApp": 920015,
 		"name": "Gavi",
 		"shortName": "Gavi",
 		"nameJa": "ガヴィ",
@@ -5445,7 +9401,7 @@
 	},
 	{
 		"id": "gattinara",
-		"idApp": 910016,
+		"idApp": 920016,
 		"name": "Gattinara",
 		"shortName": "Gattinara",
 		"nameJa": "ガッティナーラ",
@@ -5474,7 +9430,7 @@
 	},
 	{
 		"id": "ghemme",
-		"idApp": 910017,
+		"idApp": 920017,
 		"name": "Ghemme",
 		"shortName": "Ghemme",
 		"nameJa": "ゲンメ",
@@ -5503,7 +9459,7 @@
 	},
 	{
 		"id": "erbaluce-di-caluso",
-		"idApp": 910018,
+		"idApp": 920018,
 		"name": "Erbaluce di Caluso",
 		"shortName": "Erbaluce di Caluso",
 		"nameJa": "エルバルーチェ・ディ・カルーソ",
@@ -5524,7 +9480,7 @@
 	},
 	{
 		"id": "piemonte",
-		"idApp": 910019,
+		"idApp": 920019,
 		"name": "Piemonte",
 		"shortName": "Piemonte",
 		"nameJa": "ピエモンテ",
@@ -5557,7 +9513,7 @@
 	},
 	{
 		"id": "langhe",
-		"idApp": 910020,
+		"idApp": 920020,
 		"name": "Langhe",
 		"shortName": "Langhe",
 		"nameJa": "ランゲ",
@@ -5594,7 +9550,7 @@
 	},
 	{
 		"id": "monferrato",
-		"idApp": 910021,
+		"idApp": 920021,
 		"name": "Monferrato",
 		"shortName": "Monferrato",
 		"nameJa": "モンフェッラート",
@@ -5627,7 +9583,7 @@
 	},
 	{
 		"id": "coste-della-sesia",
-		"idApp": 910022,
+		"idApp": 920022,
 		"name": "Coste della Sesia",
 		"shortName": "Coste della Sesia",
 		"nameJa": "コステ・デッラ・セージア",
@@ -5664,7 +9620,7 @@
 	},
 	{
 		"id": "colli-tortonesi",
-		"idApp": 910023,
+		"idApp": 920023,
 		"name": "Colli Tortonesi",
 		"shortName": "Colli Tortonesi",
 		"nameJa": "コッリ・トルトネージ",
@@ -5693,7 +9649,7 @@
 	},
 	{
 		"id": "barbera-d-alba",
-		"idApp": 910024,
+		"idApp": 920024,
 		"name": "Barbera d'Alba",
 		"shortName": "Barbera d'Alba",
 		"nameJa": "バルベーラ・ダルバ",
@@ -5718,7 +9674,7 @@
 	},
 	{
 		"id": "dolcetto-d-alba",
-		"idApp": 910025,
+		"idApp": 920025,
 		"name": "Dolcetto d'Alba",
 		"shortName": "Dolcetto d'Alba",
 		"nameJa": "ドルチェット・ダルバ",
@@ -5739,7 +9695,7 @@
 	},
 	{
 		"id": "nebbiolo-d-alba",
-		"idApp": 910026,
+		"idApp": 920026,
 		"name": "Nebbiolo d'Alba",
 		"shortName": "Nebbiolo d'Alba",
 		"nameJa": "ネッビオーロ・ダルバ",
@@ -5760,7 +9716,7 @@
 	},
 	{
 		"id": "verduno-pelaverga",
-		"idApp": 910027,
+		"idApp": 920027,
 		"name": "Verduno Pelaverga",
 		"shortName": "Verduno Pelaverga",
 		"nameJa": "ヴェルドゥーノ・ペラヴェルガ",
@@ -5785,7 +9741,7 @@
 	},
 	{
 		"id": "bramaterra",
-		"idApp": 910028,
+		"idApp": 920028,
 		"name": "Bramaterra",
 		"shortName": "Bramaterra",
 		"nameJa": "ブラマテッラ",
@@ -5818,7 +9774,7 @@
 	},
 	{
 		"id": "lessona",
-		"idApp": 910029,
+		"idApp": 920029,
 		"name": "Lessona",
 		"shortName": "Lessona",
 		"nameJa": "レッソーナ",
