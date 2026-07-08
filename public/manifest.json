@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "wine",
-  "short_name": "wine",
-  "description": "wine",
+  "name": "ワインAOP学習アプリ",
+  "short_name": "ワインAOP",
+  "description": "ワインのAOP(原産地呼称)を地図で学ぶアプリ",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
