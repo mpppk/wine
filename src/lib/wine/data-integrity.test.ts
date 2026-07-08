@@ -75,6 +75,37 @@ describe("AOPメタデータの整合性", () => {
 	});
 });
 
+describe("ピエモンテ(イタリア)の整合性", () => {
+	const piemonte = AOPS.filter((a) => a.region === "piemonte");
+
+	it("件数スナップショット(DOCG18 / DOC11 / 計29)", () => {
+		expect(piemonte.length).toBe(29);
+		expect(piemonte.filter((a) => a.tags?.includes("docg")).length).toBe(18);
+		expect(piemonte.filter((a) => a.tags?.includes("doc")).length).toBe(11);
+	});
+
+	it("各レコードは docg / doc のちょうど一方を持つ", () => {
+		for (const aop of piemonte) {
+			const tags = aop.tags ?? [];
+			const n = Number(tags.includes("docg")) + Number(tags.includes("doc"));
+			expect(n, aop.id).toBe(1);
+		}
+	});
+
+	it("docg / doc タグはピエモンテ以外に付かない", () => {
+		for (const aop of AOPS.filter((a) => a.region !== "piemonte")) {
+			const tags = aop.tags ?? [];
+			expect(tags.includes("docg") || tags.includes("doc"), aop.id).toBe(false);
+		}
+	});
+
+	it("区分は regional / village のみ(畑・ワイナリーは無し)", () => {
+		for (const aop of piemonte) {
+			expect(["regional", "village"]).toContain(aop.kind);
+		}
+	});
+});
+
 describe("GeoJSONとの整合性", () => {
 	const enabledRegions = REGIONS.filter((r) => r.enabled);
 

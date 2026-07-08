@@ -104,6 +104,26 @@ describe("listAops", () => {
 			expect(aopAllowsGrape(aop, "meunier")).toBe(true);
 		}
 	});
+
+	it("ピエモンテは DOCG18 + DOC11 = 29 を返す", () => {
+		const aops = listAops({ regionId: "piemonte" });
+		expect(aops).toHaveLength(29);
+		expect(aops.filter((a) => a.kind === "regional")).toHaveLength(5);
+		expect(listAops({ regionId: "piemonte", tags: ["docg"] })).toHaveLength(18);
+		expect(listAops({ regionId: "piemonte", tags: ["doc"] })).toHaveLength(11);
+	});
+
+	it("ネッビオーロでピエモンテのAOPを絞り込める", () => {
+		const aops = listAops({ regionId: "piemonte", grapeVarietyId: "nebbiolo" });
+		expect(aops).toHaveLength(12);
+		for (const aop of aops) {
+			expect(aopAllowsGrape(aop, "nebbiolo")).toBe(true);
+		}
+		const ids = aops.map((a) => a.id);
+		expect(ids).toContain("barolo");
+		expect(ids).toContain("gattinara");
+		expect(ids).not.toContain("gavi"); // コルテーゼのみ
+	});
 });
 
 describe("getAop / getRegion", () => {
