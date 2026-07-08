@@ -21,6 +21,7 @@ import {
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
 import { AOP_TAG_IDS, AOP_TAGS, type AopTagId } from "#/lib/wine/tags";
+import { getAppellationTermJa } from "#/lib/wine/terminology";
 import type { AopKind } from "#/lib/wine/types";
 import { getSession } from "#/server/auth";
 
@@ -180,7 +181,8 @@ function MapPage() {
 					<h1 className="text-base font-semibold">
 						{region.nameJa}
 						<span className="ml-2 hidden text-sm font-normal text-muted-foreground sm:inline">
-							{region.nameLocal} ・ {visibleAopIds.size} AOP
+							{region.nameLocal} ・ {visibleAopIds.size}{" "}
+							{getAppellationTermJa(region.id)}
 						</span>
 					</h1>
 				</div>

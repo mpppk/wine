@@ -8,6 +8,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { listRegions } from "#/lib/wine/service";
+import { getAppellationTermJa } from "#/lib/wine/terminology";
 import { getSession } from "#/server/auth";
 
 export const Route = createFileRoute("/regions")({
@@ -55,7 +56,8 @@ function RegionsPage() {
 									</span>
 								</CardTitle>
 								<CardDescription>
-									{region.countryJa} ・ {region.aopCount} AOP
+									{region.countryJa} ・ {region.aopCount}{" "}
+									{getAppellationTermJa(region.id)}
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
