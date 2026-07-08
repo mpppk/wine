@@ -14,6 +14,10 @@ export const aopSchema = z.object({
 	region: z.enum(["bourgogne", "beaujolais"]),
 	subregionId: z.string().min(1),
 	classification: z.enum(["regional", "village", "grand-cru"]),
+	villageAopIds: z
+		.array(z.string().regex(/^[a-z0-9-]+$/))
+		.min(1)
+		.optional(),
 	premierCru: z.boolean(),
 	colors: z.array(z.enum(["red", "white", "rose", "sparkling"])).min(1),
 	grapes: z

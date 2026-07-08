@@ -4,12 +4,13 @@ import {
 	redirect,
 	useNavigate,
 } from "@tanstack/react-router";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, ListIcon, MapIcon } from "lucide-react";
 import { useMemo } from "react";
 import { z } from "zod";
 import { Button } from "#/components/ui/button";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
+import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterSelect } from "#/components/wine/GrapeFilterSelect";
 import {
 	CLASSIFICATION_COLORS,
@@ -17,7 +18,7 @@ import {
 	CLASSIFICATIONS,
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
-import type { Aop, Classification } from "#/lib/wine/types";
+import type { Classification } from "#/lib/wine/types";
 import { getSession } from "#/server/auth";
 
 const searchSchema = z.object({
@@ -27,6 +28,8 @@ const searchSchema = z.object({
 	aop: z.string().optional(),
 	/** 表示する格付け(カンマ区切り)。省略時は全格付け */
 	cls: z.string().optional(),
+	/** 表示モード。省略時は地図 */
+	view: z.enum(["list"]).optional(),
 });
 
 export const Route = createFileRoute("/map/$regionId")({
@@ -56,8 +59,9 @@ function parseClassifications(cls: string | undefined): Classification[] {
 
 function MapPage() {
 	const { region, aops } = Route.useLoaderData();
-	const { grape, aop: selectedAopId, cls } = Route.useSearch();
+	const { grape, aop: selectedAopId, cls, view } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
+	const isListView = view === "list";
 
 	const visibleClassifications = useMemo(
 		() => parseClassifications(cls),
@@ -65,13 +69,17 @@ function MapPage() {
 	);
 	const selectedAop = aops.find((a) => a.id === selectedAopId);
 
-	// サイドバー一覧: 地図と同じフィルタを反映する
-	const listedAops = useMemo(
+	// 一覧(サイドバー/リスト表示): 地図と同じフィルタを反映する
+	const visibleAopIds = useMemo(
 		() =>
-			aops.filter(
-				(a) =>
-					visibleClassifications.includes(a.classification) &&
-					(!grape || aopAllowsGrape(a, grape)),
+			new Set(
+				aops
+					.filter(
+						(a) =>
+							visibleClassifications.includes(a.classification) &&
+							(!grape || aopAllowsGrape(a, grape)),
+					)
+					.map((a) => a.id),
 			),
 		[aops, visibleClassifications, grape],
 	);
@@ -80,6 +88,7 @@ function MapPage() {
 		grape?: string | undefined;
 		aop?: string | undefined;
 		cls?: string | undefined;
+		view?: "list" | undefined;
 	}) => {
 		void navigate({
 			search: (prev) => ({ ...prev, ...patch }),
@@ -100,6 +109,16 @@ function MapPage() {
 		});
 	};
 
+	const treeList = (
+		<AopTreeList
+			aops={aops}
+			subregions={region.subregions}
+			visibleAopIds={visibleAopIds}
+			selectedAopId={selectedAopId}
+			onSelect={(id) => setSearch({ aop: id })}
+		/>
+	);
+
 	return (
 		<main className="flex h-[calc(100dvh-57px)] flex-col sm:h-[calc(100dvh-65px)]">
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2">
@@ -117,12 +136,44 @@ function MapPage() {
 					<h1 className="text-base font-semibold">
 						{region.nameJa}
 						<span className="ml-2 hidden text-sm font-normal text-muted-foreground sm:inline">
-							{region.nameLocal} ・ {listedAops.length} AOP
+							{region.nameLocal} ・ {visibleAopIds.size} AOP
 						</span>
 					</h1>
 				</div>
 
 				<div className="ml-auto flex flex-wrap items-center gap-2">
+					<fieldset
+						className="flex items-center rounded-md border border-border p-0.5"
+						aria-label="表示モード"
+					>
+						<button
+							type="button"
+							onClick={() => setSearch({ view: undefined })}
+							aria-pressed={!isListView}
+							className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+								isListView
+									? "text-muted-foreground hover:text-foreground"
+									: "bg-muted font-medium"
+							}`}
+						>
+							<MapIcon className="size-3.5" aria-hidden />
+							地図
+						</button>
+						<button
+							type="button"
+							onClick={() => setSearch({ view: "list" })}
+							aria-pressed={isListView}
+							className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+								isListView
+									? "bg-muted font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							<ListIcon className="size-3.5" aria-hidden />
+							リスト
+						</button>
+					</fieldset>
+
 					<fieldset
 						className="flex items-center gap-1"
 						aria-label="格付けフィルタ"
@@ -160,31 +211,50 @@ function MapPage() {
 			</div>
 
 			<div className="relative flex min-h-0 flex-1">
-				<AopMapView
-					region={region}
-					aops={aops}
-					selectedAopId={selectedAopId}
-					grapeVarietyId={grape}
-					visibleClassifications={visibleClassifications}
-					onSelectAop={(id) => setSearch({ aop: id })}
-					className="min-w-0 flex-1"
-				/>
+				{isListView ? (
+					<div className="min-w-0 flex-1 overflow-y-auto">
+						<div className="mx-auto max-w-2xl">{treeList}</div>
+					</div>
+				) : (
+					<AopMapView
+						region={region}
+						aops={aops}
+						selectedAopId={selectedAopId}
+						grapeVarietyId={grape}
+						visibleClassifications={visibleClassifications}
+						onSelectAop={(id) => setSearch({ aop: id })}
+						className="min-w-0 flex-1"
+					/>
+				)}
 
-				{/* デスクトップ: 右サイドバー(一覧 or 詳細) */}
-				<aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border lg:block">
-					{selectedAop ? (
-						<AopDetailPanel
-							aop={selectedAop}
-							onClose={() => setSearch({ aop: undefined })}
-						/>
-					) : (
-						<AopList
-							aops={listedAops}
-							subregions={region.subregions}
-							onSelect={(id) => setSearch({ aop: id })}
-						/>
-					)}
-				</aside>
+				{/* デスクトップ: 右サイドバー(リスト表示時は詳細のみ、地図表示時は一覧 or 詳細) */}
+				{(selectedAop || !isListView) && (
+					<aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border lg:block">
+						{selectedAop ? (
+							<>
+								<AopDetailPanel
+									aop={selectedAop}
+									onClose={() => setSearch({ aop: undefined })}
+								/>
+								{isListView && (
+									<div className="px-4 pb-4">
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => setSearch({ view: undefined })}
+										>
+											<MapIcon className="size-4" aria-hidden />
+											地図で表示
+										</Button>
+									</div>
+								)}
+							</>
+						) : (
+							treeList
+						)}
+					</aside>
+				)}
 
 				{/* モバイル: 詳細を下部オーバーレイで表示 */}
 				{selectedAop && (
@@ -193,70 +263,22 @@ function MapPage() {
 							aop={selectedAop}
 							onClose={() => setSearch({ aop: undefined })}
 						/>
+						{isListView && (
+							<div className="px-4 pb-4">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setSearch({ view: undefined })}
+								>
+									<MapIcon className="size-4" aria-hidden />
+									地図で表示
+								</Button>
+							</div>
+						)}
 					</div>
 				)}
 			</div>
 		</main>
-	);
-}
-
-function AopList({
-	aops,
-	subregions,
-	onSelect,
-}: {
-	aops: Aop[];
-	subregions: { id: string; nameJa: string }[];
-	onSelect: (aopId: string) => void;
-}) {
-	if (aops.length === 0) {
-		return (
-			<p className="p-4 text-sm text-muted-foreground">
-				条件に一致するAOPがありません。フィルタを変更してください。
-			</p>
-		);
-	}
-	return (
-		<nav aria-label="AOP一覧" className="p-2">
-			{subregions.map((sub) => {
-				const group = aops.filter((a) => a.subregionId === sub.id);
-				if (group.length === 0) return null;
-				return (
-					<section key={sub.id} className="mb-3">
-						<h3 className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-							{sub.nameJa}
-						</h3>
-						<ul>
-							{group.map((aop) => (
-								<li key={aop.id}>
-									<button
-										type="button"
-										onClick={() => onSelect(aop.id)}
-										className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
-									>
-										<span
-											aria-hidden
-											className="size-2.5 shrink-0 rounded-full"
-											style={{
-												backgroundColor:
-													CLASSIFICATION_COLORS[aop.classification].fill,
-											}}
-										/>
-										<span className="min-w-0 flex-1 truncate">
-											{aop.nameJa}
-										</span>
-										{aop.premierCru && (
-											<span className="shrink-0 text-[10px] text-muted-foreground">
-												1er
-											</span>
-										)}
-									</button>
-								</li>
-							))}
-						</ul>
-					</section>
-				);
-			})}
-		</nav>
 	);
 }

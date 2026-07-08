@@ -32,6 +32,27 @@ describe("AOPメタデータの整合性", () => {
 		}
 	});
 
+	it("グラン・クリュは同一地方の村名AOCを親に持つ", () => {
+		const byId = new Map(AOPS.map((a) => [a.id, a]));
+		for (const aop of AOPS.filter((a) => a.classification === "grand-cru")) {
+			expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
+			for (const villageId of aop.villageAopIds ?? []) {
+				const village = byId.get(villageId);
+				expect(village, `${aop.id} -> ${villageId}`).toBeDefined();
+				expect(village?.classification, `${aop.id} -> ${villageId}`).toBe(
+					"village",
+				);
+				expect(village?.region, `${aop.id} -> ${villageId}`).toBe(aop.region);
+			}
+		}
+	});
+
+	it("villageAopIds はグラン・クリュのみが持つ", () => {
+		for (const aop of AOPS.filter((a) => a.classification !== "grand-cru")) {
+			expect(aop.villageAopIds, aop.id).toBeUndefined();
+		}
+	});
+
 	it("主要品種(principal)が少なくとも1つある", () => {
 		for (const aop of AOPS) {
 			expect(
