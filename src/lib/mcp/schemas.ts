@@ -24,7 +24,8 @@ export const listAopsInput = {
 		.array(z.enum(AOP_TAG_IDS))
 		.optional()
 		.describe(
-			"格付けタグで絞り込む(複数指定はOR)。grand-cru=特級, premier-cru=一級。" +
+			"格付けタグで絞り込む(複数指定はOR)。grand-cru=特級, premier-cru=一級, " +
+				"docg=イタリアDOCG, doc=イタリアDOC。" +
 				"村に premier-cru が付く場合、シャンパーニュでは村自体が一級、" +
 				"ブルゴーニュ等では村名AOC内に1er Cru区画があることを表す。",
 		),

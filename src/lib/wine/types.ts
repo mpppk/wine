@@ -14,12 +14,13 @@ export type WineColor = "red" | "white" | "rose" | "sparkling";
  */
 export type AopKind = "regional" | "village" | "vineyard" | "winery";
 
-export type RegionId = "bourgogne" | "beaujolais" | "champagne";
+export type RegionId = "bourgogne" | "beaujolais" | "champagne" | "piemonte";
 
 export interface GrapeVariety {
 	id: string;
 	nameJa: string;
-	nameFr: string;
+	/** 現地語表記(仏: "Pinot noir" / 伊: "Nebbiolo") */
+	nameLocal: string;
 	color: "red" | "white";
 }
 
@@ -32,7 +33,13 @@ export interface AopGrape {
 export interface Aop {
 	/** URLセーフなスラッグ (例: "gevrey-chambertin") */
 	id: string;
-	/** INAOデータセットの id_app。GeoJSONフィーチャとの結合キー */
+	/**
+	 * GeoJSONフィーチャとの結合キー。
+	 * フランス(INAO)は id_app の実値。イタリアは公式の id_app が無いため合成する:
+	 *   - シャンパーニュのクリュ村: 900001〜(INAOに独立AOCが無いため合成)
+	 *   - ピエモンテ(EU PDO由来): 910001〜 の連番。PDOid との対応は
+	 *     scripts/build-italy-geodata.mjs の PIEMONTE_PDO 表が真実の源(追記のみ)。
+	 */
 	idApp: number;
 	/** INAO表記の正式名称 */
 	name: string;
@@ -76,6 +83,8 @@ export interface Region {
 	bounds?: [number, number, number, number];
 	/** AOP境界GeoJSONのパス(同一オリジン) */
 	geojsonPath?: string;
+	/** 境界データの出典表記(地図のattributionコントロールに表示)。外部データ利用時に設定 */
+	boundaryAttribution?: string;
 	subregions: Subregion[];
 	description: string;
 }

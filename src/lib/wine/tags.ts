@@ -5,6 +5,9 @@ import type { Aop } from "./types";
 export const AOP_TAGS = [
 	{ id: "grand-cru", labelJa: "特級" },
 	{ id: "premier-cru", labelJa: "一級" },
+	// イタリアの格付け(区分ではなく法的等級なのでタグで表現)
+	{ id: "docg", labelJa: "DOCG" },
+	{ id: "doc", labelJa: "DOC" },
 ] as const;
 
 export type AopTagId = (typeof AOP_TAGS)[number]["id"];
