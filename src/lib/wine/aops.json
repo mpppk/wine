@@ -5097,5 +5097,752 @@
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
 		"producers": ["Lelarge-Pugeot"],
 		"description": "プティット・モンターニュ北西端のムニエ主体の村。ビオ栽培を実践するルラルジュ・ピュジョーの本拠地。"
+	},
+	{
+		"id": "barolo",
+		"idApp": 910001,
+		"name": "Barolo",
+		"shortName": "Barolo",
+		"nameJa": "バローロ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			}
+		],
+		"soil": "ランゲの丘陵。西側(バローロ/ラ・モッラ)はトルトニアーノ期の石灰質泥灰土で優美、東側(セッラルンガ/モンフォルテ)はセッラヴァッリアーノ期の砂質土壌で力強い。",
+		"producers": [
+			"Giacomo Conterno",
+			"Bartolo Mascarello",
+			"G.D. Vajra",
+			"Vietti"
+		],
+		"description": "ネッビオーロ100%から生まれる「ワインの王、王のワイン」。11のコムーネにまたがり、区画(MGA)ごとの個性が際立つイタリア最高峰の赤。最低熟成38ヶ月。"
+	},
+	{
+		"id": "barbaresco",
+		"idApp": 910002,
+		"name": "Barbaresco",
+		"shortName": "Barbaresco",
+		"nameJa": "バルバレスコ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			}
+		],
+		"soil": "タナロ川に近いトルトニアーノ期の石灰質泥灰土。バローロより温暖で土壌もやや軽く、早熟でエレガントなネッビオーロを生む。",
+		"producers": ["Gaja", "Produttori del Barbaresco", "Bruno Giacosa"],
+		"description": "ネッビオーロ100%。バローロと並ぶ銘醸だが、より繊細で優美なスタイル。ガヤが世界的名声を築いた。最低熟成26ヶ月、4コムーネ(バルバレスコ/ネイヴェ/トレイゾ/アルバ)。"
+	},
+	{
+		"id": "dogliani",
+		"idApp": 910003,
+		"name": "Dogliani",
+		"shortName": "Dogliani",
+		"nameJa": "ドリアーニ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "dolcetto",
+				"role": "principal"
+			}
+		],
+		"soil": "ランゲ南部の石灰質・砂質泥灰土。標高がやや高く、凝縮したドルチェットを育む。",
+		"producers": ["Chionetti", "Pecchenino", "San Fereolo"],
+		"description": "ドルチェット100%。ドルチェットを最も真剣に表現する産地で、力強くタンニンのある長熟型。かつてはDolcetto di Doglianiと呼ばれた。"
+	},
+	{
+		"id": "dolcetto-di-diano-d-alba",
+		"idApp": 910004,
+		"name": "Dolcetto di Diano d'Alba",
+		"shortName": "Diano d'Alba",
+		"nameJa": "ドルチェット・ディ・ディアーノ・ダルバ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "dolcetto",
+				"role": "principal"
+			}
+		],
+		"soil": "アルバ東方ディアーノ・ダルバの丘の石灰質泥灰土。単一コムーネの小産地。",
+		"producers": ["Claudio Alario", "Cascina Bruciata"],
+		"description": "ドルチェット100%。アルバ東方の一つの丘に限られる小さなDOCG。ソリ(急斜面の好区画)呼称を持つ濃密なドルチェット。"
+	},
+	{
+		"id": "alta-langa",
+		"idApp": 910005,
+		"name": "Alta Langa",
+		"shortName": "Alta Langa",
+		"nameJa": "アルタ・ランガ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "ランゲ・ロエロ・モンフェッラートの標高250m以上の丘。石灰質泥灰土で冷涼、瓶内二次発酵に適した酸を保つ。",
+		"producers": [
+			"Enrico Serafino",
+			"Fontanafredda",
+			"Ettore Germano",
+			"Coppo"
+		],
+		"description": "ピノ・ネロとシャルドネによる瓶内二次発酵の高級スパークリング。最低熟成30ヶ月、全てミッレジマート(ヴィンテージ)。ピエモンテ伝統製法の泡。"
+	},
+	{
+		"id": "roero",
+		"idApp": 910006,
+		"name": "Roero",
+		"shortName": "Roero",
+		"nameJa": "ロエロ",
+		"region": "piemonte",
+		"subregionId": "roero",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arneis",
+				"role": "principal"
+			}
+		],
+		"soil": "タナロ川左岸ロエロ地区の砂質土壌(サッビエ)。ランゲより砂が多く、軽やかで香り高いネッビオーロとアルネイスの白を生む。",
+		"producers": ["Matteo Correggia", "Malvirà", "Bruno Giacosa"],
+		"description": "赤はネッビオーロ主体、白はアルネイス(ロエロ・アルネイス)。砂質土壌ゆえの繊細さが身上で、アルネイスはピエモンテを代表する白品種。"
+	},
+	{
+		"id": "terre-alfieri",
+		"idApp": 910007,
+		"name": "Terre Alfieri",
+		"shortName": "Terre Alfieri",
+		"nameJa": "テッレ・アルフィエーリ",
+		"region": "piemonte",
+		"subregionId": "roero",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arneis",
+				"role": "principal"
+			}
+		],
+		"soil": "アスティ北西〜ロエロ境の砂質(サッビア)土壌。標高のある丘陵。",
+		"producers": ["Pescaja", "Tenuta Tamburnin"],
+		"description": "ネッビオーロとアルネイスを核とするDOCG(2020年昇格)。ロエロに隣接し、砂質土壌由来の香り高いネッビオーロが特徴。"
+	},
+	{
+		"id": "asti",
+		"idApp": 910008,
+		"name": "Asti",
+		"shortName": "Asti",
+		"nameJa": "アスティ",
+		"region": "piemonte",
+		"subregionId": "monferrato-asti",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "moscato-bianco",
+				"role": "principal"
+			}
+		],
+		"soil": "アスティ〜クーネオ〜アレッサンドリアの石灰質・泥灰質の丘陵。モスカート・ビアンコの一大産地。",
+		"producers": ["Vietti", "Paolo Saracco", "La Spinetta", "Fontanafredda"],
+		"description": "モスカート・ビアンコ100%の甘口。発泡性のアスティ・スプマンテと弱発泡・低アルコールのモスカート・ダスティを含む、マスカットの華やかな香りの銘柄。"
+	},
+	{
+		"id": "barbera-d-asti",
+		"idApp": 910009,
+		"name": "Barbera d'Asti",
+		"shortName": "Barbera d'Asti",
+		"nameJa": "バルベーラ・ダスティ",
+		"region": "piemonte",
+		"subregionId": "monferrato-asti",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "barbera",
+				"role": "principal"
+			}
+		],
+		"soil": "アスティ県を中心とする石灰質泥灰土(マルヌ)。バルベーラの本拠。",
+		"producers": ["Braida", "Coppo", "Vietti"],
+		"description": "バルベーラ主体(90%以上)。豊かな酸と果実味が持ち味で、樽熟のスペリオーレは長熟。ブライダのブリッコ・デッルッチェッローネが名声を確立した。"
+	},
+	{
+		"id": "nizza",
+		"idApp": 910010,
+		"name": "Nizza",
+		"shortName": "Nizza",
+		"nameJa": "ニッツァ",
+		"region": "piemonte",
+		"subregionId": "monferrato-asti",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "barbera",
+				"role": "principal"
+			}
+		],
+		"soil": "ニッツァ・モンフェラート周辺18コムーネの石灰質泥灰土。日当たりの良い好斜面。",
+		"producers": ["Michele Chiarlo", "Bersano", "La Gironda"],
+		"description": "バルベーラ100%の最上級表現として2014年にDOCG独立。バルベーラ・ダスティの中心地区を切り出した、凝縮感と長熟力のある赤。"
+	},
+	{
+		"id": "barbera-del-monferrato-superiore",
+		"idApp": 910011,
+		"name": "Barbera del Monferrato Superiore",
+		"shortName": "Barbera del Monferrato Sup.",
+		"nameJa": "バルベーラ・デル・モンフェッラート・スペリオーレ",
+		"region": "piemonte",
+		"subregionId": "monferrato-asti",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "barbera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "freisa",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grignolino",
+				"role": "accessory"
+			}
+		],
+		"soil": "モンフェッラートの丘陵の石灰質・砂質土壌。",
+		"producers": ["Accornero", "Tenuta La Tenaglia"],
+		"description": "バルベーラ主体(最大15%までフレイザ/グリニョリーノ/ドルチェットを補助)。モンフェッラート産バルベーラの上級版として熟成を経た力強い赤。"
+	},
+	{
+		"id": "ruche-di-castagnole-monferrato",
+		"idApp": 910012,
+		"name": "Ruchè di Castagnole Monferrato",
+		"shortName": "Ruchè di Castagnole M.to",
+		"nameJa": "ルケ・ディ・カスタニョーレ・モンフェッラート",
+		"region": "piemonte",
+		"subregionId": "monferrato-asti",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "ruche",
+				"role": "principal"
+			}
+		],
+		"soil": "カスタニョーレ・モンフェッラート周辺7コムーネの石灰質土壌。",
+		"producers": ["Ferraris Agricola", "Montalbera"],
+		"description": "土着品種ルケから造る芳香性の赤。バラやスパイスの香りが特徴で、生産地はごく小さい。近年再評価が進む個性派。"
+	},
+	{
+		"id": "brachetto-d-acqui",
+		"idApp": 910013,
+		"name": "Brachetto d'Acqui",
+		"shortName": "Brachetto d'Acqui",
+		"nameJa": "ブラケット・ダックイ",
+		"region": "piemonte",
+		"subregionId": "monferrato-asti",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "brachetto",
+				"role": "principal"
+			}
+		],
+		"soil": "アックイ・テルメ周辺の石灰質泥灰土。",
+		"producers": ["Braida", "Marenco", "Banfi"],
+		"description": "土着品種ブラケットの甘口・微発泡〜発泡の赤。イチゴやバラの香りの軽やかな低アルコールで、バンフィのロサ・レガーレが有名。"
+	},
+	{
+		"id": "dolcetto-di-ovada-superiore",
+		"idApp": 910014,
+		"name": "Dolcetto di Ovada Superiore",
+		"shortName": "Ovada Superiore",
+		"nameJa": "ドルチェット・ディ・オヴァーダ・スペリオーレ",
+		"region": "piemonte",
+		"subregionId": "monferrato-asti",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "dolcetto",
+				"role": "principal"
+			}
+		],
+		"soil": "アレッサンドリア県オヴァーダ周辺の石灰質・粘土質土壌。",
+		"producers": ["La Guardia", "Tacchino"],
+		"description": "ドルチェット100%の上級版(2008年昇格)。オヴァーダ地区の熟成を経た凝縮したドルチェットで、通常のドルチェットより長熟。"
+	},
+	{
+		"id": "gavi",
+		"idApp": 910015,
+		"name": "Gavi",
+		"shortName": "Gavi",
+		"nameJa": "ガヴィ",
+		"region": "piemonte",
+		"subregionId": "gavi-tortona",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "cortese",
+				"role": "principal"
+			}
+		],
+		"soil": "アレッサンドリア県ガヴィ周辺の石灰質・白亜質土壌。",
+		"producers": ["La Scolca", "Villa Sparina", "Broglia"],
+		"description": "コルテーゼ100%の辛口白(Cortese di Gaviとも)。ミネラルとシトラスの効いたシャープな酸が身上で、ピエモンテを代表する白ワイン。"
+	},
+	{
+		"id": "gattinara",
+		"idApp": 910016,
+		"name": "Gattinara",
+		"shortName": "Gattinara",
+		"nameJa": "ガッティナーラ",
+		"region": "piemonte",
+		"subregionId": "alto-piemonte",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "uva-rara",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vespolina",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルト・ピエモンテ(北部)の火山性・斑岩質の酸性土壌。標高が高く冷涼。",
+		"producers": ["Travaglini", "Nervi-Conterno", "Antoniolo"],
+		"description": "ネッビオーロ(現地名スパンナ)主体の長熟赤。火山性土壌由来のミネラルと鋭い酸が特徴で、バローロとは異なる繊細さを持つ。"
+	},
+	{
+		"id": "ghemme",
+		"idApp": 910017,
+		"name": "Ghemme",
+		"shortName": "Ghemme",
+		"nameJa": "ゲンメ",
+		"region": "piemonte",
+		"subregionId": "alto-piemonte",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vespolina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "uva-rara",
+				"role": "accessory"
+			}
+		],
+		"soil": "セージア川東岸の氷河性堆積・粘土質土壌。アルト・ピエモンテの冷涼産地。",
+		"producers": ["Antichi Vigneti di Cantalupo", "Rovellotti"],
+		"description": "ネッビオーロ(スパンナ)主体の長熟赤。ガッティナーラと並ぶ北部の銘醸で、より柔らかな口当たりと評される。"
+	},
+	{
+		"id": "erbaluce-di-caluso",
+		"idApp": 910018,
+		"name": "Erbaluce di Caluso",
+		"shortName": "Erbaluce di Caluso",
+		"nameJa": "エルバルーチェ・ディ・カルーソ",
+		"region": "piemonte",
+		"subregionId": "canavese",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "erbaluce",
+				"role": "principal"
+			}
+		],
+		"soil": "トリノ北方カナヴェーゼ地区の氷河性モレーン・砂質土壌。",
+		"producers": ["Orsolani", "Cieck", "Ferrando"],
+		"description": "土着白品種エルバルーチェから辛口・スプマンテ・パッシート(甘口)を生む。高い酸を活かした多彩なスタイルで、カナヴェーゼを代表するDOCG。"
+	},
+	{
+		"id": "piemonte",
+		"idApp": 910019,
+		"name": "Piemonte",
+		"shortName": "Piemonte",
+		"nameJa": "ピエモンテ",
+		"region": "piemonte",
+		"subregionId": "piemonte-regional",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "barbera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cortese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "brachetto",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscato-bianco",
+				"role": "accessory"
+			}
+		],
+		"soil": "ピエモンテ州の広域を対象とする、丘陵の石灰質泥灰土を中心とした多様な土壌。",
+		"producers": ["Fontanafredda", "Coppo"],
+		"description": "州全域をカバーする広域DOC。バルベーラ・ブラケット・モスカート・コルテーゼなど品種名を冠する多彩なワインの受け皿で、上位DOC/DOCGの補完的役割も担う。"
+	},
+	{
+		"id": "langhe",
+		"idApp": 910020,
+		"name": "Langhe",
+		"shortName": "Langhe",
+		"nameJa": "ランゲ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "barbera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "dolcetto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arneis",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "クーネオ県ランゲ丘陵の石灰質泥灰土。バローロ/バルバレスコを含む広域。",
+		"producers": ["G.D. Vajra", "Ceretto", "Vietti"],
+		"description": "ランゲ地方を広くカバーするDOC。ランゲ・ネッビオーロはバローロの若木や格下げ樽から生まれる入門的ネッビオーロとして人気で、品種名DOCが充実する。"
+	},
+	{
+		"id": "monferrato",
+		"idApp": 910021,
+		"name": "Monferrato",
+		"shortName": "Monferrato",
+		"nameJa": "モンフェッラート",
+		"region": "piemonte",
+		"subregionId": "monferrato-asti",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "barbera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "freisa",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grignolino",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "dolcetto",
+				"role": "accessory"
+			}
+		],
+		"soil": "アスティ〜アレッサンドリアのモンフェッラート丘陵の石灰質・砂質土壌。",
+		"producers": ["Accornero", "Bava"],
+		"description": "モンフェッラート地方の広域DOC。バルベーラ主体の赤モンフェッラート・ロッソやフレイザ・グリニョリーノなど、土着品種の受け皿となる。"
+	},
+	{
+		"id": "coste-della-sesia",
+		"idApp": 910022,
+		"name": "Coste della Sesia",
+		"shortName": "Coste della Sesia",
+		"nameJa": "コステ・デッラ・セージア",
+		"region": "piemonte",
+		"subregionId": "alto-piemonte",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "croatina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vespolina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "uva-rara",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "barbera",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルト・ピエモンテ、セージア川流域の火山性・斑岩質土壌。",
+		"producers": ["Nervi-Conterno", "Sella", "Proprietà Sperino"],
+		"description": "ガッティナーラ/ブラマテッラ/レッソーナ等を包含する北部の広域DOC。ネッビオーロ主体の赤やロゼで、上位DOCGの補完的役割を担う。"
+	},
+	{
+		"id": "colli-tortonesi",
+		"idApp": 910023,
+		"name": "Colli Tortonesi",
+		"shortName": "Colli Tortonesi",
+		"nameJa": "コッリ・トルトネージ",
+		"region": "piemonte",
+		"subregionId": "gavi-tortona",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "timorasso",
+				"role": "principal"
+			},
+			{
+				"varietyId": "barbera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cortese",
+				"role": "accessory"
+			}
+		],
+		"soil": "アレッサンドリア県トルトーナ丘陵の石灰質・粘土質土壌。",
+		"producers": ["Vigneti Massa", "Claudio Mariotto"],
+		"description": "土着白品種ティモラッソの復興で知られる産地。豊かなミネラルと長熟力を持つ白と、バルベーラ主体の赤を生む。ワルター・マッサが再評価を牽引した。"
+	},
+	{
+		"id": "barbera-d-alba",
+		"idApp": 910024,
+		"name": "Barbera d'Alba",
+		"shortName": "Barbera d'Alba",
+		"nameJa": "バルベーラ・ダルバ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "barbera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "nebbiolo",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルバ周辺ランゲの石灰質泥灰土。バローロと同じ丘でバルベーラを栽培する。",
+		"producers": ["Vietti", "G.D. Vajra", "Giacomo Conterno"],
+		"description": "バルベーラ主体(最大15%までネッビオーロ可)。アスティ産より豊満で凝縮する傾向があり、ネッビオーロの銘醸地の好区画から生まれる。"
+	},
+	{
+		"id": "dolcetto-d-alba",
+		"idApp": 910025,
+		"name": "Dolcetto d'Alba",
+		"shortName": "Dolcetto d'Alba",
+		"nameJa": "ドルチェット・ダルバ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "dolcetto",
+				"role": "principal"
+			}
+		],
+		"soil": "アルバ周辺ランゲの石灰質泥灰土。",
+		"producers": ["Marcarini", "G.D. Vajra", "Pecchenino"],
+		"description": "ドルチェット100%。低い酸と穏やかなタンニン、フレッシュな果実で日常の赤として親しまれる。ランゲで最も早く飲み頃を迎える赤。"
+	},
+	{
+		"id": "nebbiolo-d-alba",
+		"idApp": 910026,
+		"name": "Nebbiolo d'Alba",
+		"shortName": "Nebbiolo d'Alba",
+		"nameJa": "ネッビオーロ・ダルバ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			}
+		],
+		"soil": "アルバ周辺(ロエロ〜ランゲ)の砂質・石灰質土壌。",
+		"producers": ["Vietti", "Pio Cesare", "Bruno Giacosa"],
+		"description": "ネッビオーロ100%。バローロ/バルバレスコ地区外のアルバ周辺で造られ、より柔らかく早く飲めるネッビオーロ入門編。"
+	},
+	{
+		"id": "verduno-pelaverga",
+		"idApp": 910027,
+		"name": "Verduno Pelaverga",
+		"shortName": "Verduno Pelaverga",
+		"nameJa": "ヴェルドゥーノ・ペラヴェルガ",
+		"region": "piemonte",
+		"subregionId": "langhe",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pelaverga",
+				"role": "principal"
+			}
+		],
+		"soil": "バローロ地区北端ヴェルドゥーノ村の石灰質泥灰土。3コムーネの極小産地。",
+		"producers": [
+			"G.B. Burlotto",
+			"Fratelli Alessandria",
+			"Castello di Verduno"
+		],
+		"description": "希少な土着品種ペラヴェルガ・ピッコロから造る軽やかな赤。白胡椒やスパイスの香りが個性で、生産はヴェルドゥーノ周辺のみ。"
+	},
+	{
+		"id": "bramaterra",
+		"idApp": 910028,
+		"name": "Bramaterra",
+		"shortName": "Bramaterra",
+		"nameJa": "ブラマテッラ",
+		"region": "piemonte",
+		"subregionId": "alto-piemonte",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "croatina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "uva-rara",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vespolina",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルト・ピエモンテ、火山性斑岩と砂質の酸性土壌。",
+		"producers": ["Antoniolo", "Colombera & Garella", "Odilio Antoniotti"],
+		"description": "ネッビオーロ主体にクロアティーナ/ウーヴァ・ラーラ/ヴェスポリーナをブレンドする北部の赤。火山性土壌由来の骨格と鋭い酸を持つ長熟型。"
+	},
+	{
+		"id": "lessona",
+		"idApp": 910029,
+		"name": "Lessona",
+		"shortName": "Lessona",
+		"nameJa": "レッソーナ",
+		"region": "piemonte",
+		"subregionId": "alto-piemonte",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "nebbiolo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vespolina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "uva-rara",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルト・ピエモンテ、海成の酸性砂質土壌(marine sands)。極めて小さな産地。",
+		"producers": ["Proprietà Sperino", "Sella", "Colombera & Garella"],
+		"description": "ネッビオーロ主体の希少な北部赤。海由来の酸性砂質土壌がもたらす繊細さとエレガンスで知られ、栽培面積はごくわずか。"
 	}
 ]
