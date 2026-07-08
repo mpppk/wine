@@ -5097,5 +5097,645 @@
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
 		"producers": ["Lelarge-Pugeot"],
 		"description": "プティット・モンターニュ北西端のムニエ主体の村。ビオ栽培を実践するルラルジュ・ピュジョーの本拠地。"
+	},
+	{
+		"id": "bordeaux",
+		"idApp": 910001,
+		"name": "Bordeaux",
+		"shortName": "Bordeaux",
+		"nameJa": "ボルドー",
+		"region": "bordeaux",
+		"subregionId": "bordeaux-regional",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド県全域にわたり、砂利・粘土石灰質・砂質など多様。左岸は砂利、右岸とアントル・ドゥー・メールは粘土石灰質が主体。",
+		"producers": ["ジロンド県内の多数の生産者"],
+		"description": "ジロンド県のほぼ全域をカバーする最も基本的な地方名AOC。赤・辛口白・ロゼ・クレレを産する。より上位の村名・地区AOCを名乗れないワインの受け皿であり、格付けシャトーもこの呼称に格下げして瓶詰めできる。"
+	},
+	{
+		"id": "bordeaux-superieur",
+		"idApp": 910002,
+		"name": "Bordeaux Supérieur",
+		"shortName": "Bordeaux Supérieur",
+		"nameJa": "ボルドー・シュペリユール",
+		"region": "bordeaux",
+		"subregionId": "bordeaux-regional",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "ボルドーAOCと同じ生産地域。粘土石灰質・砂利質など。",
+		"producers": ["ジロンド県内の多数の生産者"],
+		"description": "ボルドーAOCと同じ区域だが、最低アルコール度数・収量・熟成などの規定がより厳しい上位の広域赤AOC。凝縮した果実味を持つ手頃な赤が多い。"
+	},
+	{
+		"id": "medoc",
+		"idApp": 910003,
+		"name": "Médoc",
+		"shortName": "Médoc",
+		"nameJa": "メドック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド川左岸、半島北部(バ・メドック)の砂利と粘土の混じる土壌。オー・メドックより粘土がち。",
+		"producers": ["Château Potensac", "Château Loudenne"],
+		"description": "メドック半島全体を包含する地区AOC。実質的には半島北部(バ・メドック)のシャトーが名乗る赤専用の呼称で、カベルネ・ソーヴィニヨンとメルロを主体とする。"
+	},
+	{
+		"id": "haut-medoc",
+		"idApp": 910004,
+		"name": "Haut-Médoc",
+		"shortName": "Haut-Médoc",
+		"nameJa": "オー・メドック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "半島南部のギュンツ氷期起源の深い砂利丘(クルップ)。排水性が高くカベルネ・ソーヴィニヨンに最適。",
+		"producers": [
+			"Château La Lagune",
+			"Château Cantemerle",
+			"Château Sociando-Mallet"
+		],
+		"description": "メドック半島南部の地区AOC。ポイヤックやマルゴーなど6つの村名AOCを内包し、それらの村名を名乗れない区画や村外のシャトーが用いる。1855年格付けのシャトーも複数含む。"
+	},
+	{
+		"id": "saint-estephe",
+		"idApp": 910005,
+		"name": "Saint-Estèphe",
+		"shortName": "Saint-Estèphe",
+		"nameJa": "サン・テステフ",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "メドック最北の村名AOC。砂利丘に加え粘土の比率が高く、保水性がある。",
+		"producers": [
+			"Château Cos d'Estournel",
+			"Château Montrose",
+			"Château Calon-Ségur"
+		],
+		"description": "メドック北端の村名AOC。粘土質の影響で力強くタンニンの豊かな長熟型の赤を生む。コス・デストゥルネルやモンローズなど2級シャトーが牽引する。"
+	},
+	{
+		"id": "pauillac",
+		"idApp": 910006,
+		"name": "Pauillac",
+		"shortName": "Pauillac",
+		"nameJa": "ポイヤック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "ジロンド川沿いの深く粗い砂利丘。排水性と日照でカベルネ・ソーヴィニヨンが完熟する。",
+		"producers": [
+			"Château Lafite Rothschild",
+			"Château Latour",
+			"Château Mouton Rothschild"
+		],
+		"description": "1855年格付け第1級を3つ擁するメドックの中核村。カベルネ・ソーヴィニヨン主体の重厚で長命な赤の代名詞。ラフィット・ラトゥール・ムートンが君臨する。"
+	},
+	{
+		"id": "saint-julien",
+		"idApp": 910007,
+		"name": "Saint-Julien",
+		"shortName": "Saint-Julien",
+		"nameJa": "サン・ジュリアン",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "均質な砂利丘。ポイヤックより粘土がやや多く、力強さと優美さのバランスに優れる。",
+		"producers": [
+			"Château Léoville-Las Cases",
+			"Château Ducru-Beaucaillou",
+			"Château Gruaud-Larose"
+		],
+		"description": "メドックで最も格付けシャトーの密度が高い村名AOC。第1級こそ無いが、レオヴィル・ラス・カーズなど質の高い2級が揃い、調和のとれた古典的な赤を生む。"
+	},
+	{
+		"id": "margaux",
+		"idApp": 910008,
+		"name": "Margaux",
+		"shortName": "Margaux",
+		"nameJa": "マルゴー",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "メドックで最も薄く軽い砂利質土壌。5つのコミューンにまたがる。",
+		"producers": ["Château Margaux", "Château Palmer", "Château Rauzan-Ségla"],
+		"description": "メドック最南部の村名AOC。薄い砂利土壌から生まれる香り高くしなやかな赤で知られ、第1級シャトー・マルゴーを頂点に最多21の格付けシャトーを擁する。"
+	},
+	{
+		"id": "listrac-medoc",
+		"idApp": 910009,
+		"name": "Listrac-Médoc",
+		"shortName": "Listrac-Médoc",
+		"nameJa": "リストラック・メドック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "メドック内陸部の標高が高い石灰岩・砂利の丘。メルロの比率が高め。",
+		"producers": ["Château Clarke", "Château Fourcas-Hosten"],
+		"description": "メドック内陸の村名AOC。1855年格付けシャトーは持たないが、堅実で骨格のしっかりした赤を産する。クリュ・ブルジョワが中心。"
+	},
+	{
+		"id": "moulis-en-medoc",
+		"idApp": 910010,
+		"name": "Moulis-en-Médoc",
+		"shortName": "Moulis",
+		"nameJa": "ムーリス・アン・メドック",
+		"region": "bordeaux",
+		"subregionId": "medoc",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂利丘と粘土石灰質が混在するメドック最小の村名AOC。",
+		"producers": ["Château Chasse-Spleen", "Château Poujeaux"],
+		"description": "メドックで最も小さい村名AOC。1855年格付けは無いものの、シャス・スプリーンなど格付け級の品質を持つクリュ・ブルジョワが有名。"
+	},
+	{
+		"id": "graves",
+		"idApp": 910011,
+		"name": "Graves",
+		"shortName": "Graves",
+		"nameJa": "グラーヴ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "regional",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "その名の通り砂利質(グラーヴ)。ガロンヌ川左岸に沿って南北に広がる。",
+		"producers": ["Château Chantegrive", "Clos Floridène"],
+		"description": "ボルドー市の南に広がる砂利質土壌の地区AOC。赤と辛口白の両方を産する数少ない地区で、上位に村名AOCペサック・レオニャンを含む。"
+	},
+	{
+		"id": "pessac-leognan",
+		"idApp": 910012,
+		"name": "Pessac-Léognan",
+		"shortName": "Pessac-Léognan",
+		"nameJa": "ペサック・レオニャン",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "グラーヴ北部の最良の砂利丘。ボルドー市街近郊に位置する。",
+		"producers": [
+			"Château Haut-Brion",
+			"Château Pape Clément",
+			"Domaine de Chevalier"
+		],
+		"description": "1987年にグラーヴ北部から独立した村名AOC。赤・辛口白ともに最高峰を産し、1855年格付けで唯一メドック外から選ばれた第1級シャトー・オー・ブリオンを擁する。"
+	},
+	{
+		"id": "sauternes",
+		"idApp": 910013,
+		"name": "Sauternes",
+		"shortName": "Sauternes",
+		"nameJa": "ソーテルヌ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "ガロンヌ川と支流シロン川の合流域。朝霧が貴腐菌(ボトリティス)の発生を促す砂利・粘土質。",
+		"producers": ["Château d'Yquem", "Château Guiraud", "Château Suduiraut"],
+		"description": "世界最高峰の貴腐甘口白ワインの産地。シロン川がもたらす秋の朝霧が貴腐菌を育み、糖と酸の凝縮した黄金色のワインを生む。1855年に甘口として独自に格付けされた。"
+	},
+	{
+		"id": "barsac",
+		"idApp": 910014,
+		"name": "Barsac",
+		"shortName": "Barsac",
+		"nameJa": "バルサック",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			}
+		],
+		"soil": "シロン川右岸の石灰岩基盤に赤色粘土(テール・ルージュ)が乗る平坦地。",
+		"producers": ["Château Climens", "Château Coutet"],
+		"description": "ソーテルヌに隣接する貴腐甘口の村名AOC。バルサックの生産者は「バルサック」「ソーテルヌ」いずれの呼称も名乗れる。石灰質由来の繊細で生き生きとした酸が特徴。"
+	},
+	{
+		"id": "saint-emilion",
+		"idApp": 910015,
+		"name": "Saint-Émilion",
+		"shortName": "Saint-Émilion",
+		"nameJa": "サン・テミリオン",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰岩台地とその斜面(コート)、麓の砂利・砂質。メルロとカベルネ・フランに好適。",
+		"producers": ["Château Fombrande", "多数の家族経営シャトー"],
+		"description": "右岸を代表するメルロ主体の赤の産地。中世の街並みが世界遺産に登録されている。基本の村名AOCで、より厳しい規定の上位AOC「サン・テミリオン・グラン・クリュ」を持つ。"
+	},
+	{
+		"id": "saint-emilion-grand-cru",
+		"idApp": 910016,
+		"name": "Saint-Émilion Grand Cru",
+		"shortName": "Saint-Émilion Grand Cru",
+		"nameJa": "サン・テミリオン・グラン・クリュ",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "サン・テミリオンと同一区域。石灰岩台地・粘土石灰質の斜面・砂利質の麓。",
+		"producers": ["Château Pavie", "Château Figeac", "Château Angélus"],
+		"description": "サン・テミリオンと同じ区域だが、収量や熟成の規定が厳しい上位AOC。独自の格付け(2022年版)を持ち、頂点の第1特別級A/BのシャトーはこのAOCで瓶詰めする。"
+	},
+	{
+		"id": "pomerol",
+		"idApp": 910017,
+		"name": "Pomerol",
+		"shortName": "Pomerol",
+		"nameJa": "ポムロール",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "台地の砂利・粘土に鉄分を含む「クラス・ド・フェール(鉄分の錆)」が点在。メルロが個性的な深みを得る。",
+		"producers": ["Pétrus", "Château Le Pin", "Vieux Château Certan"],
+		"description": "右岸の小さな村名AOC。公式の格付け制度を持たないが、鉄分を含む粘土土壌から生まれるメルロ主体の赤は世界最高値で取引される。ペトリュスやル・パンが象徴的。"
+	},
+	{
+		"id": "entre-deux-mers",
+		"idApp": 910018,
+		"name": "Entre-deux-Mers",
+		"shortName": "Entre-deux-Mers",
+		"nameJa": "アントル・ドゥー・メール",
+		"region": "bordeaux",
+		"subregionId": "entre-deux-mers",
+		"kind": "regional",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscadelle",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ガロンヌ川とドルドーニュ川に挟まれた丘陵地。粘土石灰質・砂質。",
+		"producers": ["多数の協同組合・家族経営シャトー"],
+		"description": "2つの川(海)に挟まれた広大な丘陵地帯の地区AOC。呼称としては辛口白のみに用いられ(赤はボルドーAOCを名乗る)、ソーヴィニヨン・ブラン主体の爽やかな白を産する。"
 	}
 ]
