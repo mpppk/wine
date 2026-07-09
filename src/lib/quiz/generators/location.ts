@@ -18,6 +18,8 @@ import type { QuizQuestion } from "../types";
 // 反対側にある村だけを採用するため、僅差の曖昧な問題は構造的に生成されない。
 // 東西方向もサポートすることで、東西に延びる地区(ヴァレ・ド・ラ・マルヌ等)も
 // 分離の良い軸で出題できる。
+// 村名AOCを持たない地域(アルザス等)では、畑名AOP(グラン・クリュ)を
+// 同じルールで比較して出題する。選択肢の区分は1問の中で混ぜない。
 
 /** 出題に必要な最小の座標差。約1.1km(緯度0.010° / 経度0.015° @47°N) */
 const MIN_GAP_LAT = 0.01;
@@ -53,22 +55,27 @@ function minGap(direction: LocationDirection): number {
 		: MIN_GAP_LNG;
 }
 
-function villagesIn(regionId: RegionId, subregionId: string): Aop[] {
-	return listAops({ regionId, subregionId, kind: "village" }).filter(
+function locationPoolIn(regionId: RegionId, subregionId: string): Aop[] {
+	const villages = listAops({ regionId, subregionId, kind: "village" }).filter(
+		(a) => getCentroid(a.id) !== undefined,
+	);
+	if (villages.length > 0) return villages;
+	// 村名AOCが無い地区(アルザスのバ・ラン/オー・ラン等)は畑名AOPで比較する
+	return listAops({ regionId, subregionId, kind: "vineyard" }).filter(
 		(a) => getCentroid(a.id) !== undefined,
 	);
 }
 
-/** subject より MIN_GAP 以上「反対側」にある村(=ディストラクタ候補) */
+/** subject より MIN_GAP 以上「反対側」にあるAOP(=ディストラクタ候補) */
 function distractorPoolFor(
 	subject: Aop,
-	villages: Aop[],
+	pool: Aop[],
 	direction: LocationDirection,
 ): Aop[] {
 	const subjectValue = axisValue(subject, direction);
 	if (subjectValue === undefined) return [];
 	const gap = minGap(direction);
-	return villages.filter((v) => {
+	return pool.filter((v) => {
 		if (v.id === subject.id) return false;
 		const value = axisValue(v, direction);
 		return value !== undefined && subjectValue - value >= gap;
@@ -78,11 +85,11 @@ function distractorPoolFor(
 export function enumerateLocationKeys(regionId: RegionId): string[] {
 	const keys: string[] = [];
 	for (const subregion of getRegion(regionId)?.subregions ?? []) {
-		const villages = villagesIn(regionId, subregion.id);
-		if (villages.length < 4) continue;
+		const pool = locationPoolIn(regionId, subregion.id);
+		if (pool.length < 4) continue;
 		for (const direction of LOCATION_DIRECTIONS) {
-			for (const subject of villages) {
-				if (distractorPoolFor(subject, villages, direction).length >= 3) {
+			for (const subject of pool) {
+				if (distractorPoolFor(subject, pool, direction).length >= 3) {
 					keys.push(buildLocationKey(direction, subregion.id, subject.id));
 				}
 			}
@@ -97,7 +104,7 @@ export function materializeLocationQuestion(
 ): QuizQuestion | null {
 	const subject = getAop(parsed.aopId);
 	if (
-		subject?.kind !== "village" ||
+		(subject?.kind !== "village" && subject?.kind !== "vineyard") ||
 		subject.subregionId !== parsed.subregionId
 	) {
 		return null;
@@ -106,8 +113,10 @@ export function materializeLocationQuestion(
 	const subregion = region?.subregions.find((s) => s.id === parsed.subregionId);
 	if (!subregion) return null;
 
-	const villages = villagesIn(subject.region, parsed.subregionId);
-	const pool = distractorPoolFor(subject, villages, parsed.direction);
+	const candidates = locationPoolIn(subject.region, parsed.subregionId);
+	// 村がある地区で畑が主題になる(またはその逆)キーは無効として弾く
+	if (!candidates.some((a) => a.id === subject.id)) return null;
+	const pool = distractorPoolFor(subject, candidates, parsed.direction);
 	const distractors = sample(pool, 3, rng);
 	if (distractors.length < 3) return null;
 
@@ -133,7 +142,7 @@ export function materializeLocationQuestion(
 		key: buildLocationKey(parsed.direction, parsed.subregionId, subject.id),
 		quizType: "location",
 		regionId: subject.region,
-		prompt: `次の${subregion.nameJa}の村名AOPのうち、最も${DIRECTION_LABELS_JA[parsed.direction]}にあるのはどれ？`,
+		prompt: `次の${subregion.nameJa}の${subject.kind === "village" ? "村名AOP" : "畑名AOP"}のうち、最も${DIRECTION_LABELS_JA[parsed.direction]}にあるのはどれ？`,
 		options,
 		correctOptionId: subject.id,
 		explanation:
