@@ -29,6 +29,7 @@ import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
 import { AOP_TAG_IDS, AOP_TAGS, type AopTagId } from "#/lib/wine/tags";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
 import type { AopKind } from "#/lib/wine/types";
+import { getAffiliateConfig } from "#/server/affiliate";
 
 const searchSchema = z.object({
 	/** ブドウ品種フィルタ(variety id) */
@@ -45,12 +46,16 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/map/$regionId")({
 	validateSearch: searchSchema,
-	loader: ({ params }) => {
+	loader: async ({ params }) => {
 		const region = getRegion(params.regionId);
 		if (!region?.enabled) {
 			throw redirect({ to: "/regions" });
 		}
-		return { region, aops: listAops({ regionId: region.id }) };
+		return {
+			region,
+			aops: listAops({ regionId: region.id }),
+			affiliate: await getAffiliateConfig(),
+		};
 	},
 	component: MapPage,
 });
@@ -75,7 +80,7 @@ function parseTags(tags: string | undefined): AopTagId[] {
 }
 
 function MapPage() {
-	const { region, aops } = Route.useLoaderData();
+	const { region, aops, affiliate } = Route.useLoaderData();
 	const { grape, aop: selectedAopId, cls, tags, view } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const isListView = view === "list";
@@ -343,6 +348,7 @@ function MapPage() {
 									onNext={goNext}
 									position={siblings}
 									onClose={() => setSearch({ aop: undefined })}
+									affiliate={affiliate}
 								/>
 								{isListView && (
 									<div className="px-4 pb-4">
@@ -375,6 +381,7 @@ function MapPage() {
 							onNext={goNext}
 							position={siblings}
 							onClose={() => setSearch({ aop: undefined })}
+							affiliate={affiliate}
 						/>
 						{isListView && (
 							<div className="px-4 pb-4">

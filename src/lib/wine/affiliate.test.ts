@@ -108,6 +108,27 @@ describe("getProducerPurchaseLinks", () => {
 		// 指定の無い方は自動生成のまま
 		expect(links?.amazon).toContain(encodeURIComponent("Domaine Test"));
 	});
+
+	it("config未指定なら素の検索URL(アフィリエイトラップなし)", () => {
+		const links = getProducerPurchaseLinks({ name: "Guy Breton" });
+		expect(links?.rakuten.startsWith("https://search.rakuten.co.jp/")).toBe(
+			true,
+		);
+		expect(links?.amazon.startsWith("https://www.amazon.co.jp/")).toBe(true);
+	});
+
+	it("configのIDを渡すと計測用URLでラップされる", () => {
+		const links = getProducerPurchaseLinks(
+			{ name: "Guy Breton" },
+			{ rakuten: "abc.def", moshimoAmazon: "12345" },
+		);
+		expect(
+			links?.rakuten.startsWith("https://hb.afl.rakuten.co.jp/hgc/abc.def/"),
+		).toBe(true);
+		expect(
+			links?.amazon.startsWith("https://af.moshimo.com/af/c/click?a_id=12345&"),
+		).toBe(true);
+	});
 });
 
 describe("getWineryPurchaseLinks", () => {
@@ -119,6 +140,19 @@ describe("getWineryPurchaseLinks", () => {
 
 	it("winery以外はnull", () => {
 		expect(getWineryPurchaseLinks(wineryAop({ kind: "village" }))).toBe(null);
+	});
+
+	it("configのIDを渡すと計測用URLでラップされる", () => {
+		const links = getWineryPurchaseLinks(wineryAop(), {
+			rakuten: "abc.def",
+			moshimoAmazon: "12345",
+		});
+		expect(
+			links?.rakuten.startsWith("https://hb.afl.rakuten.co.jp/hgc/abc.def/"),
+		).toBe(true);
+		expect(
+			links?.amazon.startsWith("https://af.moshimo.com/af/c/click?a_id=12345&"),
+		).toBe(true);
 	});
 });
 

@@ -3,17 +3,24 @@ import type { Aop, AopProducer } from "./types";
 // 生産者の購入リンク(アフィリエイト)生成。生産者名からECサイトの検索結果URLを
 // 自動生成し、アフィリエイトIDが設定されていれば計測用URLでラップする。
 // UI(AopDetailPanel)とMCP(get_aop)の両方から使う。
+//
+// このモジュールはクライアント(AopDetailPanel)からも読み込まれるため、
+// cloudflare:workers の env を直接参照しない。アフィリエイトIDは呼び出し側が
+// AffiliateConfig として渡す(サーバーは env から読み、UIは server fn 経由で受け取る)。
 
 /**
- * アフィリエイトID。リンクURLに含まれる公開情報なので定数で持つ。
- * 空文字の間は素の検索URLを返す(リンク自体は機能する)。
+ * アフィリエイトID。リンクURLに含まれる公開情報だが、環境ごとに切り替えられる
+ * よう環境変数から供給する。未設定(空)なら素の検索URLを返す(リンクは機能する)。
  */
-export const AFFILIATE_IDS = {
+export interface AffiliateConfig {
 	/** 楽天アフィリエイトID (例: "0a1b2c3d.e4f5a6b7.0a1b2c3d.e4f5a6b8") */
-	rakuten: "",
+	rakuten?: string;
 	/** もしもアフィリエイトの a_id (Amazon.co.jp プロモーションの広告枠ID) */
-	moshimoAmazon: "",
-};
+	moshimoAmazon?: string;
+}
+
+/** ID未設定の既定値。この状態でも素の検索リンクとして機能する */
+export const EMPTY_AFFILIATE_CONFIG: AffiliateConfig = {};
 
 /** 楽天市場のジャンルID「ワイン」。検索結果をワインに限定する */
 const RAKUTEN_WINE_GENRE_ID = "510915";
@@ -82,7 +89,7 @@ export function isLinkableProducerName(name: string): boolean {
 /** 楽天市場のワインジャンル内検索URL。IDが設定されていればアフィリエイトリンクでラップ */
 export function buildRakutenSearchUrl(
 	keyword: string,
-	affiliateId: string = AFFILIATE_IDS.rakuten,
+	affiliateId = "",
 ): string {
 	const searchUrl = `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(keyword)}/${RAKUTEN_WINE_GENRE_ID}/`;
 	if (!affiliateId) return searchUrl;
@@ -91,10 +98,7 @@ export function buildRakutenSearchUrl(
 }
 
 /** Amazon.co.jp の検索URL。IDが設定されていればもしもアフィリエイト経由でラップ */
-export function buildAmazonSearchUrl(
-	keyword: string,
-	moshimoAId: string = AFFILIATE_IDS.moshimoAmazon,
-): string {
+export function buildAmazonSearchUrl(keyword: string, moshimoAId = ""): string {
 	const searchUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(keyword)}`;
 	if (!moshimoAId) return searchUrl;
 	return `https://af.moshimo.com/af/c/click?a_id=${moshimoAId}&${MOSHIMO_AMAZON_PARAMS}&url=${encodeURIComponent(searchUrl)}`;
@@ -109,6 +113,7 @@ export function buildAmazonSearchUrl(
  */
 export function getProducerPurchaseLinks(
 	producer: AopProducer,
+	config: AffiliateConfig = EMPTY_AFFILIATE_CONFIG,
 ): PurchaseLinks | null {
 	if (!isLinkableProducerName(producer.name)) return null;
 	const keyword =
@@ -116,8 +121,11 @@ export function getProducerPurchaseLinks(
 		PRODUCER_SEARCH_KEYWORDS[producer.name] ??
 		producer.name;
 	return {
-		rakuten: producer.links?.rakuten ?? buildRakutenSearchUrl(keyword),
-		amazon: producer.links?.amazon ?? buildAmazonSearchUrl(keyword),
+		rakuten:
+			producer.links?.rakuten ?? buildRakutenSearchUrl(keyword, config.rakuten),
+		amazon:
+			producer.links?.amazon ??
+			buildAmazonSearchUrl(keyword, config.moshimoAmazon),
 	};
 }
 
@@ -125,10 +133,13 @@ export function getProducerPurchaseLinks(
  * winery(ボルドーのシャトー等)はAOPエントリ自体が生産者なので、
  * シャトー名(nameJa)で検索する購入リンクを返す。winery 以外は null。
  */
-export function getWineryPurchaseLinks(aop: Aop): PurchaseLinks | null {
+export function getWineryPurchaseLinks(
+	aop: Aop,
+	config: AffiliateConfig = EMPTY_AFFILIATE_CONFIG,
+): PurchaseLinks | null {
 	if (aop.kind !== "winery") return null;
 	return {
-		rakuten: buildRakutenSearchUrl(aop.nameJa),
-		amazon: buildAmazonSearchUrl(aop.nameJa),
+		rakuten: buildRakutenSearchUrl(aop.nameJa, config.rakuten),
+		amazon: buildAmazonSearchUrl(aop.nameJa, config.moshimoAmazon),
 	};
 }

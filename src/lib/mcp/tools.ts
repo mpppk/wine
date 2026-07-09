@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import * as userService from "#/lib/services/user-service";
 import {
+	type AffiliateConfig,
 	getProducerPurchaseLinks,
 	getWineryPurchaseLinks,
 } from "#/lib/wine/affiliate";
@@ -30,6 +31,12 @@ function ok(payload: unknown): CallToolResult {
 		structuredContent: payload as Record<string, unknown>,
 	};
 }
+
+// アフィリエイトIDは Workers のランタイム環境変数から供給する(未設定なら素の検索URL)
+const affiliateConfig: AffiliateConfig = {
+	rakuten: env.RAKUTEN_AFFILIATE_ID ?? "",
+	moshimoAmazon: env.MOSHIMO_AMAZON_A_ID ?? "",
+};
 
 function err(e: unknown): CallToolResult {
 	const message = e instanceof Error ? e.message : String(e);
@@ -196,10 +203,12 @@ export function registerReadTools(server: McpServer, userId: string) {
 						producers: aop.producers.map((p) => ({
 							name: p.name,
 							purchase_links:
-								aop.kind === "winery" ? null : getProducerPurchaseLinks(p),
+								aop.kind === "winery"
+									? null
+									: getProducerPurchaseLinks(p, affiliateConfig),
 						})),
 						// wineryのみ: シャトー自体のワインを探す購入リンク(アフィリエイト広告)
-						purchase_links: getWineryPurchaseLinks(aop),
+						purchase_links: getWineryPurchaseLinks(aop, affiliateConfig),
 						description: aop.description,
 					},
 					geojson_url: region?.geojsonPath

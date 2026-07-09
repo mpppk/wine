@@ -1,6 +1,8 @@
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import {
+	type AffiliateConfig,
+	EMPTY_AFFILIATE_CONFIG,
 	getProducerPurchaseLinks,
 	getWineryPurchaseLinks,
 	type PurchaseLinks,
@@ -54,6 +56,7 @@ export function AopDetailPanel({
 	position,
 	onClose,
 	compact = false,
+	affiliate = EMPTY_AFFILIATE_CONFIG,
 }: {
 	aop: Aop;
 	/** 所属する親(村名AOC・地区・地方)の情報。未指定なら所属セクションを表示しない */
@@ -69,6 +72,8 @@ export function AopDetailPanel({
 	onClose?: () => void;
 	/** embed用: 余白と文字量を切り詰める */
 	compact?: boolean;
+	/** アフィリエイトID。購入リンクの計測用ラップに使う。未指定なら素の検索リンク */
+	affiliate?: AffiliateConfig;
 }) {
 	// 前後移動のいずれかが渡されたときだけナビ行を表示する
 	const showNav = onPrev !== undefined || onNext !== undefined;
@@ -179,7 +184,7 @@ export function AopDetailPanel({
 				<p className="text-sm leading-relaxed">{aop.soil}</p>
 			</section>
 
-			<ProducersSection aop={aop} />
+			<ProducersSection aop={aop} affiliate={affiliate} />
 
 			<p className="text-[11px] leading-relaxed text-muted-foreground">
 				{getBoundarySourceNoteJa(aop)}
@@ -192,11 +197,17 @@ export function AopDetailPanel({
 // winery(シャトー)の producers は所有者/運営体なのでリンクせず、
 // 代わりにシャトー自体を検索する購入リンクを出す。
 // アフィリエイトリンクを含むため、景品表示法(ステマ規制)対応の広告表記を伴う。
-function ProducersSection({ aop }: { aop: Aop }) {
-	const wineryLinks = getWineryPurchaseLinks(aop);
+function ProducersSection({
+	aop,
+	affiliate,
+}: {
+	aop: Aop;
+	affiliate: AffiliateConfig;
+}) {
+	const wineryLinks = getWineryPurchaseLinks(aop, affiliate);
 	const rows = aop.producers.map((p) => ({
 		producer: p,
-		links: wineryLinks ? null : getProducerPurchaseLinks(p),
+		links: wineryLinks ? null : getProducerPurchaseLinks(p, affiliate),
 	}));
 	const hasLinks = wineryLinks !== null || rows.some((r) => r.links !== null);
 	return (
