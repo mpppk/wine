@@ -19,7 +19,8 @@ export type RegionId =
 	| "beaujolais"
 	| "champagne"
 	| "bordeaux"
-	| "piemonte";
+	| "piemonte"
+	| "alsace";
 
 export interface GrapeVariety {
 	id: string;

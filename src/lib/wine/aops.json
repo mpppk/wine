@@ -9800,5 +9800,2234 @@
 		"soil": "アルト・ピエモンテ、海成の酸性砂質土壌(marine sands)。極めて小さな産地。",
 		"producers": ["Proprietà Sperino", "Sella", "Colombera & Garella"],
 		"description": "ネッビオーロ主体の希少な北部赤。海由来の酸性砂質土壌がもたらす繊細さとエレガンスで知られ、栽培面積はごくわずか。"
+	},
+	{
+		"id": "alsace",
+		"idApp": 1,
+		"name": "Alsace ou Vin d'Alsace",
+		"shortName": "Alsace",
+		"nameJa": "アルザス",
+		"region": "alsace",
+		"subregionId": "alsace-regional",
+		"kind": "regional",
+		"colors": ["white", "red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sylvaner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "auxerrois",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chasselas",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "savagnin-rose",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴォージュ山脈東麓の断層帯に花崗岩・片岩・石灰岩・泥灰岩・砂岩などが交錯する、フランス屈指の土壌モザイク。",
+		"producers": [
+			"Trimbach",
+			"Hugel",
+			"Domaine Weinbach",
+			"Domaine Zind-Humbrecht"
+		],
+		"description": "アルザスワインの大半を占める地方名AOC。ラベルに品種名を表記する単一品種ワインが主体で、リースリングをはじめとする白品種とピノ・ノワールを品種ごとに学べる。エデルツヴィッカー等のブレンドや、村名・リュー・ディ名を付記する補足的表示も認められる。"
+	},
+	{
+		"id": "cremant-d-alsace",
+		"idApp": 2,
+		"name": "Crémant d'Alsace",
+		"shortName": "Crémant d'Alsace",
+		"nameJa": "クレマン・ダルザス",
+		"region": "alsace",
+		"subregionId": "alsace-regional",
+		"kind": "regional",
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "auxerrois",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "産地はアルザスのブドウ栽培地帯全域に広がり土壌は多様。冷涼な気候が酸を保った繊細な泡を支える。",
+		"producers": [
+			"Cave de Ribeauvillé",
+			"Bestheim",
+			"Dopff au Moulin",
+			"Lucien Albrecht"
+		],
+		"description": "瓶内二次発酵で造られるフランス有数の生産量を誇るクレマン。主体はピノ・ブランで、アルザスで唯一シャルドネの使用が認められるAOC。ロゼはピノ・ノワール100%から造られる。"
+	},
+	{
+		"id": "steinklotz",
+		"idApp": 1231,
+		"name": "Alsace grand cru Steinklotz",
+		"shortName": "Steinklotz",
+		"nameJa": "シュタインクロッツ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "貝殻石灰岩(ミュッシェルカルク)主体の石灰質土壌。",
+		"producers": ["Romain Fritsch", "Arthur Metz"],
+		"description": "アルザス最北端、マルレンハイム村の丘に位置するグラン・クリュ。メロヴィング朝時代から知られる歴史ある畑で、石灰質土壌のゲヴュルツトラミネールとピノ・グリに定評がある。"
+	},
+	{
+		"id": "engelberg",
+		"idApp": 1193,
+		"name": "Alsace grand cru Engelberg",
+		"shortName": "Engelberg",
+		"nameJa": "エンゲルベルグ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "貝殻石灰岩を基盤とする石灰質泥灰土。",
+		"producers": ["Domaine Pfister", "Domaine Bechtold"],
+		"description": "「天使の山」の名を持つ、ダーレンハイム村とシャラッハベルグハイム村にまたがる南向き斜面。日照に恵まれ、骨格のあるリースリングと香り高いゲヴュルツトラミネールを生む。"
+	},
+	{
+		"id": "altenberg-de-bergbieten",
+		"idApp": 1187,
+		"name": "Alsace grand cru Altenberg de Bergbieten",
+		"shortName": "Altenberg de Bergbieten",
+		"nameJa": "アルテンベルグ・ド・ベルグビーテン",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石膏を含む泥灰質石灰岩(ケイパー)の独特な土壌。",
+		"producers": ["Frédéric Mochel", "Roland Schmitt"],
+		"description": "ベルグビーテン村の「古い山」を意味する畑。石膏交じりの泥灰土壌が張りのある酸とミネラル感を与え、長期熟成するリースリングで知られる。"
+	},
+	{
+		"id": "altenberg-de-wolxheim",
+		"idApp": 1189,
+		"name": "Alsace grand cru Altenberg de Wolxheim",
+		"shortName": "Altenberg de Wolxheim",
+		"nameJa": "アルテンベルグ・ド・ヴォルクスハイム",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質泥灰土。",
+		"producers": ["Domaine Lissner", "Domaine Muhlberger"],
+		"description": "ヴォルクスハイム村の丘に広がる、ナポレオンが愛飲したと伝わるリースリングの畑。力強さよりも繊細さと塩味を感じるミネラルが身上。"
+	},
+	{
+		"id": "bruderthal",
+		"idApp": 1191,
+		"name": "Alsace grand cru Bruderthal",
+		"shortName": "Bruderthal",
+		"nameJa": "ブルーデルタール",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "貝殻石灰岩由来の泥灰質石灰土壌。",
+		"producers": ["Gérard Neumeyer", "Bernard Weber"],
+		"description": "モルスハイム村の「兄弟の谷」。中世に修道士が耕した畑で、リースリングとピノ・グリが引き締まったミネラル感を示す。"
+	},
+	{
+		"id": "kirchberg-de-barr",
+		"idApp": 1207,
+		"name": "Alsace grand cru Kirchberg de Barr",
+		"shortName": "Kirchberg de Barr",
+		"nameJa": "キルシュベルグ・ド・バール",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "泥灰質石灰岩(ミュッシェルカルク)。",
+		"producers": ["Domaine Stoeffler", "Domaine Hering", "Klipfel"],
+		"description": "バールの町を見下ろす「教会の山」。2022年の規定改訂でヘングストとともにピノ・ノワールの赤が認められた2つのグラン・クリュのひとつで、白ではリースリングとゲヴュルツトラミネールが優れる。"
+	},
+	{
+		"id": "zotzenberg",
+		"idApp": 1237,
+		"name": "Alsace grand cru Zotzenberg",
+		"shortName": "Zotzenberg",
+		"nameJa": "ゾッツェンベルグ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sylvaner",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質泥灰土。",
+		"producers": ["Albert Seltz", "Domaine Rieffel", "Domaine Boeckel"],
+		"description": "ミッテルベルグハイム村の畑で、2005年から伝統品種シルヴァネールを名乗れる唯一のグラン・クリュ。シルヴァネール再評価の象徴的存在で、貴品種以外が認められた例外規定を学べる。"
+	},
+	{
+		"id": "kastelberg",
+		"idApp": 1205,
+		"name": "Alsace grand cru Kastelberg",
+		"shortName": "Kastelberg",
+		"nameJa": "カステルベルグ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "アンドロー谷特有の片岩(シスト)土壌。",
+		"producers": ["Marc Kreydenweiss", "Domaine Rémy Gresser"],
+		"description": "アンドロー村の急斜面に広がる、アルザスでは珍しい片岩土壌の畑。火打石を思わせるミネラルの強いリースリングを生み、長期熟成に耐える。"
+	},
+	{
+		"id": "wiebelsberg",
+		"idApp": 1233,
+		"name": "Alsace grand cru Wiebelsberg",
+		"shortName": "Wiebelsberg",
+		"nameJa": "ヴィーベルスベルグ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "ヴォージュ砂岩由来の砂質土壌。",
+		"producers": ["Marc Kreydenweiss", "Domaine Rémy Gresser"],
+		"description": "アンドロー村の砂岩質の畑。軽やかで花のような香りのリースリングを生み、片岩土壌の隣接畑カステルベルグとの土壌対比が学びどころ。"
+	},
+	{
+		"id": "moenchberg",
+		"idApp": 1213,
+		"name": "Alsace grand cru Moenchberg",
+		"shortName": "Moenchberg",
+		"nameJa": "メンヒベルグ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質土壌に氷河由来の堆積物が重なる。",
+		"producers": ["Marc Kreydenweiss", "Domaine Wach"],
+		"description": "「修道士の山」の名の通り中世の修道院が育てた畑。アンドロー村とアイヒホッフェン村にまたがり、ふくよかなリースリングとピノ・グリに向く。"
+	},
+	{
+		"id": "muenchberg",
+		"idApp": 1214,
+		"name": "Alsace grand cru Muenchberg",
+		"shortName": "Muenchberg",
+		"nameJa": "ミュンヒベルグ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "火山性堆積岩と砂岩が混じる特異な土壌。",
+		"producers": ["Domaine Ostertag", "Domaine Julien Meyer"],
+		"description": "ノタルテン村の火山性土壌の畑。スモーキーで緊張感のあるリースリングで知られ、ビオディナミの造り手オステルタッグの看板畑でもある。"
+	},
+	{
+		"id": "winzenberg",
+		"idApp": 1235,
+		"name": "Alsace grand cru Winzenberg",
+		"shortName": "Winzenberg",
+		"nameJa": "ヴィンツェンベルグ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "二雲母花崗岩の風化土壌。",
+		"producers": ["Domaine Straub", "Hubert Metz"],
+		"description": "ブリエンシュヴィレール村の花崗岩土壌の畑。華やかな香りのリースリングとゲヴュルツトラミネールを生む小規模なグラン・クリュ。"
+	},
+	{
+		"id": "frankstein",
+		"idApp": 1195,
+		"name": "Alsace grand cru Frankstein",
+		"shortName": "Frankstein",
+		"nameJa": "フランクシュタイン",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "二雲母花崗岩の風化した砂質土壌。",
+		"producers": ["Domaine Ruhlmann", "Frey-Sohler"],
+		"description": "ダンバック・ラ・ヴィル村の4つの丘からなるグラン・クリュ。花崗岩土壌らしい繊細でレモンを思わせるリースリングが持ち味。"
+	},
+	{
+		"id": "praelatenberg",
+		"idApp": 1219,
+		"name": "Alsace grand cru Praelatenberg",
+		"shortName": "Praelatenberg",
+		"nameJa": "プレラーテンベルグ",
+		"region": "alsace",
+		"subregionId": "bas-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "片麻岩と花崗岩の風化土壌。",
+		"producers": ["Allimant-Laugner", "Domaine Engel"],
+		"description": "オー・クニクスブール城の麓、キンツハイム村に広がる「高位聖職者の山」。かつて修道院領だった畑で、4つの貴品種がバランスよく育つ。"
+	},
+	{
+		"id": "gloeckelberg",
+		"idApp": 1199,
+		"name": "Alsace grand cru Gloeckelberg",
+		"shortName": "Gloeckelberg",
+		"nameJa": "グロッケルベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "花崗岩質の砂の多い軽い土壌。",
+		"producers": ["Charles Koehly", "Koeberlé-Kreyer"],
+		"description": "ロデルン村とサン・ティポリット村にまたがる「鐘の山」。軽やかな花崗岩土壌からエレガントなピノ・グリとゲヴュルツトラミネールを生む。"
+	},
+	{
+		"id": "altenberg-de-bergheim",
+		"idApp": 1188,
+		"name": "Alsace grand cru Altenberg de Bergheim",
+		"shortName": "Altenberg de Bergheim",
+		"nameJa": "アルテンベルグ・ド・ベルグハイム",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sylvaner",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chasselas",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "accessory"
+			}
+		],
+		"soil": "鉄分を含む石灰質泥灰土。",
+		"producers": ["Marcel Deiss", "Gustave Lorentz"],
+		"description": "ベルグハイム村の石灰質の畑。単一品種が原則のアルザスで例外的にリースリング主体の混植・ブレンドがグラン・クリュとして認められており、マルセル・ダイスが体現するテロワール表現の象徴となっている。"
+	},
+	{
+		"id": "kanzlerberg",
+		"idApp": 1204,
+		"name": "Alsace grand cru Kanzlerberg",
+		"shortName": "Kanzlerberg",
+		"nameJa": "カンツレルベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石膏を含む重い泥灰粘土(リアス)。",
+		"producers": ["Gustave Lorentz", "Sylvie Spielmann"],
+		"description": "面積約3haとアルザス最小級のグラン・クリュ。ベルグハイム村の石膏質粘土から、力強く長期熟成するリースリングとゲヴュルツトラミネールを生む。"
+	},
+	{
+		"id": "geisberg",
+		"idApp": 1198,
+		"name": "Alsace grand cru Geisberg",
+		"shortName": "Geisberg",
+		"nameJa": "ガイスベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "泥灰質石灰岩と砂岩の段々畑。",
+		"producers": ["Trimbach", "André Kientzler"],
+		"description": "リボーヴィレ村の急な段々畑で、リースリング比率が極めて高い銘醸畑。トリンバックの上級キュヴェの供給源としても知られ、鋼のような酸が特徴。"
+	},
+	{
+		"id": "kirchberg-de-ribeauville",
+		"idApp": 1208,
+		"name": "Alsace grand cru Kirchberg de Ribeauvillé",
+		"shortName": "Kirchberg de Ribeauvillé",
+		"nameJa": "キルシュベルグ・ド・リボーヴィレ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "ドロマイト質泥灰岩と砂岩。",
+		"producers": ["Jean Sipp", "André Kientzler"],
+		"description": "リボーヴィレ村の「教会の山」。ガイスベルグに隣接する冷涼な斜面で、リースリングとミュスカが繊細に仕上がる。"
+	},
+	{
+		"id": "osterberg",
+		"idApp": 1216,
+		"name": "Alsace grand cru Osterberg",
+		"shortName": "Osterberg",
+		"nameJa": "オステルベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石の多い泥灰質土壌。",
+		"producers": ["Louis Sipp", "Cave de Ribeauvillé"],
+		"description": "リボーヴィレ村東側の「復活祭の山」。泥灰土壌のリースリングが引き締まった酸を示し、ガイスベルグ、キルシュベルグとの同村3畑の比較が興味深い。"
+	},
+	{
+		"id": "rosacker",
+		"idApp": 1221,
+		"name": "Alsace grand cru Rosacker",
+		"shortName": "Rosacker",
+		"nameJa": "ロザッカー",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "ドロマイト質石灰岩(ミュッシェルカルク)。",
+		"producers": ["Trimbach", "Cave de Hunawihr"],
+		"description": "ユナヴィール村の畑で、区画内にアルザス最高峰のリースリング「クロ・サント・ユヌ」(トリンバック)を含むことで名高い。石灰質由来の緻密なミネラルが持ち味。"
+	},
+	{
+		"id": "froehn",
+		"idApp": 1196,
+		"name": "Alsace grand cru Froehn",
+		"shortName": "Froehn",
+		"nameJa": "フレーン",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "粘土泥灰土(リアス)。",
+		"producers": ["Jean Becker"],
+		"description": "ツェレンベルグ村の丘を占める小さな畑。粘土質土壌がゲヴュルツトラミネールとミュスカに豊かな果実味を与える。"
+	},
+	{
+		"id": "schoenenbourg",
+		"idApp": 1224,
+		"name": "Alsace grand cru Schoenenbourg",
+		"shortName": "Schoenenbourg",
+		"nameJa": "シェネンブール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石膏を含むケイパー泥灰土に砂岩が被さる。",
+		"producers": ["Dopff au Moulin", "Marc Tempé"],
+		"description": "リクヴィール村を見下ろす「美しい丘」。古くから知られる歴史的なリースリング畑で、ヴァンダンジュ・タルディヴなど甘口でも傑出する。"
+	},
+	{
+		"id": "sporen",
+		"idApp": 1228,
+		"name": "Alsace grand cru Sporen",
+		"shortName": "Sporen",
+		"nameJa": "スポーレン",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "重く肥沃な粘土泥灰土。",
+		"producers": ["Hugel", "Marc Tempé"],
+		"description": "リクヴィール村南側の粘土質の畑。リースリング向きのシェネンブールと対照的に、ゲヴュルツトラミネールとピノ・グリが豊満に育つ。"
+	},
+	{
+		"id": "sonnenglanz",
+		"idApp": 1226,
+		"name": "Alsace grand cru Sonnenglanz",
+		"shortName": "Sonnenglanz",
+		"nameJa": "ゾンネングランツ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質礫を含む泥灰土。",
+		"producers": ["Bott-Geyl", "Cave de Beblenheim"],
+		"description": "ベブレンハイム村の「太陽の輝き」という名の畑。日照豊かな斜面でピノ・グリとゲヴュルツトラミネールが完熟し、甘口ワインにも向く。"
+	},
+	{
+		"id": "mandelberg",
+		"idApp": 1211,
+		"name": "Alsace grand cru Mandelberg",
+		"shortName": "Mandelberg",
+		"nameJa": "マンデルベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "泥灰質石灰土。",
+		"producers": ["Bott-Geyl", "Frédéric Mallo"],
+		"description": "「アーモンドの山」の名を持つ温暖な畑で、ミッテルヴィール村とベブレンハイム村にまたがる。花の香りのリースリングと厚みのあるピノ・グリを生む。"
+	},
+	{
+		"id": "marckrain",
+		"idApp": 1212,
+		"name": "Alsace grand cru Marckrain",
+		"shortName": "Marckrain",
+		"nameJa": "マルクライン",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質泥灰土。",
+		"producers": ["Bestheim", "Bott-Geyl"],
+		"description": "ベンヴィール村とシゴルスハイム村にまたがる東向き斜面。朝日をたっぷり浴びてピノ・グリとゲヴュルツトラミネールがまろやかに熟す。"
+	},
+	{
+		"id": "mambourg",
+		"idApp": 1210,
+		"name": "Alsace grand cru Mambourg",
+		"shortName": "Mambourg",
+		"nameJa": "マンブール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質泥灰土(ミュッシェルカルク)。",
+		"producers": ["Marcel Deiss", "Pierre Sparr", "Marc Tempé"],
+		"description": "シゴルスハイム村の真南向き一枚斜面で、アルザス屈指の日照を誇る。ゲヴュルツトラミネールの銘醸地として名高く、豊麗で香り高いワインを生む。"
+	},
+	{
+		"id": "furstentum",
+		"idApp": 1197,
+		"name": "Alsace grand cru Furstentum",
+		"shortName": "Furstentum",
+		"nameJa": "フュルステンテュム",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰岩が露出する痩せた急斜面。",
+		"producers": ["Albert Mann", "Paul Blanck"],
+		"description": "キーンツハイム村の南向き急斜面。石灰質土壌のゲヴュルツトラミネールとピノ・グリが力強く、リースリングも緊張感を備える。"
+	},
+	{
+		"id": "schlossberg",
+		"idApp": 1223,
+		"name": "Alsace grand cru Schlossberg",
+		"shortName": "Schlossberg",
+		"nameJa": "シュロスベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "花崗岩の風化した砂質土壌の段々畑。",
+		"producers": ["Domaine Weinbach", "Paul Blanck"],
+		"description": "1975年にアルザスで最初にグラン・クリュに認定された「城の山」。花崗岩土壌の段々畑から精緻で花のような香りのリースリングを生む、ドメーヌ・ヴァインバックの看板畑。"
+	},
+	{
+		"id": "kaefferkopf",
+		"idApp": 1203,
+		"name": "Alsace grand cru Kaefferkopf",
+		"shortName": "Kaefferkopf",
+		"nameJa": "ケフェルコップフ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩と石灰質砂岩が混在する地質モザイク。",
+		"producers": ["Meyer-Fonné", "Jean-Baptiste Adam"],
+		"description": "2007年認定の51番目のグラン・クリュ。アメルシュヴィール村の畑で、ゲヴュルツトラミネール主体のブレンドが伝統として認められている点が特徴。"
+	},
+	{
+		"id": "wineck-schlossberg",
+		"idApp": 1234,
+		"name": "Alsace grand cru Wineck-Schlossberg",
+		"shortName": "Wineck-Schlossberg",
+		"nameJa": "ヴィネック・シュロスベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "花崗岩質の砂質土壌。",
+		"producers": ["Meyer-Fonné", "Jean-Marc Bernhard"],
+		"description": "カッツェンタール村の城跡を囲む花崗岩の畑。繊細で香り高いリースリングが持ち味の、谷あいの小さなグラン・クリュ。"
+	},
+	{
+		"id": "sommerberg",
+		"idApp": 1225,
+		"name": "Alsace grand cru Sommerberg",
+		"shortName": "Sommerberg",
+		"nameJa": "ゾンメルベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "二雲母花崗岩の急斜面(勾配45%)。",
+		"producers": ["Albert Boxler", "Jean-Marc Bernhard"],
+		"description": "「夏の山」の名を持つ勾配45%の急峻な花崗岩斜面。アルベール・ボクスレのリースリングで知られ、精密で垂直的な酸が際立つ。"
+	},
+	{
+		"id": "florimont",
+		"idApp": 1194,
+		"name": "Alsace grand cru Florimont",
+		"shortName": "Florimont",
+		"nameJa": "フロリモン",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質泥灰土(ミュッシェルカルク)。",
+		"producers": ["Bruno Sorg", "Cave d'Ingersheim"],
+		"description": "「花の山」を意味する石灰質の畑で、アンジェルスハイム村とカッツェンタール村にまたがる。花や香草を思わせる香りのリースリングとゲヴュルツトラミネールを生む。"
+	},
+	{
+		"id": "brand",
+		"idApp": 1190,
+		"name": "Alsace grand cru Brand",
+		"shortName": "Brand",
+		"nameJa": "ブラント",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "黒雲母花崗岩の風化土壌。",
+		"producers": ["Zind-Humbrecht", "Josmeyer"],
+		"description": "テュルクハイム村の「燃える地」の名を持つ灼熱の南向き花崗岩斜面。火打石香をまとう力強いリースリングを生む、アルザスを代表するグラン・クリュのひとつ。"
+	},
+	{
+		"id": "hengst",
+		"idApp": 1202,
+		"name": "Alsace grand cru Hengst",
+		"shortName": "Hengst",
+		"nameJa": "ヘングスト",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質砂岩と泥灰土。",
+		"producers": ["Zind-Humbrecht", "Josmeyer", "Albert Mann"],
+		"description": "「牡馬」の名を持つヴィンツェンハイム村の力強い畑。2022年からキルシュベルグ・ド・バールとともにピノ・ノワールの赤が認められ、白ではゲヴュルツトラミネールとピノ・グリが逞しく育つ。"
+	},
+	{
+		"id": "steingrubler",
+		"idApp": 1230,
+		"name": "Alsace grand cru Steingrubler",
+		"shortName": "Steingrubler",
+		"nameJa": "シュタイングルブレール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質砂岩と泥灰の混合土壌。",
+		"producers": ["Albert Mann", "Barmès-Buecher"],
+		"description": "ヴェットルスハイム村の「石切場」を意味する畑。日当たりのよい中腹でゲヴュルツトラミネールとピノ・グリが厚みを増す。"
+	},
+	{
+		"id": "eichberg",
+		"idApp": 1192,
+		"name": "Alsace grand cru Eichberg",
+		"shortName": "Eichberg",
+		"nameJa": "アイヒベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質礫岩と泥灰土。",
+		"producers": ["Charles Baur", "Paul Ginglinger"],
+		"description": "エギスハイム村の「樫の山」。アルザスでも特に乾燥した温暖な気候で、ゲヴュルツトラミネールが凝縮した果実味を見せる。"
+	},
+	{
+		"id": "pfersigberg",
+		"idApp": 1217,
+		"name": "Alsace grand cru Pfersigberg",
+		"shortName": "Pfersigberg",
+		"nameJa": "プフェルシグベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "ウミユリ石灰岩を含む石灰質砂岩。",
+		"producers": ["Kuentz-Bas", "Bruno Sorg", "Léon Beyer"],
+		"description": "「桃の山」を意味するエギスハイム村の畑。石灰質土壌の華やかなゲヴュルツトラミネールで名高く、レオン・ベイエの上級キュヴェも本畑に由来する。"
+	},
+	{
+		"id": "hatschbourg",
+		"idApp": 1201,
+		"name": "Alsace grand cru Hatschbourg",
+		"shortName": "Hatschbourg",
+		"nameJa": "ハッチュブール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "レス(黄土)に覆われた石灰質泥灰土。",
+		"producers": ["Joseph Cattin", "Théo Cattin"],
+		"description": "ハットシュタット村とヴェクトリンスホッフェン村にまたがる南東向き斜面。肥沃な土壌からゲヴュルツトラミネールとピノ・グリが豊満に仕上がる。"
+	},
+	{
+		"id": "goldert",
+		"idApp": 1200,
+		"name": "Alsace grand cru Goldert",
+		"shortName": "Goldert",
+		"nameJa": "ゴルデール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "魚卵状石灰岩(オーライト)の石灰質土壌。",
+		"producers": ["Zind-Humbrecht", "Ernest Burn"],
+		"description": "ゲベルシュヴィール村の「黄金の地」。ミュスカの銘醸地として名高い数少ないグラン・クリュで、石灰質由来の気品ある香りが特徴。"
+	},
+	{
+		"id": "steinert",
+		"idApp": 1229,
+		"name": "Alsace grand cru Steinert",
+		"shortName": "Steinert",
+		"nameJa": "シュタイネール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰岩が露出する石の多い土壌。",
+		"producers": ["Domaine Rieflé", "Cave de Pfaffenheim"],
+		"description": "プファッフェンハイム村の「石の地」を意味する石灰岩の畑。ピノ・グリが緻密なミネラルをまとう。"
+	},
+	{
+		"id": "vorbourg",
+		"idApp": 1232,
+		"name": "Alsace grand cru Vorbourg",
+		"shortName": "Vorbourg",
+		"nameJa": "フォルブール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質砂岩。",
+		"producers": ["René Muré"],
+		"description": "ルーファック村とヴェスタルテン村にまたがる大型のグラン・クリュ。南端に単独所有畑クロ・サン・ランドラン(ミュレ家)を擁し、リースリングとピノ・グリの評価が高い。"
+	},
+	{
+		"id": "zinnkoepfle",
+		"idApp": 1236,
+		"name": "Alsace grand cru Zinnkoepfle",
+		"shortName": "Zinnkoepflé",
+		"nameJa": "ツィンコッフレ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質砂岩。標高420mに達するアルザス最高地点の畑。",
+		"producers": ["Seppi Landmann", "Léon Boesch"],
+		"description": "標高420mとグラン・クリュ最高地点に達する畑。「ノーブル・ヴァレー」の乾燥した気候の下、ゲヴュルツトラミネールとリースリングが鋭い酸を保つ。"
+	},
+	{
+		"id": "pfingstberg",
+		"idApp": 1218,
+		"name": "Alsace grand cru Pfingstberg",
+		"shortName": "Pfingstberg",
+		"nameJa": "プフィングストベルグ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質砂岩と泥灰岩。",
+		"producers": ["Valentin Zusslin", "Lucien Albrecht"],
+		"description": "オルシュヴィール村の「聖霊降臨祭の山」。ビオディナミの造り手ヴァランタン・ツースランのリースリングが名高く、蜂蜜と白い花の香りをまとう。"
+	},
+	{
+		"id": "spiegel",
+		"idApp": 1227,
+		"name": "Alsace grand cru Spiegel",
+		"shortName": "Spiegel",
+		"nameJa": "シュピーゲル",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "泥灰質砂岩。",
+		"producers": ["Dirler-Cadé", "Domaines Schlumberger"],
+		"description": "「鏡」の名を持つベルグホルツ村とゲブヴィレール町の間の斜面。柔らかな砂岩質土壌からしなやかなリースリングとミュスカを生む。"
+	},
+	{
+		"id": "kessler",
+		"idApp": 1206,
+		"name": "Alsace grand cru Kessler",
+		"shortName": "Kessler",
+		"nameJa": "ケスレール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "赤みを帯びた砂岩(グレ・ローズ)質土壌。",
+		"producers": ["Domaines Schlumberger", "Dirler-Cadé"],
+		"description": "ゲブヴィレール町の「釜」状の窪地に広がる畑。風から守られた温暖な斜面でゲヴュルツトラミネールが豊麗に熟す。"
+	},
+	{
+		"id": "kitterle",
+		"idApp": 1209,
+		"name": "Alsace grand cru Kitterlé",
+		"shortName": "Kitterlé",
+		"nameJa": "キッテルレ",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "火山性を帯びた砂岩の痩せた急斜面。",
+		"producers": ["Domaines Schlumberger"],
+		"description": "ゲブヴィレール町の断崖のような急斜面に張り付く畑。シュルンベルジェがほぼ単独で耕作し、煙を思わせるミネラルの白ワインを生む。"
+	},
+	{
+		"id": "saering",
+		"idApp": 1222,
+		"name": "Alsace grand cru Saering",
+		"shortName": "Saering",
+		"nameJa": "セーリング",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "泥灰質砂岩と石灰。",
+		"producers": ["Domaines Schlumberger", "Dirler-Cadé"],
+		"description": "ゲブヴィレール町のグラン・クリュ群のひとつで、キッテルレの下方に広がる。柑橘とミネラルの快活なリースリングが身上。"
+	},
+	{
+		"id": "ollwiller",
+		"idApp": 1215,
+		"name": "Alsace grand cru Ollwiller",
+		"shortName": "Ollwiller",
+		"nameJa": "オルヴィレール",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "砂岩質粘土。",
+		"producers": ["Cave du Vieil Armand", "Château Ollwiller"],
+		"description": "ヴュエンハイム村、ヴィエイユ・アルマン古戦場の麓の畑。アルザスでも特に雨の少ない乾燥地で、リースリングとゲヴュルツトラミネールが育つ。"
+	},
+	{
+		"id": "rangen",
+		"idApp": 1220,
+		"name": "Alsace grand cru Rangen",
+		"shortName": "Rangen",
+		"nameJa": "ランゲン",
+		"region": "alsace",
+		"subregionId": "haut-rhin",
+		"kind": "vineyard",
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "principal"
+			}
+		],
+		"soil": "グレワッケ・凝灰岩からなる、アルザス唯一の本格的な火山性土壌。",
+		"producers": ["Zind-Humbrecht", "Domaine Schoffit"],
+		"description": "アルザス最南端・最急峻(勾配90%超)のグラン・クリュで、タン町のトゥール川に落ち込む火山性の断崖に広がる。スモーキーで圧倒的な凝縮感のリースリングとピノ・グリを生み、ツィント・フンブレヒトのクロ・サン・テュルバンが象徴的存在。"
 	}
 ]

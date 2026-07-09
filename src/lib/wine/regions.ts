@@ -88,6 +88,24 @@ export const REGIONS: Region[] = [
 			"1855年格付けとサンテミリオン格付けのシャトーを地図で学べる。",
 	},
 	{
+		id: "alsace",
+		nameJa: "アルザス",
+		nameLocal: "Alsace",
+		country: "France",
+		countryJa: "フランス",
+		enabled: true,
+		bounds: [7.09082, 47.7914, 7.95264, 49.05447],
+		geojsonPath: "/data/aop/alsace.geojson",
+		subregions: [
+			{ id: "bas-rhin", nameJa: "バ・ラン(北部)" },
+			{ id: "haut-rhin", nameJa: "オー・ラン(南部)" },
+			{ id: "alsace-regional", nameJa: "地方名AOC(広域)" },
+		],
+		description:
+			"リースリングをはじめ単一品種ワインを名乗る文化の本場。ヴォージュ山脈東麓に" +
+			"51のグラン・クリュ(リュー・ディ=畑)が点在し、多彩な土壌と品種の対応を学べる。",
+	},
+	{
 		id: "champagne",
 		nameJa: "シャンパーニュ",
 		nameLocal: "Champagne",

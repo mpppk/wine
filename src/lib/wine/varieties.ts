@@ -165,6 +165,60 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Muscadelle",
 		color: "white",
 	},
+	{
+		id: "riesling",
+		nameJa: "リースリング",
+		nameLocal: "Riesling",
+		color: "white",
+	},
+	{
+		id: "gewurztraminer",
+		nameJa: "ゲヴュルツトラミネール",
+		nameLocal: "Gewurztraminer",
+		color: "white",
+	},
+	{
+		id: "sylvaner",
+		nameJa: "シルヴァネール",
+		nameLocal: "Sylvaner",
+		color: "white",
+	},
+	{
+		id: "muscat-blanc-a-petits-grains",
+		nameJa: "ミュスカ・ブラン・ア・プティ・グラン",
+		nameLocal: "Muscat blanc à petits grains",
+		color: "white",
+	},
+	{
+		id: "muscat-rose-a-petits-grains",
+		nameJa: "ミュスカ・ローズ・ア・プティ・グラン",
+		nameLocal: "Muscat rosé à petits grains",
+		color: "white",
+	},
+	{
+		id: "muscat-ottonel",
+		nameJa: "ミュスカ・オットネル",
+		nameLocal: "Muscat Ottonel",
+		color: "white",
+	},
+	{
+		id: "auxerrois",
+		nameJa: "オーセロワ",
+		nameLocal: "Auxerrois",
+		color: "white",
+	},
+	{
+		id: "chasselas",
+		nameJa: "シャスラ",
+		nameLocal: "Chasselas",
+		color: "white",
+	},
+	{
+		id: "savagnin-rose",
+		nameJa: "サヴァニャン・ローズ(クレヴネール)",
+		nameLocal: "Savagnin rose",
+		color: "white",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);

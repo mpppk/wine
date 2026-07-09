@@ -32,6 +32,7 @@
 //  - WINERY_COORDS_BY_AOP_ID にある      → winery(Point)経路
 //  - COMMUNES_BY_AOP_ID にある            → コミューン輪郭経路
 //  - kind === "regional"                 → 広域(aire géographique)経路
+//    (例外: PARCEL_REGIONAL_AOP_IDS は aires CSV に無いため区画経路で扱う)
 //  - それ以外                            → 区画(detail)経路(区画Shapefileが必要)
 //
 // GeoJSONを再生成したら `bun run build:centroids` も実行して
@@ -87,6 +88,14 @@ const DELEGATED_DEPARTMENTS = ["51"];
  * ボルドーの村名AOCは生産地域(aire)だと隣接部分コミューンまで含み村同士が重なるため、
  * 中核コミューンをキュレーションする(シャンパーニュのクリュ村と同じ方針)。
  */
+/**
+ * 広域(regional)AOCのうち、aires géographiques CSVに掲載がなく
+ * INAO区画データ(buildDetailFeatures)から境界を生成するもの。
+ * アルザスは広域でも区画数が150程度と少なく、肥大化の問題(冒頭コメント参照)が
+ * 起きないため区画経路で扱う。
+ */
+const PARCEL_REGIONAL_AOP_IDS = new Set(["alsace", "cremant-d-alsace"]);
+
 const COMMUNES_BY_AOP_ID = {
 	// === シャンパーニュ ===
 	// 実AOC(村限定)
@@ -363,7 +372,7 @@ async function main() {
 	// 区画Shapefileは detail 経路のAOPがある場合のみ取得する(270MBのダウンロード回避)
 	const needsParcels = builtAops.some(
 		(a) =>
-			a.kind !== "regional" &&
+			(a.kind !== "regional" || PARCEL_REGIONAL_AOP_IDS.has(a.id)) &&
 			!COMMUNES_BY_AOP_ID[a.id] &&
 			!WINERY_COORDS_BY_AOP_ID[a.id],
 	);
@@ -385,10 +394,12 @@ async function main() {
 		const cruAops = regionAops.filter(
 			(a) => a.kind !== "winery" && COMMUNES_BY_AOP_ID[a.id],
 		);
-		const regionalAops = regionAops.filter((a) => a.kind === "regional");
+		const regionalAops = regionAops.filter(
+			(a) => a.kind === "regional" && !PARCEL_REGIONAL_AOP_IDS.has(a.id),
+		);
 		const detailAops = regionAops.filter(
 			(a) =>
-				a.kind !== "regional" &&
+				(a.kind !== "regional" || PARCEL_REGIONAL_AOP_IDS.has(a.id)) &&
 				a.kind !== "winery" &&
 				!COMMUNES_BY_AOP_ID[a.id],
 		);
