@@ -33,7 +33,8 @@
 
 # 環境
 ## 本番環境
-* URL: https://wine.niboshi.workers.dev
+* URL: https://wine.nibo.sh （カスタムドメイン。Workers のデフォルト https://wine.niboshi.workers.dev でもアクセス可能）
+* ログイン等で origin を検証するため、公開ドメインを追加/変更したら `src/lib/auth.ts` の `trustedOrigins` にも登録すること。
 
 ## プレビュー環境
 プレビュー環境はPR作成後に自動で立ち上がります。URLはPRのコメントに記載されます。
