@@ -9,8 +9,11 @@ export const DRANK_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 // 形式だけでなく暦として実在する日付か(2026-02-31等を弾く)。
 // Web はブラウザの date input が守るが、MCP経由は素の文字列が来る。
+// 年は1900-2100に制限(飲んだ日の現実的な範囲。Date.UTCの0-99年→1900年代
+// マッピングの罠も同時に回避する)。
 function isCalendarDate(s: string): boolean {
 	const [y, m, d] = s.split("-").map(Number);
+	if (y < 1900 || y > 2100) return false;
 	const dt = new Date(Date.UTC(y, m - 1, d));
 	return (
 		dt.getUTCFullYear() === y &&

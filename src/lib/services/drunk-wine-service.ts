@@ -71,9 +71,14 @@ function assertValidRefs(input: {
 	}
 }
 
+// 作成入力。Web(zodのCreateDrunkWineInput)に加え、MCPツールが共通の
+// snake→camelマッピング(toWinePatch)をそのまま渡せるよう null も受け付ける
+// (下で ?? null に正規化されるため null と undefined は等価)。
+type CreateDrunkWineData = Omit<UpdateDrunkWineInput, "id"> & { name: string };
+
 export async function createDrunkWine(
 	userId: string,
-	input: CreateDrunkWineInput,
+	input: CreateDrunkWineInput | CreateDrunkWineData,
 ): Promise<DrunkWineEntry> {
 	assertValidRefs(input);
 	const id = crypto.randomUUID();

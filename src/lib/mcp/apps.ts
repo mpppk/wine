@@ -103,6 +103,8 @@ export function buildAopMapAppHtml(baseUrl: string): string {
   }
   function post(msg){ try { window.parent.postMessage(msg, "*"); } catch(e){} }
   window.addEventListener("message", function(ev){
+    // ホスト(親フレーム)以外からのメッセージは受け付けない
+    if (ev.source !== window.parent) return;
     var m = ev.data;
     if (!m || typeof m !== "object") return;
     // MCP Apps (SEP) JSON-RPC notifications
@@ -257,10 +259,14 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
     var h = '<h1>' + esc(entry.name || "飲んだワイン") + '</h1>' +
       '<p class="sub">マイセラーに記録しました。内容はこのまま編集できます。</p>';
     if (entry.photo_url){
-      // postMessage経由の値なので自アプリのオリジン以外は描画しない
+      // postMessage経由の値なので自アプリのオリジン以外は描画しない。
+      // 前方一致は "https://host.evil.example" で偽装できるためorigin厳密比較
       var src = null;
-      try { src = new URL(entry.photo_url, BASE_URL).toString(); } catch(e){}
-      if (src && src.indexOf(BASE_URL) === 0){
+      try {
+        var u = new URL(entry.photo_url, BASE_URL);
+        if (u.origin === new URL(BASE_URL).origin) src = u.toString();
+      } catch(e){}
+      if (src){
         h += '<img class="photo" src="' + esc(src) + '" alt="ボトル写真">';
       }
     }
@@ -372,8 +378,11 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
       setStatus(textOf(res) || "保存に失敗しました", true);
       return;
     }
+    // フォームは再構築しない: 応答待ちの間(特にタイムアウト後の遅延応答)に
+    // ユーザが入力した内容を render() で破棄しないため。差分比較の基準
+    // (entry)だけをサーバ確定値に更新する
     var e = findEntry(res);
-    if (e){ entry = e; render(); }
+    if (e) entry = e;
     setStatus("保存しました", false);
   }
   window.addEventListener("message", function(ev){

@@ -290,6 +290,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 // MCPツールのsnake_case入力とサービス層のcamelCase入力の橋渡し。
 // undefinedのキーはサービス層(drizzle)が「変更なし」として無視し、
 // null は「クリア」としてそのまま渡す(update時のみ)。
+// マッピングの単一情報源をこの1関数に保つ(register/update両方が使う)。
 interface WineFieldArgs {
 	name?: string;
 	drank_on?: string | null;
@@ -377,15 +378,8 @@ export function registerWriteTools(server: McpServer, userId: string) {
 			try {
 				const photo = decodePhotoArgs(args);
 				let entry = await drunkWineService.createDrunkWine(userId, {
+					...toWinePatch(args),
 					name: args.name,
-					drankOn: args.drank_on,
-					aopId: args.aop_id,
-					rating: args.rating,
-					memo: args.memo,
-					vintage: args.vintage,
-					grapeVarietyIds: args.grape_variety_ids,
-					producer: args.producer,
-					price: args.price,
 				});
 				// エントリ作成後の写真保存失敗を isError にするとクライアントが
 				// リトライして重複登録するため、entry.id 付きの成功として返し

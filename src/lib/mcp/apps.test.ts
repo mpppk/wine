@@ -87,6 +87,12 @@ describe("buildDrunkWineAppHtml", () => {
 		);
 	});
 
+	it("写真は自オリジンのみ描画する(前方一致でなくorigin厳密比較)", () => {
+		expect(buildDrunkWineAppHtml(BASE)).toContain(
+			"u.origin === new URL(BASE_URL).origin",
+		);
+	});
+
 	it("クリア(null)を含むパッチを送れる", () => {
 		// 空欄への変更を null として送る diff ヘルパが存在すること
 		const html = buildDrunkWineAppHtml(BASE);

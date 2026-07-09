@@ -24,6 +24,15 @@ export const Route = createFileRoute("/api/wine-photos")({
 				});
 				if (!session) return jsonError("Unauthorized", 401);
 
+				// formData() はボディ全体をメモリに載せるため、明らかに大きい
+				// リクエストはパース前に弾く(multipart境界等のオーバーヘッド分を上乗せ)
+				const contentLength = Number(
+					request.headers.get("content-length") ?? 0,
+				);
+				if (contentLength > MAX_PHOTO_BYTES + 64 * 1024) {
+					return jsonError("File exceeds 5 MB limit", 413);
+				}
+
 				let formData: FormData;
 				try {
 					formData = await request.formData();

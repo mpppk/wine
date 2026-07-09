@@ -21,7 +21,11 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import { Textarea } from "#/components/ui/textarea";
-import { ALLOWED_PHOTO_TYPES, MAX_PHOTO_BYTES } from "#/lib/drunk-wine/photo";
+import {
+	ALLOWED_PHOTO_TYPES,
+	MAX_PHOTO_BYTES,
+	PHOTO_ACCEPT_ATTR,
+} from "#/lib/drunk-wine/photo";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { cn } from "#/lib/utils";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
@@ -104,13 +108,22 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0] ?? null;
 		if (!file) return;
+		// 拒否時はネイティブinputの表示と実際にアップロードされるファイルが
+		// 乖離しないよう、選択自体をリセットする
+		const reject = (message: string) => {
+			setError(message);
+			e.target.value = "";
+			if (previewUrl) URL.revokeObjectURL(previewUrl);
+			setSelectedFile(null);
+			setPreviewUrl(null);
+		};
 		// サーバ側の 400 を待たずに弾く(制約は photo.ts と共通)
 		if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
-			setError("対応していない画像形式です(JPEG/PNG/WebP/GIF)");
+			reject("対応していない画像形式です(JPEG/PNG/WebP/GIF)");
 			return;
 		}
 		if (file.size > MAX_PHOTO_BYTES) {
-			setError("写真は5MB以下にしてください");
+			reject("写真は5MB以下にしてください");
 			return;
 		}
 		setError("");
@@ -430,7 +443,7 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 							id="wine-photo"
 							ref={fileInputRef}
 							type="file"
-							accept="image/jpeg,image/png,image/webp,image/gif"
+							accept={PHOTO_ACCEPT_ATTR}
 							onChange={handleFileChange}
 							className="max-w-xs"
 						/>

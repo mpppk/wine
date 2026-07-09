@@ -63,6 +63,18 @@ describe("createDrunkWineInput", () => {
 		).toBe("2024-02-29");
 	});
 
+	it("drankOnの年は1900-2100に制限(0-99年のDate.UTC罠も回避)", () => {
+		expect(() =>
+			createDrunkWineInput.parse({ name: "x", drankOn: "0099-12-31" }),
+		).toThrow();
+		expect(() =>
+			createDrunkWineInput.parse({ name: "x", drankOn: "1899-12-31" }),
+		).toThrow();
+		expect(
+			createDrunkWineInput.parse({ name: "x", drankOn: "1900-01-01" }).drankOn,
+		).toBe("1900-01-01");
+	});
+
 	it("負の価格・範囲外ヴィンテージを拒否する", () => {
 		expect(() =>
 			createDrunkWineInput.parse({ name: "x", price: -1 }),

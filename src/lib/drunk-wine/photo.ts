@@ -1,21 +1,22 @@
 // ワイン写真の共通制約とR2キー生成。Webのアップロードルートと
 // MCPツール(base64受け取り)の両方から使う純関数群。
 
-export const ALLOWED_PHOTO_TYPES = new Set([
-	"image/jpeg",
-	"image/png",
-	"image/webp",
-	"image/gif",
-]);
-
-export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-
+// 許可MIMEの単一情報源。Set・accept属性はここから導出する
+// (src/lib/mcp/schemas.ts の z.enum はリテラルが必要なため手書きだが、
+// 変更時はここと同期すること)。
 export const PHOTO_EXT_MAP: Record<string, string> = {
 	"image/jpeg": "jpg",
 	"image/png": "png",
 	"image/webp": "webp",
 	"image/gif": "gif",
 };
+
+export const ALLOWED_PHOTO_TYPES = new Set(Object.keys(PHOTO_EXT_MAP));
+
+/** <input type="file" accept=...> 用 */
+export const PHOTO_ACCEPT_ATTR = Object.keys(PHOTO_EXT_MAP).join(",");
+
+export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 /**
  * base64文字列をバイト列にデコードする。MIME不正・base64不正・
