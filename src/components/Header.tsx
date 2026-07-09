@@ -18,9 +18,10 @@ export default function Header() {
 			<nav className="max-w-[1080px] mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 py-3 sm:py-4">
 				<Link
 					to="/"
-					className="flex-shrink-0 text-sm font-semibold text-foreground no-underline transition-colors hover:text-foreground/80"
+					className="flex-shrink-0 transition-opacity hover:opacity-80"
+					aria-label="Wine AOP"
 				>
-					Wine AOP
+					<img src="/favicon.svg" alt="" className="size-8 rounded-md" />
 				</Link>
 
 				<div className="ml-auto flex items-center gap-2">
