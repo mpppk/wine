@@ -1,10 +1,29 @@
 import { z } from "zod";
 import { AOP_TAG_IDS } from "./tags";
-import type { Aop } from "./types";
+import type { Aop, AopProducer } from "./types";
 import { GRAPE_VARIETY_IDS } from "./varieties";
 
 // aops.json(キュレーション済みデータ)のバリデーション。モジュール読み込み時と
 // データ整合性テストの両方で使う。品種IDのenum化により参照切れを防ぐ。
+
+// 生産者は「名前だけの文字列」と「検索キーワード・手動リンク付きオブジェクト」の
+// 両方で書ける。読み込み時に AopProducer へ正規化する。
+const producerSchema = z.union([
+	z
+		.string()
+		.min(1)
+		.transform((name): AopProducer => ({ name })),
+	z.object({
+		name: z.string().min(1),
+		searchKeyword: z.string().min(1).optional(),
+		links: z
+			.object({
+				rakuten: z.url().optional(),
+				amazon: z.url().optional(),
+			})
+			.optional(),
+	}),
+]);
 
 export const aopSchema = z
 	.object({
@@ -40,7 +59,7 @@ export const aopSchema = z
 			)
 			.min(1),
 		soil: z.string().min(1),
-		producers: z.array(z.string().min(1)).min(1),
+		producers: z.array(producerSchema).min(1),
 		description: z.string().min(1),
 	})
 	// villageAopIds(親AOCへの参照)は畑とシャトーだけが持つ。シャトーは所属AOCを

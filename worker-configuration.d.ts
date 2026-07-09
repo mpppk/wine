@@ -6,11 +6,15 @@ declare namespace Cloudflare {
 		AVATARS: R2Bucket;
 		DB: D1Database;
 		BETTER_AUTH_URL: string;
+		RAKUTEN_AFFILIATE_ID: string;
+		MOSHIMO_AMAZON_A_ID: string;
 	}
 	interface Env {
 		AVATARS: R2Bucket;
 		DB: D1Database;
 		BETTER_AUTH_URL: string;
+		RAKUTEN_AFFILIATE_ID: string;
+		MOSHIMO_AMAZON_A_ID: string;
 	}
 }
 interface Env extends Cloudflare.Env {}

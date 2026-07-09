@@ -20,7 +20,7 @@ function aop(partial: Partial<Aop> & Pick<Aop, "id" | "kind">): Aop {
 		colors: ["red"],
 		grapes: [{ varietyId: "pinot-noir", role: "principal" }],
 		soil: "-",
-		producers: ["-"],
+		producers: [{ name: "-" }],
 		description: "-",
 		...partial,
 	};
