@@ -4,7 +4,14 @@ import {
 	GraduationCapIcon,
 	XIcon,
 } from "lucide-react";
-import { Button } from "#/components/ui/button";
+import { useState } from "react";
+import { Button, buttonVariants } from "#/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/ui/dialog";
 import {
 	type AffiliateConfig,
 	EMPTY_AFFILIATE_CONFIG,
@@ -217,10 +224,10 @@ export function AopDetailPanel({
 	);
 }
 
-// 主要な生産者のリストに購入リンク(アフィリエイト)を添えて表示する。
-// winery(シャトー)の producers は所有者/運営体なのでリンクせず、
-// 代わりにシャトー自体を検索する購入リンクを出す。
-// アフィリエイトリンクを含むため、景品表示法(ステマ規制)対応の広告表記を伴う。
+// 主要な生産者のリストを表示する。購入リンク(アフィリエイト)を持つ生産者は
+// 名前をリンクにし、タップで開くダイアログ内に楽天/Amazonリンク・広告表記をまとめる。
+// winery(シャトー)の producers は所有者/運営体なのでリンクせず、代わりにシャトー名
+// 自体をリンクにして、シャトーを検索する購入リンクをダイアログで出す。
 function ProducersSection({
 	aop,
 	affiliate,
@@ -228,74 +235,129 @@ function ProducersSection({
 	aop: Aop;
 	affiliate: AffiliateConfig;
 }) {
+	// 開いている購入リンクダイアログの対象(生産者名/シャトー名とそのリンク)。null で非表示
+	const [selected, setSelected] = useState<{
+		name: string;
+		links: PurchaseLinks;
+	} | null>(null);
 	const wineryLinks = getWineryPurchaseLinks(aop, affiliate);
 	const rows = aop.producers.map((p) => ({
 		producer: p,
 		links: wineryLinks ? null : getProducerPurchaseLinks(p, affiliate),
 	}));
-	const hasLinks = wineryLinks !== null || rows.some((r) => r.links !== null);
 	return (
 		<section>
-			<h3 className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+			<h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 				主要な生産者
-				{hasLinks && (
-					<span className="rounded-sm border border-border px-1 py-px text-[10px] font-normal normal-case tracking-normal">
-						PR
-					</span>
-				)}
 			</h3>
 			<ul className="list-inside list-disc text-sm leading-relaxed">
 				{rows.map(({ producer, links }) => (
 					<li key={producer.name}>
-						{producer.name}
-						{links && <PurchaseLinkPair name={producer.name} links={links} />}
+						{links ? (
+							<ProducerLinkButton
+								name={producer.name}
+								onClick={() => setSelected({ name: producer.name, links })}
+							/>
+						) : (
+							producer.name
+						)}
 					</li>
 				))}
 			</ul>
 			{wineryLinks && (
 				<p className="mt-1 text-sm leading-relaxed">
-					このシャトーのワインを探す
-					<PurchaseLinkPair name={aop.nameJa} links={wineryLinks} />
+					<ProducerLinkButton
+						name={aop.nameJa}
+						onClick={() =>
+							setSelected({ name: aop.nameJa, links: wineryLinks })
+						}
+					/>
+					のワインを探す
 				</p>
 			)}
-			{hasLinks && (
-				<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-					※「楽天」「Amazon」は広告リンク(アフィリエイト)です
-				</p>
-			)}
+			<ProducerPurchaseDialog
+				open={selected !== null}
+				onOpenChange={(open) => {
+					if (!open) setSelected(null);
+				}}
+				name={selected?.name ?? ""}
+				links={selected?.links ?? null}
+			/>
 		</section>
 	);
 }
 
-// ECサイトの検索結果へ飛ぶ購入リンクの組。広告リンクなので rel="sponsored" を付ける
-function PurchaseLinkPair({
+// 生産者名/シャトー名を購入リンクダイアログのトリガーにするリンク風ボタン。
+function ProducerLinkButton({
+	name,
+	onClick,
+}: {
+	name: string;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			aria-label={`${name}の購入リンクを開く`}
+			className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+		>
+			{name}
+		</button>
+	);
+}
+
+// 購入リンクのダイアログ。楽天/Amazonの検索結果へ飛ぶボタン風リンク(広告リンクなので
+// rel="sponsored")と、景品表示法(ステマ規制)対応の広告表記(PRバッジ・注記)を含む。
+function ProducerPurchaseDialog({
+	open,
+	onOpenChange,
 	name,
 	links,
 }: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
 	name: string;
-	links: PurchaseLinks;
+	links: PurchaseLinks | null;
 }) {
 	return (
-		<span className="ml-1.5 inline-flex items-baseline gap-1.5 whitespace-nowrap">
-			<a
-				href={links.rakuten}
-				target="_blank"
-				rel="sponsored nofollow noopener"
-				aria-label={`${name}のワインを楽天市場で探す`}
-				className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-			>
-				楽天
-			</a>
-			<a
-				href={links.amazon}
-				target="_blank"
-				rel="sponsored nofollow noopener"
-				aria-label={`${name}のワインをAmazonで探す`}
-				className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-			>
-				Amazon
-			</a>
-		</span>
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-sm" aria-describedby={undefined}>
+				<DialogHeader>
+					<DialogTitle className="flex items-center gap-1.5 pr-6">
+						<span className="shrink-0 rounded-sm border border-border px-1 py-px text-[10px] font-normal text-muted-foreground">
+							PR
+						</span>
+						<span className="min-w-0 truncate">{name}</span>
+					</DialogTitle>
+				</DialogHeader>
+				{links && (
+					<div className="flex flex-col gap-2">
+						<a
+							href={links.rakuten}
+							target="_blank"
+							rel="sponsored nofollow noopener"
+							aria-label={`${name}のワインを楽天市場で探す`}
+							className={buttonVariants({ variant: "outline" })}
+						>
+							楽天市場で探す
+						</a>
+						<a
+							href={links.amazon}
+							target="_blank"
+							rel="sponsored nofollow noopener"
+							aria-label={`${name}のワインをAmazonで探す`}
+							className={buttonVariants({ variant: "outline" })}
+						>
+							Amazonで探す
+						</a>
+					</div>
+				)}
+				<p className="text-[11px] leading-relaxed text-muted-foreground">
+					※「楽天」「Amazon」は広告リンク(アフィリエイト)です
+				</p>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
