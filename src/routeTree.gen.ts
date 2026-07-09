@@ -14,6 +14,9 @@ import { Route as RegionsRouteImport } from './routes/regions'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as QuizIndexRouteImport } from './routes/quiz.index'
+import { Route as QuizProgressRouteImport } from './routes/quiz.progress'
+import { Route as QuizPlayRouteImport } from './routes/quiz.play'
 import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
 import { Route as MapRegionIdRouteImport } from './routes/map.$regionId'
 import { Route as EmbedMapRouteImport } from './routes/embed/map'
@@ -51,6 +54,21 @@ const LoginRoute = LoginRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizIndexRoute = QuizIndexRouteImport.update({
+  id: '/quiz/',
+  path: '/quiz/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizProgressRoute = QuizProgressRouteImport.update({
+  id: '/quiz/progress',
+  path: '/quiz/progress',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizPlayRoute = QuizPlayRouteImport.update({
+  id: '/quiz/play',
+  path: '/quiz/play',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthConsentRoute = OauthConsentRouteImport.update({
@@ -134,6 +152,9 @@ export interface FileRoutesByFullPath {
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
+  '/quiz/play': typeof QuizPlayRoute
+  '/quiz/progress': typeof QuizProgressRoute
+  '/quiz/': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
@@ -154,6 +175,9 @@ export interface FileRoutesByTo {
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
+  '/quiz/play': typeof QuizPlayRoute
+  '/quiz/progress': typeof QuizProgressRoute
+  '/quiz': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
@@ -175,6 +199,9 @@ export interface FileRoutesById {
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
+  '/quiz/play': typeof QuizPlayRoute
+  '/quiz/progress': typeof QuizProgressRoute
+  '/quiz/': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
@@ -197,6 +224,9 @@ export interface FileRouteTypes {
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
+    | '/quiz/play'
+    | '/quiz/progress'
+    | '/quiz/'
     | '/api/auth/$'
     | '/api/images/$'
     | '/api/wine/regions'
@@ -217,6 +247,9 @@ export interface FileRouteTypes {
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
+    | '/quiz/play'
+    | '/quiz/progress'
+    | '/quiz'
     | '/api/auth/$'
     | '/api/images/$'
     | '/api/wine/regions'
@@ -237,6 +270,9 @@ export interface FileRouteTypes {
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
+    | '/quiz/play'
+    | '/quiz/progress'
+    | '/quiz/'
     | '/api/auth/$'
     | '/api/images/$'
     | '/api/wine/regions'
@@ -258,6 +294,9 @@ export interface RootRouteChildren {
   EmbedMapRoute: typeof EmbedMapRoute
   MapRegionIdRoute: typeof MapRegionIdRoute
   OauthConsentRoute: typeof OauthConsentRoute
+  QuizPlayRoute: typeof QuizPlayRoute
+  QuizProgressRoute: typeof QuizProgressRoute
+  QuizIndexRoute: typeof QuizIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiImagesSplatRoute: typeof ApiImagesSplatRoute
   ApiWineRegionsRoute: typeof ApiWineRegionsRouteWithChildren
@@ -300,6 +339,27 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/': {
+      id: '/quiz/'
+      path: '/quiz'
+      fullPath: '/quiz/'
+      preLoaderRoute: typeof QuizIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/progress': {
+      id: '/quiz/progress'
+      path: '/quiz/progress'
+      fullPath: '/quiz/progress'
+      preLoaderRoute: typeof QuizProgressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/play': {
+      id: '/quiz/play'
+      path: '/quiz/play'
+      fullPath: '/quiz/play'
+      preLoaderRoute: typeof QuizPlayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/consent': {
@@ -423,6 +483,9 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedMapRoute: EmbedMapRoute,
   MapRegionIdRoute: MapRegionIdRoute,
   OauthConsentRoute: OauthConsentRoute,
+  QuizPlayRoute: QuizPlayRoute,
+  QuizProgressRoute: QuizProgressRoute,
+  QuizIndexRoute: QuizIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiImagesSplatRoute: ApiImagesSplatRoute,
   ApiWineRegionsRoute: ApiWineRegionsRouteWithChildren,

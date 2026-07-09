@@ -33,6 +33,9 @@
 //  - COMMUNES_BY_AOP_ID にある            → コミューン輪郭経路
 //  - kind === "regional"                 → 広域(aire géographique)経路
 //  - それ以外                            → 区画(detail)経路(区画Shapefileが必要)
+//
+// GeoJSONを再生成したら `bun run build:centroids` も実行して
+// src/lib/wine/aop-centroids.json を更新すること(位置関係クイズが参照する)。
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
