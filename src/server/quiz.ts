@@ -3,11 +3,12 @@ import { z } from "zod";
 import { QUIZ_TYPE_IDS } from "#/lib/quiz/types";
 import * as quizService from "#/lib/services/quiz-service";
 import { REGION_IDS } from "#/lib/wine/regions";
-import { authMiddleware } from "./middleware";
+import { authMiddleware, optionalAuthMiddleware } from "./middleware";
 
-// クイズのRPC。認証必須のユーザ固有APIなので、公開JSONのAPIルートではなく
-// authMiddleware 付きの server function にする。正解・解説込みの生成済み問題を
-// 返す(学習アプリなのでアンチチートは不要、即時フィードバックを優先)。
+// クイズのRPC。出題は未ログインでも可能(実績なしの全問未出題として扱う)だが、
+// 解答の記録と進捗の取得はユーザ固有のデータなので authMiddleware で認証必須。
+// 正解・解説込みの生成済み問題を返す(学習アプリなのでアンチチートは不要、
+// 即時フィードバックを優先)。
 
 // 地域は REGIONS から導出(新地域が自動で対象になる)
 const REGION_ID_SCHEMA = z.enum(REGION_IDS);
@@ -20,10 +21,10 @@ const getNextQuestionsInput = z.object({
 });
 
 export const getNextQuestions = createServerFn({ method: "GET" })
-	.middleware([authMiddleware])
+	.middleware([optionalAuthMiddleware])
 	.inputValidator(getNextQuestionsInput)
 	.handler(({ data, context }) =>
-		quizService.getNextQuestions(context.user.id, data),
+		quizService.getNextQuestions(context.user?.id ?? null, data),
 	);
 
 const recordAnswerInput = z.object({

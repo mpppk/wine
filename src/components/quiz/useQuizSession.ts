@@ -5,7 +5,8 @@ import { getNextQuestions, recordAnswer } from "#/server/quiz";
 
 // エンドレス出題のキュー管理フック。
 // - 初回に5問取得し、残り2問以下になったら追加をプリフェッチする
-// - 解答は fire-and-forget で記録する(失敗しても出題は続行)
+// - 解答は fire-and-forget で記録する(失敗しても出題は続行)。
+//   未ログイン時は記録をスキップする(回答はできるが実績は残らない)
 // - excludeKeys(キュー内 + 直近解答分)で同じ問題の連続出題を防ぐ
 
 const BATCH_SIZE = 5;
@@ -21,7 +22,11 @@ export interface QuizTally {
 	correct: number;
 }
 
-export function useQuizSession(regionId: RegionId, quizTypes: QuizType[]) {
+export function useQuizSession(
+	regionId: RegionId,
+	quizTypes: QuizType[],
+	isLoggedIn: boolean,
+) {
 	const [queue, setQueue] = useState<QuizQuestion[]>([]);
 	const [phase, setPhase] = useState<QuizPhase>("loading");
 	const [selectedOptionId, setSelectedOptionId] = useState<string>();
@@ -103,14 +108,17 @@ export function useQuizSession(regionId: RegionId, quizTypes: QuizType[]) {
 				...recentKeysRef.current.slice(-(RECENT_KEYS_LIMIT - 1)),
 				current.key,
 			];
-			// 記録は fire-and-forget: 失敗しても学習は続行できる
-			recordAnswer({
-				data: { questionKey: current.key, wasCorrect },
-			}).catch((error) => {
-				console.error("failed to record quiz answer", error);
-			});
+			// 記録は fire-and-forget: 失敗しても学習は続行できる。
+			// 未ログイン時はサーバに実績を残せないのでスキップ
+			if (isLoggedIn) {
+				recordAnswer({
+					data: { questionKey: current.key, wasCorrect },
+				}).catch((error) => {
+					console.error("failed to record quiz answer", error);
+				});
+			}
 		},
-		[current, phase],
+		[current, phase, isLoggedIn],
 	);
 
 	const next = useCallback(() => {
