@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { XIcon } from "lucide-react";
+import { RotateCcwIcon, SkipForwardIcon, XIcon } from "lucide-react";
 import { z } from "zod";
 import { QuizQuestionView } from "#/components/quiz/QuizQuestionView";
 import { useQuizSession } from "#/components/quiz/useQuizSession";
@@ -71,7 +71,7 @@ function QuizSession({
 	isAuthenticated: boolean;
 }) {
 	const quizTypes = parseQuizTypes(types, regionId);
-	const { phase, current, selectedOptionId, tally, answer, next } =
+	const { phase, current, selectedOptionId, tally, answer, reset, skip, next } =
 		useQuizSession(regionId, quizTypes, isAuthenticated);
 	const regionName = getRegion(regionId)?.nameJa;
 
@@ -118,16 +118,36 @@ function QuizSession({
 				/>
 			)}
 
-			{/* 画面下のsticky「次へ」(フィードバック表示中のみ) */}
-			{phase === "feedback" && (
+			{/* 画面下のstickyバー。回答中はスキップ、フィードバック中は取り消し＋次へ */}
+			{phase === "answering" && (
 				<div className="fixed inset-x-0 bottom-0 border-t bg-background/80 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur">
 					<Button
-						onClick={next}
+						onClick={skip}
+						variant="ghost"
 						size="lg"
-						className="mx-auto flex h-14 w-full max-w-lg text-base"
+						className="mx-auto flex h-14 w-full max-w-lg text-base text-muted-foreground"
 					>
-						次へ
+						<SkipForwardIcon className="size-4" aria-hidden />
+						スキップ
 					</Button>
+				</div>
+			)}
+			{phase === "feedback" && (
+				<div className="fixed inset-x-0 bottom-0 border-t bg-background/80 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur">
+					<div className="mx-auto flex w-full max-w-lg gap-2">
+						<Button
+							onClick={reset}
+							variant="outline"
+							size="lg"
+							className="h-14 text-base"
+						>
+							<RotateCcwIcon className="size-4" aria-hidden />
+							回答を取り消す
+						</Button>
+						<Button onClick={next} size="lg" className="h-14 flex-1 text-base">
+							次へ
+						</Button>
+					</div>
 				</div>
 			)}
 		</main>

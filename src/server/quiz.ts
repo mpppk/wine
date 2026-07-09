@@ -45,6 +45,27 @@ export const recordAnswer = createServerFn({ method: "POST" })
 		quizService.recordAnswer(context.user.id, data),
 	);
 
+// 直前の recordAnswer を取り消す(誤タップ救済)。prior は recordAnswer が返した
+// 更新前スナップショット。userId はサーバの認証コンテキストから取り、本人の行のみ戻す
+const revertAnswerInput = z.object({
+	questionKey: z.string().max(120),
+	prior: z.object({
+		existed: z.boolean(),
+		correctCount: z.number().int().min(0),
+		incorrectCount: z.number().int().min(0),
+		streak: z.number().int().min(0),
+		lastAnsweredAt: z.number().int().nullable(),
+		lastCorrectAt: z.number().int().nullable(),
+	}),
+});
+
+export const revertAnswer = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(revertAnswerInput)
+	.handler(({ data, context }) =>
+		quizService.revertAnswer(context.user.id, data),
+	);
+
 export const getQuizProgress = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.handler(({ context }) => quizService.getProgress(context.user.id));

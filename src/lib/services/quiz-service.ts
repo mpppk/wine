@@ -103,16 +103,66 @@ export interface RecordAnswerOptions {
 	wasCorrect: boolean;
 }
 
+/**
+ * 記録直前の行スナップショット。リセット(revertAnswer)で回答前へ完全復元するために
+ * recordAnswer が返す。streak やタイムスタンプは単純なデクリメントでは戻せないため、
+ * 更新前の値そのものを保持する。タイムスタンプは epoch ms。
+ */
+export interface AnswerSnapshot {
+	existed: boolean;
+	correctCount: number;
+	incorrectCount: number;
+	streak: number;
+	lastAnsweredAt: number | null;
+	lastCorrectAt: number | null;
+}
+
 export async function recordAnswer(
 	userId: string,
 	options: RecordAnswerOptions,
-): Promise<void> {
+): Promise<AnswerSnapshot> {
 	const { questionKey, wasCorrect } = options;
 	// クライアント申告の形式・地域は信用せず、キーから導出・検証する
 	const info = getQuestionKeyInfo(questionKey);
 	if (!info) {
 		throw new Error(`invalid question key: ${questionKey}`);
 	}
+	// 更新直前の行を控えておき、リセット時にこの値へ復元できるようにする
+	const existing = await db
+		.select({
+			correctCount: quizQuestionStat.correctCount,
+			incorrectCount: quizQuestionStat.incorrectCount,
+			streak: quizQuestionStat.streak,
+			lastAnsweredAt: quizQuestionStat.lastAnsweredAt,
+			lastCorrectAt: quizQuestionStat.lastCorrectAt,
+		})
+		.from(quizQuestionStat)
+		.where(
+			and(
+				eq(quizQuestionStat.userId, userId),
+				eq(quizQuestionStat.questionKey, questionKey),
+			),
+		)
+		.limit(1);
+	const priorRow = existing[0];
+	const snapshot: AnswerSnapshot = priorRow
+		? {
+				existed: true,
+				correctCount: priorRow.correctCount,
+				incorrectCount: priorRow.incorrectCount,
+				streak: priorRow.streak,
+				lastAnsweredAt: priorRow.lastAnsweredAt.getTime(),
+				lastCorrectAt: priorRow.lastCorrectAt?.getTime() ?? null,
+			}
+		: {
+				existed: false,
+				correctCount: 0,
+				incorrectCount: 0,
+				streak: 0,
+				lastAnsweredAt: null,
+				lastCorrectAt: null,
+			};
+
 	const now = new Date();
 	await db
 		.insert(quizQuestionStat)
@@ -138,6 +188,62 @@ export async function recordAnswer(
 				...(wasCorrect ? { lastCorrectAt: now } : {}),
 			},
 		});
+	return snapshot;
+}
+
+export interface RevertAnswerOptions {
+	questionKey: string;
+	prior: AnswerSnapshot;
+}
+
+/**
+ * 直前の recordAnswer を取り消し、行を回答前の状態へ戻す(誤タップ救済)。
+ * prior は recordAnswer が返したスナップショット。回答で新規作成された行は削除し、
+ * 既存行は保持していた値へ復元する。復元対象は認証済みユーザ本人の行のみ。
+ */
+export async function revertAnswer(
+	userId: string,
+	options: RevertAnswerOptions,
+): Promise<void> {
+	const { questionKey, prior } = options;
+	// キーの妥当性を検証(recordAnswer と同じ防御)
+	const info = getQuestionKeyInfo(questionKey);
+	if (!info) {
+		throw new Error(`invalid question key: ${questionKey}`);
+	}
+	if (!prior.existed) {
+		// 回答で初めて作られた行なので、丸ごと削除すれば回答前(未出題)に戻る
+		await db
+			.delete(quizQuestionStat)
+			.where(
+				and(
+					eq(quizQuestionStat.userId, userId),
+					eq(quizQuestionStat.questionKey, questionKey),
+				),
+			);
+		return;
+	}
+	await db
+		.update(quizQuestionStat)
+		.set({
+			correctCount: prior.correctCount,
+			incorrectCount: prior.incorrectCount,
+			streak: prior.streak,
+			// existed=true の行は lastAnsweredAt が非null。型の都合でフォールバックを置く
+			lastAnsweredAt:
+				prior.lastAnsweredAt != null
+					? new Date(prior.lastAnsweredAt)
+					: new Date(),
+			lastCorrectAt:
+				prior.lastCorrectAt != null ? new Date(prior.lastCorrectAt) : null,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(quizQuestionStat.userId, userId),
+				eq(quizQuestionStat.questionKey, questionKey),
+			),
+		);
 }
 
 export interface QuizTypeProgress {
