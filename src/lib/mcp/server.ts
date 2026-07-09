@@ -54,8 +54,8 @@ function registerApps(server: McpServer) {
 		}),
 	);
 
-	// register_drunk_wine の結果を表示・編集するフォーム。品種マスタの
-	// fetch と写真表示のため自ホストのみCSPで許可する。
+	// register_drunk_wine の結果を表示・編集するフォーム。写真表示のため
+	// 自ホストのみCSPで許可する(品種マスタはHTMLに埋め込み済みでfetch不要)。
 	server.registerResource(
 		"drunk-wine",
 		DRUNK_WINE_RESOURCE_URI,

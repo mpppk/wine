@@ -21,6 +21,7 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import { Textarea } from "#/components/ui/textarea";
+import { ALLOWED_PHOTO_TYPES, MAX_PHOTO_BYTES } from "#/lib/drunk-wine/photo";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { cn } from "#/lib/utils";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
@@ -36,15 +37,19 @@ export interface DrunkWineFormProps {
 	onSaved: (entry: DrunkWineEntry) => void | Promise<void>;
 }
 
-async function uploadPhoto(entryId: string, file: File): Promise<void> {
+async function uploadPhoto(
+	entryId: string,
+	file: File,
+): Promise<DrunkWineEntry> {
 	const form = new FormData();
 	form.append("photo", file);
 	form.append("entryId", entryId);
 	const res = await fetch("/api/wine-photos", { method: "POST", body: form });
-	if (!res.ok) {
-		const body = (await res.json()) as { error?: string };
+	const body = (await res.json()) as { error?: string; entry?: DrunkWineEntry };
+	if (!res.ok || !body.entry) {
 		throw new Error(body.error ?? "写真のアップロードに失敗しました");
 	}
+	return body.entry;
 }
 
 // 追加/編集共用のフォーム。作成と更新でserver fnのnull/undefined規約が
@@ -77,6 +82,9 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [error, setError] = useState("");
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	// 新規作成でエントリ作成後に写真アップロードだけ失敗した場合、
+	// 再送信で重複エントリを作らないよう作成済みエントリを覚えて更新に切り替える
+	const createdRef = useRef<DrunkWineEntry | null>(null);
 
 	const regions = useMemo(() => listRegions().filter((r) => r.enabled), []);
 	const aopCandidates = useMemo(
@@ -96,6 +104,16 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0] ?? null;
 		if (!file) return;
+		// サーバ側の 400 を待たずに弾く(制約は photo.ts と共通)
+		if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
+			setError("対応していない画像形式です(JPEG/PNG/WebP/GIF)");
+			return;
+		}
+		if (file.size > MAX_PHOTO_BYTES) {
+			setError("写真は5MB以下にしてください");
+			return;
+		}
+		setError("");
 		if (previewUrl) URL.revokeObjectURL(previewUrl);
 		setSelectedFile(file);
 		setPreviewUrl(URL.createObjectURL(file));
@@ -108,11 +126,12 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 			const priceNum = price === "" ? undefined : Number(price);
 
 			let saved: DrunkWineEntry;
-			if (entry) {
+			const existing = entry ?? createdRef.current;
+			if (existing) {
 				// 更新: null=クリア(空欄に戻した項目もDBへ反映する)
 				saved = await updateDrunkWine({
 					data: {
-						id: entry.id,
+						id: existing.id,
 						name: trimmedName,
 						drankOn: drankOn === "" ? null : drankOn,
 						aopId: aopId ?? null,
@@ -139,9 +158,10 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 						price: priceNum,
 					},
 				});
+				createdRef.current = saved;
 			}
 			if (selectedFile) {
-				await uploadPhoto(saved.id, selectedFile);
+				saved = await uploadPhoto(saved.id, selectedFile);
 			}
 			return saved;
 		},

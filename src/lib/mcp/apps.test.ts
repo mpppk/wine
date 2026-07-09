@@ -74,6 +74,25 @@ describe("buildDrunkWineAppHtml", () => {
 		expect(buildDrunkWineAppHtml(BASE)).not.toContain("?id=");
 	});
 
+	it("品種マスタを埋め込み、CORSが必要なfetchをしない", () => {
+		const html = buildDrunkWineAppHtml(BASE);
+		expect(html).toContain("pinot-noir");
+		expect(html).toContain("ピノ・ノワール");
+		expect(html).not.toContain("fetch(");
+	});
+
+	it("親フレーム以外からのpostMessageを無視する", () => {
+		expect(buildDrunkWineAppHtml(BASE)).toContain(
+			"ev.source !== window.parent",
+		);
+	});
+
+	it("クリア(null)を含むパッチを送れる", () => {
+		// 空欄への変更を null として送る diff ヘルパが存在すること
+		const html = buildDrunkWineAppHtml(BASE);
+		expect(html).toContain('=== "" ? null :');
+	});
+
 	it("リソースURIは静的", () => {
 		expect(DRUNK_WINE_RESOURCE_URI).toBe("ui://wine-aop/drunk-wine");
 	});

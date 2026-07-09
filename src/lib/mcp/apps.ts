@@ -1,4 +1,5 @@
 import { createUIResource } from "@mcp-ui/server";
+import { GRAPE_VARIETIES } from "#/lib/wine/varieties";
 
 export interface AopMapParams {
 	regionId: string;
@@ -141,8 +142,13 @@ export const DRUNK_WINE_RESOURCE_URI = "ui://wine-aop/drunk-wine";
 // または ui-lifecycle-iframe-render-data)でのみ受け取り、URLパラメータや
 // fetch にエントリIDを載せない(IDOR防止)。保存はホスト仲介の tools/call
 // (SEP) / {type:"tool"} (mcp-ui) で update_drunk_wine を呼ぶ。
+// 品種マスタはHTML生成時に埋め込む(サンドボックスiframeからの
+// クロスオリジンfetchはCORSで通らないため)。
 export function buildDrunkWineAppHtml(baseUrl: string): string {
 	const base = JSON.stringify(baseUrl);
+	const varietiesJson = JSON.stringify(
+		GRAPE_VARIETIES.map((v) => ({ id: v.id, nameJa: v.nameJa })),
+	);
 	return `<!doctype html>
 <html lang="ja">
 <head>
@@ -178,9 +184,8 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
 <script>
 (function(){
   var BASE_URL = ${base};
+  var VARIETIES = ${varietiesJson};
   var entry = null;
-  var varieties = null;
-  var varietiesSettled = false;
   var rendered = false;
   var sepMode = false;
   var nextId = 2;
@@ -238,28 +243,26 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
   }
   function grapeSection(){
     var ids = entry.grape_variety_ids || [];
-    if (varieties && varieties.length){
-      var h = '<div class="vars">';
-      for (var i=0;i<varieties.length;i++){
-        var v = varieties[i];
-        h += '<label><input type="checkbox" class="gv" value="' + esc(v.id) + '"' +
-          (ids.indexOf(v.id) >= 0 ? " checked" : "") + '>' +
-          esc(v.nameJa || v.id) + '</label>';
-      }
-      return h + '</div>';
+    var h = '<div class="vars">';
+    for (var i=0;i<VARIETIES.length;i++){
+      var v = VARIETIES[i];
+      h += '<label><input type="checkbox" class="gv" value="' + esc(v.id) + '"' +
+        (ids.indexOf(v.id) >= 0 ? " checked" : "") + '>' +
+        esc(v.nameJa || v.id) + '</label>';
     }
-    // 品種マスタが取れないホスト向けフォールバック
-    return '<input id="f-gv-text" value="' + esc(ids.join(", ")) +
-      '" placeholder="list_grape_varietiesのidをカンマ区切りで">';
+    return h + '</div>';
   }
   function render(){
     rendered = true;
     var h = '<h1>' + esc(entry.name || "飲んだワイン") + '</h1>' +
       '<p class="sub">マイセラーに記録しました。内容はこのまま編集できます。</p>';
     if (entry.photo_url){
-      var src = entry.photo_url;
+      // postMessage経由の値なので自アプリのオリジン以外は描画しない
+      var src = null;
       try { src = new URL(entry.photo_url, BASE_URL).toString(); } catch(e){}
-      h += '<img class="photo" src="' + esc(src) + '" alt="ボトル写真">';
+      if (src && src.indexOf(BASE_URL) === 0){
+        h += '<img class="photo" src="' + esc(src) + '" alt="ボトル写真">';
+      }
     }
     h += '<label for="f-name">名前 *</label>' +
       '<input id="f-name" value="' + esc(entry.name || "") + '">';
@@ -286,7 +289,7 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
     document.getElementById("f-save").addEventListener("click", save);
   }
   function maybeRender(){
-    if (entry && varietiesSettled && !rendered) render();
+    if (entry && !rendered) render();
   }
   function setStatus(text, isErr){
     var el = document.getElementById("f-status");
@@ -300,52 +303,48 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
       var el = document.getElementById(id);
       return el ? el.value.trim() : "";
     }
+    // 空欄への変更は null(クリア)として送る。未変更フィールドは送らない
+    function diffText(id, key){
+      var v = val(id);
+      if (v !== (entry[key] || "")) p[key] = v === "" ? null : v;
+    }
+    function diffNumber(id, key){
+      var v = val(id);
+      var num = v === "" ? null : Number(v);
+      var cur = entry[key] != null ? entry[key] : null;
+      if (num !== cur) p[key] = num;
+    }
     var name = val("f-name");
     if (name && name !== (entry.name || "")) p.name = name;
-    var drank = val("f-drank_on");
-    if (drank && drank !== (entry.drank_on || "")) p.drank_on = drank;
-    var rating = val("f-rating");
-    if (rating && Number(rating) !== entry.rating) p.rating = Number(rating);
-    var vintage = val("f-vintage");
-    if (vintage && Number(vintage) !== entry.vintage) p.vintage = Number(vintage);
-    var price = val("f-price");
-    if (price && Number(price) !== entry.price) p.price = Number(price);
-    var producer = val("f-producer");
-    if (producer && producer !== (entry.producer || "")) p.producer = producer;
-    var aop = val("f-aop_id");
-    if (aop && aop !== (entry.aop_id || "")) p.aop_id = aop;
-    var memo = val("f-memo");
-    if (memo && memo !== (entry.memo || "")) p.memo = memo;
-    var ids = null;
+    diffText("f-drank_on", "drank_on");
+    diffNumber("f-rating", "rating");
+    diffNumber("f-vintage", "vintage");
+    diffNumber("f-price", "price");
+    diffText("f-producer", "producer");
+    diffText("f-aop_id", "aop_id");
+    diffText("f-memo", "memo");
+    var ids = [];
     var boxes = document.querySelectorAll("input.gv");
-    if (boxes.length){
-      ids = [];
-      for (var i=0;i<boxes.length;i++) if (boxes[i].checked) ids.push(boxes[i].value);
-    } else {
-      var t = val("f-gv-text");
-      if (t){
-        ids = t.split(",").map(function(s){ return s.trim(); }).filter(Boolean);
-      }
-    }
-    if (ids){
-      var cur = (entry.grape_variety_ids || []).slice().sort().join(",");
-      if (ids.slice().sort().join(",") !== cur) p.grape_variety_ids = ids;
-    }
+    for (var i=0;i<boxes.length;i++) if (boxes[i].checked) ids.push(boxes[i].value);
+    var cur = (entry.grape_variety_ids || []).slice().sort().join(",");
+    if (ids.slice().sort().join(",") !== cur) p.grape_variety_ids = ids;
     return p;
   }
   function save(){
-    if (pending || !entry) return;
+    if ((pending && !pending.timedOut) || !entry) return;
     var patch = collectPatch();
     if (!Object.keys(patch).length){ setStatus("変更はありません", false); return; }
     patch.id = entry.id;
     var btn = document.getElementById("f-save");
     if (btn) btn.disabled = true;
     setStatus("保存中…", false);
+    // ホスト側でツール実行のユーザ承認を挟む場合があるため長めに待つ。
+    // タイムアウト後も pending は保持し、遅れて届いた応答を反映する
     var timer = setTimeout(function(){
-      pending = null;
+      if (pending) pending.timedOut = true;
       if (btn) btn.disabled = false;
-      setStatus("このホストでは編集できません", true);
-    }, 10000);
+      setStatus("ホストの応答がありません(ツール実行の承認待ちの可能性があります)", true);
+    }, 60000);
     if (sepMode){
       var id = nextId++;
       pending = { kind: "sep", id: id, timer: timer };
@@ -378,6 +377,8 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
     setStatus("保存しました", false);
   }
   window.addEventListener("message", function(ev){
+    // ホスト(親フレーム)以外からのメッセージは受け付けない
+    if (ev.source !== window.parent) return;
     var m = ev.data;
     if (!m || typeof m !== "object") return;
     // ui/initialize への応答 → SEPモード確定
@@ -412,25 +413,6 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
       return;
     }
   });
-  function loadVarieties(){
-    var done = false;
-    function settle(list){
-      if (done) return;
-      done = true;
-      varieties = list;
-      varietiesSettled = true;
-      maybeRender();
-    }
-    // フォーム描画を品種マスタ取得で長く待たせない
-    setTimeout(function(){ settle(null); }, 3000);
-    try {
-      fetch(BASE_URL + "/api/wine/varieties")
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(j){ settle(j && j.varieties ? j.varieties : null); })
-        .catch(function(){ settle(null); });
-    } catch(e){ settle(null); }
-  }
-  loadVarieties();
   // どちらのハンドシェイクにも応答できるよう両方送る
   post({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: {
     protocolVersion: "2025-06-18",

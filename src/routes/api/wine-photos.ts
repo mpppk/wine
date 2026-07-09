@@ -53,8 +53,9 @@ export const Route = createFileRoute("/api/wine-photos")({
 						await file.arrayBuffer(),
 						file.type,
 					);
-					// 差し替え時にブラウザへ再取得させるキャッシュバスタ
-					const imageUrl = `${entry.photoUrl}?v=${Date.now()}`;
+					// 差し替え時にブラウザへ再取得させるキャッシュバスタ(表示側の
+					// ?v=updatedAt と同じ値に揃える)
+					const imageUrl = `${entry.photoUrl}?v=${entry.updatedAt}`;
 					return new Response(JSON.stringify({ imageUrl, entry }), {
 						status: 200,
 						headers: { "Content-Type": "application/json" },

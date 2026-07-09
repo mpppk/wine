@@ -1,20 +1,11 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "#/lib/auth";
-
-const ALLOWED_TYPES = new Set([
-	"image/jpeg",
-	"image/png",
-	"image/webp",
-	"image/gif",
-]);
-const MAX_BYTES = 5 * 1024 * 1024;
-const EXT_MAP: Record<string, string> = {
-	"image/jpeg": "jpg",
-	"image/png": "png",
-	"image/webp": "webp",
-	"image/gif": "gif",
-};
+import {
+	ALLOWED_PHOTO_TYPES as ALLOWED_TYPES,
+	PHOTO_EXT_MAP as EXT_MAP,
+	MAX_PHOTO_BYTES as MAX_BYTES,
+} from "#/lib/drunk-wine/photo";
 
 export const Route = createFileRoute("/api/upload")({
 	server: {

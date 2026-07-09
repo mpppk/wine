@@ -50,6 +50,19 @@ describe("createDrunkWineInput", () => {
 		).toThrow();
 	});
 
+	it("暦として存在しない日付を拒否する", () => {
+		expect(() =>
+			createDrunkWineInput.parse({ name: "x", drankOn: "2026-02-31" }),
+		).toThrow();
+		expect(() =>
+			createDrunkWineInput.parse({ name: "x", drankOn: "2026-13-01" }),
+		).toThrow();
+		// うるう年はOK
+		expect(
+			createDrunkWineInput.parse({ name: "x", drankOn: "2024-02-29" }).drankOn,
+		).toBe("2024-02-29");
+	});
+
 	it("負の価格・範囲外ヴィンテージを拒否する", () => {
 		expect(() =>
 			createDrunkWineInput.parse({ name: "x", price: -1 }),

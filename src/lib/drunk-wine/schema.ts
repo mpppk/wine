@@ -7,9 +7,25 @@ import { z } from "zod";
 
 export const DRANK_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+// 形式だけでなく暦として実在する日付か(2026-02-31等を弾く)。
+// Web はブラウザの date input が守るが、MCP経由は素の文字列が来る。
+function isCalendarDate(s: string): boolean {
+	const [y, m, d] = s.split("-").map(Number);
+	const dt = new Date(Date.UTC(y, m - 1, d));
+	return (
+		dt.getUTCFullYear() === y &&
+		dt.getUTCMonth() === m - 1 &&
+		dt.getUTCDate() === d
+	);
+}
+
 export const drunkWineFields = {
 	name: z.string().trim().min(1).max(200),
-	drankOn: z.string().regex(DRANK_ON_PATTERN).optional(),
+	drankOn: z
+		.string()
+		.regex(DRANK_ON_PATTERN)
+		.refine(isCalendarDate, "invalid calendar date")
+		.optional(),
 	aopId: z
 		.string()
 		.regex(/^[a-z0-9-]+$/)

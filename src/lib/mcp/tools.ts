@@ -288,17 +288,18 @@ export function registerReadTools(server: McpServer, userId: string) {
 }
 
 // MCPツールのsnake_case入力とサービス層のcamelCase入力の橋渡し。
-// undefinedのキーはサービス層(drizzle)が「変更なし」として無視する。
+// undefinedのキーはサービス層(drizzle)が「変更なし」として無視し、
+// null は「クリア」としてそのまま渡す(update時のみ)。
 interface WineFieldArgs {
 	name?: string;
-	drank_on?: string;
-	aop_id?: string;
-	rating?: number;
-	memo?: string;
-	vintage?: number;
+	drank_on?: string | null;
+	aop_id?: string | null;
+	rating?: number | null;
+	memo?: string | null;
+	vintage?: number | null;
 	grape_variety_ids?: string[];
-	producer?: string;
-	price?: number;
+	producer?: string | null;
+	price?: number | null;
 }
 
 function toWinePatch(args: WineFieldArgs) {
@@ -331,8 +332,10 @@ function toEntryPayload(entry: DrunkWineEntry) {
 		grape_variety_ids: entry.grapeVarietyIds,
 		producer: entry.producer,
 		price: entry.price,
+		// /api/images は immutable キャッシュで返し、写真差し替えでもキーが
+		// 変わらないことがあるため updatedAt でキャッシュバストする
 		photo_url: entry.photoUrl
-			? new URL(entry.photoUrl, env.BETTER_AUTH_URL).toString()
+			? `${new URL(entry.photoUrl, env.BETTER_AUTH_URL)}?v=${entry.updatedAt}`
 			: null,
 		created_at: entry.createdAt,
 		updated_at: entry.updatedAt,
@@ -374,18 +377,36 @@ export function registerWriteTools(server: McpServer, userId: string) {
 			try {
 				const photo = decodePhotoArgs(args);
 				let entry = await drunkWineService.createDrunkWine(userId, {
-					...toWinePatch(args),
 					name: args.name,
+					drankOn: args.drank_on,
+					aopId: args.aop_id,
+					rating: args.rating,
+					memo: args.memo,
+					vintage: args.vintage,
+					grapeVarietyIds: args.grape_variety_ids,
+					producer: args.producer,
+					price: args.price,
 				});
+				// エントリ作成後の写真保存失敗を isError にするとクライアントが
+				// リトライして重複登録するため、entry.id 付きの成功として返し
+				// photo_error で再添付(update_drunk_wine)を促す
+				let photoError: string | null = null;
 				if (photo) {
-					entry = await drunkWineService.setDrunkWinePhoto(
-						userId,
-						entry.id,
-						photo.bytes,
-						photo.mimeType,
-					);
+					try {
+						entry = await drunkWineService.setDrunkWinePhoto(
+							userId,
+							entry.id,
+							photo.bytes,
+							photo.mimeType,
+						);
+					} catch (e) {
+						photoError = `写真の保存に失敗しました(記録自体は作成済み。update_drunk_wine で id を指定して再添付できる): ${e instanceof Error ? e.message : String(e)}`;
+					}
 				}
-				const payload = { entry: toEntryPayload(entry) };
+				const payload = {
+					entry: toEntryPayload(entry),
+					...(photoError ? { photo_error: photoError } : {}),
+				};
 				// mcp-ui 対応ホスト向けに編集フォームUIリソースを添付する
 				const ui = buildDrunkWineUiResource(env.BETTER_AUTH_URL, entry);
 				return {

@@ -30,9 +30,13 @@ export const Route = createFileRoute("/cellar/$entryId/edit")({
 	loader: async ({ params }) => {
 		try {
 			return await getDrunkWine({ data: { id: params.entryId } });
-		} catch {
-			// 存在しない/他ユーザのエントリは一覧へ逃がす
-			throw redirect({ to: "/cellar" });
+		} catch (e) {
+			// 存在しない/他ユーザのエントリは一覧へ逃がす。
+			// それ以外(一時障害等)は握りつぶさずエラー表示に任せる
+			if (e instanceof Error && e.message.includes("Entry not found")) {
+				throw redirect({ to: "/cellar" });
+			}
+			throw e;
 		}
 	},
 	component: CellarEditPage,

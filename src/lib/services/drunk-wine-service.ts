@@ -186,5 +186,10 @@ export async function setDrunkWinePhoto(
 		.set({ photoKey: key })
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning();
+	// 存在確認とここまでの間にエントリが削除された場合
+	if (!row) {
+		await env.AVATARS.delete(key);
+		throw new Error("Entry not found");
+	}
 	return toEntry(row);
 }
