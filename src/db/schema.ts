@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+	index,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -43,4 +44,50 @@ export const quizQuestionStat = sqliteTable(
 	},
 	// 複合PKのインデックスが user_id 前方一致検索も担うため、単独indexは不要
 	(table) => [primaryKey({ columns: [table.userId, table.questionKey] })],
+);
+
+/**
+ * ユーザが飲んだワインの記録(マイセラー)。AOP・ブドウ品種は静的マスタ
+ * (src/lib/wine/)への文字列参照でFKは張れないため、存在検証はサービス層で行う。
+ * 写真はR2(AVATARSバケット)にキー "wines/{userId}/{id}.{ext}" で保存し、
+ * photoKey にそのキーを持つ。
+ */
+export const drunkWine = sqliteTable(
+	"drunk_wine",
+	{
+		/** crypto.randomUUID()。写真URLの推測不能性もこのIDに依存する */
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		/** 飲んだ日 "YYYY-MM-DD"(時刻不要のためtext) */
+		drankOn: text("drank_on"),
+		/** 静的AOPマスタの Aop.id(任意) */
+		aopId: text("aop_id"),
+		/** 1–5 */
+		rating: integer("rating"),
+		memo: text("memo"),
+		/** ヴィンテージ(収穫年) */
+		vintage: integer("vintage"),
+		/** 静的品種マスタの GrapeVariety.id の配列 */
+		grapeVarietyIds: text("grape_variety_ids", { mode: "json" })
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'`),
+		producer: text("producer"),
+		/** 円 */
+		price: integer("price"),
+		photoKey: text("photo_key"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("drunk_wine_user_created_idx").on(table.userId, table.createdAt),
+	],
 );

@@ -43,6 +43,13 @@
       "when": 1778994900003,
       "tag": "0005_quiz_question_stat",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1778994900004,
+      "tag": "0006_drunk_wine",
+      "breakpoints": true
     }
   ]
 }

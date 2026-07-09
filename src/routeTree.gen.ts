@@ -20,6 +20,7 @@ import { Route as QuizPlayRouteImport } from './routes/quiz.play'
 import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
 import { Route as MapRegionIdRouteImport } from './routes/map.$regionId'
 import { Route as EmbedMapRouteImport } from './routes/embed/map'
+import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
@@ -86,6 +87,11 @@ const EmbedMapRoute = EmbedMapRouteImport.update({
   path: '/embed/map',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWinePhotosRoute = ApiWinePhotosRouteImport.update({
+  id: '/api/wine-photos',
+  path: '/api/wine-photos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiUploadRoute = ApiUploadRouteImport.update({
   id: '/api/upload',
   path: '/api/upload',
@@ -149,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/wine-photos': typeof ApiWinePhotosRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/wine-photos': typeof ApiWinePhotosRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/wine-photos': typeof ApiWinePhotosRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/api/mcp'
     | '/api/upload'
+    | '/api/wine-photos'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
@@ -244,6 +254,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/api/mcp'
     | '/api/upload'
+    | '/api/wine-photos'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
@@ -267,6 +278,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/api/mcp'
     | '/api/upload'
+    | '/api/wine-photos'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
@@ -291,6 +303,7 @@ export interface RootRouteChildren {
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
+  ApiWinePhotosRoute: typeof ApiWinePhotosRoute
   EmbedMapRoute: typeof EmbedMapRoute
   MapRegionIdRoute: typeof MapRegionIdRoute
   OauthConsentRoute: typeof OauthConsentRoute
@@ -381,6 +394,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/map'
       fullPath: '/embed/map'
       preLoaderRoute: typeof EmbedMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wine-photos': {
+      id: '/api/wine-photos'
+      path: '/api/wine-photos'
+      fullPath: '/api/wine-photos'
+      preLoaderRoute: typeof ApiWinePhotosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/upload': {
@@ -480,6 +500,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthProtectedResourceRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,
+  ApiWinePhotosRoute: ApiWinePhotosRoute,
   EmbedMapRoute: EmbedMapRoute,
   MapRegionIdRoute: MapRegionIdRoute,
   OauthConsentRoute: OauthConsentRoute,
