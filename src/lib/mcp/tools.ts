@@ -3,6 +3,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import * as userService from "#/lib/services/user-service";
 import {
+	getProducerPurchaseLinks,
+	getWineryPurchaseLinks,
+} from "#/lib/wine/affiliate";
+import {
 	getAop,
 	getRegion,
 	getVariety,
@@ -159,6 +163,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 			title: "Get AOP details",
 			description:
 				"AOP(原産地呼称)1件の詳細(区分・格付けタグ・色・品種・土壌・主要生産者・解説)を返す。" +
+				"生産者には楽天市場/Amazonでそのワインを探せる購入リンク(アフィリエイト広告)が付く。" +
 				"境界ポリゴンは geojson_url のGeoJSONに含まれる(idAppプロパティで結合)。",
 			inputSchema: getAopInput,
 			annotations: { readOnlyHint: true },
@@ -186,7 +191,15 @@ export function registerReadTools(server: McpServer, userId: string) {
 							role: g.role,
 						})),
 						soil: aop.soil,
-						producers: aop.producers,
+						// winery(シャトー)の producers は所有者/運営体なので購入リンクは
+						// 生産者ではなくAOP自体(purchase_links)に付ける
+						producers: aop.producers.map((p) => ({
+							name: p.name,
+							purchase_links:
+								aop.kind === "winery" ? null : getProducerPurchaseLinks(p),
+						})),
+						// wineryのみ: シャトー自体のワインを探す購入リンク(アフィリエイト広告)
+						purchase_links: getWineryPurchaseLinks(aop),
 						description: aop.description,
 					},
 					geojson_url: region?.geojsonPath

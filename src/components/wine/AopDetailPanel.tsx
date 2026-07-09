@@ -1,5 +1,10 @@
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { Button } from "#/components/ui/button";
+import {
+	getProducerPurchaseLinks,
+	getWineryPurchaseLinks,
+	type PurchaseLinks,
+} from "#/lib/wine/affiliate";
 import type { AopAncestry } from "#/lib/wine/aop-tree";
 import {
 	GRAND_CRU_TAG_COLOR,
@@ -174,21 +179,88 @@ export function AopDetailPanel({
 				<p className="text-sm leading-relaxed">{aop.soil}</p>
 			</section>
 
-			<section>
-				<h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-					主要な生産者
-				</h3>
-				<ul className="list-inside list-disc text-sm leading-relaxed">
-					{aop.producers.map((p) => (
-						<li key={p}>{p}</li>
-					))}
-				</ul>
-			</section>
+			<ProducersSection aop={aop} />
 
 			<p className="text-[11px] leading-relaxed text-muted-foreground">
 				{getBoundarySourceNoteJa(aop)}
 			</p>
 		</div>
+	);
+}
+
+// 主要な生産者のリストに購入リンク(アフィリエイト)を添えて表示する。
+// winery(シャトー)の producers は所有者/運営体なのでリンクせず、
+// 代わりにシャトー自体を検索する購入リンクを出す。
+// アフィリエイトリンクを含むため、景品表示法(ステマ規制)対応の広告表記を伴う。
+function ProducersSection({ aop }: { aop: Aop }) {
+	const wineryLinks = getWineryPurchaseLinks(aop);
+	const rows = aop.producers.map((p) => ({
+		producer: p,
+		links: wineryLinks ? null : getProducerPurchaseLinks(p),
+	}));
+	const hasLinks = wineryLinks !== null || rows.some((r) => r.links !== null);
+	return (
+		<section>
+			<h3 className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+				主要な生産者
+				{hasLinks && (
+					<span className="rounded-sm border border-border px-1 py-px text-[10px] font-normal normal-case tracking-normal">
+						PR
+					</span>
+				)}
+			</h3>
+			<ul className="list-inside list-disc text-sm leading-relaxed">
+				{rows.map(({ producer, links }) => (
+					<li key={producer.name}>
+						{producer.name}
+						{links && <PurchaseLinkPair name={producer.name} links={links} />}
+					</li>
+				))}
+			</ul>
+			{wineryLinks && (
+				<p className="mt-1 text-sm leading-relaxed">
+					このシャトーのワインを探す
+					<PurchaseLinkPair name={aop.nameJa} links={wineryLinks} />
+				</p>
+			)}
+			{hasLinks && (
+				<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+					※「楽天」「Amazon」は広告リンク(アフィリエイト)です
+				</p>
+			)}
+		</section>
+	);
+}
+
+// ECサイトの検索結果へ飛ぶ購入リンクの組。広告リンクなので rel="sponsored" を付ける
+function PurchaseLinkPair({
+	name,
+	links,
+}: {
+	name: string;
+	links: PurchaseLinks;
+}) {
+	return (
+		<span className="ml-1.5 inline-flex items-baseline gap-1.5 whitespace-nowrap">
+			<a
+				href={links.rakuten}
+				target="_blank"
+				rel="sponsored nofollow noopener"
+				aria-label={`${name}のワインを楽天市場で探す`}
+				className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+			>
+				楽天
+			</a>
+			<a
+				href={links.amazon}
+				target="_blank"
+				rel="sponsored nofollow noopener"
+				aria-label={`${name}のワインをAmazonで探す`}
+				className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+			>
+				Amazon
+			</a>
+		</span>
 	);
 }
 
