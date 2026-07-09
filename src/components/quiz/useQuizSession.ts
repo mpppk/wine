@@ -26,6 +26,9 @@ export function useQuizSession(
 	regionId: RegionId,
 	quizTypes: QuizType[],
 	isLoggedIn: boolean,
+	// 指定時は選択AOPとその階層近傍に出題を絞る(地図ページのスコープ付きクイズ)。
+	// セッションのリセットは呼び出し側の key 再マウントで行う
+	scopeAopId?: string,
 ) {
 	const [queue, setQueue] = useState<QuizQuestion[]>([]);
 	const [phase, setPhase] = useState<QuizPhase>("loading");
@@ -48,6 +51,7 @@ export function useQuizSession(
 						quizTypes,
 						count: BATCH_SIZE,
 						excludeKeys: [...queuedKeys, ...recentKeysRef.current],
+						scopeAopId,
 					},
 				});
 				if (questions.length === 0) {
@@ -70,7 +74,7 @@ export function useQuizSession(
 				fetchingRef.current = false;
 			}
 		},
-		[regionId, quizTypes],
+		[regionId, quizTypes, scopeAopId],
 	);
 
 	// 初回ロードとプリフェッチ

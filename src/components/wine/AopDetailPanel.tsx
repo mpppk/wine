@@ -1,4 +1,9 @@
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	GraduationCapIcon,
+	XIcon,
+} from "lucide-react";
 import { Button } from "#/components/ui/button";
 import type { AopAncestry } from "#/lib/wine/aop-tree";
 import {
@@ -49,6 +54,8 @@ export function AopDetailPanel({
 	position,
 	onClose,
 	compact = false,
+	quizQuestionCount,
+	onStartQuiz,
 }: {
 	aop: Aop;
 	/** 所属する親(村名AOC・地区・地方)の情報。未指定なら所属セクションを表示しない */
@@ -64,6 +71,10 @@ export function AopDetailPanel({
 	onClose?: () => void;
 	/** embed用: 余白と文字量を切り詰める */
 	compact?: boolean;
+	/** このAOPを起点に出題できる問題数。0ならクイズボタンを出さない */
+	quizQuestionCount?: number;
+	/** クイズ開始。未指定ならクイズボタンを出さない(embed等) */
+	onStartQuiz?: () => void;
 }) {
 	// 前後移動のいずれかが渡されたときだけナビ行を表示する
 	const showNav = onPrev !== undefined || onNext !== undefined;
@@ -135,6 +146,19 @@ export function AopDetailPanel({
 					</span>
 				))}
 			</div>
+
+			{onStartQuiz && (quizQuestionCount ?? 0) > 0 && (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={onStartQuiz}
+					className="w-full"
+				>
+					<GraduationCapIcon className="size-4" aria-hidden />
+					このAOPのクイズに挑戦({quizQuestionCount}問)
+				</Button>
+			)}
 
 			{ancestry && (
 				<AncestrySection ancestry={ancestry} onSelectAop={onSelectAop} />

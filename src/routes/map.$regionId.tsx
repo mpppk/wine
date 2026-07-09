@@ -4,15 +4,22 @@ import {
 	redirect,
 	useNavigate,
 } from "@tanstack/react-router";
-import { ArrowLeftIcon, ListIcon, MapIcon } from "lucide-react";
-import { useMemo } from "react";
+import {
+	ArrowLeftIcon,
+	GraduationCapIcon,
+	ListIcon,
+	MapIcon,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
+import { MapQuizDialog } from "#/components/quiz/MapQuizDialog";
 import { Button } from "#/components/ui/button";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterSelect } from "#/components/wine/GrapeFilterSelect";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
+import { countScopedQuestions } from "#/lib/quiz/scope";
 import {
 	buildAopTree,
 	flattenAopTree,
@@ -28,7 +35,8 @@ import {
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
 import { AOP_TAG_IDS, AOP_TAGS, type AopTagId } from "#/lib/wine/tags";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
-import type { AopKind } from "#/lib/wine/types";
+import type { AopKind, RegionId } from "#/lib/wine/types";
+import { getSession } from "#/server/auth";
 
 const searchSchema = z.object({
 	/** ブドウ品種フィルタ(variety id) */
@@ -45,6 +53,12 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/map/$regionId")({
 	validateSearch: searchSchema,
+	// クイズは未ログインでも回答可・記録なし。SSR時点で確定するログイン状態を
+	// context で下に渡す(quiz.play と同じパターン)
+	beforeLoad: async () => {
+		const session = await getSession();
+		return { isAuthenticated: !!session };
+	},
 	loader: ({ params }) => {
 		const region = getRegion(params.regionId);
 		if (!region?.enabled) {
@@ -77,8 +91,16 @@ function parseTags(tags: string | undefined): AopTagId[] {
 function MapPage() {
 	const { region, aops } = Route.useLoaderData();
 	const { grape, aop: selectedAopId, cls, tags, view } = Route.useSearch();
+	const { isAuthenticated } = Route.useRouteContext();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const isListView = view === "list";
+
+	// クイズモーダルの開閉と出題スコープ。セッションはエフェメラル(閉じたら破棄)
+	// なのでURLには載せない。開いた時点のAOPをスナップショットするため、
+	// モーダル表示中に選択が変わってもスコープは保持される
+	const [quizScope, setQuizScope] = useState<
+		{ kind: "region" } | { kind: "aop"; aopId: string } | null
+	>(null);
 
 	// この地域に実在する区分・タグだけをチップとして出す(winery等のデータ0件の
 	// 区分や、タグを持つAOPが無い地域のタグ行を出さない)
@@ -101,6 +123,16 @@ function MapPage() {
 		() => (selectedAop ? getAopAncestry(selectedAop, aops, region) : undefined),
 		[selectedAop, aops, region],
 	);
+	const selectedAopQuizCount = useMemo(
+		() =>
+			selectedAop
+				? countScopedQuestions(region.id as RegionId, selectedAop.id)
+				: 0,
+		[selectedAop, region.id],
+	);
+	const startAopQuiz = selectedAop
+		? () => setQuizScope({ kind: "aop", aopId: selectedAop.id })
+		: undefined;
 
 	// 一覧(サイドバー/リスト表示): 地図と同じフィルタを反映する
 	const visibleAopIds = useMemo(
@@ -210,6 +242,16 @@ function MapPage() {
 				</div>
 
 				<div className="ml-auto flex flex-wrap items-center gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => setQuizScope({ kind: "region" })}
+					>
+						<GraduationCapIcon className="size-4" aria-hidden />
+						クイズ
+					</Button>
+
 					<fieldset
 						className="flex items-center rounded-md border border-border p-0.5"
 						aria-label="表示モード"
@@ -343,6 +385,8 @@ function MapPage() {
 									onNext={goNext}
 									position={siblings}
 									onClose={() => setSearch({ aop: undefined })}
+									quizQuestionCount={selectedAopQuizCount}
+									onStartQuiz={startAopQuiz}
 								/>
 								{isListView && (
 									<div className="px-4 pb-4">
@@ -375,6 +419,8 @@ function MapPage() {
 							onNext={goNext}
 							position={siblings}
 							onClose={() => setSearch({ aop: undefined })}
+							quizQuestionCount={selectedAopQuizCount}
+							onStartQuiz={startAopQuiz}
 						/>
 						{isListView && (
 							<div className="px-4 pb-4">
@@ -392,6 +438,21 @@ function MapPage() {
 					</div>
 				)}
 			</div>
+
+			<MapQuizDialog
+				open={quizScope !== null}
+				onOpenChange={(open) => {
+					if (!open) setQuizScope(null);
+				}}
+				regionId={region.id as RegionId}
+				regionNameJa={region.nameJa}
+				scopeAop={
+					quizScope?.kind === "aop"
+						? aops.find((a) => a.id === quizScope.aopId)
+						: undefined
+				}
+				isAuthenticated={isAuthenticated}
+			/>
 		</main>
 	);
 }

@@ -8,6 +8,7 @@ import {
 	materializeQuestion,
 } from "#/lib/quiz/generators";
 import { pickQuestionKeys, type QuestionStatLike } from "#/lib/quiz/scheduler";
+import { listScopedCandidates } from "#/lib/quiz/scope";
 import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
 import { listRegions } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
@@ -21,6 +22,11 @@ export interface GetNextQuestionsOptions {
 	count: number;
 	/** クライアントが未消化のキュー等、出題から除外するキー */
 	excludeKeys: string[];
+	/**
+	 * 指定時は選択AOPとその階層近傍(親の村・配下の畑)の問題に絞る。
+	 * クライアント申告のID列は信用せず、slug 1つからサーバ側で展開する
+	 */
+	scopeAopId?: string;
 }
 
 export async function getNextQuestions(
@@ -28,8 +34,14 @@ export async function getNextQuestions(
 	userId: string | null,
 	options: GetNextQuestionsOptions,
 ): Promise<{ questions: QuizQuestion[] }> {
-	const { regionId, quizTypes, count, excludeKeys } = options;
-	const candidates = listCandidates(regionId, quizTypes);
+	const { regionId, quizTypes, count, excludeKeys, scopeAopId } = options;
+	const candidates =
+		scopeAopId !== undefined
+			? listScopedCandidates(regionId, quizTypes, scopeAopId)
+			: listCandidates(regionId, quizTypes);
+	if (candidates === null) {
+		throw new Error(`invalid scope aop: ${scopeAopId}`);
+	}
 	if (candidates.length === 0) return { questions: [] };
 
 	const rows = userId
