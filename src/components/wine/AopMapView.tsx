@@ -27,6 +27,8 @@ export interface AopMapViewProps {
 	selectedAopId?: string;
 	/** ブドウ品種フィルタ。指定時、許可されていないAOPは灰色に沈む */
 	grapeVarietyId?: string;
+	/** 指定時、含まれないAOPは灰色に沈む(マイセラーの「飲んだAOP」表示用) */
+	highlightAopIds?: ReadonlySet<string>;
 	/** 表示する区分。含まれない区分のAOPは非表示 */
 	visibleKinds: AopKind[];
 	/** 表示するタグ。空なら絞り込まない。指定時はいずれかのタグを持つAOPのみ表示 */
@@ -100,6 +102,7 @@ export function AopMapView({
 	aops,
 	selectedAopId,
 	grapeVarietyId,
+	highlightAopIds,
 	visibleKinds,
 	visibleTags,
 	onSelectAop,
@@ -422,8 +425,9 @@ export function AopMapView({
 				(tagFilter.length > 0 && !aop.tags?.some((t) => tagFilter.includes(t)));
 			const dimmed =
 				!hidden &&
-				grapeVarietyId !== undefined &&
-				!aopAllowsGrape(aop, grapeVarietyId);
+				((grapeVarietyId !== undefined &&
+					!aopAllowsGrape(aop, grapeVarietyId)) ||
+					(highlightAopIds !== undefined && !highlightAopIds.has(aop.id)));
 			map.setFeatureState(
 				{ source: SOURCE_ID, id: aop.idApp },
 				{ hidden, dimmed },
@@ -458,7 +462,12 @@ export function AopMapView({
 	stateRef.current.applyFeatureStates = applyFeatureStates;
 	stateRef.current.applySelection = applySelection;
 
-	useEffect(applyFeatureStates, [grapeVarietyId, visibleKinds, visibleTags]);
+	useEffect(applyFeatureStates, [
+		grapeVarietyId,
+		highlightAopIds,
+		visibleKinds,
+		visibleTags,
+	]);
 	useEffect(applySelection, [selectedAopId]);
 
 	return (

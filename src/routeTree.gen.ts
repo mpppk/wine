@@ -15,16 +15,20 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as QuizIndexRouteImport } from './routes/quiz.index'
+import { Route as CellarIndexRouteImport } from './routes/cellar.index'
 import { Route as QuizProgressRouteImport } from './routes/quiz.progress'
 import { Route as QuizPlayRouteImport } from './routes/quiz.play'
 import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
 import { Route as MapRegionIdRouteImport } from './routes/map.$regionId'
 import { Route as EmbedMapRouteImport } from './routes/embed/map'
+import { Route as CellarNewRouteImport } from './routes/cellar.new'
+import { Route as CellarMapRouteImport } from './routes/cellar.map'
 import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
+import { Route as CellarEntryIdEditRouteImport } from './routes/cellar.$entryId.edit'
 import { Route as ApiWineVarietiesRouteImport } from './routes/api/wine/varieties'
 import { Route as ApiWineRegionsRouteImport } from './routes/api/wine/regions'
 import { Route as ApiImagesSplatRouteImport } from './routes/api/images/$'
@@ -62,6 +66,11 @@ const QuizIndexRoute = QuizIndexRouteImport.update({
   path: '/quiz/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CellarIndexRoute = CellarIndexRouteImport.update({
+  id: '/cellar/',
+  path: '/cellar/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QuizProgressRoute = QuizProgressRouteImport.update({
   id: '/quiz/progress',
   path: '/quiz/progress',
@@ -85,6 +94,16 @@ const MapRegionIdRoute = MapRegionIdRouteImport.update({
 const EmbedMapRoute = EmbedMapRouteImport.update({
   id: '/embed/map',
   path: '/embed/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CellarNewRoute = CellarNewRouteImport.update({
+  id: '/cellar/new',
+  path: '/cellar/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CellarMapRoute = CellarMapRouteImport.update({
+  id: '/cellar/map',
+  path: '/cellar/map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWinePhotosRoute = ApiWinePhotosRouteImport.update({
@@ -114,6 +133,11 @@ const DotwellKnownOauthAuthorizationServerRoute =
     path: '/.well-known/oauth-authorization-server',
     getParentRoute: () => rootRouteImport,
   } as any)
+const CellarEntryIdEditRoute = CellarEntryIdEditRouteImport.update({
+  id: '/cellar/$entryId/edit',
+  path: '/cellar/$entryId/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWineVarietiesRoute = ApiWineVarietiesRouteImport.update({
   id: '/api/wine/varieties',
   path: '/api/wine/varieties',
@@ -156,16 +180,20 @@ export interface FileRoutesByFullPath {
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
+  '/cellar/map': typeof CellarMapRoute
+  '/cellar/new': typeof CellarNewRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/quiz/play': typeof QuizPlayRoute
   '/quiz/progress': typeof QuizProgressRoute
+  '/cellar/': typeof CellarIndexRoute
   '/quiz/': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
   '/api/wine/varieties': typeof ApiWineVarietiesRoute
+  '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
   '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
   '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
@@ -180,16 +208,20 @@ export interface FileRoutesByTo {
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
+  '/cellar/map': typeof CellarMapRoute
+  '/cellar/new': typeof CellarNewRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/quiz/play': typeof QuizPlayRoute
   '/quiz/progress': typeof QuizProgressRoute
+  '/cellar': typeof CellarIndexRoute
   '/quiz': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
   '/api/wine/varieties': typeof ApiWineVarietiesRoute
+  '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
   '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
   '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
@@ -205,16 +237,20 @@ export interface FileRoutesById {
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
+  '/cellar/map': typeof CellarMapRoute
+  '/cellar/new': typeof CellarNewRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/quiz/play': typeof QuizPlayRoute
   '/quiz/progress': typeof QuizProgressRoute
+  '/cellar/': typeof CellarIndexRoute
   '/quiz/': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
   '/api/wine/varieties': typeof ApiWineVarietiesRoute
+  '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
   '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
   '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
@@ -231,16 +267,20 @@ export interface FileRouteTypes {
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-photos'
+    | '/cellar/map'
+    | '/cellar/new'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
     | '/quiz/play'
     | '/quiz/progress'
+    | '/cellar/'
     | '/quiz/'
     | '/api/auth/$'
     | '/api/images/$'
     | '/api/wine/regions'
     | '/api/wine/varieties'
+    | '/cellar/$entryId/edit'
     | '/api/wine/aops/$aopId'
     | '/api/wine/regions/$regionId'
   fileRoutesByTo: FileRoutesByTo
@@ -255,16 +295,20 @@ export interface FileRouteTypes {
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-photos'
+    | '/cellar/map'
+    | '/cellar/new'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
     | '/quiz/play'
     | '/quiz/progress'
+    | '/cellar'
     | '/quiz'
     | '/api/auth/$'
     | '/api/images/$'
     | '/api/wine/regions'
     | '/api/wine/varieties'
+    | '/cellar/$entryId/edit'
     | '/api/wine/aops/$aopId'
     | '/api/wine/regions/$regionId'
   id:
@@ -279,16 +323,20 @@ export interface FileRouteTypes {
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-photos'
+    | '/cellar/map'
+    | '/cellar/new'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
     | '/quiz/play'
     | '/quiz/progress'
+    | '/cellar/'
     | '/quiz/'
     | '/api/auth/$'
     | '/api/images/$'
     | '/api/wine/regions'
     | '/api/wine/varieties'
+    | '/cellar/$entryId/edit'
     | '/api/wine/aops/$aopId'
     | '/api/wine/regions/$regionId'
   fileRoutesById: FileRoutesById
@@ -304,16 +352,20 @@ export interface RootRouteChildren {
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
   ApiWinePhotosRoute: typeof ApiWinePhotosRoute
+  CellarMapRoute: typeof CellarMapRoute
+  CellarNewRoute: typeof CellarNewRoute
   EmbedMapRoute: typeof EmbedMapRoute
   MapRegionIdRoute: typeof MapRegionIdRoute
   OauthConsentRoute: typeof OauthConsentRoute
   QuizPlayRoute: typeof QuizPlayRoute
   QuizProgressRoute: typeof QuizProgressRoute
+  CellarIndexRoute: typeof CellarIndexRoute
   QuizIndexRoute: typeof QuizIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiImagesSplatRoute: typeof ApiImagesSplatRoute
   ApiWineRegionsRoute: typeof ApiWineRegionsRouteWithChildren
   ApiWineVarietiesRoute: typeof ApiWineVarietiesRoute
+  CellarEntryIdEditRoute: typeof CellarEntryIdEditRoute
   ApiWineAopsAopIdRoute: typeof ApiWineAopsAopIdRoute
 }
 
@@ -361,6 +413,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QuizIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cellar/': {
+      id: '/cellar/'
+      path: '/cellar'
+      fullPath: '/cellar/'
+      preLoaderRoute: typeof CellarIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/quiz/progress': {
       id: '/quiz/progress'
       path: '/quiz/progress'
@@ -396,6 +455,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedMapRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cellar/new': {
+      id: '/cellar/new'
+      path: '/cellar/new'
+      fullPath: '/cellar/new'
+      preLoaderRoute: typeof CellarNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cellar/map': {
+      id: '/cellar/map'
+      path: '/cellar/map'
+      fullPath: '/cellar/map'
+      preLoaderRoute: typeof CellarMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/wine-photos': {
       id: '/api/wine-photos'
       path: '/api/wine-photos'
@@ -429,6 +502,13 @@ declare module '@tanstack/react-router' {
       path: '/.well-known/oauth-authorization-server'
       fullPath: '/.well-known/oauth-authorization-server'
       preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cellar/$entryId/edit': {
+      id: '/cellar/$entryId/edit'
+      path: '/cellar/$entryId/edit'
+      fullPath: '/cellar/$entryId/edit'
+      preLoaderRoute: typeof CellarEntryIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/wine/varieties': {
@@ -501,16 +581,20 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,
   ApiWinePhotosRoute: ApiWinePhotosRoute,
+  CellarMapRoute: CellarMapRoute,
+  CellarNewRoute: CellarNewRoute,
   EmbedMapRoute: EmbedMapRoute,
   MapRegionIdRoute: MapRegionIdRoute,
   OauthConsentRoute: OauthConsentRoute,
   QuizPlayRoute: QuizPlayRoute,
   QuizProgressRoute: QuizProgressRoute,
+  CellarIndexRoute: CellarIndexRoute,
   QuizIndexRoute: QuizIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiImagesSplatRoute: ApiImagesSplatRoute,
   ApiWineRegionsRoute: ApiWineRegionsRouteWithChildren,
   ApiWineVarietiesRoute: ApiWineVarietiesRoute,
+  CellarEntryIdEditRoute: CellarEntryIdEditRoute,
   ApiWineAopsAopIdRoute: ApiWineAopsAopIdRoute,
 }
 export const routeTree = rootRouteImport
