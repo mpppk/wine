@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import type { AopAncestry } from "#/lib/wine/aop-tree";
 import {
@@ -44,6 +44,9 @@ export function AopDetailPanel({
 	aop,
 	ancestry,
 	onSelectAop,
+	onPrev,
+	onNext,
+	position,
 	onClose,
 	compact = false,
 }: {
@@ -52,12 +55,54 @@ export function AopDetailPanel({
 	ancestry?: AopAncestry;
 	/** 親の村名AOCをタップしたときの遷移先。未指定なら親はテキスト表示のみ */
 	onSelectAop?: (aopId: string) => void;
+	/** 前の同一区分AOPへ移動。undefined ならボタンを無効化(先頭) */
+	onPrev?: () => void;
+	/** 次の同一区分AOPへ移動。undefined ならボタンを無効化(末尾) */
+	onNext?: () => void;
+	/** 同一区分シーケンス内の位置。指定時は「n / total」を表示する */
+	position?: { index: number; total: number };
 	onClose?: () => void;
 	/** embed用: 余白と文字量を切り詰める */
 	compact?: boolean;
 }) {
+	// 前後移動のいずれかが渡されたときだけナビ行を表示する
+	const showNav = onPrev !== undefined || onNext !== undefined;
+	const kindLabel = KIND_LABELS_JA[aop.kind];
 	return (
 		<div className={compact ? "space-y-2 p-3" : "space-y-3 p-4"}>
+			{showNav && (
+				<div className="flex items-center justify-between gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={onPrev}
+						disabled={onPrev === undefined}
+						aria-label={`前の${kindLabel}へ`}
+						className="gap-1"
+					>
+						<ChevronLeftIcon className="size-4" />
+						前へ
+					</Button>
+					{position && position.index >= 0 && (
+						<span className="text-xs tabular-nums text-muted-foreground">
+							{position.index + 1} / {position.total}
+						</span>
+					)}
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={onNext}
+						disabled={onNext === undefined}
+						aria-label={`次の${kindLabel}へ`}
+						className="gap-1"
+					>
+						次へ
+						<ChevronRightIcon className="size-4" />
+					</Button>
+				</div>
+			)}
 			<div className="flex items-start justify-between gap-2">
 				<div className="min-w-0">
 					<h2 className="text-lg font-semibold leading-tight">{aop.nameJa}</h2>

@@ -108,6 +108,71 @@ function stableSortByRank(aops: Aop[]): Aop[] {
 		.map((x) => x.aop);
 }
 
+/**
+ * ツリーを AopTreeList の表示順どおりにフラット化する。
+ * セクション順に regionalAops → 各村(村本体 → 畑 → シャトー) →
+ * unassignedVineyards → unassignedWineries を積む(AopTreeList.tsx の描画順と一致)。
+ * 複数村にまたがる畑は複数村の下に現れるため、id で重複排除(初出のみ採用)する。
+ */
+export function flattenAopTree(sections: SubregionSection[]): Aop[] {
+	const out: Aop[] = [];
+	const seen = new Set<string>();
+	const push = (a: Aop) => {
+		if (seen.has(a.id)) return;
+		seen.add(a.id);
+		out.push(a);
+	};
+	for (const section of sections) {
+		for (const a of section.regionalAops) push(a);
+		for (const node of section.villages) {
+			push(node.village);
+			for (const a of node.vineyards) push(a);
+			for (const a of node.wineries) push(a);
+		}
+		for (const a of section.unassignedVineyards) push(a);
+		for (const a of section.unassignedWineries) push(a);
+	}
+	return out;
+}
+
+export interface AopSiblings {
+	/** 前の同一区分AOPのid。先頭なら undefined */
+	prevId?: string;
+	/** 次の同一区分AOPのid。末尾なら undefined */
+	nextId?: string;
+	/** 同一区分シーケンス内での 0 始まりの位置。見つからなければ -1 */
+	index: number;
+	/** 同一区分シーケンスの総数 */
+	total: number;
+}
+
+/**
+ * フラット化済みの並び(flattenAopTree の結果)から、選択中AOPと同じ区分(kind)の
+ * 前後のAOPを求める。フィルタ表示中のものだけを対象にする場合は visibleAopIds を渡す
+ * (未指定なら全件を表示中とみなす)。「順番にざーっと見て学習する」ための前後移動に使う。
+ */
+export function getSameKindSiblings(
+	ordered: Aop[],
+	selected: Aop,
+	visibleAopIds?: ReadonlySet<string>,
+): AopSiblings {
+	const sequence = ordered.filter(
+		(a) =>
+			a.kind === selected.kind &&
+			(visibleAopIds === undefined || visibleAopIds.has(a.id)),
+	);
+	const index = sequence.findIndex((a) => a.id === selected.id);
+	return {
+		prevId: index > 0 ? sequence[index - 1].id : undefined,
+		nextId:
+			index >= 0 && index < sequence.length - 1
+				? sequence[index + 1].id
+				: undefined,
+		index,
+		total: sequence.length,
+	};
+}
+
 /** 詳細パネルで「所属する親」を表示するための、あるAOPの上位階層情報 */
 export interface AopAncestry {
 	/** 地方(例: ブルゴーニュ) */
