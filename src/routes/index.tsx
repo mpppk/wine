@@ -41,9 +41,14 @@ function HomePage() {
 							<Link to="/quiz">クイズでAOPを覚える</Link>
 						</Button>
 						{user ? (
-							<Button asChild variant="outline">
-								<Link to="/profile">プロフィールを編集</Link>
-							</Button>
+							<>
+								<Button asChild variant="outline">
+									<Link to="/cellar">マイセラー(飲んだワインの記録)</Link>
+								</Button>
+								<Button asChild variant="outline">
+									<Link to="/profile">プロフィールを編集</Link>
+								</Button>
+							</>
 						) : (
 							<Button asChild variant="outline">
 								<Link to="/login">ログイン</Link>

@@ -8,6 +8,7 @@ import {
 	MapIcon,
 	SunMoonIcon,
 	UserIcon,
+	WineIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -170,6 +171,41 @@ export function CommandPalette() {
 								>
 									<BarChart3Icon />
 									学習の進捗を見る
+								</CommandItem>
+							)}
+
+							{session?.user && (
+								<CommandItem
+									keywords={["cellar", "セラー", "ワイン", "記録", "飲んだ"]}
+									onSelect={() =>
+										runAndClose(() => {
+											void router.navigate({ to: "/cellar" });
+										})
+									}
+								>
+									<WineIcon />
+									マイセラーを見る
+								</CommandItem>
+							)}
+
+							{session?.user && (
+								<CommandItem
+									keywords={[
+										"record",
+										"wine",
+										"記録",
+										"追加",
+										"飲んだ",
+										"セラー",
+									]}
+									onSelect={() =>
+										runAndClose(() => {
+											void router.navigate({ to: "/cellar/new" });
+										})
+									}
+								>
+									<WineIcon />
+									ワインを記録する
 								</CommandItem>
 							)}
 

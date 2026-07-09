@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { drunkWineFields } from "#/lib/drunk-wine/schema";
 import { AOP_TAG_IDS } from "#/lib/wine/tags";
 
 // MCPツールの入力スキーマ。DB/ランタイム依存を持たせず、vitest(jsdom)で
@@ -52,4 +53,70 @@ export const showAopMapInput = {
 			"ブドウ品種ID。指定するとその品種が許可されたAOPをハイライトした地図になる。",
 		),
 	aop_id: z.string().optional().describe("最初に選択状態にするAOPのID"),
+};
+
+// 飲んだワイン(マイセラー)の書き込みツール入力。バリデーション本体は
+// Webのserver fnと共通の drunkWineFields を再利用し、MCP向けの
+// snake_case キーと日本語 describe だけをここで与える。
+export const registerDrunkWineInput = {
+	name: drunkWineFields.name.describe("ワイン名(ラベル表記。必須)"),
+	drank_on: drunkWineFields.drankOn.describe("飲んだ日 (YYYY-MM-DD)"),
+	aop_id: drunkWineFields.aopId.describe(
+		"紐付けるAOPのID (list_aopsのid。任意)",
+	),
+	rating: drunkWineFields.rating.describe("評価 (1〜5の整数)"),
+	memo: drunkWineFields.memo.describe("メモ・感想 (2000文字まで)"),
+	vintage: drunkWineFields.vintage.describe("ヴィンテージ (1800〜2100の年)"),
+	grape_variety_ids: drunkWineFields.grapeVarietyIds.describe(
+		"ぶどう品種ID (list_grape_varietiesのid。最大20件)",
+	),
+	producer: drunkWineFields.producer.describe("生産者名 (200文字まで)"),
+	price: drunkWineFields.price.describe("価格 (円)"),
+	photo_base64: z
+		.string()
+		.max(7_100_000)
+		.optional()
+		.describe("ボトル写真のbase64。デコード後5MBまで"),
+	photo_mime_type: z
+		.enum(["image/jpeg", "image/png", "image/webp", "image/gif"])
+		.optional()
+		.describe("写真のMIMEタイプ (photo_base64 指定時は必須)"),
+};
+
+// 更新は id のみ必須。未指定(undefined)のフィールドは変更せず、
+// null は「クリアする」の意(Webのserver fnと同じ規約。編集フォームAppが
+// 空欄にしたフィールドを null で送ってくる)。name は必須項目なのでクリア不可。
+export const updateDrunkWineInput = {
+	id: z
+		.string()
+		.min(1)
+		.max(80)
+		.describe(
+			"更新するエントリのID (register_drunk_wine / list_drunk_wines の entry.id)",
+		),
+	name: drunkWineFields.name.optional().describe("ワイン名(ラベル表記)"),
+	drank_on: drunkWineFields.drankOn
+		.nullable()
+		.describe("飲んだ日 (YYYY-MM-DD)。nullでクリア"),
+	aop_id: drunkWineFields.aopId
+		.nullable()
+		.describe("紐付けるAOPのID (list_aopsのid)。nullでクリア"),
+	rating: drunkWineFields.rating
+		.nullable()
+		.describe("評価 (1〜5の整数)。nullでクリア"),
+	memo: drunkWineFields.memo
+		.nullable()
+		.describe("メモ・感想 (2000文字まで)。nullでクリア"),
+	vintage: drunkWineFields.vintage
+		.nullable()
+		.describe("ヴィンテージ (1800〜2100の年)。nullでクリア"),
+	grape_variety_ids: drunkWineFields.grapeVarietyIds.describe(
+		"ぶどう品種ID (list_grape_varietiesのid。最大20件)。[]でクリア",
+	),
+	producer: drunkWineFields.producer
+		.nullable()
+		.describe("生産者名 (200文字まで)。nullでクリア"),
+	price: drunkWineFields.price.nullable().describe("価格 (円)。nullでクリア"),
+	photo_base64: registerDrunkWineInput.photo_base64,
+	photo_mime_type: registerDrunkWineInput.photo_mime_type,
 };

@@ -1,6 +1,11 @@
 import { env } from "cloudflare:workers";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { AOP_MAP_RESOURCE_URI, buildAopMapAppHtml } from "./apps";
+import {
+	AOP_MAP_RESOURCE_URI,
+	buildAopMapAppHtml,
+	buildDrunkWineAppHtml,
+	DRUNK_WINE_RESOURCE_URI,
+} from "./apps";
 import { registerReadTools, registerWriteTools } from "./tools";
 
 // Build a per-request MCP server bound to the authenticated user. The SDK
@@ -41,6 +46,37 @@ function registerApps(server: McpServer) {
 							csp: {
 								connectDomains: [baseUrl, tileOrigin],
 								resourceDomains: [baseUrl, tileOrigin],
+							},
+						},
+					},
+				},
+			],
+		}),
+	);
+
+	// register_drunk_wine の結果を表示・編集するフォーム。写真表示のため
+	// 自ホストのみCSPで許可する(品種マスタはHTMLに埋め込み済みでfetch不要)。
+	server.registerResource(
+		"drunk-wine",
+		DRUNK_WINE_RESOURCE_URI,
+		{
+			title: "飲んだワイン編集フォーム",
+			description:
+				"register_drunk_wine で記録したワインを表示し、その場で編集できる" +
+				"フォーム。MCP Appsホストが描画する。",
+			mimeType: "text/html;profile=mcp-app",
+		},
+		() => ({
+			contents: [
+				{
+					uri: DRUNK_WINE_RESOURCE_URI,
+					mimeType: "text/html;profile=mcp-app",
+					text: buildDrunkWineAppHtml(baseUrl),
+					_meta: {
+						ui: {
+							csp: {
+								connectDomains: [baseUrl],
+								resourceDomains: [baseUrl],
 							},
 						},
 					},
