@@ -1,9 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
-import { getAopAncestry } from "#/lib/wine/aop-tree";
+import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
+import {
+	buildAopTree,
+	flattenAopTree,
+	getAopAncestry,
+	getSameKindSiblings,
+} from "#/lib/wine/aop-tree";
 import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getRegion, getVariety, listAops } from "#/lib/wine/service";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
@@ -36,6 +42,27 @@ function EmbedMapPage() {
 	// embed内での選択はURLに反映せずローカルstateで持つ(ホスト側の履歴を汚さない)
 	const [selectedAopId, setSelectedAopId] = useState<string | undefined>(aop);
 
+	const selectedAop = aops.find((a) => a.id === selectedAopId);
+
+	// 前後移動: embedは全区分を表示するため、対象は同一区分の全AOP(フィルタ指定なし)。
+	// フックはearly return前に無条件で呼ぶ必要があるため、region未定義でも計算する。
+	const orderedAops = useMemo(
+		() => (region ? flattenAopTree(buildAopTree(aops, region.subregions)) : []),
+		[aops, region],
+	);
+	const siblings = selectedAop
+		? getSameKindSiblings(orderedAops, selectedAop)
+		: undefined;
+	const goPrev =
+		siblings?.prevId !== undefined
+			? () => setSelectedAopId(siblings.prevId)
+			: undefined;
+	const goNext =
+		siblings?.nextId !== undefined
+			? () => setSelectedAopId(siblings.nextId)
+			: undefined;
+	useAopKeyNav({ onPrev: goPrev, onNext: goNext, enabled: !!selectedAop });
+
 	if (!region) {
 		return (
 			<p className="p-4 text-sm text-muted-foreground">
@@ -44,7 +71,6 @@ function EmbedMapPage() {
 		);
 	}
 
-	const selectedAop = aops.find((a) => a.id === selectedAopId);
 	const selectedAncestry = selectedAop
 		? getAopAncestry(selectedAop, aops, region)
 		: undefined;
@@ -84,6 +110,9 @@ function EmbedMapPage() {
 						aop={selectedAop}
 						ancestry={selectedAncestry}
 						onSelectAop={setSelectedAopId}
+						onPrev={goPrev}
+						onNext={goNext}
+						position={siblings}
 						compact
 						onClose={() => setSelectedAopId(undefined)}
 					/>

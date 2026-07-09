@@ -12,7 +12,13 @@ import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterSelect } from "#/components/wine/GrapeFilterSelect";
-import { getAopAncestry } from "#/lib/wine/aop-tree";
+import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
+import {
+	buildAopTree,
+	flattenAopTree,
+	getAopAncestry,
+	getSameKindSiblings,
+} from "#/lib/wine/aop-tree";
 import {
 	AOP_KINDS,
 	GRAND_CRU_TAG_COLOR,
@@ -132,6 +138,29 @@ function MapPage() {
 			replace: true,
 		});
 	};
+
+	// 前後移動: リスト表示と同じ並び順をフラット化し、同一区分かつ表示中(フィルタ通過)の
+	// AOPだけを対象に前後のidを求める。地図のパン/ズームは選択変更に追従して自動で行われる。
+	const orderedAops = useMemo(
+		() => flattenAopTree(buildAopTree(aops, region.subregions)),
+		[aops, region.subregions],
+	);
+	const siblings = useMemo(
+		() =>
+			selectedAop
+				? getSameKindSiblings(orderedAops, selectedAop, visibleAopIds)
+				: undefined,
+		[orderedAops, selectedAop, visibleAopIds],
+	);
+	const goPrev =
+		siblings?.prevId !== undefined
+			? () => setSearch({ aop: siblings.prevId })
+			: undefined;
+	const goNext =
+		siblings?.nextId !== undefined
+			? () => setSearch({ aop: siblings.nextId })
+			: undefined;
+	useAopKeyNav({ onPrev: goPrev, onNext: goNext, enabled: !!selectedAop });
 
 	const toggleKind = (k: AopKind) => {
 		const next = visibleKinds.includes(k)
@@ -317,6 +346,9 @@ function MapPage() {
 									aop={selectedAop}
 									ancestry={selectedAncestry}
 									onSelectAop={(id) => setSearch({ aop: id })}
+									onPrev={goPrev}
+									onNext={goNext}
+									position={siblings}
 									onClose={() => setSearch({ aop: undefined })}
 								/>
 								{isListView && (
@@ -346,6 +378,9 @@ function MapPage() {
 							aop={selectedAop}
 							ancestry={selectedAncestry}
 							onSelectAop={(id) => setSearch({ aop: id })}
+							onPrev={goPrev}
+							onNext={goNext}
+							position={siblings}
 							onClose={() => setSearch({ aop: undefined })}
 						/>
 						{isListView && (

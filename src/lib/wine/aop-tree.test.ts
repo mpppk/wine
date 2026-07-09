@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildAopTree, getAopAncestry } from "./aop-tree";
+import {
+	buildAopTree,
+	flattenAopTree,
+	getAopAncestry,
+	getSameKindSiblings,
+} from "./aop-tree";
 import { AOPS } from "./aops-data";
 import { getRegion, listAops } from "./service";
 import type { Aop, Region, Subregion } from "./types";
@@ -191,6 +196,104 @@ describe("buildAopTree", () => {
 			.filter((v) => v.vineyards.some((vy) => vy.id === "montrachet"))
 			.map((v) => v.village.id);
 		expect(parents).toEqual(["chassagne-montrachet", "puligny-montrachet"]);
+	});
+});
+
+describe("flattenAopTree", () => {
+	it("AopTreeListの表示順(地方名AOC→村→畑→シャトー)でフラット化する", () => {
+		const aops = [
+			aop({ id: "regional-1", kind: "regional" }),
+			aop({ id: "village-1", kind: "village" }),
+			aop({ id: "gc-1", kind: "vineyard", villageAopIds: ["village-1"] }),
+			aop({
+				id: "ch-1",
+				kind: "winery",
+				villageAopIds: ["village-1"],
+				tags: ["premier-cru-classe-1855"],
+			}),
+			aop({ id: "village-2", kind: "village", subregionId: "sub-b" }),
+		];
+		const flat = flattenAopTree(buildAopTree(aops, SUBREGIONS));
+		expect(flat.map((a) => a.id)).toEqual([
+			"regional-1",
+			"village-1",
+			"gc-1",
+			"ch-1",
+			"village-2",
+		]);
+	});
+
+	it("複数村にまたがる畑はid重複を排除し初出のみ残す", () => {
+		const aops = [
+			aop({ id: "village-1", kind: "village" }),
+			aop({ id: "village-2", kind: "village" }),
+			aop({
+				id: "gc-shared",
+				kind: "vineyard",
+				villageAopIds: ["village-1", "village-2"],
+			}),
+		];
+		const flat = flattenAopTree(buildAopTree(aops, SUBREGIONS));
+		expect(flat.map((a) => a.id)).toEqual([
+			"village-1",
+			"gc-shared",
+			"village-2",
+		]);
+	});
+
+	it("実データ: フラット化結果は全AOPを1回ずつ含む", () => {
+		const region = getRegion("bourgogne");
+		if (!region) throw new Error("bourgogne not found");
+		const aops = listAops({ regionId: "bourgogne" });
+		const flat = flattenAopTree(buildAopTree(aops, region.subregions));
+		const ids = flat.map((a) => a.id);
+		expect(new Set(ids).size).toBe(ids.length);
+		expect(new Set(ids)).toEqual(new Set(aops.map((a) => a.id)));
+	});
+});
+
+describe("getSameKindSiblings", () => {
+	const ordered = [
+		aop({ id: "regional-1", kind: "regional" }),
+		aop({ id: "village-1", kind: "village" }),
+		aop({ id: "gc-1", kind: "vineyard" }),
+		aop({ id: "village-2", kind: "village" }),
+		aop({ id: "gc-2", kind: "vineyard" }),
+		aop({ id: "village-3", kind: "village" }),
+	];
+
+	it("同一区分だけを対象に前後のidを返す(区分をまたがない)", () => {
+		const village2 = ordered[3];
+		const s = getSameKindSiblings(ordered, village2);
+		expect(s.prevId).toBe("village-1");
+		expect(s.nextId).toBe("village-3");
+		expect(s.index).toBe(1);
+		expect(s.total).toBe(3);
+	});
+
+	it("先頭はprevId、末尾はnextIdがundefined", () => {
+		const first = getSameKindSiblings(ordered, ordered[1]); // village-1
+		expect(first.prevId).toBeUndefined();
+		expect(first.nextId).toBe("village-2");
+		const last = getSameKindSiblings(ordered, ordered[5]); // village-3
+		expect(last.prevId).toBe("village-2");
+		expect(last.nextId).toBeUndefined();
+	});
+
+	it("visibleAopIdsで表示中のものだけを対象にする", () => {
+		const visible = new Set(["village-1", "village-3"]); // village-2 を除外
+		const s = getSameKindSiblings(ordered, ordered[1], visible); // village-1
+		expect(s.prevId).toBeUndefined();
+		expect(s.nextId).toBe("village-3");
+		expect(s.total).toBe(2);
+	});
+
+	it("選択が表示対象に含まれない場合はindex=-1で前後なし", () => {
+		const visible = new Set(["village-1", "village-3"]);
+		const s = getSameKindSiblings(ordered, ordered[3], visible); // village-2(除外)
+		expect(s.index).toBe(-1);
+		expect(s.prevId).toBeUndefined();
+		expect(s.nextId).toBeUndefined();
 	});
 });
 
