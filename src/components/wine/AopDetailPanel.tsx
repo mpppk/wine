@@ -324,7 +324,7 @@ function ProducerPurchaseDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-sm" aria-describedby={undefined}>
 				<DialogHeader>
-					<DialogTitle className="flex items-center gap-1.5">
+					<DialogTitle className="flex items-center gap-1.5 pr-6">
 						<span className="min-w-0 truncate">{name}</span>
 						<span className="shrink-0 rounded-sm border border-border px-1 py-px text-[10px] font-normal text-muted-foreground">
 							PR
