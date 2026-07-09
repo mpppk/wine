@@ -8,7 +8,10 @@ import {
 	ArrowLeftIcon,
 	GraduationCapIcon,
 	ListIcon,
+	LogInIcon,
 	MapIcon,
+	PaletteIcon,
+	SproutIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { z } from "zod";
@@ -31,6 +34,8 @@ import {
 	GRAND_CRU_TAG_COLOR,
 	KIND_COLORS,
 	KIND_LABELS_JA,
+	PROGRESS_BUCKETS,
+	PROGRESS_EMPTY_COLOR,
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
 import { AOP_TAG_IDS, AOP_TAGS, type AopTagId } from "#/lib/wine/tags";
@@ -38,6 +43,7 @@ import { getAppellationTermJa } from "#/lib/wine/terminology";
 import type { AopKind, RegionId } from "#/lib/wine/types";
 import { getAffiliateConfig } from "#/server/affiliate";
 import { getSession } from "#/server/auth";
+import { getAopProgress } from "#/server/quiz";
 
 const searchSchema = z.object({
 	/** ブドウ品種フィルタ(variety id) */
@@ -50,6 +56,8 @@ const searchSchema = z.object({
 	tags: z.string().optional(),
 	/** 表示モード。省略時は地図 */
 	view: z.enum(["list"]).optional(),
+	/** 色分けモード。省略時は区分(kind)。"progress"=クイズ学習済み率 */
+	color: z.enum(["progress"]).optional(),
 });
 
 export const Route = createFileRoute("/map/$regionId")({
@@ -60,15 +68,24 @@ export const Route = createFileRoute("/map/$regionId")({
 		const session = await getSession();
 		return { isAuthenticated: !!session };
 	},
-	loader: async ({ params }) => {
+	loader: async ({ params, context }) => {
 		const region = getRegion(params.regionId);
 		if (!region?.enabled) {
 			throw redirect({ to: "/regions" });
 		}
+		// 進捗色分け用のAOP別学習済み率はユーザ固有データ。未ログイン時は取得しない
+		// (クライアントで全AOP「データなし」扱い + ログイン促し)
+		const [affiliate, aopProgress] = await Promise.all([
+			getAffiliateConfig(),
+			context.isAuthenticated
+				? getAopProgress({ data: { regionId: region.id as RegionId } })
+				: Promise.resolve(null),
+		]);
 		return {
 			region,
 			aops: listAops({ regionId: region.id }),
-			affiliate: await getAffiliateConfig(),
+			affiliate,
+			aopProgress,
 		};
 	},
 	component: MapPage,
@@ -94,11 +111,31 @@ function parseTags(tags: string | undefined): AopTagId[] {
 }
 
 function MapPage() {
-	const { region, aops, affiliate } = Route.useLoaderData();
-	const { grape, aop: selectedAopId, cls, tags, view } = Route.useSearch();
+	const { region, aops, affiliate, aopProgress } = Route.useLoaderData();
+	const {
+		grape,
+		aop: selectedAopId,
+		cls,
+		tags,
+		view,
+		color,
+	} = Route.useSearch();
 	const { isAuthenticated } = Route.useRouteContext();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const isListView = view === "list";
+	const colorMode = color === "progress" ? "progress" : "kind";
+
+	// 進捗レスポンス(AOP slug -> 率)を地図のjoinキー idApp -> 率 に変換
+	const progressByIdApp = useMemo(() => {
+		const m = new Map<number, number>();
+		if (aopProgress) {
+			for (const a of aops) {
+				const rate = aopProgress.byAopId[a.id];
+				if (rate !== undefined) m.set(a.idApp, rate);
+			}
+		}
+		return m;
+	}, [aopProgress, aops]);
 
 	// クイズモーダルの開閉と出題スコープ。セッションはエフェメラル(閉じたら破棄)
 	// なのでURLには載せない。開いた時点のAOPをスナップショットするため、
@@ -162,6 +199,7 @@ function MapPage() {
 		cls?: string | undefined;
 		tags?: string | undefined;
 		view?: "list" | undefined;
+		color?: "progress" | undefined;
 	}) => {
 		void navigate({
 			search: (prev) => ({ ...prev, ...patch }),
@@ -289,6 +327,40 @@ function MapPage() {
 						</button>
 					</fieldset>
 
+					{!isListView && (
+						<fieldset
+							className="flex items-center rounded-md border border-border p-0.5"
+							aria-label="色分けモード"
+						>
+							<button
+								type="button"
+								onClick={() => setSearch({ color: undefined })}
+								aria-pressed={colorMode === "kind"}
+								className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+									colorMode === "kind"
+										? "bg-muted font-medium"
+										: "text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								<PaletteIcon className="size-3.5" aria-hidden />
+								区分
+							</button>
+							<button
+								type="button"
+								onClick={() => setSearch({ color: "progress" })}
+								aria-pressed={colorMode === "progress"}
+								className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+									colorMode === "progress"
+										? "bg-muted font-medium"
+										: "text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								<SproutIcon className="size-3.5" aria-hidden />
+								進捗
+							</button>
+						</fieldset>
+					)}
+
 					<fieldset
 						className="flex items-center gap-1"
 						aria-label="区分フィルタ"
@@ -372,9 +444,51 @@ function MapPage() {
 						grapeVarietyId={grape}
 						visibleKinds={visibleKinds}
 						visibleTags={visibleTags}
+						colorMode={colorMode}
+						progressByIdApp={progressByIdApp}
 						onSelectAop={(id) => setSearch({ aop: id })}
 						className="min-w-0 flex-1"
 					/>
+				)}
+
+				{/* 進捗モードの凡例・未ログイン促し(地図表示時のみ) */}
+				{!isListView && colorMode === "progress" && (
+					<>
+						<div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-md border border-border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
+							<div className="mb-1 font-medium">クイズ学習済み率</div>
+							<div className="flex items-center gap-1.5">
+								<span className="text-muted-foreground">少</span>
+								<span
+									className="inline-block size-3.5 rounded-sm"
+									style={{ backgroundColor: PROGRESS_EMPTY_COLOR.fill }}
+									title="未学習"
+								/>
+								{PROGRESS_BUCKETS.map((b) => (
+									<span
+										key={b.fill}
+										className="inline-block size-3.5 rounded-sm"
+										style={{ backgroundColor: b.fill }}
+									/>
+								))}
+								<span className="text-muted-foreground">多</span>
+							</div>
+						</div>
+						{!isAuthenticated && (
+							<div className="absolute inset-x-0 top-3 z-10 flex justify-center px-3">
+								<div className="pointer-events-auto flex items-center gap-2 rounded-md border border-border bg-background/95 px-3 py-2 text-xs shadow-sm backdrop-blur">
+									<span className="text-muted-foreground">
+										ログインすると学習の進捗が地図に表示されます
+									</span>
+									<Button asChild size="sm" variant="secondary">
+										<Link to="/login">
+											<LogInIcon className="size-3.5" aria-hidden />
+											ログイン
+										</Link>
+									</Button>
+								</div>
+							</div>
+						)}
+					</>
 				)}
 
 				{/* デスクトップ: 右サイドバー(リスト表示時は詳細のみ、地図表示時は一覧 or 詳細) */}

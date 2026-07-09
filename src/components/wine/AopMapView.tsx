@@ -1,13 +1,21 @@
 import type { FeatureCollection, Geometry } from "geojson";
-import type { MapGeoJSONFeature, Map as MaplibreMap, Popup } from "maplibre-gl";
+import type {
+	ExpressionSpecification,
+	MapGeoJSONFeature,
+	Map as MaplibreMap,
+	Popup,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef } from "react";
 import {
 	BASEMAP_STYLE_URL,
-	GRAND_CRU_TAG_COLOR,
 	KIND_COLORS,
 	KIND_LABELS_JA,
 	KIND_RANK,
+	kindFillColorExpr,
+	kindLineColorExpr,
+	progressFillColorExpr,
+	progressLineColorExpr,
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape } from "#/lib/wine/service";
 import { type AopTagId, formatAopTagJa } from "#/lib/wine/tags";
@@ -31,8 +39,32 @@ export interface AopMapViewProps {
 	visibleKinds: AopKind[];
 	/** 表示するタグ。空なら絞り込まない。指定時はいずれかのタグを持つAOPのみ表示 */
 	visibleTags?: AopTagId[];
+	/** 色分けモード。"kind"=区分別(既定) / "progress"=クイズ学習済み率 */
+	colorMode?: "kind" | "progress";
+	/** progress モード時のAOP別学習済み率(idApp -> 0〜1)。未収載=データなし */
+	progressByIdApp?: Map<number, number>;
 	onSelectAop?: (aopId: string | undefined) => void;
 	className?: string;
+}
+
+// 色分けモードごとの fill-opacity 式。進捗モードは緑バケットを判別しやすいよう
+// 基準の不透明度を上げる(hidden/dimmed/selected/hover の分岐は共通)。
+function fillOpacityExpr(
+	colorMode: "kind" | "progress",
+): ExpressionSpecification {
+	const isProgress = colorMode === "progress";
+	return [
+		"case",
+		["boolean", ["feature-state", "hidden"], false],
+		0,
+		["boolean", ["feature-state", "dimmed"], false],
+		0.06,
+		["boolean", ["feature-state", "selected"], false],
+		isProgress ? 0.85 : 0.62,
+		["boolean", ["feature-state", "hover"], false],
+		isProgress ? 0.82 : 0.55,
+		isProgress ? 0.72 : 0.38,
+	] as unknown as ExpressionSpecification;
 }
 
 interface FeatureBounds {
@@ -102,6 +134,8 @@ export function AopMapView({
 	grapeVarietyId,
 	visibleKinds,
 	visibleTags,
+	colorMode = "kind",
+	progressByIdApp,
 	onSelectAop,
 	className,
 }: AopMapViewProps) {
@@ -117,6 +151,8 @@ export function AopMapView({
 		onSelectAop,
 		applyFeatureStates: () => {},
 		applySelection: () => {},
+		applyColorMode: () => {},
+		applyProgress: () => {},
 	});
 
 	const aopsByIdApp = useMemo(() => {
@@ -185,41 +221,9 @@ export function AopMapView({
 						"fill-sort-key": ["coalesce", ["get", "rank"], 1],
 					},
 					paint: {
-						// 特級タグ持ちは区分に関わらず最濃色(シャンパーニュ特級村の見た目維持)
-						"fill-color": [
-							"case",
-							[
-								"in",
-								"grand-cru",
-								["coalesce", ["get", "tags"], ["literal", []]],
-							],
-							GRAND_CRU_TAG_COLOR.fill,
-							[
-								"match",
-								["get", "kind"],
-								"regional",
-								KIND_COLORS.regional.fill,
-								"village",
-								KIND_COLORS.village.fill,
-								"vineyard",
-								KIND_COLORS.vineyard.fill,
-								"winery",
-								KIND_COLORS.winery.fill,
-								KIND_COLORS.village.fill,
-							],
-						],
-						"fill-opacity": [
-							"case",
-							["boolean", ["feature-state", "hidden"], false],
-							0,
-							["boolean", ["feature-state", "dimmed"], false],
-							0.06,
-							["boolean", ["feature-state", "selected"], false],
-							0.62,
-							["boolean", ["feature-state", "hover"], false],
-							0.55,
-							0.38,
-						],
+						// 初期は区分色。progress モードなら load 後の applyColorMode で差し替える
+						"fill-color": kindFillColorExpr(),
+						"fill-opacity": fillOpacityExpr("kind"),
 					},
 				});
 				map.addLayer({
@@ -228,28 +232,8 @@ export function AopMapView({
 					source: SOURCE_ID,
 					filter: ["!=", ["get", "kind"], "winery"],
 					paint: {
-						"line-color": [
-							"case",
-							[
-								"in",
-								"grand-cru",
-								["coalesce", ["get", "tags"], ["literal", []]],
-							],
-							GRAND_CRU_TAG_COLOR.line,
-							[
-								"match",
-								["get", "kind"],
-								"regional",
-								KIND_COLORS.regional.line,
-								"village",
-								KIND_COLORS.village.line,
-								"vineyard",
-								KIND_COLORS.vineyard.line,
-								"winery",
-								KIND_COLORS.winery.line,
-								KIND_COLORS.village.line,
-							],
-						],
+						// 初期は区分色。progress モードは load 後の applyColorMode で差し替える
+						"line-color": kindLineColorExpr(),
 						"line-width": [
 							"case",
 							["boolean", ["feature-state", "selected"], false],
@@ -324,8 +308,10 @@ export function AopMapView({
 				});
 
 				loadedRef.current = true;
-				// 初期状態(フィルタ・選択)を反映。ロード中にpropsが変わっていても
-				// 最新の値が適用されるようrefに入った関数を呼ぶ。
+				// 初期状態(フィルタ・選択・色分けモード・進捗)を反映。ロード中に
+				// propsが変わっていても最新の値が適用されるようrefに入った関数を呼ぶ。
+				stateRef.current.applyProgress();
+				stateRef.current.applyColorMode();
 				stateRef.current.applyFeatureStates();
 				stateRef.current.applySelection();
 			});
@@ -455,11 +441,57 @@ export function AopMapView({
 		}
 	};
 
+	// 色分けモードに応じて塗り色・枠色・不透明度の paint 式を差し替える。
+	// progress モードは feature-state.progress を step で色に写す(applyProgress が値を反映)。
+	const applyColorMode = () => {
+		const map = mapRef.current;
+		if (!map || !loadedRef.current) return;
+		const isProgress = colorMode === "progress";
+		map.setPaintProperty(
+			FILL_LAYER,
+			"fill-color",
+			isProgress ? progressFillColorExpr() : kindFillColorExpr(),
+		);
+		map.setPaintProperty(
+			FILL_LAYER,
+			"fill-opacity",
+			fillOpacityExpr(colorMode),
+		);
+		map.setPaintProperty(
+			LINE_LAYER,
+			"line-color",
+			isProgress ? progressLineColorExpr() : kindLineColorExpr(),
+		);
+		// シャトー(winery)も点で進捗を表す
+		map.setPaintProperty(
+			WINERY_LAYER,
+			"circle-color",
+			isProgress ? progressFillColorExpr() : KIND_COLORS.winery.fill,
+		);
+	};
+
+	// AOP別の学習済み率を feature-state.progress に反映(データなしはunsetのまま)
+	const applyProgress = () => {
+		const map = mapRef.current;
+		if (!map || !loadedRef.current) return;
+		for (const aop of stateRef.current.aopsByIdApp.values()) {
+			const rate = progressByIdApp?.get(aop.idApp);
+			map.setFeatureState(
+				{ source: SOURCE_ID, id: aop.idApp },
+				{ progress: rate ?? null },
+			);
+		}
+	};
+
 	stateRef.current.applyFeatureStates = applyFeatureStates;
 	stateRef.current.applySelection = applySelection;
+	stateRef.current.applyColorMode = applyColorMode;
+	stateRef.current.applyProgress = applyProgress;
 
 	useEffect(applyFeatureStates, [grapeVarietyId, visibleKinds, visibleTags]);
 	useEffect(applySelection, [selectedAopId]);
+	useEffect(applyColorMode, [colorMode]);
+	useEffect(applyProgress, [progressByIdApp]);
 
 	return (
 		<div
