@@ -1,4 +1,9 @@
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	GraduationCapIcon,
+	XIcon,
+} from "lucide-react";
 import { Button } from "#/components/ui/button";
 import {
 	type AffiliateConfig,
@@ -56,6 +61,8 @@ export function AopDetailPanel({
 	position,
 	onClose,
 	compact = false,
+	quizQuestionCount,
+	onStartQuiz,
 	affiliate = EMPTY_AFFILIATE_CONFIG,
 }: {
 	aop: Aop;
@@ -72,6 +79,10 @@ export function AopDetailPanel({
 	onClose?: () => void;
 	/** embed用: 余白と文字量を切り詰める */
 	compact?: boolean;
+	/** このAOPを起点に出題できる問題数。0ならクイズボタンを出さない */
+	quizQuestionCount?: number;
+	/** クイズ開始。未指定ならクイズボタンを出さない(embed等) */
+	onStartQuiz?: () => void;
 	/** アフィリエイトID。購入リンクの計測用ラップに使う。未指定なら素の検索リンク */
 	affiliate?: AffiliateConfig;
 }) {
@@ -145,6 +156,19 @@ export function AopDetailPanel({
 					</span>
 				))}
 			</div>
+
+			{onStartQuiz && (quizQuestionCount ?? 0) > 0 && (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={onStartQuiz}
+					className="w-full"
+				>
+					<GraduationCapIcon className="size-4" aria-hidden />
+					このAOPのクイズに挑戦({quizQuestionCount}問)
+				</Button>
+			)}
 
 			{ancestry && (
 				<AncestrySection ancestry={ancestry} onSelectAop={onSelectAop} />

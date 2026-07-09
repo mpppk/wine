@@ -18,6 +18,12 @@ const getNextQuestionsInput = z.object({
 	quizTypes: z.array(z.enum(QUIZ_TYPE_IDS)).min(1),
 	count: z.number().int().min(1).max(10).default(5),
 	excludeKeys: z.array(z.string().max(120)).max(50).default([]),
+	/** 指定時は選択AOPとその階層近傍に出題を絞る(展開はサーバ側で行う) */
+	scopeAopId: z
+		.string()
+		.regex(/^[a-z0-9-]+$/)
+		.max(80)
+		.optional(),
 });
 
 export const getNextQuestions = createServerFn({ method: "GET" })
