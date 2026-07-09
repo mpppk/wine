@@ -11,7 +11,11 @@
 	],
 	"main": "@tanstack/react-start/server-entry",
 	"vars": {
-		"BETTER_AUTH_URL": "https://wine.niboshi.workers.dev"
+		"BETTER_AUTH_URL": "https://wine.niboshi.workers.dev",
+		// アフィリエイトID(公開情報)。実IDに差し替えるか `wrangler secret put` で上書きする。
+		// 空のままでも購入リンクは素の検索URLとして機能する。
+		"RAKUTEN_AFFILIATE_ID": "",
+		"MOSHIMO_AMAZON_A_ID": ""
 	},
 	"observability": {
 		"enabled": true
@@ -36,7 +40,9 @@
 		"preview": {
 			"name": "wine-preview",
 			"vars": {
-				"BETTER_AUTH_URL": "https://wine-preview.niboshi.workers.dev"
+				"BETTER_AUTH_URL": "https://wine-preview.niboshi.workers.dev",
+				"RAKUTEN_AFFILIATE_ID": "",
+				"MOSHIMO_AMAZON_A_ID": ""
 			},
 			"d1_databases": [
 				{

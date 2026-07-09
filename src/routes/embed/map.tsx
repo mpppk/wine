@@ -13,6 +13,7 @@ import {
 import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getRegion, getVariety, listAops } from "#/lib/wine/service";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
+import { getAffiliateConfig } from "#/server/affiliate";
 
 const searchSchema = z.object({
 	region: z.string().catch("bourgogne"),
@@ -26,18 +27,19 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/embed/map")({
 	validateSearch: searchSchema,
 	loaderDeps: ({ search }) => ({ region: search.region }),
-	loader: ({ deps }) => {
+	loader: async ({ deps }) => {
+		const affiliate = await getAffiliateConfig();
 		const region = getRegion(deps.region);
 		if (!region?.enabled) {
-			return { region: undefined, aops: [] };
+			return { region: undefined, aops: [], affiliate };
 		}
-		return { region, aops: listAops({ regionId: region.id }) };
+		return { region, aops: listAops({ regionId: region.id }), affiliate };
 	},
 	component: EmbedMapPage,
 });
 
 function EmbedMapPage() {
-	const { region, aops } = Route.useLoaderData();
+	const { region, aops, affiliate } = Route.useLoaderData();
 	const { grape, aop } = Route.useSearch();
 	// embed内での選択はURLに反映せずローカルstateで持つ(ホスト側の履歴を汚さない)
 	const [selectedAopId, setSelectedAopId] = useState<string | undefined>(aop);
@@ -115,6 +117,7 @@ function EmbedMapPage() {
 						position={siblings}
 						compact
 						onClose={() => setSelectedAopId(undefined)}
+						affiliate={affiliate}
 					/>
 				</div>
 			)}

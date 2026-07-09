@@ -36,6 +36,25 @@ export interface AopGrape {
 	role: "principal" | "accessory";
 }
 
+/**
+ * AOPの主要な生産者。aops.json では名前だけの文字列としても書け、
+ * 読み込み時にこの形へ正規化される(aop-schema.ts)。
+ */
+export interface AopProducer {
+	/** 表示名 */
+	name: string;
+	/**
+	 * ECサイト検索用のキーワード(カタカナ表記等)。省略時は
+	 * affiliate.ts の共通辞書 → name の順でフォールバックする。
+	 */
+	searchKeyword?: string;
+	/** 手動キュレーションの購入リンク。指定時は自動生成の検索リンクより優先 */
+	links?: {
+		rakuten?: string;
+		amazon?: string;
+	};
+}
+
 export interface Aop {
 	/** URLセーフなスラッグ (例: "gevrey-chambertin") */
 	id: string;
@@ -68,8 +87,11 @@ export interface Aop {
 	grapes: AopGrape[];
 	/** 土壌の特徴(日本語) */
 	soil: string;
-	/** 主要な生産者。winery(シャトー)では所有者/運営体を入れる */
-	producers: string[];
+	/**
+	 * 主要な生産者。winery(シャトー)では所有者/運営体を入れる
+	 * (購入リンクはシャトー自体に張り、所有者名には張らない)。
+	 */
+	producers: AopProducer[];
 	/** 学習者向け解説(日本語) */
 	description: string;
 }
