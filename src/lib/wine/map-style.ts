@@ -1,3 +1,4 @@
+import type { ExpressionSpecification } from "maplibre-gl";
 import type { AopKind } from "./types";
 
 // データ可視化向けの淡色ベースマップ(ラベル・道路が控えめでポリゴンが主役になる)。
@@ -43,3 +44,95 @@ export const AOP_KINDS: AopKind[] = [
 	"vineyard",
 	"winery",
 ];
+
+// ── 進捗(クイズ学習済み率)の色分けモード ───────────────────────────────
+// GitHubのコントリビューショングラフ風の逐次(sequential)緑ランプ。学習済み率が
+// 高いAOPほど濃い緑で塗る。データなし(未出題)は淡いグレーで沈める。
+// dataviz スキルの validate_palette を ordinal モード(surface #f2f0ec)で検証済み:
+// fill/line とも 単一色相・明→暗の単調・隣接ΔL>=0.06・淡端>=2:1 を全PASS。
+
+/** 未出題(データなし)AOPの色。中立的なグレーで沈める */
+export const PROGRESS_EMPTY_COLOR = { fill: "#d4d2cc", line: "#b4b1aa" };
+
+/** 学習済み率のバケット(昇順=薄→濃)。fill と同色相のより濃い line を対に持つ */
+export const PROGRESS_BUCKETS: { fill: string; line: string }[] = [
+	{ fill: "#5cbb78", line: "#3f9e5c" },
+	{ fill: "#3a9e59", line: "#2a7d43" },
+	{ fill: "#237d40", line: "#175c2c" },
+	{ fill: "#14532b", line: "#0c3d1f" },
+];
+
+// バケット境界(4段階なら 0.25/0.5/0.75)。等間隔に自動生成する
+const PROGRESS_STOPS = PROGRESS_BUCKETS.map(
+	(_, i) => i / PROGRESS_BUCKETS.length,
+);
+
+// feature-state.progress(0〜1)を step で色に写す式を組む。未設定は coalesce で
+// -1 に落ち、最初の stop(0)より小さいので empty 色になる。
+function buildProgressStepExpr(
+	pick: (bucket: { fill: string; line: string }) => string,
+	empty: string,
+): ExpressionSpecification {
+	// step: [input, output0(<stop1), stop1, output1, stop2, output2, ...]
+	const args: (number | string)[] = [empty];
+	for (let i = 0; i < PROGRESS_BUCKETS.length; i++) {
+		args.push(PROGRESS_STOPS[i], pick(PROGRESS_BUCKETS[i]));
+	}
+	return [
+		"step",
+		["coalesce", ["feature-state", "progress"], -1],
+		...args,
+	] as unknown as ExpressionSpecification;
+}
+
+export function progressFillColorExpr(): ExpressionSpecification {
+	return buildProgressStepExpr((b) => b.fill, PROGRESS_EMPTY_COLOR.fill);
+}
+
+export function progressLineColorExpr(): ExpressionSpecification {
+	return buildProgressStepExpr((b) => b.line, PROGRESS_EMPTY_COLOR.line);
+}
+
+// 区分(kind)モードの色式。初期ロードとモード切替の双方から使えるよう関数化する。
+// 特級(grand-cru)タグ持ちは区分に関わらず最濃色で塗るオーバーライドを維持。
+export function kindFillColorExpr(): ExpressionSpecification {
+	return [
+		"case",
+		["in", "grand-cru", ["coalesce", ["get", "tags"], ["literal", []]]],
+		GRAND_CRU_TAG_COLOR.fill,
+		[
+			"match",
+			["get", "kind"],
+			"regional",
+			KIND_COLORS.regional.fill,
+			"village",
+			KIND_COLORS.village.fill,
+			"vineyard",
+			KIND_COLORS.vineyard.fill,
+			"winery",
+			KIND_COLORS.winery.fill,
+			KIND_COLORS.village.fill,
+		],
+	] as unknown as ExpressionSpecification;
+}
+
+export function kindLineColorExpr(): ExpressionSpecification {
+	return [
+		"case",
+		["in", "grand-cru", ["coalesce", ["get", "tags"], ["literal", []]]],
+		GRAND_CRU_TAG_COLOR.line,
+		[
+			"match",
+			["get", "kind"],
+			"regional",
+			KIND_COLORS.regional.line,
+			"village",
+			KIND_COLORS.village.line,
+			"vineyard",
+			KIND_COLORS.vineyard.line,
+			"winery",
+			KIND_COLORS.winery.line,
+			KIND_COLORS.village.line,
+		],
+	] as unknown as ExpressionSpecification;
+}

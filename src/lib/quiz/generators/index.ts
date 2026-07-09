@@ -54,6 +54,25 @@ export function candidateCountsByType(
 	) as Record<QuizType, number>;
 }
 
+/** 地域ごとの「AOP slug -> 全形式の候補問題数」(進捗色分けの分母)。静的データ由来なのでメモ化 */
+const candidateCountsByAopIdCache = new Map<RegionId, Map<string, number>>();
+
+export function candidateCountsByAopId(
+	regionId: RegionId,
+): Map<string, number> {
+	let counts = candidateCountsByAopIdCache.get(regionId);
+	if (!counts) {
+		counts = new Map<string, number>();
+		for (const key of listCandidates(regionId, [...QUIZ_TYPE_IDS])) {
+			const parsed = parseKey(key);
+			if (!parsed) continue;
+			counts.set(parsed.aopId, (counts.get(parsed.aopId) ?? 0) + 1);
+		}
+		candidateCountsByAopIdCache.set(regionId, counts);
+	}
+	return counts;
+}
+
 /** キー文字列から1問を具現化。不正・失効キーは null */
 export function materializeQuestion(
 	key: string,

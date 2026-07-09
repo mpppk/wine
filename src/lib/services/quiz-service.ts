@@ -2,11 +2,13 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { quizQuestionStat } from "#/db/schema";
 import {
+	candidateCountsByAopId,
 	candidateCountsByType,
 	getQuestionKeyInfo,
 	listCandidates,
 	materializeQuestion,
 } from "#/lib/quiz/generators";
+import { parseKey } from "#/lib/quiz/keys";
 import { pickQuestionKeys, type QuestionStatLike } from "#/lib/quiz/scheduler";
 import { listScopedCandidates } from "#/lib/quiz/scope";
 import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
@@ -200,4 +202,42 @@ export async function getProgress(
 			return { regionId: region.id as RegionId, quizTypes };
 		});
 	return { regions };
+}
+
+/**
+ * 地図の進捗色分け用: 指定地域について、AOP(slug)ごとの学習済み率
+ * (= 出題済み問題数 ÷ そのAOPの全候補問題数, 0〜1)を返す。
+ * 問題キーの末尾セグメントが対象AOPのslugなので、キーをJS側で集計する
+ * (AOP単位の集計列はDBに持たない)。出題済み(seen>0)のAOPのみを含める。
+ */
+export async function getAopSeenProgress(
+	userId: string,
+	regionId: RegionId,
+): Promise<{ byAopId: Record<string, number> }> {
+	const rows = await db
+		.select({ questionKey: quizQuestionStat.questionKey })
+		.from(quizQuestionStat)
+		.where(
+			and(
+				eq(quizQuestionStat.userId, userId),
+				eq(quizQuestionStat.regionId, regionId),
+			),
+		);
+
+	// 1行=1キー=既出題1問。AOPごとに出題済み問題数を数える
+	const seenByAopId = new Map<string, number>();
+	for (const row of rows) {
+		const parsed = parseKey(row.questionKey);
+		if (!parsed) continue;
+		seenByAopId.set(parsed.aopId, (seenByAopId.get(parsed.aopId) ?? 0) + 1);
+	}
+
+	const candidateCounts = candidateCountsByAopId(regionId);
+	const byAopId: Record<string, number> = {};
+	for (const [aopId, seen] of seenByAopId) {
+		const candidate = candidateCounts.get(aopId);
+		if (!candidate) continue; // 失効キー等、現データに候補が無いAOPは除外
+		byAopId[aopId] = Math.min(1, seen / candidate);
+	}
+	return { byAopId };
 }
