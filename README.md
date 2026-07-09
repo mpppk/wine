@@ -1,5 +1,7 @@
 ワインのAOP(原産地呼称)を地図で学ぶWebアプリ。TanStack Start + MapLibre GL JS + Cloudflare Workers/D1。
 
+公開URL: https://wine.nibo.sh (カスタムドメイン)。Workers のデフォルトドメイン https://wine.niboshi.workers.dev でも動作する。ログインなどで origin を検証するため、新しいドメインを追加する場合は `src/lib/auth.ts` の `trustedOrigins` にも登録すること。
+
 ## AOP境界データの生成
 
 `public/data/aop/*.geojson` は INAO のオープンデータから生成する(生成物はコミット済み。データ更新時のみ再実行):

@@ -14,6 +14,8 @@ export const auth = betterAuth({
 	trustedOrigins: [
 		"http://localhost:3000",
 		"http://localhost:3001",
+		// カスタムドメイン(本番公開用)。
+		"https://wine.nibo.sh",
 		"https://wine.niboshi.workers.dev",
 		"https://*.wine.niboshi.workers.dev",
 		// wrangler の versions preview / Workers Builds のプレビューURLは
