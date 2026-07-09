@@ -34,6 +34,9 @@
 //  - kind === "regional"                 → 広域(aire géographique)経路
 //    (例外: PARCEL_REGIONAL_AOP_IDS は aires CSV に無いため区画経路で扱う)
 //  - それ以外                            → 区画(detail)経路(区画Shapefileが必要)
+//
+// GeoJSONを再生成したら `bun run build:centroids` も実行して
+// src/lib/wine/aop-centroids.json を更新すること(位置関係クイズが参照する)。
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

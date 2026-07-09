@@ -1,5 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import {
+	BarChart3Icon,
+	BrainIcon,
 	HomeIcon,
 	LogInIcon,
 	LogOutIcon,
@@ -140,6 +142,34 @@ export function CommandPalette() {
 								>
 									<MapIcon />
 									地図でAOPを学ぶ
+								</CommandItem>
+							)}
+
+							{session?.user && (
+								<CommandItem
+									keywords={["quiz", "クイズ", "問題", "テスト", "試験"]}
+									onSelect={() =>
+										runAndClose(() => {
+											void router.navigate({ to: "/quiz" });
+										})
+									}
+								>
+									<BrainIcon />
+									クイズでAOPを覚える
+								</CommandItem>
+							)}
+
+							{session?.user && (
+								<CommandItem
+									keywords={["progress", "進捗", "学習", "成績", "正答率"]}
+									onSelect={() =>
+										runAndClose(() => {
+											void router.navigate({ to: "/quiz/progress" });
+										})
+									}
+								>
+									<BarChart3Icon />
+									学習の進捗を見る
 								</CommandItem>
 							)}
 

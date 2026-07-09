@@ -20,6 +20,7 @@
 		"build:ci:preview": "wrangler d1 migrations apply DB --remote --env preview && CLOUDFLARE_ENV=preview vite build",
 		"build:geodata": "node scripts/build-aop-geodata.mjs",
 		"build:geodata:italy": "node scripts/build-italy-geodata.mjs",
+		"build:centroids": "node scripts/build-aop-centroids.mjs",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate:local": "wrangler d1 migrations apply DB --local",
 		"db:migrate:remote": "wrangler d1 migrations apply DB --remote",
