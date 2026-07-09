@@ -1,5 +1,5 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { PlayIcon } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { LogInIcon, PlayIcon } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { QUIZ_TYPE_LABELS_JA } from "#/lib/quiz/types";
@@ -9,18 +9,19 @@ import { getSession } from "#/server/auth";
 import { getQuizProgress } from "#/server/quiz";
 
 export const Route = createFileRoute("/quiz/progress")({
+	// 未ログインでも開けるが、進捗はユーザ固有データなのでログイン時のみ取得する
 	beforeLoad: async () => {
 		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
+		return { isAuthenticated: !!session };
 	},
-	loader: () => getQuizProgress(),
+	loader: ({ context }) => (context.isAuthenticated ? getQuizProgress() : null),
 	component: QuizProgressPage,
 });
 
 function QuizProgressPage() {
-	const { regions } = Route.useLoaderData();
+	const data = Route.useLoaderData();
+	if (!data) return <LoginPrompt />;
+	const { regions } = data;
 
 	return (
 		<main className="mx-auto max-w-2xl px-4 py-8">
@@ -41,6 +42,37 @@ function QuizProgressPage() {
 					<Link to="/quiz">クイズ設定に戻る</Link>
 				</Button>
 			</div>
+		</main>
+	);
+}
+
+function LoginPrompt() {
+	return (
+		<main className="mx-auto max-w-2xl px-4 py-8">
+			<h1 className="text-2xl font-semibold">学習の進捗</h1>
+			<Card className="mt-6">
+				<CardHeader>
+					<CardTitle>ログインすると進捗を確認できます</CardTitle>
+				</CardHeader>
+				<CardContent className="flex flex-col gap-4">
+					<p className="text-sm text-muted-foreground">
+						ログインすると回答結果が記録され、ここで地域×クイズ形式ごとの
+						学習の進捗を確認できます。ログインなしでもクイズには回答できますが、
+						回答結果は記録されません。
+					</p>
+					<div className="flex flex-wrap gap-2">
+						<Button asChild>
+							<Link to="/login">
+								<LogInIcon className="size-4" aria-hidden />
+								ログインする
+							</Link>
+						</Button>
+						<Button asChild variant="outline">
+							<Link to="/quiz">クイズ設定に戻る</Link>
+						</Button>
+					</div>
+				</CardContent>
+			</Card>
 		</main>
 	);
 }

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "#/components/ui/button";
 import {
 	Card,
@@ -8,15 +8,8 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { authClient } from "#/lib/auth-client";
-import { getSession } from "#/server/auth";
 
 export const Route = createFileRoute("/")({
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-	},
 	component: HomePage,
 });
 
@@ -36,8 +29,9 @@ function HomePage() {
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
 					<p className="text-sm text-muted-foreground">
-						{user?.name ? `${user.name} さん` : "ゲスト"}（{user?.email}）
-						としてログイン中です。
+						{user
+							? `${user.name ? `${user.name} さん` : "ゲスト"}（${user.email}）としてログイン中です。`
+							: "ログインすると学習の記録が保存されます。"}
 					</p>
 					<div className="flex flex-wrap gap-2">
 						<Button asChild>
@@ -46,9 +40,15 @@ function HomePage() {
 						<Button asChild>
 							<Link to="/quiz">クイズでAOPを覚える</Link>
 						</Button>
-						<Button asChild variant="outline">
-							<Link to="/profile">プロフィールを編集</Link>
-						</Button>
+						{user ? (
+							<Button asChild variant="outline">
+								<Link to="/profile">プロフィールを編集</Link>
+							</Button>
+						) : (
+							<Button asChild variant="outline">
+								<Link to="/login">ログイン</Link>
+							</Button>
+						)}
 					</div>
 				</CardContent>
 			</Card>

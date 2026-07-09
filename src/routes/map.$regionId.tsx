@@ -29,7 +29,6 @@ import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
 import { AOP_TAG_IDS, AOP_TAGS, type AopTagId } from "#/lib/wine/tags";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
 import type { AopKind } from "#/lib/wine/types";
-import { getSession } from "#/server/auth";
 
 const searchSchema = z.object({
 	/** ブドウ品種フィルタ(variety id) */
@@ -46,12 +45,6 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/map/$regionId")({
 	validateSearch: searchSchema,
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-	},
 	loader: ({ params }) => {
 		const region = getRegion(params.regionId);
 		if (!region?.enabled) {

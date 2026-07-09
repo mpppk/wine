@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { BarChart3Icon, PlayIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
@@ -12,11 +12,10 @@ import type { RegionId } from "#/lib/wine/types";
 import { getSession } from "#/server/auth";
 
 export const Route = createFileRoute("/quiz/")({
+	// 未ログインでも利用可能。ログイン状態はバナー表示の出し分けに使う
 	beforeLoad: async () => {
 		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
+		return { isAuthenticated: !!session };
 	},
 	// 静的データなのでサーバ関数は不要。loaderで直接返すとSSRにも乗る。
 	loader: () => {
@@ -33,6 +32,7 @@ export const Route = createFileRoute("/quiz/")({
 
 function QuizSetupPage() {
 	const { regions, countsByRegion } = Route.useLoaderData();
+	const { isAuthenticated } = Route.useRouteContext();
 	const [regionId, setRegionId] = useState<RegionId>(regions[0].id as RegionId);
 	const counts = countsByRegion[regionId];
 	// 地域を切り替えたら、その地域で成立する形式を全選択に戻す
@@ -62,6 +62,17 @@ function QuizSetupPage() {
 				4択クイズでAOPを暗記しましょう。未出題・不正解・忘れかけの問題が
 				優先して出題されます。
 			</p>
+
+			{!isAuthenticated && (
+				<div className="mt-4 rounded-xl border bg-muted/50 p-4 text-sm text-muted-foreground">
+					ログインなしでもクイズに回答できますが、回答結果は記録されません。
+					<Link to="/login" className="text-primary hover:underline">
+						ログイン
+					</Link>
+					すると回答結果が記録され、あなたに合わせた出題（未出題・苦手優先）と
+					進捗の確認ができます。
+				</div>
+			)}
 
 			<h2 className="mt-6 text-sm font-medium text-muted-foreground">地域</h2>
 			<div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">

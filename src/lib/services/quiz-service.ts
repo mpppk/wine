@@ -24,28 +24,31 @@ export interface GetNextQuestionsOptions {
 }
 
 export async function getNextQuestions(
-	userId: string,
+	// null = 未ログイン。実績が無いので全問未出題としてスケジューリングされる
+	userId: string | null,
 	options: GetNextQuestionsOptions,
 ): Promise<{ questions: QuizQuestion[] }> {
 	const { regionId, quizTypes, count, excludeKeys } = options;
 	const candidates = listCandidates(regionId, quizTypes);
 	if (candidates.length === 0) return { questions: [] };
 
-	const rows = await db
-		.select({
-			questionKey: quizQuestionStat.questionKey,
-			correctCount: quizQuestionStat.correctCount,
-			incorrectCount: quizQuestionStat.incorrectCount,
-			streak: quizQuestionStat.streak,
-			lastAnsweredAt: quizQuestionStat.lastAnsweredAt,
-		})
-		.from(quizQuestionStat)
-		.where(
-			and(
-				eq(quizQuestionStat.userId, userId),
-				eq(quizQuestionStat.regionId, regionId),
-			),
-		);
+	const rows = userId
+		? await db
+				.select({
+					questionKey: quizQuestionStat.questionKey,
+					correctCount: quizQuestionStat.correctCount,
+					incorrectCount: quizQuestionStat.incorrectCount,
+					streak: quizQuestionStat.streak,
+					lastAnsweredAt: quizQuestionStat.lastAnsweredAt,
+				})
+				.from(quizQuestionStat)
+				.where(
+					and(
+						eq(quizQuestionStat.userId, userId),
+						eq(quizQuestionStat.regionId, regionId),
+					),
+				)
+		: [];
 	const statsByKey = new Map<string, QuestionStatLike>(
 		rows.map((row) => [
 			row.questionKey,

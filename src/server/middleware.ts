@@ -12,3 +12,12 @@ export const authMiddleware = createMiddleware({ type: "function" }).server(
 		return next({ context: { user: session.user, session: session.session } });
 	},
 );
+
+/** ログイン任意のミドルウェア。未ログインなら user: null を注入する */
+export const optionalAuthMiddleware = createMiddleware({
+	type: "function",
+}).server(async ({ next }) => {
+	const request = getRequest();
+	const session = await auth.api.getSession({ headers: request.headers });
+	return next({ context: { user: session?.user ?? null } });
+});

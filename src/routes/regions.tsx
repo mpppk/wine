@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { MapIcon } from "lucide-react";
 import {
 	Card,
@@ -9,15 +9,8 @@ import {
 } from "#/components/ui/card";
 import { listRegions } from "#/lib/wine/service";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
-import { getSession } from "#/server/auth";
 
 export const Route = createFileRoute("/regions")({
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-	},
 	// 静的データなのでサーバ関数は不要。loaderで直接返すとSSRにも乗る。
 	loader: () => ({ regions: listRegions() }),
 	component: RegionsPage,

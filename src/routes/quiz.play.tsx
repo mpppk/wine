@@ -42,34 +42,43 @@ function parseQuizTypes(
 export const Route = createFileRoute("/quiz/play")({
 	validateSearch: searchSchema,
 	beforeLoad: async ({ search }) => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
 		if (!search.region || !getRegion(search.region)?.enabled) {
 			throw redirect({ to: "/quiz" });
 		}
+		// 未ログインでもプレイ可能。記録の有無だけが変わるので、
+		// SSR時点で確定するログイン状態を context で下に渡す
+		const session = await getSession();
+		return { isAuthenticated: !!session };
 	},
 	component: QuizPlayPage,
 });
 
 function QuizPlayPage() {
 	const { region, types } = Route.useSearch();
+	const { isAuthenticated } = Route.useRouteContext();
 	// beforeLoad で region 未指定は /quiz へリダイレクト済み
 	if (!region) return null;
-	return <QuizSession regionId={region} types={types} />;
+	return (
+		<QuizSession
+			regionId={region}
+			types={types}
+			isAuthenticated={isAuthenticated}
+		/>
+	);
 }
 
 function QuizSession({
 	regionId,
 	types,
+	isAuthenticated,
 }: {
 	regionId: RegionId;
 	types: string | undefined;
+	isAuthenticated: boolean;
 }) {
 	const quizTypes = parseQuizTypes(types, regionId);
 	const { phase, current, selectedOptionId, tally, answer, next } =
-		useQuizSession(regionId, quizTypes);
+		useQuizSession(regionId, quizTypes, isAuthenticated);
 	const regionName = getRegion(regionId)?.nameJa;
 
 	return (
