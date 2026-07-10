@@ -70,6 +70,23 @@ bunx wrangler secret put STRIPE_SECRET_KEY                # sk_live_...
 ローカル開発(`.dev.vars`)では `stripe listen --forward-to http://localhost:3000/api/auth/stripe/webhook`
 が発行する一時シークレット(`whsec_...`)を使うため、Terraform の webhook_secret は使わない。
 
+## CI (GitHub Actions)
+
+`terraform/**` を変更する PR では `.github/workflows/terraform.yml` が実行される:
+
+- **fmt チェックと validate**: 常に実行(資格情報不要)
+- **plan**: 以下の GitHub Secrets(リポジトリの Settings → Secrets and variables → Actions)が
+  設定されている場合のみ実行。未設定ならスキップして notice を出す
+
+| Secret 名 | 内容 |
+|---|---|
+| `TF_R2_ACCESS_KEY_ID` | R2 APIトークンの Access Key ID(state 読み取り用) |
+| `TF_R2_SECRET_ACCESS_KEY` | R2 APIトークンの Secret Access Key |
+| `STRIPE_TEST_API_KEY` | テストモードの `sk_test_...`(preview の plan 用) |
+| `STRIPE_LIVE_API_KEY` | ライブモードの `sk_live_...`(production の plan 用) |
+
+plan は読み取りのみで Stripe に書き込まない。apply は CI では行わず手元から実行する運用とする。
+
 ## 運用上の注意
 
 - **Price は実質イミュータブル**: 金額変更は既存 Price の更新ではなく「新 Price 作成 → wrangler.jsonc の
