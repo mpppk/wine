@@ -49,8 +49,9 @@
 				"RAKUTEN_AFFILIATE_ID": "",
 				"MOSHIMO_AMAZON_A_ID": "",
 				// preview はテストモードの price ID を設定する(本番と分離)。
-				"STRIPE_PRICE_ID_MONTHLY": "",
-				"STRIPE_PRICE_ID_ANNUAL": ""
+				// terraform/preview の apply 出力(Terraform Apply ワークフローの Summary)より。
+				"STRIPE_PRICE_ID_MONTHLY": "price_1TreYADizKHip7Oqhgu3GfeF",
+				"STRIPE_PRICE_ID_ANNUAL": "price_1TreYADizKHip7Oqe42XBh2x"
 			},
 			"d1_databases": [
 				{
