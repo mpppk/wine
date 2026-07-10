@@ -29,9 +29,10 @@ export const GRAND_CRU_TAG_COLOR = KIND_COLORS.vineyard;
 // 色はベースマップ(positron, surface #f2f0ec)に馴染む暖色系グレーで、
 // AOPポリゴンの赤系ランプとは競合しない。
 export const REGION_BOUNDARY_STYLE = {
-	/** 地方外グレーアウトのスクリム色と不透明度 */
-	maskColor: "#e9e6df",
-	maskOpacity: 0.6,
+	/** 地方外グレーアウトのスクリム色と不透明度。ベースマップ(明色)より一段
+	 * 暗いグレーにしないと沈んで見えないので、変更時は実表示で確認すること */
+	maskColor: "#c6c2b8",
+	maskOpacity: 0.45,
 	/** 地方輪郭線 */
 	regionLine: "#8a8578",
 	/** 地区境界線(破線)。選択AOPの属する地区は active 色の実線で強調する */

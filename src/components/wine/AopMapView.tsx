@@ -298,8 +298,16 @@ export function AopMapView({
 						filter: ["==", ["get", "level"], "region"],
 						paint: {
 							"line-color": REGION_BOUNDARY_STYLE.regionLine,
-							"line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 12, 2],
-							"line-opacity": 0.8,
+							"line-width": [
+								"interpolate",
+								["linear"],
+								["zoom"],
+								6,
+								1.5,
+								12,
+								2.5,
+							],
+							"line-opacity": 0.85,
 						},
 					});
 					map.addLayer({
