@@ -1,0 +1,84 @@
+name: Terraform
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform Validate & Plan (${{ matrix.env }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: preview
+            # テストモードの Stripe キーを入れる GitHub Secret 名
+            stripe_key_secret: STRIPE_TEST_API_KEY
+          - env: production
+            stripe_key_secret: STRIPE_LIVE_API_KEY
+    defaults:
+      run:
+        working-directory: terraform/${{ matrix.env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.4"
+
+      - name: Format check
+        if: matrix.env == 'preview' # リポジトリ全体に1回で足りる
+        run: terraform fmt -check -recursive ..
+
+      # validate は資格情報不要(バックエンドなしで初期化)なので常に実行する
+      - name: Validate
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      # secrets コンテキストは if 式で参照できないため、env 経由で有無を判定する
+      - name: Check credentials
+        id: creds
+        env:
+          R2_ACCESS_KEY: ${{ secrets.TF_R2_ACCESS_KEY_ID }}
+          STRIPE_KEY: ${{ secrets[matrix.stripe_key_secret] }}
+        run: |
+          if [ -n "$R2_ACCESS_KEY" ] && [ -n "$STRIPE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # plan は R2(state) と Stripe の資格情報が必要。Secrets 未設定ならスキップする。
+      # Stripe への書き込みは行わない(plan は読み取りのみ)。
+      - name: Plan
+        if: steps.creds.outputs.available == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_R2_SECRET_ACCESS_KEY }}
+          STRIPE_API_KEY: ${{ secrets[matrix.stripe_key_secret] }}
+        run: |
+          terraform init -reconfigure -input=false
+          terraform plan -input=false -no-color
+
+      - name: Plan skipped notice
+        if: steps.creds.outputs.available != 'true'
+        run: |
+          echo "::notice title=Terraform plan (${{ matrix.env }}) をスキップ::GitHub Secrets (TF_R2_ACCESS_KEY_ID / TF_R2_SECRET_ACCESS_KEY / ${{ matrix.stripe_key_secret }}) が未設定のため validate のみ実行しました。設定方法は terraform/README.md を参照。"
