@@ -12,6 +12,7 @@ export const REGIONS: Region[] = [
 		enabled: true,
 		bounds: [3.35763, 45.82261, 5.102, 48.0601],
 		geojsonPath: "/data/aop/bourgogne.geojson",
+		boundariesPath: "/data/aop/bourgogne-boundaries.geojson",
 		subregions: [
 			{
 				id: "chablis-grand-auxerrois",
@@ -36,6 +37,7 @@ export const REGIONS: Region[] = [
 		enabled: true,
 		bounds: [4.41813, 45.82261, 4.81169, 46.28572],
 		geojsonPath: "/data/aop/beaujolais.geojson",
+		boundariesPath: "/data/aop/beaujolais-boundaries.geojson",
 		subregions: [{ id: "beaujolais", nameJa: "ボジョレー" }],
 		description:
 			"ガメイ種の本拠地。花崗岩土壌の丘陵に10のクリュが連なり、" +
@@ -50,6 +52,7 @@ export const REGIONS: Region[] = [
 		enabled: true,
 		bounds: [6.84835, 44.14242, 9.21425, 46.29929],
 		geojsonPath: "/data/aop/piemonte.geojson",
+		boundariesPath: "/data/aop/piemonte-boundaries.geojson",
 		boundaryAttribution:
 			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
 		subregions: [
@@ -75,6 +78,7 @@ export const REGIONS: Region[] = [
 		enabled: true,
 		bounds: [-1.1688, 44.32404, 0.31512, 45.57516],
 		geojsonPath: "/data/aop/bordeaux.geojson",
+		boundariesPath: "/data/aop/bordeaux-boundaries.geojson",
 		subregions: [
 			{ id: "medoc", nameJa: "メドック(左岸)" },
 			{ id: "graves-sauternais", nameJa: "グラーヴ / ソーテルヌ" },
@@ -96,6 +100,7 @@ export const REGIONS: Region[] = [
 		enabled: true,
 		bounds: [7.09082, 47.7914, 7.95264, 49.05447],
 		geojsonPath: "/data/aop/alsace.geojson",
+		boundariesPath: "/data/aop/alsace-boundaries.geojson",
 		subregions: [
 			{ id: "bas-rhin", nameJa: "バ・ラン(北部)" },
 			{ id: "haut-rhin", nameJa: "オー・ラン(南部)" },
@@ -114,6 +119,7 @@ export const REGIONS: Region[] = [
 		enabled: true,
 		bounds: [3.13668, 47.92368, 4.89491, 49.45536],
 		geojsonPath: "/data/aop/champagne.geojson",
+		boundariesPath: "/data/aop/champagne-boundaries.geojson",
 		subregions: [
 			{ id: "montagne-de-reims", nameJa: "モンターニュ・ド・ランス" },
 			{ id: "vallee-de-la-marne", nameJa: "ヴァレ・ド・ラ・マルヌ" },

@@ -161,6 +161,65 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 	});
 });
 
+describe("境界GeoJSON(<region>-boundaries.geojson)の整合性", () => {
+	const enabledRegions = REGIONS.filter((r) => r.enabled);
+
+	it.each(
+		enabledRegions.map((r) => [r.id, r] as const),
+	)("%s: 境界GeoJSONが存在し地方1つ+有効な地区で構成される", (_id, region) => {
+		const boundariesPath = path.join(
+			process.cwd(),
+			"public",
+			region.boundariesPath ?? "",
+		);
+		expect(fs.existsSync(boundariesPath), boundariesPath).toBe(true);
+
+		const geojson = JSON.parse(fs.readFileSync(boundariesPath, "utf8")) as {
+			features: {
+				geometry: { type: string };
+				properties: {
+					level: string;
+					regionId?: string;
+					subregionId?: string;
+					nameJa: string;
+				};
+			}[];
+		};
+
+		// 地方(level=region)はちょうど1つで、regionId が一致する
+		const regionFeatures = geojson.features.filter(
+			(f) => f.properties.level === "region",
+		);
+		expect(regionFeatures.length).toBe(1);
+		expect(regionFeatures[0].properties.regionId).toBe(region.id);
+
+		// 地区(level=subregion)は地域マスタの地理的地区(`*-regional` 以外)の
+		// サブセット。収録AOPが無い地区(cote-de-sezanne 等)は欠けてよい
+		const geographicIds = new Set(
+			region.subregions
+				.filter((s) => !s.id.endsWith("-regional"))
+				.map((s) => s.id),
+		);
+		const subregionFeatures = geojson.features.filter(
+			(f) => f.properties.level === "subregion",
+		);
+		const seen = new Set<string>();
+		for (const f of subregionFeatures) {
+			const id = f.properties.subregionId ?? "";
+			expect(geographicIds.has(id), `${region.id}: ${id}`).toBe(true);
+			expect(seen.has(id), `${region.id}: duplicate ${id}`).toBe(false);
+			seen.add(id);
+		}
+		expect(geojson.features.length).toBe(1 + subregionFeatures.length);
+
+		// 全フィーチャが面で nameJa を持つ
+		for (const f of geojson.features) {
+			expect(["Polygon", "MultiPolygon"]).toContain(f.geometry.type);
+			expect(f.properties.nameJa.length).toBeGreaterThan(0);
+		}
+	});
+});
+
 describe("GeoJSONとの整合性", () => {
 	const enabledRegions = REGIONS.filter((r) => r.enabled);
 

@@ -16,6 +16,7 @@ import {
 	kindLineColorExpr,
 	progressFillColorExpr,
 	progressLineColorExpr,
+	REGION_BOUNDARY_STYLE,
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape } from "#/lib/wine/service";
 import { type AopTagId, formatAopTagJa } from "#/lib/wine/tags";
@@ -27,6 +28,16 @@ const FILL_LAYER = "aop-fill";
 const LINE_LAYER = "aop-line";
 // シャトー(winery)はポリゴンでなく点なので専用の circle レイヤで描く
 const WINERY_LAYER = "aop-winery";
+// 地方・地区境界(<region>-boundaries.geojson)。AOPレイヤの下に地方外マスクと
+// 境界線を敷き、選択AOPの属する地区の強調線だけAOPポリゴンの上に重ねる
+const BOUNDARIES_SOURCE_ID = "region-boundaries";
+const MASK_SOURCE_ID = "region-mask";
+const MASK_LAYER = "region-mask-fill";
+const REGION_OUTLINE_LAYER = "region-outline";
+const SUBREGION_LINE_LAYER = "subregion-line";
+const SUBREGION_ACTIVE_LAYER = "subregion-line-active";
+// 地区強調線の初期filter用。どの subregionId にも一致しない番兵値
+const NO_SUBREGION = "__none__";
 
 export interface AopMapViewProps {
 	region: Region;
@@ -103,6 +114,40 @@ function computeBounds(
 		return [x, y, x, y];
 	}
 	return undefined;
+}
+
+// 地方外グレーアウト用の inverse mask。世界を覆う外周リングに、地方輪郭の
+// 各外周リングを穴として開ける(地方の内側だけスクリムが掛からない)。
+// boundaries データは build:boundaries が内側の穴(enclave)を落としている前提。
+function buildInverseMask(geometry: Geometry): FeatureCollection {
+	const holes =
+		geometry.type === "Polygon"
+			? [geometry.coordinates[0]]
+			: geometry.type === "MultiPolygon"
+				? geometry.coordinates.map((poly) => poly[0])
+				: [];
+	return {
+		type: "FeatureCollection",
+		features: [
+			{
+				type: "Feature",
+				properties: {},
+				geometry: {
+					type: "Polygon",
+					coordinates: [
+						[
+							[-180, -85],
+							[180, -85],
+							[180, 85],
+							[-180, 85],
+							[-180, -85],
+						],
+						...holes,
+					],
+				},
+			},
+		],
+	};
 }
 
 // hover/クリック位置のフィーチャから「最も区分ランクの高い(=最前面の)」ものを選ぶ。
@@ -199,13 +244,92 @@ export function AopMapView({
 			map.on("load", async () => {
 				if (cancelled) return;
 				// bbox計算のためGeoJSONは自前でfetchしてdataで渡す(二重fetch回避)
-				const res = await fetch(region.geojsonPath ?? "");
+				const [res, boundariesRes] = await Promise.all([
+					fetch(region.geojsonPath ?? ""),
+					region.boundariesPath
+						? fetch(region.boundariesPath).catch(() => undefined)
+						: Promise.resolve(undefined),
+				]);
 				if (cancelled || !res.ok) return;
 				const geojson = (await res.json()) as FeatureCollection;
 				for (const f of geojson.features) {
 					const idApp = Number(f.properties?.idApp);
 					const b = computeBounds(f.geometry);
 					if (idApp && b) boundsRef.current[idApp] = b;
+				}
+				// 境界データは任意。取得失敗時はマスク・境界線なしで描画を続行する
+				let boundaries: FeatureCollection | undefined;
+				if (boundariesRes?.ok) {
+					boundaries = (await boundariesRes.json()) as FeatureCollection;
+				} else if (region.boundariesPath) {
+					console.warn(`boundaries fetch failed: ${region.boundariesPath}`);
+				}
+				if (cancelled) return;
+
+				if (boundaries) {
+					// 地方外マスクと地方輪郭・地区破線はAOPレイヤの下に敷く
+					const regionFeature = boundaries.features.find(
+						(f) => f.properties?.level === "region",
+					);
+					if (regionFeature) {
+						map.addSource(MASK_SOURCE_ID, {
+							type: "geojson",
+							data: buildInverseMask(regionFeature.geometry),
+						});
+						map.addLayer({
+							id: MASK_LAYER,
+							type: "fill",
+							source: MASK_SOURCE_ID,
+							paint: {
+								"fill-color": REGION_BOUNDARY_STYLE.maskColor,
+								"fill-opacity": REGION_BOUNDARY_STYLE.maskOpacity,
+							},
+						});
+					}
+					map.addSource(BOUNDARIES_SOURCE_ID, {
+						type: "geojson",
+						data: boundaries,
+						attribution: region.boundaryAttribution,
+					});
+					map.addLayer({
+						id: REGION_OUTLINE_LAYER,
+						type: "line",
+						source: BOUNDARIES_SOURCE_ID,
+						filter: ["==", ["get", "level"], "region"],
+						paint: {
+							"line-color": REGION_BOUNDARY_STYLE.regionLine,
+							"line-width": [
+								"interpolate",
+								["linear"],
+								["zoom"],
+								6,
+								1.5,
+								12,
+								2.5,
+							],
+							"line-opacity": 0.85,
+						},
+					});
+					map.addLayer({
+						id: SUBREGION_LINE_LAYER,
+						type: "line",
+						source: BOUNDARIES_SOURCE_ID,
+						filter: ["==", ["get", "level"], "subregion"],
+						paint: {
+							"line-color": REGION_BOUNDARY_STYLE.subregionLine,
+							"line-width": [
+								"interpolate",
+								["linear"],
+								["zoom"],
+								7,
+								1,
+								12,
+								1.8,
+							],
+							"line-opacity": 0.5,
+							"line-dasharray": REGION_BOUNDARY_STYLE.subregionDash,
+						},
+					});
 				}
 
 				map.addSource(SOURCE_ID, {
@@ -255,6 +379,29 @@ export function AopMapView({
 						],
 					},
 				});
+				// 選択AOPの属する地区の強調線。AOPポリゴンに埋もれないよう上に重ねる
+				// (filter は applySelection が選択AOPの subregionId に差し替える)
+				if (boundaries) {
+					map.addLayer({
+						id: SUBREGION_ACTIVE_LAYER,
+						type: "line",
+						source: BOUNDARIES_SOURCE_ID,
+						filter: ["==", ["get", "subregionId"], NO_SUBREGION],
+						paint: {
+							"line-color": REGION_BOUNDARY_STYLE.subregionActiveLine,
+							"line-width": [
+								"interpolate",
+								["linear"],
+								["zoom"],
+								7,
+								1.8,
+								12,
+								3,
+							],
+							"line-opacity": 0.85,
+						},
+					});
+				}
 				// シャトー(winery): ポイントマーカー。ポリゴンの最前面に置く
 				map.addLayer({
 					id: WINERY_LAYER,
@@ -424,21 +571,31 @@ export function AopMapView({
 	const applySelection = () => {
 		const map = mapRef.current;
 		if (!map || !loadedRef.current) return;
+		let selected: Aop | undefined;
 		for (const aop of stateRef.current.aopsByIdApp.values()) {
+			const isSelected = aop.id === selectedAopId;
+			if (isSelected) selected = aop;
 			map.setFeatureState(
 				{ source: SOURCE_ID, id: aop.idApp },
-				{ selected: aop.id === selectedAopId },
+				{ selected: isSelected },
 			);
 		}
-		if (selectedAopId) {
-			let selected: Aop | undefined;
-			for (const a of stateRef.current.aopsByIdApp.values()) {
-				if (a.id === selectedAopId) {
-					selected = a;
-					break;
-				}
-			}
-			const b = selected ? boundsRef.current[selected.idApp] : undefined;
+		// 選択AOPの属する地区の境界線を実線で強調する。`*-regional`(広域AOCの
+		// 置き場)は地理的地区ではないので強調しない。境界データが無い場合や
+		// 地区ポリゴンが無い地区(収録AOPが無い地区)は何も描かれない
+		if (map.getLayer(SUBREGION_ACTIVE_LAYER)) {
+			const subregionId =
+				selected && !selected.subregionId.endsWith("-regional")
+					? selected.subregionId
+					: NO_SUBREGION;
+			map.setFilter(SUBREGION_ACTIVE_LAYER, [
+				"==",
+				["get", "subregionId"],
+				subregionId,
+			]);
+		}
+		if (selected) {
+			const b = boundsRef.current[selected.idApp];
 			if (b) {
 				map.fitBounds(b, { padding: 80, maxZoom: 13.5, duration: 600 });
 			}
