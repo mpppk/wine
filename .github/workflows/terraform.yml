@@ -53,10 +53,23 @@ jobs:
           terraform init -backend=false -input=false
           terraform validate
 
+      # secrets コンテキストは if 式で参照できないため、env 経由で有無を判定する
+      - name: Check credentials
+        id: creds
+        env:
+          R2_ACCESS_KEY: ${{ secrets.TF_R2_ACCESS_KEY_ID }}
+          STRIPE_KEY: ${{ secrets[matrix.stripe_key_secret] }}
+        run: |
+          if [ -n "$R2_ACCESS_KEY" ] && [ -n "$STRIPE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # plan は R2(state) と Stripe の資格情報が必要。Secrets 未設定ならスキップする。
       # Stripe への書き込みは行わない(plan は読み取りのみ)。
       - name: Plan
-        if: ${{ secrets.TF_R2_ACCESS_KEY_ID != '' && secrets[matrix.stripe_key_secret] != '' }}
+        if: steps.creds.outputs.available == 'true'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_R2_SECRET_ACCESS_KEY }}
@@ -66,6 +79,6 @@ jobs:
           terraform plan -input=false -no-color
 
       - name: Plan skipped notice
-        if: ${{ secrets.TF_R2_ACCESS_KEY_ID == '' || secrets[matrix.stripe_key_secret] == '' }}
+        if: steps.creds.outputs.available != 'true'
         run: |
           echo "::notice title=Terraform plan (${{ matrix.env }}) をスキップ::GitHub Secrets (TF_R2_ACCESS_KEY_ID / TF_R2_SECRET_ACCESS_KEY / ${{ matrix.stripe_key_secret }}) が未設定のため validate のみ実行しました。設定方法は terraform/README.md を参照。"
