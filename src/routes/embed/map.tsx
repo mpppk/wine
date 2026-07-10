@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
+import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import {
 	buildAopTree,
 	flattenAopTree,
@@ -65,6 +66,9 @@ function EmbedMapPage() {
 			: undefined;
 	useAopKeyNav({ onPrev: goPrev, onNext: goNext, enabled: !!selectedAop });
 
+	// 下部(モバイル)/右側(sm+)の詳細パネルが覆う分を地図の中心合わせから除外する
+	const { panelRef, getInset } = useMapOverlayInset();
+
 	if (!region) {
 		return (
 			<p className="p-4 text-sm text-muted-foreground">
@@ -87,6 +91,7 @@ function EmbedMapPage() {
 				grapeVarietyId={grapeVariety?.id}
 				visibleKinds={AOP_KINDS}
 				onSelectAop={setSelectedAopId}
+				getFitInset={getInset}
 				className="h-full w-full"
 			/>
 
@@ -107,7 +112,10 @@ function EmbedMapPage() {
 			</div>
 
 			{selectedAop && (
-				<div className="absolute inset-x-2 bottom-2 max-h-[60%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur sm:inset-x-auto sm:right-2 sm:w-80">
+				<div
+					ref={panelRef}
+					className="absolute inset-x-2 bottom-2 max-h-[60%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur sm:inset-x-auto sm:right-2 sm:w-80"
+				>
 					<AopDetailPanel
 						aop={selectedAop}
 						ancestry={selectedAncestry}

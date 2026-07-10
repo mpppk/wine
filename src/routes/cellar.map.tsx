@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { AopMapView } from "#/components/wine/AopMapView";
+import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
@@ -144,6 +145,9 @@ function CellarMapPage() {
 		[linkedEntries, selectedAopId],
 	);
 
+	// モバイルの下部パネルが覆う分を地図の中心合わせから除外する
+	const { panelRef, getInset } = useMapOverlayInset();
+
 	if (entries.length === 0) {
 		return (
 			<main className="mx-auto max-w-2xl px-4 py-10">
@@ -234,6 +238,7 @@ function CellarMapPage() {
 						visibleKinds={presentKinds}
 						highlightAopIds={highlightAopIds}
 						onSelectAop={setSelectedAopId}
+						getFitInset={getInset}
 						className="min-w-0 flex-1"
 					/>
 				) : (
@@ -257,7 +262,10 @@ function CellarMapPage() {
 								onClose={() => setSelectedAopId(undefined)}
 							/>
 						</aside>
-						<div className="absolute inset-x-2 bottom-2 max-h-[55%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur lg:hidden">
+						<div
+							ref={panelRef}
+							className="absolute inset-x-2 bottom-2 max-h-[55%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur lg:hidden"
+						>
 							<AopWinePanel
 								aopNameJa={selectedAop.nameJa}
 								entries={selectedAopEntries}

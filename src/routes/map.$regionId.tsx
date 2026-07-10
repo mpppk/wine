@@ -22,6 +22,7 @@ import { AopMapView } from "#/components/wine/AopMapView";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterSelect } from "#/components/wine/GrapeFilterSelect";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
+import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import { countScopedQuestions } from "#/lib/quiz/scope";
 import {
 	buildAopTree,
@@ -229,6 +230,9 @@ function MapPage() {
 			? () => setSearch({ aop: siblings.nextId })
 			: undefined;
 	useAopKeyNav({ onPrev: goPrev, onNext: goNext, enabled: !!selectedAop });
+
+	// モバイルの下部詳細パネルが覆う分を地図の中心合わせから除外する
+	const { panelRef, getInset } = useMapOverlayInset();
 
 	const toggleKind = (k: AopKind) => {
 		const next = visibleKinds.includes(k)
@@ -447,6 +451,7 @@ function MapPage() {
 						colorMode={colorMode}
 						progressByIdApp={progressByIdApp}
 						onSelectAop={(id) => setSearch({ aop: id })}
+						getFitInset={getInset}
 						className="min-w-0 flex-1"
 					/>
 				)}
@@ -530,7 +535,10 @@ function MapPage() {
 
 				{/* モバイル: 詳細を下部オーバーレイで表示 */}
 				{selectedAop && (
-					<div className="absolute inset-x-2 bottom-2 max-h-[55%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur lg:hidden">
+					<div
+						ref={panelRef}
+						className="absolute inset-x-2 bottom-2 max-h-[55%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur lg:hidden"
+					>
 						<AopDetailPanel
 							aop={selectedAop}
 							ancestry={selectedAncestry}
