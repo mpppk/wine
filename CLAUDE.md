@@ -16,7 +16,7 @@
 ## DBスキーマ変更を含むPR
 
 * マイグレーションは `drizzle/` に連番SQLで追加する。better-auth 関連（`user`/`session`/`organization`/`oauth_*` 等）は better-auth のスキーマ定義と突合する。`wrangler d1 migrations apply DB` が連番SQLを適用する（`drizzle.config.ts` は `src/db/schema.ts` を追跡するが、当該ファイルは現在ドメインテーブル未定義のプレースホルダである点に注意）。
-* デプロイ前に `bun run db:migrate:remote`（本番）/ `bun run db:migrate:preview`（プレビュー）の適用が必要な場合、PR の description に明記する。
+* マイグレーションはデプロイ時に自動適用される。Cloudflare Workers Builds の各トリガーの deploy command が、ビルド成功後・デプロイ直前に `db:migrate:remote`（本番 `wine`）/ `db:migrate:preview`（プレビュー `wine-preview`）を実行するため、デプロイ前に手動で叩く必要はない。構成の詳細・確認/変更手順は `docs/deployment.md` を参照。
 
 ## PRの作成
 
