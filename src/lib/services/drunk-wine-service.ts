@@ -174,7 +174,7 @@ export async function setDrunkWinePhoto(
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
 	if (!existing) throw new Error("Entry not found");
 
-	const key = buildWinePhotoKey(userId, id, mimeType);
+	const key = buildWinePhotoKey(id, mimeType);
 	await env.AVATARS.put(key, bytes, {
 		httpMetadata: { contentType: mimeType },
 	});
@@ -186,5 +186,7 @@ export async function setDrunkWinePhoto(
 		.set({ photoKey: key })
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning();
+	// 存在確認との間に行が消された場合(並行削除)
+	if (!row) throw new Error("Entry not found");
 	return toEntry(row);
 }

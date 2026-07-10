@@ -30,8 +30,10 @@ export const Route = createFileRoute("/cellar/$entryId/edit")({
 	loader: async ({ params }) => {
 		try {
 			return await getDrunkWine({ data: { id: params.entryId } });
-		} catch {
-			// 存在しない/他ユーザのエントリは一覧へ逃がす
+		} catch (e) {
+			// 存在しない/他ユーザのエントリは一覧へ逃がす。それ以外の失敗
+			// (D1一時エラー等)も同じ導線になるため、原因はログに残す
+			console.error("failed to load drunk wine entry:", e);
 			throw redirect({ to: "/cellar" });
 		}
 	},

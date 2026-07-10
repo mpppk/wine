@@ -1,21 +1,17 @@
 // ワイン写真の共通制約とR2キー生成。Webのアップロードルートと
 // MCPツール(base64受け取り)の両方から使う純関数群。
 
-export const ALLOWED_PHOTO_TYPES = new Set([
-	"image/jpeg",
-	"image/png",
-	"image/webp",
-	"image/gif",
-]);
-
-export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-
+// 許可MIMEの単一の真実。Set やフォームの accept 属性はここから導出する
 export const PHOTO_EXT_MAP: Record<string, string> = {
 	"image/jpeg": "jpg",
 	"image/png": "png",
 	"image/webp": "webp",
 	"image/gif": "gif",
 };
+
+export const ALLOWED_PHOTO_TYPES = new Set(Object.keys(PHOTO_EXT_MAP));
+
+export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 /**
  * base64文字列をバイト列にデコードする。MIME不正・base64不正・
@@ -44,13 +40,12 @@ export function decodePhotoBase64(
 	return bytes;
 }
 
-/** R2キー。entryIdはUUIDなのでURLの推測不能性はここに依存する */
-export function buildWinePhotoKey(
-	userId: string,
-	entryId: string,
-	mimeType: string,
-): string {
+/**
+ * R2キー。entryIdはUUIDなのでURLの推測不能性はここに依存する。
+ * 配信URLはMCPホストのログ等に残るため、userId をキーに含めない。
+ */
+export function buildWinePhotoKey(entryId: string, mimeType: string): string {
 	const ext = PHOTO_EXT_MAP[mimeType];
 	if (!ext) throw new Error(`Unsupported image type: ${mimeType}`);
-	return `wines/${userId}/${entryId}.${ext}`;
+	return `wines/${entryId}.${ext}`;
 }

@@ -83,7 +83,9 @@ export const registerDrunkWineInput = {
 		.describe("写真のMIMEタイプ (photo_base64 指定時は必須)"),
 };
 
-// 更新は id のみ必須。未指定フィールドは変更しない(MCPではnullクリアは扱わない)。
+// 更新は id のみ必須。未指定(undefined)フィールドは変更せず、null は
+// 「クリアする」の意(App編集フォームが空欄への変更を null で送る)。
+// name は必須フィールドなのでクリア不可。
 export const updateDrunkWineInput = {
 	id: z
 		.string()
@@ -92,6 +94,36 @@ export const updateDrunkWineInput = {
 		.describe(
 			"更新するエントリのID (register_drunk_wine / list_drunk_wines の entry.id)",
 		),
-	...registerDrunkWineInput,
 	name: drunkWineFields.name.optional().describe("ワイン名(ラベル表記)"),
+	drank_on: drunkWineFields.drankOn
+		.nullable()
+		.describe("飲んだ日 (YYYY-MM-DD)。null でクリア"),
+	aop_id: drunkWineFields.aopId
+		.nullable()
+		.describe("紐付けるAOPのID (list_aopsのid)。null でクリア"),
+	rating: drunkWineFields.rating
+		.nullable()
+		.describe("評価 (1〜5の整数)。null でクリア"),
+	memo: drunkWineFields.memo
+		.nullable()
+		.describe("メモ・感想 (2000文字まで)。null でクリア"),
+	vintage: drunkWineFields.vintage
+		.nullable()
+		.describe("ヴィンテージ (1800〜2100の年)。null でクリア"),
+	grape_variety_ids: drunkWineFields.grapeVarietyIds.describe(
+		"ぶどう品種ID (list_grape_varietiesのid。最大20件)。空配列でクリア",
+	),
+	producer: drunkWineFields.producer
+		.nullable()
+		.describe("生産者名 (200文字まで)。null でクリア"),
+	price: drunkWineFields.price.nullable().describe("価格 (円)。null でクリア"),
+	photo_base64: z
+		.string()
+		.max(7_100_000)
+		.optional()
+		.describe("差し替えるボトル写真のbase64。デコード後5MBまで"),
+	photo_mime_type: z
+		.enum(["image/jpeg", "image/png", "image/webp", "image/gif"])
+		.optional()
+		.describe("写真のMIMEタイプ (photo_base64 指定時は必須)"),
 };

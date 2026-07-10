@@ -257,9 +257,14 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
     var h = '<h1>' + esc(entry.name || "飲んだワイン") + '</h1>' +
       '<p class="sub">マイセラーに記録しました。内容はこのまま編集できます。</p>';
     if (entry.photo_url){
-      var src = entry.photo_url;
-      try { src = new URL(entry.photo_url, BASE_URL).toString(); } catch(e){}
-      h += '<img class="photo" src="' + esc(src) + '" alt="ボトル写真">';
+      // entryはpostMessage由来の非信頼データなので、自アプリのオリジンの
+      // 画像URLのみ表示する(任意URLのimg読み込みを防ぐ)
+      var src = null;
+      try {
+        var u = new URL(entry.photo_url, BASE_URL);
+        if (u.origin === new URL(BASE_URL).origin) src = u.toString();
+      } catch(e){}
+      if (src) h += '<img class="photo" src="' + esc(src) + '" alt="ボトル写真">';
     }
     h += '<label for="f-name">名前 *</label>' +
       '<input id="f-name" value="' + esc(entry.name || "") + '">';
@@ -300,22 +305,27 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
       var el = document.getElementById(id);
       return el ? el.value.trim() : "";
     }
+    // 空欄への変更は null(=クリア)として送る。undefined(未設定)は変更なし
+    function diffText(id, cur, key){
+      var v = val(id);
+      if (v === (cur || "")) return;
+      p[key] = v === "" ? null : v;
+    }
+    function diffNum(id, cur, key){
+      var v = val(id);
+      if (v === "" ? cur == null : Number(v) === cur) return;
+      p[key] = v === "" ? null : Number(v);
+    }
+    // name は必須なので空欄は変更として扱わない(クリア不可)
     var name = val("f-name");
     if (name && name !== (entry.name || "")) p.name = name;
-    var drank = val("f-drank_on");
-    if (drank && drank !== (entry.drank_on || "")) p.drank_on = drank;
-    var rating = val("f-rating");
-    if (rating && Number(rating) !== entry.rating) p.rating = Number(rating);
-    var vintage = val("f-vintage");
-    if (vintage && Number(vintage) !== entry.vintage) p.vintage = Number(vintage);
-    var price = val("f-price");
-    if (price && Number(price) !== entry.price) p.price = Number(price);
-    var producer = val("f-producer");
-    if (producer && producer !== (entry.producer || "")) p.producer = producer;
-    var aop = val("f-aop_id");
-    if (aop && aop !== (entry.aop_id || "")) p.aop_id = aop;
-    var memo = val("f-memo");
-    if (memo && memo !== (entry.memo || "")) p.memo = memo;
+    diffText("f-drank_on", entry.drank_on, "drank_on");
+    diffNum("f-rating", entry.rating, "rating");
+    diffNum("f-vintage", entry.vintage, "vintage");
+    diffNum("f-price", entry.price, "price");
+    diffText("f-producer", entry.producer, "producer");
+    diffText("f-aop_id", entry.aop_id, "aop_id");
+    diffText("f-memo", entry.memo, "memo");
     var ids = null;
     var boxes = document.querySelectorAll("input.gv");
     if (boxes.length){
@@ -334,18 +344,22 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
     return p;
   }
   function save(){
-    if (pending || !entry) return;
+    if (!entry) return;
+    // 前回の保存が応答待ちでも新しい保存で置き換える(古い応答はid不一致で無視)
+    if (pending) clearTimeout(pending.timer);
     var patch = collectPatch();
     if (!Object.keys(patch).length){ setStatus("変更はありません", false); return; }
     patch.id = entry.id;
     var btn = document.getElementById("f-save");
     if (btn) btn.disabled = true;
     setStatus("保存中…", false);
+    // ホストがツール実行のユーザ承認を挟むと応答まで時間がかかるため、
+    // タイムアウトでは pending を破棄せず(遅延応答も反映する)、
+    // ボタンだけ再有効化して注意書きを出す
     var timer = setTimeout(function(){
-      pending = null;
       if (btn) btn.disabled = false;
-      setStatus("このホストでは編集できません", true);
-    }, 10000);
+      setStatus("ホストの応答を待っています。ホストが編集(tools/call)に対応していない可能性もあります", true);
+    }, 30000);
     if (sepMode){
       var id = nextId++;
       pending = { kind: "sep", id: id, timer: timer };
@@ -378,6 +392,8 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
     setStatus("保存しました", false);
   }
   window.addEventListener("message", function(ev){
+    // ホスト(親ウィンドウ)以外からのメッセージは受け付けない
+    if (ev.source !== window.parent) return;
     var m = ev.data;
     if (!m || typeof m !== "object") return;
     // ui/initialize への応答 → SEPモード確定

@@ -8,7 +8,14 @@ export const Route = createFileRoute("/api/wine/varieties")({
 			GET: () =>
 				Response.json(
 					{ varieties: GRAPE_VARIETIES },
-					{ headers: { "Cache-Control": "public, max-age=3600" } },
+					{
+						headers: {
+							"Cache-Control": "public, max-age=3600",
+							// MCP App(ホスト側オリジンのsandbox iframe)から品種マスタを
+							// fetchするため。公開データなのでワイルドカードで問題ない
+							"Access-Control-Allow-Origin": "*",
+						},
+					},
 				),
 		},
 	},

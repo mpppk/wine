@@ -35,15 +35,13 @@ describe("decodePhotoBase64", () => {
 });
 
 describe("buildWinePhotoKey", () => {
-	it("wines/{userId}/{entryId}.{ext} 形式のキーを作る", () => {
-		expect(buildWinePhotoKey("u1", "e1", "image/jpeg")).toBe("wines/u1/e1.jpg");
-		expect(buildWinePhotoKey("u1", "e1", "image/webp")).toBe(
-			"wines/u1/e1.webp",
-		);
+	it("wines/{entryId}.{ext} 形式のキーを作る(userIdは含めない)", () => {
+		expect(buildWinePhotoKey("e1", "image/jpeg")).toBe("wines/e1.jpg");
+		expect(buildWinePhotoKey("e1", "image/webp")).toBe("wines/e1.webp");
 	});
 
 	it("未対応MIMEを拒否する", () => {
-		expect(() => buildWinePhotoKey("u1", "e1", "text/html")).toThrow(
+		expect(() => buildWinePhotoKey("e1", "text/html")).toThrow(
 			/Unsupported image type/,
 		);
 	});

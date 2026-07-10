@@ -7,9 +7,20 @@ import { z } from "zod";
 
 export const DRANK_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+// 形式だけでなく暦日として実在するか(2026-02-31等を拒否)。Webのdate inputは
+// 不正日付を作れないが、MCPクライアントは任意文字列を送れる。
+function isCalendarDate(s: string): boolean {
+	const d = new Date(`${s}T00:00:00Z`);
+	return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
 export const drunkWineFields = {
 	name: z.string().trim().min(1).max(200),
-	drankOn: z.string().regex(DRANK_ON_PATTERN).optional(),
+	drankOn: z
+		.string()
+		.regex(DRANK_ON_PATTERN)
+		.refine(isCalendarDate, "存在しない日付です")
+		.optional(),
 	aopId: z
 		.string()
 		.regex(/^[a-z0-9-]+$/)
