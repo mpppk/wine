@@ -84,7 +84,12 @@ jobs:
           terraform -chdir="terraform/$TF_ENV" apply -input=false -auto-approve
 
       # webhook 署名シークレットを Workers の secret へ投入する。
-      # preview は --env preview、production は既定(トップレベル)の worker。
+      # preview は versions デプロイ(deploy:preview = wrangler versions upload / Workers Builds)
+      # で運用しているため、即デプロイ型の `wrangler secret put` は
+      # "latest version isn't currently deployed" で弾かれる。versions モデル用の
+      # `wrangler versions secret put`(新バージョンを作成し secret を登録。以降の
+      # デプロイに引き継がれる)を使う。production は `wrangler deploy` 運用なので
+      # 従来どおり `wrangler secret put`。
       # 値はシェル変数に取り込むだけでログには出さない(output は sensitive 指定済み)。
       - name: Push webhook secret to Workers
         env:
@@ -107,7 +112,8 @@ jobs:
           if [ "$TF_ENV" = "production" ]; then
             printf '%s' "$WEBHOOK_SECRET" | bunx wrangler secret put STRIPE_WEBHOOK_SECRET
           else
-            printf '%s' "$WEBHOOK_SECRET" | bunx wrangler secret put STRIPE_WEBHOOK_SECRET --env preview
+            printf '%s' "$WEBHOOK_SECRET" | bunx wrangler versions secret put STRIPE_WEBHOOK_SECRET --env preview \
+              --message "STRIPE_WEBHOOK_SECRET via terraform-apply workflow"
           fi
 
       - name: Summary
