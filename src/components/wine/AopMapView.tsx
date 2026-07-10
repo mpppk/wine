@@ -57,6 +57,17 @@ export interface AopMapViewProps {
 	/** progress モード時のAOP別学習済み率(idApp -> 0〜1)。未収載=データなし */
 	progressByIdApp?: Map<number, number>;
 	onSelectAop?: (aopId: string | undefined) => void;
+	/**
+	 * 選択エリアへズームする際、地図に重なるUI(モバイルの下部詳細パネル等)が覆う
+	 * ピクセル量を返す getter。fitBounds 実行時に呼ばれ、基準 padding に加算される。
+	 * これにより覆われていない描画領域を基準に選択エリアを中心へ寄せる。
+	 */
+	getFitInset?: () => {
+		top?: number;
+		bottom?: number;
+		left?: number;
+		right?: number;
+	};
 	className?: string;
 }
 
@@ -114,6 +125,37 @@ function computeBounds(
 		return [x, y, x, y];
 	}
 	return undefined;
+}
+
+// 選択エリアへズームする際の fitBounds padding。基準値に、地図へ重なるUIが覆う
+// inset(getFitInset)を足す。padding の合計がキャンバスを超えると fitBounds が破綻
+// するため、各軸で最低限の可視幅を残すようクランプする。
+const BASE_FIT_PADDING = 80;
+function computeFitPadding(
+	inset: { top?: number; bottom?: number; left?: number; right?: number },
+	width: number,
+	height: number,
+): { top: number; bottom: number; left: number; right: number } {
+	// 各軸で padding 合計がこの割合を超えないよう抑える(=常に一定の可視域を残す)
+	const MAX_AXIS_RATIO = 0.85;
+	const clampAxis = (a: number, b: number, size: number): [number, number] => {
+		const limit = size * MAX_AXIS_RATIO;
+		const total = a + b;
+		if (total <= limit || total === 0) return [a, b];
+		const scale = limit / total;
+		return [a * scale, b * scale];
+	};
+	const [top, bottom] = clampAxis(
+		BASE_FIT_PADDING + (inset.top ?? 0),
+		BASE_FIT_PADDING + (inset.bottom ?? 0),
+		height,
+	);
+	const [left, right] = clampAxis(
+		BASE_FIT_PADDING + (inset.left ?? 0),
+		BASE_FIT_PADDING + (inset.right ?? 0),
+		width,
+	);
+	return { top, bottom, left, right };
 }
 
 // 地方外グレーアウト用の inverse mask。世界を覆う外周リングに、地方輪郭の
@@ -185,6 +227,7 @@ export function AopMapView({
 	colorMode = "kind",
 	progressByIdApp,
 	onSelectAop,
+	getFitInset,
 	className,
 }: AopMapViewProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -197,6 +240,7 @@ export function AopMapView({
 	const stateRef = useRef({
 		aopsByIdApp: new Map<number, Aop>(),
 		onSelectAop,
+		getFitInset,
 		applyFeatureStates: () => {},
 		applySelection: () => {},
 		applyColorMode: () => {},
@@ -210,6 +254,7 @@ export function AopMapView({
 	}, [aops]);
 	stateRef.current.aopsByIdApp = aopsByIdApp;
 	stateRef.current.onSelectAop = onSelectAop;
+	stateRef.current.getFitInset = getFitInset;
 
 	// 初期化(1回のみ)。maplibre-glはSSR不可なのでeffect内で動的import。
 	// 地図インスタンスは地域が変わったときだけ作り直す。
@@ -597,7 +642,13 @@ export function AopMapView({
 		if (selected) {
 			const b = boundsRef.current[selected.idApp];
 			if (b) {
-				map.fitBounds(b, { padding: 80, maxZoom: 13.5, duration: 600 });
+				const canvas = map.getCanvas();
+				const padding = computeFitPadding(
+					stateRef.current.getFitInset?.() ?? {},
+					canvas.clientWidth,
+					canvas.clientHeight,
+				);
+				map.fitBounds(b, { padding, maxZoom: 13.5, duration: 600 });
 			}
 		}
 	};
