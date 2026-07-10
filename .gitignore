@@ -20,3 +20,10 @@ screenshots/
 
 # build:geodata の作業キャッシュ(数百MBの元データ)
 .cache/
+
+# Terraform (state と認証情報はコミットしない。.terraform.lock.hcl はコミットする)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
