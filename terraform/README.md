@@ -85,7 +85,29 @@ bunx wrangler secret put STRIPE_SECRET_KEY                # sk_live_...
 | `STRIPE_TEST_API_KEY` | テストモードの `sk_test_...`(preview の plan 用) |
 | `STRIPE_LIVE_API_KEY` | ライブモードの `sk_live_...`(production の plan 用) |
 
-plan は読み取りのみで Stripe に書き込まない。apply は CI では行わず手元から実行する運用とする。
+plan は読み取りのみで Stripe に書き込まない。
+
+### apply の自動化 (`.github/workflows/terraform-apply.yml`)
+
+apply も GitHub Actions で実行できる。plan(`terraform.yml`)とは別ワークフロー:
+
+- **preview**: `main` に `terraform/**` の変更がマージされると**自動 apply**(テストモード)
+- **production**: **手動実行のみ**(Actions → Terraform Apply → Run workflow で `environment=production` を選択)。
+  ライブモードの課金リソースを変更するため自動 apply はしない
+- apply 後、`webhook_secret` を `wrangler secret put STRIPE_WEBHOOK_SECRET`(preview は `--env preview`)で
+  Workers に**自動投入**する。price ID はコミット対象のため自動反映せず、ジョブの Summary に出力する
+  (`wrangler.jsonc` の vars に手で反映してコミットする)
+- state ロックが無いため、同一環境の apply は `concurrency` で直列化している
+
+plan で使う4つの Secret に加えて、apply では以下が必要:
+
+| Secret 名 | 内容 |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | `wrangler secret put` 用。Workers Scripts の編集権限を持つ R2 とは別の API トークン |
+| `CLOUDFLARE_ACCOUNT_ID` | (任意)トークンが複数アカウントに跨る場合のみ。単一アカウントなら wrangler が自動判定するため不要 |
+
+なお `STRIPE_SECRET_KEY`(アプリが Stripe API を叩くためのキー)は Terraform では作成できないため、
+apply ワークフローの対象外。従来どおり手動で `wrangler secret put STRIPE_SECRET_KEY` する必要がある。
 
 ## 運用上の注意
 

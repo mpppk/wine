@@ -1,0 +1,122 @@
+name: Terraform Apply
+
+# preview は main マージ時に自動 apply、production は手動実行のみ。
+# apply 後、webhook 署名シークレットを Workers の secret へ自動投入する。
+#
+# 必要な GitHub Secrets:
+#   TF_R2_ACCESS_KEY_ID / TF_R2_SECRET_ACCESS_KEY  … R2 (state) の S3互換認証情報
+#   STRIPE_TEST_API_KEY                            … preview 用 (sk_test_...)
+#   STRIPE_LIVE_API_KEY                            … production 用 (sk_live_...)
+#   CLOUDFLARE_API_TOKEN                           … wrangler secret put 用 (Workers 編集権限)
+#   CLOUDFLARE_ACCOUNT_ID                          … (任意) トークンが複数アカウントに跨る場合のみ
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-apply.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "apply する環境"
+        type: choice
+        required: true
+        default: preview
+        options:
+          - preview
+          - production
+
+permissions:
+  contents: read
+
+# state ロックが無いため、同一環境への apply を直列化して同時実行による state 破損を防ぐ。
+concurrency:
+  group: terraform-apply-${{ github.event.inputs.environment || 'preview' }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Terraform Apply (${{ github.event.inputs.environment || 'preview' }})
+    runs-on: ubuntu-latest
+    env:
+      # push(main) からは常に preview。手動実行のときだけ選択された環境。
+      TF_ENV: ${{ github.event.inputs.environment || 'preview' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.4"
+          # terraform output -raw を後段で使うため wrapper を無効化する。
+          terraform_wrapper: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install wrangler
+        # secret 投入に使う wrangler をロックファイル固定で入れる。
+        run: bun install --frozen-lockfile
+
+      # apply: R2(state) と Stripe の資格情報が必要。
+      # preview はテストモード、production はライブモードのキーを使う。
+      - name: Apply
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TF_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_R2_SECRET_ACCESS_KEY }}
+          STRIPE_TEST_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
+          STRIPE_LIVE_API_KEY: ${{ secrets.STRIPE_LIVE_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "$TF_ENV" = "production" ]; then
+            export STRIPE_API_KEY="$STRIPE_LIVE_API_KEY"
+          else
+            export STRIPE_API_KEY="$STRIPE_TEST_API_KEY"
+          fi
+          if [ -z "${STRIPE_API_KEY:-}" ]; then
+            echo "::error title=Stripe API キー未設定::$TF_ENV 用の Stripe キー (GitHub Secrets) が未設定です。terraform/README.md を参照。"
+            exit 1
+          fi
+          terraform -chdir="terraform/$TF_ENV" init -input=false
+          terraform -chdir="terraform/$TF_ENV" apply -input=false -auto-approve
+
+      # webhook 署名シークレットを Workers の secret へ投入する。
+      # preview は --env preview、production は既定(トップレベル)の worker。
+      # 値はシェル変数に取り込むだけでログには出さない(output は sensitive 指定済み)。
+      - name: Push webhook secret to Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID_INPUT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error title=CLOUDFLARE_API_TOKEN 未設定::wrangler secret put に必要な CLOUDFLARE_API_TOKEN が未設定です。terraform/README.md を参照。"
+            exit 1
+          fi
+          # トークンが複数アカウントに跨る場合のみ account id を明示する。
+          if [ -n "${CF_ACCOUNT_ID_INPUT:-}" ]; then
+            export CLOUDFLARE_ACCOUNT_ID="$CF_ACCOUNT_ID_INPUT"
+          fi
+          WEBHOOK_SECRET="$(terraform -chdir="terraform/$TF_ENV" output -raw webhook_secret)"
+          if [ "$TF_ENV" = "production" ]; then
+            printf '%s' "$WEBHOOK_SECRET" | bunx wrangler secret put STRIPE_WEBHOOK_SECRET
+          else
+            printf '%s' "$WEBHOOK_SECRET" | bunx wrangler secret put STRIPE_WEBHOOK_SECRET --env preview
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "### Terraform Apply 完了 ($TF_ENV)"
+            echo ""
+            echo "- webhook 署名シークレットを Workers ($([ "$TF_ENV" = "production" ] && echo wine || echo wine-preview)) の \`STRIPE_WEBHOOK_SECRET\` に投入しました"
+            echo "- price ID はコミット対象のため未反映です。以下を \`wrangler.jsonc\` に反映してください:"
+            echo ""
+            echo '```'
+            echo "price_id_monthly = $(terraform -chdir="terraform/$TF_ENV" output -raw price_id_monthly)"
+            echo "price_id_annual  = $(terraform -chdir="terraform/$TF_ENV" output -raw price_id_annual)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
