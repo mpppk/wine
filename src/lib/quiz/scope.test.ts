@@ -6,7 +6,7 @@ import {
 	expandScopeAopIds,
 	listScopedCandidates,
 } from "./scope";
-import { QUIZ_TYPE_IDS, type QuizType } from "./types";
+import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
 
 const ALL_TYPES: QuizType[] = [...QUIZ_TYPE_IDS];
 
@@ -77,12 +77,79 @@ describe("listScopedCandidates", () => {
 		expect(scoped).toContain("colors:gevrey-chambertin");
 	});
 
+	it("対象AOP自身が正解になる問題(AOPが答えの形式)は除外する", () => {
+		// アンボネイ(champagne / montagne-de-reims の村)は配下を持たないので
+		// スコープは自身のみ。対象=正解の location/odd-one-out/variety は全除外され、
+		// 設問文に村名が出る colors:ambonnay だけが残る。
+		const scoped = listScopedCandidates("champagne", ALL_TYPES, "ambonnay");
+		expect(scoped).not.toBeNull();
+		expect(scoped).toContain("colors:ambonnay");
+		for (const key of scoped!) {
+			const parsed = parseKey(key);
+			expect(parsed).not.toBeNull();
+			// AOPが答えの形式で aopId が対象AOP自身のキーは残っていないこと
+			expect(
+				parsed!.aopId === "ambonnay" &&
+					AOP_ANSWER_QUIZ_TYPES.has(parsed!.quizType),
+			).toBe(false);
+		}
+		// フィルタ前は対象=正解の AOP-answer キーが実在することを確認(回帰防止)
+		const unfiltered = listCandidates("champagne", ALL_TYPES).filter((key) => {
+			const parsed = parseKey(key);
+			return (
+				parsed !== null &&
+				parsed.aopId === "ambonnay" &&
+				AOP_ANSWER_QUIZ_TYPES.has(parsed.quizType)
+			);
+		});
+		expect(unfiltered.length).toBeGreaterThan(0);
+	});
+
+	it("配下の畑(別AOP)が正解になる関連問題は残す", () => {
+		// gevrey-chambertin 配下のクリュ(別AOP)を正解とする AOP-answer キーは残り、
+		// 対象村自身(gevrey-chambertin)が正解の AOP-answer キーは消える。
+		const scoped = listScopedCandidates(
+			"bourgogne",
+			ALL_TYPES,
+			"gevrey-chambertin",
+		);
+		expect(scoped).not.toBeNull();
+		// 配下クリュを正解とする AOP-answer キーが少なくとも1つ残る
+		expect(
+			scoped!.some((key) => {
+				const parsed = parseKey(key);
+				return (
+					parsed !== null &&
+					parsed.aopId === "chambertin" &&
+					AOP_ANSWER_QUIZ_TYPES.has(parsed.quizType)
+				);
+			}),
+		).toBe(true);
+		// 対象村自身が正解の AOP-answer キーは1つも残らない
+		for (const key of scoped!) {
+			const parsed = parseKey(key);
+			expect(
+				parsed!.aopId === "gevrey-chambertin" &&
+					AOP_ANSWER_QUIZ_TYPES.has(parsed!.quizType),
+			).toBe(false);
+		}
+	});
+
 	it("不明なslugや地域不一致は null", () => {
 		expect(listScopedCandidates("bourgogne", ALL_TYPES, "no-such-aop")).toBe(
 			null,
 		);
 		// morgon は beaujolais のAOP
 		expect(listScopedCandidates("bourgogne", ALL_TYPES, "morgon")).toBeNull();
+	});
+});
+
+describe("AOP_ANSWER_QUIZ_TYPES", () => {
+	it("colors を含まず、AOPが正解になる3形式を含む", () => {
+		expect(AOP_ANSWER_QUIZ_TYPES.has("colors")).toBe(false);
+		expect(AOP_ANSWER_QUIZ_TYPES.has("location")).toBe(true);
+		expect(AOP_ANSWER_QUIZ_TYPES.has("odd-one-out")).toBe(true);
+		expect(AOP_ANSWER_QUIZ_TYPES.has("variety")).toBe(true);
 	});
 });
 
