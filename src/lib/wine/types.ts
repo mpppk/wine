@@ -113,6 +113,11 @@ export interface Region {
 	bounds?: [number, number, number, number];
 	/** AOP境界GeoJSONのパス(同一オリジン) */
 	geojsonPath?: string;
+	/**
+	 * 地方・地区の輪郭GeoJSONのパス(同一オリジン)。build:boundaries が出力する。
+	 * 地方外グレーアウト(inverse mask)と地区境界線の描画に使う
+	 */
+	boundariesPath?: string;
 	/** 境界データの出典表記(地図のattributionコントロールに表示)。外部データ利用時に設定 */
 	boundaryAttribution?: string;
 	subregions: Subregion[];
