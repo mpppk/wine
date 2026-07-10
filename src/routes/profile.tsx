@@ -1,14 +1,26 @@
-import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { authClient } from "#/lib/auth-client";
+import {
+	BILLING_STATUS_QUERY_KEY,
+	useBillingStatus,
+} from "#/lib/billing/use-billing";
 import { getSession } from "#/server/auth";
 
+interface ProfileSearch {
+	/** Stripe Checkout 成功時の戻りで付与される */
+	checkout?: "success";
+}
+
 export const Route = createFileRoute("/profile")({
+	validateSearch: (search: Record<string, unknown>): ProfileSearch => ({
+		checkout: search.checkout === "success" ? "success" : undefined,
+	}),
 	beforeLoad: async () => {
 		const session = await getSession();
 		if (!session) {
@@ -170,6 +182,213 @@ function ProfilePage() {
 					</Button>
 				</CardContent>
 			</Card>
+
+			<PlanCard />
 		</main>
+	);
+}
+
+const SUBSCRIPTIONS_QUERY_KEY = ["subscriptions"] as const;
+
+function PlanCard() {
+	const { checkout } = Route.useSearch();
+	const navigate = Route.useNavigate();
+	const queryClient = useQueryClient();
+	const billingQuery = useBillingStatus();
+	const billing = billingQuery.data;
+	const [actionError, setActionError] = useState("");
+	const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+
+	const { data: subscriptions, isError: subscriptionsError } = useQuery({
+		queryKey: SUBSCRIPTIONS_QUERY_KEY,
+		queryFn: async () => {
+			const result = await authClient.subscription.list();
+			if (result.error) {
+				throw new Error(
+					result.error.message ?? "プラン情報の取得に失敗しました",
+				);
+			}
+			return result.data;
+		},
+	});
+
+	// checkout=success は state に退避し、URLからは取り除く(リロードや
+	// ブックマークでお礼メッセージ・再取得が繰り返されるのを防ぐ)。
+	useEffect(() => {
+		if (checkout !== "success") return;
+		setCheckoutSuccess(true);
+		void navigate({ search: {}, replace: true });
+	}, [checkout, navigate]);
+
+	// Checkout 成功直後は webhook 反映ラグでまだ無料プラン表示になり得るため、
+	// 到着時に加えて数秒後にもう一度取り直す。
+	useEffect(() => {
+		if (!checkoutSuccess) return;
+		const invalidate = () => {
+			void queryClient.invalidateQueries({
+				queryKey: BILLING_STATUS_QUERY_KEY,
+			});
+			void queryClient.invalidateQueries({ queryKey: SUBSCRIPTIONS_QUERY_KEY });
+		};
+		invalidate();
+		const timer = setTimeout(invalidate, 4000);
+		return () => clearTimeout(timer);
+	}, [checkoutSuccess, queryClient]);
+
+	const isPremium = billing?.isPremium ?? false;
+	const activeSubscription = subscriptions?.find(
+		(sub) => sub.status === "active" || sub.status === "trialing",
+	);
+
+	// 戻り先はプラグインが BETTER_AUTH_URL 基準で絶対URL化するため、カスタム
+	// ドメイン等の別ホストから操作しても元のホストに戻れるよう絶対URLで渡す。
+	const profileReturnUrl = () => `${window.location.origin}/profile`;
+
+	const { mutate: openBillingPortal, isPending: openingPortal } = useMutation({
+		mutationFn: async () => {
+			// 成功時は better-auth クライアントが Stripe Billing Portal へ自動リダイレクトする
+			const result = await authClient.subscription.billingPortal({
+				returnUrl: profileReturnUrl(),
+			});
+			if (result.error) {
+				throw new Error(
+					result.error.message ?? "支払い管理画面を開けませんでした",
+				);
+			}
+		},
+		onError: (err: Error) => setActionError(err.message),
+	});
+
+	const { mutate: cancelSubscription, isPending: canceling } = useMutation({
+		mutationFn: async () => {
+			// Stripe Billing Portal の解約フローへ自動リダイレクトする
+			const result = await authClient.subscription.cancel({
+				returnUrl: profileReturnUrl(),
+			});
+			if (result.error) {
+				throw new Error(
+					result.error.message ?? "解約手続きを開始できませんでした",
+				);
+			}
+		},
+		onError: (err: Error) => setActionError(err.message),
+	});
+
+	const { mutate: restoreSubscription, isPending: restoring } = useMutation({
+		mutationFn: async () => {
+			const result = await authClient.subscription.restore({});
+			if (result.error) {
+				throw new Error(result.error.message ?? "解約の取り消しに失敗しました");
+			}
+		},
+		onSuccess: () => {
+			setActionError("");
+			void queryClient.invalidateQueries({ queryKey: SUBSCRIPTIONS_QUERY_KEY });
+		},
+		onError: (err: Error) => setActionError(err.message),
+	});
+
+	const actionPending = openingPortal || canceling || restoring;
+	const periodEndLabel = activeSubscription?.periodEnd
+		? new Date(activeSubscription.periodEnd).toLocaleDateString("ja-JP")
+		: null;
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle>プラン</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				{checkoutSuccess && (
+					<p className="text-sm text-green-600 dark:text-green-400">
+						ご購入ありがとうございます。反映まで少し時間がかかる場合があります。
+					</p>
+				)}
+
+				{billingQuery.isPending ? (
+					<p className="text-sm text-muted-foreground">読み込み中...</p>
+				) : billingQuery.isError ? (
+					<p className="text-sm text-destructive">
+						プラン情報を取得できませんでした。再読み込みしてください。
+					</p>
+				) : (
+					<div className="flex items-center gap-2">
+						<span className="text-sm text-muted-foreground">現在のプラン:</span>
+						<span className="font-medium">
+							{isPremium ? "プレミアム" : "無料プラン"}
+						</span>
+						{activeSubscription?.cancelAtPeriodEnd && (
+							<span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+								解約予約中
+							</span>
+						)}
+					</div>
+				)}
+
+				{isPremium && periodEndLabel && (
+					<p className="text-sm text-muted-foreground">
+						{activeSubscription?.cancelAtPeriodEnd
+							? `${periodEndLabel} までプレミアム特典をご利用いただけます。`
+							: `次回更新日: ${periodEndLabel}`}
+					</p>
+				)}
+
+				{actionError && (
+					<p className="text-sm text-destructive">{actionError}</p>
+				)}
+
+				{billingQuery.isPending || billingQuery.isError ? null : isPremium ? (
+					<div className="flex flex-col gap-2">
+						{subscriptionsError && (
+							<p className="text-sm text-destructive">
+								契約情報を取得できませんでした。解約状態の表示・操作は再読み込み後にお試しください。
+							</p>
+						)}
+						<div className="flex flex-wrap gap-2">
+							<Button
+								type="button"
+								variant="outline"
+								disabled={actionPending}
+								onClick={() => openBillingPortal()}
+							>
+								{openingPortal ? "開いています..." : "支払いの管理"}
+							</Button>
+							{/* 解約/取り消しは契約情報(解約予約の有無)が取れている時のみ出す。
+							    取得失敗時に「解約する」を出すと解約予約中でも二重に見えるため */}
+							{!subscriptionsError &&
+								subscriptions !== undefined &&
+								(activeSubscription?.cancelAtPeriodEnd ? (
+									<Button
+										type="button"
+										variant="outline"
+										disabled={actionPending}
+										onClick={() => restoreSubscription()}
+									>
+										{restoring ? "処理中..." : "解約を取り消す"}
+									</Button>
+								) : (
+									<Button
+										type="button"
+										variant="outline"
+										disabled={actionPending}
+										onClick={() => cancelSubscription()}
+									>
+										{canceling ? "処理中..." : "解約する"}
+									</Button>
+								))}
+						</div>
+					</div>
+				) : (
+					<div className="flex flex-col gap-2">
+						<Button asChild className="self-start">
+							<Link to="/pricing">プレミアムにアップグレード</Link>
+						</Button>
+						<p className="text-xs text-muted-foreground">
+							月額300円(年払いなら3,000円で2ヶ月分お得)。広告非表示などの特典があります。
+						</p>
+					</div>
+				)}
+			</CardContent>
+		</Card>
 	);
 }

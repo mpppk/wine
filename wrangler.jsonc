@@ -15,7 +15,12 @@
 		// アフィリエイトID(公開情報)。実IDに差し替えるか `wrangler secret put` で上書きする。
 		// 空のままでも購入リンクは素の検索URLとして機能する。
 		"RAKUTEN_AFFILIATE_ID": "",
-		"MOSHIMO_AMAZON_A_ID": ""
+		"MOSHIMO_AMAZON_A_ID": "",
+		// Stripe の price ID(公開情報)。本番はライブモードの price ID を設定する。
+		// 空のままでもアプリは動作し、料金ページの購入ボタンが無効化されるだけ。
+		// なお STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET は `wrangler secret put` で設定する。
+		"STRIPE_PRICE_ID_MONTHLY": "",
+		"STRIPE_PRICE_ID_ANNUAL": ""
 	},
 	"observability": {
 		"enabled": true
@@ -42,7 +47,10 @@
 			"vars": {
 				"BETTER_AUTH_URL": "https://wine-preview.niboshi.workers.dev",
 				"RAKUTEN_AFFILIATE_ID": "",
-				"MOSHIMO_AMAZON_A_ID": ""
+				"MOSHIMO_AMAZON_A_ID": "",
+				// preview はテストモードの price ID を設定する(本番と分離)。
+				"STRIPE_PRICE_ID_MONTHLY": "",
+				"STRIPE_PRICE_ID_ANNUAL": ""
 			},
 			"d1_databases": [
 				{

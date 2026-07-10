@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as RegionsRouteImport } from './routes/regions'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as QuizIndexRouteImport } from './routes/quiz.index'
@@ -49,6 +50,11 @@ const RegionsRoute = RegionsRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -172,6 +178,7 @@ const ApiWineAopsAopIdRoute = ApiWineAopsAopIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRoute
   '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRoute
   '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
@@ -229,6 +237,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/profile': typeof ProfileRoute
   '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
@@ -259,6 +268,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/pricing'
     | '/profile'
     | '/regions'
     | '/signup'
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/pricing'
     | '/profile'
     | '/regions'
     | '/signup'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/login'
+    | '/pricing'
     | '/profile'
     | '/regions'
     | '/signup'
@@ -344,6 +356,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  PricingRoute: typeof PricingRoute
   ProfileRoute: typeof ProfileRoute
   RegionsRoute: typeof RegionsRoute
   SignupRoute: typeof SignupRoute
@@ -390,6 +403,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -571,6 +591,7 @@ const ApiWineRegionsRouteWithChildren = ApiWineRegionsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
   ProfileRoute: ProfileRoute,
   RegionsRoute: RegionsRoute,
   SignupRoute: SignupRoute,
