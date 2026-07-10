@@ -2,7 +2,7 @@ import { getAop, listAops } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 import { listCandidates } from "./generators";
 import { parseKey } from "./keys";
-import { QUIZ_TYPE_IDS, type QuizType } from "./types";
+import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
 
 // 地図の「選択中AOPに関連するクイズ」の出題スコープ。villageAopIds エッジの
 // 近傍で統一する: 自身 + 親の村名AOC + 配下の畑/ワイナリー。
@@ -36,7 +36,17 @@ export function listScopedCandidates(
 	if (!subjects) return null;
 	return listCandidates(regionId, quizTypes).filter((key) => {
 		const parsed = parseKey(key);
-		return parsed !== null && subjects.has(parsed.aopId);
+		if (parsed === null || !subjects.has(parsed.aopId)) return false;
+		// 対象AOP自身がそのまま正解になる問題は自明なので除外(colors は設問文に
+		// 対象AOP名が出て正解は「色」のため対象外)。配下の畑・親の村が正解になる
+		// 関連問題は別AOPが答えなので残す。
+		if (
+			parsed.aopId === scopeAopId &&
+			AOP_ANSWER_QUIZ_TYPES.has(parsed.quizType)
+		) {
+			return false;
+		}
+		return true;
 	});
 }
 
