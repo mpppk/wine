@@ -1,3 +1,4 @@
+import { RotateCcwIcon, SkipForwardIcon } from "lucide-react";
 import { useState } from "react";
 import { QuizQuestionView } from "#/components/quiz/QuizQuestionView";
 import { useQuizSession } from "#/components/quiz/useQuizSession";
@@ -95,7 +96,7 @@ function SessionRound({
 	onRetry: () => void;
 	onClose: () => void;
 }) {
-	const { phase, current, selectedOptionId, tally, answer, next } =
+	const { phase, current, selectedOptionId, tally, answer, reset, skip, next } =
 		useQuizSession(regionId, ALL_QUIZ_TYPES, isAuthenticated, scopeAopId);
 
 	if (phase === "loading") {
@@ -145,10 +146,32 @@ function SessionRound({
 					onAnswer={answer}
 				/>
 			)}
-			{phase === "feedback" && (
-				<Button onClick={next} size="lg" className="h-12 w-full text-base">
-					次へ
+			{phase === "answering" && (
+				<Button
+					onClick={skip}
+					variant="ghost"
+					size="lg"
+					className="h-12 w-full text-base text-muted-foreground"
+				>
+					<SkipForwardIcon className="size-4" aria-hidden />
+					スキップ
 				</Button>
+			)}
+			{phase === "feedback" && (
+				<div className="flex gap-2">
+					<Button
+						onClick={reset}
+						variant="outline"
+						size="lg"
+						className="h-12 text-base"
+					>
+						<RotateCcwIcon className="size-4" aria-hidden />
+						回答を取り消す
+					</Button>
+					<Button onClick={next} size="lg" className="h-12 flex-1 text-base">
+						次へ
+					</Button>
+				</div>
 			)}
 		</div>
 	);
