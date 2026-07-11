@@ -1,5 +1,9 @@
 import { RotateCcwIcon, SkipForwardIcon } from "lucide-react";
 import { useState } from "react";
+import {
+	AdInterstitialDialog,
+	useQuizAdInterstitial,
+} from "#/components/ads/AdInterstitialDialog";
 import { QuizQuestionView } from "#/components/quiz/QuizQuestionView";
 import { useQuizSession } from "#/components/quiz/useQuizSession";
 import { Button } from "#/components/ui/button";
@@ -98,6 +102,11 @@ function SessionRound({
 }) {
 	const { phase, current, selectedOptionId, tally, answer, reset, skip, next } =
 		useQuizSession(regionId, ALL_QUIZ_TYPES, isAuthenticated, scopeAopId);
+	// 10問回答ごとに「次へ」へ広告を割り込ませる(無料会員のみ)。/quiz/play と同じ挙動
+	const { adOpen, onAdOpenChange, nextWithAd } = useQuizAdInterstitial(
+		tally.answered,
+		next,
+	);
 
 	if (phase === "loading") {
 		return (
@@ -168,11 +177,18 @@ function SessionRound({
 						<RotateCcwIcon className="size-4" aria-hidden />
 						回答を取り消す
 					</Button>
-					<Button onClick={next} size="lg" className="h-12 flex-1 text-base">
+					<Button
+						onClick={nextWithAd}
+						size="lg"
+						className="h-12 flex-1 text-base"
+					>
 						次へ
 					</Button>
 				</div>
 			)}
+
+			{/* クイズダイアログの上に重ねる(Radixのネストダイアログ) */}
+			<AdInterstitialDialog open={adOpen} onOpenChange={onAdOpenChange} />
 		</div>
 	);
 }
