@@ -23,3 +23,13 @@ output "portal_configuration_id" {
   description = "Billing Portal 設定の ID"
   value       = stripe_portal_configuration.default.id
 }
+
+output "new_member_coupon_id" {
+  description = "新規入会クーポンの ID"
+  value       = stripe_coupon.new_member.id
+}
+
+output "new_member_promotion_code" {
+  description = "ユーザが Checkout で入力する新規入会プロモコード文字列"
+  value       = stripe_promotion_code.new_member.code
+}

@@ -5,20 +5,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { mcp } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { drizzle } from "drizzle-orm/d1";
-import Stripe from "stripe";
 import * as authSchema from "#/db/auth-schema";
-import { PREMIUM_PLAN_NAME } from "#/lib/billing/plans";
-
-// Stripe キー未設定でもアプリが起動するようプレースホルダで初期化する。
-// Stripe API 呼び出し時に初めて失敗するので、ログイン等の既存機能には影響しない
-// (ローカル開発・CI ビルドは未設定で動く前提)。
-const stripeClient = new Stripe(
-	env.STRIPE_SECRET_KEY || "sk_test_placeholder",
-	{
-		// Workers では Node の http エージェントではなく fetch ベースのクライアントを使う。
-		httpClient: Stripe.createFetchHttpClient(),
-	},
-);
+import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
+import { stripeClient } from "#/lib/billing/stripe-client";
 
 export const auth = betterAuth({
 	database: drizzleAdapter(drizzle(env.DB), {
@@ -59,8 +48,22 @@ export const auth = betterAuth({
 						priceId: env.STRIPE_PRICE_ID_MONTHLY || "",
 						// 年間契約は月額10ヶ月分(2ヶ月分お得)の別 Price を割り当てる。
 						annualDiscountPriceId: env.STRIPE_PRICE_ID_ANNUAL || "",
+						// 全新規会員に一律の無料トライアルを付与する。プラグインが
+						// Checkout に trial_period_days を渡し、trialing の間も
+						// ENTITLED_STATUSES に含まれるためプレミアム扱いになる。
+						freeTrial: {
+							days: PREMIUM_TRIAL_DAYS,
+						},
 					},
 				],
+				// Checkout に Stripe 標準のプロモコード入力欄を出す。割引クーポン/
+				// プロモコード自体は Stripe(Terraform 管理)側で発行し、ユーザが
+				// ここで入力して適用する。discounts は指定しない(プロモコード欄と排他)。
+				getCheckoutSessionParams: () => ({
+					params: {
+						allow_promotion_codes: true,
+					},
+				}),
 			},
 		}),
 		// OAuth 2.1 provider for MCP clients (Claude Code / Desktop etc.).

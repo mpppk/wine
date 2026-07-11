@@ -42,6 +42,25 @@ resource "stripe_price" "premium_annual" {
   }
 }
 
+# 新規入会 N%オフのクーポン。Checkout の標準プロモコード欄(allow_promotion_codes)で
+# 適用される。金額割引にしたい場合は percent_off の代わりに amount_off + currency を使う。
+resource "stripe_coupon" "new_member" {
+  name        = var.new_member_coupon_name
+  percent_off = var.new_member_discount_percent
+  duration    = var.new_member_coupon_duration
+}
+
+# 上記クーポンを適用するためのプロモコード。ユーザが Checkout で入力する文字列。
+# first_time_transaction で「初回(新規入会)のみ」に限定する。
+resource "stripe_promotion_code" "new_member" {
+  coupon = stripe_coupon.new_member.id
+  code   = var.new_member_promotion_code
+
+  restrictions {
+    first_time_transaction = true
+  }
+}
+
 resource "stripe_webhook_endpoint" "better_auth" {
   url         = "${var.app_url}/api/auth/stripe/webhook"
   description = "better-auth stripe plugin (subscription sync)"

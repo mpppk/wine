@@ -10,7 +10,11 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { authClient } from "#/lib/auth-client";
-import { PREMIUM_PLAN_NAME, PREMIUM_PRICING } from "#/lib/billing/plans";
+import {
+	PREMIUM_PLAN_NAME,
+	PREMIUM_PRICING,
+	PREMIUM_TRIAL_DAYS,
+} from "#/lib/billing/plans";
 import { useBillingStatus } from "#/lib/billing/use-billing";
 
 export const Route = createFileRoute("/pricing")({
@@ -24,6 +28,7 @@ const FREE_FEATURES = [
 ];
 
 const PREMIUM_FEATURES = [
+	`最初の${PREMIUM_TRIAL_DAYS}日間は無料でお試し`,
 	"無料プランの全機能",
 	"広告が非表示(今後導入予定の広告を含む)",
 	"今後追加されるプレミアム特典",
@@ -172,6 +177,10 @@ function PricingPage() {
 								円×10ヶ月分の料金で12ヶ月利用できます
 							</p>
 						)}
+						<p className="text-sm font-medium text-primary">
+							最初の{PREMIUM_TRIAL_DAYS}
+							日間は無料。期間中に解約すれば料金はかかりません。
+						</p>
 					</CardHeader>
 					<CardContent>
 						<ul className="flex flex-col gap-2 text-sm">
@@ -217,8 +226,8 @@ function PricingPage() {
 										: upgrading
 											? "手続きに進んでいます..."
 											: session?.user
-												? "プレミアムにアップグレード"
-												: "ログインしてアップグレード"}
+												? `${PREMIUM_TRIAL_DAYS}日間無料で始める`
+												: "ログインして無料で始める"}
 								</Button>
 								{!stripeConfigured && (
 									<p className="text-center text-xs text-muted-foreground">
@@ -232,7 +241,8 @@ function PricingPage() {
 			</div>
 
 			<p className="mt-8 text-center text-xs text-muted-foreground">
-				サブスクリプションはいつでも解約できます。解約後も期間終了までプレミアム特典をご利用いただけます。
+				最初の{PREMIUM_TRIAL_DAYS}
+				日間は無料でお試しいただけます。入会手続きの画面でプロモーションコードを入力すると割引が適用されます。サブスクリプションはいつでも解約でき、解約後も期間終了までプレミアム特典をご利用いただけます。
 			</p>
 		</main>
 	);

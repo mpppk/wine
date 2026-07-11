@@ -57,6 +57,13 @@
       "when": 1778994900005,
       "tag": "0007_stripe_subscription",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778994900006,
+      "tag": "0008_coupon_redemption",
+      "breakpoints": true
     }
   ]
 }

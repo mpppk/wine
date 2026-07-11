@@ -14,3 +14,8 @@ STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 STRIPE_PRICE_ID_MONTHLY=
 STRIPE_PRICE_ID_ANNUAL=
+
+# 既存プレミアム会員の「期間延長」キャンペーンコード(任意)。"CODE=延長日数" を
+# カンマ区切りで指定する。会員が profile ページで入力すると契約期間が延長される。
+# 例: CAMPAIGN_EXTENSION_CODES=WINE7=7,SUMMER=14
+CAMPAIGN_EXTENSION_CODES=

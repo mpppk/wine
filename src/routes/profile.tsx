@@ -11,6 +11,7 @@ import {
 	useBillingStatus,
 } from "#/lib/billing/use-billing";
 import { getSession } from "#/server/auth";
+import { redeemExtensionCode } from "#/server/billing";
 
 interface ProfileSearch {
 	/** Stripe Checkout 成功時の戻りで付与される */
@@ -377,6 +378,7 @@ function PlanCard() {
 									</Button>
 								))}
 						</div>
+						<ExtensionCodeForm />
 					</div>
 				) : (
 					<div className="flex flex-col gap-2">
@@ -390,5 +392,81 @@ function PlanCard() {
 				)}
 			</CardContent>
 		</Card>
+	);
+}
+
+/**
+ * キャンペーンコードを入力して自分の契約期間を延長するフォーム(プレミアム会員向け)。
+ * 成功時は課金ステータス・契約情報を再取得する(webhook 反映ラグを見込んで数秒後にも)。
+ */
+function ExtensionCodeForm() {
+	const queryClient = useQueryClient();
+	const [code, setCode] = useState("");
+	const [message, setMessage] = useState("");
+	const [error, setError] = useState("");
+
+	const { mutate: redeem, isPending } = useMutation({
+		mutationFn: async () => {
+			const result = await redeemExtensionCode({ data: { code } });
+			return result;
+		},
+		onSuccess: (result) => {
+			setError("");
+			setCode("");
+			const until = new Date(result.newPeriodEnd).toLocaleDateString("ja-JP");
+			setMessage(
+				`${result.extendedDays}日間延長しました。${until} まで有効です(反映まで少し時間がかかる場合があります)。`,
+			);
+			const invalidate = () => {
+				void queryClient.invalidateQueries({
+					queryKey: BILLING_STATUS_QUERY_KEY,
+				});
+				void queryClient.invalidateQueries({
+					queryKey: SUBSCRIPTIONS_QUERY_KEY,
+				});
+			};
+			invalidate();
+			setTimeout(invalidate, 4000);
+		},
+		onError: (err: Error) => {
+			setMessage("");
+			setError(err.message || "コードを適用できませんでした。");
+		},
+	});
+
+	const trimmed = code.trim();
+
+	return (
+		<div className="mt-2 flex flex-col gap-2 border-t border-border pt-4">
+			<Label htmlFor="campaign-code" className="text-sm">
+				キャンペーンコード
+			</Label>
+			<div className="flex flex-wrap items-center gap-2">
+				<Input
+					id="campaign-code"
+					type="text"
+					placeholder="コードを入力"
+					value={code}
+					onChange={(e) => setCode(e.target.value)}
+					className="max-w-xs"
+					disabled={isPending}
+				/>
+				<Button
+					type="button"
+					variant="outline"
+					disabled={isPending || !trimmed}
+					onClick={() => redeem()}
+				>
+					{isPending ? "適用中..." : "適用する"}
+				</Button>
+			</div>
+			<p className="text-xs text-muted-foreground">
+				キャンペーンコードで契約期間を延長できます。
+			</p>
+			{message && (
+				<p className="text-sm text-green-600 dark:text-green-400">{message}</p>
+			)}
+			{error && <p className="text-sm text-destructive">{error}</p>}
+		</div>
 	);
 }

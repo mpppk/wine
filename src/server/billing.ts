@@ -1,8 +1,9 @@
 import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import type { PlanId } from "#/lib/billing/entitlements";
 import * as billingService from "#/lib/services/billing-service";
-import { optionalAuthMiddleware } from "./middleware";
+import { authMiddleware, optionalAuthMiddleware } from "./middleware";
 
 export interface BillingStatus {
 	plan: PlanId;
@@ -31,3 +32,11 @@ export const getBillingStatus = createServerFn({ method: "GET" })
 			),
 		};
 	});
+
+// 既存プレミアム会員がキャンペーンコードで期間を延長するRPC。認証必須。
+export const redeemExtensionCode = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ code: z.string().trim().min(1).max(64) }))
+	.handler(({ data, context }) =>
+		billingService.redeemExtensionCode(context.user.id, data.code),
+	);
