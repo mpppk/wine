@@ -1,4 +1,5 @@
 import type { Aop, WineColor } from "#/lib/wine/types";
+import { GRAPE_VARIETY_IDS, getVariety } from "#/lib/wine/varieties";
 
 // クイズの設問・選択肢・解説で使う日本語ラベル。
 
@@ -48,4 +49,25 @@ export function formatColorsJa(colors: readonly WineColor[]): string {
 /** AOPの選択肢表示名(日本語名 + 原語名の補助表示) */
 export function aopOptionLabel(aop: Aop): { label: string; labelSub: string } {
 	return { label: aop.nameJa, labelSub: aop.shortName };
+}
+
+/** 主要品種(principal)のIDを varieties の定義順に正規化した配列 */
+export function principalVarietyIds(aop: Aop): string[] {
+	const ids = aop.grapes
+		.filter((g) => g.role === "principal")
+		.map((g) => g.varietyId);
+	return GRAPE_VARIETY_IDS.filter((id) => ids.includes(id));
+}
+
+/** 主要品種コンボの選択肢ID(例: "chardonnay"、"cabernet-sauvignon+merlot")。正規順なので同一コンボは同一ID */
+export function principalComboId(aop: Aop): string {
+	return principalVarietyIds(aop).join("+");
+}
+
+/** 主要品種コンボの表示(例: "シャルドネ"、"カベルネ・ソーヴィニヨン・メルロ") */
+export function formatPrincipalGrapesJa(comboId: string): string {
+	return comboId
+		.split("+")
+		.map((id) => getVariety(id)?.nameJa ?? id)
+		.join("・");
 }

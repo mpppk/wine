@@ -3,6 +3,18 @@ import type { RegionId } from "#/lib/wine/types";
 import { parseKey } from "../keys";
 import type { Rng } from "../rng";
 import { QUIZ_TYPE_IDS, type QuizQuestion, type QuizType } from "../types";
+import {
+	enumerateAopClassificationKeys,
+	materializeAopClassificationQuestion,
+} from "./aop-classification";
+import {
+	enumerateAopSubregionKeys,
+	materializeAopSubregionQuestion,
+} from "./aop-subregion";
+import {
+	enumerateAopVarietyKeys,
+	materializeAopVarietyQuestion,
+} from "./aop-variety";
 import { enumerateColorsKeys, materializeColorsQuestion } from "./colors";
 import { enumerateLocationKeys, materializeLocationQuestion } from "./location";
 import {
@@ -17,6 +29,9 @@ import { enumerateVarietyKeys, materializeVarietyQuestion } from "./variety";
 
 const ENUMERATORS: Record<QuizType, (regionId: RegionId) => string[]> = {
 	colors: enumerateColorsKeys,
+	"aop-variety": enumerateAopVarietyKeys,
+	"aop-subregion": enumerateAopSubregionKeys,
+	"aop-classification": enumerateAopClassificationKeys,
 	"odd-one-out": enumerateOddOneOutKeys,
 	variety: enumerateVarietyKeys,
 	location: enumerateLocationKeys,
@@ -83,6 +98,12 @@ export function materializeQuestion(
 	switch (parsed.quizType) {
 		case "colors":
 			return materializeColorsQuestion(parsed, rng);
+		case "aop-variety":
+			return materializeAopVarietyQuestion(parsed, rng);
+		case "aop-subregion":
+			return materializeAopSubregionQuestion(parsed, rng);
+		case "aop-classification":
+			return materializeAopClassificationQuestion(parsed, rng);
 		case "odd-one-out":
 			return materializeOddOneOutQuestion(parsed, rng);
 		case "variety":

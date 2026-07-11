@@ -6,6 +6,9 @@ import type { QuizType } from "./types";
 // ディストラクタや選択肢順はレンダリングごとに変わってよく、成績はキー単位で集計する。
 //
 //   colors:{aopId}
+//   aop-variety:{aopId}          設問文の主語がそのAOP。正解=主要品種コンボ
+//   aop-subregion:{aopId}        設問文の主語がそのAOP。正解=所属地区
+//   aop-classification:{aopId}   設問文の主語がそのAOP。正解=格付けラベル
 //   odd-one-out:{axis}:{axisValue}:{aopId}   axis = color | grape | subregion | tag
 //   variety:{varietyId}:{aopId}
 //   location:{direction}:{subregionId}:{aopId}   direction = north | south | east | west
@@ -18,6 +21,9 @@ export type LocationDirection = (typeof LOCATION_DIRECTIONS)[number];
 
 export type ParsedQuestionKey =
 	| { quizType: "colors"; aopId: string }
+	| { quizType: "aop-variety"; aopId: string }
+	| { quizType: "aop-subregion"; aopId: string }
+	| { quizType: "aop-classification"; aopId: string }
 	| {
 			quizType: "odd-one-out";
 			axis: OddOneOutAxis;
@@ -36,6 +42,18 @@ const SEGMENT_PATTERN = /^[a-z0-9-]+$/;
 
 export function buildColorsKey(aopId: string): string {
 	return `colors:${aopId}`;
+}
+
+export function buildAopVarietyKey(aopId: string): string {
+	return `aop-variety:${aopId}`;
+}
+
+export function buildAopSubregionKey(aopId: string): string {
+	return `aop-subregion:${aopId}`;
+}
+
+export function buildAopClassificationKey(aopId: string): string {
+	return `aop-classification:${aopId}`;
 }
 
 export function buildOddOneOutKey(
@@ -67,6 +85,18 @@ export function parseKey(key: string): ParsedQuestionKey | null {
 		case "colors": {
 			if (rest.length !== 1) return null;
 			return { quizType: "colors", aopId: rest[0] };
+		}
+		case "aop-variety": {
+			if (rest.length !== 1) return null;
+			return { quizType: "aop-variety", aopId: rest[0] };
+		}
+		case "aop-subregion": {
+			if (rest.length !== 1) return null;
+			return { quizType: "aop-subregion", aopId: rest[0] };
+		}
+		case "aop-classification": {
+			if (rest.length !== 1) return null;
+			return { quizType: "aop-classification", aopId: rest[0] };
 		}
 		case "odd-one-out": {
 			if (rest.length !== 3) return null;

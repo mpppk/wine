@@ -37,16 +37,11 @@ export function listScopedCandidates(
 	return listCandidates(regionId, quizTypes).filter((key) => {
 		const parsed = parseKey(key);
 		if (parsed === null || !subjects.has(parsed.aopId)) return false;
-		// 対象AOP自身がそのまま正解になる問題は自明なので除外(colors は設問文に
-		// 対象AOP名が出て正解は「色」のため対象外)。配下の畑・親の村が正解になる
-		// 関連問題は別AOPが答えなので残す。
-		if (
-			parsed.aopId === scopeAopId &&
-			AOP_ANSWER_QUIZ_TYPES.has(parsed.quizType)
-		) {
-			return false;
-		}
-		return true;
+		// 「その地域に関連するクイズ」= 設問文の主語がスコープ内AOPの形式だけ。
+		// AOPが4択の正解にすぎない形式(odd-one-out / variety / location)は、
+		// たまたま正解が近傍AOPになるだけで設問はそのAOPに関する問いではないため除外。
+		// (これにより、選択AOPやその親子が正解になる自明問題も自動的に消える)
+		return !AOP_ANSWER_QUIZ_TYPES.has(parsed.quizType);
 	});
 }
 
