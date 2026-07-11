@@ -21,6 +21,7 @@ import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterSelect } from "#/components/wine/GrapeFilterSelect";
+import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import { countScopedQuestions } from "#/lib/quiz/scope";
@@ -533,11 +534,12 @@ function MapPage() {
 					</aside>
 				)}
 
-				{/* モバイル: 詳細を下部オーバーレイで表示 */}
+				{/* モバイル: 詳細を下部オーバーレイで表示。ハンドルを下スワイプで閉じる */}
 				{selectedAop && (
-					<div
-						ref={panelRef}
-						className="absolute inset-x-2 bottom-2 max-h-[55%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur lg:hidden"
+					<MobileDetailSheet
+						panelRef={panelRef}
+						onDismiss={() => setSearch({ aop: undefined })}
+						className="absolute inset-x-2 bottom-2 lg:hidden"
 					>
 						<AopDetailPanel
 							aop={selectedAop}
@@ -546,7 +548,6 @@ function MapPage() {
 							onPrev={goPrev}
 							onNext={goNext}
 							position={siblings}
-							onClose={() => setSearch({ aop: undefined })}
 							quizQuestionCount={selectedAopQuizCount}
 							onStartQuiz={startAopQuiz}
 							affiliate={affiliate}
@@ -564,7 +565,7 @@ function MapPage() {
 								</Button>
 							</div>
 						)}
-					</div>
+					</MobileDetailSheet>
 				)}
 			</div>
 

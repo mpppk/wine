@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { AopMapView } from "#/components/wine/AopMapView";
+import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { AOP_KINDS } from "#/lib/wine/map-style";
@@ -37,22 +38,25 @@ function AopWinePanel({
 }: {
 	aopNameJa: string;
 	entries: DrunkWineEntry[];
-	onClose: () => void;
+	/** 未指定なら閉じるボタンを出さない(モバイルはシートのハンドルで閉じる) */
+	onClose?: () => void;
 }) {
 	return (
 		<div className="flex flex-col gap-2 p-4">
 			<div className="flex items-start justify-between gap-2">
 				<h2 className="text-sm font-semibold">{aopNameJa}</h2>
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon"
-					className="-mt-1.5 -mr-1.5 size-7"
-					aria-label="閉じる"
-					onClick={onClose}
-				>
-					<XIcon className="size-4" />
-				</Button>
+				{onClose && (
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="-mt-1.5 -mr-1.5 size-7"
+						aria-label="閉じる"
+						onClick={onClose}
+					>
+						<XIcon className="size-4" />
+					</Button>
+				)}
 			</div>
 			<ul className="flex flex-col divide-y divide-border">
 				{entries.map((entry) => (
@@ -262,16 +266,16 @@ function CellarMapPage() {
 								onClose={() => setSelectedAopId(undefined)}
 							/>
 						</aside>
-						<div
-							ref={panelRef}
-							className="absolute inset-x-2 bottom-2 max-h-[55%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur lg:hidden"
+						<MobileDetailSheet
+							panelRef={panelRef}
+							onDismiss={() => setSelectedAopId(undefined)}
+							className="absolute inset-x-2 bottom-2 lg:hidden"
 						>
 							<AopWinePanel
 								aopNameJa={selectedAop.nameJa}
 								entries={selectedAopEntries}
-								onClose={() => setSelectedAopId(undefined)}
 							/>
-						</div>
+						</MobileDetailSheet>
 					</>
 				)}
 			</div>
