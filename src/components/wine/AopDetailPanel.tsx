@@ -12,6 +12,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import { cn } from "#/lib/utils";
 import {
 	type AffiliateConfig,
 	EMPTY_AFFILIATE_CONFIG,
@@ -67,6 +68,7 @@ export function AopDetailPanel({
 	onNext,
 	position,
 	onClose,
+	closeButtonClassName,
 	compact = false,
 	quizQuestionCount,
 	onStartQuiz,
@@ -84,6 +86,8 @@ export function AopDetailPanel({
 	/** 同一区分シーケンス内の位置。指定時は「n / total」を表示する */
 	position?: { index: number; total: number };
 	onClose?: () => void;
+	/** 閉じるボタンの表示制御用の追加class。embedでモバイル時に隠す等に使う */
+	closeButtonClassName?: string;
 	/** embed用: 余白と文字量を切り詰める */
 	compact?: boolean;
 	/** このAOPを起点に出題できる問題数。0ならクイズボタンを出さない */
@@ -145,7 +149,7 @@ export function AopDetailPanel({
 						size="icon"
 						onClick={onClose}
 						aria-label="閉じる"
-						className="-mr-1 -mt-1 shrink-0"
+						className={cn("-mr-1 -mt-1 shrink-0", closeButtonClassName)}
 					>
 						<XIcon className="size-4" />
 					</Button>

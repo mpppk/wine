@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
+import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import {
@@ -112,9 +113,11 @@ function EmbedMapPage() {
 			</div>
 
 			{selectedAop && (
-				<div
-					ref={panelRef}
-					className="absolute inset-x-2 bottom-2 max-h-[60%] overflow-y-auto rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur sm:inset-x-auto sm:right-2 sm:w-80"
+				<MobileDetailSheet
+					panelRef={panelRef}
+					onDismiss={() => setSelectedAopId(undefined)}
+					handleClassName="sm:hidden"
+					className="absolute inset-x-2 bottom-2 max-h-[60%] sm:inset-x-auto sm:right-2 sm:w-80"
 				>
 					<AopDetailPanel
 						aop={selectedAop}
@@ -125,9 +128,10 @@ function EmbedMapPage() {
 						position={siblings}
 						compact
 						onClose={() => setSelectedAopId(undefined)}
+						closeButtonClassName="hidden sm:inline-flex"
 						affiliate={affiliate}
 					/>
-				</div>
+				</MobileDetailSheet>
 			)}
 		</div>
 	);
