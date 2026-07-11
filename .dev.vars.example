@@ -5,3 +5,12 @@ BETTER_AUTH_URL=http://localhost:3000
 # MOSHIMO_AMAZON_A_ID=1234567
 RAKUTEN_AFFILIATE_ID=
 MOSHIMO_AMAZON_A_ID=
+
+# Stripe(任意)。未設定でもアプリは動作し、料金ページの購入ボタンが無効化される。
+# STRIPE_SECRET_KEY はテストモードのシークレットキー(sk_test_...)を設定する。
+# STRIPE_WEBHOOK_SECRET は `stripe listen --forward-to http://localhost:3000/api/auth/stripe/webhook`
+# が表示する whsec_... を設定する。
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRICE_ID_MONTHLY=
+STRIPE_PRICE_ID_ANNUAL=

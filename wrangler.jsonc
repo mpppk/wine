@@ -15,7 +15,12 @@
 		// アフィリエイトID(公開情報)。実IDに差し替えるか `wrangler secret put` で上書きする。
 		// 空のままでも購入リンクは素の検索URLとして機能する。
 		"RAKUTEN_AFFILIATE_ID": "",
-		"MOSHIMO_AMAZON_A_ID": ""
+		"MOSHIMO_AMAZON_A_ID": "",
+		// Stripe の price ID(公開情報)。ライブモードの terraform/production の apply 出力より。
+		// 空のままでもアプリは動作し、料金ページの購入ボタンが無効化されるだけ。
+		// なお STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET は terraform-apply ワークフローが投入する。
+		"STRIPE_PRICE_ID_MONTHLY": "price_1TrqGhDizKHip7Oq7IEluLkB",
+		"STRIPE_PRICE_ID_ANNUAL": "price_1TrqGhDizKHip7OqMpLZc7wH"
 	},
 	"observability": {
 		"enabled": true
@@ -42,7 +47,11 @@
 			"vars": {
 				"BETTER_AUTH_URL": "https://wine-preview.niboshi.workers.dev",
 				"RAKUTEN_AFFILIATE_ID": "",
-				"MOSHIMO_AMAZON_A_ID": ""
+				"MOSHIMO_AMAZON_A_ID": "",
+				// preview はテストモードの price ID を設定する(本番と分離)。
+				// terraform/preview の apply 出力(Terraform Apply ワークフローの Summary)より。
+				"STRIPE_PRICE_ID_MONTHLY": "price_1TreYADizKHip7Oqhgu3GfeF",
+				"STRIPE_PRICE_ID_ANNUAL": "price_1TreYADizKHip7Oqe42XBh2x"
 			},
 			"d1_databases": [
 				{

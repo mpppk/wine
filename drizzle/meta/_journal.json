@@ -50,6 +50,13 @@
       "when": 1778994900004,
       "tag": "0006_drunk_wine",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1778994900005,
+      "tag": "0007_stripe_subscription",
+      "breakpoints": true
     }
   ]
 }

@@ -57,6 +57,13 @@ export default function BetterAuthHeader() {
 					>
 						プロフィールを編集
 					</DropdownMenuItem>
+					<DropdownMenuItem
+						onSelect={() => {
+							void router.navigate({ to: "/pricing" });
+						}}
+					>
+						料金プラン
+					</DropdownMenuItem>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						onSelect={async () => {
@@ -91,6 +98,13 @@ export default function BetterAuthHeader() {
 					<ThemeToggle />
 				</div>
 				<DropdownMenuSeparator />
+				<DropdownMenuItem
+					onSelect={() => {
+						void router.navigate({ to: "/pricing" });
+					}}
+				>
+					料金プラン
+				</DropdownMenuItem>
 				<DropdownMenuItem
 					onSelect={() => {
 						void router.navigate({ to: "/login" });
