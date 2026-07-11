@@ -31,9 +31,9 @@ describe("格付けクイズ", () => {
 				expect(q.options).toHaveLength(4);
 				expect(new Set(q.options.map((o) => o.id)).size).toBe(4);
 				const aop = byId.get(q.subjectAopId);
-				expect(q.correctOptionId).toBe(
-					aopClassificationLabel(aop ?? undefined),
-				);
+				expect(aop, key).toBeDefined();
+				if (!aop) continue;
+				expect(q.correctOptionId).toBe(aopClassificationLabel(aop));
 				expect(q.options.some((o) => o.id === q.correctOptionId)).toBe(true);
 			}
 		}
