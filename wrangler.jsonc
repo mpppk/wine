@@ -19,6 +19,8 @@
 		// Stripe の price ID(公開情報)。ライブモードの terraform/production の apply 出力より。
 		// 空のままでもアプリは動作し、料金ページの購入ボタンが無効化されるだけ。
 		// なお STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET は terraform-apply ワークフローが投入する。
+		// 期間延長コード CAMPAIGN_EXTENSION_CODES は推測悪用を防ぐためシークレット扱い
+		// (`wrangler secret put CAMPAIGN_EXTENSION_CODES`)。vars には置かない。
 		"STRIPE_PRICE_ID_MONTHLY": "price_1TrqGhDizKHip7Oq7IEluLkB",
 		"STRIPE_PRICE_ID_ANNUAL": "price_1TrqGhDizKHip7OqMpLZc7wH"
 	},

@@ -54,3 +54,7 @@ output "webhook_secret" {
   value     = module.stripe.webhook_secret
   sensitive = true
 }
+
+output "new_member_promotion_code" {
+  value = module.stripe.new_member_promotion_code
+}

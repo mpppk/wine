@@ -4,6 +4,12 @@
 /** better-auth stripe プラグインに登録するプラン名(Stripe 側の Product 名とは独立)。 */
 export const PREMIUM_PLAN_NAME = "premium";
 
+/**
+ * 新規プレミアム入会時の無料トライアル日数。全新規会員に一律で付与する。
+ * auth.ts のプラン定義(freeTrial)と料金ページの表示の双方から参照する。
+ */
+export const PREMIUM_TRIAL_DAYS = 7;
+
 /** 表示用の料金。実際の請求額は Stripe の Price(環境変数の price ID)が正。 */
 export const PREMIUM_PRICING = {
 	/** 月額(円)。JPY はゼロデシマル通貨なので Stripe 上もこの値をそのまま設定する。 */
