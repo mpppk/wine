@@ -1,6 +1,10 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { RotateCcwIcon, SkipForwardIcon, XIcon } from "lucide-react";
 import { z } from "zod";
+import {
+	AdInterstitialDialog,
+	useQuizAdInterstitial,
+} from "#/components/ads/AdInterstitialDialog";
 import { QuizQuestionView } from "#/components/quiz/QuizQuestionView";
 import { useQuizSession } from "#/components/quiz/useQuizSession";
 import { Button } from "#/components/ui/button";
@@ -73,6 +77,11 @@ function QuizSession({
 	const quizTypes = parseQuizTypes(types, regionId);
 	const { phase, current, selectedOptionId, tally, answer, reset, skip, next } =
 		useQuizSession(regionId, quizTypes, isAuthenticated);
+	// 10問回答ごとに「次へ」へ広告を割り込ませる(無料会員のみ)
+	const { adOpen, onAdOpenChange, nextWithAd } = useQuizAdInterstitial(
+		tally.answered,
+		next,
+	);
 	const regionName = getRegion(regionId)?.nameJa;
 
 	return (
@@ -144,12 +153,18 @@ function QuizSession({
 							<RotateCcwIcon className="size-4" aria-hidden />
 							回答を取り消す
 						</Button>
-						<Button onClick={next} size="lg" className="h-14 flex-1 text-base">
+						<Button
+							onClick={nextWithAd}
+							size="lg"
+							className="h-14 flex-1 text-base"
+						>
 							次へ
 						</Button>
 					</div>
 				</div>
 			)}
+
+			<AdInterstitialDialog open={adOpen} onOpenChange={onAdOpenChange} />
 		</main>
 	);
 }

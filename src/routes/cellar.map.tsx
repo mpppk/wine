@@ -171,7 +171,7 @@ function CellarMapPage() {
 	}
 
 	return (
-		<main className="flex h-[calc(100dvh-57px)] flex-col sm:h-[calc(100dvh-65px)]">
+		<main className="flex h-[calc(100dvh-57px-var(--ad-banner-height,0px))] flex-col sm:h-[calc(100dvh-65px-var(--ad-banner-height,0px))]">
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2">
 				<PageHeader />
 				<div className="ml-auto flex flex-wrap items-center gap-2">

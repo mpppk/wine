@@ -4,6 +4,7 @@ import {
 	HeadContent,
 	Scripts,
 } from "@tanstack/react-router";
+import { AdBanner } from "../components/ads/AdBanner";
 import { CommandPalette } from "../components/CommandPalette";
 import { CommandPaletteProvider } from "../components/CommandPaletteContext";
 import Header from "../components/Header";
@@ -106,6 +107,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<CommandPaletteProvider>
 					<Header />
 					{children}
+					<AdBanner />
 					<CommandPalette />
 				</CommandPaletteProvider>
 				<Scripts />
