@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 import {
 	ArrowLeftIcon,
+	ChevronDownIcon,
 	GraduationCapIcon,
 	ListIcon,
 	LogInIcon,
@@ -17,6 +18,13 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import { MapQuizDialog } from "#/components/quiz/MapQuizDialog";
 import { Button } from "#/components/ui/button";
+import { Checkbox } from "#/components/ui/checkbox";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/ui/dropdown-menu";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { AopTreeList } from "#/components/wine/AopTreeList";
@@ -26,6 +34,16 @@ import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import { countScopedQuestions } from "#/lib/quiz/scope";
 import {
+	aopToken,
+	buildKindFacets,
+	facetLabelJa,
+	facetToken,
+	groupFacets,
+	groupTokens,
+	type KindFacets,
+	kindToken,
+} from "#/lib/wine/aop-filter";
+import {
 	buildAopTree,
 	flattenAopTree,
 	getAopAncestry,
@@ -33,16 +51,14 @@ import {
 } from "#/lib/wine/aop-tree";
 import {
 	AOP_KINDS,
-	GRAND_CRU_TAG_COLOR,
 	KIND_COLORS,
 	KIND_LABELS_JA,
 	PROGRESS_BUCKETS,
 	PROGRESS_EMPTY_COLOR,
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
-import { AOP_TAG_IDS, AOP_TAGS, type AopTagId } from "#/lib/wine/tags";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
-import type { AopKind, RegionId } from "#/lib/wine/types";
+import type { Aop, AopKind, RegionId } from "#/lib/wine/types";
 import { getAffiliateConfig } from "#/server/affiliate";
 import { getSession } from "#/server/auth";
 import { getAopProgress } from "#/server/quiz";
@@ -52,10 +68,12 @@ const searchSchema = z.object({
 	grape: z.string().optional(),
 	/** 選択中のAOP(slug) */
 	aop: z.string().optional(),
-	/** 表示する区分(カンマ区切り)。省略時は全区分 */
-	cls: z.string().optional(),
-	/** 表示するタグ(カンマ区切り)。省略時はタグで絞り込まない */
-	tags: z.string().optional(),
+	/**
+	 * 非表示にするフィルタトークン(カンマ区切り)。省略時は全表示。
+	 * 単純トグル区分は区分ID(例 "village")、マルチセレクト区分は "区分:facet"
+	 * (例 "vineyard:grand-cru" / "village:__none__")。
+	 */
+	hide: z.string().optional(),
 	/** 表示モード。省略時は地図 */
 	view: z.enum(["list"]).optional(),
 	/** 色分けモード。省略時は区分(kind)。"progress"=クイズ学習済み率 */
@@ -93,35 +111,19 @@ export const Route = createFileRoute("/map/$regionId")({
 	component: MapPage,
 });
 
-// 不正値(旧 "grand-cru" を含む)や地域に存在しない区分は捨て、
-// 有効値が無ければ全区分(=その地域に実在する区分)へフォールバック
-function parseKinds(
-	cls: string | undefined,
-	presentKinds: AopKind[],
-): AopKind[] {
-	if (!cls) return presentKinds;
-	const parts = cls.split(",");
-	const valid = presentKinds.filter((k) => parts.includes(k));
-	return valid.length > 0 ? valid : presentKinds;
-}
-
-// タグは区分と違い「無選択=絞り込みなし」なので、空でもフォールバックしない
-function parseTags(tags: string | undefined): AopTagId[] {
-	if (!tags) return [];
-	const parts = tags.split(",");
-	return AOP_TAG_IDS.filter((t) => parts.includes(t));
+// URL の hide を、その地域に実在するトークンだけに絞って集合化する。
+// 未知トークン(地域に存在しない区分・古いURL 等)は捨て、既定=全表示へ寄せる。
+function parseHide(
+	hide: string | undefined,
+	validTokens: ReadonlySet<string>,
+): Set<string> {
+	if (!hide) return new Set();
+	return new Set(hide.split(",").filter((t) => validTokens.has(t)));
 }
 
 function MapPage() {
 	const { region, aops, affiliate, aopProgress } = Route.useLoaderData();
-	const {
-		grape,
-		aop: selectedAopId,
-		cls,
-		tags,
-		view,
-		color,
-	} = Route.useSearch();
+	const { grape, aop: selectedAopId, hide, view, color } = Route.useSearch();
 	const { isAuthenticated } = Route.useRouteContext();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const isListView = view === "list";
@@ -146,22 +148,41 @@ function MapPage() {
 		{ kind: "region" } | { kind: "aop"; aopId: string } | null
 	>(null);
 
-	// この地域に実在する区分・タグだけをチップとして出す(winery等のデータ0件の
-	// 区分や、タグを持つAOPが無い地域のタグ行を出さない)
+	// この地域に実在する区分だけをチップとして出す(winery等のデータ0件の区分を出さない)。
+	// 格付けタグを2つ以上持つ区分はマルチセレクト化し、格付けを区分の下位に畳み込む。
 	const presentKinds = useMemo(
 		() => AOP_KINDS.filter((k) => aops.some((a) => a.kind === k)),
 		[aops],
 	);
-	const presentTags = useMemo(
-		() => AOP_TAGS.filter((t) => aops.some((a) => a.tags?.includes(t.id))),
-		[aops],
+	const kindFacets = useMemo(
+		() => buildKindFacets(aops, presentKinds),
+		[aops, presentKinds],
+	);
+	const facetsByKind = useMemo(
+		() => new Map(kindFacets.map((kf) => [kf.kind, kf])),
+		[kindFacets],
+	);
+	// 既定=全表示の判定・URL 整形に使う、全フィルタトークンの基準順リスト
+	const allTokens = useMemo(
+		() => kindFacets.flatMap((kf) => groupTokens(kf)),
+		[kindFacets],
+	);
+	const validTokens = useMemo(() => new Set(allTokens), [allTokens]);
+	const hideSet = useMemo(
+		() => parseHide(hide, validTokens),
+		[hide, validTokens],
+	);
+	// AOP -> 属するフィルタトークン。非表示判定に使う
+	const tokenOf = useMemo(
+		() => (a: Aop) => aopToken(a, facetsByKind),
+		[facetsByKind],
+	);
+	// 区分・格付けフィルタで非表示になるAOP(品種フィルタは含めない: 地図では灰色に沈める)
+	const hiddenAopIds = useMemo(
+		() => new Set(aops.filter((a) => hideSet.has(tokenOf(a))).map((a) => a.id)),
+		[aops, hideSet, tokenOf],
 	);
 
-	const visibleKinds = useMemo(
-		() => parseKinds(cls, presentKinds),
-		[cls, presentKinds],
-	);
-	const visibleTags = useMemo(() => parseTags(tags), [tags]);
 	const selectedAop = aops.find((a) => a.id === selectedAopId);
 	const selectedAncestry = useMemo(
 		() => (selectedAop ? getAopAncestry(selectedAop, aops, region) : undefined),
@@ -178,28 +199,25 @@ function MapPage() {
 		? () => setQuizScope({ kind: "aop", aopId: selectedAop.id })
 		: undefined;
 
-	// 一覧(サイドバー/リスト表示): 地図と同じフィルタを反映する
+	// 一覧(サイドバー/リスト表示): 地図と同じ絞り込みを反映する。リストでは品種
+	// 不一致も非表示にする(地図は灰色に沈めるだけなので hiddenAopIds とは別に組む)
 	const visibleAopIds = useMemo(
 		() =>
 			new Set(
 				aops
 					.filter(
 						(a) =>
-							visibleKinds.includes(a.kind) &&
-							(visibleTags.length === 0 ||
-								a.tags?.some((t) => visibleTags.includes(t))) &&
-							(!grape || aopAllowsGrape(a, grape)),
+							!hideSet.has(tokenOf(a)) && (!grape || aopAllowsGrape(a, grape)),
 					)
 					.map((a) => a.id),
 			),
-		[aops, visibleKinds, visibleTags, grape],
+		[aops, hideSet, tokenOf, grape],
 	);
 
 	const setSearch = (patch: {
 		grape?: string | undefined;
 		aop?: string | undefined;
-		cls?: string | undefined;
-		tags?: string | undefined;
+		hide?: string | undefined;
 		view?: "list" | undefined;
 		color?: "progress" | undefined;
 	}) => {
@@ -235,25 +253,18 @@ function MapPage() {
 	// モバイルの下部詳細パネルが覆う分を地図の中心合わせから除外する
 	const { panelRef, getInset } = useMapOverlayInset();
 
-	const toggleKind = (k: AopKind) => {
-		const next = visibleKinds.includes(k)
-			? visibleKinds.filter((x) => x !== k)
-			: [...visibleKinds, k];
-		// 全部OFFは意味がないので、その場合は全表示へ戻す
-		setSearch({
-			cls:
-				next.length === 0 || next.length === presentKinds.length
-					? undefined
-					: next.join(","),
-		});
+	// hide 集合を URL に書き戻す。既定(何も非表示でない)は省略してURLを短く保つ。
+	const writeHide = (next: Set<string>) => {
+		const ordered = allTokens.filter((t) => next.has(t));
+		setSearch({ hide: ordered.length === 0 ? undefined : ordered.join(",") });
 	};
 
-	const toggleTag = (t: AopTagId) => {
-		const next = visibleTags.includes(t)
-			? visibleTags.filter((x) => x !== t)
-			: [...visibleTags, t];
-		// タグは「無選択=絞り込みなし」。全選択でも無選択より狭い集合なので畳まない
-		setSearch({ tags: next.length === 0 ? undefined : next.join(",") });
+	// トークンの表示/非表示をトグルする(単純トグル区分・マルチセレクトの facet 共通)
+	const toggleToken = (token: string) => {
+		const next = new Set(hideSet);
+		if (next.has(token)) next.delete(token);
+		else next.add(token);
+		writeHide(next);
 	};
 
 	const treeList = (
@@ -368,66 +379,26 @@ function MapPage() {
 
 					<fieldset
 						className="flex items-center gap-1"
-						aria-label="区分フィルタ"
+						aria-label="区分・格付けフィルタ"
 					>
-						{presentKinds.map((k) => {
-							const active = visibleKinds.includes(k);
-							return (
-								<button
-									key={k}
-									type="button"
-									onClick={() => toggleKind(k)}
-									aria-pressed={active}
-									className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-										active
-											? "border-transparent text-white"
-											: "border-border text-muted-foreground hover:border-foreground/40"
-									}`}
-									style={
-										active
-											? { backgroundColor: KIND_COLORS[k].fill }
-											: undefined
-									}
-								>
-									{KIND_LABELS_JA[k]}
-								</button>
-							);
-						})}
+						{kindFacets.map((kf) =>
+							kf.multi ? (
+								<KindFacetMenu
+									key={kf.kind}
+									kf={kf}
+									hideSet={hideSet}
+									onToggle={toggleToken}
+								/>
+							) : (
+								<KindToggle
+									key={kf.kind}
+									kind={kf.kind}
+									active={!hideSet.has(kindToken(kf.kind))}
+									onToggle={() => toggleToken(kindToken(kf.kind))}
+								/>
+							),
+						)}
 					</fieldset>
-
-					{presentTags.length > 0 && (
-						<fieldset
-							className="flex items-center gap-1"
-							aria-label="タグフィルタ"
-						>
-							{presentTags.map((tag) => {
-								const active = visibleTags.includes(tag.id);
-								return (
-									<button
-										key={tag.id}
-										type="button"
-										onClick={() => toggleTag(tag.id)}
-										aria-pressed={active}
-										className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-											active
-												? "border-transparent bg-foreground text-background"
-												: "border-border border-dashed text-muted-foreground hover:border-foreground/40"
-										}`}
-										style={
-											active && tag.id === "grand-cru"
-												? {
-														backgroundColor: GRAND_CRU_TAG_COLOR.fill,
-														color: "#fff",
-													}
-												: undefined
-										}
-									>
-										{tag.labelJa}
-									</button>
-								);
-							})}
-						</fieldset>
-					)}
 
 					<GrapeFilterSelect
 						value={grape}
@@ -447,8 +418,7 @@ function MapPage() {
 						aops={aops}
 						selectedAopId={selectedAopId}
 						grapeVarietyId={grape}
-						visibleKinds={visibleKinds}
-						visibleTags={visibleTags}
+						hiddenAopIds={hiddenAopIds}
 						colorMode={colorMode}
 						progressByIdApp={progressByIdApp}
 						onSelectAop={(id) => setSearch({ aop: id })}
@@ -584,5 +554,100 @@ function MapPage() {
 				isAuthenticated={isAuthenticated}
 			/>
 		</main>
+	);
+}
+
+// 格付けを持たない(または1種のみの)区分の単純トグルチップ。
+function KindToggle({
+	kind,
+	active,
+	onToggle,
+}: {
+	kind: AopKind;
+	active: boolean;
+	onToggle: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onToggle}
+			aria-pressed={active}
+			className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+				active
+					? "border-transparent text-white"
+					: "border-border text-muted-foreground hover:border-foreground/40"
+			}`}
+			style={active ? { backgroundColor: KIND_COLORS[kind].fill } : undefined}
+		>
+			{KIND_LABELS_JA[kind]}
+		</button>
+	);
+}
+
+// 格付けを2種以上持つ区分のマルチセレクトチップ。区分名のボタンを押すと格付けの
+// サブ選択肢(特級/1級/…、必要なら格付けなし)がドロップダウンで開く。
+// ボタンの見た目: 0個選択=非選択 / 1個以上=選択 / 一部のみ選択=選択+ドット。
+function KindFacetMenu({
+	kf,
+	hideSet,
+	onToggle,
+}: {
+	kf: KindFacets;
+	hideSet: ReadonlySet<string>;
+	onToggle: (token: string) => void;
+}) {
+	const facets = groupFacets(kf);
+	const tokens = groupTokens(kf);
+	const selectedCount = tokens.filter((t) => !hideSet.has(t)).length;
+	const anySelected = selectedCount > 0;
+	const partial = selectedCount > 0 && selectedCount < tokens.length;
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					aria-pressed={anySelected}
+					className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+						anySelected
+							? "border-transparent text-white"
+							: "border-border text-muted-foreground hover:border-foreground/40"
+					}`}
+					style={
+						anySelected
+							? { backgroundColor: KIND_COLORS[kf.kind].fill }
+							: undefined
+					}
+				>
+					{KIND_LABELS_JA[kf.kind]}
+					{partial && (
+						<span
+							aria-hidden
+							className="size-1.5 rounded-full bg-current opacity-90"
+						/>
+					)}
+					<ChevronDownIcon className="size-3" aria-hidden />
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				{facets.map((facet) => {
+					const token = facetToken(kf.kind, facet);
+					const checked = !hideSet.has(token);
+					return (
+						<DropdownMenuItem
+							key={token}
+							// トグルしてもメニューを閉じない(複数選択を続けやすく)
+							onSelect={(e) => {
+								e.preventDefault();
+								onToggle(token);
+							}}
+							className="gap-2"
+						>
+							<Checkbox checked={checked} className="pointer-events-none" />
+							{facetLabelJa(facet)}
+						</DropdownMenuItem>
+					);
+				})}
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }

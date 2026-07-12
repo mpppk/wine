@@ -5,7 +5,7 @@ import {
 	type VineyardNode,
 } from "#/lib/wine/aop-tree";
 import { GRAND_CRU_TAG_COLOR, KIND_COLORS } from "#/lib/wine/map-style";
-import { AOP_TAG_BADGES_JA, isLegalAppellation } from "#/lib/wine/tags";
+import { classificationBadgeJa, isLegalAppellation } from "#/lib/wine/tags";
 import type { Aop, Subregion } from "#/lib/wine/types";
 
 export interface AopTreeListProps {
@@ -266,10 +266,8 @@ function AopRow({
 	selected: boolean;
 	onSelect: (aopId: string) => void;
 }) {
-	// 格付けバッジ(1級/2級/A 等)。定義の無いタグ(特級)はドット色で表現する
-	const badge = (aop.tags ?? [])
-		.map((t) => AOP_TAG_BADGES_JA[t])
-		.find((b) => b !== undefined);
+	// 格付けバッジ(特級/1級/2級/A 等)。特級もバッジで示し、非AOCバッジと同じ見た目に統一する
+	const badge = classificationBadgeJa(aop);
 	// 畑階層(vineyard)で法的に独立AOCでないもの(個別クリマ・合成総称ノード)には
 	// 「非AOC」ラベルを出し、AOCである畑(グラン・クリュ等)と区別できるようにする
 	const nonAppellation = aop.kind === "vineyard" && !isLegalAppellation(aop);
@@ -298,7 +296,7 @@ function AopRow({
 				</span>
 			)}
 			{badge && (
-				<span className="shrink-0 text-[10px] text-muted-foreground">
+				<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
 					{badge}
 				</span>
 			)}

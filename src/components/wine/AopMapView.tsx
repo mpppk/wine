@@ -51,9 +51,14 @@ export interface AopMapViewProps {
 	grapeVarietyId?: string;
 	/** 指定時、含まれないAOPは灰色に沈む(マイセラーの「飲んだAOP」表示用) */
 	highlightAopIds?: ReadonlySet<string>;
-	/** 表示する区分。含まれない区分のAOPは非表示 */
-	visibleKinds: AopKind[];
-	/** 表示するタグ。空なら絞り込まない。指定時はいずれかのタグを持つAOPのみ表示 */
+	/**
+	 * 非表示にするAOPのid集合(区分・格付けの絞り込み結果)。指定時はこれを唯一の
+	 * 非表示判定に使う。未指定時は visibleKinds/visibleTags から判定する(旧経路)。
+	 */
+	hiddenAopIds?: ReadonlySet<string>;
+	/** 表示する区分。含まれない区分のAOPは非表示(hiddenAopIds 未指定時のみ有効) */
+	visibleKinds?: AopKind[];
+	/** 表示するタグ。空なら絞り込まない(hiddenAopIds 未指定時のみ有効) */
 	visibleTags?: AopTagId[];
 	/** 色分けモード。"kind"=区分別(既定) / "progress"=クイズ学習済み率 */
 	colorMode?: "kind" | "progress";
@@ -225,6 +230,7 @@ export function AopMapView({
 	selectedAopId,
 	grapeVarietyId,
 	highlightAopIds,
+	hiddenAopIds,
 	visibleKinds,
 	visibleTags,
 	colorMode = "kind",
@@ -610,9 +616,11 @@ export function AopMapView({
 		if (!map || !loadedRef.current) return;
 		const tagFilter = visibleTags ?? [];
 		for (const aop of stateRef.current.aopsByIdApp.values()) {
-			const hidden =
-				!visibleKinds.includes(aop.kind) ||
-				(tagFilter.length > 0 && !aop.tags?.some((t) => tagFilter.includes(t)));
+			const hidden = hiddenAopIds
+				? hiddenAopIds.has(aop.id)
+				: (visibleKinds !== undefined && !visibleKinds.includes(aop.kind)) ||
+					(tagFilter.length > 0 &&
+						!aop.tags?.some((t) => tagFilter.includes(t)));
 			const dimmed =
 				!hidden &&
 				((grapeVarietyId !== undefined &&
@@ -728,6 +736,7 @@ export function AopMapView({
 	useEffect(applyFeatureStates, [
 		grapeVarietyId,
 		highlightAopIds,
+		hiddenAopIds,
 		visibleKinds,
 		visibleTags,
 	]);
