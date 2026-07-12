@@ -28,7 +28,10 @@ import {
 	KIND_COLORS,
 	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
-import { formatAopTagJa, isLegalAppellation } from "#/lib/wine/tags";
+import {
+	classificationPanelBadgeJa,
+	isLegalAppellation,
+} from "#/lib/wine/tags";
 import {
 	getAppellationBadgeJa,
 	getBoundarySourceNoteJa,
@@ -50,7 +53,6 @@ export function KindBadge({ aop }: { aop: Aop }) {
 	const color = aop.tags?.includes("grand-cru")
 		? GRAND_CRU_TAG_COLOR
 		: KIND_COLORS[aop.kind];
-	const tagLabels = (aop.tags ?? []).map((t) => formatAopTagJa(aop, t));
 	// 畑(vineyard)区分は地域固有の呼称(ブルゴーニュ=クリマ/アルザス=リュー・ディ)で示す
 	const kindLabel =
 		aop.kind === "vineyard"
@@ -66,7 +68,21 @@ export function KindBadge({ aop }: { aop: Aop }) {
 				className="size-2 rounded-full"
 				style={{ backgroundColor: color.fill }}
 			/>
-			{[kindLabel, ...tagLabels].join(" / ")}
+			{kindLabel}
+		</span>
+	);
+}
+
+/**
+ * 格付け(特級/一級/DOCG/第1級(1855)/A 等)を AOC バッジと同じ淡色バッジで示す。
+ * 格付けを持たない AOP(およびブルゴーニュ村名の「1er Cru 区画あり」)は何も出さない。
+ */
+function ClassificationBadge({ aop }: { aop: Aop }) {
+	const label = classificationPanelBadgeJa(aop);
+	if (!label) return null;
+	return (
+		<span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+			{label}
 		</span>
 	);
 }
@@ -223,6 +239,7 @@ export function AopDetailPanel({
 
 			<div className="flex flex-wrap items-center gap-1.5">
 				<KindBadge aop={aop} />
+				<ClassificationBadge aop={aop} />
 				<AppellationBadge aop={aop} />
 				{aop.colors.map((c) => (
 					<span
