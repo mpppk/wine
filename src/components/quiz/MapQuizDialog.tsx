@@ -100,8 +100,17 @@ function SessionRound({
 	onRetry: () => void;
 	onClose: () => void;
 }) {
-	const { phase, current, selectedOptionId, tally, answer, reset, skip, next } =
-		useQuizSession(regionId, ALL_QUIZ_TYPES, isAuthenticated, scopeAopId);
+	const {
+		phase,
+		current,
+		selectedOptionId,
+		tally,
+		remaining,
+		answer,
+		reset,
+		skip,
+		next,
+	} = useQuizSession(regionId, ALL_QUIZ_TYPES, isAuthenticated, scopeAopId);
 	// 10問回答ごとに「次へ」へ広告を割り込ませる(無料会員のみ)。/quiz/play と同じ挙動
 	const { adOpen, onAdOpenChange, nextWithAd } = useQuizAdInterstitial(
 		tally.answered,
@@ -116,18 +125,22 @@ function SessionRound({
 		);
 	}
 
-	if (phase === "empty") {
-		// 候補が少ないスコープでは一巡で出題が尽きる。1問でも解いていたら
-		// 成績付きの完了メッセージにし、再挑戦(新セッション)を促す
+	if (phase === "done") {
+		// この範囲の未正解を全問正解した。未ログインは「もう一度」で新セッション
+		// (実績が残らないので再挑戦できる)。ログインは正解済みが除外され即完了に
+		// なるため出さない。
 		return (
-			<div className="flex min-h-32 flex-col items-center justify-center gap-4">
-				<p className="text-center text-sm text-muted-foreground">
+			<div className="flex min-h-32 flex-col items-center justify-center gap-4 text-center">
+				<p className="text-3xl" aria-hidden>
+					🎉
+				</p>
+				<p className="text-sm font-medium">
 					{tally.answered > 0
-						? `この範囲の問題をひと通り解きました(${tally.answered}問中${tally.correct}問正解)`
-						: "この範囲で出題できる問題がありません。"}
+						? `全問正解しました！(${tally.answered}問中${tally.correct}問正解)`
+						: "この範囲はすべて正解済みです"}
 				</p>
 				<div className="flex gap-2">
-					{tally.answered > 0 && (
+					{tally.answered > 0 && !isAuthenticated && (
 						<Button variant="outline" onClick={onRetry}>
 							もう一度
 						</Button>
@@ -140,9 +153,23 @@ function SessionRound({
 		);
 	}
 
+	if (phase === "empty") {
+		return (
+			<div className="flex min-h-32 flex-col items-center justify-center gap-4">
+				<p className="text-center text-sm text-muted-foreground">
+					この範囲で出題できる問題がありません。
+				</p>
+				<Button variant="ghost" onClick={onClose}>
+					閉じる
+				</Button>
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex flex-col gap-3">
 			<p className="text-sm text-muted-foreground">
+				{remaining !== null && `残り${remaining}問 ・ `}
 				{tally.answered > 0
 					? `${tally.answered}問中${tally.correct}問正解`
 					: "セッション開始"}

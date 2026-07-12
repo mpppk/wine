@@ -75,8 +75,17 @@ function QuizSession({
 	isAuthenticated: boolean;
 }) {
 	const quizTypes = parseQuizTypes(types, regionId);
-	const { phase, current, selectedOptionId, tally, answer, reset, skip, next } =
-		useQuizSession(regionId, quizTypes, isAuthenticated);
+	const {
+		phase,
+		current,
+		selectedOptionId,
+		tally,
+		remaining,
+		answer,
+		reset,
+		skip,
+		next,
+	} = useQuizSession(regionId, quizTypes, isAuthenticated);
 	// 10問回答ごとに「次へ」へ広告を割り込ませる(無料会員のみ)
 	const { adOpen, onAdOpenChange, nextWithAd } = useQuizAdInterstitial(
 		tally.answered,
@@ -94,7 +103,8 @@ function QuizSession({
 					</Link>
 				</Button>
 				<p className="text-sm text-muted-foreground">
-					{regionName} ・{" "}
+					{regionName}
+					{remaining !== null && ` ・ 残り${remaining}問`} ・{" "}
 					{tally.answered > 0
 						? `${tally.answered}問中${tally.correct}問正解`
 						: "セッション開始"}
@@ -115,6 +125,32 @@ function QuizSession({
 					<Button asChild variant="outline">
 						<Link to="/quiz">設定に戻る</Link>
 					</Button>
+				</div>
+			)}
+
+			{phase === "done" && (
+				<div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+					<p className="text-4xl" aria-hidden>
+						🎉
+					</p>
+					<p className="text-lg font-semibold">
+						{tally.answered > 0
+							? "全問正解しました！"
+							: "この条件の問題はすべて正解済みです"}
+					</p>
+					{tally.answered > 0 && (
+						<p className="text-sm text-muted-foreground">
+							このセッション: {tally.answered}問中{tally.correct}問正解
+						</p>
+					)}
+					<div className="flex gap-2">
+						<Button asChild>
+							<Link to="/quiz/progress">学習の進捗を見る</Link>
+						</Button>
+						<Button asChild variant="outline">
+							<Link to="/quiz">設定に戻る</Link>
+						</Button>
+					</div>
 				</div>
 			)}
 

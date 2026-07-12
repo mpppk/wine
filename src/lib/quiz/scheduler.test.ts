@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mulberry32 } from "./rng";
 import {
+	filterUnsolved,
 	pickQuestionKeys,
 	type QuestionStatLike,
 	scoreCandidate,
@@ -68,6 +69,34 @@ describe("scoreCandidate", () => {
 			NOW,
 		);
 		expect(wrong).toBeGreaterThan(right);
+	});
+});
+
+describe("filterUnsolved", () => {
+	const candidates = ["colors:aop-a", "colors:aop-b", "colors:aop-c"];
+
+	it("実績行が無い(未出題)キーは未正解として残す", () => {
+		expect(filterUnsolved(candidates, new Map())).toEqual(candidates);
+	});
+
+	it("一度でも正解した(correctCount>0)キーを除外する", () => {
+		const statsByKey = new Map<string, QuestionStatLike>([
+			// 正解済み: 除外される
+			["colors:aop-a", stat({ correctCount: 1 })],
+			// 不正解のみ: correctCount=0 なので残る
+			["colors:aop-b", stat({ incorrectCount: 3, streak: 0 })],
+		]);
+		expect(filterUnsolved(candidates, statsByKey)).toEqual([
+			"colors:aop-b",
+			"colors:aop-c",
+		]);
+	});
+
+	it("全問正解済みなら空配列(=残り0)", () => {
+		const statsByKey = new Map<string, QuestionStatLike>(
+			candidates.map((key) => [key, stat({ correctCount: 2 })]),
+		);
+		expect(filterUnsolved(candidates, statsByKey)).toEqual([]);
 	});
 });
 

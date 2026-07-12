@@ -9,7 +9,11 @@ import {
 	materializeQuestion,
 } from "#/lib/quiz/generators";
 import { parseKey } from "#/lib/quiz/keys";
-import { pickQuestionKeys, type QuestionStatLike } from "#/lib/quiz/scheduler";
+import {
+	filterUnsolved,
+	pickQuestionKeys,
+	type QuestionStatLike,
+} from "#/lib/quiz/scheduler";
 import { listScopedCandidates } from "#/lib/quiz/scope";
 import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
 import { listRegions } from "#/lib/wine/service";
@@ -31,11 +35,19 @@ export interface GetNextQuestionsOptions {
 	scopeAopId?: string;
 }
 
+export interface GetNextQuestionsResult {
+	questions: QuizQuestion[];
+	/** まだ一度も正解していない候補数(スコープ内)。残り未正解数の表示・完了判定に使う */
+	remaining: number;
+	/** スコープ内の全候補数(正解済みも含む)。「問題0件」と「全問正解済み」の区別に使う */
+	total: number;
+}
+
 export async function getNextQuestions(
 	// null = 未ログイン。実績が無いので全問未出題としてスケジューリングされる
 	userId: string | null,
 	options: GetNextQuestionsOptions,
-): Promise<{ questions: QuizQuestion[] }> {
+): Promise<GetNextQuestionsResult> {
 	const { regionId, quizTypes, count, excludeKeys, scopeAopId } = options;
 	const candidates =
 		scopeAopId !== undefined
@@ -44,7 +56,7 @@ export async function getNextQuestions(
 	if (candidates === null) {
 		throw new Error(`invalid scope aop: ${scopeAopId}`);
 	}
-	if (candidates.length === 0) return { questions: [] };
+	if (candidates.length === 0) return { questions: [], remaining: 0, total: 0 };
 
 	const rows = userId
 		? await db
@@ -75,13 +87,17 @@ export async function getNextQuestions(
 		]),
 	);
 
+	// 「全問正解で終了」: まだ一度も正解していない問題だけを出題対象にする。
+	// 正解済み(correctCount>0)は永続的に除外し、残り未正解数を算出する。
+	const unsolved = filterUnsolved(candidates, statsByKey);
+
 	const now = Date.now();
 	const questions: QuizQuestion[] = [];
 	const used = new Set(excludeKeys);
 	// materialize がデータ失効等で null を返した場合に備えて1回だけ補充する
 	for (let attempt = 0; attempt < 2 && questions.length < count; attempt++) {
 		const keys = pickQuestionKeys({
-			candidates,
+			candidates: unsolved,
 			statsByKey,
 			count: count - questions.length,
 			excludeKeys: [...used],
@@ -95,7 +111,7 @@ export async function getNextQuestions(
 			if (question) questions.push(question);
 		}
 	}
-	return { questions };
+	return { questions, remaining: unsolved.length, total: candidates.length };
 }
 
 export interface RecordAnswerOptions {
