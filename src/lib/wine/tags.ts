@@ -73,6 +73,26 @@ export function classificationBadgeJa(aop: Aop): string | undefined {
 }
 
 /**
+ * 詳細パネルで AOC バッジと並べて出す「格付けバッジ」の文言(フル表記)。
+ * 実際に格付けを持つ AOP のみ返す(特級/一級/DOCG/DOC/第1級(1855)/A …)。
+ * ブルゴーニュ村名の premier-cru は「村内に 1er Cru 区画がある」意で村自体は
+ * 格付けを持たないため undefined(バッジを出さない)。classificationBadgeJa /
+ * formatAopTagJa と同じドメイン規則。
+ */
+export function classificationPanelBadgeJa(aop: Aop): string | undefined {
+	const tag = primaryClassificationTag(aop);
+	if (!tag) return undefined;
+	if (
+		tag === "premier-cru" &&
+		aop.kind === "village" &&
+		aop.region !== "champagne"
+	) {
+		return undefined;
+	}
+	return formatAopTagJa(aop, tag);
+}
+
+/**
  * 格付けの序列(小さいほど上位)。同一村内でシャトーを格付け順に並べるのに使う。
  * 制度をまたぐ絶対比較には使わない(1855の第1級とサンテミリオンAは別制度)。
  */
