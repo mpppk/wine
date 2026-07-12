@@ -29,7 +29,7 @@ import {
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { AopTreeList } from "#/components/wine/AopTreeList";
-import { GrapeFilterSelect } from "#/components/wine/GrapeFilterSelect";
+import { GrapeFilterMenu } from "#/components/wine/GrapeFilterMenu";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
@@ -414,7 +414,7 @@ function MapPage() {
 
 					<fieldset
 						className="flex items-center gap-1"
-						aria-label="区分・格付けフィルタ"
+						aria-label="品種・区分・格付けフィルタ"
 					>
 						{kindFacets.map((kf) =>
 							kf.multi ? (
@@ -435,12 +435,11 @@ function MapPage() {
 								/>
 							),
 						)}
+						<GrapeFilterMenu
+							value={grape}
+							onChange={(v) => setSearch({ grape: v })}
+						/>
 					</fieldset>
-
-					<GrapeFilterSelect
-						value={grape}
-						onChange={(v) => setSearch({ grape: v })}
-					/>
 				</div>
 			</div>
 
