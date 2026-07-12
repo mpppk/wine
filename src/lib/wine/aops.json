@@ -810,6 +810,589 @@
 		"description": "シャブリの町を見下ろす右岸の一枚の丘に広がる、シャブリ地区唯一のグラン・クリュAOC。レ・クロ、ヴォーデジール、グルヌイユなど7つのクリマから成る(このほかにヴォーデジールとプルーズにまたがる非公式の単独所有区画ラ・ムートンヌが知られる)。豊かな凝縮感と強いミネラルを備え、長期熟成に耐える偉大な辛口白を生む。"
 	},
 	{
+		"id": "chablis-gc-les-clos",
+		"idApp": 930001,
+		"name": "Les Clos",
+		"shortName": "Les Clos",
+		"nameJa": "レ・クロ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-grand-cru",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "スラン川右岸の南西向き斜面。キンメリジャン期の石灰質泥灰土(小型牡蠣エクソジラの化石を含む)が主体。",
+		"producers": ["Domaine François Raveneau", "Domaine Vincent Dauvissat"],
+		"description": "シャブリ特級で最大かつ最も名高いクリマ。急峻な斜面から、力強いミネラルと長い熟成能力を備えた骨格のある辛口白を生む。"
+	},
+	{
+		"id": "chablis-gc-vaudesir",
+		"idApp": 930002,
+		"name": "Vaudésir",
+		"shortName": "Vaudésir",
+		"nameJa": "ヴォーデジール",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-grand-cru",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "スラン川右岸の南西向き斜面。キンメリジャン期の石灰質泥灰土(小型牡蠣エクソジラの化石を含む)が主体。",
+		"producers": ["Domaine William Fèvre", "La Chablisienne"],
+		"description": "特級の中央、二つの谷が合わさる好条件のクリマ。華やかな果実味とミネラルのバランスに優れる。"
+	},
+	{
+		"id": "chablis-gc-valmur",
+		"idApp": 930003,
+		"name": "Valmur",
+		"shortName": "Valmur",
+		"nameJa": "ヴァルミュール",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-grand-cru",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "スラン川右岸の南西向き斜面。キンメリジャン期の石灰質泥灰土(小型牡蠣エクソジラの化石を含む)が主体。",
+		"producers": [
+			"Domaine François Raveneau",
+			"Domaine Christian Moreau Père & Fils"
+		],
+		"description": "レ・クロとヴォーデジールに挟まれた凹地状のクリマ。豊かなコクと複雑な香り、力強い酸を備える。"
+	},
+	{
+		"id": "chablis-gc-grenouilles",
+		"idApp": 930004,
+		"name": "Grenouilles",
+		"shortName": "Grenouilles",
+		"nameJa": "グルヌイユ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-grand-cru",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "スラン川右岸の南西向き斜面。キンメリジャン期の石灰質泥灰土(小型牡蠣エクソジラの化石を含む)が主体。",
+		"producers": ["La Chablisienne", "Domaine Louis Michel & Fils"],
+		"description": "特級で最も小さい部類のクリマ。スラン川に最も近く、豊満で香り高いスタイル。ラ・シャブリジェンヌのシャトー・グルヌイユが知られる。"
+	},
+	{
+		"id": "chablis-gc-blanchot",
+		"idApp": 930005,
+		"name": "Blanchot",
+		"shortName": "Blanchot",
+		"nameJa": "ブランショ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-grand-cru",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "スラン川右岸の南西向き斜面。キンメリジャン期の石灰質泥灰土(小型牡蠣エクソジラの化石を含む)が主体。",
+		"producers": ["Domaine François Raveneau", "Domaine Laroche"],
+		"description": "特級東端の急斜面。繊細で華やかなアロマとエレガントな酸が特徴。"
+	},
+	{
+		"id": "chablis-gc-bougros",
+		"idApp": 930006,
+		"name": "Bougros",
+		"shortName": "Bougros",
+		"nameJa": "ブーグロ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-grand-cru",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "スラン川右岸の南西向き斜面。キンメリジャン期の石灰質泥灰土(小型牡蠣エクソジラの化石を含む)が主体。",
+		"producers": ["Domaine William Fèvre", "La Chablisienne"],
+		"description": "特級西端の下部に広がるクリマ。豊満でふくよか、若いうちから開く。ウィリアム・フェーヴルのコート・ブーグロが名高い。"
+	},
+	{
+		"id": "chablis-gc-preuses",
+		"idApp": 930007,
+		"name": "Preuses",
+		"shortName": "Preuses",
+		"nameJa": "プルーズ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-grand-cru",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "スラン川右岸の南西向き斜面。キンメリジャン期の石灰質泥灰土(小型牡蠣エクソジラの化石を含む)が主体。",
+		"producers": ["Domaine Vincent Dauvissat", "Domaine William Fèvre"],
+		"description": "ヴォーデジール西隣の緩やかな斜面。丸みとミネラルを備えた優美なスタイル。"
+	},
+	{
+		"id": "chablis-premier-cru",
+		"idApp": 930100,
+		"name": "Chablis Premier Cru",
+		"shortName": "Chablis Premier Cru",
+		"nameJa": "シャブリ・プルミエ・クリュ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"villageAopIds": ["chablis"],
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "キンメリジャン期の石灰質泥灰土。スラン川両岸の斜面に一級区画が点在する。",
+		"producers": [
+			"Domaine François Raveneau",
+			"Domaine Vincent Dauvissat",
+			"Domaine Louis Michel & Fils",
+			"La Chablisienne"
+		],
+		"description": "学習表示用の合成ノード。法的には独立AOCではなく Chablis AOC 内の一級名称(フルショーム等のクリマを付記して名乗る)。日当たりの良い斜面から、村名シャブリより凝縮した辛口白を生む。"
+	},
+	{
+		"id": "chablis-1er-fourchaume",
+		"idApp": 930101,
+		"name": "Fourchaume",
+		"shortName": "Fourchaume",
+		"nameJa": "フルショーム",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "右岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine William Fèvre", "La Chablisienne"],
+		"description": "特級の丘に連なる右岸の代表的な一級。日当たりに恵まれ、豊満で果実味豊かなスタイル。ヴォールラン等の小区画を含む。"
+	},
+	{
+		"id": "chablis-1er-montee-de-tonnerre",
+		"idApp": 930102,
+		"name": "Montée de Tonnerre",
+		"shortName": "Montée de Tonnerre",
+		"nameJa": "モンテ・ド・トネル",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "右岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine François Raveneau", "Domaine Louis Michel & Fils"],
+		"description": "特級に隣接する右岸の名高い一級。凝縮したミネラルと張りのある酸で特級に迫るとされる。"
+	},
+	{
+		"id": "chablis-1er-mont-de-milieu",
+		"idApp": 930103,
+		"name": "Mont de Milieu",
+		"shortName": "Mont de Milieu",
+		"nameJa": "モン・ド・ミリュー",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "右岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine Louis Michel & Fils", "La Chablisienne"],
+		"description": "右岸、モンテ・ド・トネルの東の一級。豊かな果実味と力強さを備える。"
+	},
+	{
+		"id": "chablis-1er-vaucoupin",
+		"idApp": 930104,
+		"name": "Vaucoupin",
+		"shortName": "Vaucoupin",
+		"nameJa": "ヴォークパン",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "右岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine Jean-Paul & Benoît Droin", "La Chablisienne"],
+		"description": "右岸ショワイイ村の一級。均整のとれたミネラリーな辛口。"
+	},
+	{
+		"id": "chablis-1er-les-fourneaux",
+		"idApp": 930105,
+		"name": "Les Fourneaux",
+		"shortName": "Les Fourneaux",
+		"nameJa": "レ・フルノー",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "右岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["La Chablisienne", "Domaine des Malandes"],
+		"description": "右岸フルネー地区の一級。ふくよかで親しみやすいスタイル。"
+	},
+	{
+		"id": "chablis-1er-berdiot",
+		"idApp": 930106,
+		"name": "Berdiot",
+		"shortName": "Berdiot",
+		"nameJa": "ベルディオ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "右岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["La Chablisienne", "Domaine William Fèvre"],
+		"description": "右岸の小さな一級。繊細でフローラルな香り。"
+	},
+	{
+		"id": "chablis-1er-cote-de-vaubarousse",
+		"idApp": 930107,
+		"name": "Côte de Vaubarousse",
+		"shortName": "Côte de Vaubarousse",
+		"nameJa": "コート・ド・ヴォーバルース",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "右岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine Gautheron", "La Chablisienne"],
+		"description": "右岸フィエ村の一級。冷涼で張りのある酸。"
+	},
+	{
+		"id": "chablis-1er-montmains",
+		"idApp": 930108,
+		"name": "Montmains",
+		"shortName": "Montmains",
+		"nameJa": "モンマン",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine Louis Michel & Fils", "Domaine Billaud-Simon"],
+		"description": "左岸の代表的な一級。緊張感のある酸とミネラル。フォルジョやビュトー等を含む。"
+	},
+	{
+		"id": "chablis-1er-vaillons",
+		"idApp": 930109,
+		"name": "Vaillons",
+		"shortName": "Vaillons",
+		"nameJa": "ヴァイヨン",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine Vincent Dauvissat", "Domaine Louis Michel & Fils"],
+		"description": "左岸の広い一級。フローラルで軽快。レ・リス等の小区画を擁する。"
+	},
+	{
+		"id": "chablis-1er-cote-de-lechet",
+		"idApp": 930110,
+		"name": "Côte de Léchet",
+		"shortName": "Côte de Léchet",
+		"nameJa": "コート・ド・レシェ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine des Malandes", "La Chablisienne"],
+		"description": "左岸ミリー村の急斜面。直線的でシャープなミネラル。"
+	},
+	{
+		"id": "chablis-1er-beauroy",
+		"idApp": 930111,
+		"name": "Beauroy",
+		"shortName": "Beauroy",
+		"nameJa": "ボーロワ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["La Chablisienne", "Domaine Hamelin"],
+		"description": "左岸西部の一級。柔らかく早くから開く。"
+	},
+	{
+		"id": "chablis-1er-vau-de-vey",
+		"idApp": 930112,
+		"name": "Vau de Vey",
+		"shortName": "Vau de Vey",
+		"nameJa": "ヴォー・ド・ヴェイ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine des Malandes", "La Chablisienne"],
+		"description": "左岸西部の冷涼な一級。切れのある酸。"
+	},
+	{
+		"id": "chablis-1er-vau-ligneau",
+		"idApp": 930113,
+		"name": "Vau Ligneau",
+		"shortName": "Vau Ligneau",
+		"nameJa": "ヴォー・リニョー",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine Hamelin", "La Chablisienne"],
+		"description": "左岸西部の一級。軽快でフレッシュ。"
+	},
+	{
+		"id": "chablis-1er-vosgros",
+		"idApp": 930114,
+		"name": "Vosgros",
+		"shortName": "Vosgros",
+		"nameJa": "ヴォグロ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine Jean-Paul & Benoît Droin", "La Chablisienne"],
+		"description": "左岸南部ショワイイ寄りの一級。丸みと果実味。"
+	},
+	{
+		"id": "chablis-1er-chaume-de-talvat",
+		"idApp": 930115,
+		"name": "Chaume de Talvat",
+		"shortName": "Chaume de Talvat",
+		"nameJa": "ショーム・ド・タルヴァ",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["La Chablisienne", "Domaine des Malandes"],
+		"description": "左岸南部の一級。フレッシュで軽やか。"
+	},
+	{
+		"id": "chablis-1er-cote-de-jouan",
+		"idApp": 930116,
+		"name": "Côte de Jouan",
+		"shortName": "Côte de Jouan",
+		"nameJa": "コート・ド・ジュアン",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["La Chablisienne", "Domaine Gautheron"],
+		"description": "左岸南部の一級。冷涼でミネラリー。"
+	},
+	{
+		"id": "chablis-1er-les-beauregards",
+		"idApp": 930117,
+		"name": "Les Beauregards",
+		"shortName": "Les Beauregards",
+		"nameJa": "レ・ボールガール",
+		"region": "bourgogne",
+		"subregionId": "chablis-grand-auxerrois",
+		"kind": "vineyard",
+		"parentAopId": "chablis-premier-cru",
+		"isAppellation": false,
+		"tags": ["premier-cru"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "左岸のキンメリジャン期石灰質泥灰土の斜面。",
+		"producers": ["Domaine des Malandes", "La Chablisienne"],
+		"description": "左岸南端の一級。標高が高く張りのある酸。"
+	},
+	{
 		"id": "chambertin",
 		"idApp": 148,
 		"name": "Chambertin",
@@ -1363,6 +1946,198 @@
 			"Domaine Chandon de Briailles"
 		],
 		"description": "ラドワ＝セリニィ、アロース＝コルトン、ペルナン＝ヴェルジュレスの3村にまたがるコート・ド・ボーヌ最大のグラン・クリュで、同地区で赤が認められる唯一の特級。クロ・デュ・ロワやブレッサンドなど多数のクリマ名を併記できる。堅牢でタンニンのしっかりした長期熟成型の赤が中心だが、白もわずかに造られる。"
+	},
+	{
+		"id": "corton-le-corton",
+		"idApp": 930201,
+		"name": "Le Corton",
+		"shortName": "Le Corton",
+		"nameJa": "ル・コルトン",
+		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
+		"kind": "vineyard",
+		"parentAopId": "corton",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
+		"producers": ["Domaine de la Romanée-Conti", "Bonneau du Martray"],
+		"description": "コルトンの丘上部、総称名の由来となる中核クリマ。赤は力強く長命で、上部では白も産する。"
+	},
+	{
+		"id": "corton-les-bressandes",
+		"idApp": 930202,
+		"name": "Les Bressandes",
+		"shortName": "Les Bressandes",
+		"nameJa": "レ・ブレッサンド",
+		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
+		"kind": "vineyard",
+		"parentAopId": "corton",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
+		"producers": ["Domaine de la Romanée-Conti", "Chandon de Briailles"],
+		"description": "丘の東〜南東斜面の名高いクリマ。芳香と果実味に富む優美な赤。"
+	},
+	{
+		"id": "corton-clos-du-roi",
+		"idApp": 930203,
+		"name": "Clos du Roi",
+		"shortName": "Clos du Roi",
+		"nameJa": "クロ・デュ・ロワ",
+		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
+		"kind": "vineyard",
+		"parentAopId": "corton",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
+		"producers": ["Chandon de Briailles", "Domaine Comte Senard"],
+		"description": "丘の南東部、コルトン最上級とされるクリマ。深みと骨格を備えた赤。"
+	},
+	{
+		"id": "corton-les-renardes",
+		"idApp": 930204,
+		"name": "Les Renardes",
+		"shortName": "Les Renardes",
+		"nameJa": "レ・ルナルド",
+		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
+		"kind": "vineyard",
+		"parentAopId": "corton",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
+		"producers": ["Domaine de la Romanée-Conti", "Domaine Comte Senard"],
+		"description": "丘の東斜面上部。野性的で力強く、タンニン豊かな赤。"
+	},
+	{
+		"id": "corton-les-perrieres",
+		"idApp": 930205,
+		"name": "Les Perrières",
+		"shortName": "Les Perrières",
+		"nameJa": "レ・ペリエール",
+		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
+		"kind": "vineyard",
+		"parentAopId": "corton",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
+		"producers": ["Domaine Comte Senard", "Follin-Arbelet"],
+		"description": "石が多い区画。締まった構造とミネラルを備えた赤。"
+	},
+	{
+		"id": "corton-les-greves",
+		"idApp": 930206,
+		"name": "Les Grèves",
+		"shortName": "Les Grèves",
+		"nameJa": "レ・グレーヴ",
+		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
+		"kind": "vineyard",
+		"parentAopId": "corton",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
+		"producers": ["Domaine Tollot-Beaut", "Louis Jadot"],
+		"description": "南東向きの緩斜面。しなやかで香り高い赤。"
+	},
+	{
+		"id": "corton-les-pougets",
+		"idApp": 930207,
+		"name": "Les Pougets",
+		"shortName": "Les Pougets",
+		"nameJa": "レ・プジェ",
+		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
+		"kind": "vineyard",
+		"parentAopId": "corton",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
+		"producers": ["Louis Jadot", "Domaine Rapet Père & Fils"],
+		"description": "丘上部、白も産するクリマ。エレガントな赤とミネラリーな白を生む。"
+	},
+	{
+		"id": "corton-les-marechaudes",
+		"idApp": 930208,
+		"name": "Les Maréchaudes",
+		"shortName": "Les Maréchaudes",
+		"nameJa": "レ・マレショード",
+		"region": "bourgogne",
+		"subregionId": "cote-de-beaune",
+		"kind": "vineyard",
+		"parentAopId": "corton",
+		"isAppellation": false,
+		"tags": ["grand-cru"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
+		"producers": ["Domaine Comte Senard", "Chandon de Briailles"],
+		"description": "丘南東の下部。柔らかく親しみやすい赤。"
 	},
 	{
 		"id": "corton-charlemagne",

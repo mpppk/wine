@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 import { AOPS } from "./aops-data";
 import { AOP_CENTROIDS, getCentroid } from "./centroids";
 import { REGIONS } from "./regions";
+import { POLYGONLESS_IDAPP_MIN } from "./types";
 
 // aop-centroids.json (build:centroids の出力) と aops.json の整合性を検証する。
 // GeoJSON再生成後に build:centroids を忘れた場合の乖離をここで検出する。
 
 describe("セントロイドデータの整合性", () => {
-	it("すべてのAOPにセントロイドがある", () => {
-		for (const aop of AOPS) {
+	it("すべてのAOPにセントロイドがある(ポリゴンを持つ帯のみ)", () => {
+		// 個別クリマ・合成総称ノード(idApp>=930000)はポリゴンを持たないため対象外。
+		for (const aop of AOPS.filter((a) => a.idApp < POLYGONLESS_IDAPP_MIN)) {
 			expect(getCentroid(aop.id), aop.id).toBeDefined();
 		}
 	});

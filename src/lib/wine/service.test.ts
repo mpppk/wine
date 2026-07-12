@@ -57,15 +57,16 @@ describe("listAops", () => {
 
 	it("タグで絞り込める(OR結合)", () => {
 		const grandCrus = listAops({ regionId: "bourgogne", tags: ["grand-cru"] });
-		expect(grandCrus).toHaveLength(33);
+		// 特級村・畑33 + シャブリGC7クリマ + コルトン8クリマ = 48
+		expect(grandCrus).toHaveLength(48);
 		expect(grandCrus.every((a) => a.tags?.includes("grand-cru"))).toBe(true);
 
 		const crus = listAops({
 			regionId: "bourgogne",
 			tags: ["grand-cru", "premier-cru"],
 		});
-		// 特級33 + 一級区画を持つ村31 の和集合(両タグ併持は無い)
-		expect(crus).toHaveLength(64);
+		// 特級48 + 一級(村31 + 合成総称1 + シャブリ1er17クリマ = 49) の和集合(併持なし)
+		expect(crus).toHaveLength(97);
 		expect(
 			crus.every((a) =>
 				a.tags?.some((t) => t === "grand-cru" || t === "premier-cru"),

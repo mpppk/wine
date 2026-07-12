@@ -1,7 +1,12 @@
 import { getRegion } from "#/lib/wine/regions";
 import { aopAllowsGrape, getAop, listAops } from "#/lib/wine/service";
 import { AOP_TAG_IDS, type AopTagId } from "#/lib/wine/tags";
-import type { Aop, RegionId, WineColor } from "#/lib/wine/types";
+import {
+	type Aop,
+	POLYGONLESS_IDAPP_MIN,
+	type RegionId,
+	type WineColor,
+} from "#/lib/wine/types";
 import { GRAPE_VARIETIES, getVariety } from "#/lib/wine/varieties";
 import {
 	buildOddOneOutKey,
@@ -25,6 +30,12 @@ import type { QuizQuestion } from "../types";
 
 const MIN_POOL = 3;
 
+// クリマ・合成総称ノード(ポリゴンを持たない詳細エントリ = idApp>=930000)は
+// 仲間外れクイズの出題主体・選択肢にしない。数が多く難度が跳ねるうえ、地図クイズ
+// (重心依存)では自動除外される一方、仲間外れは非依存なのでここで明示的に除く。
+const listQuizAops: typeof listAops = (filter) =>
+	listAops(filter).filter((a) => a.idApp < POLYGONLESS_IDAPP_MIN);
+
 /** 軸ごとの「性質を持つ側のプール」。3件未満なら問題が成立しない */
 function poolFor(
 	regionId: RegionId,
@@ -33,25 +44,27 @@ function poolFor(
 ): Aop[] | null {
 	switch (axis) {
 		case "color":
-			return listAops({ regionId }).filter((a) =>
+			return listQuizAops({ regionId }).filter((a) =>
 				a.colors.includes(axisValue as WineColor),
 			);
 		case "grape":
-			return listAops({ regionId }).filter((a) => aopAllowsGrape(a, axisValue));
+			return listQuizAops({ regionId }).filter((a) =>
+				aopAllowsGrape(a, axisValue),
+			);
 		case "subregion":
 			// 広域(regional)AOCは地理的に全域へ跨り「属さない」の判定が曖昧なため、
 			// 村名・畑名に両側を限定する
-			return listAops({ regionId, subregionId: axisValue }).filter(
+			return listQuizAops({ regionId, subregionId: axisValue }).filter(
 				(a) => a.kind === "village" || a.kind === "vineyard",
 			);
 		case "tag":
 			if (axisValue === "premier-cru") {
 				// 一級は村名同士で比較する(畑名の一級は文脈が異なる)
-				return listAops({ regionId, kind: "village" }).filter((a) =>
+				return listQuizAops({ regionId, kind: "village" }).filter((a) =>
 					a.tags?.includes("premier-cru"),
 				);
 			}
-			return listAops({ regionId }).filter((a) =>
+			return listQuizAops({ regionId }).filter((a) =>
 				a.tags?.includes(axisValue as AopTagId),
 			);
 		default:
@@ -67,26 +80,26 @@ function answersFor(
 ): Aop[] {
 	switch (axis) {
 		case "color":
-			return listAops({ regionId }).filter(
+			return listQuizAops({ regionId }).filter(
 				(a) => !a.colors.includes(axisValue as WineColor),
 			);
 		case "grape":
-			return listAops({ regionId }).filter(
+			return listQuizAops({ regionId }).filter(
 				(a) => !aopAllowsGrape(a, axisValue),
 			);
 		case "subregion":
-			return listAops({ regionId })
+			return listQuizAops({ regionId })
 				.filter((a) => a.kind === "village" || a.kind === "vineyard")
 				.filter((a) => a.subregionId !== axisValue);
 		case "tag":
 			if (axisValue === "premier-cru") {
 				// 特級村を「一級でない」と扱うのは紛らわしいため正解候補から外す
-				return listAops({ regionId, kind: "village" }).filter(
+				return listQuizAops({ regionId, kind: "village" }).filter(
 					(a) =>
 						!a.tags?.includes("premier-cru") && !a.tags?.includes("grand-cru"),
 				);
 			}
-			return listAops({ regionId }).filter(
+			return listQuizAops({ regionId }).filter(
 				(a) =>
 					(a.kind === "village" || a.kind === "vineyard") &&
 					!a.tags?.includes(axisValue as AopTagId),

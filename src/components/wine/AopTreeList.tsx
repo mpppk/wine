@@ -1,7 +1,11 @@
 import { useMemo } from "react";
-import { buildAopTree, type VillageNode } from "#/lib/wine/aop-tree";
+import {
+	buildAopTree,
+	type VillageNode,
+	type VineyardNode,
+} from "#/lib/wine/aop-tree";
 import { GRAND_CRU_TAG_COLOR, KIND_COLORS } from "#/lib/wine/map-style";
-import { AOP_TAG_BADGES_JA } from "#/lib/wine/tags";
+import { AOP_TAG_BADGES_JA, isLegalAppellation } from "#/lib/wine/tags";
 import type { Aop, Subregion } from "#/lib/wine/types";
 
 export interface AopTreeListProps {
@@ -38,7 +42,17 @@ export function AopTreeList({
 			const villages = section.villages
 				.map((node) => ({
 					...node,
-					vineyards: node.vineyards.filter((a) => visibleAopIds.has(a.id)),
+					// 畑ノードは、畑本体か配下クリマのいずれかが表示対象なら残し、
+					// クリマはフィルタ通過分だけに絞る
+					vineyards: node.vineyards
+						.map((vn) => ({
+							...vn,
+							climats: vn.climats.filter((c) => visibleAopIds.has(c.id)),
+						}))
+						.filter(
+							(vn) =>
+								visibleAopIds.has(vn.vineyard.id) || vn.climats.length > 0,
+						),
 					wineries: node.wineries.filter((a) => visibleAopIds.has(a.id)),
 				}))
 				.filter(
@@ -104,6 +118,7 @@ export function AopTreeList({
 									key={node.village.id}
 									node={node}
 									villageVisible={visibleAopIds.has(node.village.id)}
+									visibleAopIds={visibleAopIds}
 									selectedAopId={selectedAopId}
 									onSelect={onSelect}
 								/>
@@ -145,11 +160,13 @@ export function AopTreeList({
 function VillageItem({
 	node,
 	villageVisible,
+	visibleAopIds,
 	selectedAopId,
 	onSelect,
 }: {
 	node: VillageNode;
 	villageVisible: boolean;
+	visibleAopIds: ReadonlySet<string>;
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
 }) {
@@ -171,7 +188,16 @@ function VillageItem({
 			)}
 			{(node.vineyards.length > 0 || node.wineries.length > 0) && (
 				<ul className="ml-4 border-l border-border pl-1">
-					{node.vineyards.map((aop) => (
+					{node.vineyards.map((vn) => (
+						<VineyardItem
+							key={vn.vineyard.id}
+							node={vn}
+							vineyardVisible={visibleAopIds.has(vn.vineyard.id)}
+							selectedAopId={selectedAopId}
+							onSelect={onSelect}
+						/>
+					))}
+					{node.wineries.map((aop) => (
 						<li key={aop.id}>
 							<AopRow
 								aop={aop}
@@ -180,11 +206,47 @@ function VillageItem({
 							/>
 						</li>
 					))}
-					{node.wineries.map((aop) => (
-						<li key={aop.id}>
+				</ul>
+			)}
+		</li>
+	);
+}
+
+/** 畑(総称AOC/畑名AOC)と、その配下の個別クリマを入れ子表示する。 */
+function VineyardItem({
+	node,
+	vineyardVisible,
+	selectedAopId,
+	onSelect,
+}: {
+	node: VineyardNode;
+	vineyardVisible: boolean;
+	selectedAopId?: string;
+	onSelect: (aopId: string) => void;
+}) {
+	return (
+		<li>
+			{vineyardVisible ? (
+				<AopRow
+					aop={node.vineyard}
+					selected={node.vineyard.id === selectedAopId}
+					onSelect={onSelect}
+				/>
+			) : (
+				// 畑本体はフィルタで非表示だが、配下クリマの位置づけを示すため
+				// グルーピングラベルとして残す
+				<p className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+					<span aria-hidden className="size-2.5 shrink-0" />
+					{node.vineyard.nameJa}
+				</p>
+			)}
+			{node.climats.length > 0 && (
+				<ul className="ml-4 border-l border-border pl-1">
+					{node.climats.map((climat) => (
+						<li key={climat.id}>
 							<AopRow
-								aop={aop}
-								selected={aop.id === selectedAopId}
+								aop={climat}
+								selected={climat.id === selectedAopId}
 								onSelect={onSelect}
 							/>
 						</li>
@@ -208,6 +270,9 @@ function AopRow({
 	const badge = (aop.tags ?? [])
 		.map((t) => AOP_TAG_BADGES_JA[t])
 		.find((b) => b !== undefined);
+	// 畑階層(vineyard)で法的に独立AOCでないもの(個別クリマ・合成総称ノード)には
+	// 「非AOC」ラベルを出し、AOCである畑(グラン・クリュ等)と区別できるようにする
+	const nonAppellation = aop.kind === "vineyard" && !isLegalAppellation(aop);
 	return (
 		<button
 			type="button"
@@ -227,6 +292,11 @@ function AopRow({
 				}}
 			/>
 			<span className="min-w-0 flex-1 truncate">{aop.nameJa}</span>
+			{nonAppellation && (
+				<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
+					非AOC
+				</span>
+			)}
 			{badge && (
 				<span className="shrink-0 text-[10px] text-muted-foreground">
 					{badge}

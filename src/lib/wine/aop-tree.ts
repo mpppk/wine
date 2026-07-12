@@ -1,16 +1,24 @@
 import { classificationRank } from "./tags";
 import type { Aop, Region, Subregion } from "./types";
 
-// リスト表示用の階層ツリー(地区 > 村名/地区AOC > 畑/シャトー)を組み立てる。
+// リスト表示用の階層ツリー(地区 > 村名/地区AOC > 畑 > クリマ / シャトー)を組み立てる。
 // 複数村にまたがる畑(villageAopIds が複数)は各村の下に重複して現れる。
+// 個別クリマ(parentAopId を持つ畑)は親畑(総称AOC/合成総称ノード)の下に入れ子で並ぶ。
 // ボルドーのシャトー(winery)は所属AOCの下に格付け順で並べる。所属先は村名AOC
 // (ポイヤック等)だけでなく地区AOC(オー・メドック等 = kind:regional)のこともあり、
 // その場合は該当の地区AOCを親ノードとして村の前に表示する。
 
+/** 畑(総称AOC/畑名AOC)と、その中に内包される個別クリマ。 */
+export interface VineyardNode {
+	vineyard: Aop;
+	/** parentAopId でこの畑に紐づく個別クリマ。入力順を保つ */
+	climats: Aop[];
+}
+
 export interface VillageNode {
 	/** 親となるAOC(村名 village または子を持つ地区 regional) */
 	village: Aop;
-	vineyards: Aop[];
+	vineyards: VineyardNode[];
 	/** この村/地区AOCに属するシャトー(ボルドー)。格付け順に並ぶ */
 	wineries: Aop[];
 }
@@ -59,8 +67,14 @@ export function buildAopTree(
 			regionalNodes.push({ node, section });
 		}
 	}
+	// 畑(トップレベル)とシャトーを村/地区ノードに割り当てる。個別クリマ
+	// (parentAopId を持つ畑)は次のパスで親畑ノードに入れるためここでは飛ばす。
+	// 複数村にまたがる畑は村ごとに VineyardNode インスタンスを作るため、id で
+	// 全インスタンスを引けるようにしておく(クリマは全インスタンスに現れる)。
+	const vineyardNodesById = new Map<string, VineyardNode[]>();
 	for (const aop of aops) {
 		if (aop.kind !== "vineyard" && aop.kind !== "winery") continue;
+		if (aop.kind === "vineyard" && aop.parentAopId) continue; // クリマは後段で処理
 		const parents = (aop.villageAopIds ?? [])
 			.map((id) => parentNodes.get(id))
 			.filter((n) => n !== undefined);
@@ -70,9 +84,28 @@ export function buildAopTree(
 			else section?.unassignedVineyards.push(aop);
 		} else {
 			for (const parent of parents) {
-				if (aop.kind === "winery") parent.wineries.push(aop);
-				else parent.vineyards.push(aop);
+				if (aop.kind === "winery") {
+					parent.wineries.push(aop);
+				} else {
+					const node: VineyardNode = { vineyard: aop, climats: [] };
+					parent.vineyards.push(node);
+					const list = vineyardNodesById.get(aop.id) ?? [];
+					list.push(node);
+					vineyardNodesById.set(aop.id, list);
+				}
 			}
+		}
+	}
+	// 個別クリマ(parentAopId を持つ畑)を親畑ノードに入れ子で割り当てる。
+	// 親畑が(複数村ぶん)複数ノードあれば各ノードの下に現れる。親が見つからない
+	// ものは畑と同じフォールバック置き場(unassignedVineyards)に置く。
+	for (const aop of aops) {
+		if (aop.kind !== "vineyard" || !aop.parentAopId) continue;
+		const parentNodes2 = vineyardNodesById.get(aop.parentAopId);
+		if (parentNodes2?.length) {
+			for (const node of parentNodes2) node.climats.push(aop);
+		} else {
+			bySubregion.get(aop.subregionId)?.unassignedVineyards.push(aop);
 		}
 	}
 	// 地区AOC: 子(シャトー/畑)が付いたものは親ノードとして村の前に、
@@ -110,9 +143,9 @@ function stableSortByRank(aops: Aop[]): Aop[] {
 
 /**
  * ツリーを AopTreeList の表示順どおりにフラット化する。
- * セクション順に regionalAops → 各村(村本体 → 畑 → シャトー) →
+ * セクション順に regionalAops → 各村(村本体 → 畑 → クリマ → シャトー) →
  * unassignedVineyards → unassignedWineries を積む(AopTreeList.tsx の描画順と一致)。
- * 複数村にまたがる畑は複数村の下に現れるため、id で重複排除(初出のみ採用)する。
+ * 複数村にまたがる畑/クリマは複数村の下に現れるため、id で重複排除(初出のみ採用)する。
  */
 export function flattenAopTree(sections: SubregionSection[]): Aop[] {
 	const out: Aop[] = [];
@@ -126,7 +159,10 @@ export function flattenAopTree(sections: SubregionSection[]): Aop[] {
 		for (const a of section.regionalAops) push(a);
 		for (const node of section.villages) {
 			push(node.village);
-			for (const a of node.vineyards) push(a);
+			for (const vNode of node.vineyards) {
+				push(vNode.vineyard);
+				for (const a of vNode.climats) push(a);
+			}
 			for (const a of node.wineries) push(a);
 		}
 		for (const a of section.unassignedVineyards) push(a);
@@ -156,9 +192,15 @@ export function getSameKindSiblings(
 	selected: Aop,
 	visibleAopIds?: ReadonlySet<string>,
 ): AopSiblings {
+	// 同一 kind でグループ化するが、畑(vineyard)は入れ子の粒度で分ける:
+	// 個別クリマは同じ親のクリマ同士、トップレベルの畑はトップ畑同士で前後移動する
+	// (kind:vineyard に両者が混在するため parentAopId でグループを切る)。
+	const groupKey = (a: Aop): string =>
+		a.kind === "vineyard" ? (a.parentAopId ?? "<top-vineyard>") : a.kind;
+	const selectedKey = groupKey(selected);
 	const sequence = ordered.filter(
 		(a) =>
-			a.kind === selected.kind &&
+			groupKey(a) === selectedKey &&
 			(visibleAopIds === undefined || visibleAopIds.has(a.id)),
 	);
 	const index = sequence.findIndex((a) => a.id === selected.id);
@@ -185,8 +227,14 @@ export interface AopAncestry {
 	/**
 	 * 畑が所属する村名AOC。畑は複数村にまたがることがあるため配列で返す
 	 * (例: モンラシェはピュリニーとシャサーニュの2村に属する)。villageAopIds の順序を保つ。
+	 * クリマ(parentAopId を持つ畑)の場合は親畑の villageAopIds から導出する。
 	 */
 	villages: Aop[];
+	/**
+	 * クリマ(parentAopId を持つ畑)の場合、内包される親畑(総称AOC/合成総称ノード)。
+	 * それ以外は undefined。
+	 */
+	parentVineyard?: Aop;
 }
 
 /**
@@ -199,7 +247,14 @@ export function getAopAncestry(
 	region: Region,
 ): AopAncestry {
 	const byId = new Map(aops.map((a) => [a.id, a]));
-	const villages = (aop.villageAopIds ?? [])
+	// クリマは村を親畑から導出する。通常の畑/シャトーは自身の villageAopIds を使う。
+	const parentVineyard = aop.parentAopId
+		? byId.get(aop.parentAopId)
+		: undefined;
+	const villageIds = parentVineyard
+		? (parentVineyard.villageAopIds ?? [])
+		: (aop.villageAopIds ?? []);
+	const villages = villageIds
 		.map((id) => byId.get(id))
 		.filter((a): a is Aop => a !== undefined);
 	const subregion = region.subregions.find((s) => s.id === aop.subregionId);
@@ -207,5 +262,6 @@ export function getAopAncestry(
 		regionNameJa: region.nameJa,
 		subregionNameJa: aop.kind === "regional" ? undefined : subregion?.nameJa,
 		villages,
+		parentVineyard,
 	};
 }

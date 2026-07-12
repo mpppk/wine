@@ -329,9 +329,13 @@ async function main() {
 	const regionFilter = regionArg !== -1 ? process.argv[regionArg + 1] : undefined;
 	const sourceArg = process.argv.indexOf("--source");
 
+	// INAO ポリゴンを持たない詳細エントリ(idApp>=930000: ブルゴーニュのクリマ・
+	// 合成総称ノード)は地図に描かないので、境界生成の対象から除外する
+	// (src/lib/wine/types.ts の POLYGONLESS_IDAPP_MIN と同値)。
+	const POLYGONLESS_IDAPP_MIN = 930000;
 	const aops = JSON.parse(
 		fs.readFileSync(path.join(ROOT, "src/lib/wine/aops.json"), "utf8"),
-	);
+	).filter((a) => a.idApp < POLYGONLESS_IDAPP_MIN);
 	let byRegion = new Map();
 	for (const aop of aops) {
 		if (!byRegion.has(aop.region)) byRegion.set(aop.region, []);

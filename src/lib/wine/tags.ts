@@ -121,3 +121,26 @@ export function formatAopTagJa(aop: Aop, tagId: AopTagId): string {
 	}
 	return AOP_TAG_LABELS_JA[tagId];
 }
+
+/**
+ * このAOPが「法的に独立した原産地呼称(AOC/AOP・DOC/DOCG)」かを返す。
+ *
+ * 「クリマ(畑)である」ことと「AOCである」ことは直交する — モンラッシェはクリマ
+ * かつ単独AOC、レ・クロはクリマだが非AOC(Chablis Grand Cru AOC内の区画)。よって
+ * この判定は kind から推論せず、明示フィールド(isAppellation)と地域の格付け制度の
+ * ドメイン規則だけで決める。表示バッジ(AOC/非AOC)はこの関数だけを唯一の権威とする。
+ */
+export function isLegalAppellation(aop: Aop): boolean {
+	if (aop.isAppellation !== undefined) return aop.isAppellation; // 明示優先
+	if (aop.kind === "winery") return false; // シャトー等は生産者でありAOCではない
+	// シャンパーニュのグラン/プルミエ・クリュ村はエシェル・デ・クリュ(村の格付け)で
+	// あってAOCではない(AOCは「Champagne」)。formatAopTagJa と同じドメイン知識。
+	if (
+		aop.region === "champagne" &&
+		aop.kind === "village" &&
+		(aop.tags?.includes("grand-cru") || aop.tags?.includes("premier-cru"))
+	) {
+		return false;
+	}
+	return true; // regional / village / vineyard は既定でアペラシオン
+}
