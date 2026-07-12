@@ -7,6 +7,7 @@ import {
 import {
 	ArrowLeftIcon,
 	ChevronDownIcon,
+	FunnelIcon,
 	GraduationCapIcon,
 	ListIcon,
 	LogInIcon,
@@ -57,7 +58,10 @@ import {
 	PROGRESS_EMPTY_COLOR,
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
-import { getAppellationTermJa } from "#/lib/wine/terminology";
+import {
+	getAppellationTermJa,
+	getVineyardTermJa,
+} from "#/lib/wine/terminology";
 import type { Aop, AopKind, RegionId } from "#/lib/wine/types";
 import { getAffiliateConfig } from "#/server/affiliate";
 import { getSession } from "#/server/auth";
@@ -386,6 +390,7 @@ function MapPage() {
 								<KindFacetMenu
 									key={kf.kind}
 									kf={kf}
+									label={kindLabelJa(kf.kind, region.id)}
 									hideSet={hideSet}
 									onToggle={toggleToken}
 								/>
@@ -393,6 +398,7 @@ function MapPage() {
 								<KindToggle
 									key={kf.kind}
 									kind={kf.kind}
+									label={kindLabelJa(kf.kind, region.id)}
 									active={!hideSet.has(kindToken(kf.kind))}
 									onToggle={() => toggleToken(kindToken(kf.kind))}
 								/>
@@ -557,13 +563,23 @@ function MapPage() {
 	);
 }
 
+// 区分フィルタの表示名。畑(vineyard)は地域固有の呼称(ブルゴーニュ=クリマ /
+// アルザス=リュー・ディ / それ以外=畑名)を使い、他区分は総称ラベルを使う。
+function kindLabelJa(kind: AopKind, regionId: string): string {
+	return kind === "vineyard"
+		? getVineyardTermJa(regionId)
+		: KIND_LABELS_JA[kind];
+}
+
 // 格付けを持たない(または1種のみの)区分の単純トグルチップ。
 function KindToggle({
 	kind,
+	label,
 	active,
 	onToggle,
 }: {
 	kind: AopKind;
+	label: string;
 	active: boolean;
 	onToggle: () => void;
 }) {
@@ -579,20 +595,23 @@ function KindToggle({
 			}`}
 			style={active ? { backgroundColor: KIND_COLORS[kind].fill } : undefined}
 		>
-			{KIND_LABELS_JA[kind]}
+			{label}
 		</button>
 	);
 }
 
 // 格付けを2種以上持つ区分のマルチセレクトチップ。区分名のボタンを押すと格付けの
 // サブ選択肢(特級/1級/…、必要なら格付けなし)がドロップダウンで開く。
-// ボタンの見た目: 0個選択=非選択 / 1個以上=選択 / 一部のみ選択=選択+ドット。
+// ボタンの見た目: 0個選択=非選択 / 全選択=選択 / 一部のみ選択=選択+漏斗アイコン
+// (一部だけに絞り込み中であることを示す)。
 function KindFacetMenu({
 	kf,
+	label,
 	hideSet,
 	onToggle,
 }: {
 	kf: KindFacets;
+	label: string;
 	hideSet: ReadonlySet<string>;
 	onToggle: (token: string) => void;
 }) {
@@ -618,11 +637,11 @@ function KindFacetMenu({
 							: undefined
 					}
 				>
-					{KIND_LABELS_JA[kf.kind]}
+					{label}
 					{partial && (
-						<span
-							aria-hidden
-							className="size-1.5 rounded-full bg-current opacity-90"
+						<FunnelIcon
+							className="size-3 fill-current"
+							aria-label="一部の格付けで絞り込み中"
 						/>
 					)}
 					<ChevronDownIcon className="size-3" aria-hidden />
