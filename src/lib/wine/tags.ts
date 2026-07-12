@@ -9,8 +9,8 @@ import type { Aop } from "./types";
 //  - ボルドー・メドック/ソーテルヌ 1855年格付け: 第1級〜第5級(+ソーテルヌの特別第1級)
 //  - ボルドー・サンテミリオン格付け: 第1特別級A/B
 export const AOP_TAGS = [
-	{ id: "grand-cru", labelJa: "特級" },
-	{ id: "premier-cru", labelJa: "一級", badgeJa: "1er" },
+	{ id: "grand-cru", labelJa: "特級", badgeJa: "特級" },
+	{ id: "premier-cru", labelJa: "一級", badgeJa: "1級" },
 	{
 		id: "premier-cru-superieur-1855",
 		labelJa: "特別第1級(1855)",
@@ -47,11 +47,30 @@ export const AOP_TAG_LABELS_JA: Record<AopTagId, string> = Object.fromEntries(
 	AOP_TAGS.map((t) => [t.id, t.labelJa]),
 ) as Record<AopTagId, string>;
 
-/** ツリー行の右端に出す短縮バッジ。定義の無いタグ(grand-cru等)はドット色で表現する */
+/** ツリー行の右端に出す短縮バッジ。badgeJa の無いタグ(docg/doc等)はバッジ無し */
 export const AOP_TAG_BADGES_JA: Partial<Record<AopTagId, string>> =
 	Object.fromEntries(
 		AOP_TAGS.flatMap((t) => ("badgeJa" in t ? [[t.id, t.badgeJa]] : [])),
 	);
+
+/**
+ * リスト行に出す格付けバッジの文言。格付けタグを持たない AOP は undefined。
+ * 特級・1級を含め、AOP 自身の格付けを短縮表記で示す(特級=特級 / 1級=1級 …)。
+ * ただし村名の premier-cru(=村内に 1er Cru 区画がある「1er Cruあり」の意で、村
+ * 自体は 1 級ではない。formatAopTagJa と同じドメイン規則)はバッジを出さない。
+ */
+export function classificationBadgeJa(aop: Aop): string | undefined {
+	const tag = primaryClassificationTag(aop);
+	if (!tag) return undefined;
+	if (
+		tag === "premier-cru" &&
+		aop.kind === "village" &&
+		aop.region !== "champagne"
+	) {
+		return undefined;
+	}
+	return AOP_TAG_BADGES_JA[tag];
+}
 
 /**
  * 格付けの序列(小さいほど上位)。同一村内でシャトーを格付け順に並べるのに使う。
