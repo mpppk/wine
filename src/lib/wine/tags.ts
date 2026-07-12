@@ -70,6 +70,32 @@ export const CLASSIFICATION_TAG_RANK: Partial<Record<AopTagId, number>> = {
 	"premier-grand-cru-classe-b": 2,
 };
 
+/**
+ * AOPの主たる格付けタグ。ランク定義のあるタグの中で最上位(最小ランク)を優先し、
+ * ランク定義の無い法的等級(docg/doc 等)しか無い場合は tags 先頭を返す。
+ * 格付けタグを持たないAOPは undefined。
+ */
+export function primaryClassificationTag(aop: Aop): AopTagId | undefined {
+	const tags = aop.tags ?? [];
+	if (tags.length === 0) return undefined;
+	let best: AopTagId | undefined;
+	let bestRank = Number.POSITIVE_INFINITY;
+	for (const tag of tags) {
+		const r = CLASSIFICATION_TAG_RANK[tag];
+		if (r !== undefined && r < bestRank) {
+			bestRank = r;
+			best = tag;
+		}
+	}
+	return best ?? tags[0];
+}
+
+/** AOPの格付け表示ラベル(文脈依存、formatAopTagJa 準拠)。格付けタグが無ければ undefined */
+export function aopClassificationLabel(aop: Aop): string | undefined {
+	const tag = primaryClassificationTag(aop);
+	return tag ? formatAopTagJa(aop, tag) : undefined;
+}
+
 /** AOPの最上位(最小ランク)格付けタグの序列。タグ無しは最後(Infinity)に置く */
 export function classificationRank(aop: Aop): number {
 	let rank = Number.POSITIVE_INFINITY;
