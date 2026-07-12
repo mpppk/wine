@@ -1,10 +1,11 @@
 import {
+	ArrowLeftIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	GraduationCapIcon,
 	XIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, buttonVariants } from "#/components/ui/button";
 import {
 	Dialog,
@@ -21,6 +22,7 @@ import {
 	type PurchaseLinks,
 } from "#/lib/wine/affiliate";
 import type { AopAncestry } from "#/lib/wine/aop-tree";
+import { buildDescriptionSegments } from "#/lib/wine/description-links";
 import {
 	GRAND_CRU_TAG_COLOR,
 	KIND_COLORS,
@@ -32,7 +34,7 @@ import {
 	getBoundarySourceNoteJa,
 	getVineyardTermJa,
 } from "#/lib/wine/terminology";
-import type { Aop, WineColor } from "#/lib/wine/types";
+import type { Aop, Region, WineColor } from "#/lib/wine/types";
 import { getVariety } from "#/lib/wine/varieties";
 
 const COLOR_LABELS_JA: Record<WineColor, string> = {
@@ -101,6 +103,11 @@ export function AopDetailPanel({
 	quizQuestionCount,
 	onStartQuiz,
 	affiliate = EMPTY_AFFILIATE_CONFIG,
+	aops,
+	regions,
+	onSelectRegion,
+	onBack,
+	backToName,
 }: {
 	aop: Aop;
 	/** 所属する親(村名AOC・地区・地方)の情報。未指定なら所属セクションを表示しない */
@@ -124,8 +131,21 @@ export function AopDetailPanel({
 	onStartQuiz?: () => void;
 	/** アフィリエイトID。購入リンクの計測用ラップに使う。未指定なら素の検索リンク */
 	affiliate?: AffiliateConfig;
+	/**
+	 * 説明文中の他AOP名をリンク化するための同地域AOP群。未指定なら説明文はプレーン表示。
+	 * onSelectAop と併せて渡すことで説明文リンクの遷移が有効になる。
+	 */
+	aops?: readonly Aop[];
+	/** 説明文中の地域名をリンク化するための地域群。onSelectRegion と併せて使う */
+	regions?: readonly Region[];
+	/** 説明文中の地域名をタップしたときの遷移先。未指定なら地域名はリンク化しない */
+	onSelectRegion?: (regionId: string) => void;
+	/** 「戻る」導線。説明文/所属リンクで遷移した後、元のAOPへ戻る。未指定なら非表示 */
+	onBack?: () => void;
+	/** 戻り先AOPの表示名。「戻る」ボタンのラベルに使う */
+	backToName?: string;
 }) {
-	// 前後移動のいずれかが渡されたときだけナビ行を表示する
+	// 前後移動・戻るのいずれかが渡されたときだけナビ行を表示する
 	const showNav = onPrev !== undefined || onNext !== undefined;
 	const kindLabel =
 		aop.kind === "vineyard"
@@ -133,6 +153,20 @@ export function AopDetailPanel({
 			: KIND_LABELS_JA[aop.kind];
 	return (
 		<div className={compact ? "space-y-2 p-3" : "space-y-3 p-4"}>
+			{onBack && (
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					onClick={onBack}
+					className="-ml-2 h-auto gap-1 py-1 text-muted-foreground hover:text-foreground"
+				>
+					<ArrowLeftIcon className="size-4" aria-hidden />
+					<span className="truncate">
+						{backToName ? `${backToName}に戻る` : "戻る"}
+					</span>
+				</Button>
+			)}
 			{showNav && (
 				<div className="flex items-center justify-between gap-2">
 					<Button
@@ -217,7 +251,17 @@ export function AopDetailPanel({
 				<AncestrySection ancestry={ancestry} onSelectAop={onSelectAop} />
 			)}
 
-			{!compact && <p className="text-sm leading-relaxed">{aop.description}</p>}
+			{!compact && (
+				<p className="text-sm leading-relaxed">
+					<AopDescription
+						aop={aop}
+						aops={aops}
+						regions={regions}
+						onSelectAop={onSelectAop}
+						onSelectRegion={onSelectRegion}
+					/>
+				</p>
+			)}
 
 			<section>
 				<h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -257,6 +301,83 @@ export function AopDetailPanel({
 				{getBoundarySourceNoteJa(aop)}
 			</p>
 		</div>
+	);
+}
+
+// 説明文をリンク付きで描画する。説明文中に現れる同地域の他AOP名・地域名を
+// buildDescriptionSegments で検出し、該当箇所を遷移トリガーのリンク風ボタンにする。
+// aops 未指定(embed等でリンク候補が無い)時は素のテキストとして表示する。
+function AopDescription({
+	aop,
+	aops,
+	regions,
+	onSelectAop,
+	onSelectRegion,
+}: {
+	aop: Aop;
+	aops?: readonly Aop[];
+	regions?: readonly Region[];
+	onSelectAop?: (aopId: string) => void;
+	onSelectRegion?: (regionId: string) => void;
+}) {
+	const segments = useMemo(() => {
+		if (!aops) return null;
+		return buildDescriptionSegments(aop.description, {
+			currentAop: aop,
+			aops,
+			regions: regions ?? [],
+		});
+	}, [aop, aops, regions]);
+
+	if (!segments) return aop.description;
+
+	return (
+		<>
+			{segments.map((seg, i) => {
+				if (seg.kind === "aop" && onSelectAop) {
+					return (
+						<DescriptionLink
+							// biome-ignore lint/suspicious/noArrayIndexKey: セグメントは順序のみが意味を持ち安定
+							key={i}
+							text={seg.text}
+							onClick={() => onSelectAop(seg.aopId)}
+						/>
+					);
+				}
+				if (seg.kind === "region" && onSelectRegion) {
+					return (
+						<DescriptionLink
+							// biome-ignore lint/suspicious/noArrayIndexKey: セグメントは順序のみが意味を持ち安定
+							key={i}
+							text={seg.text}
+							onClick={() => onSelectRegion(seg.regionId)}
+						/>
+					);
+				}
+				// リンク先ハンドラが無い区分はテキストとして描く
+				// biome-ignore lint/suspicious/noArrayIndexKey: セグメントは順序のみが意味を持ち安定
+				return <span key={i}>{seg.text}</span>;
+			})}
+		</>
+	);
+}
+
+// 説明文中の他AOP名・地域名を遷移トリガーにするリンク風ボタン(生産者リンクと同じ下線)。
+function DescriptionLink({
+	text,
+	onClick,
+}: {
+	text: string;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+		>
+			{text}
+		</button>
 	);
 }
 
