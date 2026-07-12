@@ -93,11 +93,13 @@ describe("listScopedCandidates", () => {
 			// 残っているのは answerIsAop=false の形式のみ
 			expect(AOP_ANSWER_QUIZ_TYPES.has(parsed!.quizType), key).toBe(false);
 		}
-		// 設問文の主語がAOPの各形式が残っている(配下クリフ chambertin ぶんも含む)
+		// 設問文の主語がAOPの各形式が残っている(配下クリマ chambertin ぶんも含む)。
+		// aop-classification はブルゴーニュ(実在ラベル3種)では出題されないため含まれない
+		// (自地域だけで4択を作れる地域=ボルドーのみが対象。別テストで確認)。
 		expect(scoped).toContain("colors:gevrey-chambertin");
 		expect(scoped).toContain("aop-variety:chambertin");
 		expect(scoped).toContain("aop-subregion:gevrey-chambertin");
-		expect(scoped).toContain("aop-classification:chambertin");
+		expect(scoped).not.toContain("aop-classification:chambertin");
 		// フィルタ前は対象/配下が正解の AOP-answer キーが実在することを確認(回帰防止)
 		const unfiltered = listCandidates("bourgogne", ALL_TYPES).filter((key) => {
 			const parsed = parseKey(key);
@@ -109,6 +111,14 @@ describe("listScopedCandidates", () => {
 			);
 		});
 		expect(unfiltered.length).toBeGreaterThan(0);
+	});
+
+	it("ボルドー(実在ラベル4種以上)では格付けクイズがスコープに残る", () => {
+		// 制度混同を避けるため格付けクイズはボルドーのみ出題する。haut-medoc 配下の
+		// シャトー・ラ・ラギューヌ(第3級)が主語の aop-classification が残ることを確認。
+		const scoped = listScopedCandidates("bordeaux", ALL_TYPES, "haut-medoc");
+		expect(scoped).not.toBeNull();
+		expect(scoped).toContain("aop-classification:chateau-la-lagune");
 	});
 
 	it("配下を持たない村は自身の主語形式のみ(AOPが答えの形式は残らない)", () => {

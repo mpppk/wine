@@ -1,4 +1,3 @@
-import { AOPS } from "#/lib/wine/aops-data";
 import { getAop, listAops } from "#/lib/wine/service";
 import { aopClassificationLabel } from "#/lib/wine/tags";
 import type { RegionId } from "#/lib/wine/types";
@@ -6,28 +5,21 @@ import { buildAopClassificationKey, type ParsedQuestionKey } from "../keys";
 import { type Rng, sample, shuffle } from "../rng";
 import type { QuizQuestion } from "../types";
 
-// 格付けクイズ: 「「シャンベルタン」の格付けは？」
-// 設問文の主語はそのAOPで、正解 = そのAOPの格付けラベル(特級 / 1er Cruあり /
-// 第2級(1855) / DOCG など、地域の制度に応じた文脈依存ラベル)。
+// 格付けクイズ: 「「シャトー・マルゴー」の格付けは？」
+// 設問文の主語はそのAOPで、正解 = そのAOPの格付けラベル(第1級(1855年) など、
+// 地域の格付け制度に応じた文脈依存ラベル)。
 // 格付けタグを持つAOPだけを主題にする(タグ無しAOPは「格付けなし」となり曖昧なため除外)。
-// ディストラクタは同一地域に実在する他ラベルを優先し、足りなければ全データの
-// ラベルで補う。制度をまたぐラベルが混じっても「実在する格付けラベル」から選ぶため
-// 不自然な選択肢にはならない。
+//
+// ディストラクタは「同一地域(=同一格付け制度)に実在する他ラベル」だけから選ぶ。
+// 制度をまたぐ補充はしない: ブルゴーニュの村名(正解「1er Cruあり」)にボルドーの
+// 「第1級(1855年)」を混ぜると、ブルゴーニュ画面ではプルミエ・クリュを「一級」と
+// 読ませているため読みが衝突し、不公正な設問になる。このため自地域だけで4択
+// (正解+3ディストラクタ)を作れる地域(=実在ラベルが4種以上)だけを出題対象にする。
+// 現状ではボルドー(8ラベル)のみが該当し、ラベル数の少ないブルゴーニュ/シャンパーニュ/
+// アルザス/ピエモンテは本形式から外れる(これらの地域は他形式のクイズで扱う)。
 
-/** 全AOPに実在する格付けラベル(遅延計算・以後不変) */
-let globalLabels: string[] | undefined;
-function listGlobalLabels(): string[] {
-	if (!globalLabels) {
-		globalLabels = [
-			...new Set(
-				AOPS.map((a) => aopClassificationLabel(a)).filter(
-					(l): l is string => l !== undefined,
-				),
-			),
-		];
-	}
-	return globalLabels;
-}
+/** 4択(正解+3ディストラクタ)を同一制度内で作れる実在ラベル数の下限 */
+const MIN_REGION_LABELS = 4;
 
 /** 指定地域に実在する格付けラベル */
 function listRegionLabels(regionId: RegionId): string[] {
@@ -41,8 +33,9 @@ function listRegionLabels(regionId: RegionId): string[] {
 }
 
 export function enumerateAopClassificationKeys(regionId: RegionId): string[] {
-	// 4択(正解+3ラベル)を作れるだけの実在ラベルが全体にあることを前提にする
-	if (listGlobalLabels().length < 4) return [];
+	// 自地域だけで4択を作れる地域(=実在ラベルが4種以上)だけ出題する。
+	// 足りない地域は制度をまたぐ不自然な選択肢になるため本形式では出題しない。
+	if (listRegionLabels(regionId).length < MIN_REGION_LABELS) return [];
 	return listAops({ regionId })
 		.filter((a) => aopClassificationLabel(a) !== undefined)
 		.map((a) => buildAopClassificationKey(a.id));
@@ -57,14 +50,9 @@ export function materializeAopClassificationQuestion(
 	const correct = aopClassificationLabel(aop);
 	if (!correct) return null;
 
-	// 同一地域の他ラベルを優先し、3件に満たなければ全データのラベルで補う
-	const regionPool = listRegionLabels(aop.region).filter((l) => l !== correct);
-	const pool =
-		regionPool.length >= 3
-			? regionPool
-			: [...new Set([...regionPool, ...listGlobalLabels()])].filter(
-					(l) => l !== correct,
-				);
+	// 同一地域(=同一格付け制度)のラベルだけからディストラクタを選ぶ。制度をまたぐ
+	// 補充はしない(読みが衝突して不公正な設問になるため)。3件に満たなければ出題しない。
+	const pool = listRegionLabels(aop.region).filter((l) => l !== correct);
 	const distractors = sample(pool, 3, rng);
 	if (distractors.length < 3) return null;
 
