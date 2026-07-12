@@ -23,6 +23,20 @@ const COOLDOWN_MS = 10 * 60 * 1000;
 /** スコア上位からこの件数をプールにして重み付き抽選する(決定的な反復を避ける) */
 const POOL_SIZE = 40;
 
+/**
+ * 「まだ一度も正解していない」候補キーだけに絞る。
+ * 実績行が無い(未出題)キーと correctCount === 0 のキーが未正解。
+ * 「全問正解で終了」する出題対象と、残り未正解数の算出に使う。
+ */
+export function filterUnsolved(
+	candidates: readonly string[],
+	statsByKey: ReadonlyMap<string, QuestionStatLike>,
+): string[] {
+	return candidates.filter(
+		(key) => (statsByKey.get(key)?.correctCount ?? 0) === 0,
+	);
+}
+
 export function scoreCandidate(
 	stat: QuestionStatLike | undefined,
 	now: number,

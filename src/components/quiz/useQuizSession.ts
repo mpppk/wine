@@ -17,7 +17,8 @@ const PREFETCH_THRESHOLD = 2;
  * 枯渇しないよう、入力スキーマの上限(50)より十分小さくする */
 const RECENT_KEYS_LIMIT = 20;
 
-export type QuizPhase = "loading" | "answering" | "feedback" | "empty";
+// done = スコープ内の問題を全問正解して終了。empty = 出題できる問題が元々0件。
+export type QuizPhase = "loading" | "answering" | "feedback" | "empty" | "done";
 
 export interface QuizTally {
 	answered: number;
@@ -36,6 +37,20 @@ export function useQuizSession(
 	const [phase, setPhase] = useState<QuizPhase>("loading");
 	const [selectedOptionId, setSelectedOptionId] = useState<string>();
 	const [tally, setTally] = useState<QuizTally>({ answered: 0, correct: 0 });
+	// まだ正解していない問題数。初回fetchのサーバ値でシードし、以後は正解/取り消しで
+	// クライアント側で増減する(ログイン=永続実績ベース、未ログイン=セッション内)。
+	const [remaining, setRemainingState] = useState<number | null>(null);
+	// クロージャのstale値を避けるため remaining をrefにも保持する
+	const remainingRef = useRef<number | null>(null);
+	const applyRemaining = useCallback((value: number) => {
+		remainingRef.current = value;
+		setRemainingState(value);
+	}, []);
+	// このセッションで正解済みのキー。未ログイン時の再出題防止と残数の二重減算防止に使う
+	const solvedKeysRef = useRef<Set<string>>(new Set());
+	const seededRef = useRef(false);
+	// スコープに問題が1問でも存在したか(全問正解の"done"と問題0件の"empty"を区別)
+	const hasQuestionsRef = useRef(false);
 	const recentKeysRef = useRef<string[]>([]);
 	const fetchingRef = useRef(false);
 	const exhaustedRef = useRef(false);
@@ -63,7 +78,11 @@ export function useQuizSession(
 			if (fetchingRef.current || exhaustedRef.current) return;
 			fetchingRef.current = true;
 			try {
-				const { questions } = await getNextQuestions({
+				const {
+					questions,
+					remaining: serverRemaining,
+					total,
+				} = await getNextQuestions({
 					data: {
 						regionId,
 						quizTypes,
@@ -72,9 +91,20 @@ export function useQuizSession(
 						scopeAopId,
 					},
 				});
-				if (questions.length === 0) {
+				// 残数はサーバの初回値をシード(ログインは永続的な正解済みを反映)。
+				// 以後の増減はクライアント側で行うため、上書きは初回のみ
+				if (!seededRef.current) {
+					seededRef.current = true;
+					hasQuestionsRef.current = total > 0;
+					applyRemaining(serverRemaining);
+				}
+				// このセッションで正解済みのキーは除く(未ログインはサーバが除外できないため)
+				const fresh = questions.filter(
+					(q) => !solvedKeysRef.current.has(q.key),
+				);
+				if (fresh.length === 0) {
 					// 除外キーで候補が尽きた(候補が少ない地域)。直近履歴を捨てて
-					// 再出題を許可する。それでも0件なら候補自体が無い
+					// 再出題を許可する。それでも0件なら未正解が残っていない(=全問正解)
 					if (recentKeysRef.current.length > 0) {
 						recentKeysRef.current = [];
 					} else {
@@ -84,7 +114,7 @@ export function useQuizSession(
 				}
 				setQueue((prev) => {
 					const known = new Set(prev.map((q) => q.key));
-					return [...prev, ...questions.filter((q) => !known.has(q.key))];
+					return [...prev, ...fresh.filter((q) => !known.has(q.key))];
 				});
 			} catch (error) {
 				console.error("failed to fetch quiz questions", error);
@@ -92,7 +122,7 @@ export function useQuizSession(
 				fetchingRef.current = false;
 			}
 		},
-		[regionId, quizTypes, scopeAopId],
+		[regionId, quizTypes, scopeAopId, applyRemaining],
 	);
 
 	// 初回ロードとプリフェッチ
@@ -101,7 +131,8 @@ export function useQuizSession(
 			void fetchMore(queue.map((q) => q.key)).then(() => {
 				setQueue((prev) => {
 					if (prev.length === 0 && exhaustedRef.current) {
-						setPhase("empty");
+						// 問題が1問でもあれば全問正解での完了、元々0件なら出題不可
+						setPhase(hasQuestionsRef.current ? "done" : "empty");
 					}
 					return prev;
 				});
@@ -133,6 +164,11 @@ export function useQuizSession(
 				answered: t.answered + 1,
 				correct: t.correct + (wasCorrect ? 1 : 0),
 			}));
+			// 正解した問題はクリア済みとして残数を1減らし、以後の再出題から除外する
+			if (wasCorrect && !solvedKeysRef.current.has(current.key)) {
+				solvedKeysRef.current.add(current.key);
+				applyRemaining(Math.max(0, (remainingRef.current ?? 0) - 1));
+			}
 			recentKeysRef.current = [
 				...recentKeysRef.current.slice(-(RECENT_KEYS_LIMIT - 1)),
 				current.key,
@@ -153,7 +189,7 @@ export function useQuizSession(
 				recordRef.current = null;
 			}
 		},
-		[current, phase, isLoggedIn, enqueueMutation],
+		[current, phase, isLoggedIn, enqueueMutation, applyRemaining],
 	);
 
 	// 回答を取り消してやり直す(誤タップ救済)。ローカル状態を回答前へ戻し、
@@ -172,6 +208,11 @@ export function useQuizSession(
 		if (keys[keys.length - 1] === current.key) {
 			recentKeysRef.current = keys.slice(0, -1);
 		}
+		// 正解としてクリア扱いにしていたら取り消し、残数を戻す
+		if (wasCorrect && solvedKeysRef.current.has(current.key)) {
+			solvedKeysRef.current.delete(current.key);
+			applyRemaining((remainingRef.current ?? 0) + 1);
+		}
 		// サーバ復元: 復元処理を同じチェーンへ繋ぐ(await はチェーン内で行い、
 		// enqueue 自体は同期。これでリセット直後の再回答より前に revert が並ぶ)。
 		// revert は実行時に記録のスナップショットを待って確定する。記録失敗なら不要
@@ -187,11 +228,16 @@ export function useQuizSession(
 				console.error("failed to revert quiz answer", error);
 			});
 		}
-	}, [phase, current, selectedOptionId, enqueueMutation]);
+	}, [phase, current, selectedOptionId, enqueueMutation, applyRemaining]);
 
 	const next = useCallback(() => {
 		if (phase !== "feedback") return;
 		recordRef.current = null; // この問題は確定
+		// 未正解が残っていなければ全問正解での完了。fetch待ちを挟まず即座に完了画面へ
+		if (remainingRef.current === 0) {
+			setPhase("done");
+			return;
+		}
 		advance();
 	}, [phase, advance]);
 
@@ -205,5 +251,15 @@ export function useQuizSession(
 		advance();
 	}, [phase, current, advance]);
 
-	return { phase, current, selectedOptionId, tally, answer, reset, skip, next };
+	return {
+		phase,
+		current,
+		selectedOptionId,
+		tally,
+		remaining,
+		answer,
+		reset,
+		skip,
+		next,
+	};
 }
