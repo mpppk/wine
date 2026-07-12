@@ -78,44 +78,50 @@ export function useQuizSession(
 			if (fetchingRef.current || exhaustedRef.current) return;
 			fetchingRef.current = true;
 			try {
-				const {
-					questions,
-					remaining: serverRemaining,
-					total,
-				} = await getNextQuestions({
-					data: {
-						regionId,
-						quizTypes,
-						count: BATCH_SIZE,
-						excludeKeys: [...queuedKeys, ...recentKeysRef.current],
-						scopeAopId,
-					},
-				});
-				// 残数はサーバの初回値をシード(ログインは永続的な正解済みを反映)。
-				// 以後の増減はクライアント側で行うため、上書きは初回のみ
-				if (!seededRef.current) {
-					seededRef.current = true;
-					hasQuestionsRef.current = total > 0;
-					applyRemaining(serverRemaining);
-				}
-				// このセッションで正解済みのキーは除く(未ログインはサーバが除外できないため)
-				const fresh = questions.filter(
-					(q) => !solvedKeysRef.current.has(q.key),
-				);
-				if (fresh.length === 0) {
-					// 除外キーで候補が尽きた(候補が少ない地域)。直近履歴を捨てて
-					// 再出題を許可する。それでも0件なら未正解が残っていない(=全問正解)
+				// 未消化キーで候補が尽きたら直近履歴を捨てて1回だけ再取得する。
+				// 未正解が数問だけ残るスコープ(例: 地図のAOP単位クイズ)では、
+				// 残りの問題が recentKeys に入って除外され続けるため、ここで
+				// 再取得しないと「問題を準備中…」のまま止まってしまう。
+				for (let attempt = 0; attempt < 2; attempt++) {
+					const {
+						questions,
+						remaining: serverRemaining,
+						total,
+					} = await getNextQuestions({
+						data: {
+							regionId,
+							quizTypes,
+							count: BATCH_SIZE,
+							excludeKeys: [...queuedKeys, ...recentKeysRef.current],
+							scopeAopId,
+						},
+					});
+					// 残数はサーバの初回値をシード(ログインは永続的な正解済みを反映)。
+					// 以後の増減はクライアント側で行うため、上書きは初回のみ
+					if (!seededRef.current) {
+						seededRef.current = true;
+						hasQuestionsRef.current = total > 0;
+						applyRemaining(serverRemaining);
+					}
+					// このセッションで正解済みのキーは除く(未ログインはサーバが除外できないため)
+					const fresh = questions.filter(
+						(q) => !solvedKeysRef.current.has(q.key),
+					);
+					if (fresh.length > 0) {
+						setQueue((prev) => {
+							const known = new Set(prev.map((q) => q.key));
+							return [...prev, ...fresh.filter((q) => !known.has(q.key))];
+						});
+						return;
+					}
+					// 直近履歴が残っていれば捨てて再取得。無ければ未正解は残っておらず、
+					// 完了判定(remaining === 0)はプリフェッチ側の then で行う
 					if (recentKeysRef.current.length > 0) {
 						recentKeysRef.current = [];
-					} else {
-						exhaustedRef.current = true;
+						continue;
 					}
 					return;
 				}
-				setQueue((prev) => {
-					const known = new Set(prev.map((q) => q.key));
-					return [...prev, ...fresh.filter((q) => !known.has(q.key))];
-				});
 			} catch (error) {
 				console.error("failed to fetch quiz questions", error);
 			} finally {
@@ -130,7 +136,14 @@ export function useQuizSession(
 		if (queue.length <= PREFETCH_THRESHOLD) {
 			void fetchMore(queue.map((q) => q.key)).then(() => {
 				setQueue((prev) => {
-					if (prev.length === 0 && exhaustedRef.current) {
+					// キューが空で未正解も残っていなければ終了。fetchMore は未正解が
+					// あれば必ず補充するので、空のまま = remaining 0(全問正解 or 出題不可)
+					if (
+						prev.length === 0 &&
+						seededRef.current &&
+						remainingRef.current === 0
+					) {
+						exhaustedRef.current = true;
 						// 問題が1問でもあれば全問正解での完了、元々0件なら出題不可
 						setPhase(hasQuestionsRef.current ? "done" : "empty");
 					}
@@ -235,6 +248,7 @@ export function useQuizSession(
 		recordRef.current = null; // この問題は確定
 		// 未正解が残っていなければ全問正解での完了。fetch待ちを挟まず即座に完了画面へ
 		if (remainingRef.current === 0) {
+			exhaustedRef.current = true; // 以降のプリフェッチを止める
 			setPhase("done");
 			return;
 		}
