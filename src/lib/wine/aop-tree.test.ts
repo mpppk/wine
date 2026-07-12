@@ -47,7 +47,9 @@ describe("buildAopTree", () => {
 		expect(tree).toHaveLength(2);
 		expect(tree[0].regionalAops.map((a) => a.id)).toEqual(["regional-1"]);
 		expect(tree[0].villages.map((v) => v.village.id)).toEqual(["village-1"]);
-		expect(tree[0].villages[0].vineyards.map((a) => a.id)).toEqual(["gc-1"]);
+		expect(tree[0].villages[0].vineyards.map((vn) => vn.vineyard.id)).toEqual([
+			"gc-1",
+		]);
 		expect(tree[1].villages.map((v) => v.village.id)).toEqual(["village-2"]);
 	});
 
@@ -62,11 +64,58 @@ describe("buildAopTree", () => {
 			}),
 		];
 		const tree = buildAopTree(aops, SUBREGIONS);
-		expect(tree[0].villages[0].vineyards.map((a) => a.id)).toEqual([
+		expect(tree[0].villages[0].vineyards.map((vn) => vn.vineyard.id)).toEqual([
 			"gc-shared",
 		]);
-		expect(tree[0].villages[1].vineyards.map((a) => a.id)).toEqual([
+		expect(tree[0].villages[1].vineyards.map((vn) => vn.vineyard.id)).toEqual([
 			"gc-shared",
+		]);
+	});
+
+	it("個別クリマ(parentAopId)は親畑の下に入れ子で並ぶ", () => {
+		const aops = [
+			aop({ id: "village-1", kind: "village" }),
+			aop({ id: "gc-1", kind: "vineyard", villageAopIds: ["village-1"] }),
+			aop({ id: "climat-a", kind: "vineyard", parentAopId: "gc-1" }),
+			aop({ id: "climat-b", kind: "vineyard", parentAopId: "gc-1" }),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		const vNode = tree[0].villages[0].vineyards[0];
+		expect(vNode.vineyard.id).toBe("gc-1");
+		expect(vNode.climats.map((c) => c.id)).toEqual(["climat-a", "climat-b"]);
+		// クリマは村直下の畑としては現れない
+		expect(tree[0].villages[0].vineyards.map((vn) => vn.vineyard.id)).toEqual([
+			"gc-1",
+		]);
+	});
+
+	it("複数村にまたがる親畑のクリマは各村の下に現れる", () => {
+		const aops = [
+			aop({ id: "village-1", kind: "village" }),
+			aop({ id: "village-2", kind: "village" }),
+			aop({
+				id: "gc-shared",
+				kind: "vineyard",
+				villageAopIds: ["village-1", "village-2"],
+			}),
+			aop({ id: "climat-x", kind: "vineyard", parentAopId: "gc-shared" }),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		expect(tree[0].villages[0].vineyards[0].climats.map((c) => c.id)).toEqual([
+			"climat-x",
+		]);
+		expect(tree[0].villages[1].vineyards[0].climats.map((c) => c.id)).toEqual([
+			"climat-x",
+		]);
+	});
+
+	it("親畑がリストに無いクリマはフォールバック置き場に入る", () => {
+		const aops = [
+			aop({ id: "climat-orphan", kind: "vineyard", parentAopId: "missing-gc" }),
+		];
+		const tree = buildAopTree(aops, SUBREGIONS);
+		expect(tree[0].unassignedVineyards.map((a) => a.id)).toEqual([
+			"climat-orphan",
 		]);
 	});
 
@@ -173,7 +222,10 @@ describe("buildAopTree", () => {
 			for (const a of section.regionalAops) seen.add(a.id);
 			for (const v of section.villages) {
 				seen.add(v.village.id);
-				for (const vy of v.vineyards) seen.add(vy.id);
+				for (const vy of v.vineyards) {
+					seen.add(vy.vineyard.id);
+					for (const c of vy.climats) seen.add(c.id);
+				}
 				for (const w of v.wineries) seen.add(w.id);
 			}
 			for (const a of section.unassignedVineyards) seen.add(a.id);
@@ -193,7 +245,7 @@ describe("buildAopTree", () => {
 		);
 		const beaune = tree.find((s) => s.subregion.id === "cote-de-beaune");
 		const parents = beaune?.villages
-			.filter((v) => v.vineyards.some((vy) => vy.id === "montrachet"))
+			.filter((v) => v.vineyards.some((vy) => vy.vineyard.id === "montrachet"))
 			.map((v) => v.village.id);
 		expect(parents).toEqual(["chassagne-montrachet", "puligny-montrachet"]);
 	});
@@ -295,6 +347,25 @@ describe("getSameKindSiblings", () => {
 		expect(s.prevId).toBeUndefined();
 		expect(s.nextId).toBeUndefined();
 	});
+
+	it("クリマは同じ親のクリマ同士でグループ化し、トップ畑と混ざらない", () => {
+		const withClimats = [
+			aop({ id: "gc-a", kind: "vineyard" }), // トップ畑
+			aop({ id: "gc-a-1", kind: "vineyard", parentAopId: "gc-a" }),
+			aop({ id: "gc-a-2", kind: "vineyard", parentAopId: "gc-a" }),
+			aop({ id: "gc-b", kind: "vineyard" }), // トップ畑
+			aop({ id: "gc-b-1", kind: "vineyard", parentAopId: "gc-b" }),
+		];
+		// gc-a-1 の兄弟は gc-a の子だけ(トップ畑や別親の子は含めない)
+		const climat = getSameKindSiblings(withClimats, withClimats[1]);
+		expect(climat.prevId).toBeUndefined();
+		expect(climat.nextId).toBe("gc-a-2");
+		expect(climat.total).toBe(2);
+		// トップ畑同士は別グループ
+		const top = getSameKindSiblings(withClimats, withClimats[0]);
+		expect(top.nextId).toBe("gc-b");
+		expect(top.total).toBe(2);
+	});
 });
 
 describe("getAopAncestry", () => {
@@ -370,6 +441,19 @@ describe("getAopAncestry", () => {
 		const ancestry = getAopAncestry(regional, [regional], region);
 		expect(ancestry.subregionNameJa).toBeUndefined();
 		expect(ancestry.regionNameJa).toBe("ブルゴーニュ");
+	});
+
+	it("クリマは親畑(parentVineyard)と、親畑経由の村を返す", () => {
+		const aops = [
+			aop({ id: "village-1", kind: "village" }),
+			aop({ id: "gc-1", kind: "vineyard", villageAopIds: ["village-1"] }),
+			aop({ id: "climat-1", kind: "vineyard", parentAopId: "gc-1" }),
+		];
+		const ancestry = getAopAncestry(aops[2], aops, region);
+		expect(ancestry.parentVineyard?.id).toBe("gc-1");
+		// 村は親畑の villageAopIds から導出する
+		expect(ancestry.villages.map((v) => v.id)).toEqual(["village-1"]);
+		expect(ancestry.subregionNameJa).toBe("地区A");
 	});
 
 	it("実データ: モンラシェはピュリニーとシャサーニュを親に持つ", () => {

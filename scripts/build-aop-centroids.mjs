@@ -19,6 +19,10 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GEO_DIR = path.join(ROOT, "public", "data", "aop");
 const OUT_PATH = path.join(ROOT, "src", "lib", "wine", "aop-centroids.json");
+// これ以上の idApp は INAO ポリゴンを持たない詳細エントリ(ブルゴーニュのクリマ・
+// 合成総称ノード)。GeoJSON も重心も持たないので欠落チェックの対象外にする。
+// src/lib/wine/types.ts の POLYGONLESS_IDAPP_MIN と同値。
+const POLYGONLESS_IDAPP_MIN = 930000;
 
 /** リング([[lng,lat],...])の符号付き面積と面積加重セントロイド項を返す */
 function ringCentroid(ring) {
@@ -74,7 +78,12 @@ function main() {
 	const aopIds = new Set(aops.map((a) => a.id));
 
 	const centroids = {};
-	for (const file of fs.readdirSync(GEO_DIR).filter((f) => f.endsWith(".geojson"))) {
+	// AOP境界(<region>.geojson)のみを対象にする。地方・地区の輪郭
+	// (<region>-boundaries.geojson)は aopId を持たないので除外する。
+	const geojsonFiles = fs
+		.readdirSync(GEO_DIR)
+		.filter((f) => f.endsWith(".geojson") && !f.endsWith("-boundaries.geojson"));
+	for (const file of geojsonFiles) {
 		const gj = JSON.parse(fs.readFileSync(path.join(GEO_DIR, file), "utf8"));
 		for (const feature of gj.features) {
 			const aopId = feature.properties.aopId;
@@ -89,8 +98,11 @@ function main() {
 		}
 	}
 
-	// aops.json 側の欠落チェック(GeoJSONに無いAOPがあれば即エラー)
-	const missing = aops.filter((a) => !centroids[a.id]);
+	// aops.json 側の欠落チェック(GeoJSONに無いAOPがあれば即エラー)。
+	// ポリゴンを持たない詳細エントリ(クリマ・合成総称ノード)は対象外。
+	const missing = aops.filter(
+		(a) => a.idApp < POLYGONLESS_IDAPP_MIN && !centroids[a.id],
+	);
 	if (missing.length) {
 		throw new Error(
 			`missing centroids for: ${missing.map((a) => a.id).join(", ")}`,

@@ -20,7 +20,10 @@ import {
 } from "#/lib/wine/map-style";
 import { aopAllowsGrape } from "#/lib/wine/service";
 import { type AopTagId, formatAopTagJa } from "#/lib/wine/tags";
-import { getAppellationTermJa } from "#/lib/wine/terminology";
+import {
+	getAppellationTermJa,
+	getVineyardTermJa,
+} from "#/lib/wine/terminology";
 import type { Aop, AopKind, Region } from "#/lib/wine/types";
 
 const SOURCE_ID = "aops";
@@ -239,6 +242,7 @@ export function AopMapView({
 	// イベントハンドラや地図ロード完了時に最新のprops/関数を参照するためのref
 	const stateRef = useRef({
 		aopsByIdApp: new Map<number, Aop>(),
+		aopsById: new Map<string, Aop>(),
 		onSelectAop,
 		getFitInset,
 		applyFeatureStates: () => {},
@@ -252,7 +256,13 @@ export function AopMapView({
 		for (const aop of aops) m.set(aop.idApp, aop);
 		return m;
 	}, [aops]);
+	const aopsById = useMemo(() => {
+		const m = new Map<string, Aop>();
+		for (const aop of aops) m.set(aop.id, aop);
+		return m;
+	}, [aops]);
 	stateRef.current.aopsByIdApp = aopsByIdApp;
+	stateRef.current.aopsById = aopsById;
 	stateRef.current.onSelectAop = onSelectAop;
 	stateRef.current.getFitInset = getFitInset;
 
@@ -559,7 +569,9 @@ export function AopMapView({
 							`<span>${escapeHtml(aop.shortName)}</span>` +
 							`<em>${escapeHtml(
 								[
-									KIND_LABELS_JA[aop.kind],
+									aop.kind === "vineyard"
+										? getVineyardTermJa(aop.region)
+										: KIND_LABELS_JA[aop.kind],
 									...(aop.tags ?? []).map((t) => formatAopTagJa(aop, t)),
 								].join(" / "),
 							)}</em></div>`,
@@ -640,7 +652,20 @@ export function AopMapView({
 			]);
 		}
 		if (selected) {
-			const b = boundsRef.current[selected.idApp];
+			// 選択AOPに境界が無い場合(個別クリマ・合成総称ノードはポリゴンを持たない)、
+			// 親畑→村 と祖先を辿り、境界を持つ最初の祖先の範囲にズームして位置の目安を示す。
+			const byId = stateRef.current.aopsById;
+			let cursor: Aop | undefined = selected;
+			const seen = new Set<string>();
+			let b: [number, number, number, number] | undefined;
+			while (cursor && !seen.has(cursor.id)) {
+				seen.add(cursor.id);
+				b = boundsRef.current[cursor.idApp];
+				if (b) break;
+				const parentId: string | undefined =
+					cursor.parentAopId ?? cursor.villageAopIds?.[0];
+				cursor = parentId ? byId.get(parentId) : undefined;
+			}
 			if (b) {
 				const canvas = map.getCanvas();
 				const padding = computeFitPadding(

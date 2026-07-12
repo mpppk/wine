@@ -26,8 +26,12 @@ import {
 	KIND_COLORS,
 	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
-import { formatAopTagJa } from "#/lib/wine/tags";
-import { getBoundarySourceNoteJa } from "#/lib/wine/terminology";
+import { formatAopTagJa, isLegalAppellation } from "#/lib/wine/tags";
+import {
+	getAppellationBadgeJa,
+	getBoundarySourceNoteJa,
+	getVineyardTermJa,
+} from "#/lib/wine/terminology";
 import type { Aop, WineColor } from "#/lib/wine/types";
 import { getVariety } from "#/lib/wine/varieties";
 
@@ -45,6 +49,11 @@ export function KindBadge({ aop }: { aop: Aop }) {
 		? GRAND_CRU_TAG_COLOR
 		: KIND_COLORS[aop.kind];
 	const tagLabels = (aop.tags ?? []).map((t) => formatAopTagJa(aop, t));
+	// 畑(vineyard)区分は地域固有の呼称(ブルゴーニュ=クリマ/アルザス=リュー・ディ)で示す
+	const kindLabel =
+		aop.kind === "vineyard"
+			? getVineyardTermJa(aop.region)
+			: KIND_LABELS_JA[aop.kind];
 	return (
 		<span
 			className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs font-medium"
@@ -55,7 +64,26 @@ export function KindBadge({ aop }: { aop: Aop }) {
 				className="size-2 rounded-full"
 				style={{ backgroundColor: color.fill }}
 			/>
-			{[KIND_LABELS_JA[aop.kind], ...tagLabels].join(" / ")}
+			{[kindLabel, ...tagLabels].join(" / ")}
+		</span>
+	);
+}
+
+/**
+ * 法的に独立したアペラシオンか否かを示すバッジ。「クリマである」ことと「AOCで
+ * ある」ことは直交するため、kind ではなく isLegalAppellation で判定する。
+ */
+function AppellationBadge({ aop }: { aop: Aop }) {
+	if (isLegalAppellation(aop)) {
+		return (
+			<span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+				{getAppellationBadgeJa(aop.region)}
+			</span>
+		);
+	}
+	return (
+		<span className="rounded-full border border-dashed border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+			非AOC
 		</span>
 	);
 }
@@ -99,7 +127,10 @@ export function AopDetailPanel({
 }) {
 	// 前後移動のいずれかが渡されたときだけナビ行を表示する
 	const showNav = onPrev !== undefined || onNext !== undefined;
-	const kindLabel = KIND_LABELS_JA[aop.kind];
+	const kindLabel =
+		aop.kind === "vineyard"
+			? getVineyardTermJa(aop.region)
+			: KIND_LABELS_JA[aop.kind];
 	return (
 		<div className={compact ? "space-y-2 p-3" : "space-y-3 p-4"}>
 			{showNav && (
@@ -158,6 +189,7 @@ export function AopDetailPanel({
 
 			<div className="flex flex-wrap items-center gap-1.5">
 				<KindBadge aop={aop} />
+				<AppellationBadge aop={aop} />
 				{aop.colors.map((c) => (
 					<span
 						key={c}
@@ -374,7 +406,7 @@ function AncestrySection({
 	ancestry: AopAncestry;
 	onSelectAop?: (aopId: string) => void;
 }) {
-	const { regionNameJa, subregionNameJa, villages } = ancestry;
+	const { regionNameJa, subregionNameJa, villages, parentVineyard } = ancestry;
 	const regionPath = [subregionNameJa, regionNameJa]
 		.filter(Boolean)
 		.join(" ・ ");
@@ -384,6 +416,26 @@ function AncestrySection({
 			<h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 				所属
 			</h3>
+			{parentVineyard && (
+				<div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+					<span className="text-xs text-muted-foreground">
+						{isLegalAppellation(parentVineyard) ? "所属AOC" : "総称"}
+					</span>
+					{onSelectAop ? (
+						<button
+							type="button"
+							onClick={() => onSelectAop(parentVineyard.id)}
+							className="rounded-md border border-border px-2 py-0.5 text-xs font-medium hover:bg-muted"
+						>
+							{parentVineyard.nameJa}
+						</button>
+					) : (
+						<span className="rounded-md border border-border px-2 py-0.5 text-xs font-medium">
+							{parentVineyard.nameJa}
+						</span>
+					)}
+				</div>
+			)}
 			{villages.length > 0 && (
 				<div className="mb-1.5 flex flex-wrap items-center gap-1.5">
 					<span className="text-xs text-muted-foreground">

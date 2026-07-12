@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AOPS } from "./aops-data";
 import { REGIONS } from "./regions";
+import { POLYGONLESS_IDAPP_MIN } from "./types";
 
 // aops.json と public/data/aop/*.geojson の整合性を検証する。
 // (aops.json のスキーマ検証自体は aops-data.ts の読み込み時に行われる)
@@ -40,7 +41,22 @@ describe("AOPメタデータの整合性", () => {
 		const regionsWithVillages = new Set(
 			AOPS.filter((a) => a.kind === "village").map((a) => a.region),
 		);
-		for (const aop of AOPS.filter((a) => a.kind === "vineyard")) {
+		// 個別クリマ(parentAopId を持つ畑)は親畑を参照し、村は親から導出するため
+		// villageAopIds を持たない。トップレベルの畑だけが村を参照する。
+		for (const aop of AOPS.filter(
+			(a) => a.kind === "vineyard" && a.parentAopId,
+		)) {
+			expect(aop.villageAopIds, aop.id).toBeUndefined();
+			const parent = aop.parentAopId ? byId.get(aop.parentAopId) : undefined;
+			expect(parent, `${aop.id} -> ${aop.parentAopId}`).toBeDefined();
+			expect(parent?.kind, `${aop.id} -> ${aop.parentAopId}`).toBe("vineyard");
+			expect(parent?.region, `${aop.id} -> ${aop.parentAopId}`).toBe(
+				aop.region,
+			);
+		}
+		for (const aop of AOPS.filter(
+			(a) => a.kind === "vineyard" && !a.parentAopId,
+		)) {
 			if (regionsWithVillages.has(aop.region)) {
 				expect(aop.villageAopIds?.length, aop.id).toBeGreaterThan(0);
 			} else {
@@ -75,13 +91,23 @@ describe("AOPメタデータの整合性", () => {
 	});
 
 	it("移行後の件数スナップショット(区分・タグ)", () => {
-		// 旧 classification/premierCru からの移行が欠落なく行われたことの回帰チェック
+		// 旧 classification/premierCru からの移行が欠落なく行われたことの回帰チェック。
+		// 個別クリマ(Chablis GC 7 + Chablis 1er 17 + Corton 8)と合成総称ノード
+		// (Chablis Premier Cru)を畑として追加したぶん、件数を更新している。
 		const vineyards = AOPS.filter((a) => a.kind === "vineyard");
-		expect(vineyards.length).toBe(84);
-		expect(vineyards.filter((a) => a.region === "bourgogne").length).toBe(33);
+		expect(vineyards.length).toBe(117);
+		expect(vineyards.filter((a) => a.region === "bourgogne").length).toBe(66);
 		expect(vineyards.filter((a) => a.region === "alsace").length).toBe(51);
-		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(101);
-		expect(AOPS.filter((a) => a.tags?.includes("premier-cru")).length).toBe(73);
+		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(116);
+		expect(AOPS.filter((a) => a.tags?.includes("premier-cru")).length).toBe(91);
+	});
+
+	it("個別クリマ/合成総称ノードはポリゴンを持たない帯(idApp>=930000)にある", () => {
+		// ジオメトリ/重心の生成・整合チェックはこの帯を対象外にする(下記GeoJSONテスト)
+		for (const aop of AOPS.filter((a) => a.parentAopId)) {
+			expect(aop.idApp, aop.id).toBeGreaterThanOrEqual(POLYGONLESS_IDAPP_MIN);
+			expect(aop.isAppellation, aop.id).toBe(false);
+		}
 	});
 
 	it("ボルドー: シャトー(winery)の件数と格付けの内訳", () => {
@@ -245,7 +271,11 @@ describe("GeoJSONとの整合性", () => {
 				};
 			}[];
 		};
-		const regionAops = AOPS.filter((a) => a.region === region.id);
+		// ポリゴンを持たない詳細エントリ(クリマ・合成総称ノード)は GeoJSON に
+		// 現れないので、1:1 の対象から除外する。
+		const regionAops = AOPS.filter(
+			(a) => a.region === region.id && a.idApp < POLYGONLESS_IDAPP_MIN,
+		);
 		expect(geojson.features.length).toBe(regionAops.length);
 
 		const byIdApp = new Map(regionAops.map((a) => [a.idApp, a]));

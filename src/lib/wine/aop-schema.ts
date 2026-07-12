@@ -46,6 +46,11 @@ export const aopSchema = z
 			.array(z.string().regex(/^[a-z0-9-]+$/))
 			.min(1)
 			.optional(),
+		parentAopId: z
+			.string()
+			.regex(/^[a-z0-9-]+$/)
+			.optional(),
+		isAppellation: z.boolean().optional(),
 		tags: z.array(z.enum(AOP_TAG_IDS)).min(1).optional(),
 		colors: z
 			.array(z.enum(["red", "white", "rose", "sparkling", "sweet-white"]))
@@ -77,6 +82,23 @@ export const aopSchema = z
 				code: "custom",
 				path: ["villageAopIds"],
 				message: `${aop.id}: winery は villageAopIds をちょうど1つ持つ必要がある`,
+			});
+		}
+		// parentAopId(親畑への内包参照)は畑(クリマ)だけが持つ。親畑に内包される
+		// クリマは村を親から導出するため villageAopIds を持たない。参照先の妥当性
+		// (親が同一 region の vineyard か)は data-integrity テストで検証する。
+		if (aop.parentAopId && aop.kind !== "vineyard") {
+			ctx.addIssue({
+				code: "custom",
+				path: ["parentAopId"],
+				message: `${aop.id}: parentAopId は vineyard のみが持てる`,
+			});
+		}
+		if (aop.parentAopId && aop.villageAopIds) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["villageAopIds"],
+				message: `${aop.id}: parentAopId を持つ畑は villageAopIds を持てない(村は親から導出)`,
 			});
 		}
 	}) satisfies z.ZodType<Aop>;

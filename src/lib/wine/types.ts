@@ -3,6 +3,13 @@
 
 import type { AopTagId } from "./tags";
 
+/**
+ * これ以上の idApp は INAO の独立ポリゴンを持たない(地図に描かない)エントリ帯
+ * (ブルゴーニュのクリマ・合成総称ノード)。ジオメトリ/重心の生成・整合チェックは
+ * この値以上の idApp を対象外にする。scripts/*.mjs 側は同値のリテラルで判定する。
+ */
+export const POLYGONLESS_IDAPP_MIN = 930000;
+
 /** ワインのタイプ(色) */
 export type WineColor = "red" | "white" | "rose" | "sparkling" | "sweet-white";
 
@@ -65,6 +72,9 @@ export interface Aop {
 	 *   - ボルドー: 地区/村AOC 910001〜、格付けシャトー 911001〜
 	 *   - ピエモンテ(EU PDO由来): 920001〜 の連番。PDOid との対応は
 	 *     scripts/build-italy-geodata.mjs の PIEMONTE_PDO 表が真実の源(追記のみ)。
+	 *   - ブルゴーニュのクリマ/合成総称ノード: 930001〜。INAOの独立ポリゴンを
+	 *     持たない(地図に描かない)エントリ帯。ビルド/整合テストは idApp>=930000 を
+	 *     ジオメトリ必須の対象から除外する(POLYGONLESS_IDAPP_MIN)。
 	 */
 	idApp: number;
 	/** INAO表記の正式名称 */
@@ -81,6 +91,20 @@ export interface Aop {
 	 * winery(ボルドーのシャトー)は所属する村名/地区AOCをちょうど1つ持つ。
 	 */
 	villageAopIds?: string[];
+	/**
+	 * vineyard のみ: この畑(クリマ)が内包される親の畑(総称AOC/合成総称ノード)のid。
+	 * ちょうど1つ。個別クリマ(例: レ・クロ→chablis-grand-cru, フルショーム→
+	 * chablis-premier-cru)がこれを持ち、ツリーでは親畑の下に入れ子表示される。
+	 * parentAopId を持つ畑は villageAopIds を持たない(村は親から導出する)。
+	 */
+	parentAopId?: string;
+	/**
+	 * 法的に独立した原産地呼称(AOC/AOP・DOC/DOCG)か。省略時は isLegalAppellation()
+	 * が kind 等から導出する。導出結果が実態と食い違うもの(合成総称ノード等)だけ
+	 * 明示する。クリマである(kind:vineyard)ことと AOC であることは直交するため、
+	 * バッジ表示は kind ではなくこの軸(isLegalAppellation)だけで駆動する。
+	 */
+	isAppellation?: boolean;
 	/** 格付けタグ(特級/一級など)。省略時はタグなし。語彙は tags.ts が管理する */
 	tags?: AopTagId[];
 	colors: WineColor[];
