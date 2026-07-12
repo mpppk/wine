@@ -57,6 +57,7 @@ import {
 	PROGRESS_BUCKETS,
 	PROGRESS_EMPTY_COLOR,
 } from "#/lib/wine/map-style";
+import { REGIONS } from "#/lib/wine/regions";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
 import {
 	getAppellationTermJa,
@@ -152,6 +153,10 @@ function MapPage() {
 		{ kind: "region" } | { kind: "aop"; aopId: string } | null
 	>(null);
 
+	// 説明文/所属リンクで別AOPへ掘り下げた履歴。末尾が直前に見ていたAOP。
+	// 地図クリック・ツリー選択・前後移動など「新規閲覧」ではリセットする。
+	const [backStack, setBackStack] = useState<string[]>([]);
+
 	// この地域に実在する区分だけをチップとして出す(winery等のデータ0件の区分を出さない)。
 	// 格付けタグを2つ以上持つ区分はマルチセレクト化し、格付けを区分の下位に畳み込む。
 	const presentKinds = useMemo(
@@ -231,6 +236,32 @@ function MapPage() {
 		});
 	};
 
+	// 地図クリック・ツリー選択など「新規閲覧」。掘り下げ履歴をリセットして選択する。
+	const selectFresh = (id: string | undefined) => {
+		setBackStack([]);
+		setSearch({ aop: id });
+	};
+	// パネル内の説明文/所属リンク経由の遷移。今見ているAOPを履歴に積んでから移動する。
+	const navigateRelated = (id: string) => {
+		if (selectedAopId) setBackStack((s) => [...s, selectedAopId]);
+		setSearch({ aop: id });
+	};
+	// 直前に見ていたAOPへ戻る。履歴があるときだけ有効。
+	const backToId = backStack.at(-1);
+	const goBack = backToId
+		? () => {
+				setBackStack((s) => s.slice(0, -1));
+				setSearch({ aop: backToId });
+			}
+		: undefined;
+	const backToName = backToId
+		? aops.find((a) => a.id === backToId)?.nameJa
+		: undefined;
+	// 説明文中の地域名リンク。別地域の地図へ遷移する(ブラウザ履歴で戻れる)。
+	const selectRegion = (regionId: string) => {
+		void navigate({ to: "/map/$regionId", params: { regionId } });
+	};
+
 	// 前後移動: リスト表示と同じ並び順をフラット化し、同一区分かつ表示中(フィルタ通過)の
 	// AOPだけを対象に前後のidを求める。地図のパン/ズームは選択変更に追従して自動で行われる。
 	const orderedAops = useMemo(
@@ -246,11 +277,11 @@ function MapPage() {
 	);
 	const goPrev =
 		siblings?.prevId !== undefined
-			? () => setSearch({ aop: siblings.prevId })
+			? () => selectFresh(siblings.prevId)
 			: undefined;
 	const goNext =
 		siblings?.nextId !== undefined
-			? () => setSearch({ aop: siblings.nextId })
+			? () => selectFresh(siblings.nextId)
 			: undefined;
 	useAopKeyNav({ onPrev: goPrev, onNext: goNext, enabled: !!selectedAop });
 
@@ -277,7 +308,7 @@ function MapPage() {
 			subregions={region.subregions}
 			visibleAopIds={visibleAopIds}
 			selectedAopId={selectedAopId}
-			onSelect={(id) => setSearch({ aop: id })}
+			onSelect={selectFresh}
 		/>
 	);
 
@@ -427,7 +458,7 @@ function MapPage() {
 						hiddenAopIds={hiddenAopIds}
 						colorMode={colorMode}
 						progressByIdApp={progressByIdApp}
-						onSelectAop={(id) => setSearch({ aop: id })}
+						onSelectAop={selectFresh}
 						getFitInset={getInset}
 						className="min-w-0 flex-1"
 					/>
@@ -481,14 +512,19 @@ function MapPage() {
 								<AopDetailPanel
 									aop={selectedAop}
 									ancestry={selectedAncestry}
-									onSelectAop={(id) => setSearch({ aop: id })}
+									onSelectAop={navigateRelated}
 									onPrev={goPrev}
 									onNext={goNext}
 									position={siblings}
-									onClose={() => setSearch({ aop: undefined })}
+									onClose={() => selectFresh(undefined)}
 									quizQuestionCount={selectedAopQuizCount}
 									onStartQuiz={startAopQuiz}
 									affiliate={affiliate}
+									aops={aops}
+									regions={REGIONS}
+									onSelectRegion={selectRegion}
+									onBack={goBack}
+									backToName={backToName}
 								/>
 								{isListView && (
 									<div className="px-4 pb-4">
@@ -514,19 +550,24 @@ function MapPage() {
 				{selectedAop && (
 					<MobileDetailSheet
 						panelRef={panelRef}
-						onDismiss={() => setSearch({ aop: undefined })}
+						onDismiss={() => selectFresh(undefined)}
 						className="absolute inset-x-2 bottom-2 lg:hidden"
 					>
 						<AopDetailPanel
 							aop={selectedAop}
 							ancestry={selectedAncestry}
-							onSelectAop={(id) => setSearch({ aop: id })}
+							onSelectAop={navigateRelated}
 							onPrev={goPrev}
 							onNext={goNext}
 							position={siblings}
 							quizQuestionCount={selectedAopQuizCount}
 							onStartQuiz={startAopQuiz}
 							affiliate={affiliate}
+							aops={aops}
+							regions={REGIONS}
+							onSelectRegion={selectRegion}
+							onBack={goBack}
+							backToName={backToName}
 						/>
 						{isListView && (
 							<div className="px-4 pb-4">
