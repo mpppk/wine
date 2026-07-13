@@ -15,7 +15,11 @@ import {
 	type QuestionStatLike,
 } from "#/lib/quiz/scheduler";
 import { listScopedCandidates } from "#/lib/quiz/scope";
-import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
+import {
+	AOP_ANSWER_QUIZ_TYPES,
+	type QuizQuestion,
+	type QuizType,
+} from "#/lib/quiz/types";
 import { listRegions } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
@@ -326,40 +330,62 @@ export async function getProgress(
 	return { regions };
 }
 
-/**
- * 地図の進捗色分け用: 指定地域について、AOP(slug)ごとの学習済み率
- * (= 出題済み問題数 ÷ そのAOPの全候補問題数, 0〜1)を返す。
- * 問題キーの末尾セグメントが対象AOPのslugなので、キーをJS側で集計する
- * (AOP単位の集計列はDBに持たない)。出題済み(seen>0)のAOPのみを含める。
- */
-export async function getAopSeenProgress(
-	userId: string,
-	regionId: RegionId,
-): Promise<{ byAopId: Record<string, number> }> {
-	const rows = await db
-		.select({ questionKey: quizQuestionStat.questionKey })
-		.from(quizQuestionStat)
-		.where(
-			and(
-				eq(quizQuestionStat.userId, userId),
-				eq(quizQuestionStat.regionId, regionId),
-			),
-		);
+/** AOP(slug)単位の学習進捗。solved=正解済み問題数 / total=候補問題総数 */
+export interface AopProgress {
+	solved: number;
+	total: number;
+}
 
-	// 1行=1キー=既出題1問。AOPごとに出題済み問題数を数える
-	const seenByAopId = new Map<string, number>();
-	for (const row of rows) {
-		const parsed = parseKey(row.questionKey);
-		if (!parsed) continue;
-		seenByAopId.set(parsed.aopId, (seenByAopId.get(parsed.aopId) ?? 0) + 1);
+/**
+ * 地図・リストの進捗表示用: 指定地域について、AOP(slug)ごとの
+ * 「正解済み問題数(solved)」と「候補問題総数(total)」を返す。
+ * 「正解済み」= 一度でも正解した問題(correctCount > 0)。問題キーの末尾セグメントが
+ * 対象AOPのslugなので、キーをJS側で集計する(AOP単位の集計列はDBに持たない)。
+ * 母数・正解数とも「設問の主語がそのAOP」の形式だけを数え、AOPが4択の正解にすぎない
+ * 回答側形式(odd-one-out/variety/location)は進捗対象から除外する(詳細パネルの
+ * 「関連クイズ」= listScopedCandidates と同じ形式の定義に揃える)。
+ * 候補問題を持つ全AOP(total>0)を返す(村・地区の合算や未着手AOPの分母表示に使う)。
+ * 未ログイン(userId=null)時はDBを引かず solved=0 として total のみ返す。
+ */
+export async function getAopSolvedProgress(
+	userId: string | null,
+	regionId: RegionId,
+): Promise<{ byAopId: Record<string, AopProgress> }> {
+	// 1行=1キー=1問。正解済み(correctCount>0)の問題だけをAOPごとに数える
+	const solvedByAopId = new Map<string, number>();
+	if (userId) {
+		const rows = await db
+			.select({
+				questionKey: quizQuestionStat.questionKey,
+				correctCount: quizQuestionStat.correctCount,
+			})
+			.from(quizQuestionStat)
+			.where(
+				and(
+					eq(quizQuestionStat.userId, userId),
+					eq(quizQuestionStat.regionId, regionId),
+				),
+			);
+		for (const row of rows) {
+			if (row.correctCount <= 0) continue;
+			const parsed = parseKey(row.questionKey);
+			if (!parsed) continue;
+			// 回答側形式は進捗の分母(candidateCountsByAopId)から除外しているので、
+			// 正解数側でも同形式を除外して分子・分母の定義を揃える
+			if (AOP_ANSWER_QUIZ_TYPES.has(parsed.quizType)) continue;
+			solvedByAopId.set(
+				parsed.aopId,
+				(solvedByAopId.get(parsed.aopId) ?? 0) + 1,
+			);
+		}
 	}
 
 	const candidateCounts = candidateCountsByAopId(regionId);
-	const byAopId: Record<string, number> = {};
-	for (const [aopId, seen] of seenByAopId) {
-		const candidate = candidateCounts.get(aopId);
-		if (!candidate) continue; // 失効キー等、現データに候補が無いAOPは除外
-		byAopId[aopId] = Math.min(1, seen / candidate);
+	const byAopId: Record<string, AopProgress> = {};
+	for (const [aopId, total] of candidateCounts) {
+		if (total <= 0) continue;
+		const solved = Math.min(solvedByAopId.get(aopId) ?? 0, total);
+		byAopId[aopId] = { solved, total };
 	}
 	return { byAopId };
 }

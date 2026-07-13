@@ -2,7 +2,12 @@ import { getAop } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 import { parseKey } from "../keys";
 import type { Rng } from "../rng";
-import { QUIZ_TYPE_IDS, type QuizQuestion, type QuizType } from "../types";
+import {
+	AOP_ANSWER_QUIZ_TYPES,
+	QUIZ_TYPE_IDS,
+	type QuizQuestion,
+	type QuizType,
+} from "../types";
 import {
 	enumerateAopClassificationKeys,
 	materializeAopClassificationQuestion,
@@ -79,7 +84,17 @@ export function candidateCountsByType(
 	) as Record<QuizType, number>;
 }
 
-/** 地域ごとの「AOP slug -> 全形式の候補問題数」(進捗色分けの分母)。静的データ由来なのでメモ化 */
+// 進捗の分母に数える形式 = 「設問の主語がそのAOP」の形式のみ。AOPが4択の正解に
+// すぎない回答側形式(odd-one-out/variety/location)は、そのAOP自身について問う設問
+// ではないため進捗(そのAOPをどれだけ学んだか)の母数から除外する。
+const SUBJECT_QUIZ_TYPES: QuizType[] = QUIZ_TYPE_IDS.filter(
+	(t) => !AOP_ANSWER_QUIZ_TYPES.has(t),
+);
+
+/**
+ * 地域ごとの「AOP slug -> そのAOPが主語の候補問題数」(進捗の分母)。
+ * 回答側形式(odd-one-out/variety/location)は除外する。静的データ由来なのでメモ化。
+ */
 const candidateCountsByAopIdCache = new Map<RegionId, Map<string, number>>();
 
 export function candidateCountsByAopId(
@@ -88,7 +103,7 @@ export function candidateCountsByAopId(
 	let counts = candidateCountsByAopIdCache.get(regionId);
 	if (!counts) {
 		counts = new Map<string, number>();
-		for (const key of listCandidates(regionId, [...QUIZ_TYPE_IDS])) {
+		for (const key of listCandidates(regionId, SUBJECT_QUIZ_TYPES)) {
 			const parsed = parseKey(key);
 			if (!parsed) continue;
 			counts.set(parsed.aopId, (counts.get(parsed.aopId) ?? 0) + 1);

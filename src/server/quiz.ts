@@ -72,10 +72,11 @@ export const getQuizProgress = createServerFn({ method: "GET" })
 
 const getAopProgressInput = z.object({ regionId: REGION_ID_SCHEMA });
 
-// 地図の進捗色分け用。AOP単位の学習済み率を返す(認証必須のユーザ固有データ)
+// 地図・リストの進捗表示用。AOP単位の正解進捗(solved/total)を返す。
+// total は静的データ由来なので未ログインでも返せる(solved=0)。認証は任意。
 export const getAopProgress = createServerFn({ method: "GET" })
-	.middleware([authMiddleware])
+	.middleware([optionalAuthMiddleware])
 	.inputValidator(getAopProgressInput)
 	.handler(({ data, context }) =>
-		quizService.getAopSeenProgress(context.user.id, data.regionId),
+		quizService.getAopSolvedProgress(context.user?.id ?? null, data.regionId),
 	);

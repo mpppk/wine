@@ -1,12 +1,25 @@
+import { CircleCheckIcon } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import {
 	buildAopTree,
+	type SubregionSection,
 	type VillageNode,
 	type VineyardNode,
 } from "#/lib/wine/aop-tree";
-import { GRAND_CRU_TAG_COLOR, KIND_COLORS } from "#/lib/wine/map-style";
+import {
+	GRAND_CRU_TAG_COLOR,
+	KIND_COLORS,
+	PROGRESS_BUCKETS,
+	PROGRESS_EMPTY_COLOR,
+} from "#/lib/wine/map-style";
 import { classificationBadgeJa, isLegalAppellation } from "#/lib/wine/tags";
 import type { Aop, Subregion } from "#/lib/wine/types";
+
+/** AOP(slug)単位の正解進捗。solved=正解済み問題数 / total=候補問題総数 */
+export interface AopProgress {
+	solved: number;
+	total: number;
+}
 
 export interface AopTreeListProps {
 	/** 地域の全AOP。ツリー構造(村→畑の親子)はフィルタに関係なく全量から組む */
@@ -16,6 +29,19 @@ export interface AopTreeListProps {
 	visibleAopIds: ReadonlySet<string>;
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
+	/** 色分けモード。"progress" のとき各行・村・地区に正解進捗を表示する */
+	colorMode?: "kind" | "progress";
+	/**
+	 * AOP(slug)ごとの「そのAOP自身が主語」の正解進捗(solved/total)。
+	 * 地区見出しの合算(配下の重複しない総数)に使う。未取得時は進捗を表示しない。
+	 */
+	progressByAopId?: Record<string, AopProgress>;
+	/**
+	 * AOP(slug)ごとの「自身+階層近傍」の正解進捗(solved/total)。詳細パネルの
+	 * 「関連クイズ数」と同じスコープで、各AOP行(村・畑・クリマ)の分母表示に使う。
+	 * 未指定時は progressByAopId(自身のみ)にフォールバックする。
+	 */
+	rowProgressByAopId?: Record<string, AopProgress>;
 	/**
 	 * 選択行をスクロールで表示させる際に下端から除外する量(px)を返す getter。
 	 * モバイルでは詳細パネルがリスト下部に重なるため、その被覆量を渡すと選択行が
@@ -34,12 +60,19 @@ export function AopTreeList({
 	visibleAopIds,
 	selectedAopId,
 	onSelect,
+	colorMode = "kind",
+	progressByAopId,
+	rowProgressByAopId,
 	getScrollInset,
 }: AopTreeListProps) {
+	// 各行(村・畑・クリマ)は「自身+近傍」スコープの進捗を出す。未指定なら自身のみ。
+	const rowProgress = rowProgressByAopId ?? progressByAopId;
 	const sections = useMemo(
 		() => buildAopTree(aops, subregions),
 		[aops, subregions],
 	);
+
+	const progressMode = colorMode === "progress";
 
 	// 選択AOPが変わったら、その行をスクロール表示領域内に入れる。情報パネルの
 	// 前へ/次へ(←/→)で領域外のAOPへ移った際、リストの選択位置を見失わないため。
@@ -134,66 +167,88 @@ export function AopTreeList({
 
 	return (
 		<nav aria-label="AOP一覧" className="p-2" ref={navRef}>
-			{visibleSections.map((section) => (
-				<section key={section.subregion.id} className="mb-4">
-					<h3 className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-						{section.subregion.nameJa}
-					</h3>
-					{section.regionalAops.length > 0 && (
-						<ul>
-							{section.regionalAops.map((aop) => (
-								<li key={aop.id}>
-									<AopRow
-										aop={aop}
-										selected={aop.id === selectedAopId}
+			{visibleSections.map((section) => {
+				// 地区見出しには配下(表示中)AOPを合算した正解進捗を併記する
+				const sectionProgress = progressMode
+					? sumProgress(
+							collectSectionAopIds(section, visibleAopIds),
+							progressByAopId,
+						)
+					: undefined;
+				return (
+					<section key={section.subregion.id} className="mb-4">
+						<h3 className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-muted-foreground">
+							<span className="uppercase tracking-wide">
+								{section.subregion.nameJa}
+							</span>
+							{sectionProgress && (
+								<ProgressIndicator progress={sectionProgress} />
+							)}
+						</h3>
+						{section.regionalAops.length > 0 && (
+							<ul>
+								{section.regionalAops.map((aop) => (
+									<li key={aop.id}>
+										<AopRow
+											aop={aop}
+											selected={aop.id === selectedAopId}
+											onSelect={onSelect}
+											progressMode={progressMode}
+											progress={rowProgress?.[aop.id]}
+										/>
+									</li>
+								))}
+							</ul>
+						)}
+						{section.villages.length > 0 && (
+							<ul>
+								{section.villages.map((node) => (
+									<VillageItem
+										key={node.village.id}
+										node={node}
+										villageVisible={visibleAopIds.has(node.village.id)}
+										visibleAopIds={visibleAopIds}
+										selectedAopId={selectedAopId}
 										onSelect={onSelect}
+										progressMode={progressMode}
+										rowProgressByAopId={rowProgress}
 									/>
-								</li>
-							))}
-						</ul>
-					)}
-					{section.villages.length > 0 && (
-						<ul>
-							{section.villages.map((node) => (
-								<VillageItem
-									key={node.village.id}
-									node={node}
-									villageVisible={visibleAopIds.has(node.village.id)}
-									visibleAopIds={visibleAopIds}
-									selectedAopId={selectedAopId}
-									onSelect={onSelect}
-								/>
-							))}
-						</ul>
-					)}
-					{section.unassignedVineyards.length > 0 && (
-						<ul>
-							{section.unassignedVineyards.map((aop) => (
-								<li key={aop.id}>
-									<AopRow
-										aop={aop}
-										selected={aop.id === selectedAopId}
-										onSelect={onSelect}
-									/>
-								</li>
-							))}
-						</ul>
-					)}
-					{section.unassignedWineries.length > 0 && (
-						<ul>
-							{section.unassignedWineries.map((aop) => (
-								<li key={aop.id}>
-									<AopRow
-										aop={aop}
-										selected={aop.id === selectedAopId}
-										onSelect={onSelect}
-									/>
-								</li>
-							))}
-						</ul>
-					)}
-				</section>
-			))}
+								))}
+							</ul>
+						)}
+						{section.unassignedVineyards.length > 0 && (
+							<ul>
+								{section.unassignedVineyards.map((aop) => (
+									<li key={aop.id}>
+										<AopRow
+											aop={aop}
+											selected={aop.id === selectedAopId}
+											onSelect={onSelect}
+											progressMode={progressMode}
+											progress={rowProgress?.[aop.id]}
+										/>
+									</li>
+								))}
+							</ul>
+						)}
+						{section.unassignedWineries.length > 0 && (
+							<ul>
+								{section.unassignedWineries.map((aop) => (
+									<li key={aop.id}>
+										<AopRow
+											aop={aop}
+											selected={aop.id === selectedAopId}
+											onSelect={onSelect}
+											progressMode={progressMode}
+											progress={rowProgress?.[aop.id]}
+										/>
+									</li>
+								))}
+							</ul>
+						)}
+					</section>
+				);
+			})}
 		</nav>
 	);
 }
@@ -204,13 +259,21 @@ function VillageItem({
 	visibleAopIds,
 	selectedAopId,
 	onSelect,
+	progressMode,
+	rowProgressByAopId,
 }: {
 	node: VillageNode;
 	villageVisible: boolean;
 	visibleAopIds: ReadonlySet<string>;
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
+	progressMode: boolean;
+	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
+	// 村行は村AOP自身の「自身+近傍」スコープの進捗を出す(詳細パネルの関連クイズ数と一致)
+	const villageProgress = progressMode
+		? rowProgressByAopId?.[node.village.id]
+		: undefined;
 	return (
 		<li>
 			{villageVisible ? (
@@ -218,13 +281,16 @@ function VillageItem({
 					aop={node.village}
 					selected={node.village.id === selectedAopId}
 					onSelect={onSelect}
+					progressMode={progressMode}
+					progress={villageProgress}
 				/>
 			) : (
 				// 村自体はフィルタで非表示だが、配下の畑の位置づけを示すため
 				// グルーピングラベルとしては残す
 				<p className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
 					<span aria-hidden className="size-2.5 shrink-0" />
-					{node.village.nameJa}
+					<span className="min-w-0 flex-1 truncate">{node.village.nameJa}</span>
+					{villageProgress && <ProgressIndicator progress={villageProgress} />}
 				</p>
 			)}
 			{(node.vineyards.length > 0 || node.wineries.length > 0) && (
@@ -236,6 +302,8 @@ function VillageItem({
 							vineyardVisible={visibleAopIds.has(vn.vineyard.id)}
 							selectedAopId={selectedAopId}
 							onSelect={onSelect}
+							progressMode={progressMode}
+							rowProgressByAopId={rowProgressByAopId}
 						/>
 					))}
 					{node.wineries.map((aop) => (
@@ -244,6 +312,8 @@ function VillageItem({
 								aop={aop}
 								selected={aop.id === selectedAopId}
 								onSelect={onSelect}
+								progressMode={progressMode}
+								progress={rowProgressByAopId?.[aop.id]}
 							/>
 						</li>
 					))}
@@ -259,11 +329,15 @@ function VineyardItem({
 	vineyardVisible,
 	selectedAopId,
 	onSelect,
+	progressMode,
+	rowProgressByAopId,
 }: {
 	node: VineyardNode;
 	vineyardVisible: boolean;
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
+	progressMode: boolean;
+	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
 	return (
 		<li>
@@ -272,6 +346,8 @@ function VineyardItem({
 					aop={node.vineyard}
 					selected={node.vineyard.id === selectedAopId}
 					onSelect={onSelect}
+					progressMode={progressMode}
+					progress={rowProgressByAopId?.[node.vineyard.id]}
 				/>
 			) : (
 				// 畑本体はフィルタで非表示だが、配下クリマの位置づけを示すため
@@ -289,6 +365,8 @@ function VineyardItem({
 								aop={climat}
 								selected={climat.id === selectedAopId}
 								onSelect={onSelect}
+								progressMode={progressMode}
+								progress={rowProgressByAopId?.[climat.id]}
 							/>
 						</li>
 					))}
@@ -302,16 +380,33 @@ function AopRow({
 	aop,
 	selected,
 	onSelect,
+	progressMode = false,
+	progress,
 }: {
 	aop: Aop;
 	selected: boolean;
 	onSelect: (aopId: string) => void;
+	/** 進捗モード時はバッジを進捗インジケータに置換し、ドットを正解率で着色する */
+	progressMode?: boolean;
+	/** この行に表示する正解進捗(そのAOPの「自身+階層近傍」スコープ) */
+	progress?: AopProgress;
 }) {
 	// 格付けバッジ(特級/1級/2級/A 等)。特級もバッジで示し、非AOCバッジと同じ見た目に統一する
 	const badge = classificationBadgeJa(aop);
 	// 畑階層(vineyard)で法的に独立AOCでないもの(個別クリマ・合成総称ノード)には
 	// 「非AOC」ラベルを出し、AOCである畑(グラン・クリュ等)と区別できるようにする
 	const nonAppellation = aop.kind === "vineyard" && !isLegalAppellation(aop);
+	// 進捗モードで全問正解済みの行は淡い緑ティントで区別する(ホバー時は muted 優先)
+	const complete =
+		progressMode &&
+		!!progress &&
+		progress.total > 0 &&
+		progress.solved >= progress.total;
+	const dotColor = progressMode
+		? progressDotColor(progress)
+		: aop.tags?.includes("grand-cru")
+			? GRAND_CRU_TAG_COLOR.fill
+			: KIND_COLORS[aop.kind].fill;
 	return (
 		<button
 			type="button"
@@ -319,29 +414,122 @@ function AopRow({
 			onClick={() => onSelect(aop.id)}
 			aria-current={selected || undefined}
 			className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${
-				selected ? "bg-muted font-medium" : ""
+				selected ? "bg-muted font-medium" : complete ? "bg-emerald-500/10" : ""
 			}`}
 		>
 			<span
 				aria-hidden
 				className="size-2.5 shrink-0 rounded-full"
-				style={{
-					backgroundColor: aop.tags?.includes("grand-cru")
-						? GRAND_CRU_TAG_COLOR.fill
-						: KIND_COLORS[aop.kind].fill,
-				}}
+				style={{ backgroundColor: dotColor }}
 			/>
 			<span className="min-w-0 flex-1 truncate">{aop.nameJa}</span>
-			{nonAppellation && (
-				<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
-					非AOC
-				</span>
-			)}
-			{badge && (
-				<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
-					{badge}
-				</span>
+			{progressMode ? (
+				progress && <ProgressIndicator progress={progress} />
+			) : (
+				<>
+					{nonAppellation && (
+						<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
+							非AOC
+						</span>
+					)}
+					{badge && (
+						<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
+							{badge}
+						</span>
+					)}
+				</>
 			)}
 		</button>
 	);
+}
+
+/** 正解進捗を "solved/total" のピルで示す。全問正解済みはチェック+緑で強調する。 */
+function ProgressIndicator({ progress }: { progress: AopProgress }) {
+	const { solved, total } = progress;
+	if (total <= 0) return null;
+	const complete = solved >= total;
+	return (
+		<span
+			className={`inline-flex shrink-0 items-center gap-0.5 rounded px-1 text-[10px] tabular-nums ${
+				complete
+					? "border border-transparent font-medium text-white"
+					: "border border-border text-muted-foreground"
+			}`}
+			style={
+				complete
+					? {
+							backgroundColor:
+								PROGRESS_BUCKETS[PROGRESS_BUCKETS.length - 1].fill,
+						}
+					: undefined
+			}
+		>
+			{complete && <CircleCheckIcon className="size-3" aria-hidden />}
+			{solved}/{total}
+		</span>
+	);
+}
+
+// 正解率(solved/total)をステータスドットの色に写す。地図の進捗色分けと同じ
+// バケット境界(i/len)で着色し、正解ゼロ・未収載は「未正解」グレーにする。
+function progressDotColor(progress: AopProgress | undefined): string {
+	if (!progress || progress.total <= 0 || progress.solved <= 0) {
+		return PROGRESS_EMPTY_COLOR.fill;
+	}
+	const rate = Math.min(1, progress.solved / progress.total);
+	const idx = Math.min(
+		PROGRESS_BUCKETS.length - 1,
+		Math.floor(rate * PROGRESS_BUCKETS.length),
+	);
+	return PROGRESS_BUCKETS[idx].fill;
+}
+
+// 複数AOPの正解進捗を合算する(村・地区の集計に使う)。
+function sumProgress(
+	ids: Iterable<string>,
+	progressByAopId: Record<string, AopProgress> | undefined,
+): AopProgress {
+	let solved = 0;
+	let total = 0;
+	for (const id of ids) {
+		const p = progressByAopId?.[id];
+		if (!p) continue;
+		solved += p.solved;
+		total += p.total;
+	}
+	return { solved, total };
+}
+
+// 村ノード配下(表示中)のAOP idを集める。村本体+畑+クリマ+シャトー。
+// 渡されるノードはフィルタ適用済み(climats/wineries は表示分のみ)。
+function collectVillageAopIds(
+	node: VillageNode,
+	visibleAopIds: ReadonlySet<string>,
+): string[] {
+	const ids: string[] = [];
+	if (visibleAopIds.has(node.village.id)) ids.push(node.village.id);
+	for (const vn of node.vineyards) {
+		if (visibleAopIds.has(vn.vineyard.id)) ids.push(vn.vineyard.id);
+		for (const c of vn.climats) ids.push(c.id);
+	}
+	for (const w of node.wineries) ids.push(w.id);
+	return ids;
+}
+
+// 地区セクション配下(表示中)の全AOP idを集める。
+function collectSectionAopIds(
+	section: Pick<
+		SubregionSection,
+		"regionalAops" | "villages" | "unassignedVineyards" | "unassignedWineries"
+	>,
+	visibleAopIds: ReadonlySet<string>,
+): string[] {
+	const ids: string[] = [];
+	for (const a of section.regionalAops) ids.push(a.id);
+	for (const node of section.villages) {
+		ids.push(...collectVillageAopIds(node, visibleAopIds));
+	}
+	for (const a of section.unassignedVineyards) ids.push(a.id);
+	for (const a of section.unassignedWineries) ids.push(a.id);
+	return ids;
 }
