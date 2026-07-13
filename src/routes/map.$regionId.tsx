@@ -309,6 +309,7 @@ function MapPage() {
 			visibleAopIds={visibleAopIds}
 			selectedAopId={selectedAopId}
 			onSelect={selectFresh}
+			getScrollInset={getInset}
 		/>
 	);
 
