@@ -16,6 +16,14 @@ import {
 	materializeAopVarietyQuestion,
 } from "./aop-variety";
 import { enumerateColorsKeys, materializeColorsQuestion } from "./colors";
+import {
+	enumerateGrandCruOddKeys,
+	materializeGrandCruOddQuestion,
+} from "./grand-cru-odd";
+import {
+	enumerateGrandCruSelectKeys,
+	materializeGrandCruSelectQuestion,
+} from "./grand-cru-select";
 import { enumerateLocationKeys, materializeLocationQuestion } from "./location";
 import {
 	enumerateOddOneOutKeys,
@@ -32,6 +40,8 @@ const ENUMERATORS: Record<QuizType, (regionId: RegionId) => string[]> = {
 	"aop-variety": enumerateAopVarietyKeys,
 	"aop-subregion": enumerateAopSubregionKeys,
 	"aop-classification": enumerateAopClassificationKeys,
+	"grand-cru-select": enumerateGrandCruSelectKeys,
+	"grand-cru-odd": enumerateGrandCruOddKeys,
 	"odd-one-out": enumerateOddOneOutKeys,
 	variety: enumerateVarietyKeys,
 	location: enumerateLocationKeys,
@@ -104,6 +114,10 @@ export function materializeQuestion(
 			return materializeAopSubregionQuestion(parsed, rng);
 		case "aop-classification":
 			return materializeAopClassificationQuestion(parsed, rng);
+		case "grand-cru-select":
+			return materializeGrandCruSelectQuestion(parsed, rng);
+		case "grand-cru-odd":
+			return materializeGrandCruOddQuestion(parsed, rng);
 		case "odd-one-out":
 			return materializeOddOneOutQuestion(parsed, rng);
 		case "variety":
