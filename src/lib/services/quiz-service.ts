@@ -15,7 +15,11 @@ import {
 	type QuestionStatLike,
 } from "#/lib/quiz/scheduler";
 import { listScopedCandidates } from "#/lib/quiz/scope";
-import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
+import {
+	AOP_ANSWER_QUIZ_TYPES,
+	type QuizQuestion,
+	type QuizType,
+} from "#/lib/quiz/types";
 import { listRegions } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
@@ -337,6 +341,9 @@ export interface AopProgress {
  * 「正解済み問題数(solved)」と「候補問題総数(total)」を返す。
  * 「正解済み」= 一度でも正解した問題(correctCount > 0)。問題キーの末尾セグメントが
  * 対象AOPのslugなので、キーをJS側で集計する(AOP単位の集計列はDBに持たない)。
+ * 母数・正解数とも「設問の主語がそのAOP」の形式だけを数え、AOPが4択の正解にすぎない
+ * 回答側形式(odd-one-out/variety/location)は進捗対象から除外する(詳細パネルの
+ * 「関連クイズ」= listScopedCandidates と同じ形式の定義に揃える)。
  * 候補問題を持つ全AOP(total>0)を返す(村・地区の合算や未着手AOPの分母表示に使う)。
  * 未ログイン(userId=null)時はDBを引かず solved=0 として total のみ返す。
  */
@@ -363,6 +370,9 @@ export async function getAopSolvedProgress(
 			if (row.correctCount <= 0) continue;
 			const parsed = parseKey(row.questionKey);
 			if (!parsed) continue;
+			// 回答側形式は進捗の分母(candidateCountsByAopId)から除外しているので、
+			// 正解数側でも同形式を除外して分子・分母の定義を揃える
+			if (AOP_ANSWER_QUIZ_TYPES.has(parsed.quizType)) continue;
 			solvedByAopId.set(
 				parsed.aopId,
 				(solvedByAopId.get(parsed.aopId) ?? 0) + 1,
