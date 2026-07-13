@@ -9,6 +9,8 @@ import type { QuizType } from "./types";
 //   aop-variety:{aopId}          設問文の主語がそのAOP。正解=主要品種コンボ
 //   aop-subregion:{aopId}        設問文の主語がそのAOP。正解=所属地区
 //   aop-classification:{aopId}   設問文の主語がそのAOP。正解=格付けラベル
+//   grand-cru-select:{aopId}     正解=その地区の特級。地区は subject の subregionId から導出
+//   grand-cru-odd:{aopId}        正解=その地区の非特級(一級)。他3つは同地区の特級
 //   odd-one-out:{axis}:{axisValue}:{aopId}   axis = color | grape | subregion | tag
 //   variety:{varietyId}:{aopId}
 //   location:{direction}:{subregionId}:{aopId}   direction = north | south | east | west
@@ -24,6 +26,8 @@ export type ParsedQuestionKey =
 	| { quizType: "aop-variety"; aopId: string }
 	| { quizType: "aop-subregion"; aopId: string }
 	| { quizType: "aop-classification"; aopId: string }
+	| { quizType: "grand-cru-select"; aopId: string }
+	| { quizType: "grand-cru-odd"; aopId: string }
 	| {
 			quizType: "odd-one-out";
 			axis: OddOneOutAxis;
@@ -54,6 +58,14 @@ export function buildAopSubregionKey(aopId: string): string {
 
 export function buildAopClassificationKey(aopId: string): string {
 	return `aop-classification:${aopId}`;
+}
+
+export function buildGrandCruSelectKey(aopId: string): string {
+	return `grand-cru-select:${aopId}`;
+}
+
+export function buildGrandCruOddKey(aopId: string): string {
+	return `grand-cru-odd:${aopId}`;
 }
 
 export function buildOddOneOutKey(
@@ -97,6 +109,14 @@ export function parseKey(key: string): ParsedQuestionKey | null {
 		case "aop-classification": {
 			if (rest.length !== 1) return null;
 			return { quizType: "aop-classification", aopId: rest[0] };
+		}
+		case "grand-cru-select": {
+			if (rest.length !== 1) return null;
+			return { quizType: "grand-cru-select", aopId: rest[0] };
+		}
+		case "grand-cru-odd": {
+			if (rest.length !== 1) return null;
+			return { quizType: "grand-cru-odd", aopId: rest[0] };
 		}
 		case "odd-one-out": {
 			if (rest.length !== 3) return null;
