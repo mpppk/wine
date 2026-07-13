@@ -93,18 +93,16 @@ export const Route = createFileRoute("/map/$regionId")({
 		const session = await getSession();
 		return { isAuthenticated: !!session };
 	},
-	loader: async ({ params, context }) => {
+	loader: async ({ params }) => {
 		const region = getRegion(params.regionId);
 		if (!region?.enabled) {
 			throw redirect({ to: "/regions" });
 		}
-		// 進捗色分け用のAOP別学習済み率はユーザ固有データ。未ログイン時は取得しない
-		// (クライアントで全AOP「データなし」扱い + ログイン促し)
+		// 進捗表示用のAOP別正解進捗(solved/total)。total は静的データ由来なので
+		// 未ログインでも取得できる(solved=0)。行の分母表示・ログイン促しに使う。
 		const [affiliate, aopProgress] = await Promise.all([
 			getAffiliateConfig(),
-			context.isAuthenticated
-				? getAopProgress({ data: { regionId: region.id as RegionId } })
-				: Promise.resolve(null),
+			getAopProgress({ data: { regionId: region.id as RegionId } }),
 		]);
 		return {
 			region,
@@ -134,13 +132,16 @@ function MapPage() {
 	const isListView = view === "list";
 	const colorMode = color === "progress" ? "progress" : "kind";
 
-	// 進捗レスポンス(AOP slug -> 率)を地図のjoinキー idApp -> 率 に変換
+	// 進捗レスポンス(AOP slug -> {solved,total})を地図のjoinキー idApp -> 正解率 に変換。
+	// 正解が1問も無い(solved=0)AOPは載せず、地図側で「未学習」色に沈める。
 	const progressByIdApp = useMemo(() => {
 		const m = new Map<number, number>();
 		if (aopProgress) {
 			for (const a of aops) {
-				const rate = aopProgress.byAopId[a.id];
-				if (rate !== undefined) m.set(a.idApp, rate);
+				const p = aopProgress.byAopId[a.id];
+				if (p && p.total > 0 && p.solved > 0) {
+					m.set(a.idApp, Math.min(1, p.solved / p.total));
+				}
 			}
 		}
 		return m;
@@ -309,6 +310,8 @@ function MapPage() {
 			visibleAopIds={visibleAopIds}
 			selectedAopId={selectedAopId}
 			onSelect={selectFresh}
+			colorMode={colorMode}
+			progressByAopId={aopProgress?.byAopId}
 		/>
 	);
 
@@ -378,39 +381,37 @@ function MapPage() {
 						</button>
 					</fieldset>
 
-					{!isListView && (
-						<fieldset
-							className="flex items-center rounded-md border border-border p-0.5"
-							aria-label="色分けモード"
+					<fieldset
+						className="flex items-center rounded-md border border-border p-0.5"
+						aria-label="色分けモード"
+					>
+						<button
+							type="button"
+							onClick={() => setSearch({ color: undefined })}
+							aria-pressed={colorMode === "kind"}
+							className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+								colorMode === "kind"
+									? "bg-muted font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
 						>
-							<button
-								type="button"
-								onClick={() => setSearch({ color: undefined })}
-								aria-pressed={colorMode === "kind"}
-								className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
-									colorMode === "kind"
-										? "bg-muted font-medium"
-										: "text-muted-foreground hover:text-foreground"
-								}`}
-							>
-								<PaletteIcon className="size-3.5" aria-hidden />
-								区分
-							</button>
-							<button
-								type="button"
-								onClick={() => setSearch({ color: "progress" })}
-								aria-pressed={colorMode === "progress"}
-								className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
-									colorMode === "progress"
-										? "bg-muted font-medium"
-										: "text-muted-foreground hover:text-foreground"
-								}`}
-							>
-								<SproutIcon className="size-3.5" aria-hidden />
-								進捗
-							</button>
-						</fieldset>
-					)}
+							<PaletteIcon className="size-3.5" aria-hidden />
+							区分
+						</button>
+						<button
+							type="button"
+							onClick={() => setSearch({ color: "progress" })}
+							aria-pressed={colorMode === "progress"}
+							className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+								colorMode === "progress"
+									? "bg-muted font-medium"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							<SproutIcon className="size-3.5" aria-hidden />
+							進捗
+						</button>
+					</fieldset>
 
 					<fieldset
 						className="flex items-center gap-1"
@@ -446,7 +447,43 @@ function MapPage() {
 			<div className="relative flex min-h-0 flex-1">
 				{isListView ? (
 					<div className="min-w-0 flex-1 overflow-y-auto">
-						<div className="mx-auto max-w-2xl">{treeList}</div>
+						<div className="mx-auto max-w-2xl">
+							{colorMode === "progress" && (
+								<div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-3 py-2 text-xs">
+									<span className="font-medium">クイズ正解率</span>
+									<span className="flex items-center gap-1.5">
+										<span className="text-muted-foreground">少</span>
+										<span
+											className="inline-block size-3.5 rounded-sm"
+											style={{ backgroundColor: PROGRESS_EMPTY_COLOR.fill }}
+											title="未正解"
+										/>
+										{PROGRESS_BUCKETS.map((b) => (
+											<span
+												key={b.fill}
+												className="inline-block size-3.5 rounded-sm"
+												style={{ backgroundColor: b.fill }}
+											/>
+										))}
+										<span className="text-muted-foreground">多</span>
+									</span>
+									{!isAuthenticated && (
+										<span className="ml-auto flex items-center gap-2">
+											<span className="text-muted-foreground">
+												ログインで進捗を記録
+											</span>
+											<Button asChild size="sm" variant="secondary">
+												<Link to="/login">
+													<LogInIcon className="size-3.5" aria-hidden />
+													ログイン
+												</Link>
+											</Button>
+										</span>
+									)}
+								</div>
+							)}
+							{treeList}
+						</div>
 					</div>
 				) : (
 					<AopMapView
@@ -467,13 +504,13 @@ function MapPage() {
 				{!isListView && colorMode === "progress" && (
 					<>
 						<div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-md border border-border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
-							<div className="mb-1 font-medium">クイズ学習済み率</div>
+							<div className="mb-1 font-medium">クイズ正解率</div>
 							<div className="flex items-center gap-1.5">
 								<span className="text-muted-foreground">少</span>
 								<span
 									className="inline-block size-3.5 rounded-sm"
 									style={{ backgroundColor: PROGRESS_EMPTY_COLOR.fill }}
-									title="未学習"
+									title="未正解"
 								/>
 								{PROGRESS_BUCKETS.map((b) => (
 									<span
@@ -489,7 +526,7 @@ function MapPage() {
 							<div className="absolute inset-x-0 top-3 z-10 flex justify-center px-3">
 								<div className="pointer-events-auto flex items-center gap-2 rounded-md border border-border bg-background/95 px-3 py-2 text-xs shadow-sm backdrop-blur">
 									<span className="text-muted-foreground">
-										ログインすると学習の進捗が地図に表示されます
+										ログインすると学習の進捗が地図・リストに表示されます
 									</span>
 									<Button asChild size="sm" variant="secondary">
 										<Link to="/login">
