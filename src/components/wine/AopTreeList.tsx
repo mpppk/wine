@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
 	buildAopTree,
 	type VillageNode,
@@ -16,6 +16,12 @@ export interface AopTreeListProps {
 	visibleAopIds: ReadonlySet<string>;
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
+	/**
+	 * 選択行をスクロールで表示させる際に下端から除外する量(px)を返す getter。
+	 * モバイルでは詳細パネルがリスト下部に重なるため、その被覆量を渡すと選択行が
+	 * パネルの裏に隠れない位置まで送られる。省略時・デスクトップでは 0。
+	 */
+	getScrollInset?: () => { bottom: number };
 }
 
 /**
@@ -28,11 +34,46 @@ export function AopTreeList({
 	visibleAopIds,
 	selectedAopId,
 	onSelect,
+	getScrollInset,
 }: AopTreeListProps) {
 	const sections = useMemo(
 		() => buildAopTree(aops, subregions),
 		[aops, subregions],
 	);
+
+	// 選択AOPが変わったら、その行をスクロール表示領域内に入れる。情報パネルの
+	// 前へ/次へ(←/→)で領域外のAOPへ移った際、リストの選択位置を見失わないため。
+	// モバイルでは詳細パネルがリスト下部に重なるので、被覆量(getScrollInset().bottom)
+	// を除いた「実際に見えている範囲」に行が収まるよう、最寄りのスクロール祖先を
+	// 必要な分だけ動かす。既に見えている行では動かさない。block:"nearest" +
+	// scroll-margin ではブラウザ差で下端補正が効かないことがあるため手動計算する。
+	// getInset は fitBounds と同様にスクロール実行時の最新実測値を読む getter。
+	const navRef = useRef<HTMLElement>(null);
+	useEffect(() => {
+		if (!selectedAopId) return;
+		const row = navRef.current?.querySelector<HTMLElement>(
+			`[data-aop-id="${CSS.escape(selectedAopId)}"]`,
+		);
+		if (!row) return;
+		let scroller = row.parentElement;
+		while (scroller && scroller !== document.body) {
+			const oy = getComputedStyle(scroller).overflowY;
+			if (oy === "auto" || oy === "scroll") break;
+			scroller = scroller.parentElement;
+		}
+		if (!scroller || scroller === document.body) {
+			row.scrollIntoView({ block: "nearest" });
+			return;
+		}
+		const inset = getScrollInset?.().bottom ?? 0;
+		const view = scroller.getBoundingClientRect();
+		const r = row.getBoundingClientRect();
+		const visibleTop = view.top;
+		const visibleBottom = view.bottom - inset;
+		if (r.bottom > visibleBottom)
+			scroller.scrollTop += r.bottom - visibleBottom;
+		else if (r.top < visibleTop) scroller.scrollTop -= visibleTop - r.top;
+	}, [selectedAopId, getScrollInset]);
 
 	const visibleSections = sections
 		.map((section) => {
@@ -92,7 +133,7 @@ export function AopTreeList({
 	}
 
 	return (
-		<nav aria-label="AOP一覧" className="p-2">
+		<nav aria-label="AOP一覧" className="p-2" ref={navRef}>
 			{visibleSections.map((section) => (
 				<section key={section.subregion.id} className="mb-4">
 					<h3 className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -274,6 +315,7 @@ function AopRow({
 	return (
 		<button
 			type="button"
+			data-aop-id={aop.id}
 			onClick={() => onSelect(aop.id)}
 			aria-current={selected || undefined}
 			className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${
