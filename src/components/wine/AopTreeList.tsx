@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
 	buildAopTree,
 	type VillageNode,
@@ -33,6 +33,19 @@ export function AopTreeList({
 		() => buildAopTree(aops, subregions),
 		[aops, subregions],
 	);
+
+	// 選択AOPが変わったら、その行をスクロール表示領域内に入れる。情報パネルの
+	// 前へ/次へ(←/→)で領域外のAOPへ移った際、リストの選択位置を見失わないため。
+	// スクロールコンテナは親(overflow-y-auto)側にあるので block:"nearest" で
+	// 最寄りのスクロール祖先だけを最小限動かす(既に見えている行では動かない)。
+	const navRef = useRef<HTMLElement>(null);
+	useEffect(() => {
+		if (!selectedAopId) return;
+		const row = navRef.current?.querySelector(
+			`[data-aop-id="${CSS.escape(selectedAopId)}"]`,
+		);
+		row?.scrollIntoView({ block: "nearest" });
+	}, [selectedAopId]);
 
 	const visibleSections = sections
 		.map((section) => {
@@ -92,7 +105,7 @@ export function AopTreeList({
 	}
 
 	return (
-		<nav aria-label="AOP一覧" className="p-2">
+		<nav aria-label="AOP一覧" className="p-2" ref={navRef}>
 			{visibleSections.map((section) => (
 				<section key={section.subregion.id} className="mb-4">
 					<h3 className="px-2 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -274,6 +287,7 @@ function AopRow({
 	return (
 		<button
 			type="button"
+			data-aop-id={aop.id}
 			onClick={() => onSelect(aop.id)}
 			aria-current={selected || undefined}
 			className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${
