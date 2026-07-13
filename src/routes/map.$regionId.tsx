@@ -33,7 +33,7 @@ import { GrapeFilterMenu } from "#/components/wine/GrapeFilterMenu";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
-import { countScopedQuestions } from "#/lib/quiz/scope";
+import { countScopedQuestions, expandScopeAopIds } from "#/lib/quiz/scope";
 import {
 	aopToken,
 	buildKindFacets,
@@ -132,7 +132,32 @@ function MapPage() {
 	const isListView = view === "list";
 	const colorMode = color === "progress" ? "progress" : "kind";
 
-	// 進捗レスポンス(AOP slug -> {solved,total})を地図のjoinキー idApp -> 正解率 に変換。
+	// AOP(slug)単位の「自身+階層近傍」の正解進捗。詳細パネルの「関連クイズ数」
+	// (countScopedQuestions)と同じスコープで、リストの各行の分母をパネルと一致させる。
+	// per-subject の進捗を expandScopeAopIds のスコープ集合で合算する
+	// (スコープ内AOP同士の候補問題は主語で排他なので、単純合算で問題数と一致する)。
+	const scopedProgressByAopId = useMemo(() => {
+		const out: Record<string, { solved: number; total: number }> = {};
+		if (!aopProgress) return out;
+		for (const a of aops) {
+			const scope = expandScopeAopIds(a.id);
+			if (!scope) continue;
+			let solved = 0;
+			let total = 0;
+			for (const s of scope) {
+				const p = aopProgress.byAopId[s];
+				if (p) {
+					solved += p.solved;
+					total += p.total;
+				}
+			}
+			if (total > 0) out[a.id] = { solved, total };
+		}
+		return out;
+	}, [aopProgress, aops]);
+
+	// 地図の色分けは各ポリゴン=そのAOP自身の正解率(空間ヒートマップとしての意味を保つ
+	// ため近傍は混ぜない)。per-subject の進捗を joinキー idApp -> 正解率 に変換。
 	// 正解が1問も無い(solved=0)AOPは載せず、地図側で「未学習」色に沈める。
 	const progressByIdApp = useMemo(() => {
 		const m = new Map<number, number>();
@@ -312,6 +337,7 @@ function MapPage() {
 			onSelect={selectFresh}
 			colorMode={colorMode}
 			progressByAopId={aopProgress?.byAopId}
+			rowProgressByAopId={scopedProgressByAopId}
 		/>
 	);
 

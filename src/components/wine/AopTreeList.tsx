@@ -31,8 +31,17 @@ export interface AopTreeListProps {
 	onSelect: (aopId: string) => void;
 	/** 色分けモード。"progress" のとき各行・村・地区に正解進捗を表示する */
 	colorMode?: "kind" | "progress";
-	/** AOP(slug)ごとの正解進捗(solved/total)。未取得時は進捗を表示しない */
+	/**
+	 * AOP(slug)ごとの「そのAOP自身が主語」の正解進捗(solved/total)。
+	 * 地区見出しの合算(配下の重複しない総数)に使う。未取得時は進捗を表示しない。
+	 */
 	progressByAopId?: Record<string, AopProgress>;
+	/**
+	 * AOP(slug)ごとの「自身+階層近傍」の正解進捗(solved/total)。詳細パネルの
+	 * 「関連クイズ数」と同じスコープで、各AOP行(村・畑・クリマ)の分母表示に使う。
+	 * 未指定時は progressByAopId(自身のみ)にフォールバックする。
+	 */
+	rowProgressByAopId?: Record<string, AopProgress>;
 }
 
 /**
@@ -47,7 +56,10 @@ export function AopTreeList({
 	onSelect,
 	colorMode = "kind",
 	progressByAopId,
+	rowProgressByAopId,
 }: AopTreeListProps) {
+	// 各行(村・畑・クリマ)は「自身+近傍」スコープの進捗を出す。未指定なら自身のみ。
+	const rowProgress = rowProgressByAopId ?? progressByAopId;
 	const sections = useMemo(
 		() => buildAopTree(aops, subregions),
 		[aops, subregions],
@@ -141,7 +153,7 @@ export function AopTreeList({
 											selected={aop.id === selectedAopId}
 											onSelect={onSelect}
 											progressMode={progressMode}
-											progress={progressByAopId?.[aop.id]}
+											progress={rowProgress?.[aop.id]}
 										/>
 									</li>
 								))}
@@ -158,7 +170,7 @@ export function AopTreeList({
 										selectedAopId={selectedAopId}
 										onSelect={onSelect}
 										progressMode={progressMode}
-										progressByAopId={progressByAopId}
+										rowProgressByAopId={rowProgress}
 									/>
 								))}
 							</ul>
@@ -172,7 +184,7 @@ export function AopTreeList({
 											selected={aop.id === selectedAopId}
 											onSelect={onSelect}
 											progressMode={progressMode}
-											progress={progressByAopId?.[aop.id]}
+											progress={rowProgress?.[aop.id]}
 										/>
 									</li>
 								))}
@@ -187,7 +199,7 @@ export function AopTreeList({
 											selected={aop.id === selectedAopId}
 											onSelect={onSelect}
 											progressMode={progressMode}
-											progress={progressByAopId?.[aop.id]}
+											progress={rowProgress?.[aop.id]}
 										/>
 									</li>
 								))}
@@ -207,7 +219,7 @@ function VillageItem({
 	selectedAopId,
 	onSelect,
 	progressMode,
-	progressByAopId,
+	rowProgressByAopId,
 }: {
 	node: VillageNode;
 	villageVisible: boolean;
@@ -215,11 +227,11 @@ function VillageItem({
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
 	progressMode: boolean;
-	progressByAopId?: Record<string, AopProgress>;
+	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
-	// 村行は村自身ではなく配下(村本体+畑+クリマ+シャトー)を合算した進捗を出す
+	// 村行は村AOP自身の「自身+近傍」スコープの進捗を出す(詳細パネルの関連クイズ数と一致)
 	const villageProgress = progressMode
-		? sumProgress(collectVillageAopIds(node, visibleAopIds), progressByAopId)
+		? rowProgressByAopId?.[node.village.id]
 		: undefined;
 	return (
 		<li>
@@ -250,7 +262,7 @@ function VillageItem({
 							selectedAopId={selectedAopId}
 							onSelect={onSelect}
 							progressMode={progressMode}
-							progressByAopId={progressByAopId}
+							rowProgressByAopId={rowProgressByAopId}
 						/>
 					))}
 					{node.wineries.map((aop) => (
@@ -260,7 +272,7 @@ function VillageItem({
 								selected={aop.id === selectedAopId}
 								onSelect={onSelect}
 								progressMode={progressMode}
-								progress={progressByAopId?.[aop.id]}
+								progress={rowProgressByAopId?.[aop.id]}
 							/>
 						</li>
 					))}
@@ -277,14 +289,14 @@ function VineyardItem({
 	selectedAopId,
 	onSelect,
 	progressMode,
-	progressByAopId,
+	rowProgressByAopId,
 }: {
 	node: VineyardNode;
 	vineyardVisible: boolean;
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
 	progressMode: boolean;
-	progressByAopId?: Record<string, AopProgress>;
+	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
 	return (
 		<li>
@@ -294,7 +306,7 @@ function VineyardItem({
 					selected={node.vineyard.id === selectedAopId}
 					onSelect={onSelect}
 					progressMode={progressMode}
-					progress={progressByAopId?.[node.vineyard.id]}
+					progress={rowProgressByAopId?.[node.vineyard.id]}
 				/>
 			) : (
 				// 畑本体はフィルタで非表示だが、配下クリマの位置づけを示すため
@@ -313,7 +325,7 @@ function VineyardItem({
 								selected={climat.id === selectedAopId}
 								onSelect={onSelect}
 								progressMode={progressMode}
-								progress={progressByAopId?.[climat.id]}
+								progress={rowProgressByAopId?.[climat.id]}
 							/>
 						</li>
 					))}
@@ -335,7 +347,7 @@ function AopRow({
 	onSelect: (aopId: string) => void;
 	/** 進捗モード時はバッジを進捗インジケータに置換し、ドットを正解率で着色する */
 	progressMode?: boolean;
-	/** この行に表示する正解進捗(村行は配下合算、それ以外は自身) */
+	/** この行に表示する正解進捗(そのAOPの「自身+階層近傍」スコープ) */
 	progress?: AopProgress;
 }) {
 	// 格付けバッジ(特級/1級/2級/A 等)。特級もバッジで示し、非AOCバッジと同じ見た目に統一する
