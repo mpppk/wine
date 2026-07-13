@@ -555,47 +555,34 @@ function AncestrySection({
 				所属
 			</h3>
 			{parentVineyard && (
-				<div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-					<span className="text-xs text-muted-foreground">
+				<div className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+					<span className="text-muted-foreground">
 						{isLegalAppellation(parentVineyard) ? "所属AOC" : "総称"}
 					</span>
 					{onSelectAop ? (
-						<button
-							type="button"
+						<DescriptionLink
+							text={parentVineyard.nameJa}
 							onClick={() => onSelectAop(parentVineyard.id)}
-							className="rounded-md border border-border px-2 py-0.5 text-xs font-medium hover:bg-muted"
-						>
-							{parentVineyard.nameJa}
-						</button>
+						/>
 					) : (
-						<span className="rounded-md border border-border px-2 py-0.5 text-xs font-medium">
-							{parentVineyard.nameJa}
-						</span>
+						<span>{parentVineyard.nameJa}</span>
 					)}
 				</div>
 			)}
 			{villages.length > 0 && (
-				<div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-					<span className="text-xs text-muted-foreground">
+				<div className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+					<span className="text-muted-foreground">
 						{villages.length > 1 ? "村名AOC(複数村にまたがる)" : "村名AOC"}
 					</span>
 					{villages.map((v) =>
 						onSelectAop ? (
-							<button
+							<DescriptionLink
 								key={v.id}
-								type="button"
+								text={v.nameJa}
 								onClick={() => onSelectAop(v.id)}
-								className="rounded-md border border-border px-2 py-0.5 text-xs font-medium hover:bg-muted"
-							>
-								{v.nameJa}
-							</button>
+							/>
 						) : (
-							<span
-								key={v.id}
-								className="rounded-md border border-border px-2 py-0.5 text-xs font-medium"
-							>
-								{v.nameJa}
-							</span>
+							<span key={v.id}>{v.nameJa}</span>
 						),
 					)}
 				</div>

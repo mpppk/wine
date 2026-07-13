@@ -12,6 +12,8 @@ export const QUIZ_TYPES = [
 	{ id: "aop-variety", labelJa: "主要品種", answerIsAop: false },
 	{ id: "aop-subregion", labelJa: "所属地区", answerIsAop: false },
 	{ id: "aop-classification", labelJa: "格付け", answerIsAop: false },
+	{ id: "grand-cru-select", labelJa: "特級を選ぶ", answerIsAop: true },
+	{ id: "grand-cru-odd", labelJa: "特級の仲間外れ", answerIsAop: true },
 	{ id: "odd-one-out", labelJa: "仲間外れ", answerIsAop: true },
 	{ id: "variety", labelJa: "品種フォーカス", answerIsAop: true },
 	{ id: "location", labelJa: "位置関係", answerIsAop: true },

@@ -338,6 +338,7 @@ function MapPage() {
 			colorMode={colorMode}
 			progressByAopId={aopProgress?.byAopId}
 			rowProgressByAopId={scopedProgressByAopId}
+			getScrollInset={getInset}
 		/>
 	);
 
