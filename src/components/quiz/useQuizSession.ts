@@ -1,3 +1,4 @@
+import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
 import type { AnswerSnapshot } from "#/lib/services/quiz-service";
@@ -33,6 +34,7 @@ export function useQuizSession(
 	// セッションのリセットは呼び出し側の key 再マウントで行う
 	scopeAopId?: string,
 ) {
+	const router = useRouter();
 	const [queue, setQueue] = useState<QuizQuestion[]>([]);
 	const [phase, setPhase] = useState<QuizPhase>("loading");
 	const [selectedOptionId, setSelectedOptionId] = useState<string>();
@@ -63,6 +65,9 @@ export function useQuizSession(
 	// 記録・取り消しを直列化する。同じ行を read-then-write するため、リセット直後の
 	// 再回答でも record→revert→record の順序を保ち、最終状態が壊れないようにする
 	const mutationChainRef = useRef<Promise<unknown>>(Promise.resolve());
+	// このセッションで1件でもサーバ書き込み(記録)を行ったか。アンマウント時に
+	// ローダーを再検証するか判定する(未ログイン/無操作では再取得しない)
+	const didRecordRef = useRef(false);
 
 	// op を直前の変更の後に実行するようキューへ繋ぐ。チェーンは失敗しても続行する
 	const enqueueMutation = useCallback(<T>(op: () => Promise<T>): Promise<T> => {
@@ -160,6 +165,19 @@ export function useQuizSession(
 		}
 	}, [phase, current]);
 
+	// セッション終了(アンマウント)時に、解答を記録していればローダーを再検証する。
+	// 地図のクイズはモーダルで完結し、閉じても遷移が起きないためローダー由来の
+	// 進捗(solved/total)が更新されない。記録の書き込みが確定してから invalidate し、
+	// リスト/地図へ戻った時点で最新値を反映させる。未ログイン/無操作では走らせない。
+	useEffect(() => {
+		return () => {
+			if (!didRecordRef.current) return;
+			void mutationChainRef.current
+				.then(() => router.invalidate())
+				.catch(() => {});
+		};
+	}, [router]);
+
 	// キューを1問進める(next / skip 共通)。recentKeys の更新は各呼び出し側が担う
 	const advance = useCallback(() => {
 		setSelectedOptionId(undefined);
@@ -189,6 +207,7 @@ export function useQuizSession(
 			// 記録は即時。失敗しても学習は続行できる。返ってくる更新前スナップショットは
 			// リセット用に保持する。未ログイン時はサーバに実績を残せないのでスキップ
 			if (isLoggedIn) {
+				didRecordRef.current = true;
 				recordRef.current = {
 					questionKey: current.key,
 					promise: enqueueMutation(() =>
