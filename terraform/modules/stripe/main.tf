@@ -44,10 +44,16 @@ resource "stripe_price" "premium_annual" {
 
 # 新規入会 N%オフのクーポン。Checkout の標準プロモコード欄(allow_promotion_codes)で
 # 適用される。金額割引にしたい場合は percent_off の代わりに amount_off + currency を使う。
+# duration=repeating のときのみ duration_in_months(適用月数)が有効。once/forever では
+# Stripe が duration_in_months を受け付けないため null を渡す。
+# max_redemptions=0 は無制限、redeem_by="" は無期限として扱う。
 resource "stripe_coupon" "new_member" {
-  name        = var.new_member_coupon_name
-  percent_off = var.new_member_discount_percent
-  duration    = var.new_member_coupon_duration
+  name               = var.new_member_coupon_name
+  percent_off        = var.new_member_discount_percent
+  duration           = var.new_member_coupon_duration
+  duration_in_months = var.new_member_coupon_duration == "repeating" ? var.new_member_coupon_duration_in_months : null
+  max_redemptions    = var.new_member_coupon_max_redemptions > 0 ? var.new_member_coupon_max_redemptions : null
+  redeem_by          = var.new_member_coupon_redeem_by != "" ? var.new_member_coupon_redeem_by : null
 }
 
 # 上記クーポンを適用するためのプロモコード。ユーザが Checkout で入力する文字列。
