@@ -8,8 +8,11 @@ const DISMISS_THRESHOLD_PX = 100;
 const EXPAND_THRESHOLD_PX = 60;
 // これ以上動いたら「タップ」ではなく「ドラッグ」とみなし、release後のclickを無視する。
 const DRAG_SLOP_PX = 6;
-// 拡大時の高さ(画面比)。ドラッグ中のライブ上限にも使う。
-const EXPANDED_MAX_HEIGHT = "90dvh";
+// 拡大時の高さ。シートは absolute でマップコンテナ内に配置され、通常時の
+// max-h-[55%] もコンテナ基準のため、拡大も同じコンテナ基準の割合(90%)にする。
+// dvh(ビューポート基準)にするとコンテナ上端(上部ツールバー)を超えてハンドルが
+// ツールバー背後に隠れ、下スワイプで縮小できなくなる。EXPANDED_RATIO と一致させる。
+const EXPANDED_MAX_HEIGHT = "90%";
 const EXPANDED_RATIO = 0.9;
 // ライブ拡大/縮小時に潰れないための最小高さ(px)。
 const MIN_LIVE_HEIGHT_PX = 80;
