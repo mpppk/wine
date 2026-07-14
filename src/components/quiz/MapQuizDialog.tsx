@@ -73,15 +73,22 @@ function QuizSessionBody({
 	isAuthenticated: boolean;
 	onClose: () => void;
 }) {
-	// 「もう一度」はセッション(フックの内部状態)ごと作り直したいので key で再マウント
+	// 「再チャレンジ」/「もう一度」はセッション(フックの内部状態)ごと作り直したいので
+	// key で再マウントする。2周目以降は includeSolved=true にして、正解済みの問題も
+	// 出題対象に含める(ログイン時の全問正解済みからの再挑戦)。実績はそのまま加算される。
 	const [round, setRound] = useState(0);
+	const [includeSolved, setIncludeSolved] = useState(false);
 	return (
 		<SessionRound
 			key={round}
 			regionId={regionId}
 			scopeAopId={scopeAopId}
 			isAuthenticated={isAuthenticated}
-			onRetry={() => setRound((r) => r + 1)}
+			includeSolved={includeSolved}
+			onRetry={() => {
+				setIncludeSolved(true);
+				setRound((r) => r + 1);
+			}}
 			onClose={onClose}
 		/>
 	);
@@ -91,12 +98,14 @@ function SessionRound({
 	regionId,
 	scopeAopId,
 	isAuthenticated,
+	includeSolved,
 	onRetry,
 	onClose,
 }: {
 	regionId: RegionId;
 	scopeAopId?: string;
 	isAuthenticated: boolean;
+	includeSolved: boolean;
 	onRetry: () => void;
 	onClose: () => void;
 }) {
@@ -110,7 +119,13 @@ function SessionRound({
 		reset,
 		skip,
 		next,
-	} = useQuizSession(regionId, ALL_QUIZ_TYPES, isAuthenticated, scopeAopId);
+	} = useQuizSession(
+		regionId,
+		ALL_QUIZ_TYPES,
+		isAuthenticated,
+		scopeAopId,
+		includeSolved,
+	);
 	// 10問回答ごとに「次へ」へ広告を割り込ませる(無料会員のみ)。/quiz/play と同じ挙動
 	const { adOpen, onAdOpenChange, nextWithAd } = useQuizAdInterstitial(
 		tally.answered,
@@ -126,9 +141,12 @@ function SessionRound({
 	}
 
 	if (phase === "done") {
-		// この範囲の未正解を全問正解した。未ログインは「もう一度」で新セッション
-		// (実績が残らないので再挑戦できる)。ログインは正解済みが除外され即完了に
-		// なるため出さない。
+		// この範囲の未正解を全問正解した(または開いた時点で全問正解済み)。
+		// ログインユーザは「再チャレンジ」で正解済みも含めて解き直せる(includeSolved)。
+		// 実績はリセットされず回答回数が加算される。未ログインは実績が残らないので
+		// 「もう一度」で新セッションを始める(回答実績があった場合のみ導線を出す)。
+		const showRetry = isAuthenticated || tally.answered > 0;
+		const retryLabel = isAuthenticated ? "再チャレンジ" : "もう一度";
 		return (
 			<div className="flex min-h-32 flex-col items-center justify-center gap-4 text-center">
 				<p className="text-3xl" aria-hidden>
@@ -140,9 +158,9 @@ function SessionRound({
 						: "この範囲はすべて正解済みです"}
 				</p>
 				<div className="flex gap-2">
-					{tally.answered > 0 && !isAuthenticated && (
+					{showRetry && (
 						<Button variant="outline" onClick={onRetry}>
-							もう一度
+							{retryLabel}
 						</Button>
 					)}
 					<Button variant="ghost" onClick={onClose}>

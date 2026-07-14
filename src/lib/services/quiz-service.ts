@@ -38,6 +38,12 @@ export interface GetNextQuestionsOptions {
 	 * クライアント申告のID列は信用せず、slug 1つからサーバ側で展開する
 	 */
 	scopeAopId?: string;
+	/**
+	 * 再チャレンジモード。真のときは正解済み(correctCount>0)も除外せず全候補を
+	 * 出題対象にする(「全問正解済みでも再挑戦したい」導線用)。実績は通常どおり
+	 * 加算記録される(recordAnswer)。出題順は既存スケジューラの重み付けに従う。
+	 */
+	includeSolved?: boolean;
 }
 
 export interface GetNextQuestionsResult {
@@ -53,7 +59,8 @@ export async function getNextQuestions(
 	userId: string | null,
 	options: GetNextQuestionsOptions,
 ): Promise<GetNextQuestionsResult> {
-	const { regionId, quizTypes, count, excludeKeys, scopeAopId } = options;
+	const { regionId, quizTypes, count, excludeKeys, scopeAopId, includeSolved } =
+		options;
 	const candidates =
 		scopeAopId !== undefined
 			? listScopedCandidates(regionId, quizTypes, scopeAopId)
@@ -94,7 +101,10 @@ export async function getNextQuestions(
 
 	// 「全問正解で終了」: まだ一度も正解していない問題だけを出題対象にする。
 	// 正解済み(correctCount>0)は永続的に除外し、残り未正解数を算出する。
-	const unsolved = filterUnsolved(candidates, statsByKey);
+	// 再チャレンジモード時は除外せず全候補を対象にする(正解済みも再挑戦できる)。
+	const unsolved = includeSolved
+		? candidates
+		: filterUnsolved(candidates, statsByKey);
 
 	const now = Date.now();
 	const questions: QuizQuestion[] = [];

@@ -24,6 +24,8 @@ const getNextQuestionsInput = z.object({
 		.regex(/^[a-z0-9-]+$/)
 		.max(80)
 		.optional(),
+	/** 再チャレンジ: 真のとき正解済みも除外せず出題する(全問正解済みでの再挑戦用) */
+	includeSolved: z.boolean().optional(),
 });
 
 export const getNextQuestions = createServerFn({ method: "GET" })
