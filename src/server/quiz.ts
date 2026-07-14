@@ -56,6 +56,8 @@ const revertAnswerInput = z.object({
 		streak: z.number().int().min(0),
 		lastAnsweredAt: z.number().int().nullable(),
 		lastCorrectAt: z.number().int().nullable(),
+		activityDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+		activityWasCorrect: z.boolean(),
 	}),
 });
 

@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { drunkWine } from "#/db/schema";
 import { buildWinePhotoKey } from "#/lib/drunk-wine/photo";
@@ -149,6 +149,29 @@ export async function listDrunkWines(
 		.where(eq(drunkWine.userId, userId))
 		.orderBy(desc(drunkWine.createdAt));
 	return rows.map(toEntry);
+}
+
+/**
+ * マイセラーの登録本数と直近1件を返す。ダッシュボードのサマリー表示用。
+ * 直近1件は createdAt 降順の先頭(既存 index drunk_wine_user_created_idx が効く)。
+ */
+export async function countAndLatestDrunkWine(
+	userId: string,
+): Promise<{ count: number; latest: DrunkWineEntry | null }> {
+	const [countRow] = await db
+		.select({ count: sql<number>`count(*)` })
+		.from(drunkWine)
+		.where(eq(drunkWine.userId, userId));
+	const [latestRow] = await db
+		.select()
+		.from(drunkWine)
+		.where(eq(drunkWine.userId, userId))
+		.orderBy(desc(drunkWine.createdAt))
+		.limit(1);
+	return {
+		count: countRow?.count ?? 0,
+		latest: latestRow ? toEntry(latestRow) : null,
+	};
 }
 
 export async function getDrunkWine(

@@ -94,6 +94,35 @@ export const drunkWine = sqliteTable(
 );
 
 /**
+ * 日次の学習活動サマリー(ユーザ×暦日)。quiz_question_stat は問題ごとに最新解答時刻
+ * しか持たない(再解答で上書き)ため、日別の学習量・連続学習日数・履歴ヒートマップを
+ * 正確に出せない。そこで解答1回ごとにこの表を JST の暦日単位でインクリメントする。
+ * day は "YYYY-MM-DD"(JST)。drunk_wine.drankOn と同じく zone を持たない text-date。
+ */
+export const dailyActivity = sqliteTable(
+	"daily_activity",
+	{
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** JSTの暦日 "YYYY-MM-DD" */
+		day: text("day").notNull(),
+		/** その日の延べ解答数 */
+		answeredCount: integer("answered_count").notNull().default(0),
+		/** その日の延べ正解数 */
+		correctCount: integer("correct_count").notNull().default(0),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.userId, table.day] })],
+);
+
+/**
  * キャンペーンコードによる期間延長の引換記録。既存プレミアム会員が延長コードを
  * 入力すると Stripe サブスクの次回請求日を延長し、ここに1行記録する。
  * unique(userId, code) で「同一コードは会員ごとに1回」を保証し、多重送信・再利用を防ぐ。
