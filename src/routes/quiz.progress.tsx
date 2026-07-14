@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { LogInIcon, PlayIcon } from "lucide-react";
+import { LogInIcon, MapIcon, PlayIcon } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { QUIZ_TYPE_LABELS_JA } from "#/lib/quiz/types";
@@ -138,15 +138,27 @@ function RegionProgressCard({ progress }: { progress: RegionProgress }) {
 						</div>
 					);
 				})}
-				<Button asChild variant="secondary" size="sm" className="self-start">
-					<Link
-						to="/quiz/play"
-						search={{ region: progress.regionId, types: undefined }}
-					>
-						<PlayIcon className="size-4" aria-hidden />
-						この地域でクイズを始める
-					</Link>
-				</Button>
+				<div className="flex flex-wrap gap-2">
+					<Button asChild variant="secondary" size="sm">
+						<Link
+							to="/quiz/play"
+							search={{ region: progress.regionId, types: undefined }}
+						>
+							<PlayIcon className="size-4" aria-hidden />
+							この地域でクイズを始める
+						</Link>
+					</Button>
+					<Button asChild variant="outline" size="sm">
+						<Link
+							to="/map/$regionId"
+							params={{ regionId: progress.regionId }}
+							search={{ color: "progress" }}
+						>
+							<MapIcon className="size-4" aria-hidden />
+							地図で見る
+						</Link>
+					</Button>
+				</div>
 			</CardContent>
 		</Card>
 	);
