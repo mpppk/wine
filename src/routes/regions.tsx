@@ -19,7 +19,6 @@ export const Route = createFileRoute("/regions")({
 function RegionsPage() {
 	const { regions } = Route.useLoaderData();
 	const enabled = regions.filter((r) => r.enabled);
-	const comingSoon = regions.filter((r) => !r.enabled);
 
 	return (
 		<main className="mx-auto max-w-4xl px-4 py-8">
@@ -60,30 +59,6 @@ function RegionsPage() {
 							</CardContent>
 						</Card>
 					</Link>
-				))}
-			</div>
-
-			<h2 className="mt-10 text-lg font-medium text-muted-foreground">
-				準備中
-			</h2>
-			<div className="mt-3 grid gap-4 sm:grid-cols-3">
-				{comingSoon.map((region) => (
-					<Card key={region.id} className="opacity-60">
-						<CardHeader>
-							<CardTitle className="text-base">
-								{region.nameJa}
-								<span className="ml-2 text-xs font-normal text-muted-foreground">
-									{region.nameLocal}
-								</span>
-							</CardTitle>
-							<CardDescription>{region.countryJa}</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<p className="text-xs leading-relaxed text-muted-foreground">
-								{region.description}
-							</p>
-						</CardContent>
-					</Card>
 				))}
 			</div>
 		</main>
