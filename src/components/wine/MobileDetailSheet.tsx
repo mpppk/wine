@@ -61,6 +61,11 @@ export function MobileDetailSheet({
 	const [dragging, setDragging] = useState(false);
 	// 拡大表示中かどうか(通常 ⇄ 拡大)。
 	const [expanded, setExpanded] = useState(false);
+	// 閉じるアニメーション中かどうか。true の間は下方向へスライドさせ、
+	// transition 完了(またはフォールバックタイマー)で onDismiss を呼ぶ。
+	const [closing, setClosing] = useState(false);
+	// 二重発火防止・stale closure 回避用。closing state と同期させる。
+	const closingRef = useRef(false);
 	const startYRef = useRef(0);
 	const activePointerRef = useRef<number | null>(null);
 	// release後に発火するclickをタップと誤認しないためのドラッグ判定フラグ。
@@ -76,8 +81,24 @@ export function MobileDetailSheet({
 		panelRef?.(el);
 	};
 
+	// 閉じるアニメーションを開始する。下方向へスライドさせ、transition 完了で
+	// onDismiss を呼ぶ(下記 onTransitionEnd)。transitionend が発火しない環境向けに
+	// フォールバックタイマーも張る。二重発火は closingRef で防ぐ。
+	const beginClose = () => {
+		if (closingRef.current) return;
+		closingRef.current = true;
+		setClosing(true);
+		setDragging(false);
+		setTimeout(() => {
+			if (!closingRef.current) return;
+			closingRef.current = false;
+			onDismiss?.();
+		}, 260);
+	};
+
 	const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
 		if (!onDismiss) return;
+		if (closingRef.current) return; // 閉じるスライド中は再ドラッグを受け付けない
 		if (!e.isPrimary) return; // マルチタッチ(ピンチ)ではドラッグ開始しない
 		if (activePointerRef.current !== null) return;
 		activePointerRef.current = e.pointerId;
@@ -112,14 +133,18 @@ export function MobileDetailSheet({
 		if (activePointerRef.current !== e.pointerId) return;
 		const delta = dragY;
 		finishPointer(e);
-		setDragY(0); // 常に0へ: スナップバック時も残留translateY/高さを防ぐ
 		if (expanded) {
+			setDragY(0); // スナップバック時も残留translateY/高さを防ぐ
 			// 拡大状態: 十分に下スワイプしたら通常サイズへ戻す。
 			if (delta > EXPAND_THRESHOLD_PX) setExpanded(false);
+		} else if (delta > DISMISS_THRESHOLD_PX) {
+			// 通常状態 + 下スワイプで閉じる: dragY は 0 に戻さず、そのまま
+			// 下方向へスライドさせて画面外へ消す(上へ戻さない)。
+			beginClose();
 		} else {
-			// 通常状態: 下スワイプで閉じる / 上スワイプで拡大。
-			if (delta > DISMISS_THRESHOLD_PX) onDismiss?.();
-			else if (delta < -EXPAND_THRESHOLD_PX) setExpanded(true);
+			setDragY(0); // スナップバック
+			// 上スワイプで拡大。
+			if (delta < -EXPAND_THRESHOLD_PX) setExpanded(true);
 		}
 	};
 
@@ -136,7 +161,8 @@ export function MobileDetailSheet({
 			draggedRef.current = false;
 			return;
 		}
-		onDismiss?.();
+		// スワイプ閉じと同じく下方向へスライドさせてから閉じる。
+		beginClose();
 	};
 
 	// 高さ・変形のライブ算出。閉じる方向のみ translateY でスライドさせ、
@@ -146,7 +172,11 @@ export function MobileDetailSheet({
 	let maxHeight: string | undefined = expanded
 		? EXPANDED_MAX_HEIGHT
 		: undefined;
-	if (dragging) {
+	if (closing) {
+		// 閉じるスライド: シート全体をコンテナ下端外へ逃がす(bottom-2 の
+		// 8px ギャップを考慮して 100% + 余白)。指を離した位置から下へ滑って消える。
+		transform = "translateY(calc(100% + 16px))";
+	} else if (dragging) {
 		if (!expanded) {
 			if (dragY > 0) {
 				// 通常 + 下ドラッグ: 閉じるプレビュー(スライド)。
@@ -182,6 +212,15 @@ export function MobileDetailSheet({
 				transition: dragging
 					? "none"
 					: "transform 200ms ease-out, max-height 200ms ease-out",
+			}}
+			onTransitionEnd={(e) => {
+				// 閉じるスライドの完了で初めてアンマウントさせる。子要素から
+				// バブリングした transition は無視する(外側divのtransformのみ)。
+				if (e.target !== e.currentTarget) return;
+				if (e.propertyName !== "transform") return;
+				if (!closingRef.current) return;
+				closingRef.current = false;
+				onDismiss?.();
 			}}
 		>
 			{onDismiss && (
