@@ -272,6 +272,20 @@ function MapPage() {
 		if (selectedAopId) setBackStack((s) => [...s, selectedAopId]);
 		setSearch({ aop: id });
 	};
+	// 地図クリックでの選択。パネルを開いたまま別AOPを選び直したときは、直前のAOPを
+	// 履歴に積んで「戻る」を出す(パネル内リンク遷移と同じ挙動)。空白クリックでの選択解除や
+	// 同一AOPの再クリックは selectFresh(履歴リセット)に委ねる。
+	const selectFromMap = (id: string | undefined) => {
+		if (
+			id !== undefined &&
+			selectedAopId !== undefined &&
+			id !== selectedAopId
+		) {
+			navigateRelated(id);
+		} else {
+			selectFresh(id);
+		}
+	};
 	// 直前に見ていたAOPへ戻る。履歴があるときだけ有効。
 	const backToId = backStack.at(-1);
 	const goBack = backToId
@@ -521,7 +535,7 @@ function MapPage() {
 						hiddenAopIds={hiddenAopIds}
 						colorMode={colorMode}
 						progressByIdApp={progressByIdApp}
-						onSelectAop={selectFresh}
+						onSelectAop={selectFromMap}
 						getFitInset={getInset}
 						className="min-w-0 flex-1"
 					/>
