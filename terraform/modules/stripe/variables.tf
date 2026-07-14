@@ -31,13 +31,13 @@ variable "annual_amount" {
 variable "new_member_coupon_name" {
   description = "新規入会クーポンの表示名(Checkout・請求書に表示)。"
   type        = string
-  default     = "新規入会割引"
+  default     = "新規入会90%OFF(6ヶ月)"
 }
 
 variable "new_member_discount_percent" {
   description = "新規入会クーポンの割引率(%)。1〜100。"
   type        = number
-  default     = 10
+  default     = 90
 
   validation {
     condition     = var.new_member_discount_percent > 0 && var.new_member_discount_percent <= 100
@@ -48,7 +48,7 @@ variable "new_member_discount_percent" {
 variable "new_member_coupon_duration" {
   description = "クーポンの適用期間。once(初回のみ)/ forever / repeating。"
   type        = string
-  default     = "once"
+  default     = "repeating"
 
   validation {
     condition     = contains(["once", "forever", "repeating"], var.new_member_coupon_duration)
@@ -56,8 +56,41 @@ variable "new_member_coupon_duration" {
   }
 }
 
+variable "new_member_coupon_duration_in_months" {
+  description = "duration=repeating のとき割引を適用する月数(1以上)。duration が repeating 以外なら無視される。"
+  type        = number
+  default     = 6
+
+  validation {
+    condition     = var.new_member_coupon_duration_in_months >= 1
+    error_message = "new_member_coupon_duration_in_months は 1 以上の整数で指定してください。"
+  }
+}
+
+variable "new_member_coupon_max_redemptions" {
+  description = "クーポンの累計利用回数の上限。0 を指定すると無制限。"
+  type        = number
+  default     = 100
+
+  validation {
+    condition     = var.new_member_coupon_max_redemptions >= 0
+    error_message = "new_member_coupon_max_redemptions は 0(無制限)以上で指定してください。"
+  }
+}
+
+variable "new_member_coupon_redeem_by" {
+  description = "クーポンを利用できる最終日時(RFC3339, 例: 2026-12-31T23:59:59Z)。空文字なら無期限。"
+  type        = string
+  default     = "2026-12-31T23:59:59Z"
+
+  validation {
+    condition     = var.new_member_coupon_redeem_by == "" || can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", var.new_member_coupon_redeem_by))
+    error_message = "new_member_coupon_redeem_by は空文字、または RFC3339(末尾 Z)形式で指定してください。例: 2026-12-31T23:59:59Z"
+  }
+}
+
 variable "new_member_promotion_code" {
   description = "ユーザが Checkout で入力するプロモコード文字列。"
   type        = string
-  default     = "WELCOME10"
+  default     = "WELCOME90"
 }

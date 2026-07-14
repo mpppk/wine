@@ -6,8 +6,30 @@
 |---|---|
 | `stripe_product` | Product「プレミアム」 |
 | `stripe_price` ×2 | 月額 ¥300 / 年額 ¥3,000(月額10ヶ月分) |
+| `stripe_coupon` | 新規入会クーポン(既定: 90%OFF・6ヶ月・repeating) |
+| `stripe_promotion_code` | 上記クーポンの入力コード(既定: `WELCOME90`。初回入会のみ) |
 | `stripe_webhook_endpoint` | `/api/auth/stripe/webhook`(better-auth のサブスク同期) |
 | `stripe_portal_configuration` | Billing Portal(期間末解約・支払い方法更新・請求履歴) |
+
+## 新規入会クーポン
+
+Checkout の標準プロモコード欄(`allow_promotion_codes`, `src/lib/auth.ts`)で適用する新規入会割引を
+`stripe_coupon` / `stripe_promotion_code` で管理する。既定値は **90%OFF を 6ヶ月間(`repeating`)**、
+**利用上限 100 回**、**有効期限 2026-12-31**。既存サブスクには適用できず、新規入会(初回決済)専用
+(`first_time_transaction = true`)。値は module 変数で調整する:
+
+| 変数 | 既定 | 内容 |
+|---|---|---|
+| `new_member_discount_percent` | `90` | 割引率(%) |
+| `new_member_coupon_duration` | `repeating` | `once` / `forever` / `repeating` |
+| `new_member_coupon_duration_in_months` | `6` | `repeating` 時の適用月数 |
+| `new_member_coupon_max_redemptions` | `100` | 累計利用回数の上限(0 で無制限) |
+| `new_member_coupon_redeem_by` | `2026-12-31T23:59:59Z` | 利用最終日時(RFC3339, 空文字で無期限) |
+| `new_member_promotion_code` | `WELCOME90` | ユーザが入力するコード文字列 |
+
+> `percent_off` / `duration` / `duration_in_months` / `max_redemptions` / `redeem_by` は Stripe 上
+> `ForceNew`(変更でクーポン再作成)。既にそのクーポンで割引適用中のサブスクは、再作成後も
+> 適用済みの割引を保持する(Stripe はサブスクに割引実体をコピーするため)。
 
 プロバイダはコミュニティの [lukasaron/stripe](https://registry.terraform.io/providers/lukasaron/stripe/latest/docs) を使用する。
 公式プロバイダ(stripe/stripe)は webhook 署名シークレットを出力できず、Billing Portal 設定も
