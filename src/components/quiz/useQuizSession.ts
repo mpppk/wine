@@ -33,6 +33,9 @@ export function useQuizSession(
 	// 指定時は選択AOPとその階層近傍に出題を絞る(地図ページのスコープ付きクイズ)。
 	// セッションのリセットは呼び出し側の key 再マウントで行う
 	scopeAopId?: string,
+	// 再チャレンジ: 真のとき正解済みも含めて出題する(全問正解済みでの再挑戦)。
+	// 記録・残数・1周完了のロジックは通常セッションと同一(実績は加算記録される)
+	includeSolved = false,
 ) {
 	const router = useRouter();
 	const [queue, setQueue] = useState<QuizQuestion[]>([]);
@@ -99,6 +102,7 @@ export function useQuizSession(
 							count: BATCH_SIZE,
 							excludeKeys: [...queuedKeys, ...recentKeysRef.current],
 							scopeAopId,
+							includeSolved,
 						},
 					});
 					// 残数はサーバの初回値をシード(ログインは永続的な正解済みを反映)。
@@ -133,7 +137,7 @@ export function useQuizSession(
 				fetchingRef.current = false;
 			}
 		},
-		[regionId, quizTypes, scopeAopId, applyRemaining],
+		[regionId, quizTypes, scopeAopId, includeSolved, applyRemaining],
 	);
 
 	// 初回ロードとプリフェッチ
