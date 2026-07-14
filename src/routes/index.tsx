@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { DashboardView } from "#/components/dashboard/DashboardView";
 import { Button } from "#/components/ui/button";
 import {
 	Card,
@@ -7,16 +8,32 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
-import { authClient } from "#/lib/auth-client";
+import { getSession } from "#/server/auth";
+import { getDashboard } from "#/server/dashboard";
 
 export const Route = createFileRoute("/")({
+	// ログイン時は学習ダッシュボード、未ログインは紹介カードを出す。
+	// ダッシュボードはユーザ固有データなのでログイン時のみ取得する。
+	beforeLoad: async () => {
+		const session = await getSession();
+		return { session };
+	},
+	loader: ({ context }) => (context.session ? getDashboard() : null),
 	component: HomePage,
 });
 
 function HomePage() {
-	const { data: session } = authClient.useSession();
-	const user = session?.user;
+	const data = Route.useLoaderData();
+	const { session } = Route.useRouteContext();
 
+	if (data && session) {
+		return <DashboardView data={data} userName={session.user.name ?? null} />;
+	}
+
+	return <IntroCard />;
+}
+
+function IntroCard() {
 	return (
 		<main className="mx-auto max-w-2xl px-4 py-10">
 			<Card>
@@ -29,9 +46,8 @@ function HomePage() {
 				</CardHeader>
 				<CardContent className="flex flex-col gap-4">
 					<p className="text-sm text-muted-foreground">
-						{user
-							? `${user.name ? `${user.name} さん` : "ゲスト"}（${user.email}）としてログイン中です。`
-							: "ログインすると学習の記録が保存されます。"}
+						ログインすると学習の記録が保存され、今日の学習状況やおすすめの学習を
+						確認できます。
 					</p>
 					<div className="flex flex-wrap gap-2">
 						<Button asChild>
@@ -40,20 +56,9 @@ function HomePage() {
 						<Button asChild>
 							<Link to="/quiz">クイズでAOPを覚える</Link>
 						</Button>
-						{user ? (
-							<>
-								<Button asChild variant="outline">
-									<Link to="/cellar">マイセラー(飲んだワインの記録)</Link>
-								</Button>
-								<Button asChild variant="outline">
-									<Link to="/profile">プロフィールを編集</Link>
-								</Button>
-							</>
-						) : (
-							<Button asChild variant="outline">
-								<Link to="/login">ログイン</Link>
-							</Button>
-						)}
+						<Button asChild variant="outline">
+							<Link to="/login">ログイン</Link>
+						</Button>
 					</div>
 				</CardContent>
 			</Card>

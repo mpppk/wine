@@ -64,6 +64,13 @@
       "when": 1778994900006,
       "tag": "0008_coupon_redemption",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1778994900007,
+      "tag": "0009_daily_activity",
+      "breakpoints": true
     }
   ]
 }

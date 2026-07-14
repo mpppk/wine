@@ -1,6 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { quizQuestionStat } from "#/db/schema";
+import { dailyActivity, quizQuestionStat } from "#/db/schema";
+import { jstDayKey } from "#/lib/dashboard/jst";
 import {
 	candidateCountsByAopId,
 	candidateCountsByType,
@@ -135,6 +136,10 @@ export interface AnswerSnapshot {
 	streak: number;
 	lastAnsweredAt: number | null;
 	lastCorrectAt: number | null;
+	/** この解答を計上した日次集計の日(JST "YYYY-MM-DD")。revert時の減算対象 */
+	activityDay: string;
+	/** この解答が正解だったか。revert時に correctCount を戻すために保持 */
+	activityWasCorrect: boolean;
 }
 
 export async function recordAnswer(
@@ -164,6 +169,8 @@ export async function recordAnswer(
 			),
 		)
 		.limit(1);
+	const now = new Date();
+	const activityDay = jstDayKey(now);
 	const priorRow = existing[0];
 	const snapshot: AnswerSnapshot = priorRow
 		? {
@@ -173,6 +180,8 @@ export async function recordAnswer(
 				streak: priorRow.streak,
 				lastAnsweredAt: priorRow.lastAnsweredAt.getTime(),
 				lastCorrectAt: priorRow.lastCorrectAt?.getTime() ?? null,
+				activityDay,
+				activityWasCorrect: wasCorrect,
 			}
 		: {
 				existed: false,
@@ -181,9 +190,10 @@ export async function recordAnswer(
 				streak: 0,
 				lastAnsweredAt: null,
 				lastCorrectAt: null,
+				activityDay,
+				activityWasCorrect: wasCorrect,
 			};
 
-	const now = new Date();
 	await db
 		.insert(quizQuestionStat)
 		.values({
@@ -206,6 +216,24 @@ export async function recordAnswer(
 				lastAnsweredAt: now,
 				updatedAt: now,
 				...(wasCorrect ? { lastCorrectAt: now } : {}),
+			},
+		});
+
+	// 日次サマリーを加算(今日の学習量・連続学習日数・履歴ヒートマップの元データ)
+	await db
+		.insert(dailyActivity)
+		.values({
+			userId,
+			day: activityDay,
+			answeredCount: 1,
+			correctCount: wasCorrect ? 1 : 0,
+		})
+		.onConflictDoUpdate({
+			target: [dailyActivity.userId, dailyActivity.day],
+			set: {
+				answeredCount: sql`${dailyActivity.answeredCount} + 1`,
+				correctCount: sql`${dailyActivity.correctCount} + ${wasCorrect ? 1 : 0}`,
+				updatedAt: now,
 			},
 		});
 	return snapshot;
@@ -241,27 +269,43 @@ export async function revertAnswer(
 					eq(quizQuestionStat.questionKey, questionKey),
 				),
 			);
-		return;
+	} else {
+		await db
+			.update(quizQuestionStat)
+			.set({
+				correctCount: prior.correctCount,
+				incorrectCount: prior.incorrectCount,
+				streak: prior.streak,
+				// existed=true の行は lastAnsweredAt が非null。型の都合でフォールバックを置く
+				lastAnsweredAt:
+					prior.lastAnsweredAt != null
+						? new Date(prior.lastAnsweredAt)
+						: new Date(),
+				lastCorrectAt:
+					prior.lastCorrectAt != null ? new Date(prior.lastCorrectAt) : null,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(quizQuestionStat.userId, userId),
+					eq(quizQuestionStat.questionKey, questionKey),
+				),
+			);
 	}
+
+	// 日次サマリーも対称的に減算(recordAnswer が計上した1件・正誤を戻す)。
+	// 負値ガードで下限0に丸める。行が無ければ何もしない(max(0,...) が保証)。
 	await db
-		.update(quizQuestionStat)
+		.update(dailyActivity)
 		.set({
-			correctCount: prior.correctCount,
-			incorrectCount: prior.incorrectCount,
-			streak: prior.streak,
-			// existed=true の行は lastAnsweredAt が非null。型の都合でフォールバックを置く
-			lastAnsweredAt:
-				prior.lastAnsweredAt != null
-					? new Date(prior.lastAnsweredAt)
-					: new Date(),
-			lastCorrectAt:
-				prior.lastCorrectAt != null ? new Date(prior.lastCorrectAt) : null,
+			answeredCount: sql`max(0, ${dailyActivity.answeredCount} - 1)`,
+			correctCount: sql`max(0, ${dailyActivity.correctCount} - ${prior.activityWasCorrect ? 1 : 0})`,
 			updatedAt: new Date(),
 		})
 		.where(
 			and(
-				eq(quizQuestionStat.userId, userId),
-				eq(quizQuestionStat.questionKey, questionKey),
+				eq(dailyActivity.userId, userId),
+				eq(dailyActivity.day, prior.activityDay),
 			),
 		);
 }
