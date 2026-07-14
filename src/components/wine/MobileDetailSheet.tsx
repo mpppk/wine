@@ -173,9 +173,11 @@ export function MobileDetailSheet({
 		? EXPANDED_MAX_HEIGHT
 		: undefined;
 	if (closing) {
-		// 閉じるスライド: シート全体をコンテナ下端外へ逃がす(bottom-2 の
-		// 8px ギャップを考慮して 100% + 余白)。指を離した位置から下へ滑って消える。
-		transform = "translateY(calc(100% + 16px))";
+		// 閉じるスライド: シート全体を画面下部へ逃がす。100%(=シート自身の高さ)
+		// だけではシート下端〜画面下端の余白(bottom-2 + 下部バー等)が残り、
+		// ハンドルが下部に少し覗くため、余白を上乗せして確実に画面外へ出す。
+		// 指を離した位置から下へ滑って消える。
+		transform = "translateY(calc(100% + 96px))";
 	} else if (dragging) {
 		if (!expanded) {
 			if (dragY > 0) {
