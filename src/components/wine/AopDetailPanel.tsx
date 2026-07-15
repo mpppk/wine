@@ -28,6 +28,7 @@ import {
 	KIND_COLORS,
 	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
+import { getProducerInfo, type ProducerInfo } from "#/lib/wine/producer-info";
 import {
 	classificationPanelBadgeJa,
 	isLegalAppellation,
@@ -409,10 +410,11 @@ function ProducersSection({
 	aop: Aop;
 	affiliate: AffiliateConfig;
 }) {
-	// 開いている購入リンクダイアログの対象(生産者名/シャトー名とそのリンク)。null で非表示
+	// 開いている購入リンクダイアログの対象(生産者名/シャトー名・リンク・解説)。null で非表示
 	const [selected, setSelected] = useState<{
 		name: string;
 		links: PurchaseLinks;
+		info: ProducerInfo | null;
 	} | null>(null);
 	const wineryLinks = getWineryPurchaseLinks(aop, affiliate);
 	const rows = aop.producers.map((p) => ({
@@ -430,7 +432,13 @@ function ProducersSection({
 						{links ? (
 							<ProducerLinkButton
 								name={producer.name}
-								onClick={() => setSelected({ name: producer.name, links })}
+								onClick={() =>
+									setSelected({
+										name: producer.name,
+										links,
+										info: getProducerInfo(producer.name) ?? null,
+									})
+								}
 							/>
 						) : (
 							producer.name
@@ -443,7 +451,11 @@ function ProducersSection({
 					<ProducerLinkButton
 						name={aop.nameJa}
 						onClick={() =>
-							setSelected({ name: aop.nameJa, links: wineryLinks })
+							setSelected({
+								name: aop.nameJa,
+								links: wineryLinks,
+								info: null,
+							})
 						}
 					/>
 					のワインを探す
@@ -456,6 +468,7 @@ function ProducersSection({
 				}}
 				name={selected?.name ?? ""}
 				links={selected?.links ?? null}
+				info={selected?.info ?? null}
 			/>
 		</section>
 	);
@@ -488,11 +501,13 @@ function ProducerPurchaseDialog({
 	onOpenChange,
 	name,
 	links,
+	info,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	name: string;
 	links: PurchaseLinks | null;
+	info: ProducerInfo | null;
 }) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -505,6 +520,22 @@ function ProducerPurchaseDialog({
 						<span className="min-w-0 truncate">{name}</span>
 					</DialogTitle>
 				</DialogHeader>
+				{info?.description && (
+					<p className="text-sm leading-relaxed text-foreground/90">
+						{info.description}
+					</p>
+				)}
+				{info?.officialWebsite && (
+					<a
+						href={info.officialWebsite}
+						target="_blank"
+						rel="noopener noreferrer"
+						aria-label={`${name}の公式サイトを開く`}
+						className={buttonVariants({ variant: "outline" })}
+					>
+						公式サイト
+					</a>
+				)}
 				{links && (
 					<div className="flex flex-col gap-2">
 						<a

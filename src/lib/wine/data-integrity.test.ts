@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AOPS } from "./aops-data";
+import { PRODUCER_INFO } from "./producer-info";
 import { REGIONS } from "./regions";
 import { POLYGONLESS_IDAPP_MIN } from "./types";
 
@@ -152,6 +153,33 @@ describe("AOPメタデータの整合性", () => {
 				aop.grapes.some((g) => g.role === "principal"),
 				aop.id,
 			).toBe(true);
+		}
+	});
+});
+
+describe("生産者情報(PRODUCER_INFO)の整合性", () => {
+	// 全AOPに登場する生産者名の集合。PRODUCER_INFO のキーはここに含まれていないと
+	// ダイアログで表示されず、表記ゆれの温床になるため参照整合性を検証する。
+	const producerNames = new Set(
+		AOPS.flatMap((a) => a.producers.map((p) => p.name)),
+	);
+
+	it("PRODUCER_INFO のキーは aops.json の生産者名に存在する", () => {
+		for (const name of Object.keys(PRODUCER_INFO)) {
+			expect(producerNames.has(name), name).toBe(true);
+		}
+	});
+
+	it("各エントリは説明文を持ち、公式サイトは有効なURL", () => {
+		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
+			expect(info.description.length, name).toBeGreaterThan(0);
+			if (info.officialWebsite !== undefined) {
+				expect(
+					() => new URL(info.officialWebsite as string),
+					name,
+				).not.toThrow();
+				expect(info.officialWebsite, name).toMatch(/^https?:\/\//);
+			}
 		}
 	});
 });
