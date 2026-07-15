@@ -466,7 +466,8 @@
 			"Domaine Leflaive",
 			"Domaine Ramonet",
 			"Domaine Paul Pernot",
-			"Maison Olivier Leflaive"
+			"Maison Olivier Leflaive",
+			"Domaine d'Auvenay"
 		],
 		"description": "モンラッシェの斜面下側に位置し、ピュリニーとシャサーニュの両村にまたがる約12haの白のグラン・クリュ。粘土分の多い土壌から、モンラッシェ系特級の中で最も豊満でリッチ、ボリューム感のある白ワインを生む。シャルドネのみが認められる。"
 	},
@@ -1429,7 +1430,8 @@
 			"Domaine Trapet Père et Fils",
 			"Domaine Rossignol-Trapet",
 			"Maison Louis Jadot",
-			"Domaine Jacques Prieur"
+			"Domaine Jacques Prieur",
+			"Domaine Dugat-Py"
 		],
 		"description": "ジュヴレ・シャンベルタン村の斜面中腹に広がる約13haのグラン・クリュで、ナポレオンが愛飲したことでも知られる「王のワイン」。力強く堅牢なタンニンと深遠な複雑さを備え、数十年の熟成に耐えるブルゴーニュ赤の最高峰のひとつ。村の9つのグラン・クリュすべてが「シャンベルタン」の名を冠する基準点となる畑である。"
 	},
@@ -1614,7 +1616,8 @@
 			"Domaine Dujac",
 			"Domaine Armand Rousseau",
 			"Domaine Perrot-Minot",
-			"Domaine Joseph Roty"
+			"Domaine Joseph Roty",
+			"Domaine Dugat-Py"
 		],
 		"description": "シャンベルタンの斜面下側、街道沿いに広がるグラン・クリュ。隣接するマゾワイエール・シャンベルタンもこの名で販売できるため、実質的にジュヴレ最大（約30ha）のグラン・クリュとして流通する。しなやかで果実味豊かな、比較的早くから楽しめるスタイルが特徴。"
 	},
@@ -1679,7 +1682,8 @@
 			"Domaine Leflaive",
 			"Bouchard Père & Fils",
 			"Maison Louis Jadot",
-			"Maison Louis Latour"
+			"Maison Louis Latour",
+			"Domaine d'Auvenay"
 		],
 		"description": "ピュリニー＝モンラッシェ村内、モンラッシェのすぐ上方斜面に位置する白のグラン・クリュ。薄い表土ゆえにモンラッシェより軽やかで、鋭いミネラルと緊張感のあるエレガントなスタイルを生む。ルフレーヴやブシャールの「ラ・カボット」などが著名。"
 	},
@@ -2040,7 +2044,11 @@
 			}
 		],
 		"soil": "コルトンの丘の斜面。上部は白色泥灰土、中〜下部は鉄分を含む赤褐色の石灰質粘土。",
-		"producers": ["Domaine de la Romanée-Conti", "Domaine Comte Senard"],
+		"producers": [
+			"Domaine de la Romanée-Conti",
+			"Domaine Comte Senard",
+			"Domaine Leroy"
+		],
 		"description": "丘の東斜面上部。野性的で力強く、タンニン豊かな赤。"
 	},
 	{
@@ -2166,7 +2174,9 @@
 			"Domaine Bonneau du Martray",
 			"Domaine Coche-Dury",
 			"Maison Louis Latour",
-			"Bouchard Père & Fils"
+			"Bouchard Père & Fils",
+			"Domaine de la Romanée-Conti",
+			"Domaine Leroy"
 		],
 		"description": "コルトンの丘の上部斜面に広がる白のグラン・クリュで、名は皇帝シャルルマーニュの伝承に由来する。シャルドネから、鋭い酸と豊かなミネラル、力強い骨格を備えた長期熟成型の白ワインを生む。コート・ド・ボーヌ北部を代表する偉大な白の産地。"
 	},
@@ -2351,7 +2361,8 @@
 			"Domaine d'Auvenay",
 			"Domaine Blain-Gagnard",
 			"Domaine Fontaine-Gagnard",
-			"Domaine Roger Belland"
+			"Domaine Roger Belland",
+			"Domaine Hubert Lamy"
 		],
 		"description": "シャサーニュ＝モンラッシェ村側のみに位置する約1.6haの、モンラッシェ系で最小の白のグラン・クリュ。生産量が極めて少なく希少で、バタールより軽やかな、繊細で香り高いスタイルを示す。シャルドネのみが認められる。"
 	},
@@ -2391,7 +2402,8 @@
 			"Domaine Dujac",
 			"Domaine Georges Mugneret-Gibourg",
 			"Domaine Emmanuel Rouget",
-			"Domaine Jean Grivot"
+			"Domaine Jean Grivot",
+			"Domaine Cécile Tremblay"
 		],
 		"description": "フラジェ・エシェゾー村に位置する約36haの、ヴォーヌ・ロマネ系グラン・クリュでは最大の特級畑。11のリューディからなり面積が広いため、生産者や区画によるスタイルの差が大きいことで知られる。総じて香り高くしなやかで、同系の特級の中では比較的早くから楽しめる赤ワインを生む。"
 	},
@@ -2880,7 +2892,8 @@
 			"Domaine Faiveley",
 			"Domaine Harmand-Geoffroy",
 			"Domaine Joseph Roty",
-			"Domaine d'Auvenay"
+			"Domaine d'Auvenay",
+			"Domaine Dugat-Py"
 		],
 		"description": "クロ・ド・ベーズの北に隣接する、ジュヴレのグラン・クリュ最北端の畑（約9ha）。上部のマジ・オーと下部のマジ・バに分かれ、前者がより高く評価される。堅牢でスパイシーな骨格を持ち、オスピス・ド・ボーヌが最大の所有者としてキュヴェ・マドレーヌ・コリニョンを産することでも知られる。"
 	},
@@ -3205,7 +3218,8 @@
 			"Domaine Robert Chevillon",
 			"Domaine de l'Arlot",
 			"Domaine Prieuré Roch",
-			"Maison Faiveley"
+			"Maison Faiveley",
+			"Domaine Leroy"
 		],
 		"description": "コート・ド・ニュイ南部の中心となる町で、その名は地区名の由来にもなった。グラン・クリュは持たないが、レ・サン・ジョルジュをはじめ多数のプルミエ・クリュを擁し、タンニンのしっかりした力強い赤を産する。ピノ・ブラン等による白もごく少量造られる。"
 	},
@@ -3576,7 +3590,7 @@
 		"producers": [
 			"Domaine Armand Rousseau",
 			"Domaine Georges Mugneret-Gibourg",
-			"Domaine Christophe Roumier",
+			"Domaine Georges Roumier",
 			"Domaine Frédéric Esmonin"
 		],
 		"description": "マジ・シャンベルタンの上方、斜面最上部に位置する約3.3haの小さなグラン・クリュ。岩盤が浅く表土が極めて薄いため、ミネラル感と引き締まった構造、清冽な酸を備えたワインを生む。アルマン・ルソーがモノポールのクロ・デ・リュショットを所有することでも名高い。"
@@ -3823,7 +3837,8 @@
 			"Domaine Marquis d'Angerville",
 			"Domaine Michel Lafarge",
 			"Domaine de la Pousse d'Or",
-			"Domaine de Montille"
+			"Domaine de Montille",
+			"Domaine Jean-Marc & Thomas Bouley"
 		],
 		"description": "ポマールの南に隣接する赤ワイン専用の村名AOC。薄い石灰質土壌から香り高く繊細でエレガントなピノ・ノワールを産し、隣村ポマールの力強さと好対照をなす。クロ・デ・シェーヌやカイユレなど多数の一級畑を持つ。"
 	},
