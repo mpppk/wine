@@ -28,6 +28,7 @@ import {
 } from "#/components/ui/dropdown-menu";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
+import { AopReferenceLinks } from "#/components/wine/AopReferenceLinks";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterMenu } from "#/components/wine/GrapeFilterMenu";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
@@ -233,6 +234,15 @@ function MapPage() {
 	const startAopQuiz = selectedAop
 		? () => setQuizScope({ kind: "aop", aopId: selectedAop.id })
 		: undefined;
+
+	// 参考リンク欄(ユーザ固有・要ログイン)。デスクトップ/モバイル両パネルに同じ内容を
+	// 差し込む。未ログイン時はコンポーネント側でログイン導線のみ表示する。
+	const referenceLinksSlot = selectedAop ? (
+		<AopReferenceLinks
+			aopId={selectedAop.id}
+			isAuthenticated={isAuthenticated}
+		/>
+	) : undefined;
 
 	// 一覧(サイドバー/リスト表示): 地図と同じ絞り込みを反映する。リストでは品種
 	// 不一致も非表示にする(地図は灰色に沈めるだけなので hiddenAopIds とは別に組む)
@@ -603,6 +613,7 @@ function MapPage() {
 									onSelectRegion={selectRegion}
 									onBack={goBack}
 									backToName={backToName}
+									referenceLinksSlot={referenceLinksSlot}
 								/>
 								{isListView && (
 									<div className="px-4 pb-4">
@@ -646,6 +657,7 @@ function MapPage() {
 							onSelectRegion={selectRegion}
 							onBack={goBack}
 							backToName={backToName}
+							referenceLinksSlot={referenceLinksSlot}
 						/>
 						{isListView && (
 							<div className="px-4 pb-4">

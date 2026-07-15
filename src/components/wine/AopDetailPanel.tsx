@@ -5,6 +5,7 @@ import {
 	GraduationCapIcon,
 	XIcon,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Button, buttonVariants } from "#/components/ui/button";
 import {
@@ -124,6 +125,7 @@ export function AopDetailPanel({
 	onSelectRegion,
 	onBack,
 	backToName,
+	referenceLinksSlot,
 }: {
 	aop: Aop;
 	/** 所属する親(村名AOC・地区・地方)の情報。未指定なら所属セクションを表示しない */
@@ -160,6 +162,12 @@ export function AopDetailPanel({
 	onBack?: () => void;
 	/** 戻り先AOPの表示名。「戻る」ボタンのラベルに使う */
 	backToName?: string;
+	/**
+	 * 参考リンク欄(ユーザ固有・要ログイン)。ログイン制御・データ取得を含むため
+	 * パネル外(呼び出し元)で組み立てて差し込む。未指定なら参考リンク欄を表示しない
+	 * (embed等の公開ビューでは渡さない)。
+	 */
+	referenceLinksSlot?: ReactNode;
 }) {
 	// 前後移動・戻るのいずれかが渡されたときだけナビ行を表示する
 	const showNav = onPrev !== undefined || onNext !== undefined;
@@ -313,6 +321,8 @@ export function AopDetailPanel({
 			</section>
 
 			<ProducersSection aop={aop} affiliate={affiliate} />
+
+			{referenceLinksSlot}
 
 			<p className="text-[11px] leading-relaxed text-muted-foreground">
 				{getBoundarySourceNoteJa(aop)}
