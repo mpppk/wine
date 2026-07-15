@@ -43,6 +43,10 @@
 			"bucket_name": "avatars-wine"
 		}
 	],
+	// Workers AI(地域Q&Aの推論)。アカウントレベルのリソースのため env ごとの id は不要。
+	"ai": {
+		"binding": "AI"
+	},
 	"env": {
 		"preview": {
 			"name": "wine-preview",
@@ -68,7 +72,10 @@
 					"binding": "AVATARS",
 					"bucket_name": "avatars-wine-preview"
 				}
-			]
+			],
+			"ai": {
+				"binding": "AI"
+			}
 		}
 	}
 	/**

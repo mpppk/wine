@@ -28,3 +28,9 @@ export const MONTHLY_CREDITS_FREE = 50;
 export const MONTHLY_CREDITS_PREMIUM = 500;
 /** 内部トークン → 表示クレジットの換算比(暫定)。1クレジット = このトークン数。 */
 export const TOKENS_PER_CREDIT = 1000;
+
+/**
+ * 1回のAI消費で予約できる最大見積トークン(暴走・過大請求のガード)。予約はこの値で
+ * キャップされ、consume系エンドポイントの入力バリデーション上限とも揃える。
+ */
+export const AI_MAX_ESTIMATE_TOKENS = 100_000;

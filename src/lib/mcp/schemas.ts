@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AI_MAX_QUESTION_CHARS } from "#/lib/ai/config";
 import { drunkWineFields } from "#/lib/drunk-wine/schema";
 import { AOP_TAG_IDS } from "#/lib/wine/tags";
 
@@ -40,6 +41,36 @@ export const getAopInput = {
 	aop_id: z
 		.string()
 		.describe("AOPのID (list_aops の id。例: 'gevrey-chambertin')"),
+};
+
+// 地域チャットQ&A。Workers AI で回答し、ユーザのAIクレジットを消費する。
+// マルチターンにしたい場合は history に直前までの往復を渡す(サーバは保持しない)。
+export const askRegionInput = {
+	region_id: z
+		.string()
+		.describe("質問対象の地域ID (list_wine_regions の id。例: 'bourgogne')"),
+	aop_id: z
+		.string()
+		.optional()
+		.describe(
+			"注目するAOPのID (list_aops の id。指定すると回答の文脈に含める)",
+		),
+	question: z
+		.string()
+		.trim()
+		.min(1)
+		.max(AI_MAX_QUESTION_CHARS)
+		.describe("地域・AOPについての質問(日本語)"),
+	history: z
+		.array(
+			z.object({
+				role: z.enum(["user", "assistant"]),
+				content: z.string().min(1).max(4000),
+			}),
+		)
+		.max(20)
+		.optional()
+		.describe("会話を継続する場合の直前までの履歴(古い順)。省略時は単発質問"),
 };
 
 export const showAopMapInput = {
