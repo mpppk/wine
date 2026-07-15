@@ -32,6 +32,11 @@ export interface AopTreeListProps {
 	/** 色分けモード。"progress" のとき各行・村・地区に正解進捗を表示する */
 	colorMode?: "kind" | "progress";
 	/**
+	 * ログイン状態。未ログイン時は正解数が記録されず "0/total" が増えないため、
+	 * 進捗ピルを分数ではなく出題数(クイズN問)の中立表示に切り替える。省略時はログイン扱い。
+	 */
+	isAuthenticated?: boolean;
+	/**
 	 * AOP(slug)ごとの「そのAOP自身が主語」の正解進捗(solved/total)。
 	 * 地区見出しの合算(配下の重複しない総数)に使う。未取得時は進捗を表示しない。
 	 */
@@ -63,6 +68,7 @@ export function AopTreeList({
 	colorMode = "kind",
 	progressByAopId,
 	rowProgressByAopId,
+	isAuthenticated = true,
 	getScrollInset,
 }: AopTreeListProps) {
 	// 各行(村・畑・クリマ)は「自身+近傍」スコープの進捗を出す。未指定なら自身のみ。
@@ -73,6 +79,8 @@ export function AopTreeList({
 	);
 
 	const progressMode = colorMode === "progress";
+	// 未ログイン時は正解が記録されず分数(0/total)が動かないため、出題数だけを示す
+	const countOnly = !isAuthenticated;
 
 	// 選択AOPが変わったら、その行をスクロール表示領域内に入れる。情報パネルの
 	// 前へ/次へ(←/→)で領域外のAOPへ移った際、リストの選択位置を見失わないため。
@@ -182,7 +190,10 @@ export function AopTreeList({
 								{section.subregion.nameJa}
 							</span>
 							{sectionProgress && (
-								<ProgressIndicator progress={sectionProgress} />
+								<ProgressIndicator
+									progress={sectionProgress}
+									countOnly={countOnly}
+								/>
 							)}
 						</h3>
 						{section.regionalAops.length > 0 && (
@@ -194,6 +205,7 @@ export function AopTreeList({
 											selected={aop.id === selectedAopId}
 											onSelect={onSelect}
 											progressMode={progressMode}
+											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
 										/>
 									</li>
@@ -211,6 +223,7 @@ export function AopTreeList({
 										selectedAopId={selectedAopId}
 										onSelect={onSelect}
 										progressMode={progressMode}
+										countOnly={countOnly}
 										rowProgressByAopId={rowProgress}
 									/>
 								))}
@@ -225,6 +238,7 @@ export function AopTreeList({
 											selected={aop.id === selectedAopId}
 											onSelect={onSelect}
 											progressMode={progressMode}
+											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
 										/>
 									</li>
@@ -240,6 +254,7 @@ export function AopTreeList({
 											selected={aop.id === selectedAopId}
 											onSelect={onSelect}
 											progressMode={progressMode}
+											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
 										/>
 									</li>
@@ -260,6 +275,7 @@ function VillageItem({
 	selectedAopId,
 	onSelect,
 	progressMode,
+	countOnly,
 	rowProgressByAopId,
 }: {
 	node: VillageNode;
@@ -268,6 +284,7 @@ function VillageItem({
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
 	progressMode: boolean;
+	countOnly: boolean;
 	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
 	// 村行は村AOP自身の「自身+近傍」スコープの進捗を出す(詳細パネルの関連クイズ数と一致)
@@ -282,6 +299,7 @@ function VillageItem({
 					selected={node.village.id === selectedAopId}
 					onSelect={onSelect}
 					progressMode={progressMode}
+					countOnly={countOnly}
 					progress={villageProgress}
 				/>
 			) : (
@@ -290,7 +308,12 @@ function VillageItem({
 				<p className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
 					<span aria-hidden className="size-2.5 shrink-0" />
 					<span className="min-w-0 flex-1 truncate">{node.village.nameJa}</span>
-					{villageProgress && <ProgressIndicator progress={villageProgress} />}
+					{villageProgress && (
+						<ProgressIndicator
+							progress={villageProgress}
+							countOnly={countOnly}
+						/>
+					)}
 				</p>
 			)}
 			{(node.vineyards.length > 0 || node.wineries.length > 0) && (
@@ -303,6 +326,7 @@ function VillageItem({
 							selectedAopId={selectedAopId}
 							onSelect={onSelect}
 							progressMode={progressMode}
+							countOnly={countOnly}
 							rowProgressByAopId={rowProgressByAopId}
 						/>
 					))}
@@ -313,6 +337,7 @@ function VillageItem({
 								selected={aop.id === selectedAopId}
 								onSelect={onSelect}
 								progressMode={progressMode}
+								countOnly={countOnly}
 								progress={rowProgressByAopId?.[aop.id]}
 							/>
 						</li>
@@ -330,6 +355,7 @@ function VineyardItem({
 	selectedAopId,
 	onSelect,
 	progressMode,
+	countOnly,
 	rowProgressByAopId,
 }: {
 	node: VineyardNode;
@@ -337,6 +363,7 @@ function VineyardItem({
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
 	progressMode: boolean;
+	countOnly: boolean;
 	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
 	return (
@@ -347,6 +374,7 @@ function VineyardItem({
 					selected={node.vineyard.id === selectedAopId}
 					onSelect={onSelect}
 					progressMode={progressMode}
+					countOnly={countOnly}
 					progress={rowProgressByAopId?.[node.vineyard.id]}
 				/>
 			) : (
@@ -366,6 +394,7 @@ function VineyardItem({
 								selected={climat.id === selectedAopId}
 								onSelect={onSelect}
 								progressMode={progressMode}
+								countOnly={countOnly}
 								progress={rowProgressByAopId?.[climat.id]}
 							/>
 						</li>
@@ -381,6 +410,7 @@ function AopRow({
 	selected,
 	onSelect,
 	progressMode = false,
+	countOnly = false,
 	progress,
 }: {
 	aop: Aop;
@@ -388,6 +418,8 @@ function AopRow({
 	onSelect: (aopId: string) => void;
 	/** 進捗モード時はバッジを進捗インジケータに置換し、ドットを正解率で着色する */
 	progressMode?: boolean;
+	/** 未ログイン時は進捗インジケータを分数でなく出題数(クイズN問)で表示する */
+	countOnly?: boolean;
 	/** この行に表示する正解進捗(そのAOPの「自身+階層近傍」スコープ) */
 	progress?: AopProgress;
 }) {
@@ -424,7 +456,9 @@ function AopRow({
 			/>
 			<span className="min-w-0 flex-1 truncate">{aop.nameJa}</span>
 			{progressMode ? (
-				progress && <ProgressIndicator progress={progress} />
+				progress && (
+					<ProgressIndicator progress={progress} countOnly={countOnly} />
+				)
 			) : (
 				<>
 					{nonAppellation && (
@@ -443,10 +477,27 @@ function AopRow({
 	);
 }
 
-/** 正解進捗を "solved/total" のピルで示す。全問正解済みはチェック+緑で強調する。 */
-function ProgressIndicator({ progress }: { progress: AopProgress }) {
+/**
+ * 正解進捗を "solved/total" のピルで示す。全問正解済みはチェック+緑で強調する。
+ * countOnly(未ログイン)時は正解が記録されず分数が動かないため、代わりに
+ * そのスコープの出題数を「クイズN問」の中立ピルで示す。
+ */
+function ProgressIndicator({
+	progress,
+	countOnly = false,
+}: {
+	progress: AopProgress;
+	countOnly?: boolean;
+}) {
 	const { solved, total } = progress;
 	if (total <= 0) return null;
+	if (countOnly) {
+		return (
+			<span className="inline-flex shrink-0 items-center rounded border border-border px-1 text-[10px] tabular-nums text-muted-foreground">
+				クイズ{total}問
+			</span>
+		);
+	}
 	const complete = solved >= total;
 	return (
 		<span
