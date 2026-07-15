@@ -32,12 +32,20 @@ function referenceLinksKey(aopId: string) {
 	return ["referenceLinks", aopId] as const;
 }
 
-function SectionShell({ children }: { children: React.ReactNode }) {
+function SectionShell({
+	children,
+	headerAction,
+}: {
+	children: React.ReactNode;
+	/** 見出し右端に置く操作（追加ボタン等）。未指定なら何も置かない */
+	headerAction?: React.ReactNode;
+}) {
 	return (
 		<section>
 			<h3 className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 				<LinkIcon className="size-3.5" aria-hidden />
 				{SECTION_HEADING}
+				{headerAction && <span className="ml-auto">{headerAction}</span>}
 			</h3>
 			{children}
 		</section>
@@ -85,8 +93,8 @@ function AuthedReferenceLinks({ aopId }: { aopId: string }) {
 
 	// インライン編集中のリンクid(null で編集なし)
 	const [editingId, setEditingId] = useState<string | null>(null);
-	// 追加フォームのリセット用キー。作成成功のたびに増やしてフォームを初期化(閉じる)する
-	const [addFormKey, setAddFormKey] = useState(0);
+	// 追加フォームの開閉。閉じると入力欄はアンマウントされ、次に開くと空で始まる
+	const [addOpen, setAddOpen] = useState(false);
 
 	const createMutation = useMutation({
 		mutationFn: (input: { url: string; title?: string }) =>
@@ -94,7 +102,7 @@ function AuthedReferenceLinks({ aopId }: { aopId: string }) {
 				data: { aopId, url: input.url, title: input.title },
 			}),
 		onSuccess: async () => {
-			setAddFormKey((k) => k + 1);
+			setAddOpen(false);
 			await invalidate();
 		},
 	});
@@ -115,8 +123,23 @@ function AuthedReferenceLinks({ aopId }: { aopId: string }) {
 		onSuccess: invalidate,
 	});
 
+	// 見出し右端の控えめな追加ボタン(プラスアイコンのみ)。押すと入力欄を開閉する
+	const addButton = (
+		<Button
+			type="button"
+			variant="ghost"
+			size="icon"
+			className="-my-1 size-6 text-muted-foreground hover:text-foreground"
+			aria-label="参考リンクを追加"
+			aria-expanded={addOpen}
+			onClick={() => setAddOpen((o) => !o)}
+		>
+			<PlusIcon className="size-4" />
+		</Button>
+	);
+
 	return (
-		<SectionShell>
+		<SectionShell headerAction={addButton}>
 			<div className="flex flex-col gap-2">
 				{isError ? (
 					<p className="text-sm text-destructive">
@@ -167,17 +190,22 @@ function AuthedReferenceLinks({ aopId }: { aopId: string }) {
 					</ul>
 				)}
 
-				<AddLinkForm
-					key={addFormKey}
-					pending={createMutation.isPending}
-					error={createMutation.error?.message}
-					onSubmit={({ url, title }) =>
-						createMutation.mutate({
-							url,
-							title: title === "" ? undefined : title,
-						})
-					}
-				/>
+				{addOpen && (
+					<LinkEditor
+						initialUrl=""
+						initialTitle=""
+						submitLabel="追加"
+						pending={createMutation.isPending}
+						error={createMutation.error?.message}
+						onCancel={() => setAddOpen(false)}
+						onSubmit={({ url, title }) =>
+							createMutation.mutate({
+								url,
+								title: title === "" ? undefined : title,
+							})
+						}
+					/>
+				)}
 			</div>
 		</SectionShell>
 	);
@@ -304,45 +332,5 @@ function LinkEditor({
 				)}
 			</div>
 		</form>
-	);
-}
-
-// 追加フォーム。初期は「追加」ボタンのみ、押すと入力欄を開く。
-function AddLinkForm({
-	pending,
-	error,
-	onSubmit,
-}: {
-	pending: boolean;
-	error?: string;
-	onSubmit: (v: { url: string; title: string }) => void;
-}) {
-	const [open, setOpen] = useState(false);
-
-	if (!open) {
-		return (
-			<Button
-				type="button"
-				variant="outline"
-				size="sm"
-				className="self-start"
-				onClick={() => setOpen(true)}
-			>
-				<PlusIcon className="size-4" aria-hidden />
-				参考リンクを追加
-			</Button>
-		);
-	}
-
-	return (
-		<LinkEditor
-			initialUrl=""
-			initialTitle=""
-			submitLabel="追加"
-			pending={pending}
-			error={error}
-			onSubmit={onSubmit}
-			onCancel={() => setOpen(false)}
-		/>
 	);
 }
