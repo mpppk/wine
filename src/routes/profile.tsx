@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
@@ -10,8 +11,13 @@ import {
 	BILLING_STATUS_QUERY_KEY,
 	useBillingStatus,
 } from "#/lib/billing/use-billing";
+import {
+	CREDIT_BALANCE_QUERY_KEY,
+	useCreditBalance,
+} from "#/lib/credit/use-credit";
 import { getSession } from "#/server/auth";
 import { redeemExtensionCode } from "#/server/billing";
+import { consumeCreditsDummy } from "#/server/credit";
 
 interface ProfileSearch {
 	/** Stripe Checkout 成功時の戻りで付与される */
@@ -185,7 +191,96 @@ function ProfilePage() {
 			</Card>
 
 			<PlanCard />
+			<CreditCard />
 		</main>
+	);
+}
+
+/**
+ * AIクレジットの残高表示と、ダミー消費で予約→確定→残高不足ブロックを検証するカード。
+ * Workers AI 導入前(PR1)の動作確認用。実際のAI推論は行わない。
+ */
+function CreditCard() {
+	const queryClient = useQueryClient();
+	const { data, isPending, isError } = useCreditBalance();
+	const [dialogOpen, setDialogOpen] = useState(false);
+	const [message, setMessage] = useState("");
+	const [error, setError] = useState("");
+
+	const { mutate: consume, isPending: consuming } = useMutation({
+		mutationFn: () => consumeCreditsDummy({ data: { estimateTokens: 2000 } }),
+		onSuccess: (result) => {
+			void queryClient.invalidateQueries({
+				queryKey: CREDIT_BALANCE_QUERY_KEY,
+			});
+			if (result.blocked) {
+				setMessage("");
+				setDialogOpen(true);
+				return;
+			}
+			setError("");
+			setMessage(
+				`ダミー消費が成功しました(予約 ${result.reservedCredits} / 実測 ${result.actualTokens} トークン)。残高: ${result.balance}`,
+			);
+		},
+		onError: (err: Error) => {
+			setMessage("");
+			setError(err.message || "消費に失敗しました。");
+		},
+	});
+
+	const balanceLabel =
+		isPending || isError || !data?.authenticated || data.balance === null
+			? null
+			: data.balance.toLocaleString("ja-JP");
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle>AIクレジット</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				{isPending ? (
+					<p className="text-sm text-muted-foreground">読み込み中...</p>
+				) : isError ? (
+					<p className="text-sm text-destructive">
+						クレジット残高を取得できませんでした。再読み込みしてください。
+					</p>
+				) : (
+					<div className="flex items-center gap-2">
+						<span className="text-sm text-muted-foreground">今月の残高:</span>
+						<span className="font-medium tabular-nums">
+							{balanceLabel ?? "—"}
+						</span>
+					</div>
+				)}
+
+				<Button
+					type="button"
+					variant="outline"
+					className="self-start"
+					disabled={consuming || balanceLabel === null}
+					onClick={() => consume()}
+				>
+					{consuming ? "消費中..." : "クレジットを消費(ダミー)"}
+				</Button>
+
+				<p className="text-xs text-muted-foreground">
+					AI機能導入前の動作確認用ボタンです。実際のAI推論は行いません。
+				</p>
+
+				{message && (
+					<p className="text-sm text-green-600 dark:text-green-400">
+						{message}
+					</p>
+				)}
+				{error && <p className="text-sm text-destructive">{error}</p>}
+			</CardContent>
+			<InsufficientCreditsDialog
+				open={dialogOpen}
+				onOpenChange={setDialogOpen}
+			/>
+		</Card>
 	);
 }
 
