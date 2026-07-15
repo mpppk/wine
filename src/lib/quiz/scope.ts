@@ -4,16 +4,17 @@ import { listCandidates } from "./generators";
 import { parseKey } from "./keys";
 import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
 
-// 地図の「選択中AOPに関連するクイズ」の出題スコープ。villageAopIds エッジの
-// 近傍で統一する: 自身 + 親の村名AOC + 配下の畑/ワイナリー。
-// 地方AOPは子があれば含み(例: Haut-Médoc配下のシャトー)、無ければ自身のみ
-// (地域全体クイズとの重複を避ける)。
+// 地図の「選択中AOPに関連するクイズ」の出題スコープ。villageAopIds エッジを
+// 子方向にのみ辿る: 自身 + 配下の畑/ワイナリー。
+// 畑/ワイナリーは親の村名AOCを含めない(複数の畑が村クイズを共有するのを避け、
+// 畑ごとに固有のクイズだけを出題する)。村/地方AOPは配下があれば含み
+// (例: Haut-Médoc配下のシャトー)、無ければ自身のみ(地域全体クイズとの重複を避ける)。
 
 /** 選択AOPを階層近傍のAOP集合へ展開する。不明なslugなら null */
 export function expandScopeAopIds(scopeAopId: string): Set<string> | null {
 	const aop = getAop(scopeAopId);
 	if (!aop) return null;
-	const ids = new Set<string>([aop.id, ...(aop.villageAopIds ?? [])]);
+	const ids = new Set<string>([aop.id]);
 	for (const other of listAops({ regionId: aop.region })) {
 		if (other.villageAopIds?.includes(aop.id)) ids.add(other.id);
 	}

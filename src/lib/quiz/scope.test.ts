@@ -33,11 +33,10 @@ describe("expandScopeAopIds", () => {
 		expect(ids).not.toContain("morey-saint-denis");
 	});
 
-	it("畑: 自身と親の村名AOC(複数村にまたがる場合は両方)を含む", () => {
-		const ids = expandScopeAopIds("montrachet");
-		expect(ids).toEqual(
-			new Set(["montrachet", "puligny-montrachet", "chassagne-montrachet"]),
-		);
+	it("畑: 自身のみで親の村名AOCは含まない(複数村にまたがる場合も同様)", () => {
+		// 親方向(畑→村)は辿らない。複数の畑が村クイズを共有するのを避けるため。
+		expect(expandScopeAopIds("montrachet")).toEqual(new Set(["montrachet"]));
+		expect(expandScopeAopIds("chambertin")).toEqual(new Set(["chambertin"]));
 	});
 
 	it("地方AOP: 配下のシャトーがあれば含む", () => {
