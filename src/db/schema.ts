@@ -203,3 +203,38 @@ export const creditBalance = sqliteTable("credit_balance", {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
 });
+
+/**
+ * ユーザが村・畑・地方・シャトー(AOP)ごとに貼り付ける参考リンク(非公開)。
+ * 例: シャンパーニュ「アンボネイ」を見ながら、webで見つけた解説記事のURLを保存する。
+ * AOPは静的マスタ(src/lib/wine/)への文字列参照でFKは張れないため、aopIdの存在検証は
+ * サービス層(reference-link-service)で getAop() により行う。1つのAOPに複数リンク可
+ * (unique制約なし)。title はユーザ入力、未入力ならリンク先ページから自動取得した値
+ * (取得失敗時は null で、表示側が URL/ホスト名で代替する)。
+ */
+export const aopReferenceLink = sqliteTable(
+	"aop_reference_link",
+	{
+		/** crypto.randomUUID() */
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 静的AOPマスタの Aop.id(スラッグ) */
+		aopId: text("aop_id").notNull(),
+		url: text("url").notNull(),
+		/** 表示名。null なら表示側が URL/ホスト名で代替する */
+		title: text("title"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	// 「このAOPの自分のリンク一覧」を引くための複合index
+	(table) => [
+		index("aop_reference_link_user_aop_idx").on(table.userId, table.aopId),
+	],
+);
