@@ -2,6 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { SquareChevronRightIcon } from "lucide-react";
 import BetterAuthHeader from "../integrations/better-auth/header-user.tsx";
 import { useCommandPalette } from "./CommandPaletteContext";
+import { CreditBalanceIndicator } from "./credit/CreditBalanceIndicator";
 import { Button } from "./ui/button";
 
 export default function Header() {
@@ -35,6 +36,7 @@ export default function Header() {
 					>
 						<SquareChevronRightIcon className="size-4" aria-hidden />
 					</Button>
+					<CreditBalanceIndicator />
 					<BetterAuthHeader />
 				</div>
 			</nav>

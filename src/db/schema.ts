@@ -148,3 +148,58 @@ export const couponRedemption = sqliteTable(
 		unique("coupon_redemption_user_code_uq").on(table.userId, table.code),
 	],
 );
+
+/**
+ * AIクレジットの増減を記録する追記専用台帳。付与(grant)/消費(consume)/返却(refund)を
+ * すべて1行として残し、履歴・監査・二重計上防止を一枚岩で解く。残高そのものは
+ * credit_balance にキャッシュし、この台帳とは db.batch で整合させて更新する。
+ * amount は符号付きの「表示クレジット」(付与+ / 消費- / 返却+)、tokenAmount は
+ * 内部精度の実測/見積トークン。requestId は冪等キーで、付与は grant:{userId}:{YYYY-MM}、
+ * 消費・返却は予約IDから導出する。unique(requestId) が再送・二重付与を弾く。
+ */
+export const creditLedger = sqliteTable(
+	"credit_ledger",
+	{
+		/** crypto.randomUUID() */
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 符号付き表示クレジット。付与+ / 消費- / 返却+ */
+		amount: integer("amount").notNull(),
+		/** "grant" | "consume" | "refund" */
+		type: text("type").notNull(),
+		/** 冪等キー。再送・二重付与を弾く */
+		requestId: text("request_id").notNull(),
+		/** 対象付与月 "YYYY-MM"(JST) */
+		periodMonth: text("period_month").notNull(),
+		/** 内部精度の実測/見積トークン(consume/refund時)。grant時はnull */
+		tokenAmount: integer("token_amount"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		unique("credit_ledger_request_id_uq").on(table.requestId),
+		index("credit_ledger_user_created_idx").on(table.userId, table.createdAt),
+	],
+);
+
+/**
+ * 現在残高のキャッシュ(台帳SUMの都度計算を避ける)。台帳追記と同一 db.batch で更新し
+ * 常に整合させる。periodMonth はこの残高が属する付与月で、月が変わると付与時に balance を
+ * その月の付与額へリセットする(繰越なし)。消費はこの balance を条件付きUPDATEで直接引く。
+ */
+export const creditBalance = sqliteTable("credit_balance", {
+	userId: text("user_id")
+		.primaryKey()
+		.references(() => user.id, { onDelete: "cascade" }),
+	/** 現在残高(表示クレジット)。負にはならない(消費は balance>=n を条件に引く) */
+	balance: integer("balance").notNull().default(0),
+	/** この残高が属する付与月 "YYYY-MM"(JST) */
+	periodMonth: text("period_month").notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});

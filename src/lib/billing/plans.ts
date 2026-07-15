@@ -17,3 +17,14 @@ export const PREMIUM_PRICING = {
 	/** 年額(円)。月額10ヶ月分 = 2ヶ月分お得。 */
 	annualAmount: 3000,
 } as const;
+
+// AIクレジットの付与・換算の定数。いずれも暫定値であり、Workers AI の原価が見えた
+// 段階で数値のみ差し替える(docs/ai-credit-system.md の「要確定の数値」)。
+// クレジットの内部計上はトークン精度で行い、ユーザ表示はここでの換算比で丸めた整数。
+
+/** 無料会員に毎月付与するクレジット数(暫定)。無料 < プレミアム。 */
+export const MONTHLY_CREDITS_FREE = 50;
+/** プレミアム会員に毎月付与するクレジット数(暫定)。 */
+export const MONTHLY_CREDITS_PREMIUM = 500;
+/** 内部トークン → 表示クレジットの換算比(暫定)。1クレジット = このトークン数。 */
+export const TOKENS_PER_CREDIT = 1000;
