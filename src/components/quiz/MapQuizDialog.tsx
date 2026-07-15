@@ -187,10 +187,9 @@ function SessionRound({
 	return (
 		<div className="flex flex-col gap-3">
 			<p className="text-sm text-muted-foreground">
-				{remaining !== null && `残り${remaining}問 ・ `}
-				{tally.answered > 0
-					? `${tally.answered}問中${tally.correct}問正解`
-					: "セッション開始"}
+				{remaining !== null && `残り${remaining}問`}
+				{tally.answered > 0 &&
+					`${remaining !== null ? " ・ " : ""}${tally.answered}問中${tally.correct}問正解`}
 			</p>
 			{current && (
 				<QuizQuestionView
