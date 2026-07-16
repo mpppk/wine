@@ -16,12 +16,27 @@ export interface ProducerInfo {
 }
 
 /**
+ * ミシュランガイドが2026年に初めて発表したブルゴーニュ格付け「MICHELIN Grapes」の
+ * 選出生産者一覧(全94生産者)を掲載した公式記事。
+ *
+ * ミシュラン側に生産者ごとの個別ページは存在せず、全生産者がこの1記事内のカードとして
+ * のみ掲載されている(2026-07 時点。個別ページ・アンカーによるディープリンクも不可)。
+ * そのため PRODUCER_INFO の各生産者(いずれも MICHELIN Grapes 選出)ダイアログでは、
+ * 掲載元としてこの共通記事へのリンクを表示する。日本語版は存在せず英語(gb/en)のみ。
+ */
+export const MICHELIN_GRAPES_ARTICLE_URL =
+	"https://guide.michelin.com/gb/en/article/wine/the-michelin-guide-s-burgundy-wine-selection";
+
+/**
  * 生産者名 → 解説・公式サイト。
  *
  * 初期データは、ミシュランガイドが2026年に初めて発表したブルゴーニュ格付け
  * 「MICHELIN Grapes」で最高評価(3グレープ)を獲得した9生産者。解説・公式サイトの
  * 有無はいずれもウェブ調査で確認済み。DRC・ルロワなど公式サイトを持たない造り手は
  * officialWebsite を省略する。
+ *
+ * この辞書のエントリはいずれも MICHELIN Grapes 選出生産者であり、ダイアログでは
+ * 共通の掲載記事(MICHELIN_GRAPES_ARTICLE_URL)へのリンクを表示する。
  */
 export const PRODUCER_INFO: Record<string, ProducerInfo> = {
 	"Domaine de la Romanée-Conti": {
