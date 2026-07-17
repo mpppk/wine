@@ -110,7 +110,7 @@ export function buildSystemPrompt(input: RegionContextInput): string {
 		"- ワインの学習に無関係な質問には丁寧に断る。",
 		"- 事実を創作しない。",
 		"",
-    	"なお、以下はユーザが現在閲覧しているページの情報です。これを踏まえた回答を行なってください",
+		"なお、以下はユーザが現在閲覧しているページの情報です。これを踏まえた回答を行なってください",
 		"# 地域情報",
 		buildRegionContext(input),
 	].join("\n");
