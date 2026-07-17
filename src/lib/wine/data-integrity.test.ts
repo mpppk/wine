@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AOPS } from "./aops-data";
-import { PRODUCER_INFO } from "./producer-info";
+import { MICHELIN_GRAPES_ARTICLE_URL, PRODUCER_INFO } from "./producer-info";
 import { REGIONS } from "./regions";
 import { POLYGONLESS_IDAPP_MIN } from "./types";
 
@@ -181,6 +181,13 @@ describe("生産者情報(PRODUCER_INFO)の整合性", () => {
 				expect(info.officialWebsite, name).toMatch(/^https?:\/\//);
 			}
 		}
+	});
+
+	it("MICHELIN Grapes 記事URLは michelin.com の有効な https URL", () => {
+		expect(() => new URL(MICHELIN_GRAPES_ARTICLE_URL)).not.toThrow();
+		const url = new URL(MICHELIN_GRAPES_ARTICLE_URL);
+		expect(url.protocol).toBe("https:");
+		expect(url.hostname).toMatch(/(^|\.)michelin\.com$/);
 	});
 });
 
