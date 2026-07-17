@@ -2,18 +2,22 @@
 // 数値だけ差し替えられるようにする。クレジット消費の見積上限は plans.ts 側に置く。
 
 /**
- * 地域Q&Aに使う Workers AI モデル。Google Gemma 4 (26B A4B, MoE) を採用。
- * env.AI.run バインディングで呼べる(wrangler 4.111 / @cloudflare/vite-plugin 1.45 世代で
- * AiModels 型に登録済み)。
+ * 地域Q&Aに使う Workers AI モデルの許可リスト。ユーザがチャットで選択できる。
+ * クライアントにはキー(gemma4 / llama4)だけを送らせ、サーバ側でキー→実モデルID＋
+ * 固有オプションに解決する(任意のモデルIDを env.AI.run へ直接渡さないための許可リスト)。
  *
- * 入出力は OpenAI Chat Completions 互換形式:
- *  - 入力: messages（従来同様）。出力上限は max_completion_tokens（max_tokens は deprecated）。
- *  - 出力: 回答は choices[0].message.content（従来テキスト生成の response ではない点に注意）。
- *    トークンは usage.total_tokens（従来と同名で流用可）。
- * ai-service 側は choices / response 両形式を吸収するため、原価/品質を見て従来型(Llama 系)へ
- * 差し替えても動く。
- * なお Gemma 4 は reasoning モデルで、既定の thinking が出力枠を食って本文が途中で切れる/
- * 空になるため、ai-service 側で chat_template_kwargs.enable_thinking=false により無効化している。
+ * いずれも env.AI.run バインディングで呼べる(wrangler 4.111 / @cloudflare/vite-plugin 1.45
+ * 世代で AiModels 型に登録済み)。
+ *
+ * 入出力形式はモデルで異なる:
+ *  - Chat Completions 互換(Gemma 4 等): 回答は choices[0].message.content。
+ *  - 従来テキスト生成(Llama 系等): 回答は response。
+ *  ai-service 側は両形式を吸収する。出力上限は max_completion_tokens、トークンは
+ *  usage.total_tokens(両形式共通)。
+ *
+ * モデル固有オプション(extraOptions)は env.AI.run へ展開して渡す。Gemma 4 は reasoning
+ * モデルで、既定の thinking が出力枠を食って本文が途中で切れる/空になるため
+ * chat_template_kwargs.enable_thinking=false で無効化する。Llama 4 はこのオプション不要。
  *
  * 補足: #100 時点では GLM-5.2 / Gemma 4 は env.AI.run で "#options" エラーになり呼べなかったが、
  * これはローンチ過渡期の Cloudflare 側バインディング不整合で、wrangler / @cloudflare/vite-plugin
@@ -21,8 +25,38 @@
  * GLM-5.2 は本世代でもまだ AiModels 未登録のためバインディング不可
  * (REST /v1/chat/completions 経由の別実装が必要)。
  * @see https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/
+ * @see https://developers.cloudflare.com/workers-ai/models/llama-4-scout-17b-16e-instruct/
  */
-export const AI_REGION_QA_MODEL = "@cf/google/gemma-4-26b-a4b-it";
+export const REGION_QA_MODEL_KEYS = ["gemma4", "llama4"] as const;
+
+/** ユーザが選択できる地域Q&Aモデルのキー。ワイヤ上の値(クライアント⇄サーバ)。 */
+export type RegionQaModelKey = (typeof REGION_QA_MODEL_KEYS)[number];
+
+export interface RegionQaModel {
+	/** UI表示名。 */
+	label: string;
+	/** Workers AI のモデルID。 */
+	id: string;
+	/** env.AI.run に追加で渡すモデル固有オプション(Gemma の thinking 無効化など)。 */
+	extraOptions?: Record<string, unknown>;
+}
+
+/** 選択可能なモデルの定義。キーはワイヤ値、値は解決先のID＋固有オプション。 */
+export const AI_REGION_QA_MODELS: Record<RegionQaModelKey, RegionQaModel> = {
+	gemma4: {
+		label: "Gemma 4",
+		id: "@cf/google/gemma-4-26b-a4b-it",
+		// 思考出力を無効化しないと reasoning が出力枠(512)を先に食い、本文が途中で切れる/空になる。
+		extraOptions: { chat_template_kwargs: { enable_thinking: false } },
+	},
+	llama4: {
+		label: "Llama 4",
+		id: "@cf/meta/llama-4-scout-17b-16e-instruct",
+	},
+};
+
+/** model 省略時の既定モデル。現行挙動(Gemma 4)を維持する。 */
+export const DEFAULT_REGION_QA_MODEL: RegionQaModelKey = "gemma4";
 
 /** 1回の回答で生成する最大トークン(env.AI.run の max_completion_tokens)。予約はこれを含めて見積る。 */
 export const AI_MAX_OUTPUT_TOKENS = 512;

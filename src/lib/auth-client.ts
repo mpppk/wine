@@ -1,7 +1,15 @@
 import { stripeClient } from "@better-auth/stripe/client";
+import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
-	// authClient.subscription.upgrade / list / cancel / restore / billingPortal
-	plugins: [stripeClient({ subscription: true })],
+	plugins: [
+		// authClient.subscription.upgrade / list / cancel / restore / billingPortal
+		stripeClient({ subscription: true }),
+		// user テーブルの独自カラム(auth.ts の additionalFields と一致させる)を
+		// session.user / updateUser に型付けする。
+		inferAdditionalFields({
+			user: { preferredAiModel: { type: "string", required: false } },
+		}),
+	],
 });

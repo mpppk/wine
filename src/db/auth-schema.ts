@@ -10,6 +10,8 @@ export const user = sqliteTable("user", {
 		.notNull(),
 	image: text("image"),
 	stripeCustomerId: text("stripe_customer_id"),
+	// 地域Q&Aチャットで使うモデルのユーザ設定(プロフィール画面で変更)。null は既定モデル。
+	preferredAiModel: text("preferred_ai_model"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
