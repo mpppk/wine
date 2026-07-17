@@ -87,16 +87,21 @@ export async function answerRegionQuestion(
 	}
 
 	try {
-		const raw = await env.AI.run(AI_REGION_QA_MODEL, {
+		// Gemma 4 等の OpenAI互換モデルは生成済み AiModelList に未収載で、出力上限は
+		// max_completion_tokens、推論は reasoning_effort で制御する。モデル切替に耐えるよう
+		// 緩い型で呼ぶ(max_tokens も併せて渡すが未対応キーは無視される)。
+		const runAi = env.AI.run as unknown as (
+			model: string,
+			inputs: Record<string, unknown>,
+		) => Promise<{ response?: string; usage?: { total_tokens?: number } }>;
+		const out = await runAi(AI_REGION_QA_MODEL, {
 			messages,
 			max_tokens: AI_MAX_OUTPUT_TOKENS,
+			max_completion_tokens: AI_MAX_OUTPUT_TOKENS,
+			// 短いQ&Aなので思考は最小限に(冗長化と出力トークン=原価の増加を抑える)
+			reasoning_effort: "low",
 		});
-		// 非ストリーミング時のテキスト生成レスポンス。usage が無いモデルもあるため任意。
-		const out = raw as {
-			response?: string;
-			usage?: { total_tokens?: number };
-		};
-		// reasoning モデルを使う場合に <think>…</think> が混じっても表示に出さない
+		// reasoning(thinking)が <think>…</think> で混じっても表示に出さない
 		const answer = stripReasoning(out.response ?? "").trim();
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
 		const actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
