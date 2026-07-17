@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildWinePhotoKey, decodePhotoBase64, MAX_PHOTO_BYTES } from "./photo";
+import {
+	buildWinePhotoKey,
+	decodePhotoBase64,
+	MAX_PHOTO_BYTES,
+	photoExtForMime,
+} from "./photo";
 
 describe("decodePhotoBase64", () => {
 	it("base64をバイト列にデコードする", () => {
@@ -46,5 +51,40 @@ describe("buildWinePhotoKey", () => {
 		expect(() => buildWinePhotoKey("u1", "e1", "text/html")).toThrow(
 			/Unsupported image type/,
 		);
+	});
+
+	it("継承プロパティ名のMIMEを拒否する(allowlistすり抜け防止)", () => {
+		expect(() => buildWinePhotoKey("u1", "e1", "constructor")).toThrow(
+			/Unsupported image type/,
+		);
+	});
+});
+
+describe("photoExtForMime", () => {
+	it("対応MIMEの拡張子を返す", () => {
+		expect(photoExtForMime("image/jpeg")).toBe("jpg");
+		expect(photoExtForMime("image/png")).toBe("png");
+		expect(photoExtForMime("image/webp")).toBe("webp");
+		expect(photoExtForMime("image/gif")).toBe("gif");
+	});
+
+	it("未対応MIMEは undefined", () => {
+		expect(photoExtForMime("image/svg+xml")).toBeUndefined();
+		expect(photoExtForMime("text/html")).toBeUndefined();
+	});
+
+	// PHOTO_EXT_MAP は plain object。継承プロパティ名を渡すと素の添字アクセスでは
+	// truthy 値(関数など)が返り allowlist をすり抜けてしまうため、undefined を返すこと。
+	it("継承プロパティ名は undefined を返す", () => {
+		for (const key of [
+			"constructor",
+			"toString",
+			"valueOf",
+			"hasOwnProperty",
+			"__proto__",
+			"isPrototypeOf",
+		]) {
+			expect(photoExtForMime(key)).toBeUndefined();
+		}
 	});
 });

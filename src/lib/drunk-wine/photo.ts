@@ -19,6 +19,18 @@ export const PHOTO_ACCEPT_ATTR = Object.keys(PHOTO_EXT_MAP).join(",");
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 /**
+ * MIMEタイプに対応する拡張子を返す。未対応は undefined。
+ * PHOTO_EXT_MAP は plain object なので、外部入力の mimeType が constructor /
+ * __proto__ / toString 等の継承プロパティに解決して truthy 値をすり抜けないよう、
+ * 自前プロパティかつ string 値であることを検証する(許可MIMEの単一情報源)。
+ */
+export function photoExtForMime(mimeType: string): string | undefined {
+	if (!Object.hasOwn(PHOTO_EXT_MAP, mimeType)) return undefined;
+	const ext = PHOTO_EXT_MAP[mimeType];
+	return typeof ext === "string" ? ext : undefined;
+}
+
+/**
  * base64文字列をバイト列にデコードする。MIME不正・base64不正・
  * デコード後5MB超は Error を投げる(MCPツールがそのままエラー文言に使う)。
  */
@@ -51,7 +63,7 @@ export function buildWinePhotoKey(
 	entryId: string,
 	mimeType: string,
 ): string {
-	const ext = PHOTO_EXT_MAP[mimeType];
+	const ext = photoExtForMime(mimeType);
 	if (!ext) throw new Error(`Unsupported image type: ${mimeType}`);
 	return `wines/${userId}/${entryId}.${ext}`;
 }
