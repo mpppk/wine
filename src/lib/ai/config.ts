@@ -12,6 +12,8 @@
  *    トークンは usage.total_tokens（従来と同名で流用可）。
  * ai-service 側は choices / response 両形式を吸収するため、原価/品質を見て従来型(Llama 系)へ
  * 差し替えても動く。
+ * なお Gemma 4 は reasoning モデルで、既定の thinking が出力枠を食って本文が途中で切れる/
+ * 空になるため、ai-service 側で chat_template_kwargs.enable_thinking=false により無効化している。
  *
  * 補足: #100 時点では GLM-5.2 / Gemma 4 は env.AI.run で "#options" エラーになり呼べなかったが、
  * これはローンチ過渡期の Cloudflare 側バインディング不整合。新しい wrangler 世代の生成型では

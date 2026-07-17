@@ -90,6 +90,11 @@ export async function answerRegionQuestion(
 		const raw = await env.AI.run(AI_REGION_QA_MODEL, {
 			messages,
 			max_completion_tokens: AI_MAX_OUTPUT_TOKENS,
+			// Gemma 4 は既定で thinking が有効。放置すると reasoning が出力枠(512)を先に
+			// 使い切り、本文(content)が途中で切れる/空になる。地域Q&Aは簡潔な回答が目的で
+			// 思考は不要なため無効化する(実測: 有効時 completion 512 で途中切れ →
+			// 無効時 completion 65 で完結)。
+			chat_template_kwargs: { enable_thinking: false },
 		});
 		// レスポンス形式はモデルで異なるため両対応する:
 		//  - Chat Completions 互換(Gemma 4 等): choices[0].message.content
@@ -101,7 +106,7 @@ export async function answerRegionQuestion(
 			usage?: { total_tokens?: number };
 		};
 		const rawText = out.choices?.[0]?.message?.content ?? out.response ?? "";
-		// reasoning モデルを使う場合に <think>…</think> が混じっても表示に出さない
+		// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
 		const answer = stripReasoning(rawText).trim();
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
 		const actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
