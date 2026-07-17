@@ -33,17 +33,21 @@ export const Route = createFileRoute("/quiz/")({
 function QuizSetupPage() {
 	const { regions, countsByRegion } = Route.useLoaderData();
 	const { isAuthenticated } = Route.useRouteContext();
-	const [regionId, setRegionId] = useState<RegionId>(regions[0].id as RegionId);
+	const [regionId, setRegionId] = useState<RegionId>(
+		regions[0]?.id as RegionId,
+	);
 	const counts = countsByRegion[regionId];
 	// 地域を切り替えたら、その地域で成立する形式を全選択に戻す
 	const [selectedTypes, setSelectedTypes] = useState<QuizType[]>(() =>
-		QUIZ_TYPES.filter((t) => counts[t.id] > 0).map((t) => t.id),
+		QUIZ_TYPES.filter((t) => (counts?.[t.id] ?? 0) > 0).map((t) => t.id),
 	);
 
 	const selectRegion = (id: RegionId) => {
 		setRegionId(id);
 		setSelectedTypes(
-			QUIZ_TYPES.filter((t) => countsByRegion[id][t.id] > 0).map((t) => t.id),
+			QUIZ_TYPES.filter((t) => (countsByRegion[id]?.[t.id] ?? 0) > 0).map(
+				(t) => t.id,
+			),
 		);
 	};
 
@@ -53,7 +57,10 @@ function QuizSetupPage() {
 		);
 	};
 
-	const totalCount = selectedTypes.reduce((sum, t) => sum + counts[t], 0);
+	const totalCount = selectedTypes.reduce(
+		(sum, t) => sum + (counts?.[t] ?? 0),
+		0,
+	);
 
 	return (
 		<main className="mx-auto max-w-2xl px-4 py-8">
@@ -102,7 +109,7 @@ function QuizSetupPage() {
 			<Card className="mt-2 py-2">
 				<CardContent className="px-2">
 					{QUIZ_TYPES.map((type) => {
-						const count = counts[type.id];
+						const count = counts?.[type.id] ?? 0;
 						const disabled = count === 0;
 						return (
 							<label

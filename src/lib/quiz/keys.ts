@@ -95,32 +95,45 @@ export function parseKey(key: string): ParsedQuestionKey | null {
 	const [head, ...rest] = segments;
 	switch (head as QuizType) {
 		case "colors": {
-			if (rest.length !== 1) return null;
-			return { quizType: "colors", aopId: rest[0] };
+			const [aopId] = rest;
+			if (rest.length !== 1 || aopId === undefined) return null;
+			return { quizType: "colors", aopId };
 		}
 		case "aop-variety": {
-			if (rest.length !== 1) return null;
-			return { quizType: "aop-variety", aopId: rest[0] };
+			const [aopId] = rest;
+			if (rest.length !== 1 || aopId === undefined) return null;
+			return { quizType: "aop-variety", aopId };
 		}
 		case "aop-subregion": {
-			if (rest.length !== 1) return null;
-			return { quizType: "aop-subregion", aopId: rest[0] };
+			const [aopId] = rest;
+			if (rest.length !== 1 || aopId === undefined) return null;
+			return { quizType: "aop-subregion", aopId };
 		}
 		case "aop-classification": {
-			if (rest.length !== 1) return null;
-			return { quizType: "aop-classification", aopId: rest[0] };
+			const [aopId] = rest;
+			if (rest.length !== 1 || aopId === undefined) return null;
+			return { quizType: "aop-classification", aopId };
 		}
 		case "grand-cru-select": {
-			if (rest.length !== 1) return null;
-			return { quizType: "grand-cru-select", aopId: rest[0] };
+			const [aopId] = rest;
+			if (rest.length !== 1 || aopId === undefined) return null;
+			return { quizType: "grand-cru-select", aopId };
 		}
 		case "grand-cru-odd": {
-			if (rest.length !== 1) return null;
-			return { quizType: "grand-cru-odd", aopId: rest[0] };
+			const [aopId] = rest;
+			if (rest.length !== 1 || aopId === undefined) return null;
+			return { quizType: "grand-cru-odd", aopId };
 		}
 		case "odd-one-out": {
-			if (rest.length !== 3) return null;
 			const [axis, axisValue, aopId] = rest;
+			if (
+				rest.length !== 3 ||
+				axis === undefined ||
+				axisValue === undefined ||
+				aopId === undefined
+			) {
+				return null;
+			}
 			if (!ODD_ONE_OUT_AXES.includes(axis as OddOneOutAxis)) return null;
 			return {
 				quizType: "odd-one-out",
@@ -130,12 +143,22 @@ export function parseKey(key: string): ParsedQuestionKey | null {
 			};
 		}
 		case "variety": {
-			if (rest.length !== 2) return null;
-			return { quizType: "variety", varietyId: rest[0], aopId: rest[1] };
+			const [varietyId, aopId] = rest;
+			if (rest.length !== 2 || varietyId === undefined || aopId === undefined) {
+				return null;
+			}
+			return { quizType: "variety", varietyId, aopId };
 		}
 		case "location": {
-			if (rest.length !== 3) return null;
 			const [direction, subregionId, aopId] = rest;
+			if (
+				rest.length !== 3 ||
+				direction === undefined ||
+				subregionId === undefined ||
+				aopId === undefined
+			) {
+				return null;
+			}
 			if (!LOCATION_DIRECTIONS.includes(direction as LocationDirection)) {
 				return null;
 			}

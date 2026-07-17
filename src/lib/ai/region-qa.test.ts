@@ -82,8 +82,8 @@ describe("buildRegionChatMessages", () => {
 			history,
 			question: "土壌は?",
 		});
-		expect(messages[0].role).toBe("system");
-		expect(messages[0].content).toContain("地域情報");
+		expect(messages[0]?.role).toBe("system");
+		expect(messages[0]?.content).toContain("地域情報");
 		expect(messages[messages.length - 1]).toEqual({
 			role: "user",
 			content: "土壌は?",

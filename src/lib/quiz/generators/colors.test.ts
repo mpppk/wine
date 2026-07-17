@@ -18,7 +18,7 @@ describe("生産可能色クイズ", () => {
 		for (const regionId of REGION_IDS) {
 			for (const key of enumerateColorsKeys(regionId)) {
 				const q = materializeColorsQuestion(
-					{ quizType: "colors", aopId: key.split(":")[1] },
+					{ quizType: "colors", aopId: key.split(":")[1] ?? "" },
 					rng,
 				);
 				expect(q, key).not.toBeNull();

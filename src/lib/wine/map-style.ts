@@ -93,8 +93,10 @@ function buildProgressStepExpr(
 ): ExpressionSpecification {
 	// step: [input, output0(<stop1), stop1, output1, stop2, output2, ...]
 	const args: (number | string)[] = [empty];
-	for (let i = 0; i < PROGRESS_BUCKETS.length; i++) {
-		args.push(PROGRESS_STOPS[i], pick(PROGRESS_BUCKETS[i]));
+	for (const [i, bucket] of PROGRESS_BUCKETS.entries()) {
+		const stop = PROGRESS_STOPS[i];
+		if (stop === undefined) continue;
+		args.push(stop, pick(bucket));
 	}
 	return [
 		"step",

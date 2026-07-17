@@ -2,7 +2,6 @@ import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "#/lib/auth";
 import {
-	ALLOWED_PHOTO_TYPES as ALLOWED_TYPES,
 	PHOTO_EXT_MAP as EXT_MAP,
 	MAX_PHOTO_BYTES as MAX_BYTES,
 } from "#/lib/drunk-wine/photo";
@@ -39,7 +38,10 @@ export const Route = createFileRoute("/api/upload")({
 					);
 				}
 
-				if (!ALLOWED_TYPES.has(file.type)) {
+				// EXT_MAP を許可MIMEの単一情報源にする。ext が引けなければ未対応の型
+				// (別途 ALLOWED_TYPES を突き合わせる二重管理をやめ、型でも安全にする)。
+				const ext = EXT_MAP[file.type];
+				if (!ext) {
 					return new Response(
 						JSON.stringify({ error: "Unsupported image type" }),
 						{ status: 400, headers: { "Content-Type": "application/json" } },
@@ -52,7 +54,6 @@ export const Route = createFileRoute("/api/upload")({
 					);
 				}
 
-				const ext = EXT_MAP[file.type];
 				const r2Key = `avatars/${session.user.id}.${ext}`;
 				const buffer = await file.arrayBuffer();
 				await env.AVATARS.put(r2Key, buffer, {

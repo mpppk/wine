@@ -42,7 +42,10 @@ export function colorComboId(colors: readonly WineColor[]): string {
 /** 色コンボの表示(例: "赤・白"、単色は "赤のみ") */
 export function formatColorsJa(colors: readonly WineColor[]): string {
 	const sorted = sortColors(colors);
-	if (sorted.length === 1) return `${COLOR_LABELS_JA[sorted[0]]}のみ`;
+	const only = sorted[0];
+	if (sorted.length === 1 && only !== undefined) {
+		return `${COLOR_LABELS_JA[only]}のみ`;
+	}
 	return sorted.map((c) => COLOR_LABELS_JA[c]).join("・");
 }
 
