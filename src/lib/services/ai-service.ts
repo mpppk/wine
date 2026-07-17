@@ -89,15 +89,20 @@ export async function answerRegionQuestion(
 	try {
 		const raw = await env.AI.run(AI_REGION_QA_MODEL, {
 			messages,
-			max_tokens: AI_MAX_OUTPUT_TOKENS,
+			max_completion_tokens: AI_MAX_OUTPUT_TOKENS,
 		});
-		// 非ストリーミング時のテキスト生成レスポンス。usage が無いモデルもあるため任意。
+		// レスポンス形式はモデルで異なるため両対応する:
+		//  - Chat Completions 互換(Gemma 4 等): choices[0].message.content
+		//  - 従来テキスト生成(Llama 系等): response
+		// usage は両形式とも usage.total_tokens（無いモデルもあるため任意）。
 		const out = raw as {
 			response?: string;
+			choices?: Array<{ message?: { content?: string | null } }>;
 			usage?: { total_tokens?: number };
 		};
+		const rawText = out.choices?.[0]?.message?.content ?? out.response ?? "";
 		// reasoning モデルを使う場合に <think>…</think> が混じっても表示に出さない
-		const answer = stripReasoning(out.response ?? "").trim();
+		const answer = stripReasoning(rawText).trim();
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
 		const actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
 		await creditService.settleReservation(
