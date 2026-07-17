@@ -105,13 +105,14 @@ export function registerReadTools(server: McpServer, userId: string) {
 			// AIクレジットを消費するため副作用あり(読み取り専用ではない)
 			annotations: { readOnlyHint: false, destructiveHint: false },
 		},
-		async ({ region_id, aop_id, question, history }) => {
+		async ({ region_id, aop_id, question, history, model }) => {
 			try {
 				const result = await aiService.answerRegionQuestion(userId, {
 					regionId: region_id,
 					aopId: aop_id,
 					question,
 					history,
+					model,
 				});
 				if (result.blocked) {
 					return err(

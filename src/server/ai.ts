@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { AI_MAX_QUESTION_CHARS } from "#/lib/ai/config";
+import { AI_MAX_QUESTION_CHARS, REGION_QA_MODEL_KEYS } from "#/lib/ai/config";
 import * as aiService from "#/lib/services/ai-service";
 import { authMiddleware } from "./middleware";
 
@@ -22,6 +22,7 @@ export const askRegion = createServerFn({ method: "POST" })
 				)
 				.max(20)
 				.optional(),
+			model: z.enum(REGION_QA_MODEL_KEYS).optional(),
 		}),
 	)
 	.handler(({ data, context }) =>

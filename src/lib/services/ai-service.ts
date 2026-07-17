@@ -1,5 +1,10 @@
 import { env } from "cloudflare:workers";
-import { AI_MAX_OUTPUT_TOKENS, AI_REGION_QA_MODEL } from "#/lib/ai/config";
+import {
+	AI_MAX_OUTPUT_TOKENS,
+	AI_REGION_QA_MODELS,
+	DEFAULT_REGION_QA_MODEL,
+	type RegionQaModelKey,
+} from "#/lib/ai/config";
 import {
 	buildRegionChatMessages,
 	type ChatMessage,
@@ -20,6 +25,8 @@ export interface AskRegionInput {
 	question: string;
 	/** クライアント保持の会話履歴(直近から。上限は region-qa 側でクランプ)。 */
 	history?: ChatMessage[];
+	/** 回答に使うモデル(許可リストのキー)。省略時は既定モデル。 */
+	model?: RegionQaModelKey;
 }
 
 export type AskRegionResult =
@@ -86,15 +93,17 @@ export async function answerRegionQuestion(
 		return { blocked: true, balance: res.balance, required: res.required };
 	}
 
+	// 許可リストのキー→実モデルID＋固有オプションに解決(既定は Gemma 4)。
+	const model = AI_REGION_QA_MODELS[input.model ?? DEFAULT_REGION_QA_MODEL];
+
 	try {
-		const raw = await env.AI.run(AI_REGION_QA_MODEL, {
+		const raw = await env.AI.run(model.id, {
 			messages,
 			max_completion_tokens: AI_MAX_OUTPUT_TOKENS,
-			// Gemma 4 は既定で thinking が有効。放置すると reasoning が出力枠(512)を先に
-			// 使い切り、本文(content)が途中で切れる/空になる。地域Q&Aは簡潔な回答が目的で
-			// 思考は不要なため無効化する(実測: 有効時 completion 512 で途中切れ →
-			// 無効時 completion 65 で完結)。
-			chat_template_kwargs: { enable_thinking: false },
+			// モデル固有オプションを展開。Gemma 4 は既定で thinking が有効で、放置すると
+			// reasoning が出力枠(512)を先に使い切り本文(content)が途中で切れる/空になるため
+			// extraOptions で enable_thinking=false を渡す(Llama 4 はこのオプション不要)。
+			...model.extraOptions,
 		});
 		// レスポンス形式はモデルで異なるため両対応する:
 		//  - Chat Completions 互換(Gemma 4 等): choices[0].message.content

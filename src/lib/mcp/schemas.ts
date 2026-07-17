@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AI_MAX_QUESTION_CHARS } from "#/lib/ai/config";
+import { AI_MAX_QUESTION_CHARS, REGION_QA_MODEL_KEYS } from "#/lib/ai/config";
 import { drunkWineFields } from "#/lib/drunk-wine/schema";
 import { AOP_TAG_IDS } from "#/lib/wine/tags";
 
@@ -71,6 +71,10 @@ export const askRegionInput = {
 		.max(20)
 		.optional()
 		.describe("会話を継続する場合の直前までの履歴(古い順)。省略時は単発質問"),
+	model: z
+		.enum(REGION_QA_MODEL_KEYS)
+		.optional()
+		.describe("回答に使うモデル。gemma4(既定) か llama4。省略時は gemma4"),
 };
 
 export const showAopMapInput = {
