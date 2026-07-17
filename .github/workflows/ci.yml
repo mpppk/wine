@@ -31,3 +31,9 @@ jobs:
 
       - name: Test
         run: bun run test
+
+      # 手書き連番SQLがゼロから適用可能かを検証する。ローカルの miniflare SQLite に
+      # 全マイグレーションを適用し、構文エラー・連番の衝突・migrate 忘れを検出する
+      # (リモート認証情報は不要)。
+      - name: Verify D1 migrations (local)
+        run: bun run db:migrate:local
