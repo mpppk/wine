@@ -135,6 +135,19 @@ export function buildRegionChatMessages(args: {
 	];
 }
 
+/**
+ * reasoning(thinking)モデルが回答に混ぜる <think>…</think> を除去する。
+ * 閉じタグ有りは丸ごと、閉じタグ無し(トークン上限での途中切れ)は <think> 以降を落とす。
+ * 全部が思考だった場合は空になるので、その時は元テキストを返して無回答を避ける。
+ */
+export function stripReasoning(text: string): string {
+	let out = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+	const open = out.search(/<think>/i);
+	if (open !== -1) out = out.slice(0, open);
+	const trimmed = out.trim();
+	return trimmed.length > 0 ? trimmed : text.trim();
+}
+
 /** テキストの粗いトークン見積(日本語混在を保守的に)。 */
 export function estimatePromptTokens(text: string): number {
 	return Math.ceil(text.length / CHARS_PER_TOKEN_ESTIMATE);

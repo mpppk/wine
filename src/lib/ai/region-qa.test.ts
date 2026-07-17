@@ -8,6 +8,7 @@ import {
 	clampHistory,
 	estimateReserveTokens,
 	type RegionContextInput,
+	stripReasoning,
 } from "./region-qa";
 
 const baseContext: RegionContextInput = {
@@ -88,6 +89,28 @@ describe("buildRegionChatMessages", () => {
 			content: "土壌は?",
 		});
 		expect(messages).toHaveLength(1 + history.length + 1);
+	});
+});
+
+describe("stripReasoning", () => {
+	it("閉じタグ有りの think ブロックを除去", () => {
+		expect(stripReasoning("<think>考え中...</think>ピノ・ノワールです。")).toBe(
+			"ピノ・ノワールです。",
+		);
+	});
+
+	it("閉じタグ無し(途中切れ)は think 以降を落とす", () => {
+		expect(stripReasoning("答え。<think>まだ考えている")).toBe("答え。");
+	});
+
+	it("think が無ければそのまま", () => {
+		expect(stripReasoning("シャルドネです。")).toBe("シャルドネです。");
+	});
+
+	it("全部が思考なら元テキストを返す(無回答を避ける)", () => {
+		expect(stripReasoning("<think>ぐるぐる</think>")).toBe(
+			"<think>ぐるぐる</think>",
+		);
 	});
 });
 
