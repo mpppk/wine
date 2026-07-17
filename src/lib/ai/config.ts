@@ -3,7 +3,8 @@
 
 /**
  * 地域Q&Aに使う Workers AI モデル。Google Gemma 4 (26B A4B, MoE) を採用。
- * env.AI.run バインディングで呼べる(wrangler 4.111 世代で AiModels 型に登録済み)。
+ * env.AI.run バインディングで呼べる(Cloudflare 側で提供済み)。型は最小の宣言マージで補う
+ * (src/types/workers-ai-augment.d.ts 参照)。
  *
  * 入出力は OpenAI Chat Completions 互換形式:
  *  - 入力: messages（従来同様）。出力上限は max_completion_tokens（max_tokens は deprecated）。
@@ -13,9 +14,10 @@
  * 差し替えても動く。
  *
  * 補足: #100 時点では GLM-5.2 / Gemma 4 は env.AI.run で "#options" エラーになり呼べなかったが、
- * これはローンチ過渡期の Cloudflare 側バインディング不整合で、wrangler 更新後の再生成型では
- * Gemma 4 が AiModels に載り解消した。GLM-5.2 は本 wrangler 世代でもまだ AiModels 未登録のため
- * バインディングでは選べない(REST /v1/chat/completions 経由の別実装が必要)。
+ * これはローンチ過渡期の Cloudflare 側バインディング不整合。新しい wrangler 世代の生成型では
+ * Gemma 4 が AiModels に載っており解消を確認済み(ただし当該 wrangler は legacy_env 非対応で
+ * デプロイが壊れるため本体は上げず、宣言マージで型解決のみ補っている)。GLM-5.2 は当該世代でも
+ * まだ AiModels 未登録のためバインディング不可(REST /v1/chat/completions 経由の別実装が必要)。
  * @see https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/
  */
 export const AI_REGION_QA_MODEL = "@cf/google/gemma-4-26b-a4b-it";
