@@ -74,7 +74,9 @@ export const askRegionInput = {
 	model: z
 		.enum(REGION_QA_MODEL_KEYS)
 		.optional()
-		.describe("回答に使うモデル。gemma4(既定) か llama4。省略時は gemma4"),
+		.describe(
+			"回答に使うモデルの明示指定 (gemma4 か llama4)。省略時はユーザのプロフィール設定を使う",
+		),
 };
 
 export const showAopMapInput = {

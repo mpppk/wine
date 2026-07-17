@@ -12,6 +12,7 @@ export async function getCurrentUser(userId: string) {
 			name: authSchema.user.name,
 			email: authSchema.user.email,
 			image: authSchema.user.image,
+			preferredAiModel: authSchema.user.preferredAiModel,
 		})
 		.from(authSchema.user)
 		.where(eq(authSchema.user.id, userId));

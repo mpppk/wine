@@ -11,19 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/ui/select";
 import { Textarea } from "#/components/ui/textarea";
-import {
-	AI_REGION_QA_MODELS,
-	DEFAULT_REGION_QA_MODEL,
-	type RegionQaModelKey,
-} from "#/lib/ai/config";
 import type { ChatMessage } from "#/lib/ai/region-qa";
 import {
 	CREDIT_BALANCE_QUERY_KEY,
@@ -56,8 +44,6 @@ export function RegionChatDialog({
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 	const [input, setInput] = useState("");
-	// 回答に使うモデル。切替時も会話履歴は引き継ぐ(サーバはステートレス)。
-	const [model, setModel] = useState<RegionQaModelKey>(DEFAULT_REGION_QA_MODEL);
 	const [error, setError] = useState("");
 	const [showInsufficient, setShowInsufficient] = useState(false);
 
@@ -69,7 +55,6 @@ export function RegionChatDialog({
 					aopId,
 					question: vars.question,
 					history: vars.history,
-					model,
 				},
 			}),
 		onSuccess: (result, vars) => {
@@ -172,26 +157,6 @@ export function RegionChatDialog({
 									今月のAIクレジットを使い切りました。翌月に付与されます。
 								</p>
 							)}
-
-							<div className="flex items-center gap-2">
-								<span className="text-xs text-muted-foreground">モデル</span>
-								<Select
-									value={model}
-									onValueChange={(v) => setModel(v as RegionQaModelKey)}
-									disabled={isPending || !!pendingQuestion}
-								>
-									<SelectTrigger size="sm" className="w-36">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{Object.entries(AI_REGION_QA_MODELS).map(([key, m]) => (
-											<SelectItem key={key} value={key}>
-												{m.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
 
 							<div className="flex items-end gap-2">
 								<Textarea

@@ -31,6 +31,16 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 	},
+	// user テーブルの独自カラム。better-auth に宣言することで getSession /
+	// updateUser / useSession が本フィールドを読み書きできる(物理カラムは
+	// drizzle/0012_user_preferred_ai_model.sql で追加)。
+	user: {
+		additionalFields: {
+			// 地域Q&Aチャットのモデル選択(プロフィール画面で変更)。input:true で
+			// クライアントの updateUser から設定可能にする。値の妥当性はサーバ側で検証。
+			preferredAiModel: { type: "string", required: false, input: true },
+		},
+	},
 	plugins: [
 		// プレミアム会員(月額/年額)のサブスクリプション課金。
 		// webhook は better-auth ハンドラ経由で /api/auth/stripe/webhook が受ける。

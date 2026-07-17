@@ -3,6 +3,7 @@ import {
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
 	DEFAULT_REGION_QA_MODEL,
+	REGION_QA_MODEL_KEYS,
 	type RegionQaModelKey,
 } from "#/lib/ai/config";
 import {
@@ -13,7 +14,26 @@ import {
 	stripReasoning,
 } from "#/lib/ai/region-qa";
 import * as creditService from "#/lib/services/credit-service";
+import * as userService from "#/lib/services/user-service";
 import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
+
+/**
+ * このターンで使うモデルキーを解決する。明示指定(MCP 等の override)を最優先し、
+ * 無ければユーザのプロフィール設定(preferredAiModel)を使う。どちらも無効/未設定なら既定。
+ * モデル選択は原則プロフィール画面で行うため、通常の Web チャットは explicit を渡さない。
+ */
+async function resolveModelKey(
+	userId: string,
+	explicit?: RegionQaModelKey,
+): Promise<RegionQaModelKey> {
+	if (explicit) return explicit;
+	const { preferredAiModel } = await userService.getCurrentUser(userId);
+	return (REGION_QA_MODEL_KEYS as readonly string[]).includes(
+		preferredAiModel ?? "",
+	)
+		? (preferredAiModel as RegionQaModelKey)
+		: DEFAULT_REGION_QA_MODEL;
+}
 
 // 地域チャットQ&Aのサービス層。Web サーバfn と MCP ツールの両方から呼ぶ単一の入口。
 // グラウンディング材料を wine サービスから解決し、PR1 のクレジット予約→(Workers AI 実行)→
@@ -25,7 +45,10 @@ export interface AskRegionInput {
 	question: string;
 	/** クライアント保持の会話履歴(直近から。上限は region-qa 側でクランプ)。 */
 	history?: ChatMessage[];
-	/** 回答に使うモデル(許可リストのキー)。省略時は既定モデル。 */
+	/**
+	 * 回答に使うモデルの明示指定(許可リストのキー)。省略時はユーザのプロフィール設定
+	 * (preferredAiModel)を使う。Web チャットは通常省略し、MCP 等の override 用途で渡す。
+	 */
 	model?: RegionQaModelKey;
 }
 
@@ -93,8 +116,8 @@ export async function answerRegionQuestion(
 		return { blocked: true, balance: res.balance, required: res.required };
 	}
 
-	// 許可リストのキー→実モデルID＋固有オプションに解決(既定は Gemma 4)。
-	const model = AI_REGION_QA_MODELS[input.model ?? DEFAULT_REGION_QA_MODEL];
+	// プロフィール設定(または明示指定)→ 実モデルID＋固有オプションに解決。
+	const model = AI_REGION_QA_MODELS[await resolveModelKey(userId, input.model)];
 
 	try {
 		const raw = await env.AI.run(model.id, {
