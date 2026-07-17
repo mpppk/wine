@@ -2,12 +2,13 @@
 // 数値だけ差し替えられるようにする。クレジット消費の見積上限は plans.ts 側に置く。
 
 /**
- * 地域Q&Aに使う Workers AI モデル。日本語品質重視で GLM-5.2 を採用。原価/品質を見て切替可。
- * GLM-5.2 は reasoning(thinking)対応・出力上限は max_completion_tokens・推論努力は
- * reasoning_effort で制御する点が Llama 系と異なる(ai-service で吸収)。
- * @see https://developers.cloudflare.com/workers-ai/models/glm-5.2/
+ * 地域Q&Aに使う Workers AI モデル。原価/品質を見て切替可。
+ * 注意: GLM-5.2 等の OpenAI互換系(agentic)モデルは env.AI.run バインディング経由で
+ * "#options" エラーになり呼べない(preview エッジでも確認)。切替時は {messages, max_tokens}
+ * で呼べる従来型モデルを選ぶか、OpenAI互換エンドポイント対応を別途実装すること。
+ * @see https://developers.cloudflare.com/workers-ai/models/
  */
-export const AI_REGION_QA_MODEL = "@cf/zai-org/glm-5.2";
+export const AI_REGION_QA_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 /** 1回の回答で生成する最大トークン(env.AI.run の max_tokens)。予約はこれを含めて見積る。 */
 export const AI_MAX_OUTPUT_TOKENS = 512;
