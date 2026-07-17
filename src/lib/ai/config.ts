@@ -2,13 +2,14 @@
 // 数値だけ差し替えられるようにする。クレジット消費の見積上限は plans.ts 側に置く。
 
 /**
- * 地域Q&Aに使う Workers AI モデル。日本語品質重視で Gemma 4 を採用。原価/品質を見て切替可。
- * Gemma 4 は 2026年の新モデルで OpenAI互換IF(messages + max_completion_tokens +
- * reasoning_effort、thinking mode 内蔵)。呼び出しには新しめのエッジランタイムが必要なため
- * wrangler.jsonc の compatibility_date を 2026年に引き上げている。ai-service で緩い型で呼ぶ。
- * @see https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/
+ * 地域Q&Aに使う Workers AI モデル。原価/品質を見て切替可。
+ * 注意: GLM-5.2 / Gemma 4 等の OpenAI互換系モデルは env.AI.run バインディング経由で
+ * "#options" エラーになり呼べない(compatibility_date を 2026 に上げても preview エッジで再現)。
+ * これらを使うには /v1/chat/completions 互換エンドポイント対応の別実装が必要。切替時は
+ * {messages, max_tokens} で呼べる従来型(Llama 系等)を選ぶこと。
+ * @see https://developers.cloudflare.com/workers-ai/models/
  */
-export const AI_REGION_QA_MODEL = "@cf/google/gemma-4-26b-a4b-it";
+export const AI_REGION_QA_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 /** 1回の回答で生成する最大トークン(env.AI.run の max_tokens)。予約はこれを含めて見積る。 */
 export const AI_MAX_OUTPUT_TOKENS = 512;
