@@ -12932,5 +12932,1322 @@
 		"soil": "グレワッケ・凝灰岩からなる、アルザス唯一の本格的な火山性土壌。",
 		"producers": ["Zind-Humbrecht", "Domaine Schoffit"],
 		"description": "アルザス最南端・最急峻(勾配90%超)のグラン・クリュで、タン町のトゥール川に落ち込む火山性の断崖に広がる。スモーキーで圧倒的な凝縮感のリースリングとピノ・グリを生み、ツィント・フンブレヒトのクロ・サン・テュルバンが象徴的存在。"
+	},
+	{
+		"id": "muscadet",
+		"idApp": 97,
+		"name": "Muscadet",
+		"shortName": "Muscadet",
+		"nameJa": "ミュスカデ",
+		"region": "loire",
+		"subregionId": "pays-nantais",
+		"kind": "regional",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "melon",
+				"role": "principal"
+			}
+		],
+		"soil": "火山岩(ガブロ)・片麻岩・花崗岩など変成岩主体で、海に近い冷涼な気候。",
+		"producers": ["Domaine de la Pépière", "Domaine Luneau-Papin"],
+		"description": "ロワール河口・ペイ ナンテを代表する辛口白。ムロン(ムスカデ)種を主体に、シュール・リー(澱と共の熟成)で旨味とほのかな塩気を得るのが伝統。"
+	},
+	{
+		"id": "muscadet-sevre-et-maine",
+		"idApp": 100,
+		"name": "Muscadet Sèvre et Maine",
+		"shortName": "Muscadet Sèvre et Maine",
+		"nameJa": "ミュスカデ・セーヴル・エ・メーヌ",
+		"region": "loire",
+		"subregionId": "pays-nantais",
+		"kind": "regional",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "melon",
+				"role": "principal"
+			}
+		],
+		"soil": "セーヴル川・メーヌ川流域の片麻岩・輝緑岩・雲母片岩など多様な変成岩土壌。",
+		"producers": ["Domaine de la Pépière", "Domaine de l'Ecu"],
+		"description": "ミュスカデ生産の中心を担う最重要地区で、栽培面積の大半を占める。土壌ごとの個性を打ち出したクリュ・コミュノー(村名表記)も認められる。"
+	},
+	{
+		"id": "muscadet-coteaux-de-la-loire",
+		"idApp": 98,
+		"name": "Muscadet Coteaux de la Loire",
+		"shortName": "Muscadet Coteaux de la Loire",
+		"nameJa": "ミュスカデ・コトー・ド・ラ・ロワール",
+		"region": "loire",
+		"subregionId": "pays-nantais",
+		"kind": "regional",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "melon",
+				"role": "principal"
+			}
+		],
+		"soil": "ロワール川沿いアンスニ周辺の片岩・花崗岩。より大陸性の気候。",
+		"producers": ["Domaine Guindon"],
+		"description": "ロワール川上流側の斜面に広がるミュスカデの一地区。ナント近郊より内陸的で、力強くミネラリーな辛口白を生む。"
+	},
+	{
+		"id": "muscadet-cotes-de-grandlieu",
+		"idApp": 99,
+		"name": "Muscadet Côtes de Grandlieu",
+		"shortName": "Muscadet Côtes de Grandlieu",
+		"nameJa": "ミュスカデ・コート・ド・グランリュー",
+		"region": "loire",
+		"subregionId": "pays-nantais",
+		"kind": "regional",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "melon",
+				"role": "principal"
+			}
+		],
+		"soil": "グランリュー湖周辺の砂質・花崗岩・片麻岩。湖と大西洋の影響を受ける。",
+		"producers": ["Domaine des Herbauges"],
+		"description": "1994年認定の比較的新しい地区。グランリュー湖の西に広がり、砂質土壌由来の柔らかく親しみやすいミュスカデを産する。"
+	},
+	{
+		"id": "gros-plant-du-pays-nantais",
+		"idApp": 843,
+		"name": "Gros Plant du Pays Nantais",
+		"shortName": "Gros Plant",
+		"nameJa": "グロ・プラン・デュ・ペイ・ナンテ",
+		"region": "loire",
+		"subregionId": "pays-nantais",
+		"kind": "regional",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "folle-blanche",
+				"role": "principal"
+			}
+		],
+		"soil": "ミュスカデと重なる片麻岩・花崗岩土壌の冷涼な海岸性気候。",
+		"producers": ["Domaine de la Pépière", "Domaine Luneau-Papin"],
+		"description": "フォル・ブランシュ(現地名グロ・プラン)から造る、シャープで酸の高い辛口白。魚介との相性がよく、ナントの郷土料理に寄り添う。"
+	},
+	{
+		"id": "coteaux-d-ancenis",
+		"idApp": 840,
+		"name": "Coteaux d'Ancenis",
+		"shortName": "Coteaux d'Ancenis",
+		"nameJa": "コトー・ダンスニ",
+		"region": "loire",
+		"subregionId": "pays-nantais",
+		"kind": "regional",
+		"colors": ["red", "rose", "white"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "accessory"
+			}
+		],
+		"soil": "アンスニ周辺・ロワール両岸の片岩と砂質土壌。",
+		"producers": ["Domaine Guindon"],
+		"description": "ナント東部の小さなAOC。ガメイの赤・ロゼに加え、ピノ・グリ(現地名マルヴォワジー)の甘口〜半甘口白が名物。"
+	},
+	{
+		"id": "fiefs-vendeens",
+		"idApp": 1028,
+		"name": "Fiefs Vendéens",
+		"shortName": "Fiefs Vendéens",
+		"nameJa": "フィエフ・ヴァンデアン",
+		"region": "loire",
+		"subregionId": "pays-nantais",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "melon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grolleau",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴァンデ県の粘板岩・片岩・砂質。大西洋の強い影響を受ける。",
+		"producers": ["Domaine Saint Nicolas"],
+		"description": "大西洋岸ヴァンデ県に点在する5つの地区(ブレム、マルイユ等)からなるAOC。海風のもとで軽快な赤・ロゼ・白を生む。"
+	},
+	{
+		"id": "anjou",
+		"idApp": 76,
+		"name": "Anjou",
+		"shortName": "Anjou",
+		"nameJa": "アンジュー",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "accessory"
+			}
+		],
+		"soil": "西部の黒色片岩(アンジュー・ノワール)と東部の石灰質(アンジュー・ブラン)。",
+		"producers": ["Domaine des Baumard", "Château Pierre-Bise"],
+		"description": "アンジューの広域基本AOC。カベルネ・フランの赤、シュナン・ブランの辛口白を軸に、多彩なスタイルの土台となる呼称。"
+	},
+	{
+		"id": "anjou-villages",
+		"idApp": 79,
+		"name": "Anjou Villages",
+		"shortName": "Anjou-Villages",
+		"nameJa": "アンジュー・ヴィラージュ",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			}
+		],
+		"soil": "選抜された優良コミューンの片岩・砂質土壌。",
+		"producers": ["Château Pierre-Bise", "Domaine Ogereau"],
+		"description": "アンジューの中でも赤に特化した上位呼称。厳選された村の畑からカベルネ・フラン主体の凝縮した辛口赤を産する。"
+	},
+	{
+		"id": "rose-d-anjou",
+		"idApp": 106,
+		"name": "Rosé d'Anjou",
+		"shortName": "Rosé d'Anjou",
+		"nameJa": "ロゼ・ダンジュー",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "regional",
+		"colors": ["rose"],
+		"grapes": [
+			{
+				"varietyId": "grolleau",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "アンジュー各地の片岩・砂質土壌。",
+		"producers": ["Domaine des Baumard"],
+		"description": "グロロー種を主体とする、やや甘口のロゼ。かつてフランスで最も飲まれたロゼの一つで、フルーティで親しみやすい。"
+	},
+	{
+		"id": "cabernet-d-anjou",
+		"idApp": 82,
+		"name": "Cabernet d'Anjou",
+		"shortName": "Cabernet d'Anjou",
+		"nameJa": "カベルネ・ダンジュー",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "regional",
+		"colors": ["rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			}
+		],
+		"soil": "アンジューの片岩・砂質土壌。",
+		"producers": ["Château de Fesles"],
+		"description": "2種のカベルネから造る中甘口ロゼ。ロゼ・ダンジューより凝縮感と酸があり、熟成もする独特のスタイル。"
+	},
+	{
+		"id": "anjou-coteaux-de-la-loire",
+		"idApp": 77,
+		"name": "Anjou-Coteaux de la Loire",
+		"shortName": "Anjou-Coteaux de la Loire",
+		"nameJa": "アンジュー・コトー・ド・ラ・ロワール",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "ロワール川沿いの黒色片岩の急斜面。",
+		"producers": ["Château Pierre-Bise"],
+		"description": "ロワール本流沿いの斜面で、貴腐や過熟のシュナン・ブランから造る甘口白。レイヨン川流域より軽やかな甘口を生む。"
+	},
+	{
+		"id": "anjou-villages-brissac",
+		"idApp": 124,
+		"name": "Anjou Brissac",
+		"shortName": "Anjou-Villages Brissac",
+		"nameJa": "アンジュー・ヴィラージュ・ブリサック",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			}
+		],
+		"soil": "ブリサック周辺の片岩・火山岩質の温暖な斜面。",
+		"producers": ["Château de Brissac", "Domaine de Bablut"],
+		"description": "アンジュー・ヴィラージュの中でもブリサック周辺の10コミューンに限定した村名AOC。より濃密で熟成能力の高い赤を産する。"
+	},
+	{
+		"id": "savennieres",
+		"idApp": 112,
+		"name": "Savennières",
+		"shortName": "Savennières",
+		"nameJa": "サヴニエール",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "ロワール右岸の急斜面に露出する青色片岩・砂岩・火山岩。",
+		"producers": ["Domaine des Baumard", "Nicolas Joly (Coulée de Serrant)"],
+		"description": "シュナン・ブランの辛口白の頂点の一つ。痩せた片岩土壌の急斜面から、ミネラル豊かで長熟する凝縮した辛口を生む。"
+	},
+	{
+		"id": "savennieres-roche-aux-moines",
+		"idApp": 1034,
+		"name": "Savennières Roche aux Moines",
+		"shortName": "Savennières Roche aux Moines",
+		"nameJa": "サヴニエール・ロッシュ・オ・モワンヌ",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "サヴニエール中心部の青色片岩の南向き急斜面。",
+		"producers": ["Nicolas Joly", "Château de la Roche aux Moines"],
+		"description": "サヴニエール内の特に優れた区画を切り出した村名AOC。名高いクーレ・ド・セランを内包し、力強く長寿な辛口シュナンを産する。"
+	},
+	{
+		"id": "coteaux-du-layon",
+		"idApp": 88,
+		"name": "Coteaux du Layon",
+		"shortName": "Coteaux du Layon",
+		"nameJa": "コトー・デュ・レイヨン",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "レイヨン川流域の黒色片岩と砂質。霧が貴腐の発生を促す。",
+		"producers": ["Domaine des Baumard", "Château Pierre-Bise"],
+		"description": "ロワールを代表する貴腐甘口白の産地。レイヨン川の朝霧が育むボトリティス(貴腐)のシュナン・ブランから、蜂蜜のような甘口を生む。"
+	},
+	{
+		"id": "quarts-de-chaume",
+		"idApp": 103,
+		"name": "Quarts de Chaume",
+		"shortName": "Quarts de Chaume",
+		"nameJa": "ケール・ド・ショーム(グラン・クリュ)",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"tags": ["grand-cru"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "レイヨン支流に囲まれた円形劇場状の斜面の片岩。貴腐に最適な微気候。",
+		"producers": ["Domaine des Baumard", "Château Pierre-Bise"],
+		"description": "ロワール唯一のグラン・クリュ(2011年昇格)。レイヨン流域の名区画で、極めて凝縮した貴腐シュナンの甘口白を少量産する。"
+	},
+	{
+		"id": "bonnezeaux",
+		"idApp": 80,
+		"name": "Bonnezeaux",
+		"shortName": "Bonnezeaux",
+		"nameJa": "ボンヌゾー",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "レイヨン右岸トゥアルセ村の3つの丘の黒色片岩・砂岩。",
+		"producers": ["Château de Fesles", "Domaine des Petits Quarts"],
+		"description": "コトー・デュ・レイヨン内の最上級村名AOCの一つ。3つの急斜面の丘から、豊かで長熟する貴腐甘口シュナンを産する。"
+	},
+	{
+		"id": "coteaux-de-l-aubance",
+		"idApp": 86,
+		"name": "Coteaux de l'Aubance",
+		"shortName": "Coteaux de l'Aubance",
+		"nameJa": "コトー・ド・ローバンス",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "オーバンス川流域の黒色片岩と砂利質。",
+		"producers": ["Domaine de Bablut", "Domaine Richou"],
+		"description": "オーバンス川沿いで造られる、レイヨンより軽やかな甘口白。過熟・貴腐のシュナンから優美で繊細な甘口を生む。"
+	},
+	{
+		"id": "saumur",
+		"idApp": 110,
+		"name": "Saumur",
+		"shortName": "Saumur",
+		"nameJa": "ソーミュール",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "regional",
+		"colors": ["white", "red", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰質の白亜(トゥフォー)。地下のトゥフォー採石場が発泡熟成に使われる。",
+		"producers": ["Bouvet-Ladubay", "Langlois-Château"],
+		"description": "アンジューとトゥーレーヌの境の白亜土壌の街。シュナンの辛口白、カベルネ・フランの赤、そして瓶内二次発酵のソーミュール・ムスー(発泡)で名高い。"
+	},
+	{
+		"id": "saumur-champigny",
+		"idApp": 122,
+		"name": "Saumur-Champigny",
+		"shortName": "Saumur-Champigny",
+		"nameJa": "ソーミュール・シャンピニー",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pineau-d-aunis",
+				"role": "accessory"
+			}
+		],
+		"soil": "白亜(トゥフォー)石灰岩の上の粘土石灰質。",
+		"producers": ["Clos Rougeard", "Domaine Filliatreau"],
+		"description": "ソーミュール周辺9村に限定したカベルネ・フランの赤の銘醸地。白亜土壌が生む香り高くしなやかな赤で、ロワール赤の代表格。"
+	},
+	{
+		"id": "coteaux-de-saumur",
+		"idApp": 87,
+		"name": "Coteaux de Saumur",
+		"shortName": "Coteaux de Saumur",
+		"nameJa": "コトー・ド・ソーミュール",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "ソーミュール一帯の白亜石灰質(トゥフォー)。",
+		"producers": ["Château de Villeneuve", "Domaine des Roches Neuves"],
+		"description": "ソーミュール地区で造られる少量生産の甘口シュナン。白亜土壌由来の張りのある酸をもつ、繊細な甘口白。"
+	},
+	{
+		"id": "cabernet-de-saumur",
+		"idApp": 912001,
+		"name": "Cabernet de Saumur",
+		"shortName": "Cabernet de Saumur",
+		"nameJa": "カベルネ・ド・ソーミュール",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "regional",
+		"colors": ["rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "ソーミュール一帯の白亜石灰質(トゥフォー)。",
+		"producers": ["Château de Villeneuve"],
+		"description": "ソーミュール地区のカベルネ・フランから造る中甘口ロゼ。カベルネ・ダンジューより淡く軽やかなスタイル。"
+	},
+	{
+		"id": "saumur-puy-notre-dame",
+		"idApp": 912002,
+		"name": "Saumur Puy-Notre-Dame",
+		"shortName": "Saumur Puy-Notre-Dame",
+		"nameJa": "ソーミュール・ピュイ・ノートル・ダム",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "ソーミュール南部の白亜石灰質の丘。",
+		"producers": ["Château de Villeneuve"],
+		"description": "2009年認定の村名赤AOC。ソーミュール南部の丘のカベルネ・フランから、凝縮した力強い赤を産する。"
+	},
+	{
+		"id": "haut-poitou",
+		"idApp": 1018,
+		"name": "Haut-Poitou",
+		"shortName": "Haut-Poitou",
+		"nameJa": "オー・ポワトゥー",
+		"region": "loire",
+		"subregionId": "anjou-saumur",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポワトゥーの粘土石灰質・砂質。",
+		"producers": ["Cave du Haut-Poitou"],
+		"description": "ソーミュールの南、ポワティエ北方に位置するAOC。ソーヴィニヨン・ブランの白を中心に、カベルネ・フランやガメイの赤・ロゼも産する。"
+	},
+	{
+		"id": "touraine",
+		"idApp": 113,
+		"name": "Touraine",
+		"shortName": "Touraine",
+		"nameJa": "トゥーレーヌ",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "トゥーレーヌ一帯の粘土石灰質・砂利・ペリュシュ(石灰質粘土)。",
+		"producers": ["Domaine des Corbillières", "Henry Marionnet"],
+		"description": "トゥール周辺に広がる広域AOC。ソーヴィニヨン・ブランの辛口白とガメイの赤が中心で、コット(マルベック)やシュナンなど品種の幅が広い。"
+	},
+	{
+		"id": "touraine-noble-joue",
+		"idApp": 123,
+		"name": "Touraine Noble Joué",
+		"shortName": "Touraine Noble Joué",
+		"nameJa": "トゥーレーヌ・ノーブル・ジュエ",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["rose"],
+		"grapes": [
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "トゥール南郊の砂質・粘土質。",
+		"producers": ["Rousseau Frères"],
+		"description": "トゥール南郊で3種のピノ(ムニエ・グリ・ノワール)から造る「グリ(淡いロゼ)」。かつて廃れかけたが復興した歴史的なロゼ。"
+	},
+	{
+		"id": "vouvray",
+		"idApp": 119,
+		"name": "Vouvray",
+		"shortName": "Vouvray",
+		"nameJa": "ヴーヴレ",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["white", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "ロワール右岸の白亜(トゥフォー)と粘土質(アルジロ・カルケール)。",
+		"producers": ["Domaine Huet", "François Chidaine"],
+		"description": "シュナン・ブランの聖地。同じ畑から辛口・中辛口・甘口・発泡まで、その年の熟度に応じて多様なスタイルを生み分けるのが特徴。"
+	},
+	{
+		"id": "montlouis-sur-loire",
+		"idApp": 94,
+		"name": "Montlouis-sur-Loire",
+		"shortName": "Montlouis-sur-Loire",
+		"nameJa": "モンルイ・シュル・ロワール",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["white", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "ロワールとシェール川に挟まれた白亜・砂質のテラス。",
+		"producers": ["François Chidaine", "Domaine de la Taille aux Loups"],
+		"description": "ヴーヴレ対岸のシュナン・ブラン産地。ヴーヴレとよく似た辛口〜甘口・発泡を産し、より軽やかで自然派の造り手も多い。"
+	},
+	{
+		"id": "chinon",
+		"idApp": 85,
+		"name": "Chinon",
+		"shortName": "Chinon",
+		"nameJa": "シノン",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴィエンヌ川沿いの砂利・砂質と、丘の粘土石灰質。",
+		"producers": ["Charles Joguet", "Bernard Baudry"],
+		"description": "トゥーレーヌ最大のカベルネ・フランの赤の産地。砂質の畑は軽快、粘土石灰質の畑は長熟型と、土壌でスタイルが分かれる。"
+	},
+	{
+		"id": "bourgueil",
+		"idApp": 81,
+		"name": "Bourgueil",
+		"shortName": "Bourgueil",
+		"nameJa": "ブルグイユ",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "ロワール右岸の砂利質テラスと、丘の粘土石灰質(トゥフォー)。",
+		"producers": ["Domaine de la Butte", "Yannick Amirault"],
+		"description": "ロワール右岸のカベルネ・フランの赤の名産地。砂利のテラスは果実味豊か、斜面の石灰質は骨格のある長熟型を生む。"
+	},
+	{
+		"id": "saint-nicolas-de-bourgueil",
+		"idApp": 108,
+		"name": "Saint-Nicolas-de-Bourgueil",
+		"shortName": "Saint-Nicolas-de-Bourgueil",
+		"nameJa": "サン・ニコラ・ド・ブルグイユ",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "ブルグイユ西隣の砂質・砂利質テラスが中心。",
+		"producers": ["Yannick Amirault", "Clos des Quarterons"],
+		"description": "ブルグイユの西に隣接する村名AOC。砂質土壌が多く、しなやかで香り高い、比較的早飲みのカベルネ・フランの赤が主体。"
+	},
+	{
+		"id": "cheverny",
+		"idApp": 84,
+		"name": "Cheverny",
+		"shortName": "Cheverny",
+		"nameJa": "シュヴェルニー",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "menu-pineau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "ソローニュ地方の砂質・砂利質。",
+		"producers": ["Domaine du Salvard", "Domaine des Huards"],
+		"description": "ブロワ南方ソローニュの砂質土壌のAOC。ソーヴィニヨン主体の白とガメイ・ピノ・ノワールの赤を産し、白はしばしばシャルドネを補助的に用いる。"
+	},
+	{
+		"id": "cour-cheverny",
+		"idApp": 90,
+		"name": "Cour-Cheverny",
+		"shortName": "Cour-Cheverny",
+		"nameJa": "クール・シュヴェルニー",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "romorantin",
+				"role": "principal"
+			}
+		],
+		"soil": "シュヴェルニー周辺の砂質・砂利質。",
+		"producers": ["Domaine des Huards", "François Cazin"],
+		"description": "希少品種ロモランタンのみで造る辛口白の専用AOC。フランソワ1世が持ち込んだと伝わるこの土着品種は、酸が高く長熟する個性派。"
+	},
+	{
+		"id": "coteaux-du-loir",
+		"idApp": 89,
+		"name": "Coteaux du Loir",
+		"shortName": "Coteaux du Loir",
+		"nameJa": "コトー・デュ・ロワール",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "pineau-d-aunis",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			}
+		],
+		"soil": "ロワール川ではなくロワール(Loir)川流域の粘土石灰質・砂質。",
+		"producers": ["Domaine de Bellivière"],
+		"description": "本流ではなく支流のロワール(Loir)川沿いの小AOC。ピノー・ドニの胡椒香のある赤・ロゼと、シュナンの辛口白を産する。"
+	},
+	{
+		"id": "jasnieres",
+		"idApp": 92,
+		"name": "Jasnières",
+		"shortName": "Jasnières",
+		"nameJa": "ジャニエール",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			}
+		],
+		"soil": "ロワール(Loir)川右岸の白亜(トゥフォー)石灰質の南向き斜面。",
+		"producers": ["Domaine de Bellivière", "Domaine de la Roche Bleue"],
+		"description": "コトー・デュ・ロワール内、右岸の南向き斜面に限定した辛口シュナンの村名AOC。冷涼地ゆえの張りつめた酸とミネラルが持ち味。"
+	},
+	{
+		"id": "coteaux-du-vendomois",
+		"idApp": 469,
+		"name": "Coteaux du Vendômois",
+		"shortName": "Coteaux du Vendômois",
+		"nameJa": "コトー・デュ・ヴァンドモワ",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "pineau-d-aunis",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴァンドーム周辺ロワール(Loir)川流域の粘土石灰質・砂利。",
+		"producers": ["Cave du Vendômois"],
+		"description": "ロワール(Loir)川上流ヴァンドーム周辺のAOC。ピノー・ドニ主体の淡い「グリ」ロゼが名物で、白はシュナン、赤も産する。"
+	},
+	{
+		"id": "valencay",
+		"idApp": 564,
+		"name": "Valençay",
+		"shortName": "Valençay",
+		"nameJa": "ヴァランセ",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "menu-pineau",
+				"role": "accessory"
+			}
+		],
+		"soil": "シェール川南方の砂利・粘土石灰質。",
+		"producers": ["Domaine du Vaillant"],
+		"description": "トゥーレーヌ南東の小AOCで、同名のシェーヴル(山羊乳チーズ)でも知られる。ソーヴィニヨンの白とガメイ・コットの赤を産する。"
+	},
+	{
+		"id": "orleans",
+		"idApp": 912003,
+		"name": "Orléans",
+		"shortName": "Orléans",
+		"nameJa": "オルレアン",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			}
+		],
+		"soil": "ロワール川沿いオルレアン周辺の砂利・砂質。",
+		"producers": ["Clos St-Fiacre"],
+		"description": "オルレアン周辺の歴史ある小産地。ピノ・ムニエ・ピノ・ノワールの赤ロゼと、シャルドネ(現地名オーヴェルナ)の白を産する。"
+	},
+	{
+		"id": "orleans-clery",
+		"idApp": 598,
+		"name": "Orléans-Cléry",
+		"shortName": "Orléans-Cléry",
+		"nameJa": "オルレアン・クレリー",
+		"region": "loire",
+		"subregionId": "touraine",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			}
+		],
+		"soil": "クレリー・サン・タンドレ周辺の砂利・砂質。",
+		"producers": ["Clos St-Fiacre"],
+		"description": "オルレアン近郊クレリー村の赤専用AOC。カベルネ・フラン100%で、しなやかで軽やかな赤を産する希少な呼称。"
+	},
+	{
+		"id": "sancerre",
+		"idApp": 109,
+		"name": "Sancerre",
+		"shortName": "Sancerre",
+		"nameJa": "サンセール",
+		"region": "loire",
+		"subregionId": "centre-loire",
+		"kind": "village",
+		"colors": ["white", "red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質泥灰岩(テール・ブランシュ)、小石(カイヨット)、燧石(シレックス)の3土壌。",
+		"producers": ["Henri Bourgeois", "Domaine Vacheron"],
+		"description": "ソーヴィニヨン・ブランの辛口白で世界的に名高い上流の名産地。3つの土壌が個性を分け、ピノ・ノワールの赤・ロゼも造る。"
+	},
+	{
+		"id": "pouilly-fume",
+		"idApp": 101,
+		"name": "Pouilly-Fumé",
+		"shortName": "Pouilly-Fumé",
+		"nameJa": "プイィ・フュメ",
+		"region": "loire",
+		"subregionId": "centre-loire",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			}
+		],
+		"soil": "ロワール左岸の燧石(シレックス)を含む石灰質・泥灰岩。",
+		"producers": ["Didier Dagueneau", "Domaine de Ladoucette"],
+		"description": "サンセール対岸のソーヴィニヨン・ブラン辛口白の名産地。燧石土壌に由来するスモーキー(フュメ)なミネラル香が特徴とされる。"
+	},
+	{
+		"id": "pouilly-sur-loire",
+		"idApp": 102,
+		"name": "Pouilly-sur-Loire",
+		"shortName": "Pouilly-sur-Loire",
+		"nameJa": "プイィ・シュル・ロワール",
+		"region": "loire",
+		"subregionId": "centre-loire",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "chasselas",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "プイィ周辺の石灰質・泥灰岩・砂質。",
+		"producers": ["Domaine de Ladoucette"],
+		"description": "プイィ・フュメと同じ村で、シャスラ種から造る辛口白の呼称。かつての主役だが今は希少で、軽やかで穏やかな味わい。"
+	},
+	{
+		"id": "menetou-salon",
+		"idApp": 93,
+		"name": "Menetou-Salon",
+		"shortName": "Menetou-Salon",
+		"nameJa": "ムヌトゥ・サロン",
+		"region": "loire",
+		"subregionId": "centre-loire",
+		"kind": "village",
+		"colors": ["white", "red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "キンメリジャン期の石灰質泥灰岩(シャブリと同系)。",
+		"producers": ["Henry Pellé", "Domaine de Chatenoy"],
+		"description": "サンセールの西に隣接するAOC。同じ品種・キンメリジャン土壌で、サンセールに似た品質の白・赤を、より手頃な価格で産する。"
+	},
+	{
+		"id": "quincy",
+		"idApp": 104,
+		"name": "Quincy",
+		"shortName": "Quincy",
+		"nameJa": "カンシー",
+		"region": "loire",
+		"subregionId": "centre-loire",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "シェール川沿いの砂・砂利のテラス。",
+		"producers": ["Domaine Mardon", "Domaine Trotereau"],
+		"description": "シェール川沿いの砂質テラスに広がる、白専用の小AOC。ソーヴィニヨン・ブランのみで、軽快でフローラルな辛口白を産する。"
+	},
+	{
+		"id": "reuilly",
+		"idApp": 105,
+		"name": "Reuilly",
+		"shortName": "Reuilly",
+		"nameJa": "ルイイ",
+		"region": "loire",
+		"subregionId": "centre-loire",
+		"kind": "village",
+		"colors": ["white", "red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質泥灰岩と砂利のテラス。",
+		"producers": ["Denis Jamain", "Claude Lafond"],
+		"description": "カンシーの近隣、白・赤・ロゼを産する小AOC。ソーヴィニヨンの白に加え、ピノ・グリから造る淡く上品なロゼが個性。"
+	},
+	{
+		"id": "coteaux-du-giennois",
+		"idApp": 125,
+		"name": "Coteaux du Giennois",
+		"shortName": "Coteaux du Giennois",
+		"nameJa": "コトー・デュ・ジエノワ",
+		"region": "loire",
+		"subregionId": "centre-loire",
+		"kind": "village",
+		"colors": ["white", "red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "ジアン〜クーラン間ロワール沿いの石灰質・粘土・砂質。",
+		"producers": ["Alphonse Mellot", "Domaine Berthier"],
+		"description": "サンセールの北、ジアン周辺に細長く広がるAOC。ソーヴィニヨンの白と、ガメイ・ピノ・ノワールを混醸する赤・ロゼを産する。"
+	},
+	{
+		"id": "chateaumeillant",
+		"idApp": 836,
+		"name": "Châteaumeillant",
+		"shortName": "Châteaumeillant",
+		"nameJa": "シャトーメイヤン",
+		"region": "loire",
+		"subregionId": "centre-loire",
+		"kind": "village",
+		"colors": ["red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "ベリー地方南部の砂質・砂利質。",
+		"producers": ["Domaine du Chaillot"],
+		"description": "サントル・ロワール最南のAOC。ガメイ主体の赤と、淡い「グリ」ロゼを産する。2010年に赤・ロゼでAOC昇格した産地。"
+	},
+	{
+		"id": "rose-de-loire",
+		"idApp": 912004,
+		"name": "Rosé de Loire",
+		"shortName": "Rosé de Loire",
+		"nameJa": "ロゼ・ド・ロワール",
+		"region": "loire",
+		"subregionId": "loire-regional",
+		"kind": "regional",
+		"colors": ["rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grolleau",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pineau-d-aunis",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "アンジュー・ソーミュール・トゥーレーヌにまたがる多様な土壌。",
+		"producers": ["Domaine Ogereau"],
+		"description": "アンジュー・ソーミュール・トゥーレーヌを対象とする広域の辛口ロゼAOC。ロゼ・ダンジューと異なり、必ず辛口に仕上げるのが規定。"
+	},
+	{
+		"id": "cremant-de-loire",
+		"idApp": 912005,
+		"name": "Crémant de Loire",
+		"shortName": "Crémant de Loire",
+		"nameJa": "クレマン・ド・ロワール",
+		"region": "loire",
+		"subregionId": "loire-regional",
+		"kind": "regional",
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chenin",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grolleau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "アンジュー・ソーミュール・トゥーレーヌの石灰質(トゥフォー)ほか。",
+		"producers": ["Bouvet-Ladubay", "Langlois-Château"],
+		"description": "ロワール広域の瓶内二次発酵スパークリングAOC。シュナン・ブランを軸にシャルドネやカベルネ・フランを用い、ソーミュール・ムスーより規定が厳しい。"
 	}
 ]

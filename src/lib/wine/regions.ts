@@ -133,6 +133,30 @@ export const REGIONS: Region[] = [
 			"「エシェル・デ・クリュ(村の格付け)」によるグラン・クリュ17村・" +
 			"プルミエ・クリュ42村の階層を村単位の地図で学べる。",
 	},
+	{
+		id: "loire",
+		nameJa: "ロワール",
+		nameLocal: "Loire",
+		country: "France",
+		countryJa: "フランス",
+		enabled: true,
+		bounds: [-2.17798, 46.361, 3.03083, 47.94275],
+		geojsonPath: "/data/aop/loire.geojson",
+		boundariesPath: "/data/aop/loire-boundaries.geojson",
+		subregions: [
+			{ id: "pays-nantais", nameJa: "ペイ・ナンテ" },
+			{ id: "anjou-saumur", nameJa: "アンジュー・ソーミュール" },
+			{ id: "touraine", nameJa: "トゥーレーヌ" },
+			{ id: "centre-loire", nameJa: "サントル・ロワール" },
+			{ id: "loire-regional", nameJa: "地方名AOC(広域)" },
+		],
+		description:
+			"フランス最長のロワール川に沿って東西に広がる、多様性の宝庫。" +
+			"シュナン・ブランとカベルネ・フランを軸に、河口のミュスカデ(辛口白)から" +
+			"アンジューの甘口・ソーミュールの発泡、トゥーレーヌの赤白、" +
+			"上流サントルのソーヴィニヨン・ブラン(サンセール/プイィ・フュメ)まで、" +
+			"4つの地区でまったく異なるスタイルと品種の対応を学べる。",
+	},
 ];
 
 export function getRegion(id: string): Region | undefined {

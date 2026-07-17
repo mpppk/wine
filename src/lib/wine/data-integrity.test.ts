@@ -99,7 +99,8 @@ describe("AOPメタデータの整合性", () => {
 		expect(vineyards.length).toBe(117);
 		expect(vineyards.filter((a) => a.region === "bourgogne").length).toBe(66);
 		expect(vineyards.filter((a) => a.region === "alsace").length).toBe(51);
-		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(116);
+		// grand-cru: ブルゴーニュ+アルザス116 + ロワール唯一のGCケール・ド・ショーム1
+		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(117);
 		expect(AOPS.filter((a) => a.tags?.includes("premier-cru")).length).toBe(91);
 	});
 

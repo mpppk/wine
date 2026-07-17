@@ -39,6 +39,7 @@ export const aopSchema = z
 			"bordeaux",
 			"piemonte",
 			"alsace",
+			"loire",
 		]),
 		subregionId: z.string().min(1),
 		kind: z.enum(["regional", "village", "vineyard", "winery"]),
