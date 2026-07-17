@@ -77,7 +77,7 @@ describe("格付けクイズ", () => {
 	it("タグ無しAOPは主題にならない", () => {
 		for (const regionId of REGION_IDS) {
 			for (const key of enumerateAopClassificationKeys(regionId)) {
-				const aop = byId.get(key.split(":")[1]);
+				const aop = byId.get(key.split(":")[1] ?? "");
 				expect((aop?.tags?.length ?? 0) > 0, key).toBe(true);
 			}
 		}

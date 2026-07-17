@@ -2,9 +2,8 @@ import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "#/lib/auth";
 import {
-	ALLOWED_PHOTO_TYPES as ALLOWED_TYPES,
-	PHOTO_EXT_MAP as EXT_MAP,
 	MAX_PHOTO_BYTES as MAX_BYTES,
+	photoExtForMime,
 } from "#/lib/drunk-wine/photo";
 
 export const Route = createFileRoute("/api/upload")({
@@ -39,7 +38,11 @@ export const Route = createFileRoute("/api/upload")({
 					);
 				}
 
-				if (!ALLOWED_TYPES.has(file.type)) {
+				// 拡張子(= 許可MIMEの単一情報源)を安全に解決する。別途 ALLOWED_TYPES を
+				// 突き合わせる二重管理はやめ、継承プロパティ経由の allowlist すり抜けは
+				// photoExtForMime 側で弾く。未対応の型は 400。
+				const ext = photoExtForMime(file.type);
+				if (!ext) {
 					return new Response(
 						JSON.stringify({ error: "Unsupported image type" }),
 						{ status: 400, headers: { "Content-Type": "application/json" } },
@@ -52,7 +55,6 @@ export const Route = createFileRoute("/api/upload")({
 					);
 				}
 
-				const ext = EXT_MAP[file.type];
 				const r2Key = `avatars/${session.user.id}.${ext}`;
 				const buffer = await file.arrayBuffer();
 				await env.AVATARS.put(r2Key, buffer, {

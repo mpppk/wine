@@ -37,29 +37,36 @@ export function pickRecommendation(
 		return { regionId: null, reason: "empty", count: 0 };
 	}
 
+	// playable は上の早期returnで非空が保証されるため、各ソート結果の先頭は必ず存在する。
+	// noUncheckedIndexedAccess 下では型がそれを追えないので先頭要素をローカルに束縛して扱う。
+
 	// 1) 苦手が最も多い地域(苦手があれば最優先で復習に誘導)
 	const byWeak = [...playable].sort((a, b) => b.weakCount - a.weakCount);
-	if (byWeak[0].weakCount > 0) {
+	const topWeak = byWeak[0];
+	if (topWeak && topWeak.weakCount > 0) {
 		return {
-			regionId: byWeak[0].regionId,
+			regionId: topWeak.regionId,
 			reason: "weak",
-			count: byWeak[0].weakCount,
+			count: topWeak.weakCount,
 		};
 	}
 
 	// 2) 未出題が最も多い地域(新規学習を促す)
 	const unseen = (r: RegionStat) => r.candidateCount - r.seenCount;
 	const byUnseen = [...playable].sort((a, b) => unseen(b) - unseen(a));
-	if (unseen(byUnseen[0]) > 0) {
+	const topUnseen = byUnseen[0];
+	if (topUnseen && unseen(topUnseen) > 0) {
 		return {
-			regionId: byUnseen[0].regionId,
+			regionId: topUnseen.regionId,
 			reason: "unseen",
-			count: unseen(byUnseen[0]),
+			count: unseen(topUnseen),
 		};
 	}
 
 	// 3) 全問出題済み: 習熟度(習得率)が最も低い地域を復習対象にする
 	const mastery = (r: RegionStat) => r.masteredCount / r.candidateCount;
 	const byMastery = [...playable].sort((a, b) => mastery(a) - mastery(b));
-	return { regionId: byMastery[0].regionId, reason: "mastery", count: 0 };
+	const topMastery = byMastery[0];
+	if (!topMastery) return { regionId: null, reason: "empty", count: 0 };
+	return { regionId: topMastery.regionId, reason: "mastery", count: 0 };
 }

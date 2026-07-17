@@ -50,7 +50,7 @@ describe("所属地区クイズ", () => {
 		);
 		for (const regionId of REGION_IDS) {
 			for (const key of enumerateAopSubregionKeys(regionId)) {
-				const aopId = key.split(":")[1];
+				const aopId = key.split(":")[1] ?? "";
 				expect(regionalIds.has(aopId), key).toBe(false);
 			}
 		}

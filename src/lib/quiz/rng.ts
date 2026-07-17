@@ -20,7 +20,10 @@ export function shuffle<T>(items: readonly T[], rng: Rng): T[] {
 	const result = [...items];
 	for (let i = result.length - 1; i > 0; i--) {
 		const j = Math.floor(rng() * (i + 1));
-		[result[i], result[j]] = [result[j], result[i]];
+		// i, j はループ条件で常に有効な添字。型アサーションは実行時no-opなので、
+		// T が undefined を含む要素型でも値をそのまま入れ替えられる(ガードだと誤って
+		// 正当な undefined 要素を弾いてしまう)。
+		[result[i], result[j]] = [result[j] as T, result[i] as T];
 	}
 	return result;
 }
@@ -52,14 +55,15 @@ export function sampleWeighted<T>(
 			let r = rng() * total;
 			index = pool.length - 1;
 			for (let i = 0; i < weights.length; i++) {
-				r -= weights[i];
+				r -= weights[i] ?? 0;
 				if (r < 0) {
 					index = i;
 					break;
 				}
 			}
 		}
-		picked.push(pool[index]);
+		// index は上の分岐で pool の有効範囲(0..length-1)に収めているので必ず存在する。
+		picked.push(pool[index] as T);
 		pool.splice(index, 1);
 	}
 	return picked;

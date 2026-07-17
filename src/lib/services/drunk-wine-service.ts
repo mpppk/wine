@@ -98,6 +98,7 @@ export async function createDrunkWine(
 			price: input.price ?? null,
 		})
 		.returning();
+	if (!row) throw new Error("Failed to insert drunk wine");
 	return toEntry(row);
 }
 

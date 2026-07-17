@@ -13,6 +13,7 @@ export const DRANK_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 // マッピングの罠も同時に回避する)。
 function isCalendarDate(s: string): boolean {
 	const [y, m, d] = s.split("-").map(Number);
+	if (y === undefined || m === undefined || d === undefined) return false;
 	if (y < 1900 || y > 2100) return false;
 	const dt = new Date(Date.UTC(y, m - 1, d));
 	return (

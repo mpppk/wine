@@ -252,7 +252,7 @@ describe("境界GeoJSON(<region>-boundaries.geojson)の整合性", () => {
 			(f) => f.properties.level === "region",
 		);
 		expect(regionFeatures.length).toBe(1);
-		expect(regionFeatures[0].properties.regionId).toBe(region.id);
+		expect(regionFeatures[0]?.properties.regionId).toBe(region.id);
 
 		// 地区(level=subregion)は地域マスタの地理的地区(`*-regional` 以外)の
 		// サブセット。収録AOPが無い地区(cote-de-sezanne 等)は欠けてよい

@@ -205,10 +205,10 @@ export function getSameKindSiblings(
 	);
 	const index = sequence.findIndex((a) => a.id === selected.id);
 	return {
-		prevId: index > 0 ? sequence[index - 1].id : undefined,
+		prevId: index > 0 ? sequence[index - 1]?.id : undefined,
 		nextId:
 			index >= 0 && index < sequence.length - 1
-				? sequence[index + 1].id
+				? sequence[index + 1]?.id
 				: undefined,
 		index,
 		total: sequence.length,

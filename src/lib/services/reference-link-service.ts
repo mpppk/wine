@@ -87,6 +87,7 @@ export async function createReferenceLink(
 			title,
 		})
 		.returning();
+	if (!row) throw new Error("Failed to insert reference link");
 	return toEntry(row);
 }
 

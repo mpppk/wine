@@ -40,7 +40,7 @@ export async function getDashboard(userId: string): Promise<DashboardData> {
 
 	// 日次テーブルはヒートマップの範囲だけ引けば today も streak も賄える
 	// (streak は範囲内の連続で十分。範囲外まで遡る超長期 streak は表示要件外)。
-	const rangeStart = lastNDayKeys(todayKey, HEATMAP_DAYS)[0];
+	const rangeStart = lastNDayKeys(todayKey, HEATMAP_DAYS)[0] ?? todayKey;
 	const activityRows = await db
 		.select({
 			day: dailyActivity.day,

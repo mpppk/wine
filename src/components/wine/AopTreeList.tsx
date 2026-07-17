@@ -510,7 +510,8 @@ function ProgressIndicator({
 				complete
 					? {
 							backgroundColor:
-								PROGRESS_BUCKETS[PROGRESS_BUCKETS.length - 1].fill,
+								PROGRESS_BUCKETS[PROGRESS_BUCKETS.length - 1]?.fill ??
+								PROGRESS_EMPTY_COLOR.fill,
 						}
 					: undefined
 			}
@@ -532,7 +533,7 @@ function progressDotColor(progress: AopProgress | undefined): string {
 		PROGRESS_BUCKETS.length - 1,
 		Math.floor(rate * PROGRESS_BUCKETS.length),
 	);
-	return PROGRESS_BUCKETS[idx].fill;
+	return PROGRESS_BUCKETS[idx]?.fill ?? PROGRESS_EMPTY_COLOR.fill;
 }
 
 // 複数AOPの正解進捗を合算する(村・地区の集計に使う)。

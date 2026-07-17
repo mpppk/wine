@@ -1,4 +1,4 @@
-import type { FeatureCollection, Geometry } from "geojson";
+import type { FeatureCollection, Geometry, Position } from "geojson";
 import type {
 	ExpressionSpecification,
 	MapGeoJSONFeature,
@@ -130,6 +130,7 @@ function computeBounds(
 	}
 	if (geometry.type === "Point") {
 		const [x, y] = geometry.coordinates;
+		if (x === undefined || y === undefined) return undefined;
 		return [x, y, x, y];
 	}
 	return undefined;
@@ -170,11 +171,11 @@ function computeFitPadding(
 // 各外周リングを穴として開ける(地方の内側だけスクリムが掛からない)。
 // boundaries データは build:boundaries が内側の穴(enclave)を落としている前提。
 function buildInverseMask(geometry: Geometry): FeatureCollection {
-	const holes =
+	const holes: Position[][] =
 		geometry.type === "Polygon"
-			? [geometry.coordinates[0]]
+			? geometry.coordinates.slice(0, 1)
 			: geometry.type === "MultiPolygon"
-				? geometry.coordinates.map((poly) => poly[0])
+				? geometry.coordinates.flatMap((poly) => (poly[0] ? [poly[0]] : []))
 				: [];
 	return {
 		type: "FeatureCollection",
