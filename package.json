@@ -31,7 +31,7 @@
 	},
 	"dependencies": {
 		"@better-auth/stripe": "^1.6.23",
-		"@cloudflare/vite-plugin": "^1.26.0",
+		"@cloudflare/vite-plugin": "^1.45.0",
 		"@mcp-ui/server": "^6.1.0",
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@radix-ui/react-checkbox": "^1.3.3",
@@ -83,7 +83,7 @@
 		"typescript": "^6.0.2",
 		"vite": "^8.0.0",
 		"vitest": "^4.1.5",
-		"wrangler": "^4.90.0"
+		"wrangler": "^4.111.0"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [
