@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { decodePhotoBase64 } from "#/lib/drunk-wine/photo";
+import * as aiService from "#/lib/services/ai-service";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import * as userService from "#/lib/services/user-service";
@@ -27,6 +28,7 @@ import {
 	DRUNK_WINE_RESOURCE_URI,
 } from "./apps";
 import {
+	askRegionInput,
 	getAopInput,
 	listAopsInput,
 	registerDrunkWineInput,
@@ -85,6 +87,45 @@ export function registerReadTools(server: McpServer, userId: string) {
 			try {
 				const user = await userService.getCurrentUser(userId);
 				return ok({ user });
+			} catch (e) {
+				return err(e);
+			}
+		},
+	);
+
+	server.registerTool(
+		"ask_region",
+		{
+			title: "Ask about a wine region",
+			description:
+				"指定した地域(と任意のAOP)について、静的な地域データを根拠にAIが日本語で答える。" +
+				"回答ごとにユーザのAIクレジットを消費する。会話を継続する場合は history に" +
+				"直前までの往復を渡す(サーバは会話を保持しない)。残高不足のときはエラーを返す。",
+			inputSchema: askRegionInput,
+			// AIクレジットを消費するため副作用あり(読み取り専用ではない)
+			annotations: { readOnlyHint: false, destructiveHint: false },
+		},
+		async ({ region_id, aop_id, question, history }) => {
+			try {
+				const result = await aiService.answerRegionQuestion(userId, {
+					regionId: region_id,
+					aopId: aop_id,
+					question,
+					history,
+				});
+				if (result.blocked) {
+					return err(
+						new Error(
+							`AIクレジットが不足しています(残高 ${result.balance} / 必要 ${result.required})。` +
+								"プレミアムプランで毎月より多くのクレジットが付与されます。",
+						),
+					);
+				}
+				return ok({
+					answer: result.answer,
+					balance: result.balance,
+					actual_tokens: result.actualTokens,
+				});
 			} catch (e) {
 				return err(e);
 			}

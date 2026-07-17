@@ -13,10 +13,12 @@ import {
 	LogInIcon,
 	MapIcon,
 	PaletteIcon,
+	SparklesIcon,
 	SproutIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { z } from "zod";
+import { RegionChatDialog } from "#/components/ai/RegionChatDialog";
 import { MapQuizDialog } from "#/components/quiz/MapQuizDialog";
 import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
@@ -179,6 +181,9 @@ function MapPage() {
 	const [quizScope, setQuizScope] = useState<
 		{ kind: "region" } | { kind: "aop"; aopId: string } | null
 	>(null);
+
+	// 地域チャットQ&A(AIクレジット消費)の開閉。会話履歴はダイアログ側で保持する。
+	const [chatOpen, setChatOpen] = useState(false);
 
 	// 説明文/所属リンクで別AOPへ掘り下げた履歴。末尾が直前に見ていたAOP。
 	// 地図クリック・ツリー選択・前後移動など「新規閲覧」ではリセットする。
@@ -399,6 +404,16 @@ function MapPage() {
 					>
 						<GraduationCapIcon className="size-4" aria-hidden />
 						クイズ
+					</Button>
+
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => setChatOpen(true)}
+					>
+						<SparklesIcon className="size-4" aria-hidden />
+						AIに質問
 					</Button>
 
 					<fieldset
@@ -688,6 +703,16 @@ function MapPage() {
 						? aops.find((a) => a.id === quizScope.aopId)
 						: undefined
 				}
+				isAuthenticated={isAuthenticated}
+			/>
+
+			<RegionChatDialog
+				open={chatOpen}
+				onOpenChange={setChatOpen}
+				regionId={region.id}
+				regionNameJa={region.nameJa}
+				aopId={selectedAop?.id}
+				aopNameJa={selectedAop?.nameJa}
 				isAuthenticated={isAuthenticated}
 			/>
 		</main>
