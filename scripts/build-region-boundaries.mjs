@@ -51,12 +51,17 @@ const PARCEL_CLOSING = { grow: 1500, shrink: 1200 };
 const REGION_CLOSING_OVERRIDES = {
 	alsace: { grow: 1500, shrink: 1400 },
 };
-/** 地区クロージングの上書き(ブルゴーニュの区画ベース地区) */
+/** 地区クロージングの上書き(ブルゴーニュの区画ベース地区・ロワールの各地区) */
 const SUBREGION_CLOSING_OVERRIDES = {
 	"cote-de-nuits": PARCEL_CLOSING,
 	"cote-de-beaune": PARCEL_CLOSING,
 	"cote-chalonnaise": PARCEL_CLOSING,
 	"chablis-grand-auxerrois": PARCEL_CLOSING,
+	// ロワールの地区は区画ベースの村名AOC(飛び地多数)とaireベースの広域AOCが混在する
+	"pays-nantais": PARCEL_CLOSING,
+	"anjou-saumur": PARCEL_CLOSING,
+	touraine: PARCEL_CLOSING,
+	"centre-loire": PARCEL_CLOSING,
 };
 
 /** 除去する飛び地の最小面積(m²)と簡略化の許容誤差(m) */

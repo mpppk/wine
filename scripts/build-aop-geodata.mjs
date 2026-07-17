@@ -49,7 +49,7 @@ const CACHE_DIR = path.join(ROOT, ".cache", "aop-geodata");
 const OUT_DIR = path.join(ROOT, "public", "data", "aop");
 
 const PARCEL_ZIP_URL =
-	"https://static.data.gouv.fr/resources/delimitation-parcellaire-des-aoc-viticoles-de-linao/20260629-213846/2026-06-29-delim-parcellaire-aoc-shp.zip";
+	"https://static.data.gouv.fr/resources/delimitation-parcellaire-des-aoc-viticoles-de-linao/20260713-213939/2026-07-13-delim-parcellaire-aoc-shp.zip";
 const AIRES_CSV_URL =
 	"https://static.data.gouv.fr/resources/aires-geographiques-des-aoc-aop/20251009-122320/2025-10-09-comagri-communes-aires-ao.csv";
 /** aire géographique CSV上の名称 → aops.json の name の対応 */
@@ -72,6 +72,27 @@ const AIRES_CSV_NAME_BY_APP = {
 	"Haut-Médoc": "Haut-Médoc",
 	Graves: "Graves",
 	"Entre-deux-Mers": "Entre-deux-Mers",
+	// ロワールの広域・基本AOC(区画データだと飛び地が多く肥大化するため aire 経路)。
+	// ロゼ・ダンジュー/カベルネ・ダンジューは固有の aire が無いため Anjou を流用、
+	// カベルネ・ド・ソーミュールは Saumur(白・ロゼ)の aire を流用する。
+	Muscadet: "Muscadet",
+	"Muscadet Sèvre et Maine": "Muscadet Sèvre et Maine",
+	"Muscadet Coteaux de la Loire": "Muscadet Coteaux de la Loire",
+	"Muscadet Côtes de Grandlieu": "Muscadet Côtes de Grandlieu",
+	"Gros Plant du Pays Nantais": "Gros Plant du Pays nantais",
+	"Coteaux d'Ancenis": "Coteaux d'Ancenis",
+	Anjou: "Anjou",
+	"Anjou Villages": "Anjou Villages",
+	"Rosé d'Anjou": "Anjou",
+	"Cabernet d'Anjou": "Anjou",
+	Saumur: "Saumur (vins tranquilles rouges)",
+	"Cabernet de Saumur": "Saumur (vins tranquilles blancs et rosés)",
+	"Saumur Puy-Notre-Dame": "Saumur Puy-Notre-Dame",
+	"Haut-Poitou": "Haut-Poitou",
+	Touraine: "Touraine",
+	Orléans: "Orléans",
+	"Rosé de Loire": "Rosé de Loire",
+	"Crémant de Loire": "Crémant de Loire",
 };
 /** 委任コミューン(合併で消えた旧村)の輪郭を取得する県コード */
 const DELEGATED_DEPARTMENTS = ["51"];
@@ -93,8 +114,14 @@ const DELEGATED_DEPARTMENTS = ["51"];
  * INAO区画データ(buildDetailFeatures)から境界を生成するもの。
  * アルザスは広域でも区画数が150程度と少なく、肥大化の問題(冒頭コメント参照)が
  * 起きないため区画経路で扱う。
+ * フィエフ・ヴァンデアンは aires CSV に統合された1件が無く(ブレム等の下位地区に
+ * 分かれている)、かつ区画数も少ないため区画経路で扱う。
  */
-const PARCEL_REGIONAL_AOP_IDS = new Set(["alsace", "cremant-d-alsace"]);
+const PARCEL_REGIONAL_AOP_IDS = new Set([
+	"alsace",
+	"cremant-d-alsace",
+	"fiefs-vendeens",
+]);
 
 const COMMUNES_BY_AOP_ID = {
 	// === シャンパーニュ ===

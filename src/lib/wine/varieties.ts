@@ -219,6 +219,39 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Savagnin rose",
 		color: "white",
 	},
+	// --- ロワール ---
+	// (シュナン・ブラン=白ワインの主役、カベルネ・フランやソーヴィニヨンは既出)
+	{
+		id: "chenin",
+		nameJa: "シュナン・ブラン",
+		nameLocal: "Chenin blanc",
+		color: "white",
+	},
+	{ id: "grolleau", nameJa: "グロロー", nameLocal: "Grolleau", color: "red" },
+	{
+		id: "folle-blanche",
+		nameJa: "フォル・ブランシュ(グロ・プラン)",
+		nameLocal: "Folle blanche",
+		color: "white",
+	},
+	{
+		id: "pineau-d-aunis",
+		nameJa: "ピノー・ドニ",
+		nameLocal: "Pineau d'Aunis",
+		color: "red",
+	},
+	{
+		id: "romorantin",
+		nameJa: "ロモランタン",
+		nameLocal: "Romorantin",
+		color: "white",
+	},
+	{
+		id: "menu-pineau",
+		nameJa: "ムニュ・ピノー(オルボワ)",
+		nameLocal: "Menu pineau",
+		color: "white",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);

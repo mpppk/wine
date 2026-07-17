@@ -27,7 +27,8 @@ export type RegionId =
 	| "champagne"
 	| "bordeaux"
 	| "piemonte"
-	| "alsace";
+	| "alsace"
+	| "loire";
 
 export interface GrapeVariety {
 	id: string;
@@ -72,6 +73,9 @@ export interface Aop {
 	 *   - ボルドー: 地区/村AOC 910001〜、格付けシャトー 911001〜
 	 *   - ピエモンテ(EU PDO由来): 920001〜 の連番。PDOid との対応は
 	 *     scripts/build-italy-geodata.mjs の PIEMONTE_PDO 表が真実の源(追記のみ)。
+	 *   - ロワール: 大半はINAOの id_app 実値を使うが、区画データに独立ポリゴンが
+	 *     無く aire géographique から生成するAOC(カベルネ・ド・ソーミュール等)は
+	 *     912001〜 の合成IDを割り当てる。
 	 *   - ブルゴーニュのクリマ/合成総称ノード: 930001〜。INAOの独立ポリゴンを
 	 *     持たない(地図に描かない)エントリ帯。ビルド/整合テストは idApp>=930000 を
 	 *     ジオメトリ必須の対象から除外する(POLYGONLESS_IDAPP_MIN)。
