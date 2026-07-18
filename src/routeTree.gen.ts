@@ -27,6 +27,7 @@ import { Route as CellarMapRouteImport } from './routes/cellar.map'
 import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
+import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as CellarEntryIdEditRouteImport } from './routes/cellar.$entryId.edit'
@@ -127,6 +128,11 @@ const ApiMcpRoute = ApiMcpRouteImport.update({
   path: '/api/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLabelAnalysisRoute = ApiLabelAnalysisRouteImport.update({
+  id: '/api/label-analysis',
+  path: '/api/label-analysis',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DotwellKnownOauthProtectedResourceRoute =
   DotwellKnownOauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
@@ -213,6 +220,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
@@ -243,6 +251,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
@@ -274,6 +283,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-photos'
@@ -303,6 +313,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-photos'
@@ -332,6 +343,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-photos'
@@ -362,6 +374,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
+  ApiLabelAnalysisRoute: typeof ApiLabelAnalysisRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
   ApiWinePhotosRoute: typeof ApiWinePhotosRoute
@@ -510,6 +523,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/label-analysis': {
+      id: '/api/label-analysis'
+      path: '/api/label-analysis'
+      fullPath: '/api/label-analysis'
+      preLoaderRoute: typeof ApiLabelAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
       path: '/.well-known/oauth-protected-resource'
@@ -599,6 +619,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthAuthorizationServerRoute,
   DotwellKnownOauthProtectedResourceRoute:
     DotwellKnownOauthProtectedResourceRoute,
+  ApiLabelAnalysisRoute: ApiLabelAnalysisRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,
   ApiWinePhotosRoute: ApiWinePhotosRoute,
