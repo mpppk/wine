@@ -216,7 +216,6 @@ export async function analyzeWineLabel(
 		// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
 		let totalTokens = 0;
 		let anyCallOk = false;
-		const debugErrs: string[] = [];
 		const extractions: LabelExtraction[] = [];
 		for (const imageDataUrl of input.imageDataUrls) {
 			try {
@@ -233,8 +232,8 @@ export async function analyzeWineLabel(
 				extractions.push(parseLabelResponse(out.response ?? ""));
 				totalTokens += out.usage?.total_tokens ?? 0;
 				anyCallOk = true;
-			} catch (imgErr) {
-				debugErrs.push(imgErr instanceof Error ? imgErr.message : String(imgErr));
+			} catch {
+				// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行する
 			}
 		}
 		// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)
@@ -255,11 +254,8 @@ export async function analyzeWineLabel(
 			blocked: false,
 			suggestions,
 			actualTokens,
-			_debugAttempted: input.imageDataUrls.length,
-			_debugSucceeded: extractions.length,
-			_debugErrs: debugErrs,
 			balance: after.balance,
-		} as AnalyzeLabelResult;
+		};
 	} catch (e) {
 		await creditService.refundReservation(
 			userId,

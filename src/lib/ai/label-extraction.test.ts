@@ -122,6 +122,38 @@ describe("parseLabelResponse", () => {
 		expect(() => parseLabelResponse("読み取れませんでした")).toThrow();
 		expect(() => parseLabelResponse("{broken")).toThrow();
 	});
+
+	it("型が揺れた出力(vintageが文字列/品種が単一文字列)も正規化する", () => {
+		// guided_json が完全には効かず型が揺れても、丸ごと弾かず寛容に受ける
+		const parsed = parseLabelResponse(
+			JSON.stringify({
+				wine_name: "Chablis",
+				producer: null,
+				vintage: "2019",
+				appellation: "Chablis",
+				region: null,
+				grape_varieties: "Chardonnay",
+			}),
+		);
+		expect(parsed.vintage).toBe(2019);
+		expect(parsed.grapeVarieties).toEqual(["Chardonnay"]);
+	});
+
+	it("数値化できないvintageや想定外の型はその項目だけ捨てる", () => {
+		const parsed = parseLabelResponse(
+			JSON.stringify({
+				wine_name: 123,
+				producer: "Domaine",
+				vintage: "N/A",
+				appellation: "Chablis",
+				region: "Bourgogne",
+				grape_varieties: [{ x: 1 }],
+			}),
+		);
+		expect(parsed.wineName).toBe("123");
+		expect(parsed.vintage).toBeUndefined();
+		expect(parsed.grapeVarieties).toEqual([]);
+	});
 });
 
 describe("normalizeLabelText", () => {

@@ -89,17 +89,10 @@ export const Route = createFileRoute("/api/label-analysis")({
 					const result = await analyzeWineLabel(session.user.id, {
 						imageDataUrls,
 					});
-					return json({ ...result, _debugReceived: imageDataUrls.length });
-				} catch (e) {
+					return json(result);
+				} catch {
 					// 詳細はAIモデル都合のことが多く、ユーザに出しても行動できないため固定文言
-					return json(
-						{
-							error: "エチケットの解析に失敗しました",
-							_debugReceived: files.length,
-							_debugDetail: e instanceof Error ? e.message : String(e),
-						},
-						500,
-					);
+					return json({ error: "エチケットの解析に失敗しました" }, 500);
 				}
 			},
 		},

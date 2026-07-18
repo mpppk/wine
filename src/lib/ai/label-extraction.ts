@@ -102,14 +102,43 @@ export function buildLabelMessages(imageDataUrl: string): LabelAiMessage[] {
 	];
 }
 
-/** モデル出力(JSON)の受け取り側スキーマ。guided_json 非対応環境へのフォールバックも兼ねて緩めに受ける。 */
+// guided_json は Llama 4 Scout では完全には強制されず、型が揺れた JSON(例: vintage が
+// 文字列 "2019"、grape_varieties が配列でなく文字列 "Chardonnay")を返すことがある。
+// 型不一致で丸ごと弾くと「解析失敗」になり写真1枚が無駄になるため、各フィールドを
+// 寛容に受けて正規化する(想定外の値は .catch でその項目だけ握りつぶす)。
+
+/** 文字列/数値どちらでも文字列に寄せる。null/undefined と想定外はそのまま null。 */
+const textField = z
+	.union([z.string(), z.number()])
+	.transform((v) => String(v))
+	.nullish()
+	.catch(null);
+
+/** 数値/数字文字列を整数に寄せる。数値化できなければ null。 */
+const vintageField = z
+	.union([z.number(), z.string()])
+	.transform((v) => {
+		const n = typeof v === "number" ? v : Number.parseInt(v, 10);
+		return Number.isFinite(n) ? Math.trunc(n) : null;
+	})
+	.nullish()
+	.catch(null);
+
+/** 配列(文字列/数値要素)または単一文字列を文字列配列に寄せる。想定外は空配列。 */
+const grapesField = z
+	.union([z.array(z.union([z.string(), z.number()])), z.string()])
+	.transform((v) => (typeof v === "string" ? [v] : v.map((g) => String(g))))
+	.nullish()
+	.catch([]);
+
+/** モデル出力(JSON)の受け取り側スキーマ。型の揺れに寛容な正規化つき。 */
 const labelResponseSchema = z.object({
-	wine_name: z.string().nullish(),
-	producer: z.string().nullish(),
-	vintage: z.number().int().nullish(),
-	appellation: z.string().nullish(),
-	region: z.string().nullish(),
-	grape_varieties: z.array(z.string()).nullish(),
+	wine_name: textField,
+	producer: textField,
+	vintage: vintageField,
+	appellation: textField,
+	region: textField,
+	grape_varieties: grapesField,
 });
 
 /** モデル出力を正規化した抽出結果。未読取は undefined。 */
