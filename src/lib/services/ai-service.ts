@@ -171,8 +171,11 @@ export async function answerRegionQuestion(
 }
 
 export interface AnalyzeLabelInput {
-	/** エチケット画像の data URI(data:image/...;base64,...)。HTTP URLは不可。 */
-	imageDataUrl: string;
+	/**
+	 * エチケット画像の data URI(data:image/...;base64,...)の配列。HTTP URLは不可。
+	 * 同一ワインの複数写真を総合判断させる。最低1枚必要。
+	 */
+	imageDataUrls: string[];
 }
 
 export type AnalyzeLabelResult =
@@ -193,8 +196,11 @@ export async function analyzeWineLabel(
 	userId: string,
 	input: AnalyzeLabelInput,
 ): Promise<AnalyzeLabelResult> {
-	const messages = buildLabelMessages(input.imageDataUrl);
-	const estimate = estimateLabelReserveTokens();
+	if (input.imageDataUrls.length === 0) {
+		throw new Error("画像が指定されていません");
+	}
+	const messages = buildLabelMessages(input.imageDataUrls);
+	const estimate = estimateLabelReserveTokens(input.imageDataUrls.length);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);

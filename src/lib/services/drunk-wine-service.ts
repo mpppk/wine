@@ -2,7 +2,10 @@ import { env } from "cloudflare:workers";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { drunkWine } from "#/db/schema";
-import { buildWinePhotoKey } from "#/lib/drunk-wine/photo";
+import {
+	buildWinePhotoKey,
+	MAX_PHOTOS_PER_ENTRY,
+} from "#/lib/drunk-wine/photo";
 import type {
 	CreateDrunkWineInput,
 	UpdateDrunkWineInput,
@@ -28,8 +31,8 @@ export interface DrunkWineEntry {
 	grapeVarietyIds: string[];
 	producer: string | null;
 	price: number | null;
-	/** 相対URL(/api/images/...)。呼び出し側で必要なら絶対化する */
-	photoUrl: string | null;
+	/** 写真の相対URL(/api/images/...)の配列。表示順で先頭=代表。呼び出し側で必要なら絶対化する */
+	photoUrls: string[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -51,7 +54,7 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		grapeVarietyIds: row.grapeVarietyIds,
 		producer: row.producer,
 		price: row.price,
-		photoUrl: row.photoKey ? `/api/images/${row.photoKey}` : null,
+		photoUrls: row.photoKeys.map((key) => `/api/images/${key}`),
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
@@ -136,9 +139,10 @@ export async function deleteDrunkWine(
 	const [row] = await db
 		.delete(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
-		.returning({ photoKey: drunkWine.photoKey });
+		.returning({ photoKeys: drunkWine.photoKeys });
 	if (!row) throw new Error("Entry not found");
-	if (row.photoKey) await env.AVATARS.delete(row.photoKey);
+	// R2は複数キー一括削除に対応(存在しないキーは無視される)
+	if (row.photoKeys.length > 0) await env.AVATARS.delete(row.photoKeys);
 }
 
 export async function listDrunkWines(
@@ -187,38 +191,80 @@ export async function getDrunkWine(
 	return toEntry(row);
 }
 
+/** syncDrunkWinePhotos に渡す最終並び順の1要素。既存キーの保持か、新規バイト列の追加。 */
+export type PhotoLayoutItem =
+	| { kind: "existing"; key: string }
+	| { kind: "new"; bytes: Uint8Array | ArrayBuffer; mimeType: string };
+
 /**
- * 写真をR2に保存してエントリに紐付ける。拡張子(MIME)が変わった場合は
- * 旧オブジェクトを消してキーの残骸を残さない。Webルート・MCPツール共用。
+ * エントリの写真集合を layout(最終並び順)へ全置換で同期する。追加・削除・並べ替え・
+ * 差し替えを1回で反映する。新規はR2へ保存し、旧配列にあって残らないキーは削除して
+ * 残骸を残さない。layout の existing キーは対象エントリの現在の集合に属するもののみ
+ * 許可する(他エントリ/任意キーの注入を防ぐ)。Webルート・MCPツール共用。
  */
-export async function setDrunkWinePhoto(
+export async function syncDrunkWinePhotos(
 	userId: string,
 	id: string,
-	bytes: Uint8Array | ArrayBuffer,
-	mimeType: string,
+	layout: PhotoLayoutItem[],
 ): Promise<DrunkWineEntry> {
+	if (layout.length > MAX_PHOTOS_PER_ENTRY) {
+		throw new Error(`写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`);
+	}
 	const [existing] = await db
-		.select({ photoKey: drunkWine.photoKey })
+		.select({ photoKeys: drunkWine.photoKeys })
 		.from(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
 	if (!existing) throw new Error("Entry not found");
 
-	const key = buildWinePhotoKey(userId, id, mimeType);
-	await env.AVATARS.put(key, bytes, {
-		httpMetadata: { contentType: mimeType },
-	});
-	if (existing.photoKey && existing.photoKey !== key) {
-		await env.AVATARS.delete(existing.photoKey);
+	const currentKeys = existing.photoKeys;
+	const currentSet = new Set(currentKeys);
+	for (const item of layout) {
+		if (item.kind === "existing" && !currentSet.has(item.key)) {
+			throw new Error("Unknown photo");
+		}
 	}
+
+	// 新規をR2へ保存しつつ最終キー配列を組み立てる。put途中で失敗したら今回put分を巻き戻す
+	const putKeys: string[] = [];
+	const nextKeys: string[] = [];
+	try {
+		for (const item of layout) {
+			if (item.kind === "existing") {
+				nextKeys.push(item.key);
+				continue;
+			}
+			const key = buildWinePhotoKey(
+				userId,
+				id,
+				crypto.randomUUID(),
+				item.mimeType,
+			);
+			await env.AVATARS.put(key, item.bytes, {
+				httpMetadata: { contentType: item.mimeType },
+			});
+			putKeys.push(key);
+			nextKeys.push(key);
+		}
+	} catch (e) {
+		if (putKeys.length > 0) await env.AVATARS.delete(putKeys);
+		throw e;
+	}
+
 	const [row] = await db
 		.update(drunkWine)
-		.set({ photoKey: key })
+		.set({ photoKeys: nextKeys })
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning();
-	// 存在確認とここまでの間にエントリが削除された場合
+	// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する
 	if (!row) {
-		await env.AVATARS.delete(key);
+		if (putKeys.length > 0) await env.AVATARS.delete(putKeys);
 		throw new Error("Entry not found");
 	}
+
+	// 旧配列にあって新配列に残らないキーを削除(削除・差し替え・並べ替えを一括反映)
+	const nextSet = new Set(nextKeys);
+	const removed = currentKeys.filter((key) => !nextSet.has(key));
+	if (removed.length > 0) await env.AVATARS.delete(removed);
+
 	return toEntry(row);
 }

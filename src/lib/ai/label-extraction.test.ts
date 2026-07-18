@@ -19,7 +19,7 @@ function extraction(partial: Partial<LabelExtraction>): LabelExtraction {
 
 describe("buildLabelMessages", () => {
 	it("指示文と画像data URIを1つのuserメッセージに含める", () => {
-		const messages = buildLabelMessages("data:image/jpeg;base64,abc");
+		const messages = buildLabelMessages(["data:image/jpeg;base64,abc"]);
 		expect(messages).toHaveLength(1);
 		expect(messages[0]?.role).toBe("user");
 		expect(messages[0]?.content[0]).toEqual({
@@ -29,6 +29,24 @@ describe("buildLabelMessages", () => {
 		expect(messages[0]?.content[1]).toEqual({
 			type: "image_url",
 			image_url: { url: "data:image/jpeg;base64,abc" },
+		});
+	});
+
+	it("複数枚を1メッセージ内の複数image_urlパートとして含める", () => {
+		const messages = buildLabelMessages([
+			"data:image/jpeg;base64,front",
+			"data:image/jpeg;base64,back",
+		]);
+		expect(messages).toHaveLength(1);
+		// text 1個 + image 2個
+		expect(messages[0]?.content).toHaveLength(3);
+		expect(messages[0]?.content[1]).toEqual({
+			type: "image_url",
+			image_url: { url: "data:image/jpeg;base64,front" },
+		});
+		expect(messages[0]?.content[2]).toEqual({
+			type: "image_url",
+			image_url: { url: "data:image/jpeg;base64,back" },
 		});
 	});
 });
@@ -220,8 +238,22 @@ describe("buildLabelSuggestions", () => {
 
 describe("estimateLabelReserveTokens", () => {
 	it("上限以内の正の見積を返す", () => {
-		const estimate = estimateLabelReserveTokens();
+		const estimate = estimateLabelReserveTokens(1);
 		expect(estimate).toBeGreaterThan(0);
 		expect(estimate).toBeLessThanOrEqual(AI_MAX_ESTIMATE_TOKENS);
+	});
+
+	it("枚数が増えると見積も増える(上限まで)", () => {
+		expect(estimateLabelReserveTokens(3)).toBeGreaterThan(
+			estimateLabelReserveTokens(1),
+		);
+	});
+
+	it("上限を超えない(多数枚でもクランプ)", () => {
+		expect(estimateLabelReserveTokens(100)).toBe(AI_MAX_ESTIMATE_TOKENS);
+	});
+
+	it("0枚でも下限として1枚ぶんの見積を返す", () => {
+		expect(estimateLabelReserveTokens(0)).toBe(estimateLabelReserveTokens(1));
 	});
 });

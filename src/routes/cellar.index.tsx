@@ -26,10 +26,11 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 			className="group block h-full"
 		>
 			<Card className="h-full gap-0 overflow-hidden py-0 transition-colors group-hover:border-foreground/30">
-				{entry.photoUrl ? (
+				{entry.photoUrls[0] ? (
 					<img
-						// 写真差し替え時にR2キーが同じでも再取得させるキャッシュバスタ
-						src={`${entry.photoUrl}?v=${entry.updatedAt}`}
+						// 写真差し替え時にR2キーが同じでも再取得させるキャッシュバスタ。
+						// 一覧サムネイルは代表(先頭)の1枚
+						src={`${entry.photoUrls[0]}?v=${entry.updatedAt}`}
 						alt={`${entry.name}の写真`}
 						className="aspect-square w-full object-cover"
 					/>

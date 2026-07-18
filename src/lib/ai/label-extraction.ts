@@ -65,11 +65,13 @@ export const LABEL_JSON_SCHEMA = {
 
 /** モデルへの指示文。出力形式は guided_json が強制するため、内容の規範だけ書く。 */
 export const LABEL_PROMPT = [
-	"これはワインのエチケット(ラベル)の写真です。ラベルに印字されている情報を読み取り、JSONで出力してください。",
-	"- ラベルから読み取れない項目は null にする。推測で創作しない。",
+	"これらは同一のワイン1本を撮影した写真です(表ラベル・裏ラベル・ボトル全体など複数枚のことがあります)。",
+	"すべての写真に印字されている情報を総合して読み取り、1本ぶんの情報としてJSONで出力してください。",
+	"- どの写真からも読み取れない項目は null にする。推測で創作しない。",
+	"- 複数の写真に異なる記載があれば、より具体的で確度の高い記載を優先する。",
 	"- vintage は西暦の整数(例: 2020)。",
 	"- appellation はラベル記載の原産地呼称(AOC/AOP/DOC/DOCG など)を原語のまま。",
-	"- grape_varieties はラベルに明記されている場合のみ。",
+	"- grape_varieties はいずれかの写真に明記されている場合のみ。",
 ].join("\n");
 
 /** Workers AI(マルチモーダル)に渡すメッセージのcontent要素。 */
@@ -84,14 +86,23 @@ export interface LabelAiMessage {
 	content: LabelContentPart[];
 }
 
-/** 指示文 + エチケット画像(data URI)の1メッセージを組み立てる。 */
-export function buildLabelMessages(imageDataUrl: string): LabelAiMessage[] {
+/**
+ * 指示文 + エチケット画像(data URI)群の1メッセージを組み立てる。
+ * 複数枚を1メッセージ内の複数 image_url パートとして渡し、モデルに総合判断させる
+ * (Llama 4 Scout は複数画像の content パートを受け付ける)。
+ */
+export function buildLabelMessages(imageDataUrls: string[]): LabelAiMessage[] {
 	return [
 		{
 			role: "user",
 			content: [
 				{ type: "text", text: LABEL_PROMPT },
-				{ type: "image_url", image_url: { url: imageDataUrl } },
+				...imageDataUrls.map(
+					(url): LabelContentPart => ({
+						type: "image_url",
+						image_url: { url },
+					}),
+				),
 			],
 		},
 	];
@@ -320,15 +331,18 @@ export function buildLabelSuggestions(
 }
 
 /**
- * 予約すべきトークン数の見積。画像の見積が支配的で、指示文の推定 + 出力上限を足し、
- * 上限で必ずクランプする(予約が実測を上回るよう保守的に)。
+ * 予約すべきトークン数の見積。画像の見積が支配的なので枚数に比例させ、指示文の推定 +
+ * 出力上限を足し、上限で必ずクランプする(予約が実測を上回るよう保守的に)。
+ * imageCount は1以上を想定(0でも下限は指示文+出力ぶんになる)。
  */
-export function estimateLabelReserveTokens(): number {
+export function estimateLabelReserveTokens(imageCount: number): number {
 	const promptTokens = Math.ceil(
 		LABEL_PROMPT.length / CHARS_PER_TOKEN_ESTIMATE,
 	);
 	return Math.min(
 		AI_MAX_ESTIMATE_TOKENS,
-		AI_LABEL_IMAGE_TOKEN_ESTIMATE + promptTokens + AI_LABEL_MAX_OUTPUT_TOKENS,
+		AI_LABEL_IMAGE_TOKEN_ESTIMATE * Math.max(1, imageCount) +
+			promptTokens +
+			AI_LABEL_MAX_OUTPUT_TOKENS,
 	);
 }

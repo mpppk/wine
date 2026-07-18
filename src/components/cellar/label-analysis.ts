@@ -1,8 +1,12 @@
 import type { AnalyzeLabelResult } from "#/lib/services/ai-service";
 
-// エチケット自動入力のクライアント側ヘルパー。選択済みの写真を解析用に縮小して
-// /api/label-analysis へ送る。縮小はAI入力トークン(=クレジット)と転送量の削減が
-// 目的で、保存用のオリジナル写真(/api/wine-photos)には影響しない。
+// エチケット自動入力のクライアント側ヘルパー。現在フォームに添付中の写真(新規ファイル+
+// 保存済みの既存写真)をすべて解析用に縮小して /api/label-analysis へ送り、複数枚を
+// 総合判断させる。縮小はAI入力トークン(=クレジット)と転送量の削減が目的で、保存用の
+// オリジナル写真(/api/wine-photos)には影響しない。
+
+/** 解析対象の写真ソース。新規はFile、既存はサーバ配信URL(同一オリジン)。 */
+export type AnalysisPhotoSource = File | { url: string };
 
 /** 解析用に縮小する際の長辺の上限(px)。ラベルの文字が読める程度に保つ。 */
 const ANALYSIS_MAX_DIMENSION = 1280;
@@ -13,7 +17,7 @@ const ANALYSIS_JPEG_QUALITY = 0.85;
  * デコードや変換に失敗した場合は元ファイルのまま返す(サーバ側の5MB制限は
  * フォームで選択時に検証済み)。
  */
-async function downscaleForAnalysis(file: File): Promise<Blob> {
+async function downscaleForAnalysis(file: Blob): Promise<Blob> {
 	try {
 		// EXIFの回転をブラウザに解決させてからキャンバスへ描く
 		const bitmap = await createImageBitmap(file, {
@@ -43,18 +47,32 @@ async function downscaleForAnalysis(file: File): Promise<Blob> {
 	}
 }
 
-/** 写真を縮小して解析APIへ送り、自動入力候補を受け取る。失敗時はErrorをthrow。 */
-export async function analyzeLabelPhoto(
-	file: File,
+/** 解析ソースを解析用のBlobに解決する。既存写真(URL)は同一オリジンから取得する。 */
+async function toAnalysisBlob(source: AnalysisPhotoSource): Promise<Blob> {
+	if (source instanceof File) return source;
+	const res = await fetch(source.url);
+	if (!res.ok) throw new Error("既存写真の取得に失敗しました");
+	return res.blob();
+}
+
+/**
+ * 添付中の全写真を縮小して解析APIへ送り、自動入力候補を受け取る。失敗時はErrorをthrow。
+ * sources は表示順。新規ファイルと既存写真(URL)を混在して渡せる。
+ */
+export async function analyzeLabelPhotos(
+	sources: AnalysisPhotoSource[],
 ): Promise<AnalyzeLabelResult> {
-	const blob = await downscaleForAnalysis(file);
+	if (sources.length === 0) throw new Error("写真を選択してください");
 	const form = new FormData();
-	form.append(
-		"photo",
-		blob instanceof File
-			? blob
-			: new File([blob], "label.jpg", { type: blob.type }),
-	);
+	for (const source of sources) {
+		const blob = await downscaleForAnalysis(await toAnalysisBlob(source));
+		form.append(
+			"photo",
+			blob instanceof File
+				? blob
+				: new File([blob], "label.jpg", { type: blob.type }),
+		);
+	}
 	const res = await fetch("/api/label-analysis", {
 		method: "POST",
 		body: form,
