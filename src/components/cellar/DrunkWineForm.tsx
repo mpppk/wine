@@ -1,6 +1,13 @@
-import { useMutation } from "@tanstack/react-query";
-import { CheckIcon, ChevronsUpDownIcon, StarIcon } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+	CheckIcon,
+	ChevronsUpDownIcon,
+	SparklesIcon,
+	StarIcon,
+} from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { analyzeLabelPhoto } from "#/components/cellar/label-analysis";
+import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
 import {
@@ -21,6 +28,8 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import { Textarea } from "#/components/ui/textarea";
+import type { LabelSuggestions } from "#/lib/ai/label-extraction";
+import { CREDIT_BALANCE_QUERY_KEY } from "#/lib/credit/use-credit";
 import {
 	ALLOWED_PHOTO_TYPES,
 	MAX_PHOTO_BYTES,
@@ -85,6 +94,9 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [error, setError] = useState("");
+	const [analyzeNotice, setAnalyzeNotice] = useState("");
+	const [showInsufficient, setShowInsufficient] = useState(false);
+	const queryClient = useQueryClient();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	// 新規作成でエントリ作成後に写真アップロードだけ失敗した場合、
 	// 再送信で重複エントリを作らないよう作成済みエントリを覚えて更新に切り替える
@@ -127,10 +139,68 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 			return;
 		}
 		setError("");
+		setAnalyzeNotice("");
 		if (previewUrl) URL.revokeObjectURL(previewUrl);
 		setSelectedFile(file);
 		setPreviewUrl(URL.createObjectURL(file));
 	};
+
+	// エチケット解析の候補を「未入力の項目だけ」に反映する(ユーザ入力は上書きしない)。
+	// AOPはフォームの地域絞り込みと整合するよう、地域が未選択なら候補の地域も併せて
+	// 設定し、別の地域が選択済みなら適用しない。
+	const applySuggestions = (s: LabelSuggestions): string[] => {
+		const filled: string[] = [];
+		if (s.name && !name.trim()) {
+			setName(s.name);
+			filled.push("名前");
+		}
+		if (s.producer && !producer.trim()) {
+			setProducer(s.producer);
+			filled.push("生産者");
+		}
+		if (s.vintage != null && vintage === "") {
+			setVintage(String(s.vintage));
+			filled.push("ヴィンテージ");
+		}
+		if (s.regionId && !regionId) {
+			setRegionId(s.regionId);
+			filled.push("地域");
+		}
+		if (s.aopId && !aopId && (!regionId || regionId === s.regionId)) {
+			setAopId(s.aopId);
+			filled.push("AOP");
+		}
+		if (s.grapeVarietyIds?.length && grapeVarietyIds.length === 0) {
+			setGrapeVarietyIds(s.grapeVarietyIds);
+			filled.push("ぶどう品種");
+		}
+		return filled;
+	};
+
+	const { mutate: analyzeLabel, isPending: isAnalyzing } = useMutation({
+		mutationFn: async () => {
+			if (!selectedFile) throw new Error("写真を選択してください");
+			return analyzeLabelPhoto(selectedFile);
+		},
+		onSuccess: (result) => {
+			// クレジットを消費するのでヘッダ等の残高表示を更新する
+			void queryClient.invalidateQueries({
+				queryKey: CREDIT_BALANCE_QUERY_KEY,
+			});
+			if (result.blocked) {
+				setShowInsufficient(true);
+				return;
+			}
+			const filled = applySuggestions(result.suggestions);
+			setAnalyzeNotice(
+				filled.length > 0
+					? `エチケットから自動入力しました: ${filled.join("、")}`
+					: "エチケットから入力できる新しい項目はありませんでした(入力済みの項目は上書きしません)",
+			);
+		},
+		onError: (e: Error) =>
+			setError(e.message || "エチケットの解析に失敗しました"),
+	});
 
 	const { mutate: save, isPending } = useMutation({
 		mutationFn: async () => {
@@ -450,6 +520,31 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 						<p className="text-xs text-muted-foreground">
 							JPEG・PNG・WebP・GIF、最大5MB
 						</p>
+						{selectedFile && (
+							<div className="flex flex-col gap-1">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="self-start"
+									disabled={isAnalyzing}
+									onClick={() => {
+										setError("");
+										setAnalyzeNotice("");
+										analyzeLabel();
+									}}
+								>
+									<SparklesIcon className="size-4" aria-hidden />
+									{isAnalyzing ? "解析中..." : "エチケットから自動入力"}
+								</Button>
+								<p className="text-xs text-muted-foreground">
+									AIがラベルを読み取り、未入力の項目を自動で埋めます(AIクレジットを消費)
+								</p>
+							</div>
+						)}
+						{analyzeNotice && (
+							<p className="text-xs text-muted-foreground">{analyzeNotice}</p>
+						)}
 					</div>
 				</div>
 			</div>
@@ -475,6 +570,11 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 			>
 				{isPending ? "保存中..." : entry ? "更新する" : "記録する"}
 			</Button>
+
+			<InsufficientCreditsDialog
+				open={showInsufficient}
+				onOpenChange={setShowInsufficient}
+			/>
 		</form>
 	);
 }

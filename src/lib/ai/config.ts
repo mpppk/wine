@@ -27,6 +27,26 @@ export const AI_REGION_QA_MODEL = "@cf/google/gemma-4-26b-a4b-it";
 /** 1回の回答で生成する最大トークン(env.AI.run の max_completion_tokens)。予約はこれを含めて見積る。 */
 export const AI_MAX_OUTPUT_TOKENS = 512;
 
+/**
+ * エチケット(ラベル)画像解析に使う Workers AI モデル。Llama 4 Scout(マルチモーダル)を採用。
+ * 画像は messages の content 配列に image_url(data URI)として渡す(HTTP URLは不可)。
+ * guided_json で JSON Schema に沿った構造化出力を強制できる。
+ * 出力は従来テキスト生成形式(response 文字列)+ usage.total_tokens。
+ * 地域Q&AのGemma 4はAiModels上で画像入力を受けないため、ここだけ別モデルにする。
+ * @see https://developers.cloudflare.com/workers-ai/models/llama-4-scout-17b-16e-instruct/
+ */
+export const AI_LABEL_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
+
+/** エチケット解析1回で生成する最大トークン(構造化JSONのみなので小さめ)。 */
+export const AI_LABEL_MAX_OUTPUT_TOKENS = 512;
+
+/**
+ * 画像1枚の入力トークン見積(保守的)。Llama 4 は画像をタイル分割してトークン化するため
+ * 実測に幅があるが、予約が実測を必ず上回るよう大きめに取る(クライアントは長辺1280pxに
+ * 縮小してから送る前提)。
+ */
+export const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
+
 /** 質問文の最大文字数(入力バリデーション)。 */
 export const AI_MAX_QUESTION_CHARS = 300;
 

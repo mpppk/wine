@@ -1,5 +1,18 @@
 import { env } from "cloudflare:workers";
-import { AI_MAX_OUTPUT_TOKENS, AI_REGION_QA_MODEL } from "#/lib/ai/config";
+import {
+	AI_LABEL_MAX_OUTPUT_TOKENS,
+	AI_LABEL_MODEL,
+	AI_MAX_OUTPUT_TOKENS,
+	AI_REGION_QA_MODEL,
+} from "#/lib/ai/config";
+import {
+	buildLabelMessages,
+	buildLabelSuggestions,
+	estimateLabelReserveTokens,
+	LABEL_JSON_SCHEMA,
+	type LabelSuggestions,
+	parseLabelResponse,
+} from "#/lib/ai/label-extraction";
 import {
 	buildRegionChatMessages,
 	type ChatMessage,
@@ -118,6 +131,77 @@ export async function answerRegionQuestion(
 		);
 		const after = await creditService.getBalance(userId);
 		return { blocked: false, answer, actualTokens, balance: after.balance };
+	} catch (e) {
+		await creditService.refundReservation(
+			userId,
+			requestId,
+			res.reservedCredits,
+		);
+		throw e;
+	}
+}
+
+export interface AnalyzeLabelInput {
+	/** エチケット画像の data URI(data:image/...;base64,...)。HTTP URLは不可。 */
+	imageDataUrl: string;
+}
+
+export type AnalyzeLabelResult =
+	| { blocked: true; balance: number; required: number }
+	| {
+			blocked: false;
+			suggestions: LabelSuggestions;
+			actualTokens: number;
+			balance: number;
+	  };
+
+/**
+ * エチケット画像を Workers AI(マルチモーダル)で解析し、マイセラーの自動入力候補を返す。
+ * クレジットの予約→実測確定/失敗時返却は answerRegionQuestion と同じ骨格。
+ * 応答のパース失敗も「推論失敗」として予約を全額返却する。
+ */
+export async function analyzeWineLabel(
+	userId: string,
+	input: AnalyzeLabelInput,
+): Promise<AnalyzeLabelResult> {
+	const messages = buildLabelMessages(input.imageDataUrl);
+	const estimate = estimateLabelReserveTokens();
+	const requestId = `analyze_label:${crypto.randomUUID()}`;
+
+	const res = await creditService.reserveCredits(userId, estimate, requestId);
+	if (!res.ok) {
+		return { blocked: true, balance: res.balance, required: res.required };
+	}
+
+	try {
+		const raw = await env.AI.run(AI_LABEL_MODEL, {
+			messages,
+			// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
+			guided_json: LABEL_JSON_SCHEMA,
+			max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+		});
+		const out = raw as {
+			response?: string;
+			usage?: { total_tokens?: number };
+		};
+		const suggestions = buildLabelSuggestions(
+			parseLabelResponse(out.response ?? ""),
+		);
+		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
+		const actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
+		await creditService.settleReservation(
+			userId,
+			requestId,
+			res.reservedCredits,
+			actualTokens,
+		);
+		const after = await creditService.getBalance(userId);
+		return {
+			blocked: false,
+			suggestions,
+			actualTokens,
+			balance: after.balance,
+		};
 	} catch (e) {
 		await creditService.refundReservation(
 			userId,
