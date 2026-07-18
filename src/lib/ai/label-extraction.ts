@@ -65,13 +65,11 @@ export const LABEL_JSON_SCHEMA = {
 
 /** モデルへの指示文。出力形式は guided_json が強制するため、内容の規範だけ書く。 */
 export const LABEL_PROMPT = [
-	"これらは同一のワイン1本を撮影した写真です(表ラベル・裏ラベル・ボトル全体など複数枚のことがあります)。",
-	"すべての写真に印字されている情報を総合して読み取り、1本ぶんの情報としてJSONで出力してください。",
-	"- どの写真からも読み取れない項目は null にする。推測で創作しない。",
-	"- 複数の写真に異なる記載があれば、より具体的で確度の高い記載を優先する。",
+	"これはワインのボトル/エチケット(ラベル)の写真です。写真に写っている情報を読み取り、JSONで出力してください。",
+	"- 写真から読み取れない項目は null にする。推測で創作しない。",
 	"- vintage は西暦の整数(例: 2020)。",
 	"- appellation はラベル記載の原産地呼称(AOC/AOP/DOC/DOCG など)を原語のまま。",
-	"- grape_varieties はいずれかの写真に明記されている場合のみ。",
+	"- grape_varieties はラベルに明記されている場合のみ。",
 ].join("\n");
 
 /** Workers AI(マルチモーダル)に渡すメッセージのcontent要素。 */
@@ -87,22 +85,18 @@ export interface LabelAiMessage {
 }
 
 /**
- * 指示文 + エチケット画像(data URI)群の1メッセージを組み立てる。
- * 複数枚を1メッセージ内の複数 image_url パートとして渡し、モデルに総合判断させる
- * (Llama 4 Scout は複数画像の content パートを受け付ける)。
+ * 指示文 + エチケット画像(data URI)1枚の1メッセージを組み立てる。
+ * Workers AI の Llama 4 Scout は1リクエストに複数の image_url を載せると
+ * 500 を返すため、写真は1枚ずつ解析し、抽出結果を mergeExtractions で束ねる
+ * (総合判断は抽出結果のマージ側で行う)。
  */
-export function buildLabelMessages(imageDataUrls: string[]): LabelAiMessage[] {
+export function buildLabelMessages(imageDataUrl: string): LabelAiMessage[] {
 	return [
 		{
 			role: "user",
 			content: [
 				{ type: "text", text: LABEL_PROMPT },
-				...imageDataUrls.map(
-					(url): LabelContentPart => ({
-						type: "image_url",
-						image_url: { url },
-					}),
-				),
+				{ type: "image_url", image_url: { url: imageDataUrl } },
 			],
 		},
 	];
@@ -168,6 +162,28 @@ export function parseLabelResponse(raw: string): LabelExtraction {
 			.map((g) => g.trim())
 			.filter((g) => g.length > 0),
 	};
+}
+
+/**
+ * 複数写真の抽出結果を1本ぶんに束ねる(総合判断)。スカラ項目は最初に読み取れた
+ * 写真の値を採用し(表示順=配列順。先頭=代表写真を優先)、品種は全写真の和集合を取る。
+ * 例: 表ラベルから呼称・生産者・ヴィンテージ、裏ラベルから品種、を1本ぶんに統合する。
+ */
+export function mergeExtractions(
+	extractions: LabelExtraction[],
+): LabelExtraction {
+	const merged: LabelExtraction = { grapeVarieties: [] };
+	for (const e of extractions) {
+		merged.wineName ??= e.wineName;
+		merged.producer ??= e.producer;
+		merged.vintage ??= e.vintage;
+		merged.appellation ??= e.appellation;
+		merged.region ??= e.region;
+		for (const g of e.grapeVarieties) {
+			if (!merged.grapeVarieties.includes(g)) merged.grapeVarieties.push(g);
+		}
+	}
+	return merged;
 }
 
 /**

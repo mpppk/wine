@@ -13,7 +13,9 @@ import {
 	buildLabelSuggestions,
 	estimateLabelReserveTokens,
 	LABEL_JSON_SCHEMA,
+	type LabelExtraction,
 	type LabelSuggestions,
+	mergeExtractions,
 	parseLabelResponse,
 } from "#/lib/ai/label-extraction";
 import {
@@ -199,7 +201,6 @@ export async function analyzeWineLabel(
 	if (input.imageDataUrls.length === 0) {
 		throw new Error("画像が指定されていません");
 	}
-	const messages = buildLabelMessages(input.imageDataUrls);
 	const estimate = estimateLabelReserveTokens(input.imageDataUrls.length);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
 
@@ -209,21 +210,27 @@ export async function analyzeWineLabel(
 	}
 
 	try {
-		const raw = await env.AI.run(AI_LABEL_MODEL, {
-			messages,
-			// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
-			guided_json: LABEL_JSON_SCHEMA,
-			max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
-		});
-		const out = raw as {
-			response?: string;
-			usage?: { total_tokens?: number };
-		};
-		const suggestions = buildLabelSuggestions(
-			parseLabelResponse(out.response ?? ""),
-		);
+		// Workers AI の Llama 4 Scout は1リクエストに複数画像を載せると 500 になるため、
+		// 写真は1枚ずつ解析し、抽出結果をマージしてから候補を組み立てる(総合判断)。
+		let totalTokens = 0;
+		const extractions: LabelExtraction[] = [];
+		for (const imageDataUrl of input.imageDataUrls) {
+			const raw = await env.AI.run(AI_LABEL_MODEL, {
+				messages: buildLabelMessages(imageDataUrl),
+				// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
+				guided_json: LABEL_JSON_SCHEMA,
+				max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+			});
+			const out = raw as {
+				response?: string;
+				usage?: { total_tokens?: number };
+			};
+			extractions.push(parseLabelResponse(out.response ?? ""));
+			totalTokens += out.usage?.total_tokens ?? 0;
+		}
+		const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		const actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
+		const actualTokens = totalTokens || res.reservedTokens;
 		await creditService.settleReservation(
 			userId,
 			requestId,

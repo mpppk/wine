@@ -9,6 +9,7 @@ import {
 	matchAop,
 	matchGrapeVarietyIds,
 	matchRegionId,
+	mergeExtractions,
 	normalizeLabelText,
 	parseLabelResponse,
 } from "./label-extraction";
@@ -19,7 +20,7 @@ function extraction(partial: Partial<LabelExtraction>): LabelExtraction {
 
 describe("buildLabelMessages", () => {
 	it("指示文と画像data URIを1つのuserメッセージに含める", () => {
-		const messages = buildLabelMessages(["data:image/jpeg;base64,abc"]);
+		const messages = buildLabelMessages("data:image/jpeg;base64,abc");
 		expect(messages).toHaveLength(1);
 		expect(messages[0]?.role).toBe("user");
 		expect(messages[0]?.content[0]).toEqual({
@@ -31,23 +32,43 @@ describe("buildLabelMessages", () => {
 			image_url: { url: "data:image/jpeg;base64,abc" },
 		});
 	});
+});
 
-	it("複数枚を1メッセージ内の複数image_urlパートとして含める", () => {
-		const messages = buildLabelMessages([
-			"data:image/jpeg;base64,front",
-			"data:image/jpeg;base64,back",
+describe("mergeExtractions", () => {
+	it("スカラは最初に読み取れた写真の値、品種は和集合を採る", () => {
+		const merged = mergeExtractions([
+			extraction({
+				appellation: "Chablis Premier Cru",
+				producer: "Domaine Testut",
+				vintage: 2020,
+			}),
+			extraction({ grapeVarieties: ["Chardonnay"], region: "Bourgogne" }),
 		]);
-		expect(messages).toHaveLength(1);
-		// text 1個 + image 2個
-		expect(messages[0]?.content).toHaveLength(3);
-		expect(messages[0]?.content[1]).toEqual({
-			type: "image_url",
-			image_url: { url: "data:image/jpeg;base64,front" },
-		});
-		expect(messages[0]?.content[2]).toEqual({
-			type: "image_url",
-			image_url: { url: "data:image/jpeg;base64,back" },
-		});
+		expect(merged.appellation).toBe("Chablis Premier Cru");
+		expect(merged.producer).toBe("Domaine Testut");
+		expect(merged.vintage).toBe(2020);
+		expect(merged.region).toBe("Bourgogne");
+		expect(merged.grapeVarieties).toEqual(["Chardonnay"]);
+	});
+
+	it("先頭(代表写真)の値を優先し、後続では上書きしない", () => {
+		const merged = mergeExtractions([
+			extraction({ wineName: "Front Name" }),
+			extraction({ wineName: "Back Name" }),
+		]);
+		expect(merged.wineName).toBe("Front Name");
+	});
+
+	it("品種の重複はまとめる", () => {
+		const merged = mergeExtractions([
+			extraction({ grapeVarieties: ["Merlot", "Cabernet Sauvignon"] }),
+			extraction({ grapeVarieties: ["Merlot"] }),
+		]);
+		expect(merged.grapeVarieties).toEqual(["Merlot", "Cabernet Sauvignon"]);
+	});
+
+	it("空配列でも空の抽出結果を返す", () => {
+		expect(mergeExtractions([])).toEqual({ grapeVarieties: [] });
 	});
 });
 
