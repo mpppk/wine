@@ -260,6 +260,7 @@ export interface LabelSuggestions {
 /**
  * 抽出結果をマスタと突合し、フォームの自動入力候補に変換する。
  * - AOPは呼称→ワイン名の順で解決し、解決できたら地域もAOPから導出する。
+ * - 名前(必須項目)はワイン名が読めなければAOP日本語名→呼称の原文で補う。
  * - 品種はラベル記載を優先。無記載でもAOPの主要品種(principal)が1種だけなら
  *   それを候補にする(シャブリ=シャルドネ等、呼称が品種を規定するケース)。
  * - vintage はフォームと同じ 1800〜2100 の範囲外を捨てる。
@@ -293,6 +294,17 @@ export function buildLabelSuggestions(
 		);
 		const regionId = matchRegionId(regionTexts);
 		if (regionId) suggestions.regionId = regionId;
+	}
+
+	// キュヴェ名等が無いラベルでは wine_name が null になりやすい。名前は唯一の必須
+	// 項目なので、AOPの日本語名(→呼称の原文)で補って保存までの手数を減らす
+	// (プレースホルダ「例: シャブリ プルミエ・クリュ」と同じ流儀)。
+	if (!suggestions.name) {
+		if (suggestions.aopId && aop) {
+			suggestions.name = aop.nameJa;
+		} else if (extraction.appellation) {
+			suggestions.name = extraction.appellation.slice(0, 200);
+		}
 	}
 
 	let grapeIds = matchGrapeVarietyIds(extraction.grapeVarieties);

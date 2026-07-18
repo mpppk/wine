@@ -187,6 +187,16 @@ describe("buildLabelSuggestions", () => {
 		expect(s.grapeVarietyIds).toEqual(["chardonnay"]);
 	});
 
+	it("ワイン名が読めなければAOPの日本語名(→呼称の原文)を名前に補う", () => {
+		expect(
+			buildLabelSuggestions(extraction({ appellation: "Chablis Premier Cru" }))
+				.name,
+		).toBe("シャブリ・プルミエ・クリュ");
+		expect(
+			buildLabelSuggestions(extraction({ appellation: "Napa Valley" })).name,
+		).toBe("Napa Valley");
+	});
+
 	it("主要品種が複数のAOPでは品種を推測しない", () => {
 		// Margaux は principal が複数(カベルネ・ソーヴィニヨン/メルロ)
 		const s = buildLabelSuggestions(extraction({ appellation: "Margaux" }));
