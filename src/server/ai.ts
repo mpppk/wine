@@ -6,6 +6,8 @@ import { authMiddleware } from "./middleware";
 
 // 地域チャットQ&AのRPC。Workers AI で回答し、実測トークンでクレジットを消費する。認証必須。
 // 会話履歴はクライアントが保持し毎ターン渡す(サーバはステートレス)。
+// 使うモデルはユーザのプロフィール設定(preferredAiModel)からサーバ側で解決するため、
+// リクエストでは受け取らない。
 export const askRegion = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
 	.inputValidator(

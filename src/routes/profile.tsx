@@ -6,6 +6,19 @@ import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/ui/select";
+import {
+	AI_REGION_QA_MODELS,
+	DEFAULT_REGION_QA_MODEL,
+	REGION_QA_MODEL_KEYS,
+	type RegionQaModelKey,
+} from "#/lib/ai/config";
 import { authClient } from "#/lib/auth-client";
 import {
 	BILLING_STATUS_QUERY_KEY,
@@ -190,9 +203,92 @@ function ProfilePage() {
 				</CardContent>
 			</Card>
 
+			<AiModelCard />
 			<PlanCard />
 			<CreditCard />
 		</main>
+	);
+}
+
+/**
+ * 地域Q&AチャットのAIモデル選択。ユーザ設定として user.preferredAiModel に保存し、
+ * チャット側はこの設定を使う(チャット画面ではモデルを選べない)。
+ */
+function AiModelCard() {
+	const { data: session, refetch: refetchSession } = authClient.useSession();
+	const [model, setModel] = useState<RegionQaModelKey>(DEFAULT_REGION_QA_MODEL);
+	const [error, setError] = useState("");
+	const [successMessage, setSuccessMessage] = useState("");
+
+	useEffect(() => {
+		const pref = session?.user.preferredAiModel;
+		if (pref && (REGION_QA_MODEL_KEYS as readonly string[]).includes(pref)) {
+			setModel(pref as RegionQaModelKey);
+		}
+	}, [session?.user.preferredAiModel]);
+
+	const { mutate: saveModel, isPending } = useMutation({
+		mutationFn: async () => {
+			const result = await authClient.updateUser({ preferredAiModel: model });
+			if (result.error)
+				throw new Error(result.error.message ?? "Update failed");
+		},
+		onSuccess: async () => {
+			await refetchSession();
+			setSuccessMessage("AIモデルを更新しました。");
+			setError("");
+		},
+		onError: (err: Error) => {
+			setError(err.message);
+			setSuccessMessage("");
+		},
+	});
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle>AIモデル</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				<p className="text-sm text-muted-foreground">
+					地域について質問するAIチャットで使うモデルを選べます。
+				</p>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="ai-model">モデル</Label>
+					<Select
+						value={model}
+						onValueChange={(v) => setModel(v as RegionQaModelKey)}
+					>
+						<SelectTrigger id="ai-model" className="max-w-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{Object.entries(AI_REGION_QA_MODELS).map(([key, m]) => (
+								<SelectItem key={key} value={key}>
+									{m.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+
+				{error && <p className="text-sm text-destructive">{error}</p>}
+				{successMessage && (
+					<p className="text-sm text-green-600 dark:text-green-400">
+						{successMessage}
+					</p>
+				)}
+
+				<Button
+					type="button"
+					disabled={isPending}
+					onClick={() => saveModel()}
+					className="self-start"
+				>
+					{isPending ? "保存中..." : "モデルを保存"}
+				</Button>
+			</CardContent>
+		</Card>
 	);
 }
 
