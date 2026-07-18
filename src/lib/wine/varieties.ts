@@ -252,6 +252,116 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Menu pineau",
 		color: "white",
 	},
+	// --- ローヌ ---
+	// 北ローヌの赤はシラー単体、白はマルサンヌ/ルーサンヌ/ヴィオニエ。
+	// 南ローヌの赤はグルナッシュ主体のGSMブレンド。シャトーヌフ・デュ・パプの
+	// 認可13品種(赤白)も含む。
+	{ id: "syrah", nameJa: "シラー", nameLocal: "Syrah", color: "red" },
+	{
+		id: "grenache",
+		nameJa: "グルナッシュ(ノワール)",
+		nameLocal: "Grenache noir",
+		color: "red",
+	},
+	{
+		id: "mourvedre",
+		nameJa: "ムールヴェードル",
+		nameLocal: "Mourvèdre",
+		color: "red",
+	},
+	{ id: "cinsault", nameJa: "サンソー", nameLocal: "Cinsault", color: "red" },
+	{ id: "carignan", nameJa: "カリニャン", nameLocal: "Carignan", color: "red" },
+	{ id: "counoise", nameJa: "クノワーズ", nameLocal: "Counoise", color: "red" },
+	{
+		id: "muscardin",
+		nameJa: "ミュスカルダン",
+		nameLocal: "Muscardin",
+		color: "red",
+	},
+	{
+		id: "vaccarese",
+		nameJa: "ヴァカレーズ(ブラン・アルジャンテ)",
+		nameLocal: "Vaccarèse",
+		color: "red",
+	},
+	{
+		id: "terret-noir",
+		nameJa: "テレ・ノワール",
+		nameLocal: "Terret noir",
+		color: "red",
+	},
+	{
+		id: "piquepoul-noir",
+		nameJa: "ピクプール・ノワール",
+		nameLocal: "Piquepoul noir",
+		color: "red",
+	},
+	{
+		id: "grenache-gris",
+		nameJa: "グルナッシュ・グリ",
+		nameLocal: "Grenache gris",
+		color: "red",
+	},
+	{
+		id: "viognier",
+		nameJa: "ヴィオニエ",
+		nameLocal: "Viognier",
+		color: "white",
+	},
+	{
+		id: "marsanne",
+		nameJa: "マルサンヌ",
+		nameLocal: "Marsanne",
+		color: "white",
+	},
+	{
+		id: "roussanne",
+		nameJa: "ルーサンヌ",
+		nameLocal: "Roussanne",
+		color: "white",
+	},
+	{
+		id: "clairette",
+		nameJa: "クレレット",
+		nameLocal: "Clairette",
+		color: "white",
+	},
+	{
+		id: "bourboulenc",
+		nameJa: "ブルブーラン",
+		nameLocal: "Bourboulenc",
+		color: "white",
+	},
+	{
+		id: "grenache-blanc",
+		nameJa: "グルナッシュ・ブラン",
+		nameLocal: "Grenache blanc",
+		color: "white",
+	},
+	{
+		id: "piquepoul-blanc",
+		nameJa: "ピクプール・ブラン",
+		nameLocal: "Piquepoul blanc",
+		color: "white",
+	},
+	{
+		id: "picardan",
+		nameJa: "ピカルダン",
+		nameLocal: "Picardan",
+		color: "white",
+	},
+	{
+		id: "ugni-blanc",
+		nameJa: "ユニ・ブラン",
+		nameLocal: "Ugni blanc",
+		color: "white",
+	},
+	{
+		id: "vermentino",
+		nameJa: "ヴェルメンティーノ(ロール)",
+		nameLocal: "Vermentino",
+		color: "white",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);

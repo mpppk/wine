@@ -14249,5 +14249,1189 @@
 		"soil": "アンジュー・ソーミュール・トゥーレーヌの石灰質(トゥフォー)ほか。",
 		"producers": ["Bouvet-Ladubay", "Langlois-Château"],
 		"description": "ロワール広域の瓶内二次発酵スパークリングAOC。シュナン・ブランを軸にシャルドネやカベルネ・フランを用い、ソーミュール・ムスーより規定が厳しい。"
+	},
+	{
+		"id": "cote-rotie",
+		"idApp": 272,
+		"name": "Côte-Rôtie",
+		"shortName": "Côte-Rôtie",
+		"nameJa": "コート・ロティ",
+		"region": "rhone",
+		"subregionId": "rhone-septentrional",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			}
+		],
+		"soil": "急斜面の雲母片岩・片岩。北の「コート・ブロンド」と南の「コート・ブリュンヌ」で土壌が異なる。",
+		"producers": ["E. Guigal", "Domaine Jamet", "René Rostaing"],
+		"description": "北ローヌ最北の急斜面の赤。シラーにヴィオニエを最大20%まで白ブドウとして共醸でき、華やかな香りと繊細さを備える。「焼けた丘」の名の通り日照に恵まれた段々畑の銘醸地。"
+	},
+	{
+		"id": "condrieu",
+		"idApp": 270,
+		"name": "Condrieu",
+		"shortName": "Condrieu",
+		"nameJa": "コンドリュー",
+		"region": "rhone",
+		"subregionId": "rhone-septentrional",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "viognier",
+				"role": "principal"
+			}
+		],
+		"soil": "花崗岩が風化した砂質土壌「アルゼル」。",
+		"producers": ["Georges Vernay", "E. Guigal", "Yves Cuilleron"],
+		"description": "ヴィオニエ単一の白の聖地。杏やスイカズラのような芳香と豊かな果実味を持つ、世界のヴィオニエの規範となる辛口白。"
+	},
+	{
+		"id": "chateau-grillet",
+		"idApp": 266,
+		"name": "Château-Grillet",
+		"shortName": "Château-Grillet",
+		"nameJa": "シャトー・グリエ",
+		"region": "rhone",
+		"subregionId": "rhone-septentrional",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "viognier",
+				"role": "principal"
+			}
+		],
+		"soil": "花崗岩の風化土壌。円形劇場状の急斜面。",
+		"producers": ["Château-Grillet"],
+		"description": "ヴィオニエ単一の白のみを産む、フランスでも稀な単一所有(モノポール)の村名AOC。コンドリューに囲まれた約3.5haの円形劇場状の畑で、熟成能力の高い白を生む。"
+	},
+	{
+		"id": "saint-joseph",
+		"idApp": 284,
+		"name": "Saint-Joseph",
+		"shortName": "Saint-Joseph",
+		"nameJa": "サン・ジョセフ",
+		"region": "rhone",
+		"subregionId": "rhone-septentrional",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩と片岩の斜面。ローヌ右岸を南北約50kmにわたり伸びる。",
+		"producers": ["Jean-Louis Chave", "E. Guigal", "Domaine Coursodon"],
+		"description": "右岸を南北に長く伸びる北ローヌ最大の村名AOC。シラーの赤はしなやかで親しみやすく、マルサンヌ/ルーサンヌの白も産む。エルミタージュより軽快で日常的なスタイル。"
+	},
+	{
+		"id": "crozes-hermitage",
+		"idApp": 280,
+		"name": "Crozes-Hermitage",
+		"shortName": "Crozes-Hermitage",
+		"nameJa": "クローズ・エルミタージュ",
+		"region": "rhone",
+		"subregionId": "rhone-septentrional",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			}
+		],
+		"soil": "エルミタージュの丘を囲む平地〜丘陵。沖積の礫と黄土、花崗岩が混じる。",
+		"producers": ["Paul Jaboulet Aîné", "Alain Graillot", "Domaine Combier"],
+		"description": "北ローヌ最大の生産量を誇る村名AOC。エルミタージュの丘を取り囲む広い産地で、手頃で果実味豊かなシラーの赤が主体。白も少量産する。"
+	},
+	{
+		"id": "hermitage",
+		"idApp": 282,
+		"name": "Hermitage",
+		"shortName": "Hermitage",
+		"nameJa": "エルミタージュ",
+		"region": "rhone",
+		"subregionId": "rhone-septentrional",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩を基盤に、砂・黄土・氷河性の礫が乗る南向きの丘。区画ごとに大きく異なる。",
+		"producers": ["Jean-Louis Chave", "M. Chapoutier", "Paul Jaboulet Aîné"],
+		"description": "ローヌ左岸に孤立する南向きの丘に広がる北ローヌの頂点。長期熟成する力強く荘厳なシラーの赤と、マルサンヌ主体の長命な白を生む歴史的銘醸地。"
+	},
+	{
+		"id": "cornas",
+		"idApp": 271,
+		"name": "Cornas",
+		"shortName": "Cornas",
+		"nameJa": "コルナス",
+		"region": "rhone",
+		"subregionId": "rhone-septentrional",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			}
+		],
+		"soil": "花崗岩の風化土壌の急な段々畑。円形劇場状に日照を集める。",
+		"producers": ["Auguste Clape", "Thierry Allemand", "Vincent Paris"],
+		"description": "ヴィオニエの補助も白ワインも認めない、シラー100%だけの村名AOC。ケルト語で「焼けた大地」を意味し、濃密で野性的、力強い赤を生む北ローヌ最南の赤の銘醸地。"
+	},
+	{
+		"id": "saint-peray",
+		"idApp": 285,
+		"name": "Saint-Péray",
+		"shortName": "Saint-Péray",
+		"nameJa": "サン・ペレー",
+		"region": "rhone",
+		"subregionId": "rhone-septentrional",
+		"kind": "village",
+		"colors": ["white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "principal"
+			}
+		],
+		"soil": "花崗岩と石灰岩が混じる斜面。",
+		"producers": ["Jean-Louis Chave", "Domaine du Tunnel", "Alain Voge"],
+		"description": "北ローヌ最南の白専門AOC。マルサンヌ/ルーサンヌから、瓶内二次発酵の伝統的スパークリングとふくよかな辛口白を生む。"
+	},
+	{
+		"id": "chateauneuf-du-pape",
+		"idApp": 267,
+		"name": "Châteauneuf-du-Pape",
+		"shortName": "Châteauneuf-du-Pape",
+		"nameJa": "シャトーヌフ・デュ・パプ",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "counoise",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscardin",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vaccarese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "piquepoul-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "piquepoul-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "picardan",
+				"role": "accessory"
+			}
+		],
+		"soil": "「ガレ・ルレ」と呼ばれる丸い大石が地表を覆い、昼の熱を蓄えて夜に放射する。砂質・粘土も混じる。",
+		"producers": [
+			"Château de Beaucastel",
+			"Château Rayas",
+			"Domaine du Vieux Télégraphe"
+		],
+		"description": "南ローヌの象徴。認可13品種(色違いを数えて18)のブレンドが認められ、グルナッシュを軸に力強く温かみのある赤を生む。教皇のアヴィニョン捕囚に由来する名を持ち、丸石(ガレ)に覆われた畑で知られる。"
+	},
+	{
+		"id": "gigondas",
+		"idApp": 281,
+		"name": "Gigondas",
+		"shortName": "Gigondas",
+		"nameJa": "ジゴンダス",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red", "rose", "white"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			}
+		],
+		"soil": "ダンテル・ド・モンミライユの石灰岩と、麓の粘土石灰質・砂質。",
+		"producers": [
+			"Domaine du Cayron",
+			"Château de Saint Cosme",
+			"Domaine Santa Duc"
+		],
+		"description": "ダンテル・ド・モンミライユの岩峰の麓に広がる、グルナッシュ主体の力強い赤の銘醸地。「シャトーヌフの隣人」とも呼ばれ、標高の高い畑が新鮮さを与える。"
+	},
+	{
+		"id": "vacqueyras",
+		"idApp": 288,
+		"name": "Vacqueyras",
+		"shortName": "Vacqueyras",
+		"nameJa": "ヴァケラス",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂質・粘土石灰質のテラス、丸石を含む沖積土。",
+		"producers": [
+			"Domaine La Monardière",
+			"Château des Tours",
+			"Domaine de Montvac"
+		],
+		"description": "ジゴンダスの南に隣接する村名AOC。グルナッシュ主体の暖かくスパイシーな赤が主体で、ジゴンダスより穏やかで手頃。ガリグ(地中海性低木)の香りが特徴。"
+	},
+	{
+		"id": "cairanne",
+		"idApp": 819,
+		"name": "Cairanne",
+		"shortName": "Cairanne",
+		"nameJa": "ケランヌ",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			}
+		],
+		"soil": "粘土石灰質のテラスと、丸石を含む斜面。",
+		"producers": [
+			"Domaine Alary",
+			"Domaine Oratoire Saint-Martin",
+			"Marcel Richaud"
+		],
+		"description": "2016年にコート・デュ・ローヌ・ヴィラージュから昇格した南ローヌの新しいクリュ。グルナッシュ主体の凝縮した赤と少量の白を産する、実力派として評価の高い村。"
+	},
+	{
+		"id": "rasteau",
+		"idApp": 313,
+		"name": "Rasteau",
+		"shortName": "Rasteau",
+		"nameJa": "ラストー",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			}
+		],
+		"soil": "青灰色の泥灰土と粘土石灰質の南向き斜面。",
+		"producers": [
+			"Domaine de Beaurenard",
+			"Domaine des Escaravailles",
+			"Domaine Gourt de Mautens"
+		],
+		"description": "辛口赤の村名AOC(2010〜)であると同時に、グルナッシュを主体とする酒精強化甘口ワイン(ヴァン・ドゥー・ナチュレル)の産地としても知られる南ローヌの村。濃密で温かみのある赤を生む。"
+	},
+	{
+		"id": "vinsobres",
+		"idApp": 1130,
+		"name": "Vinsobres",
+		"shortName": "Vinsobres",
+		"nameJa": "ヴァンソーブル",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			}
+		],
+		"soil": "標高の高い粘土石灰質・砂質の斜面。",
+		"producers": ["Domaine du Moulin", "Domaine Jaume", "Perrin (Vinsobres)"],
+		"description": "ドローム県の標高の高い畑を持つ南ローヌ北端のクリュ(2006年昇格)。グルナッシュとシラーを一定比率で混ぜる規定を持ち、冷涼感のある引き締まった赤を生む。"
+	},
+	{
+		"id": "beaumes-de-venise",
+		"idApp": 1097,
+		"name": "Beaumes de Venise",
+		"shortName": "Beaumes-de-Venise",
+		"nameJa": "ボーム・ド・ヴニーズ",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			}
+		],
+		"soil": "トリアス紀の赤い砂岩とジュラ紀石灰岩が混じる特異な地質。",
+		"producers": [
+			"Domaine de Durban",
+			"Château Redortier",
+			"Domaine de Fenouillet"
+		],
+		"description": "ダンテル・ド・モンミライユ南麓の赤専門クリュ(2005年昇格)。三畳紀の赤色砂岩を含む独特の土壌から、スパイシーで色濃い赤を生む。同名の甘口ミュスカ(別AOC)でも有名な村。"
+	},
+	{
+		"id": "muscat-de-beaumes-de-venise",
+		"idApp": 308,
+		"name": "Muscat de Beaumes-de-Venise",
+		"shortName": "Muscat de Beaumes-de-Venise",
+		"nameJa": "ミュスカ・ド・ボーム・ド・ヴニーズ",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-rose-a-petits-grains",
+				"role": "accessory"
+			}
+		],
+		"soil": "赤色砂岩と石灰質の斜面。",
+		"producers": [
+			"Domaine de Durban",
+			"Domaine des Bernardins",
+			"Vignerons de Beaumes de Venise"
+		],
+		"description": "ミュスカ・ブラン・ア・プティ・グランから造る、南ローヌ屈指の酒精強化甘口白(ヴァン・ドゥー・ナチュレル)。ブドウの果汁にアルコールを添加して発酵を止め、豊かな甘みと華やかなマスカット香を残す。"
+	},
+	{
+		"id": "lirac",
+		"idApp": 283,
+		"name": "Lirac",
+		"shortName": "Lirac",
+		"nameJa": "リラック",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "丸石を含むテラスと砂質・粘土石灰質。",
+		"producers": [
+			"Château Mont-Redon",
+			"Domaine de la Mordorée",
+			"Château de Ségriès"
+		],
+		"description": "ローヌ右岸、タヴェルの北に位置する赤・白・ロゼの三色を産する村名AOC。グルナッシュ主体の赤に加え、良質なロゼと白でも知られ、シャトーヌフに近い品質を手頃な価格で提供する。"
+	},
+	{
+		"id": "tavel",
+		"idApp": 287,
+		"name": "Tavel",
+		"shortName": "Tavel",
+		"nameJa": "タヴェル",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			}
+		],
+		"soil": "丸石(ガレ)、砂質、石灰質のラウゼが混じる。",
+		"producers": [
+			"Château d'Aquéria",
+			"Domaine de la Mordorée",
+			"Prieuré de Montézargues"
+		],
+		"description": "フランスで唯一ロゼだけを産する村名AOC。グルナッシュ主体の色濃く力強い辛口ロゼは食中酒としての評価が高く、「ロゼの王」と称される歴史的産地。"
+	},
+	{
+		"id": "laudun",
+		"idApp": 1267,
+		"name": "Laudun",
+		"shortName": "Laudun",
+		"nameJa": "ローダン",
+		"region": "rhone",
+		"subregionId": "rhone-meridional",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			}
+		],
+		"soil": "粘土石灰質の丘陵と砂質のテラス。",
+		"producers": [
+			"Domaine Pélaquié",
+			"Château Courac",
+			"Domaine de la Rémejeanne"
+		],
+		"description": "ローヌ右岸ガール県のクリュ(2023年にコート・デュ・ローヌ・ヴィラージュ・ローダンから昇格)。赤・ロゼに加え、右岸では珍しく良質な白の伝統を持つ村。"
+	},
+	{
+		"id": "ventoux",
+		"idApp": 278,
+		"name": "Ventoux",
+		"shortName": "Ventoux",
+		"nameJa": "ヴァントゥー",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴァントゥー山西麓の石灰質・粘土石灰質。標高が高く冷涼。",
+		"producers": ["Domaine de Fondrèche", "Château Pesquié", "Château Unang"],
+		"description": "プロヴァンスにそびえるヴァントゥー山の西麓に広がる広域AOC。標高と昼夜の寒暖差により、南ローヌの中では新鮮で軽やかな赤・ロゼ・白を生む。"
+	},
+	{
+		"id": "luberon",
+		"idApp": 854,
+		"name": "Luberon",
+		"shortName": "Luberon",
+		"nameJa": "リュベロン",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "ugni-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "accessory"
+			}
+		],
+		"soil": "リュベロン山地の石灰質・砂質。標高が高く冷涼。",
+		"producers": [
+			"Château La Canorgue",
+			"Domaine de la Citadelle",
+			"Château Val Joanis"
+		],
+		"description": "リュベロン自然公園の丘陵に広がる広域AOC。冷涼な気候を活かした軽快な赤・ロゼと、ヴェルメンティーノ等を用いる新鮮な白の比率が高いのが特徴。"
+	},
+	{
+		"id": "costieres-de-nimes",
+		"idApp": 256,
+		"name": "Costières de Nîmes",
+		"shortName": "Costières de Nîmes",
+		"nameJa": "コスティエール・ド・ニーム",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "ugni-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "ローヌ川がもたらした丸石(ガレ)を含む洪積テラス。",
+		"producers": [
+			"Château Mourgues du Grès",
+			"Château de Nages",
+			"Château d'Or et de Gueules"
+		],
+		"description": "ローヌ川左岸最南、ニーム近郊の広域AOC。行政上はラングドックとの境だが、ローヌの丸石テラスとGSM品種を共有する。地中海の影響を受けた温暖で果実味豊かな赤・ロゼ・白を生む。"
+	},
+	{
+		"id": "cotes-du-vivarais",
+		"idApp": 289,
+		"name": "Côtes du Vivarais",
+		"shortName": "Côtes du Vivarais",
+		"nameJa": "コート・デュ・ヴィヴァレ",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルデシュ渓谷の石灰質高原。標高が高く冷涼。",
+		"producers": [
+			"Domaine Gallety",
+			"Vignerons Ardéchois",
+			"Domaine du Belvezet"
+		],
+		"description": "ローヌ右岸北西、アルデシュ県の石灰質高原に広がる広域AOC。冷涼な立地から、南ローヌよりも軽快でフレッシュなグルナッシュ・シラーの赤やロゼを生む。"
+	},
+	{
+		"id": "grignan-les-adhemar",
+		"idApp": 1013,
+		"name": "Grignan-les-Adhémar",
+		"shortName": "Grignan-les-Adhémar",
+		"nameJa": "グリニャン・レ・ザデマール",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			}
+		],
+		"soil": "ドローム県の砂質・粘土石灰質のテラス。",
+		"producers": ["Domaine de Montine", "Domaine Saint-Luc", "Cave de Grignan"],
+		"description": "南ローヌ北端、ドローム県の広域AOC(旧コトー・デュ・トリカスタン、2010年改称)。トリュフの産地としても知られ、しなやかで親しみやすいグルナッシュ・シラーの赤を主体に産する。"
+	},
+	{
+		"id": "clairette-de-die",
+		"idApp": 269,
+		"name": "Clairette de Die",
+		"shortName": "Clairette de Die",
+		"nameJa": "クレレット・ド・ディー",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "village",
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			}
+		],
+		"soil": "ドローム渓谷(ディオワ)の石灰質・泥灰土。標高が高く冷涼。",
+		"producers": [
+			"Jean-Claude Raspail",
+			"Cave Carod",
+			"Domaine Achard-Vincent"
+		],
+		"description": "名にクレレットを冠すが、実際はミュスカ主体で造る甘口〜半甘口スパークリング。「メトード・ディオワーズ・アンセストラル(祖法)」による一度の発酵だけで、低アルコールで華やかなマスカット香の泡を生む冷涼産地。"
+	},
+	{
+		"id": "cremant-de-die",
+		"idApp": 279,
+		"name": "Crémant de Die",
+		"shortName": "Crémant de Die",
+		"nameJa": "クレマン・ド・ディー",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "village",
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "clairette",
+				"role": "principal"
+			},
+			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			}
+		],
+		"soil": "ディオワの石灰質・泥灰土。",
+		"producers": ["Cave Carod", "Jean-Claude Raspail", "Cave Jaillance"],
+		"description": "ディオワで瓶内二次発酵(伝統方式)から造る辛口クレマン。クレレットを主体とし、クレレット・ド・ディーの甘口とは対照的な、きりっとした辛口スパークリング。"
+	},
+	{
+		"id": "coteaux-de-die",
+		"idApp": 273,
+		"name": "Coteaux de Die",
+		"shortName": "Coteaux de Die",
+		"nameJa": "コトー・ド・ディー",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "clairette",
+				"role": "principal"
+			}
+		],
+		"soil": "ディオワの石灰質・泥灰土の斜面。",
+		"producers": ["Cave Carod", "Domaine Achard-Vincent", "Cave Jaillance"],
+		"description": "ディオワで造られるクレレット100%の辛口スティル白。同じ産地の発泡2AOC(クレレット・ド・ディー/クレマン・ド・ディー)に対し、こちらは非発泡の静かな白を生む。"
+	},
+	{
+		"id": "chatillon-en-diois",
+		"idApp": 268,
+		"name": "Châtillon-en-Diois",
+		"shortName": "Châtillon-en-Diois",
+		"nameJa": "シャティヨン・アン・ディオワ",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "gamay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "aligote",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "ディオワ上流の石灰質の急斜面。標高が高く冷涼。",
+		"producers": [
+			"Domaine Fauchier-Marchal",
+			"Cave de Die Jaillance",
+			"Domaine des Vins de Clairette"
+		],
+		"description": "ディオワ最上流の冷涼な小AOC。ローヌでは珍しくガメイを主体とする赤・ロゼと、アリゴテ/シャルドネの白を産する、ブルゴーニュ的な品種構成を持つ例外的な産地。"
+	},
+	{
+		"id": "clairette-de-bellegarde",
+		"idApp": 252,
+		"name": "Clairette de Bellegarde",
+		"shortName": "Clairette de Bellegarde",
+		"nameJa": "クレレット・ド・ベルガルド",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "clairette",
+				"role": "principal"
+			}
+		],
+		"soil": "コスティエール地区の丸石を含む砂質・シルト土壌。",
+		"producers": ["Mas Carlot", "Domaine de l'Amarine", "Cave de Bellegarde"],
+		"description": "ニーム近郊ベルガルド村の、クレレット100%の辛口白専門AOC。コスティエール・ド・ニームに囲まれた小さな産地で、ふくよかで柔らかな白を生む。"
+	},
+	{
+		"id": "pierrevert",
+		"idApp": 290,
+		"name": "Pierrevert",
+		"shortName": "Pierrevert",
+		"nameJa": "ピエールヴェール",
+		"region": "rhone",
+		"subregionId": "rhone-peripherique",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "ugni-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "デュランス川上流、標高の高い石灰質・砂質の斜面。",
+		"producers": ["Château de Régusse", "Domaine La Blaque", "Petra Viridis"],
+		"description": "アルプ・ド・オート・プロヴァンス県、ローヌ最南東端の高標高AOC。冷涼で日照の強い山岳性気候から、軽快で酸のあるグルナッシュ・シラーの赤・ロゼと爽やかな白を生む。"
+	},
+	{
+		"id": "cotes-du-rhone",
+		"idApp": 275,
+		"name": "Côtes du Rhône",
+		"shortName": "Côtes du Rhône",
+		"nameJa": "コート・デュ・ローヌ",
+		"region": "rhone",
+		"subregionId": "rhone-regional",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "ugni-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "ローヌ渓谷全域にわたる多様な土壌(丸石・砂質・粘土石灰質・花崗岩)。",
+		"producers": ["E. Guigal", "Domaine de la Janasse", "Perrin & Fils"],
+		"description": "ローヌ渓谷全域(南北約200km)をカバーする、地方名の広域AOC。生産量の大半を占める土台で、グルナッシュ主体の親しみやすい赤が中心。この上にヴィラージュ、さらにクリュ(村名)が積み上がる階層の基礎。"
+	},
+	{
+		"id": "cotes-du-rhone-villages",
+		"idApp": 276,
+		"name": "Côtes du Rhône Villages",
+		"shortName": "Côtes du Rhône Villages",
+		"nameJa": "コート・デュ・ローヌ・ヴィラージュ",
+		"region": "rhone",
+		"subregionId": "rhone-regional",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			}
+		],
+		"soil": "主に南ローヌの選ばれたコミューンの粘土石灰質・砂質・丸石テラス。",
+		"producers": [
+			"Domaine de la Réméjeanne",
+			"Domaine des Escaravailles",
+			"Château de Montfaucon"
+		],
+		"description": "コート・デュ・ローヌより収量規定などが厳しい上位AOC。南ローヌの選ばれた村々で造られ、より凝縮した赤を生む。地理的名称を付記できる村(セギュレ、サブレ等)もあり、クリュへの昇格の登竜門となっている。"
 	}
 ]
