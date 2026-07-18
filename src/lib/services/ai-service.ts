@@ -210,23 +210,35 @@ export async function analyzeWineLabel(
 	}
 
 	try {
-		// Workers AI の Llama 4 Scout は1リクエストに複数画像を載せると 500 になるため、
-		// 写真は1枚ずつ解析し、抽出結果をマージしてから候補を組み立てる(総合判断)。
+		// 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側で行う)。
+		// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
+		// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
+		// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
 		let totalTokens = 0;
+		let anyCallOk = false;
 		const extractions: LabelExtraction[] = [];
 		for (const imageDataUrl of input.imageDataUrls) {
-			const raw = await env.AI.run(AI_LABEL_MODEL, {
-				messages: buildLabelMessages(imageDataUrl),
-				// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
-				guided_json: LABEL_JSON_SCHEMA,
-				max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
-			});
-			const out = raw as {
-				response?: string;
-				usage?: { total_tokens?: number };
-			};
-			extractions.push(parseLabelResponse(out.response ?? ""));
-			totalTokens += out.usage?.total_tokens ?? 0;
+			try {
+				const raw = await env.AI.run(AI_LABEL_MODEL, {
+					messages: buildLabelMessages(imageDataUrl),
+					// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
+					guided_json: LABEL_JSON_SCHEMA,
+					max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+				});
+				const out = raw as {
+					response?: string;
+					usage?: { total_tokens?: number };
+				};
+				extractions.push(parseLabelResponse(out.response ?? ""));
+				totalTokens += out.usage?.total_tokens ?? 0;
+				anyCallOk = true;
+			} catch {
+				// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行する
+			}
+		}
+		// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)
+		if (!anyCallOk) {
+			throw new Error("すべての写真の解析に失敗しました");
 		}
 		const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)

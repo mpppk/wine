@@ -86,9 +86,9 @@ export interface LabelAiMessage {
 
 /**
  * 指示文 + エチケット画像(data URI)1枚の1メッセージを組み立てる。
- * Workers AI の Llama 4 Scout は1リクエストに複数の image_url を載せると
- * 500 を返すため、写真は1枚ずつ解析し、抽出結果を mergeExtractions で束ねる
- * (総合判断は抽出結果のマージ側で行う)。
+ * 複数写真は ai-service 側で1枚ずつ解析し、抽出結果を mergeExtractions で束ねる
+ * (総合判断は抽出結果のマージ側で行う。1枚ずつにすることで、ある写真の解析失敗が
+ * 全体を巻き込まないようにする)。
  */
 export function buildLabelMessages(imageDataUrl: string): LabelAiMessage[] {
 	return [
