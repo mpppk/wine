@@ -38,6 +38,7 @@ export const aopSchema = z
 			"champagne",
 			"bordeaux",
 			"piemonte",
+			"toscana",
 			"alsace",
 			"loire",
 			"rhone",

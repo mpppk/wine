@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// ピエモンテ(イタリア)のDOP境界GeoJSON(public/data/aop/piemonte.geojson)を生成する。
+// イタリアのDOP境界GeoJSON(public/data/aop/<region>.geojson)を生成する。
 //
-//   bun run build:geodata:italy                       # figshareからDL(キャッシュあり)
+//   bun run build:geodata:italy                       # 全イタリア地域を生成(figshareからDL、キャッシュあり)
+//   bun run build:geodata:italy -- --region toscana   # 特定地域のみ生成
 //   bun run build:geodata:italy -- --source /path/to/EU_PDO.gpkg   # ローカルのgpkgを使う
 //
 // データソース:
@@ -17,11 +18,12 @@
 // 仕組み(フランス版 build-aop-geodata.mjs との違い):
 //  - gpkg は 1行 = 1 PDO の MultiPolygon。dissolve/split は不要(そのまま使う)。
 //  - 座標系は EPSG:3035(ETRS89-LAEA)。mapshaper で wgs84 へ再投影する。
-//  - 公式 id_app が無いため idApp は 920001〜 の連番(PIEMONTE_PDO 表)。PDOid との
-//    対応もこの表が真実の源。aops.json の idApp と一致しなければ即エラーにする。
-//  - 同一区分(kind)内で包含関係(例: Nizza ⊂ Barbera d'Asti)があるため、出力の
-//    フィーチャ順は「rank昇順 → 面積降順」にする。同rankでは面積の小さいものを
-//    後ろ(=最前面に描画)にして、hover/クリックが小さいDOP側に解決されるようにする。
+//  - 公式 id_app が無いため idApp は地域ごとの連番(REGION_CONFIGS の pdo 表)。PDOid
+//    との対応もこの表が真実の源。aops.json の idApp と一致しなければ即エラーにする。
+//  - 同一区分(kind)内で包含関係(例: Rosso di Montalcino ⊂ Brunello 相当地域)が
+//    あるため、出力のフィーチャ順は「rank昇順 → 面積降順」にする。同rankでは面積の
+//    小さいものを後ろ(=最前面に描画)にして、hover/クリックが小さいDOP側に解決される
+//    ようにする。
 
 import fs from "node:fs";
 import path from "node:path";
@@ -32,55 +34,102 @@ import mapshaper from "mapshaper";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE_DIR = path.join(ROOT, ".cache", "italy-geodata");
 const OUT_DIR = path.join(ROOT, "public", "data", "aop");
-const OUT_PATH = path.join(OUT_DIR, "piemonte.geojson");
 
 // figshare "Wine PDO map" の EU_PDO.gpkg(約44MB)。生成物はコミットするので
 // CIや利用者が毎回DLする必要はない(生成し直すときだけ取得)。
 const GPKG_URL = "https://ndownloader.figshare.com/files/35955185";
 
-// aops.json の aopId → eAmbrosia PDOid。追記のみ(既存行のidAppは変えない)。
-// idApp は aops.json 側と突合するためここでは持たず、aops.json を真実の源とする。
-const PIEMONTE_PDO = {
-	barolo: "PDO-IT-A1389",
-	barbaresco: "PDO-IT-A1399",
-	dogliani: "PDO-IT-A1330",
-	"dolcetto-di-diano-d-alba": "PDO-IT-A1324",
-	"alta-langa": "PDO-IT-A1252",
-	roero: "PDO-IT-A1261",
-	"terre-alfieri": "PDO-IT-A1241",
-	asti: "PDO-IT-A1396",
-	"barbera-d-asti": "PDO-IT-A1398",
-	nizza: "PDO-IT-01896",
-	"barbera-del-monferrato-superiore": "PDO-IT-A1397",
-	"ruche-di-castagnole-monferrato": "PDO-IT-A1258",
-	"brachetto-d-acqui": "PDO-IT-A1382",
-	"dolcetto-di-ovada-superiore": "PDO-IT-A1319",
-	gavi: "PDO-IT-A1310",
-	gattinara: "PDO-IT-A1311",
-	ghemme: "PDO-IT-A1263",
-	"erbaluce-di-caluso": "PDO-IT-A1315",
-	piemonte: "PDO-IT-A1224",
-	langhe: "PDO-IT-A1189",
-	monferrato: "PDO-IT-A1210",
-	"coste-della-sesia": "PDO-IT-A1138",
-	"colli-tortonesi": "PDO-IT-A1097",
-	"barbera-d-alba": "PDO-IT-A1068",
-	"dolcetto-d-alba": "PDO-IT-A1142",
-	"nebbiolo-d-alba": "PDO-IT-A1213",
-	"verduno-pelaverga": "PDO-IT-A1244",
-	bramaterra: "PDO-IT-A1075",
-	lessona: "PDO-IT-A1191",
-	// 注: Canelli(2023年DOCG独立)は2021年時点の本データセットに未収録のため
-	// 今回は対象外。将来ISTATのコミューン境界等から別途生成する。
-};
-
 const KIND_RANK = { regional: 0, village: 1, vineyard: 2, winery: 3 };
 const SIMPLIFY_M = 50; // コミューン単位なので粗めでよい
-// ピエモンテ州を囲むbbox(WGS84, xmin,ymin,xmax,ymax)。データセットは各PDOを
-// コミューン「名」から集約しているため、同名の他州コミューンを取り違えた飛び地が
-// 一部の広域DOP(Barbera d'Asti/Monferrato等)に混入している(例: ヴェローナ付近
-// 11°E)。州の実際の東端は約9.2°Eなので、このbboxでクリップして除去する。
-const PIEMONTE_CLIP_BBOX = "6.4,43.9,9.5,46.7";
+
+// 地域ごとの設定。pdo は aops.json の aopId → eAmbrosia PDOid(追記のみ。既存行の
+// idApp は変えない)。idApp は aops.json 側と突合するためここでは持たず、aops.json を
+// 真実の源とする。clipBbox は、データセットが各PDOをコミューン「名」から集約している
+// ために混入する同名の他州コミューン(飛び地)を除去するための州境界bbox
+// (WGS84, xmin,ymin,xmax,ymax)。
+const REGION_CONFIGS = {
+	piemonte: {
+		out: "piemonte.geojson",
+		// ピエモンテの実際の東端は約9.2°E。同名コミューン由来の飛び地(例: ヴェローナ
+		// 付近11°E)を除去する。
+		clipBbox: "6.4,43.9,9.5,46.7",
+		pdo: {
+			barolo: "PDO-IT-A1389",
+			barbaresco: "PDO-IT-A1399",
+			dogliani: "PDO-IT-A1330",
+			"dolcetto-di-diano-d-alba": "PDO-IT-A1324",
+			"alta-langa": "PDO-IT-A1252",
+			roero: "PDO-IT-A1261",
+			"terre-alfieri": "PDO-IT-A1241",
+			asti: "PDO-IT-A1396",
+			"barbera-d-asti": "PDO-IT-A1398",
+			nizza: "PDO-IT-01896",
+			"barbera-del-monferrato-superiore": "PDO-IT-A1397",
+			"ruche-di-castagnole-monferrato": "PDO-IT-A1258",
+			"brachetto-d-acqui": "PDO-IT-A1382",
+			"dolcetto-di-ovada-superiore": "PDO-IT-A1319",
+			gavi: "PDO-IT-A1310",
+			gattinara: "PDO-IT-A1311",
+			ghemme: "PDO-IT-A1263",
+			"erbaluce-di-caluso": "PDO-IT-A1315",
+			piemonte: "PDO-IT-A1224",
+			langhe: "PDO-IT-A1189",
+			monferrato: "PDO-IT-A1210",
+			"coste-della-sesia": "PDO-IT-A1138",
+			"colli-tortonesi": "PDO-IT-A1097",
+			"barbera-d-alba": "PDO-IT-A1068",
+			"dolcetto-d-alba": "PDO-IT-A1142",
+			"nebbiolo-d-alba": "PDO-IT-A1213",
+			"verduno-pelaverga": "PDO-IT-A1244",
+			bramaterra: "PDO-IT-A1075",
+			lessona: "PDO-IT-A1191",
+			// 注: Canelli(2023年DOCG独立)は2021年時点の本データセットに未収録のため
+			// 今回は対象外。将来ISTATのコミューン境界等から別途生成する。
+		},
+	},
+	toscana: {
+		out: "toscana.geojson",
+		// トスカーナ本土(東端 約12.4°E)＋エルバ島(西端 約10.1°E)を含み、同名の他州
+		// コミューン飛び地を除く。
+		clipBbox: "9.6,42.2,12.5,44.6",
+		pdo: {
+			// chianti
+			"chianti-classico": "PDO-IT-A1235",
+			chianti: "PDO-IT-A1228",
+			"vin-santo-del-chianti-classico": "PDO-IT-A1514",
+			// montalcino
+			"brunello-di-montalcino": "PDO-IT-A1199",
+			"rosso-di-montalcino": "PDO-IT-A1456",
+			"sant-antimo": "PDO-IT-A1486",
+			"moscadello-di-montalcino": "PDO-IT-A1440",
+			// montepulciano
+			"vino-nobile-di-montepulciano": "PDO-IT-A1308",
+			"rosso-di-montepulciano": "PDO-IT-A1458",
+			"vin-santo-di-montepulciano": "PDO-IT-A1515",
+			orcia: "PDO-IT-A1442",
+			// san-gimignano
+			"vernaccia-di-san-gimignano": "PDO-IT-A1292",
+			// costa-maremma
+			bolgheri: "PDO-IT-A1348",
+			"bolgheri-sassicaia": "PDO-IT-A1671",
+			"maremma-toscana": "PDO-IT-A1413",
+			"morellino-di-scansano": "PDO-IT-A1260",
+			"montecucco-sangiovese": "PDO-IT-A1246",
+			montecucco: "PDO-IT-A1433",
+			suvereto: "PDO-IT-A1266",
+			"val-di-cornia-rosso": "PDO-IT-A1262",
+			"val-di-cornia": "PDO-IT-A1498",
+			"elba-aleatico-passito": "PDO-IT-A1237",
+			// colline-centrali
+			carmignano: "PDO-IT-A1220",
+			cortona: "PDO-IT-A1518",
+			"colline-lucchesi": "PDO-IT-A1387",
+			montecarlo: "PDO-IT-A1421",
+			"candia-dei-colli-apuani": "PDO-IT-A1377",
+			pomino: "PDO-IT-A1453",
+		},
+	},
+};
 
 async function main() {
 	const sourceArg = process.argv.indexOf("--source");
@@ -88,25 +137,50 @@ async function main() {
 		sourceArg !== -1 ? process.argv[sourceArg + 1] : await ensureGpkg();
 	console.log(`gpkg: ${gpkgPath}`);
 
-	const aops = JSON.parse(
+	const regionArg = process.argv.indexOf("--region");
+	const targets =
+		regionArg !== -1
+			? [process.argv[regionArg + 1]]
+			: Object.keys(REGION_CONFIGS);
+	for (const region of targets) {
+		if (!REGION_CONFIGS[region])
+			throw new Error(
+				`未知の地域: ${region}(有効: ${Object.keys(REGION_CONFIGS).join(", ")})`,
+			);
+	}
+
+	const allAops = JSON.parse(
 		fs.readFileSync(path.join(ROOT, "src/lib/wine/aops.json"), "utf8"),
-	).filter((a) => a.region === "piemonte");
-
-	// aops.json と PIEMONTE_PDO の集合が完全一致することを保証する
-	const aopIds = new Set(aops.map((a) => a.id));
-	const mapIds = new Set(Object.keys(PIEMONTE_PDO));
-	for (const id of aopIds)
-		if (!mapIds.has(id)) throw new Error(`PIEMONTE_PDO に ${id} が無い`);
-	for (const id of mapIds)
-		if (!aopIds.has(id))
-			throw new Error(`aops.json に piemonte/${id} が無い(PDO表に余分)`);
-
-	// gpkg から対象PDOのジオメトリを取り出し、EPSG:3035のGeoJSONを組む
+	);
 	const db = new DatabaseSync(gpkgPath, { readOnly: true });
 	const stmt = db.prepare("SELECT Shape FROM EU_PDO WHERE PDOid = ?");
+	try {
+		for (const region of targets) await buildRegion(region, allAops, stmt);
+	} finally {
+		db.close();
+	}
+}
+
+/** 1地域分の geojson を生成して書き出す */
+async function buildRegion(region, allAops, stmt) {
+	const cfg = REGION_CONFIGS[region];
+	const outPath = path.join(OUT_DIR, cfg.out);
+	const aops = allAops.filter((a) => a.region === region);
+
+	// aops.json と pdo 表の集合が完全一致することを保証する
+	const aopIds = new Set(aops.map((a) => a.id));
+	const mapIds = new Set(Object.keys(cfg.pdo));
+	for (const id of aopIds)
+		if (!mapIds.has(id))
+			throw new Error(`${region}: pdo 表に ${id} が無い`);
+	for (const id of mapIds)
+		if (!aopIds.has(id))
+			throw new Error(`${region}: aops.json に ${id} が無い(pdo表に余分)`);
+
+	// gpkg から対象PDOのジオメトリを取り出し、EPSG:3035のGeoJSONを組む
 	const inputFeatures = [];
 	for (const aop of aops) {
-		const pdoId = PIEMONTE_PDO[aop.id];
+		const pdoId = cfg.pdo[aop.id];
 		const row = stmt.get(pdoId);
 		if (!row || !row.Shape)
 			throw new Error(`gpkg に ${pdoId}(${aop.id}) のジオメトリが無い`);
@@ -117,11 +191,10 @@ async function main() {
 			geometry: geom,
 		});
 	}
-	db.close();
 
 	fs.mkdirSync(CACHE_DIR, { recursive: true });
-	const tmpIn = path.join(CACHE_DIR, "piemonte.input.geojson");
-	const tmpOut = path.join(CACHE_DIR, "piemonte.simplified.geojson");
+	const tmpIn = path.join(CACHE_DIR, `${region}.input.geojson`);
+	const tmpOut = path.join(CACHE_DIR, `${region}.simplified.geojson`);
 	fs.writeFileSync(
 		tmpIn,
 		JSON.stringify({ type: "FeatureCollection", features: inputFeatures }),
@@ -134,7 +207,7 @@ async function main() {
 			`-simplify interval=${SIMPLIFY_M} keep-shapes`,
 			`-proj wgs84 from=EPSG:3035`,
 			// 名称照合エラー由来の他州飛び地を州bboxで除去(上記コメント参照)
-			`-clip bbox=${PIEMONTE_CLIP_BBOX}`,
+			`-clip bbox=${cfg.clipBbox}`,
 			`-o ${tmpOut} format=geojson precision=0.00001 force`,
 		].join(" "),
 	);
@@ -173,13 +246,13 @@ async function main() {
 	for (const f of simplified.features) f.properties._area = undefined;
 
 	fs.mkdirSync(OUT_DIR, { recursive: true });
-	fs.writeFileSync(OUT_PATH, JSON.stringify(simplified));
-	const mb = (fs.statSync(OUT_PATH).size / 1e6).toFixed(2);
+	fs.writeFileSync(outPath, JSON.stringify(simplified));
+	const mb = (fs.statSync(outPath).size / 1e6).toFixed(2);
 	console.log(
-		`wrote ${path.relative(ROOT, OUT_PATH)} (${simplified.features.length} features, ${mb}MB)`,
+		`wrote ${path.relative(ROOT, outPath)} (${simplified.features.length} features, ${mb}MB)`,
 	);
 	const b = computeBounds(simplified);
-	console.log("\nbounds (src/lib/wine/regions.ts の piemonte.bounds に反映):");
+	console.log(`\nbounds (src/lib/wine/regions.ts の ${region}.bounds に反映):`);
 	console.log(`  [${b.map((v) => v.toFixed(5)).join(", ")}]`);
 }
 

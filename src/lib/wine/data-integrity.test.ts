@@ -209,8 +209,9 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 		}
 	});
 
-	it("docg / doc タグはピエモンテ以外に付かない", () => {
-		for (const aop of AOPS.filter((a) => a.region !== "piemonte")) {
+	it("docg / doc タグはイタリア(ピエモンテ / トスカーナ)以外に付かない", () => {
+		const italianRegions = new Set(["piemonte", "toscana"]);
+		for (const aop of AOPS.filter((a) => !italianRegions.has(a.region))) {
 			const tags = aop.tags ?? [];
 			expect(tags.includes("docg") || tags.includes("doc"), aop.id).toBe(false);
 		}
@@ -218,6 +219,30 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 
 	it("区分は regional / village のみ(畑・ワイナリーは無し)", () => {
 		for (const aop of piemonte) {
+			expect(["regional", "village"]).toContain(aop.kind);
+		}
+	});
+});
+
+describe("トスカーナ(イタリア)の整合性", () => {
+	const toscana = AOPS.filter((a) => a.region === "toscana");
+
+	it("件数スナップショット(DOCG11 / DOC17 / 計28)", () => {
+		expect(toscana.length).toBe(28);
+		expect(toscana.filter((a) => a.tags?.includes("docg")).length).toBe(11);
+		expect(toscana.filter((a) => a.tags?.includes("doc")).length).toBe(17);
+	});
+
+	it("各レコードは docg / doc のちょうど一方を持つ", () => {
+		for (const aop of toscana) {
+			const tags = aop.tags ?? [];
+			const n = Number(tags.includes("docg")) + Number(tags.includes("doc"));
+			expect(n, aop.id).toBe(1);
+		}
+	});
+
+	it("区分は regional / village のみ(畑・ワイナリーは無し)", () => {
+		for (const aop of toscana) {
 			expect(["regional", "village"]).toContain(aop.kind);
 		}
 	});
