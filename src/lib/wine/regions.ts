@@ -157,6 +157,28 @@ export const REGIONS: Region[] = [
 			"上流サントルのソーヴィニヨン・ブラン(サンセール/プイィ・フュメ)まで、" +
 			"4つの地区でまったく異なるスタイルと品種の対応を学べる。",
 	},
+	{
+		id: "rhone",
+		nameJa: "ローヌ",
+		nameLocal: "Rhône",
+		country: "France",
+		countryJa: "フランス",
+		enabled: true,
+		bounds: [4.24548, 43.62018, 6.07102, 45.52738],
+		geojsonPath: "/data/aop/rhone.geojson",
+		boundariesPath: "/data/aop/rhone-boundaries.geojson",
+		subregions: [
+			{ id: "rhone-septentrional", nameJa: "北ローヌ(セプタントリオナル)" },
+			{ id: "rhone-meridional", nameJa: "南ローヌ(メリディオナル)" },
+			{ id: "rhone-peripherique", nameJa: "周辺(ディオワ・衛星産地)" },
+			{ id: "rhone-regional", nameJa: "地方名AOC(広域)" },
+		],
+		description:
+			"ローヌ川に沿って南北に伸びる、ボルドー・ブルゴーニュと並ぶフランスの銘醸地。" +
+			"急斜面でシラー単一の力強い赤とヴィオニエ/マルサンヌ/ルーサンヌの白を生む北ローヌと、" +
+			"グルナッシュを主体にシラー・ムールヴェードルを混ぜるGSMブレンドの南ローヌ(シャトーヌフ・" +
+			"デュ・パプ等)という、同じ川筋で対照的な二つの世界を軸に、単一品種とブレンドの学習に最適。",
+	},
 ];
 
 export function getRegion(id: string): Region | undefined {

@@ -93,6 +93,12 @@ const AIRES_CSV_NAME_BY_APP = {
 	Orléans: "Orléans",
 	"Rosé de Loire": "Rosé de Loire",
 	"Crémant de Loire": "Crémant de Loire",
+	// ローヌの広域・準広域AOC(生産地域が広く、区画経路だとファイルが肥大化するため
+	// aire géographique=コミューン輪郭で表現する)。
+	"Côtes du Rhône": "Côtes du Rhône",
+	"Côtes du Rhône Villages": "Côtes du Rhône Villages",
+	Ventoux: "Ventoux",
+	Luberon: "Luberon",
 };
 /** 委任コミューン(合併で消えた旧村)の輪郭を取得する県コード */
 const DELEGATED_DEPARTMENTS = ["51"];
@@ -116,11 +122,21 @@ const DELEGATED_DEPARTMENTS = ["51"];
  * 起きないため区画経路で扱う。
  * フィエフ・ヴァンデアンは aires CSV に統合された1件が無く(ブレム等の下位地区に
  * 分かれている)、かつ区画数も少ないため区画経路で扱う。
+ * ローヌの広域AOC(コート・デュ・ローヌ/同ヴィラージュ/ヴァントゥー/リュベロン等)は、
+ * INAO区画データがコミューン単位に集約済み(最大167件)で肥大化しないため、aire ではなく
+ * 区画経路で実際の栽培区域の輪郭を生成する。
  */
 const PARCEL_REGIONAL_AOP_IDS = new Set([
 	"alsace",
 	"cremant-d-alsace",
 	"fiefs-vendeens",
+	// ローヌの準広域AOC(区画数が少なく肥大化しないもの)。コート・デュ・ローヌ/
+	// 同ヴィラージュ/ヴァントゥー/リュベロンは生産地域が広く区画経路だと重い(合計8MB超)
+	// ため aire 経路(AIRES_CSV_NAME_BY_APP)に回す。
+	"costieres-de-nimes",
+	"cotes-du-vivarais",
+	"grignan-les-adhemar",
+	"pierrevert",
 ]);
 
 const COMMUNES_BY_AOP_ID = {

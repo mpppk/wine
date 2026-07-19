@@ -62,6 +62,11 @@ const SUBREGION_CLOSING_OVERRIDES = {
 	"anjou-saumur": PARCEL_CLOSING,
 	touraine: PARCEL_CLOSING,
 	"centre-loire": PARCEL_CLOSING,
+	// ローヌの各地区も区画ベースで飛び地が多い。周辺地区はディオワ〜衛星産地が
+	// 地理的に離散するため、複数の島に分かれた輪郭になる(地理的に正確)。
+	"rhone-septentrional": PARCEL_CLOSING,
+	"rhone-meridional": PARCEL_CLOSING,
+	"rhone-peripherique": PARCEL_CLOSING,
 };
 
 /** 除去する飛び地の最小面積(m²)と簡略化の許容誤差(m) */

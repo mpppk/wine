@@ -28,7 +28,8 @@ export type RegionId =
 	| "bordeaux"
 	| "piemonte"
 	| "alsace"
-	| "loire";
+	| "loire"
+	| "rhone";
 
 export interface GrapeVariety {
 	id: string;
@@ -76,6 +77,9 @@ export interface Aop {
 	 *   - ロワール: 大半はINAOの id_app 実値を使うが、区画データに独立ポリゴンが
 	 *     無く aire géographique から生成するAOC(カベルネ・ド・ソーミュール等)は
 	 *     912001〜 の合成IDを割り当てる。
+	 *   - ローヌ: 大半はINAOの id_app 実値を使うが、区画データに独立ポリゴンが無く
+	 *     aire géographique から生成するAOC(コート・デュ・ローヌ・ヴィラージュ等)は
+	 *     913001〜 の合成IDを割り当てる。
 	 *   - ブルゴーニュのクリマ/合成総称ノード: 930001〜。INAOの独立ポリゴンを
 	 *     持たない(地図に描かない)エントリ帯。ビルド/整合テストは idApp>=930000 を
 	 *     ジオメトリ必須の対象から除外する(POLYGONLESS_IDAPP_MIN)。
