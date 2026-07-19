@@ -13,7 +13,9 @@ import {
 	buildLabelSuggestions,
 	estimateLabelReserveTokens,
 	LABEL_JSON_SCHEMA,
+	type LabelExtraction,
 	type LabelSuggestions,
+	mergeExtractions,
 	parseLabelResponse,
 } from "#/lib/ai/label-extraction";
 import {
@@ -171,8 +173,11 @@ export async function answerRegionQuestion(
 }
 
 export interface AnalyzeLabelInput {
-	/** エチケット画像の data URI(data:image/...;base64,...)。HTTP URLは不可。 */
-	imageDataUrl: string;
+	/**
+	 * エチケット画像の data URI(data:image/...;base64,...)の配列。HTTP URLは不可。
+	 * 同一ワインの複数写真を総合判断させる。最低1枚必要。
+	 */
+	imageDataUrls: string[];
 }
 
 export type AnalyzeLabelResult =
@@ -193,8 +198,10 @@ export async function analyzeWineLabel(
 	userId: string,
 	input: AnalyzeLabelInput,
 ): Promise<AnalyzeLabelResult> {
-	const messages = buildLabelMessages(input.imageDataUrl);
-	const estimate = estimateLabelReserveTokens();
+	if (input.imageDataUrls.length === 0) {
+		throw new Error("画像が指定されていません");
+	}
+	const estimate = estimateLabelReserveTokens(input.imageDataUrls.length);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
@@ -203,21 +210,39 @@ export async function analyzeWineLabel(
 	}
 
 	try {
-		const raw = await env.AI.run(AI_LABEL_MODEL, {
-			messages,
-			// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
-			guided_json: LABEL_JSON_SCHEMA,
-			max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
-		});
-		const out = raw as {
-			response?: string;
-			usage?: { total_tokens?: number };
-		};
-		const suggestions = buildLabelSuggestions(
-			parseLabelResponse(out.response ?? ""),
-		);
+		// 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側で行う)。
+		// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
+		// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
+		// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
+		let totalTokens = 0;
+		let anyCallOk = false;
+		const extractions: LabelExtraction[] = [];
+		for (const imageDataUrl of input.imageDataUrls) {
+			try {
+				const raw = await env.AI.run(AI_LABEL_MODEL, {
+					messages: buildLabelMessages(imageDataUrl),
+					// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
+					guided_json: LABEL_JSON_SCHEMA,
+					max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+				});
+				const out = raw as {
+					response?: string;
+					usage?: { total_tokens?: number };
+				};
+				extractions.push(parseLabelResponse(out.response ?? ""));
+				totalTokens += out.usage?.total_tokens ?? 0;
+				anyCallOk = true;
+			} catch {
+				// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行する
+			}
+		}
+		// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)
+		if (!anyCallOk) {
+			throw new Error("すべての写真の解析に失敗しました");
+		}
+		const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		const actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
+		const actualTokens = totalTokens || res.reservedTokens;
 		await creditService.settleReservation(
 			userId,
 			requestId,

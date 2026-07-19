@@ -50,8 +50,10 @@ export const quizQuestionStat = sqliteTable(
 /**
  * ユーザが飲んだワインの記録(マイセラー)。AOP・ブドウ品種は静的マスタ
  * (src/lib/wine/)への文字列参照でFKは張れないため、存在検証はサービス層で行う。
- * 写真はR2(AVATARSバケット)にキー "wines/{userId}/{id}.{ext}" で保存し、
- * photoKey にそのキーを持つ。
+ * 写真は複数枚をR2(AVATARSバケット)にキー "wines/{userId}/{id}/{photoId}.{ext}" で
+ * 保存し、photoKeys にそのキーの配列(表示順。先頭=代表サムネイル)を持つ。
+ * (旧単一列 photo_key の既存データはマイグレーションで配列へ退避しており、
+ * フラット形式の旧キーも配列内にそのまま入りうる。)
  */
 export const drunkWine = sqliteTable(
 	"drunk_wine",
@@ -79,7 +81,11 @@ export const drunkWine = sqliteTable(
 		producer: text("producer"),
 		/** 円 */
 		price: integer("price"),
-		photoKey: text("photo_key"),
+		/** R2キーの配列。表示順で、先頭が代表(サムネイル)。空配列=写真なし */
+		photoKeys: text("photo_keys", { mode: "json" })
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'`),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),

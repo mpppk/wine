@@ -9,6 +9,7 @@ import {
 	matchAop,
 	matchGrapeVarietyIds,
 	matchRegionId,
+	mergeExtractions,
 	normalizeLabelText,
 	parseLabelResponse,
 } from "./label-extraction";
@@ -30,6 +31,44 @@ describe("buildLabelMessages", () => {
 			type: "image_url",
 			image_url: { url: "data:image/jpeg;base64,abc" },
 		});
+	});
+});
+
+describe("mergeExtractions", () => {
+	it("スカラは最初に読み取れた写真の値、品種は和集合を採る", () => {
+		const merged = mergeExtractions([
+			extraction({
+				appellation: "Chablis Premier Cru",
+				producer: "Domaine Testut",
+				vintage: 2020,
+			}),
+			extraction({ grapeVarieties: ["Chardonnay"], region: "Bourgogne" }),
+		]);
+		expect(merged.appellation).toBe("Chablis Premier Cru");
+		expect(merged.producer).toBe("Domaine Testut");
+		expect(merged.vintage).toBe(2020);
+		expect(merged.region).toBe("Bourgogne");
+		expect(merged.grapeVarieties).toEqual(["Chardonnay"]);
+	});
+
+	it("先頭(代表写真)の値を優先し、後続では上書きしない", () => {
+		const merged = mergeExtractions([
+			extraction({ wineName: "Front Name" }),
+			extraction({ wineName: "Back Name" }),
+		]);
+		expect(merged.wineName).toBe("Front Name");
+	});
+
+	it("品種の重複はまとめる", () => {
+		const merged = mergeExtractions([
+			extraction({ grapeVarieties: ["Merlot", "Cabernet Sauvignon"] }),
+			extraction({ grapeVarieties: ["Merlot"] }),
+		]);
+		expect(merged.grapeVarieties).toEqual(["Merlot", "Cabernet Sauvignon"]);
+	});
+
+	it("空配列でも空の抽出結果を返す", () => {
+		expect(mergeExtractions([])).toEqual({ grapeVarieties: [] });
 	});
 });
 
@@ -82,6 +121,38 @@ describe("parseLabelResponse", () => {
 	it("JSONを含まない応答はthrowする", () => {
 		expect(() => parseLabelResponse("読み取れませんでした")).toThrow();
 		expect(() => parseLabelResponse("{broken")).toThrow();
+	});
+
+	it("型が揺れた出力(vintageが文字列/品種が単一文字列)も正規化する", () => {
+		// guided_json が完全には効かず型が揺れても、丸ごと弾かず寛容に受ける
+		const parsed = parseLabelResponse(
+			JSON.stringify({
+				wine_name: "Chablis",
+				producer: null,
+				vintage: "2019",
+				appellation: "Chablis",
+				region: null,
+				grape_varieties: "Chardonnay",
+			}),
+		);
+		expect(parsed.vintage).toBe(2019);
+		expect(parsed.grapeVarieties).toEqual(["Chardonnay"]);
+	});
+
+	it("数値化できないvintageや想定外の型はその項目だけ捨てる", () => {
+		const parsed = parseLabelResponse(
+			JSON.stringify({
+				wine_name: 123,
+				producer: "Domaine",
+				vintage: "N/A",
+				appellation: "Chablis",
+				region: "Bourgogne",
+				grape_varieties: [{ x: 1 }],
+			}),
+		);
+		expect(parsed.wineName).toBe("123");
+		expect(parsed.vintage).toBeUndefined();
+		expect(parsed.grapeVarieties).toEqual([]);
 	});
 });
 
@@ -220,8 +291,22 @@ describe("buildLabelSuggestions", () => {
 
 describe("estimateLabelReserveTokens", () => {
 	it("上限以内の正の見積を返す", () => {
-		const estimate = estimateLabelReserveTokens();
+		const estimate = estimateLabelReserveTokens(1);
 		expect(estimate).toBeGreaterThan(0);
 		expect(estimate).toBeLessThanOrEqual(AI_MAX_ESTIMATE_TOKENS);
+	});
+
+	it("枚数が増えると見積も増える(上限まで)", () => {
+		expect(estimateLabelReserveTokens(3)).toBeGreaterThan(
+			estimateLabelReserveTokens(1),
+		);
+	});
+
+	it("上限を超えない(多数枚でもクランプ)", () => {
+		expect(estimateLabelReserveTokens(100)).toBe(AI_MAX_ESTIMATE_TOKENS);
+	});
+
+	it("0枚でも下限として1枚ぶんの見積を返す", () => {
+		expect(estimateLabelReserveTokens(0)).toBe(estimateLabelReserveTokens(1));
 	});
 });

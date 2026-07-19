@@ -1,12 +1,18 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+	ArrowLeftIcon,
+	ArrowRightIcon,
 	CheckIcon,
 	ChevronsUpDownIcon,
 	SparklesIcon,
 	StarIcon,
+	XIcon,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { analyzeLabelPhoto } from "#/components/cellar/label-analysis";
+import {
+	type AnalysisPhotoSource,
+	analyzeLabelPhotos,
+} from "#/components/cellar/label-analysis";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
@@ -33,6 +39,7 @@ import { CREDIT_BALANCE_QUERY_KEY } from "#/lib/credit/use-credit";
 import {
 	ALLOWED_PHOTO_TYPES,
 	MAX_PHOTO_BYTES,
+	MAX_PHOTOS_PER_ENTRY,
 	PHOTO_ACCEPT_ATTR,
 } from "#/lib/drunk-wine/photo";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
@@ -50,13 +57,42 @@ export interface DrunkWineFormProps {
 	onSaved: (entry: DrunkWineEntry) => void | Promise<void>;
 }
 
-async function uploadPhoto(
+// フォームが扱う写真1枚。既存はR2キー保持、新規はローカルFile+プレビューURL。
+// localId はReactのkeyと並べ替え・削除の同定に使う(表示順は配列順)。
+type PhotoItem =
+	| { localId: string; kind: "existing"; key: string }
+	| { localId: string; kind: "new"; file: File; previewUrl: string };
+
+/** 相対 photoUrl(/api/images/{key})から R2キーを復元する(DTOのURLはクエリを持たない)。 */
+function photoKeyFromUrl(url: string): string {
+	return url.replace(/^\/api\/images\//, "");
+}
+
+/**
+ * 現在の写真集合(表示順)を /api/wine-photos へ送り全置換で同期する。
+ * 新規Fileは "photo" として順に送り、layout がその index を指す。
+ */
+async function syncPhotos(
 	entryId: string,
-	file: File,
+	photos: PhotoItem[],
 ): Promise<DrunkWineEntry> {
 	const form = new FormData();
-	form.append("photo", file);
 	form.append("entryId", entryId);
+	const newIndex = new Map<string, number>();
+	let i = 0;
+	for (const p of photos) {
+		if (p.kind === "new") {
+			form.append("photo", p.file);
+			newIndex.set(p.localId, i);
+			i += 1;
+		}
+	}
+	const layout = photos.map((p) =>
+		p.kind === "existing"
+			? { type: "existing", key: p.key }
+			: { type: "new", index: newIndex.get(p.localId) },
+	);
+	form.append("layout", JSON.stringify(layout));
 	const res = await fetch("/api/wine-photos", { method: "POST", body: form });
 	const body = (await res.json()) as { error?: string; entry?: DrunkWineEntry };
 	if (!res.ok || !body.entry) {
@@ -67,8 +103,8 @@ async function uploadPhoto(
 
 // 追加/編集共用のフォーム。作成と更新でserver fnのnull/undefined規約が
 // 異なる(更新は null=クリア)ため、送信ペイロードだけ分岐する。
-// 写真はエントリ確定後でないとR2キー(entryId依存)が決まらないので、
-// server fn成功後に /api/wine-photos へ別途POSTする。
+// 写真は複数枚。エントリ確定後でないとR2キー(entryId依存)が決まらないので、
+// server fn成功後に /api/wine-photos へ写真集合を同期POSTする(追加・削除・並べ替えを一括反映)。
 export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 	const [name, setName] = useState(entry?.name ?? "");
 	const [drankOn, setDrankOn] = useState(entry?.drankOn ?? "");
@@ -91,13 +127,21 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 		entry?.grapeVarietyIds ?? [],
 	);
 	const [aopPickerOpen, setAopPickerOpen] = useState(false);
-	const [selectedFile, setSelectedFile] = useState<File | null>(null);
-	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+	// 写真は複数枚。表示順=配列順、先頭が代表(サムネイル)。既存写真はキーで保持する
+	const [photos, setPhotos] = useState<PhotoItem[]>(() =>
+		(entry?.photoUrls ?? []).map((url, i) => ({
+			localId: `e${i}`,
+			kind: "existing" as const,
+			key: photoKeyFromUrl(url),
+		})),
+	);
 	const [error, setError] = useState("");
 	const [analyzeNotice, setAnalyzeNotice] = useState("");
 	const [showInsufficient, setShowInsufficient] = useState(false);
 	const queryClient = useQueryClient();
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	// 新規写真の localId 採番用(既存は e{i}、新規は n{連番})
+	const newIdRef = useRef(0);
 	// 新規作成でエントリ作成後に写真アップロードだけ失敗した場合、
 	// 再送信で重複エントリを作らないよう作成済みエントリを覚えて更新に切り替える
 	const createdRef = useRef<DrunkWineEntry | null>(null);
@@ -117,32 +161,67 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 		);
 	};
 
+	// 既存写真の表示URL(キャッシュバスタ付き)。解析時のfetchにも使う
+	const photoSrc = (p: PhotoItem): string =>
+		p.kind === "new"
+			? p.previewUrl
+			: `/api/images/${p.key}?v=${entry?.updatedAt ?? ""}`;
+
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0] ?? null;
-		if (!file) return;
-		// 拒否時はネイティブinputの表示と実際にアップロードされるファイルが
-		// 乖離しないよう、選択自体をリセットする
-		const reject = (message: string) => {
-			setError(message);
-			e.target.value = "";
-			if (previewUrl) URL.revokeObjectURL(previewUrl);
-			setSelectedFile(null);
-			setPreviewUrl(null);
-		};
-		// サーバ側の 400 を待たずに弾く(制約は photo.ts と共通)
-		if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
-			reject("対応していない画像形式です(JPEG/PNG/WebP/GIF)");
-			return;
+		const files = Array.from(e.target.files ?? []);
+		// 同じファイルを続けて選べるよう、また選択と実アップロードが乖離しないよう毎回リセット
+		e.target.value = "";
+		if (files.length === 0) return;
+
+		const accepted: PhotoItem[] = [];
+		let rejectMsg = "";
+		let remaining = MAX_PHOTOS_PER_ENTRY - photos.length;
+		for (const file of files) {
+			// サーバ側の 400 を待たずに弾く(制約は photo.ts と共通)
+			if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
+				rejectMsg = "対応していない画像形式です(JPEG/PNG/WebP/GIF)";
+				continue;
+			}
+			if (file.size > MAX_PHOTO_BYTES) {
+				rejectMsg = "写真は5MB以下にしてください";
+				continue;
+			}
+			if (remaining <= 0) {
+				rejectMsg = `写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`;
+				continue;
+			}
+			accepted.push({
+				localId: `n${newIdRef.current++}`,
+				kind: "new",
+				file,
+				previewUrl: URL.createObjectURL(file),
+			});
+			remaining -= 1;
 		}
-		if (file.size > MAX_PHOTO_BYTES) {
-			reject("写真は5MB以下にしてください");
-			return;
-		}
-		setError("");
+		setError(rejectMsg);
 		setAnalyzeNotice("");
-		if (previewUrl) URL.revokeObjectURL(previewUrl);
-		setSelectedFile(file);
-		setPreviewUrl(URL.createObjectURL(file));
+		if (accepted.length > 0) setPhotos((prev) => [...prev, ...accepted]);
+	};
+
+	const removePhoto = (localId: string) => {
+		setPhotos((prev) => {
+			const target = prev.find((p) => p.localId === localId);
+			if (target?.kind === "new") URL.revokeObjectURL(target.previewUrl);
+			return prev.filter((p) => p.localId !== localId);
+		});
+		setError("");
+	};
+
+	// 表示順の入れ替え(隣と交換)。dir=-1で前へ、+1で後ろへ
+	const movePhoto = (localId: string, dir: -1 | 1) => {
+		setPhotos((prev) => {
+			const i = prev.findIndex((p) => p.localId === localId);
+			const j = i + dir;
+			if (i < 0 || j < 0 || j >= prev.length) return prev;
+			const next = [...prev];
+			[next[i], next[j]] = [next[j], next[i]] as [PhotoItem, PhotoItem];
+			return next;
+		});
 	};
 
 	// エチケット解析の候補を「未入力の項目だけ」に反映する(ユーザ入力は上書きしない)。
@@ -179,8 +258,12 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 
 	const { mutate: analyzeLabel, isPending: isAnalyzing } = useMutation({
 		mutationFn: async () => {
-			if (!selectedFile) throw new Error("写真を選択してください");
-			return analyzeLabelPhoto(selectedFile);
+			if (photos.length === 0) throw new Error("写真を選択してください");
+			// 既存写真はURL(同一オリジン)、新規はFileとして全枚数を総合解析する
+			const sources: AnalysisPhotoSource[] = photos.map((p) =>
+				p.kind === "new" ? p.file : { url: photoSrc(p) },
+			);
+			return analyzeLabelPhotos(sources);
 		},
 		onSuccess: (result) => {
 			// クレジットを消費するのでヘッダ等の残高表示を更新する
@@ -243,24 +326,22 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 				});
 				createdRef.current = saved;
 			}
-			if (selectedFile) {
-				saved = await uploadPhoto(saved.id, selectedFile);
+			// 写真集合を同期する。新規追加も既存の削除・並べ替えもここで反映される。
+			// 新規作成で写真が無い場合はスキップ(不要なリクエストを避ける)
+			const hadPhotos = (entry?.photoUrls.length ?? 0) > 0;
+			if (photos.length > 0 || hadPhotos) {
+				saved = await syncPhotos(saved.id, photos);
 			}
 			return saved;
 		},
 		onSuccess: async (saved) => {
-			if (previewUrl) URL.revokeObjectURL(previewUrl);
+			for (const p of photos) {
+				if (p.kind === "new") URL.revokeObjectURL(p.previewUrl);
+			}
 			await onSaved(saved);
 		},
 		onError: (err: Error) => setError(err.message),
 	});
-
-	// 差し替え時にR2キーが変わらない(同一MIME)場合があるので、updatedAtで
-	// ブラウザキャッシュをバストする
-	const savedPhotoUrl = entry?.photoUrl
-		? `${entry.photoUrl}?v=${entry.updatedAt}`
-		: null;
-	const currentPhotoUrl = previewUrl ?? savedPhotoUrl;
 
 	return (
 		<form
@@ -500,52 +581,97 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 
 			<div className="flex flex-col gap-3">
 				<Label htmlFor="wine-photo">写真</Label>
-				<div className="flex items-start gap-4">
-					{currentPhotoUrl && (
-						<img
-							src={currentPhotoUrl}
-							alt="ワイン写真プレビュー"
-							className="h-24 w-24 rounded-md border border-border object-cover"
-						/>
-					)}
-					<div className="flex flex-col gap-2">
-						<Input
-							id="wine-photo"
-							ref={fileInputRef}
-							type="file"
-							accept={PHOTO_ACCEPT_ATTR}
-							onChange={handleFileChange}
-							className="max-w-xs"
-						/>
-						<p className="text-xs text-muted-foreground">
-							JPEG・PNG・WebP・GIF、最大5MB
-						</p>
-						{selectedFile && (
-							<div className="flex flex-col gap-1">
-								<Button
+
+				{photos.length > 0 && (
+					<ul className="flex flex-wrap gap-3">
+						{photos.map((p, index) => (
+							<li
+								key={p.localId}
+								className="relative h-24 w-24 overflow-hidden rounded-md border border-border"
+							>
+								<img
+									src={photoSrc(p)}
+									alt={index === 0 ? "代表写真" : `写真${index + 1}`}
+									className="h-full w-full object-cover"
+								/>
+								{index === 0 && (
+									<span className="absolute left-1 top-1 rounded bg-foreground/80 px-1 py-0.5 text-[10px] font-medium leading-none text-background">
+										代表
+									</span>
+								)}
+								<button
 									type="button"
-									variant="outline"
-									size="sm"
-									className="self-start"
-									disabled={isAnalyzing}
-									onClick={() => {
-										setError("");
-										setAnalyzeNotice("");
-										analyzeLabel();
-									}}
+									aria-label={`写真${index + 1}を削除`}
+									onClick={() => removePhoto(p.localId)}
+									className="absolute right-1 top-1 rounded-full bg-foreground/70 p-0.5 text-background transition-colors hover:bg-foreground"
 								>
-									<SparklesIcon className="size-4" aria-hidden />
-									{isAnalyzing ? "解析中..." : "エチケットから自動入力"}
-								</Button>
-								<p className="text-xs text-muted-foreground">
-									AIがラベルを読み取り、未入力の項目を自動で埋めます(AIクレジットを消費)
-								</p>
-							</div>
-						)}
-						{analyzeNotice && (
-							<p className="text-xs text-muted-foreground">{analyzeNotice}</p>
-						)}
-					</div>
+									<XIcon className="size-3.5" aria-hidden />
+								</button>
+								<div className="absolute inset-x-1 bottom-1 flex justify-between">
+									<button
+										type="button"
+										aria-label={`写真${index + 1}を前へ`}
+										disabled={index === 0}
+										onClick={() => movePhoto(p.localId, -1)}
+										className="rounded bg-background/80 p-0.5 text-foreground transition-opacity hover:bg-background disabled:opacity-30"
+									>
+										<ArrowLeftIcon className="size-3.5" aria-hidden />
+									</button>
+									<button
+										type="button"
+										aria-label={`写真${index + 1}を後ろへ`}
+										disabled={index === photos.length - 1}
+										onClick={() => movePhoto(p.localId, 1)}
+										className="rounded bg-background/80 p-0.5 text-foreground transition-opacity hover:bg-background disabled:opacity-30"
+									>
+										<ArrowRightIcon className="size-3.5" aria-hidden />
+									</button>
+								</div>
+							</li>
+						))}
+					</ul>
+				)}
+
+				<div className="flex flex-col gap-2">
+					<Input
+						id="wine-photo"
+						ref={fileInputRef}
+						type="file"
+						accept={PHOTO_ACCEPT_ATTR}
+						multiple
+						onChange={handleFileChange}
+						disabled={photos.length >= MAX_PHOTOS_PER_ENTRY}
+						className="max-w-xs"
+					/>
+					<p className="text-xs text-muted-foreground">
+						JPEG・PNG・WebP・GIF、各5MBまで。最大{MAX_PHOTOS_PER_ENTRY}
+						枚(1枚目が代表・矢印で並べ替え)
+					</p>
+					{photos.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="self-start"
+								disabled={isAnalyzing}
+								onClick={() => {
+									setError("");
+									setAnalyzeNotice("");
+									analyzeLabel();
+								}}
+							>
+								<SparklesIcon className="size-4" aria-hidden />
+								{isAnalyzing ? "解析中..." : "エチケットから自動入力"}
+							</Button>
+							<p className="text-xs text-muted-foreground">
+								AIが全ての写真を総合して読み取り、未入力の項目を自動で埋めます(AIクレジットを消費)
+							</p>
+						</div>
+					)}
+					{analyzeNotice && (
+						<p className="text-xs text-muted-foreground">{analyzeNotice}</p>
+					)}
 				</div>
 			</div>
 

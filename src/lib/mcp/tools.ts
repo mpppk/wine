@@ -376,13 +376,41 @@ function toEntryPayload(entry: DrunkWineEntry) {
 		producer: entry.producer,
 		price: entry.price,
 		// /api/images は immutable キャッシュで返し、写真差し替えでもキーが
-		// 変わらないことがあるため updatedAt でキャッシュバストする
-		photo_url: entry.photoUrl
-			? `${new URL(entry.photoUrl, env.BETTER_AUTH_URL)}?v=${entry.updatedAt}`
+		// 変わらないことがあるため updatedAt でキャッシュバストする。
+		// photo_urls は全写真(表示順・先頭=代表)、photo_url は後方互換の代表1枚。
+		photo_urls: entry.photoUrls.map(
+			(url) => `${new URL(url, env.BETTER_AUTH_URL)}?v=${entry.updatedAt}`,
+		),
+		photo_url: entry.photoUrls[0]
+			? `${new URL(entry.photoUrls[0], env.BETTER_AUTH_URL)}?v=${entry.updatedAt}`
 			: null,
 		created_at: entry.createdAt,
 		updated_at: entry.updatedAt,
 	};
+}
+
+/** 相対 photoUrl(/api/images/{key})から R2キーを復元する。DTOのURLはクエリを持たない。 */
+function photoKeyFromUrl(url: string): string {
+	return url.replace(/^\/api\/images\//, "");
+}
+
+/**
+ * 既存写真をすべて保持しつつ末尾に新規1枚を追記する layout を作る。
+ * MCPは単一 photo_base64 を「追記」の意味で扱う(上限超過は syncDrunkWinePhotos が拒否)。
+ */
+function appendPhotoLayout(
+	entry: DrunkWineEntry,
+	photo: { bytes: Uint8Array; mimeType: string },
+): drunkWineService.PhotoLayoutItem[] {
+	return [
+		...entry.photoUrls.map(
+			(url): drunkWineService.PhotoLayoutItem => ({
+				kind: "existing",
+				key: photoKeyFromUrl(url),
+			}),
+		),
+		{ kind: "new", bytes: photo.bytes, mimeType: photo.mimeType },
+	];
 }
 
 // 写真引数を検証・デコードする。DB書き込み前に呼び、不正なら先に失敗させる。
@@ -408,7 +436,8 @@ export function registerWriteTools(server: McpServer, userId: string) {
 			description:
 				"飲んだワインをマイセラーに記録する。ボトルラベルの写真から読み取った" +
 				"ワイン名・ヴィンテージ・生産者・AOPなどをそのまま渡す用途を想定。" +
-				"写真自体も photo_base64 + photo_mime_type で添付すると保存される。" +
+				"写真自体も photo_base64 + photo_mime_type で添付すると保存される" +
+				"(1エントリに複数枚保持でき、添付は既存写真への追記。最大6枚)。" +
 				"aop_id は list_aops、grape_variety_ids は list_grape_varieties の id を使う(いずれも任意)。" +
 				"対応ホストでは登録内容をその場で編集できるフォームUIが描画される。",
 			inputSchema: registerDrunkWineInput,
@@ -429,11 +458,10 @@ export function registerWriteTools(server: McpServer, userId: string) {
 				let photoError: string | null = null;
 				if (photo) {
 					try {
-						entry = await drunkWineService.setDrunkWinePhoto(
+						entry = await drunkWineService.syncDrunkWinePhotos(
 							userId,
 							entry.id,
-							photo.bytes,
-							photo.mimeType,
+							appendPhotoLayout(entry, photo),
 						);
 					} catch (e) {
 						photoError = `写真の保存に失敗しました(記録自体は作成済み。update_drunk_wine で id を指定して再添付できる): ${e instanceof Error ? e.message : String(e)}`;
@@ -462,7 +490,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 			description:
 				"記録済みの飲んだワインを更新する。id と変更したいフィールドだけを渡す" +
 				"(未指定のフィールドは変更されない)。写真は photo_base64 + " +
-				"photo_mime_type で差し替えられる。",
+				"photo_mime_type で既存写真に追記できる(最大6枚)。",
 			inputSchema: updateDrunkWineInput,
 			annotations: { readOnlyHint: false, destructiveHint: false },
 		},
@@ -479,11 +507,10 @@ export function registerWriteTools(server: McpServer, userId: string) {
 						})
 					: await drunkWineService.getDrunkWine(userId, args.id);
 				if (photo) {
-					entry = await drunkWineService.setDrunkWinePhoto(
+					entry = await drunkWineService.syncDrunkWinePhotos(
 						userId,
 						args.id,
-						photo.bytes,
-						photo.mimeType,
+						appendPhotoLayout(entry, photo),
 					);
 				}
 				return ok({ entry: toEntryPayload(entry) });

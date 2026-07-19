@@ -65,8 +65,8 @@ export const LABEL_JSON_SCHEMA = {
 
 /** モデルへの指示文。出力形式は guided_json が強制するため、内容の規範だけ書く。 */
 export const LABEL_PROMPT = [
-	"これはワインのエチケット(ラベル)の写真です。ラベルに印字されている情報を読み取り、JSONで出力してください。",
-	"- ラベルから読み取れない項目は null にする。推測で創作しない。",
+	"これはワインのボトル/エチケット(ラベル)の写真です。写真に写っている情報を読み取り、JSONで出力してください。",
+	"- 写真から読み取れない項目は null にする。推測で創作しない。",
 	"- vintage は西暦の整数(例: 2020)。",
 	"- appellation はラベル記載の原産地呼称(AOC/AOP/DOC/DOCG など)を原語のまま。",
 	"- grape_varieties はラベルに明記されている場合のみ。",
@@ -84,7 +84,12 @@ export interface LabelAiMessage {
 	content: LabelContentPart[];
 }
 
-/** 指示文 + エチケット画像(data URI)の1メッセージを組み立てる。 */
+/**
+ * 指示文 + エチケット画像(data URI)1枚の1メッセージを組み立てる。
+ * 複数写真は ai-service 側で1枚ずつ解析し、抽出結果を mergeExtractions で束ねる
+ * (総合判断は抽出結果のマージ側で行う。1枚ずつにすることで、ある写真の解析失敗が
+ * 全体を巻き込まないようにする)。
+ */
 export function buildLabelMessages(imageDataUrl: string): LabelAiMessage[] {
 	return [
 		{
@@ -97,14 +102,43 @@ export function buildLabelMessages(imageDataUrl: string): LabelAiMessage[] {
 	];
 }
 
-/** モデル出力(JSON)の受け取り側スキーマ。guided_json 非対応環境へのフォールバックも兼ねて緩めに受ける。 */
+// guided_json は Llama 4 Scout では完全には強制されず、型が揺れた JSON(例: vintage が
+// 文字列 "2019"、grape_varieties が配列でなく文字列 "Chardonnay")を返すことがある。
+// 型不一致で丸ごと弾くと「解析失敗」になり写真1枚が無駄になるため、各フィールドを
+// 寛容に受けて正規化する(想定外の値は .catch でその項目だけ握りつぶす)。
+
+/** 文字列/数値どちらでも文字列に寄せる。null/undefined と想定外はそのまま null。 */
+const textField = z
+	.union([z.string(), z.number()])
+	.transform((v) => String(v))
+	.nullish()
+	.catch(null);
+
+/** 数値/数字文字列を整数に寄せる。数値化できなければ null。 */
+const vintageField = z
+	.union([z.number(), z.string()])
+	.transform((v) => {
+		const n = typeof v === "number" ? v : Number.parseInt(v, 10);
+		return Number.isFinite(n) ? Math.trunc(n) : null;
+	})
+	.nullish()
+	.catch(null);
+
+/** 配列(文字列/数値要素)または単一文字列を文字列配列に寄せる。想定外は空配列。 */
+const grapesField = z
+	.union([z.array(z.union([z.string(), z.number()])), z.string()])
+	.transform((v) => (typeof v === "string" ? [v] : v.map((g) => String(g))))
+	.nullish()
+	.catch([]);
+
+/** モデル出力(JSON)の受け取り側スキーマ。型の揺れに寛容な正規化つき。 */
 const labelResponseSchema = z.object({
-	wine_name: z.string().nullish(),
-	producer: z.string().nullish(),
-	vintage: z.number().int().nullish(),
-	appellation: z.string().nullish(),
-	region: z.string().nullish(),
-	grape_varieties: z.array(z.string()).nullish(),
+	wine_name: textField,
+	producer: textField,
+	vintage: vintageField,
+	appellation: textField,
+	region: textField,
+	grape_varieties: grapesField,
 });
 
 /** モデル出力を正規化した抽出結果。未読取は undefined。 */
@@ -157,6 +191,28 @@ export function parseLabelResponse(raw: string): LabelExtraction {
 			.map((g) => g.trim())
 			.filter((g) => g.length > 0),
 	};
+}
+
+/**
+ * 複数写真の抽出結果を1本ぶんに束ねる(総合判断)。スカラ項目は最初に読み取れた
+ * 写真の値を採用し(表示順=配列順。先頭=代表写真を優先)、品種は全写真の和集合を取る。
+ * 例: 表ラベルから呼称・生産者・ヴィンテージ、裏ラベルから品種、を1本ぶんに統合する。
+ */
+export function mergeExtractions(
+	extractions: LabelExtraction[],
+): LabelExtraction {
+	const merged: LabelExtraction = { grapeVarieties: [] };
+	for (const e of extractions) {
+		merged.wineName ??= e.wineName;
+		merged.producer ??= e.producer;
+		merged.vintage ??= e.vintage;
+		merged.appellation ??= e.appellation;
+		merged.region ??= e.region;
+		for (const g of e.grapeVarieties) {
+			if (!merged.grapeVarieties.includes(g)) merged.grapeVarieties.push(g);
+		}
+	}
+	return merged;
 }
 
 /**
@@ -320,15 +376,18 @@ export function buildLabelSuggestions(
 }
 
 /**
- * 予約すべきトークン数の見積。画像の見積が支配的で、指示文の推定 + 出力上限を足し、
- * 上限で必ずクランプする(予約が実測を上回るよう保守的に)。
+ * 予約すべきトークン数の見積。画像の見積が支配的なので枚数に比例させ、指示文の推定 +
+ * 出力上限を足し、上限で必ずクランプする(予約が実測を上回るよう保守的に)。
+ * imageCount は1以上を想定(0でも下限は指示文+出力ぶんになる)。
  */
-export function estimateLabelReserveTokens(): number {
+export function estimateLabelReserveTokens(imageCount: number): number {
 	const promptTokens = Math.ceil(
 		LABEL_PROMPT.length / CHARS_PER_TOKEN_ESTIMATE,
 	);
 	return Math.min(
 		AI_MAX_ESTIMATE_TOKENS,
-		AI_LABEL_IMAGE_TOKEN_ESTIMATE + promptTokens + AI_LABEL_MAX_OUTPUT_TOKENS,
+		AI_LABEL_IMAGE_TOKEN_ESTIMATE * Math.max(1, imageCount) +
+			promptTokens +
+			AI_LABEL_MAX_OUTPUT_TOKENS,
 	);
 }

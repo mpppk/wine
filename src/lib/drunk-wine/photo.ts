@@ -18,6 +18,9 @@ export const PHOTO_ACCEPT_ATTR = Object.keys(PHOTO_EXT_MAP).join(",");
 
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
+/** 1エントリに添付できる写真の最大枚数(AI解析の入力トークン=クレジットの上限も兼ねる)。 */
+export const MAX_PHOTOS_PER_ENTRY = 6;
+
 /**
  * MIMEタイプに対応する拡張子を返す。未対応は undefined。
  * PHOTO_EXT_MAP は plain object なので、外部入力の mimeType が constructor /
@@ -57,13 +60,17 @@ export function decodePhotoBase64(
 	return bytes;
 }
 
-/** R2キー。entryIdはUUIDなのでURLの推測不能性はここに依存する */
+/**
+ * 写真1枚ぶんのR2キー。entryId・photoId はいずれもUUIDで、URLの推測不能性は
+ * ここに依存する。1エントリに複数枚持てるよう photoId でキーを一意化する。
+ */
 export function buildWinePhotoKey(
 	userId: string,
 	entryId: string,
+	photoId: string,
 	mimeType: string,
 ): string {
 	const ext = photoExtForMime(mimeType);
 	if (!ext) throw new Error(`Unsupported image type: ${mimeType}`);
-	return `wines/${userId}/${entryId}.${ext}`;
+	return `wines/${userId}/${entryId}/${photoId}.${ext}`;
 }

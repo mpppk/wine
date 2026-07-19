@@ -3,6 +3,7 @@ import {
 	buildWinePhotoKey,
 	decodePhotoBase64,
 	MAX_PHOTO_BYTES,
+	MAX_PHOTOS_PER_ENTRY,
 	photoExtForMime,
 } from "./photo";
 
@@ -40,23 +41,31 @@ describe("decodePhotoBase64", () => {
 });
 
 describe("buildWinePhotoKey", () => {
-	it("wines/{userId}/{entryId}.{ext} 形式のキーを作る", () => {
-		expect(buildWinePhotoKey("u1", "e1", "image/jpeg")).toBe("wines/u1/e1.jpg");
-		expect(buildWinePhotoKey("u1", "e1", "image/webp")).toBe(
-			"wines/u1/e1.webp",
+	it("wines/{userId}/{entryId}/{photoId}.{ext} 形式のキーを作る", () => {
+		expect(buildWinePhotoKey("u1", "e1", "p1", "image/jpeg")).toBe(
+			"wines/u1/e1/p1.jpg",
+		);
+		expect(buildWinePhotoKey("u1", "e1", "p2", "image/webp")).toBe(
+			"wines/u1/e1/p2.webp",
 		);
 	});
 
 	it("未対応MIMEを拒否する", () => {
-		expect(() => buildWinePhotoKey("u1", "e1", "text/html")).toThrow(
+		expect(() => buildWinePhotoKey("u1", "e1", "p1", "text/html")).toThrow(
 			/Unsupported image type/,
 		);
 	});
 
 	it("継承プロパティ名のMIMEを拒否する(allowlistすり抜け防止)", () => {
-		expect(() => buildWinePhotoKey("u1", "e1", "constructor")).toThrow(
+		expect(() => buildWinePhotoKey("u1", "e1", "p1", "constructor")).toThrow(
 			/Unsupported image type/,
 		);
+	});
+});
+
+describe("MAX_PHOTOS_PER_ENTRY", () => {
+	it("1エントリの写真上限は6枚", () => {
+		expect(MAX_PHOTOS_PER_ENTRY).toBe(6);
 	});
 });
 
