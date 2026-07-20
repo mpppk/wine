@@ -1,5 +1,5 @@
 import { stripeClient } from "@better-auth/stripe/client";
-import { inferAdditionalFields } from "better-auth/client/plugins";
+import { adminClient, inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
@@ -11,5 +11,7 @@ export const authClient = createAuthClient({
 		inferAdditionalFields({
 			user: { preferredAiModel: { type: "string", required: false } },
 		}),
+		// session.user.role / banned の型付けと、将来の authClient.admin.* 用。
+		adminClient(),
 	],
 });

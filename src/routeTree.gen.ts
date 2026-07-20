@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as QuizIndexRouteImport } from './routes/quiz.index'
 import { Route as CellarIndexRouteImport } from './routes/cellar.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as QuizProgressRouteImport } from './routes/quiz.progress'
 import { Route as QuizPlayRouteImport } from './routes/quiz.play'
 import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
@@ -28,6 +29,7 @@ import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
+import { Route as AdminUserIdRouteImport } from './routes/admin.$userId'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as CellarEntryIdEditRouteImport } from './routes/cellar.$entryId.edit'
@@ -76,6 +78,11 @@ const QuizIndexRoute = QuizIndexRouteImport.update({
 const CellarIndexRoute = CellarIndexRouteImport.update({
   id: '/cellar/',
   path: '/cellar/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuizProgressRoute = QuizProgressRouteImport.update({
@@ -131,6 +138,11 @@ const ApiMcpRoute = ApiMcpRouteImport.update({
 const ApiLabelAnalysisRoute = ApiLabelAnalysisRouteImport.update({
   id: '/api/label-analysis',
   path: '/api/label-analysis',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminUserIdRoute = AdminUserIdRouteImport.update({
+  id: '/admin/$userId',
+  path: '/admin/$userId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotwellKnownOauthProtectedResourceRoute =
@@ -190,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/admin/$userId': typeof AdminUserIdRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -201,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/oauth/consent': typeof OauthConsentRoute
   '/quiz/play': typeof QuizPlayRoute
   '/quiz/progress': typeof QuizProgressRoute
+  '/admin/': typeof AdminIndexRoute
   '/cellar/': typeof CellarIndexRoute
   '/quiz/': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -220,6 +234,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/admin/$userId': typeof AdminUserIdRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -231,6 +246,7 @@ export interface FileRoutesByTo {
   '/oauth/consent': typeof OauthConsentRoute
   '/quiz/play': typeof QuizPlayRoute
   '/quiz/progress': typeof QuizProgressRoute
+  '/admin': typeof AdminIndexRoute
   '/cellar': typeof CellarIndexRoute
   '/quiz': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -251,6 +267,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
+  '/admin/$userId': typeof AdminUserIdRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -262,6 +279,7 @@ export interface FileRoutesById {
   '/oauth/consent': typeof OauthConsentRoute
   '/quiz/play': typeof QuizPlayRoute
   '/quiz/progress': typeof QuizProgressRoute
+  '/admin/': typeof AdminIndexRoute
   '/cellar/': typeof CellarIndexRoute
   '/quiz/': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -283,6 +301,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/$userId'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -294,6 +313,7 @@ export interface FileRouteTypes {
     | '/oauth/consent'
     | '/quiz/play'
     | '/quiz/progress'
+    | '/admin/'
     | '/cellar/'
     | '/quiz/'
     | '/api/auth/$'
@@ -313,6 +333,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/$userId'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -324,6 +345,7 @@ export interface FileRouteTypes {
     | '/oauth/consent'
     | '/quiz/play'
     | '/quiz/progress'
+    | '/admin'
     | '/cellar'
     | '/quiz'
     | '/api/auth/$'
@@ -343,6 +365,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
+    | '/admin/$userId'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -354,6 +377,7 @@ export interface FileRouteTypes {
     | '/oauth/consent'
     | '/quiz/play'
     | '/quiz/progress'
+    | '/admin/'
     | '/cellar/'
     | '/quiz/'
     | '/api/auth/$'
@@ -374,6 +398,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
+  AdminUserIdRoute: typeof AdminUserIdRoute
   ApiLabelAnalysisRoute: typeof ApiLabelAnalysisRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
@@ -385,6 +410,7 @@ export interface RootRouteChildren {
   OauthConsentRoute: typeof OauthConsentRoute
   QuizPlayRoute: typeof QuizPlayRoute
   QuizProgressRoute: typeof QuizProgressRoute
+  AdminIndexRoute: typeof AdminIndexRoute
   CellarIndexRoute: typeof CellarIndexRoute
   QuizIndexRoute: typeof QuizIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -451,6 +477,13 @@ declare module '@tanstack/react-router' {
       path: '/cellar'
       fullPath: '/cellar/'
       preLoaderRoute: typeof CellarIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quiz/progress': {
@@ -528,6 +561,13 @@ declare module '@tanstack/react-router' {
       path: '/api/label-analysis'
       fullPath: '/api/label-analysis'
       preLoaderRoute: typeof ApiLabelAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/$userId': {
+      id: '/admin/$userId'
+      path: '/admin/$userId'
+      fullPath: '/admin/$userId'
+      preLoaderRoute: typeof AdminUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-protected-resource': {
@@ -619,6 +659,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthAuthorizationServerRoute,
   DotwellKnownOauthProtectedResourceRoute:
     DotwellKnownOauthProtectedResourceRoute,
+  AdminUserIdRoute: AdminUserIdRoute,
   ApiLabelAnalysisRoute: ApiLabelAnalysisRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,
@@ -630,6 +671,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthConsentRoute: OauthConsentRoute,
   QuizPlayRoute: QuizPlayRoute,
   QuizProgressRoute: QuizProgressRoute,
+  AdminIndexRoute: AdminIndexRoute,
   CellarIndexRoute: CellarIndexRoute,
   QuizIndexRoute: QuizIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

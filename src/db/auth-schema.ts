@@ -12,6 +12,12 @@ export const user = sqliteTable("user", {
 	stripeCustomerId: text("stripe_customer_id"),
 	// 地域Q&Aチャットで使うモデルのユーザ設定(プロフィール画面で変更)。null は既定モデル。
 	preferredAiModel: text("preferred_ai_model"),
+	// better-auth admin プラグインのカラム(drizzle/0014_admin_role.sql)。
+	// role: "admin" のユーザのみ管理画面を利用可能。null は一般ユーザ扱い。
+	role: text("role"),
+	banned: integer("banned", { mode: "boolean" }),
+	banReason: text("ban_reason"),
+	banExpires: integer("ban_expires", { mode: "timestamp_ms" }),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -35,6 +41,8 @@ export const session = sqliteTable(
 			.notNull(),
 		ipAddress: text("ip_address"),
 		userAgent: text("user_agent"),
+		// better-auth admin プラグインの impersonation 用(drizzle/0014_admin_role.sql)。
+		impersonatedBy: text("impersonated_by"),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),

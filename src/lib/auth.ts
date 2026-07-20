@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { stripe } from "@better-auth/stripe";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { mcp } from "better-auth/plugins";
+import { admin, mcp } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { drizzle } from "drizzle-orm/d1";
 import * as authSchema from "#/db/auth-schema";
@@ -85,6 +85,13 @@ export const auth = betterAuth({
 				// MCP clients register themselves via RFC 7591 dynamic registration.
 				allowDynamicClientRegistration: true,
 			},
+		}),
+		// 管理画面(ユーザ管理)用。role="admin" のユーザのみ管理APIを利用可能。
+		// 初回の admin 付与は wrangler d1 execute の手動 UPDATE で行う(PR参照)。
+		admin({
+			defaultRole: "user",
+			adminRoles: ["admin"],
+			bannedUserMessage: "このアカウントは利用停止されています。",
 		}),
 		// The cookie integration must be last so Set-Cookie headers from the
 		// plugins above (e.g. the mcp consent flow) are forwarded to TanStack.

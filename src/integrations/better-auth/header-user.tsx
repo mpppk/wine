@@ -64,6 +64,15 @@ export default function BetterAuthHeader() {
 					>
 						料金プラン
 					</DropdownMenuItem>
+					{session.user.role === "admin" && (
+						<DropdownMenuItem
+							onSelect={() => {
+								void router.navigate({ to: "/admin" });
+							}}
+						>
+							ユーザー管理
+						</DropdownMenuItem>
+					)}
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						onSelect={async () => {
