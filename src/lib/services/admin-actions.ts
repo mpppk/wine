@@ -1,7 +1,13 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { adminAuditLog, creditBalance, creditLedger } from "#/db/schema";
+import {
+	adminAuditLog,
+	couponRedemption,
+	creditBalance,
+	creditLedger,
+} from "#/db/schema";
 import { currentMonthKey } from "#/lib/credit/month";
+import * as billingService from "#/lib/services/billing-service";
 import { ensureCurrentMonthGranted } from "#/lib/services/credit-service";
 
 // 管理画面の「書き込み(副作用あり)」操作のサービス層。閲覧専用の admin-service とは
@@ -119,4 +125,54 @@ export async function grantCredits(params: {
 		grantedAmount: amount,
 		alreadyApplied: false,
 	};
+}
+
+export interface ExtendPremiumResult {
+	extendedDays: number;
+	/** 延長後の次回請求日(ミリ秒)。webhook 反映前でも表示できるよう返す。 */
+	newPeriodEnd: number;
+}
+
+/**
+ * 管理者がプレミアム会員の期間を直接延長する(#114 お詫び, 案b)。
+ * Stripe trial_end 延長ロジック(billingService.extendPremiumTrial)を流用し、コード入力を
+ * 挟まず即時反映する。期間延長は**プレミアム会員のみ**有効(無料ユーザへのお詫びは #113 の
+ * クレジット補填が受け皿)。適用履歴を coupon_redemption と admin_audit_log の両方に記録する。
+ *
+ * 注: 「N日延長」は自然な冪等キーを持たない(再送すると二重に延長される)ため、UI 側の確認
+ * ダイアログと送信中ボタン無効化で二重送信を防ぐ(クレジット付与と異なり冪等ではない)。
+ */
+export async function extendPremium(params: {
+	actorUserId: string;
+	targetUserId: string;
+	days: number;
+	reason: string;
+}): Promise<ExtendPremiumResult> {
+	const { actorUserId, targetUserId, days, reason } = params;
+
+	// Stripe 側を先に延長する(プレミアムでなければ throw)。DBの periodEnd は webhook で同期。
+	const { newPeriodEnd, stripeSubscriptionId } =
+		await billingService.extendPremiumTrial(targetUserId, days);
+
+	// 適用履歴を coupon_redemption(管理者発行の合成コード)と監査ログに記録する。
+	// コードは unique(userId, code) を満たすよう毎回一意にする(接頭辞 "admin:" で判別)。
+	const code = `admin:${crypto.randomUUID()}`;
+	await db.batch([
+		db.insert(couponRedemption).values({
+			id: crypto.randomUUID(),
+			userId: targetUserId,
+			code,
+			extendedDays: days,
+		}),
+		db.insert(adminAuditLog).values({
+			id: crypto.randomUUID(),
+			actorUserId,
+			targetUserId,
+			action: "premium_extension",
+			detail: { days, newPeriodEnd, stripeSubscriptionId, code },
+			reason,
+		}),
+	]);
+
+	return { extendedDays: days, newPeriodEnd };
 }
