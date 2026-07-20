@@ -1,7 +1,13 @@
 import { count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { subscription, user } from "#/db/auth-schema";
-import { couponRedemption, creditBalance, creditLedger } from "#/db/schema";
+import {
+	type AdminAuditDetail,
+	adminAuditLog,
+	couponRedemption,
+	creditBalance,
+	creditLedger,
+} from "#/db/schema";
 import {
 	ADMIN_USERS_PAGE_SIZE,
 	clampPage,
@@ -160,9 +166,21 @@ export interface AdminUserDetail {
 		extendedDays: number;
 		redeemedAt: Date;
 	}>;
+	/** このユーザに対する管理操作の監査ログ(新しい順)。 */
+	auditLogs: Array<{
+		id: string;
+		action: string;
+		reason: string | null;
+		detail: AdminAuditDetail | null;
+		createdAt: Date;
+		/** 操作した管理者の表示名/メール(削除済みなら null)。 */
+		actorName: string | null;
+		actorEmail: string | null;
+	}>;
 }
 
 const LEDGER_LIMIT = 50;
+const AUDIT_LOG_LIMIT = 50;
 
 /** ユーザ詳細(基本情報・サブスク・クレジット・クーポン履歴)を集約して返す。 */
 export async function getUserDetail(
@@ -188,55 +206,73 @@ export async function getUserDetail(
 		.where(eq(user.id, userId));
 	if (!userRow) return null;
 
-	const [subscriptions, balanceRows, ledger, coupons] = await Promise.all([
-		db
-			.select({
-				id: subscription.id,
-				plan: subscription.plan,
-				status: subscription.status,
-				periodStart: subscription.periodStart,
-				periodEnd: subscription.periodEnd,
-				trialStart: subscription.trialStart,
-				trialEnd: subscription.trialEnd,
-				cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-				canceledAt: subscription.canceledAt,
-				endedAt: subscription.endedAt,
-				billingInterval: subscription.billingInterval,
-			})
-			.from(subscription)
-			.where(eq(subscription.referenceId, userId)),
-		db
-			.select({
-				balance: creditBalance.balance,
-				periodMonth: creditBalance.periodMonth,
-				updatedAt: creditBalance.updatedAt,
-			})
-			.from(creditBalance)
-			.where(eq(creditBalance.userId, userId)),
-		db
-			.select({
-				id: creditLedger.id,
-				amount: creditLedger.amount,
-				type: creditLedger.type,
-				periodMonth: creditLedger.periodMonth,
-				tokenAmount: creditLedger.tokenAmount,
-				createdAt: creditLedger.createdAt,
-			})
-			.from(creditLedger)
-			.where(eq(creditLedger.userId, userId))
-			.orderBy(desc(creditLedger.createdAt))
-			.limit(LEDGER_LIMIT),
-		db
-			.select({
-				id: couponRedemption.id,
-				code: couponRedemption.code,
-				extendedDays: couponRedemption.extendedDays,
-				redeemedAt: couponRedemption.redeemedAt,
-			})
-			.from(couponRedemption)
-			.where(eq(couponRedemption.userId, userId))
-			.orderBy(desc(couponRedemption.redeemedAt)),
-	]);
+	const [subscriptions, balanceRows, ledger, coupons, auditLogs] =
+		await Promise.all([
+			db
+				.select({
+					id: subscription.id,
+					plan: subscription.plan,
+					status: subscription.status,
+					periodStart: subscription.periodStart,
+					periodEnd: subscription.periodEnd,
+					trialStart: subscription.trialStart,
+					trialEnd: subscription.trialEnd,
+					cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+					canceledAt: subscription.canceledAt,
+					endedAt: subscription.endedAt,
+					billingInterval: subscription.billingInterval,
+				})
+				.from(subscription)
+				.where(eq(subscription.referenceId, userId)),
+			db
+				.select({
+					balance: creditBalance.balance,
+					periodMonth: creditBalance.periodMonth,
+					updatedAt: creditBalance.updatedAt,
+				})
+				.from(creditBalance)
+				.where(eq(creditBalance.userId, userId)),
+			db
+				.select({
+					id: creditLedger.id,
+					amount: creditLedger.amount,
+					type: creditLedger.type,
+					periodMonth: creditLedger.periodMonth,
+					tokenAmount: creditLedger.tokenAmount,
+					createdAt: creditLedger.createdAt,
+				})
+				.from(creditLedger)
+				.where(eq(creditLedger.userId, userId))
+				.orderBy(desc(creditLedger.createdAt))
+				.limit(LEDGER_LIMIT),
+			db
+				.select({
+					id: couponRedemption.id,
+					code: couponRedemption.code,
+					extendedDays: couponRedemption.extendedDays,
+					redeemedAt: couponRedemption.redeemedAt,
+				})
+				.from(couponRedemption)
+				.where(eq(couponRedemption.userId, userId))
+				.orderBy(desc(couponRedemption.redeemedAt)),
+			// 監査ログは actorUserId(=操作した管理者)を user に left join して表示名を引く。
+			// actorUserId は FK 無しの文字列参照なので、削除済み管理者では actor* が null になる。
+			db
+				.select({
+					id: adminAuditLog.id,
+					action: adminAuditLog.action,
+					reason: adminAuditLog.reason,
+					detail: adminAuditLog.detail,
+					createdAt: adminAuditLog.createdAt,
+					actorName: user.name,
+					actorEmail: user.email,
+				})
+				.from(adminAuditLog)
+				.leftJoin(user, eq(adminAuditLog.actorUserId, user.id))
+				.where(eq(adminAuditLog.targetUserId, userId))
+				.orderBy(desc(adminAuditLog.createdAt))
+				.limit(AUDIT_LOG_LIMIT),
+		]);
 
 	return {
 		user: userRow,
@@ -245,5 +281,6 @@ export async function getUserDetail(
 		credit: balanceRows[0] ?? null,
 		ledger,
 		coupons,
+		auditLogs,
 	};
 }

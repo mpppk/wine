@@ -1,5 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import {
+	ADMIN_CREDIT_GRANT_MAX,
+	ADMIN_CREDIT_GRANT_MIN,
+	ADMIN_GRANT_REASON_MAX,
+} from "#/lib/admin/credit-grant";
+import * as adminActions from "#/lib/services/admin-actions";
 import * as adminService from "#/lib/services/admin-service";
 import { adminMiddleware } from "./middleware";
 
@@ -21,3 +27,32 @@ export const adminGetUserDetail = createServerFn({ method: "GET" })
 	.middleware([adminMiddleware])
 	.inputValidator(z.object({ userId: z.string().min(1).max(100) }))
 	.handler(({ data }) => adminService.getUserDetail(data.userId));
+
+/**
+ * ユーザへクレジットを手動付与する(#113 障害補填・お詫び)。理由必須。管理者限定。
+ * context.user(=操作した管理者)を監査ログの actor として記録する。
+ */
+export const adminGrantCredits = createServerFn({ method: "POST" })
+	.middleware([adminMiddleware])
+	.inputValidator(
+		z.object({
+			userId: z.string().min(1).max(100),
+			amount: z
+				.number()
+				.int()
+				.min(ADMIN_CREDIT_GRANT_MIN)
+				.max(ADMIN_CREDIT_GRANT_MAX),
+			reason: z.string().trim().min(1).max(ADMIN_GRANT_REASON_MAX),
+			/** クライアント発行の冪等キー(再送の二重付与防止)。 */
+			requestId: z.string().min(1).max(200).optional(),
+		}),
+	)
+	.handler(({ data, context }) =>
+		adminActions.grantCredits({
+			actorUserId: context.user.id,
+			targetUserId: data.userId,
+			amount: data.amount,
+			reason: data.reason,
+			requestId: data.requestId,
+		}),
+	);
