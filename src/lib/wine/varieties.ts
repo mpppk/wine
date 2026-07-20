@@ -125,6 +125,54 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Timorasso",
 		color: "white",
 	},
+	// --- イタリア(トスカーナ) ---
+	// サンジョヴェーゼはキアンティ/ブルネッロ/ヴィーノ・ノービレ等トスカーナ赤の中核。
+	{
+		id: "sangiovese",
+		nameJa: "サンジョヴェーゼ",
+		nameLocal: "Sangiovese",
+		color: "red",
+	},
+	{
+		id: "canaiolo",
+		nameJa: "カナイオーロ",
+		nameLocal: "Canaiolo Nero",
+		color: "red",
+	},
+	{
+		id: "ciliegiolo",
+		nameJa: "チリエジョーロ",
+		nameLocal: "Ciliegiolo",
+		color: "red",
+	},
+	{ id: "colorino", nameJa: "コロリーノ", nameLocal: "Colorino", color: "red" },
+	{ id: "mammolo", nameJa: "マンモロ", nameLocal: "Mammolo", color: "red" },
+	{
+		id: "aleatico",
+		nameJa: "アレアティコ",
+		nameLocal: "Aleatico",
+		color: "red",
+	},
+	{
+		id: "vernaccia",
+		nameJa: "ヴェルナッチャ",
+		nameLocal: "Vernaccia di San Gimignano",
+		color: "white",
+	},
+	{
+		// トスカーナのトレッビアーノ・トスカーノ(≒ユニ・ブラン)。伊表記の一貫性のため
+		// 独立エントリとして持つ。
+		id: "trebbiano",
+		nameJa: "トレッビアーノ",
+		nameLocal: "Trebbiano Toscano",
+		color: "white",
+	},
+	{
+		id: "malvasia",
+		nameJa: "マルヴァジーア",
+		nameLocal: "Malvasia Bianca Lunga",
+		color: "white",
+	},
 	// ボルドー系(赤): メドック/グラーヴ/リブルネのブレンド主体
 	{
 		id: "cabernet-sauvignon",

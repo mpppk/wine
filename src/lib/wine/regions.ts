@@ -70,6 +70,35 @@ export const REGIONS: Region[] = [
 			"学術データセット(Candiago et al. 2022, CC0)に基づく概略値。",
 	},
 	{
+		id: "toscana",
+		nameJa: "トスカーナ",
+		nameLocal: "Toscana",
+		country: "Italy",
+		countryJa: "イタリア",
+		enabled: true,
+		// build:geodata:italy の出力値を反映(トスカーナ本土＋エルバ島を含む)。
+		bounds: [10.01877, 42.23824, 12.22372, 44.23988],
+		geojsonPath: "/data/aop/toscana.geojson",
+		boundariesPath: "/data/aop/toscana-boundaries.geojson",
+		boundaryAttribution:
+			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
+		subregions: [
+			{ id: "chianti", nameJa: "キアンティ" },
+			{ id: "montalcino", nameJa: "モンタルチーノ" },
+			{ id: "montepulciano", nameJa: "モンテプルチャーノ" },
+			{ id: "san-gimignano", nameJa: "サン・ジミニャーノ" },
+			{ id: "costa-maremma", nameJa: "トスカーナ海岸 / マレンマ" },
+			{ id: "colline-centrali", nameJa: "中部・北部の丘陵" },
+		],
+		description:
+			"サンジョヴェーゼを主役に、キアンティ・クラッシコ、ブルネッロ・ディ・" +
+			"モンタルチーノ、ヴィーノ・ノービレ・ディ・モンテプルチャーノを擁する" +
+			"イタリア中部の銘醸地。ボルドー品種主体のボルゲリ(スーパートスカーナ)や" +
+			"白のヴェルナッチャ・ディ・サン・ジミニャーノまで、DOCG11・DOC17を収録。" +
+			"ピエモンテ同様、境界はコミューン単位で集約された学術データセット" +
+			"(Candiago et al. 2022, CC0)に基づく概略値。",
+	},
+	{
 		id: "bordeaux",
 		nameJa: "ボルドー",
 		nameLocal: "Bordeaux",

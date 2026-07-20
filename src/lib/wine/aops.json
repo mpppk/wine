@@ -15433,5 +15433,794 @@
 			"Château de Montfaucon"
 		],
 		"description": "コート・デュ・ローヌより収量規定などが厳しい上位AOC。南ローヌの選ばれた村々で造られ、より凝縮した赤を生む。地理的名称を付記できる村(セギュレ、サブレ等)もあり、クリュへの昇格の登竜門となっている。"
+	},
+	{
+		"id": "chianti-classico",
+		"idApp": 921001,
+		"name": "Chianti Classico",
+		"shortName": "Chianti Classico",
+		"nameJa": "キアンティ・クラッシコ",
+		"region": "toscana",
+		"subregionId": "chianti",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "canaiolo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "colorino",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "フィレンツェ〜シエナ間の丘陵。ガレストロ(片岩質泥灰土)とアルベレーゼ(石灰岩)が骨格を与え、標高250〜500mの冷涼さがサンジョヴェーゼに酸と気品をもたらす。",
+		"producers": [
+			"Marchesi Antinori",
+			"Castello di Ama",
+			"Fontodi",
+			"Isole e Olena"
+		],
+		"description": "サンジョヴェーゼ80%以上(2020年からは白品種不可)。黒い雄鶏(ガッロ・ネロ)を象徴とする歴史的中核地区で、上位に Riserva、最上位に単一畑主体の Gran Selezione を擁する。"
+	},
+	{
+		"id": "chianti",
+		"idApp": 921002,
+		"name": "Chianti",
+		"shortName": "Chianti",
+		"nameJa": "キアンティ",
+		"region": "toscana",
+		"subregionId": "chianti",
+		"kind": "regional",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "canaiolo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "colorino",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "trebbiano",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malvasia",
+				"role": "accessory"
+			}
+		],
+		"soil": "トスカーナ中部の広範な丘陵。粘土石灰質を中心に地区(コッリ・フィオレンティーニ、ルフィナ等7サブゾーン)ごとに土壌が変化する。",
+		"producers": ["Ruffino", "Rocca delle Macìe", "Nipozzano (Frescobaldi)"],
+		"description": "サンジョヴェーゼ70%以上を核とする広域DOCG。7つのサブゾーン(特にルフィナは長熟)を持ち、日常的な軽快さから本格派まで幅広い。クラッシコとは別の生産地域。"
+	},
+	{
+		"id": "vin-santo-del-chianti-classico",
+		"idApp": 921003,
+		"name": "Vin Santo del Chianti Classico",
+		"shortName": "Vin Santo del Chianti Classico",
+		"nameJa": "ヴィン・サント・デル・キアンティ・クラッシコ",
+		"region": "toscana",
+		"subregionId": "chianti",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "trebbiano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sangiovese",
+				"role": "accessory"
+			}
+		],
+		"soil": "キアンティ・クラッシコと同じガレストロ・アルベレーゼの丘陵。収穫後の陰干しに適した通気性のよい屋根裏(ヴィンサンタイア)の環境が味を決める。",
+		"producers": ["Isole e Olena", "San Felice"],
+		"description": "収穫したトレッビアーノ・マルヴァジーアを陰干しし、カラテッロと呼ぶ小樽で長期熟成させる伝統的な甘口。赤品種主体のものは「オッキオ・ディ・ペルニーチェ」と呼ばれる。"
+	},
+	{
+		"id": "brunello-di-montalcino",
+		"idApp": 921004,
+		"name": "Brunello di Montalcino",
+		"shortName": "Brunello di Montalcino",
+		"nameJa": "ブルネッロ・ディ・モンタルチーノ",
+		"region": "toscana",
+		"subregionId": "montalcino",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			}
+		],
+		"soil": "モンタルチーノの丘(標高〜600m)。北部は冷涼でエレガント、南部はより温暖で力強い。ガレストロ・粘土・海成堆積土が混在。",
+		"producers": ["Biondi-Santi", "Casanova di Neri", "Il Poggione", "Soldera"],
+		"description": "サンジョヴェーゼ100%(地元名ブルネッロ)。最低熟成5年(うち樽2年)、リゼルヴァは6年。19世紀ビオンディ・サンティが確立したイタリア最高峰の長熟赤。"
+	},
+	{
+		"id": "rosso-di-montalcino",
+		"idApp": 921005,
+		"name": "Rosso di Montalcino",
+		"shortName": "Rosso di Montalcino",
+		"nameJa": "ロッソ・ディ・モンタルチーノ",
+		"region": "toscana",
+		"subregionId": "montalcino",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			}
+		],
+		"soil": "ブルネッロと同一のモンタルチーノ地域。若い樹や早飲み用区画の葡萄が中心。",
+		"producers": ["Il Poggione", "Costanti"],
+		"description": "ブルネッロと同じサンジョヴェーゼ100%だが熟成義務が短く(最低1年)、より果実味豊かで早くから楽しめる「ブルネッロの弟分」。造り手の実力が素直に出る。"
+	},
+	{
+		"id": "sant-antimo",
+		"idApp": 921006,
+		"name": "Sant'Antimo",
+		"shortName": "Sant'Antimo",
+		"nameJa": "サンタンティモ",
+		"region": "toscana",
+		"subregionId": "montalcino",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sangiovese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "モンタルチーノ行政区と重なる地域。国際品種の栽培にも適した水はけのよい丘陵。",
+		"producers": ["Castello Banfi"],
+		"description": "モンタルチーノで国際品種や白を認めるDOC。カベルネ・メルロ主体の赤やシャルドネの白など、サンジョヴェーゼ以外の表現の受け皿となる。"
+	},
+	{
+		"id": "moscadello-di-montalcino",
+		"idApp": 921007,
+		"name": "Moscadello di Montalcino",
+		"shortName": "Moscadello di Montalcino",
+		"nameJa": "モスカデッロ・ディ・モンタルチーノ",
+		"region": "toscana",
+		"subregionId": "montalcino",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "moscato-bianco",
+				"role": "principal"
+			}
+		],
+		"soil": "モンタルチーノの丘陵。芳香を保つための冷涼な標高地が好まれる。",
+		"producers": ["Col d'Orcia"],
+		"description": "モスカート・ビアンコから造る甘口白。ブルネッロ以前からモンタルチーノの名を担った歴史的ワインで、微発泡・遅摘み・陰干しのスタイルがある。"
+	},
+	{
+		"id": "vino-nobile-di-montepulciano",
+		"idApp": 921008,
+		"name": "Vino Nobile di Montepulciano",
+		"shortName": "Vino Nobile di Montepulciano",
+		"nameJa": "ヴィーノ・ノービレ・ディ・モンテプルチャーノ",
+		"region": "toscana",
+		"subregionId": "montepulciano",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "canaiolo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mammolo",
+				"role": "accessory"
+			}
+		],
+		"soil": "モンテプルチャーノの丘(標高250〜600m)。海成の砂質・粘土質土壌がしなやかな質感を生む。",
+		"producers": ["Avignonesi", "Boscarelli", "Poliziano"],
+		"description": "サンジョヴェーゼ(地元名プルニョーロ・ジェンティーレ)70%以上。古くから貴族に愛された「高貴なワイン」。最低熟成2年、リゼルヴァ3年。2021年から Pieve の上位区分が導入。"
+	},
+	{
+		"id": "rosso-di-montepulciano",
+		"idApp": 921009,
+		"name": "Rosso di Montepulciano",
+		"shortName": "Rosso di Montepulciano",
+		"nameJa": "ロッソ・ディ・モンテプルチャーノ",
+		"region": "toscana",
+		"subregionId": "montepulciano",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "canaiolo",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴィーノ・ノービレと同一地域。早飲み用の区画が中心。",
+		"producers": ["Poliziano"],
+		"description": "ヴィーノ・ノービレと同じ地域・品種で造る早飲みタイプ。熟成義務が短く、プルニョーロ・ジェンティーレの果実味を気軽に楽しめる。"
+	},
+	{
+		"id": "vin-santo-di-montepulciano",
+		"idApp": 921010,
+		"name": "Vin Santo di Montepulciano",
+		"shortName": "Vin Santo di Montepulciano",
+		"nameJa": "ヴィン・サント・ディ・モンテプルチャーノ",
+		"region": "toscana",
+		"subregionId": "montepulciano",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "trebbiano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia",
+				"role": "principal"
+			}
+		],
+		"soil": "モンテプルチャーノの丘陵。陰干しに適した乾いた気候。",
+		"producers": ["Avignonesi"],
+		"description": "トレッビアーノ・マルヴァジーア等を陰干しして小樽で長期熟成する甘口。アヴィニョネージの少量生産品は世界的に名高い。"
+	},
+	{
+		"id": "orcia",
+		"idApp": 921011,
+		"name": "Orcia",
+		"shortName": "Orcia",
+		"nameJa": "オルチャ",
+		"region": "toscana",
+		"subregionId": "montepulciano",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			}
+		],
+		"soil": "世界遺産オルチャ渓谷。モンタルチーノとモンテプルチャーノに挟まれた粘土石灰質の丘陵。",
+		"producers": ["Capitoni", "Donatella Cinelli Colombini"],
+		"description": "二大産地の狭間に位置するサンジョヴェーゼ主体の赤。美しい景観で知られるオルチャ渓谷の、コストパフォーマンスに優れた実力派産地。"
+	},
+	{
+		"id": "vernaccia-di-san-gimignano",
+		"idApp": 921012,
+		"name": "Vernaccia di San Gimignano",
+		"shortName": "Vernaccia di San Gimignano",
+		"nameJa": "ヴェルナッチャ・ディ・サン・ジミニャーノ",
+		"region": "toscana",
+		"subregionId": "san-gimignano",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "vernaccia",
+				"role": "principal"
+			}
+		],
+		"soil": "塔の街サン・ジミニャーノを囲む砂質・粘土質の丘。ミネラルと骨格を白に与える。",
+		"producers": ["Panizzi", "Montenidoli", "Teruzzi"],
+		"description": "トスカーナを代表する辛口白。地場品種ヴェルナッチャ85%以上から、塩味を伴うコクとほろ苦い余韻を生む。イタリア初のDOC(1966年)にして州唯一の白DOCG。"
+	},
+	{
+		"id": "bolgheri",
+		"idApp": 921013,
+		"name": "Bolgheri",
+		"shortName": "Bolgheri",
+		"nameJa": "ボルゲリ",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sangiovese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "accessory"
+			}
+		],
+		"soil": "ティレニア海に面したボルゲリの沖積・小石混じりの土壌。海風と温暖な気候がボルドー品種を完熟させる。",
+		"producers": ["Tenuta San Guido", "Ornellaia", "Grattamacco"],
+		"description": "「スーパートスカーナ」を生んだ聖地。カベルネ・メルロ主体の国際品種ブレンドを公式に認めたDOCで、サッシカイアやオルネッライアが世界的名声を確立した。白はヴェルメンティーノ。"
+	},
+	{
+		"id": "bolgheri-sassicaia",
+		"idApp": 921014,
+		"name": "Bolgheri Sassicaia",
+		"shortName": "Bolgheri Sassicaia",
+		"nameJa": "ボルゲリ・サッシカイア",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			}
+		],
+		"soil": "テヌータ・サン・グイドのサッシカイア畑。名の由来どおり小石(sasso)の多い水はけのよい土壌。",
+		"producers": ["Tenuta San Guido"],
+		"description": "単一ワインに与えられたイタリア唯一のサブゾーンDOC。カベルネ・ソーヴィニヨン主体のサッシカイアは、イタリアで最も有名なワインの一つ。"
+	},
+	{
+		"id": "maremma-toscana",
+		"idApp": 921015,
+		"name": "Maremma toscana",
+		"shortName": "Maremma Toscana",
+		"nameJa": "マレンマ・トスカーナ",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "ciliegiolo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			}
+		],
+		"soil": "グロッセート県を中心とする南トスカーナ沿岸の広域。海に近い温暖な平野〜丘陵で多様な土壌。",
+		"producers": ["Tenuta Ammiraglia (Frescobaldi)", "Rocca di Frassinello"],
+		"description": "南トスカーナ海岸部をカバーする広域DOC。サンジョヴェーゼやヴェルメンティーノに加え国際品種も認められ、赤・白・ロゼ・スパークリングまで多彩。新興生産者の受け皿。"
+	},
+	{
+		"id": "morellino-di-scansano",
+		"idApp": 921016,
+		"name": "Morellino di Scansano",
+		"shortName": "Morellino di Scansano",
+		"nameJa": "モレッリーノ・ディ・スカンサーノ",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "ciliegiolo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			}
+		],
+		"soil": "マレンマ内陸のスカンサーノ周辺の丘。温暖で日照に恵まれ、豊かな果実味を生む。",
+		"producers": ["Fattoria Le Pupille", "Poggio Argentiera"],
+		"description": "サンジョヴェーゼ(地元名モレッリーノ)85%以上。マレンマの温暖さゆえに丸く柔らかく、若くから親しみやすい。マレンマを代表する赤DOCG。"
+	},
+	{
+		"id": "montecucco-sangiovese",
+		"idApp": 921017,
+		"name": "Montecucco Sangiovese",
+		"shortName": "Montecucco Sangiovese",
+		"nameJa": "モンテクッコ・サンジョヴェーゼ",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			}
+		],
+		"soil": "アミアータ山麓、モンタルチーノの西隣に広がる丘陵。標高と海の影響で冷涼感がある。",
+		"producers": ["ColleMassari", "Salustri"],
+		"description": "サンジョヴェーゼ90%以上。ブルネッロの隣接地ながら手頃で、近年評価が急上昇。上位DOCGとしてモンテクッコDOCから独立した。"
+	},
+	{
+		"id": "montecucco",
+		"idApp": 921018,
+		"name": "Montecucco",
+		"shortName": "Montecucco",
+		"nameJa": "モンテクッコ",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "ciliegiolo",
+				"role": "accessory"
+			}
+		],
+		"soil": "モンテクッコ・サンジョヴェーゼと同一地域。砂質・火山性を含む多様な土壌。",
+		"producers": ["ColleMassari"],
+		"description": "サンジョヴェーゼの赤とヴェルメンティーノの白を認める地域DOC。上位のモンテクッコ・サンジョヴェーゼDOCGを補完する。"
+	},
+	{
+		"id": "suvereto",
+		"idApp": 921019,
+		"name": "Suvereto",
+		"shortName": "Suvereto",
+		"nameJa": "スヴェレート",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sangiovese",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴァル・ディ・コルニア内陸、スヴェレートの丘。温暖で国際品種の完熟に向く。",
+		"producers": ["Tua Rita", "Petra"],
+		"description": "ボルドー品種主体の力強い赤を核とするDOCG。トゥア・リータのレディガフィに象徴される、コスタ・トスカーナの実力派産地。"
+	},
+	{
+		"id": "val-di-cornia-rosso",
+		"idApp": 921020,
+		"name": "Val di Cornia Rosso",
+		"shortName": "Val di Cornia Rosso",
+		"nameJa": "ヴァル・ディ・コルニア・ロッソ",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			}
+		],
+		"soil": "リヴォルノ〜ピオンビーノ内陸のコルニア川流域。海の影響を受ける温暖な丘陵・平野。",
+		"producers": ["Tua Rita", "Jacopo Banti"],
+		"description": "サンジョヴェーゼを主体にボルドー品種を補うヴァル・ディ・コルニアの上位赤DOCG。凝縮した果実味と柔らかなタンニンが持ち味。"
+	},
+	{
+		"id": "val-di-cornia",
+		"idApp": 921021,
+		"name": "Val di Cornia",
+		"shortName": "Val di Cornia",
+		"nameJa": "ヴァル・ディ・コルニア",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "aleatico",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴァル・ディ・コルニア・ロッソと同一の流域。砂質を含む水はけのよい土壌。",
+		"producers": ["Petra", "Gualdo del Re"],
+		"description": "サンジョヴェーゼの赤、ヴェルメンティーノの白、アレアティコの甘口まで認める地域DOC。上位のヴァル・ディ・コルニア・ロッソDOCGを支える。"
+	},
+	{
+		"id": "elba-aleatico-passito",
+		"idApp": 921022,
+		"name": "Elba Aleatico Passito",
+		"shortName": "Elba Aleatico",
+		"nameJa": "エルバ・アレアティコ・パッシート",
+		"region": "toscana",
+		"subregionId": "costa-maremma",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "aleatico",
+				"role": "principal"
+			}
+		],
+		"soil": "エルバ島の花崗岩質・片岩質土壌。海風と強い日照が陰干しに理想的。",
+		"producers": ["Acquabona", "Cecilia"],
+		"description": "エルバ島産アレアティコ100%を陰干しして造る甘口の赤(パッシート)。バラや赤い果実の香り高い、島を代表する銘酒。トスカーナ島嶼部唯一のDOCG。"
+	},
+	{
+		"id": "carmignano",
+		"idApp": 921023,
+		"name": "Carmignano",
+		"shortName": "Carmignano",
+		"nameJa": "カルミニャーノ",
+		"region": "toscana",
+		"subregionId": "colline-centrali",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			}
+		],
+		"soil": "フィレンツェ北西、プラート近郊の丘陵。粘土石灰質の温暖な斜面。",
+		"producers": ["Tenuta di Capezzana", "Fattoria Ambra"],
+		"description": "サンジョヴェーゼ主体にカベルネの補助を古くから認めた稀有な産地。メディチ家が16世紀に境界を定めた歴史を持ち、スーパートスカーナの先駆けともいえる小さなDOCG。"
+	},
+	{
+		"id": "cortona",
+		"idApp": 921024,
+		"name": "Cortona",
+		"shortName": "Cortona",
+		"nameJa": "コルトーナ",
+		"region": "toscana",
+		"subregionId": "colline-centrali",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			}
+		],
+		"soil": "トスカーナ南東、アレッツォ県コルトーナの丘。温暖でシラーの熟成に適する。",
+		"producers": ["Tenimenti Luigi d'Alessandro", "Stefano Amerighi"],
+		"description": "イタリアでも稀なシラーの銘醸地として知られるDOC。温暖な気候がスパイシーで凝縮したシラーを生み、造り手の意欲的な取り組みで評価を高めている。"
+	},
+	{
+		"id": "colline-lucchesi",
+		"idApp": 921025,
+		"name": "Colline Lucchesi",
+		"shortName": "Colline Lucchesi",
+		"nameJa": "コッリーネ・ルッケージ",
+		"region": "toscana",
+		"subregionId": "colline-centrali",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "trebbiano",
+				"role": "accessory"
+			}
+		],
+		"soil": "ルッカ北方の丘陵。海に近い温暖な気候と多様な土壌。",
+		"producers": ["Tenuta di Valgiano", "Fattoria di Fubbiano"],
+		"description": "ルッカ周辺の丘で造るサンジョヴェーゼ主体の赤と地場白。ビオディナミの名手ヴァルジャーノなどが少量ながら質の高いワインを生む。"
+	},
+	{
+		"id": "montecarlo",
+		"idApp": 921026,
+		"name": "Montecarlo",
+		"shortName": "Montecarlo",
+		"nameJa": "モンテカルロ",
+		"region": "toscana",
+		"subregionId": "colline-centrali",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "trebbiano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sangiovese",
+				"role": "accessory"
+			}
+		],
+		"soil": "ルッカ東方モンテカルロの丘。粘土石灰質の温暖な斜面。",
+		"producers": ["Fattoria del Buonamico", "Carmignani"],
+		"description": "トレッビアーノにセミヨンやルーサンヌ等フランス品種を古くからブレンドする、個性的な白で知られるDOC。赤はサンジョヴェーゼ主体。"
+	},
+	{
+		"id": "candia-dei-colli-apuani",
+		"idApp": 921027,
+		"name": "Candia dei Colli Apuani",
+		"shortName": "Candia dei Colli Apuani",
+		"nameJa": "カンディア・デイ・コッリ・アプアーニ",
+		"region": "toscana",
+		"subregionId": "colline-centrali",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia",
+				"role": "accessory"
+			}
+		],
+		"soil": "アプアーネ・アルプス(カッラーラ大理石で有名)の急斜面。海に面した段々畑。",
+		"producers": ["Cima", "Podere Scurtarola"],
+		"description": "州最北西、大理石の産地マッサ・カッラーラの海沿い急斜面で造る白。ヴェルメンティーノを主体に、塩味を帯びた爽やかな辛口〜甘口を生む。"
+	},
+	{
+		"id": "pomino",
+		"idApp": 921028,
+		"name": "Pomino",
+		"shortName": "Pomino",
+		"nameJa": "ポミーノ",
+		"region": "toscana",
+		"subregionId": "colline-centrali",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sangiovese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			}
+		],
+		"soil": "キアンティ・ルフィナ東方、標高700mに及ぶ冷涼な高地。フレスコバルディが19世紀からフランス品種を導入。",
+		"producers": ["Frescobaldi (Castello di Pomino)"],
+		"description": "トスカーナでは珍しい高標高・冷涼産地。シャルドネやピノを用いた気品ある白で知られ、フレスコバルディが歴史的に主導してきた小さなDOC。"
 	}
 ]
