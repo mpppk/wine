@@ -1,6 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
+import { oauthAccessToken, oauthConsent } from "#/db/auth-schema";
 import {
+	type AdminAuditDetail,
 	adminAuditLog,
 	couponRedemption,
 	creditBalance,
@@ -175,4 +177,43 @@ export async function extendPremium(params: {
 	]);
 
 	return { extendedDays: days, newPeriodEnd };
+}
+
+/** 管理操作の証跡を admin_audit_log に1行記録する。破壊的操作の共通後処理。 */
+export async function recordAudit(params: {
+	actorUserId: string;
+	targetUserId: string;
+	action: string;
+	reason: string;
+	detail?: AdminAuditDetail | null;
+}): Promise<void> {
+	await db.insert(adminAuditLog).values({
+		id: crypto.randomUUID(),
+		actorUserId: params.actorUserId,
+		targetUserId: params.targetUserId,
+		action: params.action,
+		detail: params.detail ?? null,
+		reason: params.reason,
+	});
+}
+
+/**
+ * ユーザの MCP(OAuth)連携をすべて失効する(#115)。アカウント乗っ取り疑い・連携アプリ側の
+ * 事故に対応する。oauth_access_token / oauth_consent の該当ユーザ行を削除する。
+ * better-auth の mcp プラグインには失効APIが無いため直接削除する。
+ */
+export async function revokeMcpConnections(
+	userId: string,
+): Promise<{ tokensDeleted: number; consentsDeleted: number }> {
+	const [tokens, consents] = await db.batch([
+		db
+			.delete(oauthAccessToken)
+			.where(eq(oauthAccessToken.userId, userId))
+			.returning({ id: oauthAccessToken.id }),
+		db
+			.delete(oauthConsent)
+			.where(eq(oauthConsent.userId, userId))
+			.returning({ id: oauthConsent.id }),
+	]);
+	return { tokensDeleted: tokens.length, consentsDeleted: consents.length };
 }

@@ -27,14 +27,23 @@ import {
 	ADMIN_GRANT_REASON_MAX,
 } from "#/lib/admin/credit-grant";
 import {
+	BAN_EXPIRES_MAX_DAYS,
+	BAN_EXPIRES_MIN_DAYS,
+} from "#/lib/admin/moderation";
+import {
 	ADMIN_EXTENSION_MAX_DAYS,
 	ADMIN_EXTENSION_MIN_DAYS,
 } from "#/lib/admin/premium-extension";
+import { authClient } from "#/lib/auth-client";
 import type { AdminUserDetail } from "#/lib/services/admin-service";
 import {
+	adminBanUser,
 	adminExtendPremium,
 	adminGetUserDetail,
 	adminGrantCredits,
+	adminRevokeMcp,
+	adminRevokeSessions,
+	adminUnbanUser,
 } from "#/server/admin";
 import { getSession } from "#/server/auth";
 
@@ -86,6 +95,10 @@ const LEDGER_TYPE_LABELS: Record<string, string> = {
 const AUDIT_ACTION_LABELS: Record<string, string> = {
 	credit_grant: "クレジット付与",
 	premium_extension: "プレミアム期間延長",
+	revoke_sessions: "全セッション失効",
+	ban: "利用停止(BAN)",
+	unban: "停止解除",
+	revoke_mcp: "MCP連携失効",
 };
 
 /** 監査ログの detail(action 固有JSON)を人間可読な短い文字列に整形する。 */
@@ -99,6 +112,14 @@ function formatAuditDetail(
 	}
 	if (action === "premium_extension" && typeof detail.days === "number") {
 		return `${detail.days}日延長`;
+	}
+	if (action === "ban") {
+		return typeof detail.banExpiresInDays === "number"
+			? `${detail.banExpiresInDays}日間`
+			: "無期限";
+	}
+	if (action === "revoke_mcp") {
+		return `トークン${detail.tokensDeleted ?? 0}件 / 同意${detail.consentsDeleted ?? 0}件 削除`;
 	}
 	return JSON.stringify(detail);
 }
@@ -775,8 +796,434 @@ function AdminPremiumExtensionForm({ detail }: { detail: AdminUserDetail }) {
 	);
 }
 
+/**
+ * 破壊的操作の共通ボタン+確認ダイアログ(理由必須)。成功後 loader を invalidate する。
+ * BAN のように追加入力が必要な操作は専用フォームを使う。
+ */
+function DangerAction({
+	label,
+	confirmTitle,
+	confirmBody,
+	mutationFn,
+	buttonVariant = "destructive",
+	doneMessage,
+	disabled,
+	disabledNote,
+}: {
+	label: string;
+	confirmTitle: string;
+	confirmBody: string;
+	mutationFn: (reason: string) => Promise<unknown>;
+	buttonVariant?: "destructive" | "outline";
+	doneMessage: string;
+	disabled?: boolean;
+	disabledNote?: string;
+}) {
+	const router = useRouter();
+	const [open, setOpen] = useState(false);
+	const [reason, setReason] = useState("");
+	const [error, setError] = useState("");
+	const [message, setMessage] = useState("");
+
+	const { mutate, isPending } = useMutation({
+		mutationFn: () => mutationFn(reason.trim()),
+		onSuccess: async () => {
+			setOpen(false);
+			setReason("");
+			setError("");
+			setMessage(doneMessage);
+			await router.invalidate();
+		},
+		onError: (err: Error) => setError(err.message || "操作に失敗しました。"),
+	});
+
+	return (
+		<div className="flex flex-col gap-2">
+			<Button
+				type="button"
+				variant={buttonVariant}
+				size="sm"
+				className="self-start"
+				disabled={disabled}
+				onClick={() => {
+					setError("");
+					setMessage("");
+					setReason("");
+					setOpen(true);
+				}}
+			>
+				{label}
+			</Button>
+			{disabled && disabledNote && (
+				<p className="text-xs text-muted-foreground">{disabledNote}</p>
+			)}
+			{message && (
+				<p className="text-sm text-green-600 dark:text-green-400">{message}</p>
+			)}
+			<Dialog
+				open={open}
+				onOpenChange={(o) => {
+					if (!isPending) setOpen(o);
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{confirmTitle}</DialogTitle>
+						<DialogDescription>
+							{confirmBody} この操作は監査ログに記録されます。
+						</DialogDescription>
+					</DialogHeader>
+					<div className="flex flex-col gap-1.5">
+						<Label>理由(必須)</Label>
+						<Textarea
+							aria-label="理由"
+							value={reason}
+							onChange={(e) => setReason(e.target.value)}
+							rows={2}
+							maxLength={ADMIN_GRANT_REASON_MAX}
+							disabled={isPending}
+						/>
+					</div>
+					{error && <p className="text-sm text-destructive">{error}</p>}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={isPending}
+							onClick={() => setOpen(false)}
+						>
+							キャンセル
+						</Button>
+						<Button
+							type="button"
+							variant={buttonVariant === "outline" ? "default" : "destructive"}
+							disabled={isPending || reason.trim() === ""}
+							onClick={() => mutate()}
+						>
+							{isPending ? "処理中..." : "実行する"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</div>
+	);
+}
+
+/** BAN(理由必須+任意の期限)。BAN 中は解除アクションを出す。自分自身には実行不可。 */
+function BanControl({
+	detail,
+	isSelf,
+}: {
+	detail: AdminUserDetail;
+	isSelf: boolean;
+}) {
+	const router = useRouter();
+	const u = detail.user;
+	const [open, setOpen] = useState(false);
+	const [reason, setReason] = useState("");
+	const [days, setDays] = useState("");
+	const [error, setError] = useState("");
+
+	const parsedDays = Number(days);
+	const daysEmpty = days.trim() === "";
+	const daysValid =
+		daysEmpty ||
+		(Number.isInteger(parsedDays) &&
+			parsedDays >= BAN_EXPIRES_MIN_DAYS &&
+			parsedDays <= BAN_EXPIRES_MAX_DAYS);
+	const canSubmit = reason.trim() !== "" && daysValid;
+
+	const { mutate, isPending } = useMutation({
+		mutationFn: () =>
+			adminBanUser({
+				data: {
+					userId: u.id,
+					reason: reason.trim(),
+					expiresInDays: daysEmpty ? undefined : parsedDays,
+				},
+			}),
+		onSuccess: async () => {
+			setOpen(false);
+			setReason("");
+			setDays("");
+			setError("");
+			await router.invalidate();
+		},
+		onError: (err: Error) =>
+			setError(err.message || "利用停止に失敗しました。"),
+	});
+
+	if (u.banned) {
+		return (
+			<DangerAction
+				label="利用停止を解除"
+				buttonVariant="outline"
+				confirmTitle="利用停止の解除"
+				confirmBody={`${u.name} の利用停止を解除します。`}
+				doneMessage="利用停止を解除しました。"
+				mutationFn={(r) =>
+					adminUnbanUser({ data: { userId: u.id, reason: r } })
+				}
+			/>
+		);
+	}
+
+	return (
+		<div className="flex flex-col gap-2">
+			<Button
+				type="button"
+				variant="destructive"
+				size="sm"
+				className="self-start"
+				disabled={isSelf}
+				onClick={() => {
+					setError("");
+					setReason("");
+					setDays("");
+					setOpen(true);
+				}}
+			>
+				利用停止(BAN)
+			</Button>
+			{isSelf && (
+				<p className="text-xs text-muted-foreground">
+					自分自身は利用停止できません。
+				</p>
+			)}
+			<Dialog
+				open={open}
+				onOpenChange={(o) => {
+					if (!isPending) setOpen(o);
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>利用停止(BAN)の確認</DialogTitle>
+						<DialogDescription>
+							{u.name}{" "}
+							を利用停止します。停止中はログインが拒否され、既存セッションも失効します。この操作は監査ログに記録されます。
+						</DialogDescription>
+					</DialogHeader>
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="ban-days">停止期限(日数・空欄で無期限)</Label>
+						<Input
+							id="ban-days"
+							type="number"
+							inputMode="numeric"
+							min={BAN_EXPIRES_MIN_DAYS}
+							max={BAN_EXPIRES_MAX_DAYS}
+							value={days}
+							onChange={(e) => setDays(e.target.value)}
+							placeholder="無期限"
+							className="max-w-xs"
+							disabled={isPending}
+						/>
+					</div>
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="ban-reason">理由(必須)</Label>
+						<Textarea
+							id="ban-reason"
+							value={reason}
+							onChange={(e) => setReason(e.target.value)}
+							placeholder="例: 規約違反(スパム投稿)"
+							rows={2}
+							maxLength={ADMIN_GRANT_REASON_MAX}
+							disabled={isPending}
+						/>
+					</div>
+					{error && <p className="text-sm text-destructive">{error}</p>}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={isPending}
+							onClick={() => setOpen(false)}
+						>
+							キャンセル
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							disabled={isPending || !canSubmit}
+							onClick={() => mutate()}
+						>
+							{isPending ? "処理中..." : "利用停止する"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</div>
+	);
+}
+
+function ModerationCard({
+	detail,
+	isSelf,
+}: {
+	detail: AdminUserDetail;
+	isSelf: boolean;
+}) {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>モデレーション(管理操作)</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-2">
+				<p className="text-sm text-muted-foreground">
+					アカウント乗っ取り疑い・規約違反への対応。停止・失効は監査ログに記録されます。
+				</p>
+				<BanControl detail={detail} isSelf={isSelf} />
+			</CardContent>
+		</Card>
+	);
+}
+
+function SessionCard({
+	detail,
+	isSelf,
+}: {
+	detail: AdminUserDetail;
+	isSelf: boolean;
+}) {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>アクティブセッション</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				{detail.sessions.length === 0 ? (
+					<p className="text-sm text-muted-foreground">
+						有効なセッションはありません。
+					</p>
+				) : (
+					<div className="overflow-x-auto">
+						<table className="w-full text-sm">
+							<thead>
+								<tr className="border-b border-border text-left text-xs text-muted-foreground">
+									<th className="px-3 py-2 font-medium">IPアドレス</th>
+									<th className="px-3 py-2 font-medium">User-Agent</th>
+									<th className="px-3 py-2 font-medium">作成</th>
+									<th className="px-3 py-2 font-medium">有効期限</th>
+								</tr>
+							</thead>
+							<tbody>
+								{detail.sessions.map((s) => (
+									<tr
+										key={s.id}
+										className="border-b border-border last:border-b-0"
+									>
+										<td className="whitespace-nowrap px-3 py-2">
+											{s.ipAddress || "-"}
+											{s.impersonatedBy && (
+												<span className="ml-1 rounded-full border border-border px-1.5 text-xs text-muted-foreground">
+													なりすまし
+												</span>
+											)}
+										</td>
+										<td className="max-w-xs truncate px-3 py-2 text-muted-foreground">
+											{s.userAgent || "-"}
+										</td>
+										<td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+											{formatDateTime(s.createdAt)}
+										</td>
+										<td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+											{formatDateTime(s.expiresAt)}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				)}
+				<DangerAction
+					label="全セッションを強制ログアウト"
+					confirmTitle="全セッション強制ログアウトの確認"
+					confirmBody={`${detail.user.name} の全セッションを失効します(再ログインが必要になります)。`}
+					doneMessage="全セッションを失効しました。"
+					disabled={isSelf || detail.sessions.length === 0}
+					disabledNote={isSelf ? "自分自身には実行できません。" : undefined}
+					mutationFn={(r) =>
+						adminRevokeSessions({ data: { userId: detail.user.id, reason: r } })
+					}
+				/>
+			</CardContent>
+		</Card>
+	);
+}
+
+function McpCard({ detail }: { detail: AdminUserDetail }) {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>MCP連携(OAuth)</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				{detail.mcpConnections.length === 0 ? (
+					<p className="text-sm text-muted-foreground">
+						MCP連携アプリはありません。
+					</p>
+				) : (
+					<div className="overflow-x-auto">
+						<table className="w-full text-sm">
+							<thead>
+								<tr className="border-b border-border text-left text-xs text-muted-foreground">
+									<th className="px-3 py-2 font-medium">アプリ</th>
+									<th className="px-3 py-2 font-medium">スコープ</th>
+									<th className="px-3 py-2 font-medium">有効トークン</th>
+									<th className="px-3 py-2 font-medium">同意</th>
+								</tr>
+							</thead>
+							<tbody>
+								{detail.mcpConnections.map((c) => (
+									<tr
+										key={c.clientId}
+										className="border-b border-border last:border-b-0"
+									>
+										<td className="px-3 py-2">
+											{c.appName ?? (
+												<code className="text-xs">{c.clientId}</code>
+											)}
+										</td>
+										<td className="max-w-xs truncate px-3 py-2 text-muted-foreground">
+											{c.scopes || "-"}
+										</td>
+										<td className="whitespace-nowrap px-3 py-2 tabular-nums">
+											{c.activeTokenCount > 0
+												? `${c.activeTokenCount}件（〜${c.latestTokenExpiresAt ? formatDate(c.latestTokenExpiresAt) : "-"}）`
+												: "なし"}
+										</td>
+										<td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+											{c.consentGiven === null
+												? "-"
+												: c.consentGiven
+													? "同意済み"
+													: "未同意"}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				)}
+				<DangerAction
+					label="全MCP連携を失効"
+					confirmTitle="MCP連携失効の確認"
+					confirmBody={`${detail.user.name} の全MCPトークン・同意を削除します(連携アプリは再認可が必要になります)。`}
+					doneMessage="MCP連携を失効しました。"
+					disabled={detail.mcpConnections.length === 0}
+					mutationFn={(r) =>
+						adminRevokeMcp({ data: { userId: detail.user.id, reason: r } })
+					}
+				/>
+			</CardContent>
+		</Card>
+	);
+}
+
 function AdminUserDetailPage() {
 	const detail = Route.useLoaderData();
+	const { data: session } = authClient.useSession();
+	const isSelf = session?.user.id === detail.user.id;
 
 	return (
 		<main className="mx-auto max-w-4xl px-4 py-10">
@@ -792,7 +1239,10 @@ function AdminUserDetailPage() {
 			<h1 className="mb-6 text-2xl font-bold">ユーザー詳細</h1>
 			<div className="flex flex-col gap-6">
 				<BasicInfoCard detail={detail} />
+				<ModerationCard detail={detail} isSelf={isSelf} />
 				<PlanCard detail={detail} />
+				<SessionCard detail={detail} isSelf={isSelf} />
+				<McpCard detail={detail} />
 				<CreditCard detail={detail} />
 				<AdminCreditGrantForm
 					userId={detail.user.id}
