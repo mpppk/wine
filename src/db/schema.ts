@@ -244,3 +244,50 @@ export const aopReferenceLink = sqliteTable(
 		index("aop_reference_link_user_aop_idx").on(table.userId, table.aopId),
 	],
 );
+
+/**
+ * 監査ログ detail の型。action 固有の付随情報をフラットな JSON プリミティブの連想配列で持つ。
+ * server fn のシリアライザが通るよう値は string/number/boolean/null に限定する(ネスト不可)。
+ */
+export type AdminAuditDetail = Record<string, string | number | boolean | null>;
+
+/**
+ * 管理操作の監査ログ(汎用)。管理画面からの価値のある/破壊的な操作(クレジット付与・
+ * 期間延長・BAN・セッション失効 等)を1操作1行で追記記録する。actorUserId は操作した
+ * 管理者、targetUserId は対象ユーザ。金銭的価値を扱う操作の証跡であり、ユーザ削除で
+ * 消えては困るため user への FK は張らず userId 文字列参照で保持する
+ * (subscription.referenceId と同方針)。detail は action 固有の付随情報
+ * (例: クレジット付与なら {amount, requestId, periodMonth})を JSON で持つ。
+ */
+export const adminAuditLog = sqliteTable(
+	"admin_audit_log",
+	{
+		/** crypto.randomUUID() */
+		id: text("id").primaryKey(),
+		/** 操作した管理者の user.id(FKなし=証跡保全) */
+		actorUserId: text("actor_user_id").notNull(),
+		/** 対象ユーザの user.id。ユーザに紐づかない操作は null(将来用) */
+		targetUserId: text("target_user_id"),
+		/** 操作種別。例: "credit_grant" */
+		action: text("action").notNull(),
+		/** action 固有の付随情報(JSON)。無い操作は null */
+		detail: text("detail", { mode: "json" }).$type<AdminAuditDetail>(),
+		/** 操作理由(クレジット付与など理由必須の操作で入力)。 */
+		reason: text("reason"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		// 「対象ユーザの操作履歴」を新しい順に引くための複合index
+		index("admin_audit_log_target_created_idx").on(
+			table.targetUserId,
+			table.createdAt,
+		),
+		// 「特定管理者の操作履歴」を引くための複合index
+		index("admin_audit_log_actor_created_idx").on(
+			table.actorUserId,
+			table.createdAt,
+		),
+	],
+);

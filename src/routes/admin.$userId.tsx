@@ -1,14 +1,33 @@
+import { useMutation } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
 	notFound,
 	redirect,
+	useRouter,
 } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef, useState } from "react";
+import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/ui/dialog";
+import { Input } from "#/components/ui/input";
+import { Label } from "#/components/ui/label";
+import { Textarea } from "#/components/ui/textarea";
+import {
+	ADMIN_CREDIT_GRANT_MAX,
+	ADMIN_CREDIT_GRANT_MIN,
+	ADMIN_GRANT_REASON_MAX,
+} from "#/lib/admin/credit-grant";
 import type { AdminUserDetail } from "#/lib/services/admin-service";
-import { adminGetUserDetail } from "#/server/admin";
+import { adminGetUserDetail, adminGrantCredits } from "#/server/admin";
 import { getSession } from "#/server/auth";
 
 export const Route = createFileRoute("/admin/$userId")({
@@ -53,7 +72,24 @@ const LEDGER_TYPE_LABELS: Record<string, string> = {
 	grant: "付与",
 	consume: "消費",
 	refund: "返却",
+	admin_grant: "管理付与",
 };
+
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+	credit_grant: "クレジット付与",
+};
+
+/** 監査ログの detail(action 固有JSON)を人間可読な短い文字列に整形する。 */
+function formatAuditDetail(
+	action: string,
+	detail: AdminUserDetail["auditLogs"][number]["detail"],
+): string {
+	if (!detail) return "-";
+	if (action === "credit_grant" && typeof detail.amount === "number") {
+		return `+${detail.amount.toLocaleString("ja-JP")} クレジット`;
+	}
+	return JSON.stringify(detail);
+}
 
 const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
 	active: "有効",
@@ -321,6 +357,236 @@ function CouponCard({ detail }: { detail: AdminUserDetail }) {
 	);
 }
 
+/**
+ * クレジット手動付与(管理操作)。理由必須・確認ダイアログを挟み、成功後は loader を
+ * invalidate して残高・台帳・監査ログの表示を更新する。付与は当月末まで有効(案A)。
+ */
+function AdminCreditGrantForm({
+	userId,
+	userName,
+}: {
+	userId: string;
+	userName: string;
+}) {
+	const router = useRouter();
+	const [amount, setAmount] = useState("");
+	const [reason, setReason] = useState("");
+	const [confirmOpen, setConfirmOpen] = useState(false);
+	const [message, setMessage] = useState("");
+	const [error, setError] = useState("");
+	// 冪等キーは「この付与フォームの1回の送信」に固定し、再送で二重付与しないようにする。
+	const requestIdRef = useRef<string | null>(null);
+
+	const parsedAmount = Number(amount);
+	const amountValid =
+		amount.trim() !== "" &&
+		Number.isInteger(parsedAmount) &&
+		parsedAmount >= ADMIN_CREDIT_GRANT_MIN &&
+		parsedAmount <= ADMIN_CREDIT_GRANT_MAX;
+	const reasonValid = reason.trim().length > 0;
+	const canSubmit = amountValid && reasonValid;
+
+	const { mutate, isPending } = useMutation({
+		mutationFn: async () => {
+			if (!requestIdRef.current) {
+				requestIdRef.current = `admin_grant:${crypto.randomUUID()}`;
+			}
+			return adminGrantCredits({
+				data: {
+					userId,
+					amount: parsedAmount,
+					reason: reason.trim(),
+					requestId: requestIdRef.current,
+				},
+			});
+		},
+		onSuccess: async (result) => {
+			setConfirmOpen(false);
+			setError("");
+			setAmount("");
+			setReason("");
+			requestIdRef.current = null;
+			setMessage(
+				result.alreadyApplied
+					? `既に付与済みでした(残高: ${result.balanceAfter.toLocaleString("ja-JP")})。`
+					: `${result.grantedAmount.toLocaleString("ja-JP")} クレジットを付与しました(残高: ${result.balanceAfter.toLocaleString("ja-JP")})。`,
+			);
+			await router.invalidate();
+		},
+		onError: (err: Error) => {
+			setConfirmOpen(false);
+			setMessage("");
+			setError(err.message || "付与に失敗しました。");
+		},
+	});
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>クレジット付与(管理操作)</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				<p className="text-sm text-muted-foreground">
+					障害補填・お詫びとしてクレジットを付与します。付与分は当月残高に加算され、
+					<strong className="font-medium text-foreground">
+						当月末まで有効
+					</strong>
+					です(翌月の月次付与でリセットされます)。
+				</p>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="grant-amount">付与クレジット数</Label>
+					<Input
+						id="grant-amount"
+						type="number"
+						inputMode="numeric"
+						min={ADMIN_CREDIT_GRANT_MIN}
+						max={ADMIN_CREDIT_GRANT_MAX}
+						value={amount}
+						onChange={(e) => setAmount(e.target.value)}
+						placeholder="例: 100"
+						className="max-w-xs"
+						disabled={isPending}
+					/>
+					<p className="text-xs text-muted-foreground">
+						{ADMIN_CREDIT_GRANT_MIN}〜
+						{ADMIN_CREDIT_GRANT_MAX.toLocaleString("ja-JP")}{" "}
+						の整数で指定します。
+					</p>
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="grant-reason">理由(必須)</Label>
+					<Textarea
+						id="grant-reason"
+						value={reason}
+						onChange={(e) => setReason(e.target.value)}
+						placeholder="例: 2026-07-20 の障害によるAI機能停止のお詫び"
+						rows={2}
+						maxLength={ADMIN_GRANT_REASON_MAX}
+						disabled={isPending}
+					/>
+				</div>
+				{message && (
+					<p className="text-sm text-green-600 dark:text-green-400">
+						{message}
+					</p>
+				)}
+				{error && <p className="text-sm text-destructive">{error}</p>}
+				<Button
+					type="button"
+					className="self-start"
+					disabled={!canSubmit || isPending}
+					onClick={() => {
+						setMessage("");
+						setError("");
+						setConfirmOpen(true);
+					}}
+				>
+					クレジットを付与
+				</Button>
+				<Dialog
+					open={confirmOpen}
+					onOpenChange={(o) => {
+						if (!isPending) setConfirmOpen(o);
+					}}
+				>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>クレジット付与の確認</DialogTitle>
+							<DialogDescription>
+								この操作は監査ログに記録されます。
+							</DialogDescription>
+						</DialogHeader>
+						<dl className="flex flex-col gap-2 text-sm">
+							<div className="flex justify-between gap-4">
+								<dt className="shrink-0 text-muted-foreground">対象</dt>
+								<dd className="break-all text-right">{userName}</dd>
+							</div>
+							<div className="flex justify-between gap-4">
+								<dt className="shrink-0 text-muted-foreground">付与数</dt>
+								<dd className="font-bold tabular-nums">
+									{amountValid ? parsedAmount.toLocaleString("ja-JP") : "-"}
+								</dd>
+							</div>
+							<div className="flex justify-between gap-4">
+								<dt className="shrink-0 text-muted-foreground">理由</dt>
+								<dd className="break-all text-right">{reason.trim()}</dd>
+							</div>
+						</dl>
+						<DialogFooter>
+							<Button
+								type="button"
+								variant="outline"
+								disabled={isPending}
+								onClick={() => setConfirmOpen(false)}
+							>
+								キャンセル
+							</Button>
+							<Button
+								type="button"
+								disabled={isPending || !canSubmit}
+								onClick={() => mutate()}
+							>
+								{isPending ? "付与中..." : "付与する"}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			</CardContent>
+		</Card>
+	);
+}
+
+function AuditLogCard({ detail }: { detail: AdminUserDetail }) {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>管理操作履歴</CardTitle>
+			</CardHeader>
+			<CardContent>
+				{detail.auditLogs.length === 0 ? (
+					<p className="text-sm text-muted-foreground">履歴なし</p>
+				) : (
+					<div className="overflow-x-auto">
+						<table className="w-full text-sm">
+							<thead>
+								<tr className="border-b border-border text-left text-xs text-muted-foreground">
+									<th className="px-3 py-2 font-medium">日時</th>
+									<th className="px-3 py-2 font-medium">操作</th>
+									<th className="px-3 py-2 font-medium">内容</th>
+									<th className="px-3 py-2 font-medium">理由</th>
+									<th className="px-3 py-2 font-medium">操作者</th>
+								</tr>
+							</thead>
+							<tbody>
+								{detail.auditLogs.map((log) => (
+									<tr
+										key={log.id}
+										className="border-b border-border last:border-b-0"
+									>
+										<td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+											{formatDateTime(log.createdAt)}
+										</td>
+										<td className="whitespace-nowrap px-3 py-2">
+											{AUDIT_ACTION_LABELS[log.action] ?? log.action}
+										</td>
+										<td className="px-3 py-2">
+											{formatAuditDetail(log.action, log.detail)}
+										</td>
+										<td className="px-3 py-2 break-all">{log.reason ?? "-"}</td>
+										<td className="px-3 py-2 break-all text-muted-foreground">
+											{log.actorName ?? log.actorEmail ?? "-"}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
 function AdminUserDetailPage() {
 	const detail = Route.useLoaderData();
 
@@ -340,7 +606,12 @@ function AdminUserDetailPage() {
 				<BasicInfoCard detail={detail} />
 				<PlanCard detail={detail} />
 				<CreditCard detail={detail} />
+				<AdminCreditGrantForm
+					userId={detail.user.id}
+					userName={detail.user.name}
+				/>
 				<CouponCard detail={detail} />
+				<AuditLogCard detail={detail} />
 			</div>
 		</main>
 	);
