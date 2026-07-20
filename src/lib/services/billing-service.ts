@@ -40,24 +40,15 @@ export interface RedeemExtensionResult {
 }
 
 /**
- * キャンペーンコードで既存プレミアム会員の期間を延長する。
- * Stripe プロモコードは Checkout 専用で既存サブスクには使えないため、アプリ側で
- * コードを検証し、Stripe サブスクの trial_end を「現在の期間終了+日数」に更新して
- * 無償延長する(proration_behavior: none)。DBの periodEnd は webhook で同期される。
+ * 有効なプレミアム会員(active/trialing の Stripe サブスク保持者)の Stripe trial_end を
+ * days 分だけ後ろ倒しして無償延長する(proration_behavior: none)。プレミアムでなければ throw。
+ * DBの periodEnd は webhook で同期される。coupon_redemption 等の記録は呼び出し側の責務。
+ * キャンペーンコード引換(redeemExtensionCode)と #114 の管理者による直接延長で共有する。
  */
-export async function redeemExtensionCode(
+export async function extendPremiumTrial(
 	userId: string,
-	rawCode: string,
-): Promise<RedeemExtensionResult> {
-	const days = resolveExtensionDays(
-		rawCode,
-		parseCampaignCodes(env.CAMPAIGN_EXTENSION_CODES),
-	);
-	if (days === null) {
-		throw new Error("コードが正しくありません。");
-	}
-	const code = normalizeCode(rawCode);
-
+	days: number,
+): Promise<{ newPeriodEnd: number; stripeSubscriptionId: string }> {
 	// 有効なサブスク(active/trialing)と Stripe subscription id を取得する。
 	const rows = await db
 		.select({
@@ -77,17 +68,6 @@ export async function redeemExtensionCode(
 		throw new Error("プレミアム会員のみご利用いただけます。");
 	}
 
-	// 同一コードの再利用を防ぐ(insert 時の unique 制約でも二重に防御する)。
-	const existing = await db
-		.select({ id: couponRedemption.id })
-		.from(couponRedemption)
-		.where(
-			and(eq(couponRedemption.userId, userId), eq(couponRedemption.code, code)),
-		);
-	if (existing.length > 0) {
-		throw new Error("このコードは既に利用済みです。");
-	}
-
 	// 現在の期間終了を基準に延長する。Stripe(basil API)では current_period_end は
 	// Subscription 本体ではなく Subscription Item 側にあるため items から読む。
 	const stripeSub = await stripeClient.subscriptions.retrieve(
@@ -104,6 +84,43 @@ export async function redeemExtensionCode(
 		proration_behavior: "none",
 	});
 
+	return {
+		newPeriodEnd: newTrialEnd * 1000,
+		stripeSubscriptionId: activeRow.stripeSubscriptionId,
+	};
+}
+
+/**
+ * キャンペーンコードで既存プレミアム会員の期間を延長する。
+ * Stripe プロモコードは Checkout 専用で既存サブスクには使えないため、アプリ側でコードを
+ * 検証し、Stripe サブスクの trial_end を延長する(extendPremiumTrial)。
+ */
+export async function redeemExtensionCode(
+	userId: string,
+	rawCode: string,
+): Promise<RedeemExtensionResult> {
+	const days = resolveExtensionDays(
+		rawCode,
+		parseCampaignCodes(env.CAMPAIGN_EXTENSION_CODES),
+	);
+	if (days === null) {
+		throw new Error("コードが正しくありません。");
+	}
+	const code = normalizeCode(rawCode);
+
+	// 同一コードの再利用を防ぐ(insert 時の unique 制約でも二重に防御する)。
+	const existing = await db
+		.select({ id: couponRedemption.id })
+		.from(couponRedemption)
+		.where(
+			and(eq(couponRedemption.userId, userId), eq(couponRedemption.code, code)),
+		);
+	if (existing.length > 0) {
+		throw new Error("このコードは既に利用済みです。");
+	}
+
+	const { newPeriodEnd } = await extendPremiumTrial(userId, days);
+
 	// 引換を記録する。競合で unique 制約に当たった場合は「利用済み」に読み替える。
 	try {
 		await db.insert(couponRedemption).values({
@@ -116,5 +133,5 @@ export async function redeemExtensionCode(
 		throw new Error("このコードは既に利用済みです。");
 	}
 
-	return { extendedDays: days, newPeriodEnd: newTrialEnd * 1000 };
+	return { extendedDays: days, newPeriodEnd };
 }

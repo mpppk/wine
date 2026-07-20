@@ -5,6 +5,10 @@ import {
 	ADMIN_CREDIT_GRANT_MIN,
 	ADMIN_GRANT_REASON_MAX,
 } from "#/lib/admin/credit-grant";
+import {
+	ADMIN_EXTENSION_MAX_DAYS,
+	ADMIN_EXTENSION_MIN_DAYS,
+} from "#/lib/admin/premium-extension";
 import * as adminActions from "#/lib/services/admin-actions";
 import * as adminService from "#/lib/services/admin-service";
 import { adminMiddleware } from "./middleware";
@@ -54,5 +58,31 @@ export const adminGrantCredits = createServerFn({ method: "POST" })
 			amount: data.amount,
 			reason: data.reason,
 			requestId: data.requestId,
+		}),
+	);
+
+/**
+ * プレミアム会員の期間を直接延長する(#114 お詫び, 案b)。理由必須。管理者限定。
+ * プレミアム会員でなければサービス層が throw する。
+ */
+export const adminExtendPremium = createServerFn({ method: "POST" })
+	.middleware([adminMiddleware])
+	.inputValidator(
+		z.object({
+			userId: z.string().min(1).max(100),
+			days: z
+				.number()
+				.int()
+				.min(ADMIN_EXTENSION_MIN_DAYS)
+				.max(ADMIN_EXTENSION_MAX_DAYS),
+			reason: z.string().trim().min(1).max(ADMIN_GRANT_REASON_MAX),
+		}),
+	)
+	.handler(({ data, context }) =>
+		adminActions.extendPremium({
+			actorUserId: context.user.id,
+			targetUserId: data.userId,
+			days: data.days,
+			reason: data.reason,
 		}),
 	);
