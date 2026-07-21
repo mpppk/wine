@@ -11,7 +11,9 @@ import { currentMonthKey } from "#/lib/credit/month";
 import {
 	ensureCurrentMonthGranted,
 	getBalance,
+	refundReservation,
 	reserveCredits,
+	settleReservation,
 } from "./credit-service";
 
 // D1(実SQLite)上で credit-service の付与ロジックを検証する。特に月途中のプレミアム
@@ -137,5 +139,76 @@ describe("getBalance / reserveCredits", () => {
 		const userId = await freshUser();
 		const bal = await getBalance(userId);
 		expect(bal.balance).toBe(MONTHLY_CREDITS_FREE);
+	});
+});
+
+// FREE(50) を付与済みのユーザで 30 クレジット(=30,000 トークン)を予約した状態を作る。
+async function reservedUser(): Promise<string> {
+	const userId = await freshUser();
+	await ensureCurrentMonthGranted(userId);
+	const res = await reserveCredits(userId, 30_000, `req-${userId}`);
+	expect(res.ok).toBe(true);
+	expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE - 30);
+	return userId;
+}
+
+describe("settleReservation", () => {
+	it("実測との差分を返却し、再実行しても二重返却しない(#146)", async () => {
+		const userId = await reservedUser();
+		const requestId = `req-${userId}`;
+
+		// 予約30 に対し実測10,000トークン(=10クレジット) → 返却20。残高は 20→40。
+		await settleReservation(userId, requestId, 30, 10_000);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE - 10);
+
+		// 同一 requestId の再確定では残高も台帳も増えない(冪等)。
+		await settleReservation(userId, requestId, 30, 10_000);
+		await settleReservation(userId, requestId, 30, 10_000);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE - 10);
+
+		const settleRows = (await ledgerRows(userId, "refund")).filter(
+			(r) => r.requestId === `${requestId}:settle`,
+		);
+		expect(settleRows).toHaveLength(1);
+		expect(settleRows[0]?.amount).toBe(20);
+	});
+});
+
+describe("refundReservation", () => {
+	it("予約全額を返却し、再実行しても二重返却しない(#146)", async () => {
+		const userId = await reservedUser();
+		const requestId = `req-${userId}`;
+
+		await refundReservation(userId, requestId, 30);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE);
+
+		// 同一 requestId の再返却では残高も台帳も増えない(冪等)。
+		await refundReservation(userId, requestId, 30);
+		await refundReservation(userId, requestId, 30);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE);
+
+		const refundRows = (await ledgerRows(userId, "refund")).filter(
+			(r) => r.requestId === `${requestId}:refund`,
+		);
+		expect(refundRows).toHaveLength(1);
+		expect(refundRows[0]?.amount).toBe(30);
+	});
+
+	it("settle 済みなら全額返却をスキップし、消費がネットプラスにならない(#144)", async () => {
+		const userId = await reservedUser();
+		const requestId = `req-${userId}`;
+
+		// 先に確定(実測10,000=10クレジット → 返却20)。残高 20→40、消費は10で確定。
+		await settleReservation(userId, requestId, 30, 10_000);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE - 10);
+
+		// 確定後に(getBalance 失敗時の catch などで)全額返却が走っても、settle 台帳を検知して
+		// スキップする。残高は 40 のまま(70 に増えない)、refund 台帳も作られない。
+		await refundReservation(userId, requestId, 30);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE - 10);
+		const refundRows = (await ledgerRows(userId, "refund")).filter(
+			(r) => r.requestId === `${requestId}:refund`,
+		);
+		expect(refundRows).toHaveLength(0);
 	});
 });

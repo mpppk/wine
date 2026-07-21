@@ -134,6 +134,8 @@ export async function answerRegionQuestion(
 	// プロフィール設定(または明示指定)→ 実モデルID＋固有オプションに解決。
 	const model = AI_REGION_QA_MODELS[await resolveModelKey(userId, input.model)];
 
+	let answer: string;
+	let actualTokens: number;
 	try {
 		const raw = await env.AI.run(model.id, {
 			messages,
@@ -154,17 +156,15 @@ export async function answerRegionQuestion(
 		};
 		const rawText = out.choices?.[0]?.message?.content ?? out.response ?? "";
 		// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
-		const answer = stripReasoning(rawText).trim();
+		answer = stripReasoning(rawText).trim();
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		const actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
+		actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
 		await creditService.settleReservation(
 			userId,
 			requestId,
 			res.reservedCredits,
 			actualTokens,
 		);
-		const after = await creditService.getBalance(userId);
-		return { blocked: false, answer, actualTokens, balance: after.balance };
 	} catch (e) {
 		// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
 		// 潰さず伝播する(#158)。
@@ -175,6 +175,13 @@ export async function answerRegionQuestion(
 		);
 		throw e;
 	}
+	// 最終残高の取得は表示用。settle 成功後に throw させると catch が誤って全額返却し消費が
+	// ネットプラスになるため try の外で取得し、失敗時は予約後残高でフォールバックする(#144)。
+	const balance = await creditService.readBalanceForDisplay(
+		userId,
+		res.balanceAfter,
+	);
+	return { blocked: false, answer, actualTokens, balance };
 }
 
 export interface AnalyzeLabelInput {
@@ -266,12 +273,17 @@ export async function analyzeWineLabel(
 			res.reservedCredits,
 			actualTokens,
 		);
-		const after = await creditService.getBalance(userId);
+		// 最終残高の取得は表示用。settle 成功後に throw させると catch が誤って全額返却し消費が
+		// ネットプラスになるため try の外で取得する(#144)。
+		const balance = await creditService.readBalanceForDisplay(
+			userId,
+			res.balanceAfter,
+		);
 		return {
 			blocked: false,
 			suggestions,
 			actualTokens,
-			balance: after.balance,
+			balance,
 		};
 	} catch (e) {
 		// 返却を試み成否をログに残す。返却失敗でも元の例外 e を伝播する(#158)。

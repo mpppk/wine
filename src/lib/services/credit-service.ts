@@ -4,7 +4,7 @@ import { creditBalance, creditLedger } from "#/db/schema";
 import { refundCredits, tokensToCredits } from "#/lib/credit/credit-math";
 import { monthlyGrantForPlan } from "#/lib/credit/grants";
 import { currentMonthKey } from "#/lib/credit/month";
-import { logError, logInfo } from "#/lib/logger";
+import { logError, logInfo, logWarn } from "#/lib/logger";
 import * as billingService from "#/lib/services/billing-service";
 
 // AIクレジットの付与・消費のD1アクセス層。判定・換算の純ロジックは #/lib/credit/ に置き、
@@ -167,6 +167,29 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
 }
 
 /**
+ * 消費確定(settle)後などに「表示用の最終残高」を取得する。getBalance は内部で
+ * ensureCurrentMonthGranted の D1 書き込みを含み throw しうるため、消費確定フローの try 内で
+ * 呼ぶと、確定成功後の残高取得失敗が呼び出し側の catch(=全額返却)を誤発火させ、消費が
+ * ネットプラスになりうる(#144)。この関数は確定フローの外で使い、取得失敗時は fallback
+ * (通常は予約直後の balanceAfter)を返して消費確定を覆さない。
+ */
+export async function readBalanceForDisplay(
+	userId: string,
+	fallback: number,
+): Promise<number> {
+	try {
+		return (await getBalance(userId)).balance;
+	} catch (err) {
+		logWarn("final balance read failed; using fallback", {
+			userId,
+			fallback,
+			err,
+		});
+		return fallback;
+	}
+}
+
+/**
  * 予約: 最大見積分を consume として仮計上し、残高から引く。
  * - 同一 requestId の予約が既にあれば再計上しない(冪等)
  * - 残高が足りる時だけ引く条件付きUPDATE。空結果=残高不足でブロック(throw しない)
@@ -234,7 +257,13 @@ export async function reserveCredits(
 	};
 }
 
-/** 確定: 実測トークンで予約との差分を refund として戻す。差分が無ければ何もしない。 */
+/**
+ * 確定: 実測トークンで予約との差分を refund として戻す。差分が無ければ何もしない。
+ *
+ * 残高加算は「まだ台帳に settle の requestId が無い時だけ」に条件付け(台帳 INSERT より前に
+ * 評価される db.batch の順序を利用)、再実行しても二重加算しない(#146。admin-actions.grantCredits
+ * と同じパターン)。unique(request_id) が台帳の二重計上を弾く。
+ */
 export async function settleReservation(
 	userId: string,
 	requestId: string,
@@ -243,7 +272,22 @@ export async function settleReservation(
 ): Promise<void> {
 	const back = refundCredits(reservedCredits, actualTokens);
 	if (back <= 0) return;
+	const settleRequestId = `${requestId}:settle`;
 	await db.batch([
+		// 残高加算。settle 台帳がまだ無い時だけ加算する(台帳 INSERT より前に評価されるため、
+		// 再実行時は既存行を見て加算をスキップし二重加算を防ぐ)。
+		db
+			.update(creditBalance)
+			.set({
+				balance: sql`${creditBalance.balance} + ${back}`,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(creditBalance.userId, userId),
+					sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${settleRequestId})`,
+				),
+			),
 		db
 			.insert(creditLedger)
 			.values({
@@ -251,15 +295,11 @@ export async function settleReservation(
 				userId,
 				amount: back,
 				type: "refund",
-				requestId: `${requestId}:settle`,
+				requestId: settleRequestId,
 				periodMonth: currentMonthKey(),
 				tokenAmount: actualTokens,
 			})
 			.onConflictDoNothing({ target: creditLedger.requestId }),
-		db
-			.update(creditBalance)
-			.set({ balance: sql`${creditBalance.balance} + ${back}` })
-			.where(eq(creditBalance.userId, userId)),
 	]);
 }
 
@@ -293,14 +333,45 @@ export async function refundReservationOnFailure(
 	}
 }
 
-/** 失敗時: 予約全額を refund として戻す。 */
+/**
+ * 失敗時: 予約全額を refund として戻す。
+ *
+ * 既に settle 済み(実測確定で消費が確定)なら全額返却してはならない。settle と refund は
+ * requestId が別キー(`:settle` / `:refund`)なので unique 制約では相互に弾けず、両方適用されると
+ * 消費がネットプラスになる(#144)。そのため settle 台帳の有無を先に確認し、あれば何もしない。
+ * 残高加算は settle と同様に「refund 台帳がまだ無い時だけ」条件付けし再実行でも二重加算しない(#146)。
+ */
 export async function refundReservation(
 	userId: string,
 	requestId: string,
 	reservedCredits: number,
 ): Promise<void> {
 	if (reservedCredits <= 0) return;
+
+	// settle 済みなら消費は確定済み。ここで全額返却すると二重計上になるためスキップする(#144)。
+	// settle と refund は同一 requestId から導出され、同一予約に対して両方が並行実行される
+	// 経路は無い(settle=成功パス / refund=失敗パス)ため、事前 SELECT で十分に防げる。
+	const settled = await db
+		.select({ id: creditLedger.id })
+		.from(creditLedger)
+		.where(eq(creditLedger.requestId, `${requestId}:settle`))
+		.limit(1);
+	if (settled[0]) return;
+
+	const refundRequestId = `${requestId}:refund`;
 	await db.batch([
+		db
+			.update(creditBalance)
+			.set({
+				balance: sql`${creditBalance.balance} + ${reservedCredits}`,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(creditBalance.userId, userId),
+					sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${refundRequestId})`,
+				),
+			),
 		db
 			.insert(creditLedger)
 			.values({
@@ -308,14 +379,10 @@ export async function refundReservation(
 				userId,
 				amount: reservedCredits,
 				type: "refund",
-				requestId: `${requestId}:refund`,
+				requestId: refundRequestId,
 				periodMonth: currentMonthKey(),
 				tokenAmount: null,
 			})
 			.onConflictDoNothing({ target: creditLedger.requestId }),
-		db
-			.update(creditBalance)
-			.set({ balance: sql`${creditBalance.balance} + ${reservedCredits}` })
-			.where(eq(creditBalance.userId, userId)),
 	]);
 }

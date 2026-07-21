@@ -57,22 +57,15 @@ export const consumeCreditsDummy = createServerFn({ method: "POST" })
 		if (!res.ok) {
 			return { blocked: true, balance: res.balance, required: res.required };
 		}
+		let actualTokens: number;
 		try {
-			const actualTokens =
-				data.actualTokens ?? Math.round(data.estimateTokens * 0.6);
+			actualTokens = data.actualTokens ?? Math.round(data.estimateTokens * 0.6);
 			await creditService.settleReservation(
 				userId,
 				requestId,
 				res.reservedCredits,
 				actualTokens,
 			);
-			const after = await creditService.getBalance(userId);
-			return {
-				blocked: false,
-				reservedCredits: res.reservedCredits,
-				actualTokens,
-				balance: after.balance,
-			};
 		} catch (e) {
 			// 確定に失敗したら予約全額を返却して残高を巻き戻す。返却成否はログに残し、
 			// 返却自体が失敗しても元の例外 e を伝播する(#158)。
@@ -83,4 +76,16 @@ export const consumeCreditsDummy = createServerFn({ method: "POST" })
 			);
 			throw e;
 		}
+		// 最終残高の取得は表示用。settle 成功後に throw させると catch が誤って全額返却し
+		// 消費がネットプラスになるため try の外で取得する(#144)。
+		const balance = await creditService.readBalanceForDisplay(
+			userId,
+			res.balanceAfter,
+		);
+		return {
+			blocked: false,
+			reservedCredits: res.reservedCredits,
+			actualTokens,
+			balance,
+		};
 	});
