@@ -1,6 +1,6 @@
 import { getRegion } from "#/lib/wine/regions";
 import { aopAllowsGrape, getAop, listAops } from "#/lib/wine/service";
-import { AOP_TAG_IDS, type AopTagId } from "#/lib/wine/tags";
+import { AOP_TAG_IDS, AOP_TAG_LABELS_JA, type AopTagId } from "#/lib/wine/tags";
 import {
 	type Aop,
 	POLYGONLESS_IDAPP_MIN,
@@ -29,6 +29,25 @@ import type { QuizQuestion } from "../types";
 // 軸: color(色) / grape(品種) / subregion(所属地区) / tag(格付け)
 
 const MIN_POOL = 3;
+
+/**
+ * 仲間外れの「格付け(tag)軸」として成立するタグ(ホワイトリスト)。列挙対象をここに絞る。
+ * - grand-cru / premier-cru: ブルゴーニュ・シャンパーニュの村・畑単位の格付け。非該当は
+ *   下位(村名/一級)なので「Xに格付けされていない」正解が誤解を生まない。
+ * - docg: 非該当は下位の DOC なので同上。
+ *
+ * 除外する軸とその理由(Issue #25):
+ * - doc: 「DOCに格付けされていない」の正解が上位の DOCG(例: バローロ)になり、
+ *   下位であるかのように誤誘導する。
+ * - 1855年格付け(第1〜5級) / サンテミリオン第1特別級A・B: これらはシャトー(winery)単位の
+ *   格付けで、プール(シャトー)と正解候補(村名AOC)の kind が食い違い、「村 vs シャトー」を
+ *   問う退化した設問になる。シャトーの格付けは aop-classification 形式で扱う。
+ */
+const ODD_ONE_OUT_TAG_AXES: ReadonlySet<AopTagId> = new Set<AopTagId>([
+	"grand-cru",
+	"premier-cru",
+	"docg",
+]);
 
 // クリマ・合成総称ノード(ポリゴンを持たない詳細エントリ = idApp>=930000)は
 // 仲間外れクイズの出題主体・選択肢にしない。数が多く難度が跳ねるうえ、地図クイズ
@@ -115,7 +134,7 @@ export function enumerateOddOneOutKeys(regionId: RegionId): string[] {
 		["color", [...COLOR_ORDER]],
 		["grape", GRAPE_VARIETIES.map((v) => v.id)],
 		["subregion", (getRegion(regionId)?.subregions ?? []).map((s) => s.id)],
-		["tag", [...AOP_TAG_IDS]],
+		["tag", AOP_TAG_IDS.filter((t) => ODD_ONE_OUT_TAG_AXES.has(t))],
 	];
 	for (const [axis, values] of axisValues) {
 		for (const value of values) {
@@ -127,6 +146,11 @@ export function enumerateOddOneOutKeys(regionId: RegionId): string[] {
 		}
 	}
 	return keys;
+}
+
+/** 格付け(tag)軸の設問・解説で使う格付け名。特級は通称を併記する */
+function tagAxisPhraseJa(tag: AopTagId): string {
+	return tag === "grand-cru" ? "グラン・クリュ(特級)" : AOP_TAG_LABELS_JA[tag];
 }
 
 function promptFor(axis: string, axisValue: string, answer: Aop): string {
@@ -147,7 +171,7 @@ function promptFor(axis: string, axisValue: string, answer: Aop): string {
 					? "次のうち、プルミエ・クリュ(一級)に格付けされた村でないのはどれ？"
 					: "次のうち、プルミエ・クリュ(1er Cru)の区画を持たない村名AOCはどれ？";
 			}
-			return "次のうち、グラン・クリュ(特級)に格付けされていないAOPはどれ？";
+			return `次のうち、${tagAxisPhraseJa(axisValue as AopTagId)}に格付けされていないAOPはどれ？`;
 		default:
 			return "";
 	}
@@ -199,7 +223,8 @@ function explanationFor(
 						? `「${answer.nameJa}」はプルミエ・クリュに格付けされていません。他の3つ(${others})はいずれも一級村です。`
 						: `「${answer.nameJa}」には1er Cruの区画がありません。他の3つ(${others})はいずれも1er Cruの区画を持つ村名AOCです。`;
 			} else {
-				fact = `「${answer.nameJa}」はグラン・クリュには格付けされていません。他の3つ(${others})はいずれも特級です。`;
+				const phrase = tagAxisPhraseJa(axisValue as AopTagId);
+				fact = `「${answer.nameJa}」は${phrase}に格付けされていません。他の3つ(${others})はいずれも${phrase}です。`;
 			}
 			break;
 		default:
