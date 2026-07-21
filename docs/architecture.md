@@ -1,6 +1,6 @@
 # アーキテクチャとドメインモデリング
 
-ワインの AOP（原産地呼称）を地図で学ぶ Web アプリのリポジトリ構成・アーキテクチャ・ドメインモデリングのルールをまとめる。個別領域の詳細は [docs/deployment.md](./deployment.md)（CD/マイグレーション）、[docs/ai-credit-system.md](./ai-credit-system.md)（AI クレジット）、[README.md](../README.md)（ジオデータ生成・セットアップ）、[CLAUDE.md](../CLAUDE.md)（開発フロー）を参照。
+ワインの AOP（原産地呼称）を地図で学ぶ Web アプリのリポジトリ構成・アーキテクチャ・ドメインモデリングのルールをまとめる。個別領域の詳細は [docs/deployment.md](./deployment.md)（CD/マイグレーション・環境）、[docs/ai-credit-system.md](./ai-credit-system.md)（AI クレジット）、[docs/geodata.md](./geodata.md)（ジオデータ生成）、[README.md](../README.md)（セットアップ）、[CLAUDE.md](../CLAUDE.md)（開発フロー）を参照。
 
 ## 技術スタック
 
@@ -124,7 +124,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - **`idApp` の帯規約**: GeoJSON との結合キー。INAO の実値のほか、実体のないエントリには地域ごとの合成 ID 帯（900001〜シャンパーニュ格付け村、910001〜ボルドー、920001〜/921001〜イタリア、930001〜ブルゴーニュのクリマ・合成総称ノード等。詳細は `types.ts` のコメント）を割り当てる。**`idApp >= 930000`（`POLYGONLESS_IDAPP_MIN`）はポリゴンを持たない帯**で、ジオデータ生成・整合テストの対象外。この定数は `scripts/*.mjs` 側に同値リテラルで複製されており、変更時は複数箇所の同期が必要。
 - **階層は木ではなく DAG**: `villageAopIds`（畑・シャトー→所属村。複数村にまたがる畑は複数持てる、winery はちょうど 1 つ）と `parentAopId`（個別クリマ→親の総称 AOC。持つ場合 `villageAopIds` は持てない）でリンクする。相関制約は zod の `superRefine` とテストの両方で強制。
 - **整合性テストがモデリングルールの実体**: `data-integrity.test.ts` が id/idApp の一意性・参照の有効性・格付けタグの排他性・GeoJSON との 1:1 対応・件数スナップショットを回帰固定する。データ追加時は件数スナップショットの期待値を意図的に更新する運用。
-- **ジオデータは生成物をコミット**: `scripts/build-*.mjs` が INAO / EU PDO オープンデータから `public/data/aop/*.geojson` と `aop-centroids.json` を生成する（手順は README）。GeoJSON を再生成したら `bun run build:centroids` も必ず実行し、bounds は `regions.ts` に手で反映する。GeoJSON のフィーチャ順は描画順・クリック解決を兼ねる契約なので並びを変えない。
+- **ジオデータは生成物をコミット**: `scripts/build-*.mjs` が INAO / EU PDO オープンデータから `public/data/aop/*.geojson` と `aop-centroids.json` を生成する（手順は [docs/geodata.md](./geodata.md)）。GeoJSON を再生成したら `bun run build:centroids` も必ず実行し、bounds は `regions.ts` に手で反映する。GeoJSON のフィーチャ順は描画順・クリック解決を兼ねる契約なので並びを変えない。
 
 ### クイズドメイン（`src/lib/quiz/`）
 

@@ -15,8 +15,8 @@
 
 ## DBスキーマ変更を含むPR
 
-* マイグレーションは `drizzle/` に連番SQLで追加する。better-auth 関連（`user`/`session`/`organization`/`oauth_*` 等）は better-auth のスキーマ定義と突合する。`wrangler d1 migrations apply DB` が連番SQLを適用する（`drizzle.config.ts` は `src/db/schema.ts` を追跡するが、当該ファイルは現在ドメインテーブル未定義のプレースホルダである点に注意）。
-* マイグレーションはデプロイ時に自動適用される。Cloudflare Workers Builds の各トリガーの deploy command が、ビルド成功後・デプロイ直前に `db:migrate:remote`（本番 `wine`）/ `db:migrate:preview`（プレビュー `wine-preview`）を実行するため、デプロイ前に手動で叩く必要はない。構成の詳細・確認/変更手順は `docs/deployment.md` を参照。
+* マイグレーションは `drizzle/` に連番SQLを手書きで追加する（`drizzle-kit generate` に頼らない。`IF NOT EXISTS` 付き・既存ファイルは書き換えず新しい連番を積む等の規約は `docs/architecture.md` を参照）。テーブル定義はドメインが `src/db/schema.ts`、better-auth 系が `src/db/auth-schema.ts`。better-auth 関連（`user`/`session`/`oauth_*` 等）は better-auth のスキーマ定義と突合する。
+* マイグレーションはデプロイ時に自動適用される（Workers Builds の deploy command が `wrangler d1 migrations apply DB` を実行）ため、デプロイ前に手動で叩く必要はない。構成の詳細・確認/変更手順は `docs/deployment.md` を参照。
 
 ## PRの作成
 
@@ -32,11 +32,6 @@
 * PR作成後に、Cloudflare Workersの環境が自動で立ち上がります。この環境が作成されたら、上記記載の動作確認をCloudflare Workersの環境で行なってください。
 
 # 環境
-## 本番環境
-* URL: https://wine.nibo.sh （カスタムドメイン。Workers のデフォルト https://wine.niboshi.workers.dev でもアクセス可能）
-* ログイン等で origin を検証するため、公開ドメインを追加/変更したら `src/lib/auth.ts` の `trustedOrigins` にも登録すること。
 
-## プレビュー環境
-プレビュー環境はPR作成後に自動で立ち上がります。URLはPRのコメントに記載されます。
-各プレビュー環境は`https://xxx-wine-preview.niboshi.workers.dev`のようなドメインを持ちます。
-各プレビュー環境は共通のD1データベース（`wine-preview-db`）を使用します。したがって、あるプレビュー環境で作成されたデータは、他のプレビュー環境からも確認できます。
+* 本番: https://wine.nibo.sh 。プレビュー: PR作成後に自動で立ち上がり、URLはPRのコメントに記載される。全プレビュー環境が共通のD1（`wine-preview-db`）を共有するため、あるプレビューで作成したデータは他のプレビューからも見える。構成の詳細は `docs/deployment.md` の「環境」を参照。
+* ログイン等で origin を検証するため、公開ドメインを追加/変更したら `src/lib/auth.ts` の `trustedOrigins` にも登録すること。
