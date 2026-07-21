@@ -87,11 +87,31 @@ function ProfilePage() {
 			const form = new FormData();
 			form.append("avatar", selectedFile);
 			const res = await fetch("/api/upload", { method: "POST", body: form });
+			// レスポンスがJSONとは限らない(フレームワークの汎用500など)。パース失敗を
+			// そのままユーザに見せると「Unexpected token …」になるため安全にフォールバックする。
+			const parseJson = async (): Promise<Record<string, unknown> | null> => {
+				try {
+					return (await res.json()) as Record<string, unknown>;
+				} catch {
+					return null;
+				}
+			};
 			if (!res.ok) {
-				const body = (await res.json()) as { error?: string };
-				throw new Error(body.error ?? "Upload failed");
+				const body = await parseJson();
+				const message =
+					typeof body?.error === "string"
+						? body.error
+						: "アップロードに失敗しました。時間をおいて再度お試しください。";
+				throw new Error(message);
 			}
-			const { imageUrl } = (await res.json()) as { imageUrl: string };
+			const body = await parseJson();
+			const imageUrl =
+				typeof body?.imageUrl === "string" ? body.imageUrl : null;
+			if (!imageUrl) {
+				throw new Error(
+					"アップロードに失敗しました。時間をおいて再度お試しください。",
+				);
+			}
 			const result = await authClient.updateUser({ image: imageUrl });
 			if (result.error)
 				throw new Error(result.error.message ?? "Profile update failed");

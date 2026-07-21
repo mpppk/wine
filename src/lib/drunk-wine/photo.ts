@@ -34,6 +34,65 @@ export function photoExtForMime(mimeType: string): string | undefined {
 }
 
 /**
+ * 先頭バイト(マジックナンバー)から実フォーマットのMIMEを判定する。判定できなければ
+ * undefined。クライアント申告の Content-Type を信用せず、保存・配信する Content-Type を
+ * サーバ側で確定するために使う(中身がHTML/スクリプトの画像偽装を弾く多層防御)。
+ * 対応は許可4種(JPEG/PNG/WebP/GIF)のみ。
+ */
+export function sniffImageMime(bytes: Uint8Array): string | undefined {
+	// JPEG: FF D8 FF
+	if (
+		bytes.length >= 3 &&
+		bytes[0] === 0xff &&
+		bytes[1] === 0xd8 &&
+		bytes[2] === 0xff
+	) {
+		return "image/jpeg";
+	}
+	// PNG: 89 50 4E 47 0D 0A 1A 0A
+	if (
+		bytes.length >= 8 &&
+		bytes[0] === 0x89 &&
+		bytes[1] === 0x50 &&
+		bytes[2] === 0x4e &&
+		bytes[3] === 0x47 &&
+		bytes[4] === 0x0d &&
+		bytes[5] === 0x0a &&
+		bytes[6] === 0x1a &&
+		bytes[7] === 0x0a
+	) {
+		return "image/png";
+	}
+	// GIF: "GIF87a" / "GIF89a"
+	if (
+		bytes.length >= 6 &&
+		bytes[0] === 0x47 &&
+		bytes[1] === 0x49 &&
+		bytes[2] === 0x46 &&
+		bytes[3] === 0x38 &&
+		(bytes[4] === 0x37 || bytes[4] === 0x39) &&
+		bytes[5] === 0x61
+	) {
+		return "image/gif";
+	}
+	// WebP: "RIFF"????"WEBP"
+	if (
+		bytes.length >= 12 &&
+		bytes[0] === 0x52 &&
+		bytes[1] === 0x49 &&
+		bytes[2] === 0x46 &&
+		bytes[3] === 0x46 &&
+		bytes[8] === 0x57 &&
+		bytes[9] === 0x45 &&
+		bytes[10] === 0x42 &&
+		bytes[11] === 0x50
+	) {
+		return "image/webp";
+	}
+	return undefined;
+}
+
+/**
  * base64文字列をバイト列にデコードする。MIME不正・base64不正・
  * デコード後5MB超は Error を投げる(MCPツールがそのままエラー文言に使う)。
  */
