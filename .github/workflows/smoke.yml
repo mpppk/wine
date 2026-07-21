@@ -1,0 +1,35 @@
+name: Smoke Test
+
+# デプロイ後のスモークテスト (Issue #53)。
+#
+# デプロイは Cloudflare Workers Builds (GitHub Actions 外) が行い、Actions には
+# 「デプロイ完了」イベントが来ない。そこで本ワークフローは外部デプロイ完了に依存せず、
+# 次の2経路で主要エンドポイントの健全性を検証する。
+#   - schedule: 本番 (wine.nibo.sh) を定期スモークし、壊れたまま本番デプロイされた
+#     回帰をインターバル内で検出する。
+#   - workflow_dispatch: 任意 URL (プレビュー環境など) を手動でスモークする。
+
+on:
+  schedule:
+    # 6時間ごとに本番をスモークする (UTC)。
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "スモーク対象の Base URL (プレビュー URL など)"
+        required: false
+        default: "https://wine.nibo.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke test (${{ github.event.inputs.url || 'https://wine.nibo.sh' }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run smoke test
+        run: bash scripts/smoke.sh "${{ github.event.inputs.url || 'https://wine.nibo.sh' }}"
