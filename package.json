@@ -14,6 +14,7 @@
 		"lint": "biome lint",
 		"check": "biome check",
 		"typecheck": "tsc",
+		"smoke": "bash scripts/smoke.sh",
 		"deploy": "bun run build && wrangler deploy",
 		"deploy:preview": "CLOUDFLARE_ENV=preview vite build && CLOUDFLARE_ENV=preview wrangler versions upload",
 		"build:geodata": "node scripts/build-aop-geodata.mjs",
