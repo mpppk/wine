@@ -11,6 +11,7 @@ import {
 import { ENTITLED_STATUSES, resolvePlan } from "#/lib/billing/entitlements";
 import { stripeClient } from "#/lib/billing/stripe-client";
 import { BadRequestError, ConflictError } from "#/lib/errors";
+import { logError } from "#/lib/logger";
 
 // 会員区分のユーザ状態を扱うサービス層。判定ロジックは
 // #/lib/billing/entitlements の純関数に置き、ここはD1アクセスとの薄い橋渡しに徹する。
@@ -110,20 +111,10 @@ export async function redeemExtensionCode(
 	}
 	const code = normalizeCode(rawCode);
 
-	// 同一コードの再利用を防ぐ(insert 時の unique 制約でも二重に防御する)。
-	const existing = await db
-		.select({ id: couponRedemption.id })
-		.from(couponRedemption)
-		.where(
-			and(eq(couponRedemption.userId, userId), eq(couponRedemption.code, code)),
-		);
-	if (existing.length > 0) {
-		throw new ConflictError("このコードは既に利用済みです。");
-	}
-
-	const { newPeriodEnd } = await extendPremiumTrial(userId, days);
-
-	// 引換を記録する。競合で unique 制約に当たった場合は「利用済み」に読み替える。
+	// 引換を「先に」記録して1回性を原子的に確定する(unique 制約
+	// coupon_redemption_user_code_uq)。並行リクエストやリトライは、後続の1本が
+	// ここで即 unique 違反となり「利用済み」で弾かれるため、Stripe 延長は最大1回に限定
+	// される(check-then-act で両方が Stripe 延長を実行する事故を防ぐ・#145)。
 	try {
 		await db.insert(couponRedemption).values({
 			id: crypto.randomUUID(),
@@ -135,5 +126,25 @@ export async function redeemExtensionCode(
 		throw new ConflictError("このコードは既に利用済みです。");
 	}
 
-	return { extendedDays: days, newPeriodEnd };
+	// 記録確定後に Stripe を延長する。延長に失敗したら、記録した引換行を打ち消して
+	// (補償)整合を保つ。リトライ時に再度引換できるようにするためでもある。
+	try {
+		const { newPeriodEnd } = await extendPremiumTrial(userId, days);
+		return { extendedDays: days, newPeriodEnd };
+	} catch (e) {
+		await db
+			.delete(couponRedemption)
+			.where(
+				and(
+					eq(couponRedemption.userId, userId),
+					eq(couponRedemption.code, code),
+				),
+			);
+		logError("extension code redemption rolled back after stripe failure", {
+			userId,
+			code,
+			err: e,
+		});
+		throw e;
+	}
 }

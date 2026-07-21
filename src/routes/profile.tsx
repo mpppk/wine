@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
@@ -24,13 +23,9 @@ import {
 	BILLING_STATUS_QUERY_KEY,
 	useBillingStatus,
 } from "#/lib/billing/use-billing";
-import {
-	CREDIT_BALANCE_QUERY_KEY,
-	useCreditBalance,
-} from "#/lib/credit/use-credit";
+import { useCreditBalance } from "#/lib/credit/use-credit";
 import { getSession } from "#/server/auth";
 import { redeemExtensionCode } from "#/server/billing";
-import { consumeCreditsDummy } from "#/server/credit";
 
 interface ProfileSearch {
 	/** Stripe Checkout 成功時の戻りで付与される */
@@ -312,38 +307,9 @@ function AiModelCard() {
 	);
 }
 
-/**
- * AIクレジットの残高表示と、ダミー消費で予約→確定→残高不足ブロックを検証するカード。
- * Workers AI 導入前(PR1)の動作確認用。実際のAI推論は行わない。
- */
+/** AIクレジットの当月残高を表示するカード。実消費はAI各機能(地域Q&A・エチケット解析)側で行う。 */
 function CreditCard() {
-	const queryClient = useQueryClient();
 	const { data, isPending, isError } = useCreditBalance();
-	const [dialogOpen, setDialogOpen] = useState(false);
-	const [message, setMessage] = useState("");
-	const [error, setError] = useState("");
-
-	const { mutate: consume, isPending: consuming } = useMutation({
-		mutationFn: () => consumeCreditsDummy({ data: { estimateTokens: 2000 } }),
-		onSuccess: (result) => {
-			void queryClient.invalidateQueries({
-				queryKey: CREDIT_BALANCE_QUERY_KEY,
-			});
-			if (result.blocked) {
-				setMessage("");
-				setDialogOpen(true);
-				return;
-			}
-			setError("");
-			setMessage(
-				`ダミー消費が成功しました(予約 ${result.reservedCredits} / 実測 ${result.actualTokens} トークン)。残高: ${result.balance}`,
-			);
-		},
-		onError: (err: Error) => {
-			setMessage("");
-			setError(err.message || "消費に失敗しました。");
-		},
-	});
 
 	const balanceLabel =
 		isPending || isError || !data?.authenticated || data.balance === null
@@ -370,32 +336,7 @@ function CreditCard() {
 						</span>
 					</div>
 				)}
-
-				<Button
-					type="button"
-					variant="outline"
-					className="self-start"
-					disabled={consuming || balanceLabel === null}
-					onClick={() => consume()}
-				>
-					{consuming ? "消費中..." : "クレジットを消費(ダミー)"}
-				</Button>
-
-				<p className="text-xs text-muted-foreground">
-					AI機能導入前の動作確認用ボタンです。実際のAI推論は行いません。
-				</p>
-
-				{message && (
-					<p className="text-sm text-green-600 dark:text-green-400">
-						{message}
-					</p>
-				)}
-				{error && <p className="text-sm text-destructive">{error}</p>}
 			</CardContent>
-			<InsufficientCreditsDialog
-				open={dialogOpen}
-				onOpenChange={setDialogOpen}
-			/>
 		</Card>
 	);
 }
