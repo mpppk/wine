@@ -1,0 +1,13 @@
+# Cloudflare Workers Static Assets のカスタムヘッダ(#33)。
+# ビルド出力(dist/client)へ public/ 配下のファイルとしてコピーされ配信される。
+
+# Vite が出力するアセットはファイル名にコンテンツハッシュを含むため、内容が変われば
+# 別URLになる。長期不変キャッシュにしてよい(再訪・ページ遷移での再検証を無くす)。
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# AOP境界データ(GeoJSON)。ファイル名にハッシュを持たないため immutable にはできないが、
+# 更新頻度は低い。1日はそのまま使い、以降1週間は stale-while-revalidate で
+# バックグラウンド更新にして、地図の再訪・地域切替ごとの再検証リクエストを減らす。
+/data/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
