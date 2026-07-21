@@ -3,10 +3,15 @@
 このアプリの CD は **Cloudflare Workers Builds**（GitHub 連携）で行う。`mpppk/wine` リポジトリに
 2 つの Worker が接続されている。
 
-| Worker | 用途 | デプロイ対象 D1 |
-|---|---|---|
-| `wine` | 本番 | `wine-db` |
-| `wine-preview` | プレビュー（PRごと / main のミラー） | `wine-preview-db`（プレビュー共通） |
+## 環境
+
+| Worker | 用途 | URL | D1 | R2 |
+|---|---|---|---|---|
+| `wine` | 本番 | https://wine.nibo.sh （カスタムドメイン。https://wine.niboshi.workers.dev でも可） | `wine-db` | `avatars-wine` |
+| `wine-preview` | プレビュー（PRごと / main のミラー） | `https://<branch>-wine-preview.niboshi.workers.dev`（PR作成後に自動発行。URLはPRコメントに記載） | `wine-preview-db`（プレビュー共通） | `avatars-wine-preview`（プレビュー共通） |
+
+- プレビューの D1/R2 は全PRで共有されるため、あるプレビュー環境で作成したデータは他のプレビュー環境からも見える。また PR に含まれるマイグレーションは、マージ前でもプレビュー共通DBへ先行適用される。
+- ログイン等で origin を検証するため、公開ドメインを追加/変更したら `src/lib/auth.ts` の `trustedOrigins` にも登録する（プレビューはダッシュ連結ホスト名 `https://*-wine-preview.niboshi.workers.dev` 用のワイルドカードが別途必要）。
 
 ## DB マイグレーションの自動実行
 
