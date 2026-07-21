@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AOP_TAG_IDS } from "./tags";
 import type { Aop, AopProducer } from "./types";
+import { REGION_ID_LIST } from "./types";
 import { GRAPE_VARIETY_IDS } from "./varieties";
 
 // aops.json(キュレーション済みデータ)のバリデーション。モジュール読み込み時と
@@ -32,17 +33,7 @@ export const aopSchema = z
 		name: z.string().min(1),
 		shortName: z.string().min(1),
 		nameJa: z.string().min(1),
-		region: z.enum([
-			"bourgogne",
-			"beaujolais",
-			"champagne",
-			"bordeaux",
-			"piemonte",
-			"toscana",
-			"alsace",
-			"loire",
-			"rhone",
-		]),
+		region: z.enum(REGION_ID_LIST),
 		subregionId: z.string().min(1),
 		kind: z.enum(["regional", "village", "vineyard", "winery"]),
 		villageAopIds: z

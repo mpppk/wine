@@ -1,4 +1,5 @@
-import type { Region, RegionId } from "./types";
+import type { Region } from "./types";
+import { REGION_ID_LIST } from "./types";
 
 // 地域(地方)マスタ。enabled=false の地域は選択画面に「準備中」として並ぶ。
 // bounds は scripts/build-aop-geodata.mjs が出力する値を貼り付ける。
@@ -214,6 +215,7 @@ export function getRegion(id: string): Region | undefined {
 	return REGIONS.find((r) => r.id === id);
 }
 
-// 地域マスタから導出した RegionId の一覧。クイズの地域スキーマ等がこれを参照し、
-// 新地域を REGIONS に追加すれば自動的に出題対象に取り込まれるようにする。
-export const REGION_IDS = REGIONS.map((r) => r.id) as [RegionId, ...RegionId[]];
+// RegionId の一覧(SSOT は types.ts の REGION_ID_LIST)。クイズの地域スキーマ等が
+// これを参照する。Region.id は RegionId 型のため、REGIONS と REGION_ID_LIST の
+// メンバーの一致は data-integrity テストで担保する。
+export const REGION_IDS = REGION_ID_LIST;

@@ -3,11 +3,28 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AOPS } from "./aops-data";
 import { MICHELIN_GRAPES_ARTICLE_URL, PRODUCER_INFO } from "./producer-info";
-import { REGIONS } from "./regions";
-import { POLYGONLESS_IDAPP_MIN } from "./types";
+import { REGION_IDS, REGIONS } from "./regions";
+import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
 // aops.json と public/data/aop/*.geojson の整合性を検証する。
 // (aops.json のスキーマ検証自体は aops-data.ts の読み込み時に行われる)
+
+describe("地域マスタ(REGIONS)とRegionId SSOTの整合性", () => {
+	it("REGIONS の id 集合が REGION_ID_LIST と過不足なく一致する", () => {
+		const regionIds = REGIONS.map((r) => r.id).sort();
+		const listIds = [...REGION_ID_LIST].sort();
+		expect(regionIds).toEqual(listIds);
+	});
+
+	it("REGIONS の id に重複が無い", () => {
+		const regionIds = REGIONS.map((r) => r.id);
+		expect(new Set(regionIds).size).toBe(regionIds.length);
+	});
+
+	it("REGION_IDS は REGION_ID_LIST を参照している", () => {
+		expect([...REGION_IDS]).toEqual([...REGION_ID_LIST]);
+	});
+});
 
 describe("AOPメタデータの整合性", () => {
 	it("スラッグとidAppが一意", () => {

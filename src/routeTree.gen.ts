@@ -34,12 +34,8 @@ import { Route as AdminUserIdRouteImport } from './routes/admin.$userId'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as CellarEntryIdEditRouteImport } from './routes/cellar.$entryId.edit'
-import { Route as ApiWineVarietiesRouteImport } from './routes/api/wine/varieties'
-import { Route as ApiWineRegionsRouteImport } from './routes/api/wine/regions'
 import { Route as ApiImagesSplatRouteImport } from './routes/api/images/$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as ApiWineRegionsRegionIdRouteImport } from './routes/api/wine/regions.$regionId'
-import { Route as ApiWineAopsAopIdRouteImport } from './routes/api/wine/aops.$aopId'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -168,16 +164,6 @@ const CellarEntryIdEditRoute = CellarEntryIdEditRouteImport.update({
   path: '/cellar/$entryId/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiWineVarietiesRoute = ApiWineVarietiesRouteImport.update({
-  id: '/api/wine/varieties',
-  path: '/api/wine/varieties',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWineRegionsRoute = ApiWineRegionsRouteImport.update({
-  id: '/api/wine/regions',
-  path: '/api/wine/regions',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiImagesSplatRoute = ApiImagesSplatRouteImport.update({
   id: '/api/images/$',
   path: '/api/images/$',
@@ -186,16 +172,6 @@ const ApiImagesSplatRoute = ApiImagesSplatRouteImport.update({
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWineRegionsRegionIdRoute = ApiWineRegionsRegionIdRouteImport.update({
-  id: '/$regionId',
-  path: '/$regionId',
-  getParentRoute: () => ApiWineRegionsRoute,
-} as any)
-const ApiWineAopsAopIdRoute = ApiWineAopsAopIdRouteImport.update({
-  id: '/api/wine/aops/$aopId',
-  path: '/api/wine/aops/$aopId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -226,11 +202,7 @@ export interface FileRoutesByFullPath {
   '/quiz/': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
-  '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
-  '/api/wine/varieties': typeof ApiWineVarietiesRoute
   '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
-  '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
-  '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -259,11 +231,7 @@ export interface FileRoutesByTo {
   '/quiz': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
-  '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
-  '/api/wine/varieties': typeof ApiWineVarietiesRoute
   '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
-  '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
-  '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -293,11 +261,7 @@ export interface FileRoutesById {
   '/quiz/': typeof QuizIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
-  '/api/wine/regions': typeof ApiWineRegionsRouteWithChildren
-  '/api/wine/varieties': typeof ApiWineVarietiesRoute
   '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
-  '/api/wine/aops/$aopId': typeof ApiWineAopsAopIdRoute
-  '/api/wine/regions/$regionId': typeof ApiWineRegionsRegionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -328,11 +292,7 @@ export interface FileRouteTypes {
     | '/quiz/'
     | '/api/auth/$'
     | '/api/images/$'
-    | '/api/wine/regions'
-    | '/api/wine/varieties'
     | '/cellar/$entryId/edit'
-    | '/api/wine/aops/$aopId'
-    | '/api/wine/regions/$regionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -361,11 +321,7 @@ export interface FileRouteTypes {
     | '/quiz'
     | '/api/auth/$'
     | '/api/images/$'
-    | '/api/wine/regions'
-    | '/api/wine/varieties'
     | '/cellar/$entryId/edit'
-    | '/api/wine/aops/$aopId'
-    | '/api/wine/regions/$regionId'
   id:
     | '__root__'
     | '/'
@@ -394,11 +350,7 @@ export interface FileRouteTypes {
     | '/quiz/'
     | '/api/auth/$'
     | '/api/images/$'
-    | '/api/wine/regions'
-    | '/api/wine/varieties'
     | '/cellar/$entryId/edit'
-    | '/api/wine/aops/$aopId'
-    | '/api/wine/regions/$regionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -428,10 +380,7 @@ export interface RootRouteChildren {
   QuizIndexRoute: typeof QuizIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiImagesSplatRoute: typeof ApiImagesSplatRoute
-  ApiWineRegionsRoute: typeof ApiWineRegionsRouteWithChildren
-  ApiWineVarietiesRoute: typeof ApiWineVarietiesRoute
   CellarEntryIdEditRoute: typeof CellarEntryIdEditRoute
-  ApiWineAopsAopIdRoute: typeof ApiWineAopsAopIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -611,20 +560,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CellarEntryIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/wine/varieties': {
-      id: '/api/wine/varieties'
-      path: '/api/wine/varieties'
-      fullPath: '/api/wine/varieties'
-      preLoaderRoute: typeof ApiWineVarietiesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/wine/regions': {
-      id: '/api/wine/regions'
-      path: '/api/wine/regions'
-      fullPath: '/api/wine/regions'
-      preLoaderRoute: typeof ApiWineRegionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/images/$': {
       id: '/api/images/$'
       path: '/api/images/$'
@@ -639,34 +574,8 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/wine/regions/$regionId': {
-      id: '/api/wine/regions/$regionId'
-      path: '/$regionId'
-      fullPath: '/api/wine/regions/$regionId'
-      preLoaderRoute: typeof ApiWineRegionsRegionIdRouteImport
-      parentRoute: typeof ApiWineRegionsRoute
-    }
-    '/api/wine/aops/$aopId': {
-      id: '/api/wine/aops/$aopId'
-      path: '/api/wine/aops/$aopId'
-      fullPath: '/api/wine/aops/$aopId'
-      preLoaderRoute: typeof ApiWineAopsAopIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
-
-interface ApiWineRegionsRouteChildren {
-  ApiWineRegionsRegionIdRoute: typeof ApiWineRegionsRegionIdRoute
-}
-
-const ApiWineRegionsRouteChildren: ApiWineRegionsRouteChildren = {
-  ApiWineRegionsRegionIdRoute: ApiWineRegionsRegionIdRoute,
-}
-
-const ApiWineRegionsRouteWithChildren = ApiWineRegionsRoute._addFileChildren(
-  ApiWineRegionsRouteChildren,
-)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -697,10 +606,7 @@ const rootRouteChildren: RootRouteChildren = {
   QuizIndexRoute: QuizIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiImagesSplatRoute: ApiImagesSplatRoute,
-  ApiWineRegionsRoute: ApiWineRegionsRouteWithChildren,
-  ApiWineVarietiesRoute: ApiWineVarietiesRoute,
   CellarEntryIdEditRoute: CellarEntryIdEditRoute,
-  ApiWineAopsAopIdRoute: ApiWineAopsAopIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
