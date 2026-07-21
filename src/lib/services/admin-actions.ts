@@ -179,10 +179,13 @@ export async function extendPremium(params: {
 	return { extendedDays: days, newPeriodEnd };
 }
 
-/** 管理操作の証跡を admin_audit_log に1行記録する。破壊的操作の共通後処理。 */
+/**
+ * 管理操作の証跡を admin_audit_log に1行記録する。破壊的操作の共通後処理。
+ * targetUserId は特定ユーザに紐づかない操作(一括付与など)では null を渡す。
+ */
 export async function recordAudit(params: {
 	actorUserId: string;
-	targetUserId: string;
+	targetUserId: string | null;
 	action: string;
 	reason: string;
 	detail?: AdminAuditDetail | null;
@@ -216,4 +219,62 @@ export async function revokeMcpConnections(
 			.returning({ id: oauthConsent.id }),
 	]);
 	return { tokensDeleted: tokens.length, consentsDeleted: consents.length };
+}
+
+export interface BulkGrantResult {
+	/** 対象ユーザ数。 */
+	affected: number;
+	/** 新規に付与したユーザ数。 */
+	granted: number;
+	/** 既に同一インシデントで付与済み(冪等スキップ)だったユーザ数。 */
+	alreadyApplied: number;
+	/** 今回新規付与した合計クレジット(granted × amount)。 */
+	totalGranted: number;
+}
+
+/**
+ * 障害補填などで複数ユーザへ一括でクレジットを付与する(#116)。各ユーザへの付与は #113 の
+ * grantCredits を流用し、requestId=`admin_grant:{incidentId}:{userId}` で冪等化する
+ * (同一インシデントの再実行では二重付与しない)。各ユーザに credit_grant の監査ログが残り、
+ * さらに一括操作全体の要約を bulk_credit_grant(targetUserId=null)として1行記録する。
+ */
+export async function bulkGrantCredits(params: {
+	actorUserId: string;
+	incidentId: string;
+	userIds: string[];
+	amount: number;
+	reason: string;
+}): Promise<BulkGrantResult> {
+	let granted = 0;
+	let alreadyApplied = 0;
+	for (const userId of params.userIds) {
+		const res = await grantCredits({
+			actorUserId: params.actorUserId,
+			targetUserId: userId,
+			amount: params.amount,
+			reason: params.reason,
+			requestId: `admin_grant:${params.incidentId}:${userId}`,
+		});
+		if (res.alreadyApplied) alreadyApplied += 1;
+		else granted += 1;
+	}
+	await recordAudit({
+		actorUserId: params.actorUserId,
+		targetUserId: null,
+		action: "bulk_credit_grant",
+		reason: params.reason,
+		detail: {
+			incidentId: params.incidentId,
+			affected: params.userIds.length,
+			granted,
+			alreadyApplied,
+			amount: params.amount,
+		},
+	});
+	return {
+		affected: params.userIds.length,
+		granted,
+		alreadyApplied,
+		totalGranted: granted * params.amount,
+	};
 }

@@ -29,6 +29,7 @@ import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
+import { Route as AdminBulkCreditRouteImport } from './routes/admin.bulk-credit'
 import { Route as AdminUserIdRouteImport } from './routes/admin.$userId'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
@@ -140,6 +141,11 @@ const ApiLabelAnalysisRoute = ApiLabelAnalysisRouteImport.update({
   path: '/api/label-analysis',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminBulkCreditRoute = AdminBulkCreditRouteImport.update({
+  id: '/admin/bulk-credit',
+  path: '/admin/bulk-credit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminUserIdRoute = AdminUserIdRouteImport.update({
   id: '/admin/$userId',
   path: '/admin/$userId',
@@ -203,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
+  '/admin/bulk-credit': typeof AdminBulkCreditRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
+  '/admin/bulk-credit': typeof AdminBulkCreditRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
+  '/admin/bulk-credit': typeof AdminBulkCreditRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
+    | '/admin/bulk-credit'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -334,6 +344,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
+    | '/admin/bulk-credit'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -366,6 +377,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
+    | '/admin/bulk-credit'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -399,6 +411,7 @@ export interface RootRouteChildren {
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   AdminUserIdRoute: typeof AdminUserIdRoute
+  AdminBulkCreditRoute: typeof AdminBulkCreditRoute
   ApiLabelAnalysisRoute: typeof ApiLabelAnalysisRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
@@ -563,6 +576,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLabelAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/bulk-credit': {
+      id: '/admin/bulk-credit'
+      path: '/admin/bulk-credit'
+      fullPath: '/admin/bulk-credit'
+      preLoaderRoute: typeof AdminBulkCreditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/$userId': {
       id: '/admin/$userId'
       path: '/admin/$userId'
@@ -660,6 +680,7 @@ const rootRouteChildren: RootRouteChildren = {
   DotwellKnownOauthProtectedResourceRoute:
     DotwellKnownOauthProtectedResourceRoute,
   AdminUserIdRoute: AdminUserIdRoute,
+  AdminBulkCreditRoute: AdminBulkCreditRoute,
   ApiLabelAnalysisRoute: ApiLabelAnalysisRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,

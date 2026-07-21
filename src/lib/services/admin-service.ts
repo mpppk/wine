@@ -1,4 +1,15 @@
-import { and, count, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	gt,
+	gte,
+	inArray,
+	lte,
+	or,
+	sql,
+} from "drizzle-orm";
 import { db } from "#/db";
 import {
 	oauthAccessToken,
@@ -408,4 +419,40 @@ export async function getUserDetail(
 		sessions,
 		mcpConnections: [...mcpByClient.values()],
 	};
+}
+
+export interface BulkGrantTargets {
+	/** 対象ユーザの総数(上限に関わらず正確な件数)。 */
+	total: number;
+	/** 上限までに丸めた対象ユーザID。実際の付与はこの集合に対して行う。 */
+	userIds: string[];
+	/** total が上限を超えているか(超過時は付与を拒否し期間を絞ってもらう)。 */
+	capped: boolean;
+}
+
+/**
+ * 一括クレジット補填(#116)の対象ユーザを抽出する。「指定期間内に credit_ledger の consume が
+ * あるユーザ」=障害期間中にAI機能を使ったユーザ、を distinct で返す。閲覧専用(付与はしない)。
+ */
+export async function findConsumersInRange(
+	from: Date,
+	to: Date,
+	limit: number,
+): Promise<BulkGrantTargets> {
+	const where = and(
+		eq(creditLedger.type, "consume"),
+		gte(creditLedger.createdAt, from),
+		lte(creditLedger.createdAt, to),
+	);
+	const totalRows = await db
+		.select({ c: sql<number>`count(distinct ${creditLedger.userId})` })
+		.from(creditLedger)
+		.where(where);
+	const total = Number(totalRows[0]?.c ?? 0);
+	const rows = await db
+		.selectDistinct({ userId: creditLedger.userId })
+		.from(creditLedger)
+		.where(where)
+		.limit(limit);
+	return { total, userIds: rows.map((r) => r.userId), capped: total > limit };
 }
