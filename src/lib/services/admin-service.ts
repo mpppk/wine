@@ -1,6 +1,13 @@
-import { count, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { subscription, user } from "#/db/auth-schema";
+import {
+	oauthAccessToken,
+	oauthApplication,
+	oauthConsent,
+	session,
+	subscription,
+	user,
+} from "#/db/auth-schema";
 import {
 	type AdminAuditDetail,
 	adminAuditLog,
@@ -177,6 +184,30 @@ export interface AdminUserDetail {
 		actorName: string | null;
 		actorEmail: string | null;
 	}>;
+	/** 有効期限内のアクティブセッション(新しい順)。 */
+	sessions: Array<{
+		id: string;
+		ipAddress: string | null;
+		userAgent: string | null;
+		expiresAt: Date;
+		createdAt: Date;
+		/** impersonation 中セッションなら操作元 admin の user.id。 */
+		impersonatedBy: string | null;
+	}>;
+	/** MCP(OAuth)連携アプリの一覧(clientId 単位で集約)。 */
+	mcpConnections: Array<{
+		clientId: string;
+		/** oauth_application.name(登録が消えていれば null)。 */
+		appName: string | null;
+		/** 付与スコープ(トークンまたは同意から)。 */
+		scopes: string | null;
+		/** 有効期限内のアクセストークン数。 */
+		activeTokenCount: number;
+		/** 最も遅いアクセストークンの有効期限(トークンが無ければ null)。 */
+		latestTokenExpiresAt: Date | null;
+		/** 同意済みか(oauth_consent が無ければ null)。 */
+		consentGiven: boolean | null;
+	}>;
 }
 
 const LEDGER_LIMIT = 50;
@@ -206,73 +237,165 @@ export async function getUserDetail(
 		.where(eq(user.id, userId));
 	if (!userRow) return null;
 
-	const [subscriptions, balanceRows, ledger, coupons, auditLogs] =
-		await Promise.all([
-			db
-				.select({
-					id: subscription.id,
-					plan: subscription.plan,
-					status: subscription.status,
-					periodStart: subscription.periodStart,
-					periodEnd: subscription.periodEnd,
-					trialStart: subscription.trialStart,
-					trialEnd: subscription.trialEnd,
-					cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-					canceledAt: subscription.canceledAt,
-					endedAt: subscription.endedAt,
-					billingInterval: subscription.billingInterval,
-				})
-				.from(subscription)
-				.where(eq(subscription.referenceId, userId)),
-			db
-				.select({
-					balance: creditBalance.balance,
-					periodMonth: creditBalance.periodMonth,
-					updatedAt: creditBalance.updatedAt,
-				})
-				.from(creditBalance)
-				.where(eq(creditBalance.userId, userId)),
-			db
-				.select({
-					id: creditLedger.id,
-					amount: creditLedger.amount,
-					type: creditLedger.type,
-					periodMonth: creditLedger.periodMonth,
-					tokenAmount: creditLedger.tokenAmount,
-					createdAt: creditLedger.createdAt,
-				})
-				.from(creditLedger)
-				.where(eq(creditLedger.userId, userId))
-				.orderBy(desc(creditLedger.createdAt))
-				.limit(LEDGER_LIMIT),
-			db
-				.select({
-					id: couponRedemption.id,
-					code: couponRedemption.code,
-					extendedDays: couponRedemption.extendedDays,
-					redeemedAt: couponRedemption.redeemedAt,
-				})
-				.from(couponRedemption)
-				.where(eq(couponRedemption.userId, userId))
-				.orderBy(desc(couponRedemption.redeemedAt)),
-			// 監査ログは actorUserId(=操作した管理者)を user に left join して表示名を引く。
-			// actorUserId は FK 無しの文字列参照なので、削除済み管理者では actor* が null になる。
-			db
-				.select({
-					id: adminAuditLog.id,
-					action: adminAuditLog.action,
-					reason: adminAuditLog.reason,
-					detail: adminAuditLog.detail,
-					createdAt: adminAuditLog.createdAt,
-					actorName: user.name,
-					actorEmail: user.email,
-				})
-				.from(adminAuditLog)
-				.leftJoin(user, eq(adminAuditLog.actorUserId, user.id))
-				.where(eq(adminAuditLog.targetUserId, userId))
-				.orderBy(desc(adminAuditLog.createdAt))
-				.limit(AUDIT_LOG_LIMIT),
-		]);
+	const now = new Date();
+	const [
+		subscriptions,
+		balanceRows,
+		ledger,
+		coupons,
+		auditLogs,
+		sessions,
+		mcpTokens,
+		mcpConsents,
+	] = await Promise.all([
+		db
+			.select({
+				id: subscription.id,
+				plan: subscription.plan,
+				status: subscription.status,
+				periodStart: subscription.periodStart,
+				periodEnd: subscription.periodEnd,
+				trialStart: subscription.trialStart,
+				trialEnd: subscription.trialEnd,
+				cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+				canceledAt: subscription.canceledAt,
+				endedAt: subscription.endedAt,
+				billingInterval: subscription.billingInterval,
+			})
+			.from(subscription)
+			.where(eq(subscription.referenceId, userId)),
+		db
+			.select({
+				balance: creditBalance.balance,
+				periodMonth: creditBalance.periodMonth,
+				updatedAt: creditBalance.updatedAt,
+			})
+			.from(creditBalance)
+			.where(eq(creditBalance.userId, userId)),
+		db
+			.select({
+				id: creditLedger.id,
+				amount: creditLedger.amount,
+				type: creditLedger.type,
+				periodMonth: creditLedger.periodMonth,
+				tokenAmount: creditLedger.tokenAmount,
+				createdAt: creditLedger.createdAt,
+			})
+			.from(creditLedger)
+			.where(eq(creditLedger.userId, userId))
+			.orderBy(desc(creditLedger.createdAt))
+			.limit(LEDGER_LIMIT),
+		db
+			.select({
+				id: couponRedemption.id,
+				code: couponRedemption.code,
+				extendedDays: couponRedemption.extendedDays,
+				redeemedAt: couponRedemption.redeemedAt,
+			})
+			.from(couponRedemption)
+			.where(eq(couponRedemption.userId, userId))
+			.orderBy(desc(couponRedemption.redeemedAt)),
+		// 監査ログは actorUserId(=操作した管理者)を user に left join して表示名を引く。
+		// actorUserId は FK 無しの文字列参照なので、削除済み管理者では actor* が null になる。
+		db
+			.select({
+				id: adminAuditLog.id,
+				action: adminAuditLog.action,
+				reason: adminAuditLog.reason,
+				detail: adminAuditLog.detail,
+				createdAt: adminAuditLog.createdAt,
+				actorName: user.name,
+				actorEmail: user.email,
+			})
+			.from(adminAuditLog)
+			.leftJoin(user, eq(adminAuditLog.actorUserId, user.id))
+			.where(eq(adminAuditLog.targetUserId, userId))
+			.orderBy(desc(adminAuditLog.createdAt))
+			.limit(AUDIT_LOG_LIMIT),
+		// 有効期限内のアクティブセッションのみ。
+		db
+			.select({
+				id: session.id,
+				ipAddress: session.ipAddress,
+				userAgent: session.userAgent,
+				expiresAt: session.expiresAt,
+				createdAt: session.createdAt,
+				impersonatedBy: session.impersonatedBy,
+			})
+			.from(session)
+			.where(and(eq(session.userId, userId), gt(session.expiresAt, now)))
+			.orderBy(desc(session.createdAt)),
+		// MCP アクセストークン(oauth_application にアプリ名を left join)。
+		db
+			.select({
+				clientId: oauthAccessToken.clientId,
+				appName: oauthApplication.name,
+				scopes: oauthAccessToken.scopes,
+				expiresAt: oauthAccessToken.accessTokenExpiresAt,
+			})
+			.from(oauthAccessToken)
+			.leftJoin(
+				oauthApplication,
+				eq(oauthAccessToken.clientId, oauthApplication.clientId),
+			)
+			.where(eq(oauthAccessToken.userId, userId)),
+		// MCP 同意(oauth_application にアプリ名を left join)。
+		db
+			.select({
+				clientId: oauthConsent.clientId,
+				appName: oauthApplication.name,
+				scopes: oauthConsent.scopes,
+				consentGiven: oauthConsent.consentGiven,
+			})
+			.from(oauthConsent)
+			.leftJoin(
+				oauthApplication,
+				eq(oauthConsent.clientId, oauthApplication.clientId),
+			)
+			.where(eq(oauthConsent.userId, userId)),
+	]);
+
+	// MCP 連携を clientId 単位に集約する(トークンと同意をマージ)。
+	const mcpByClient = new Map<
+		string,
+		AdminUserDetail["mcpConnections"][number]
+	>();
+	for (const t of mcpTokens) {
+		const entry = mcpByClient.get(t.clientId) ?? {
+			clientId: t.clientId,
+			appName: t.appName,
+			scopes: t.scopes,
+			activeTokenCount: 0,
+			latestTokenExpiresAt: null,
+			consentGiven: null,
+		};
+		entry.appName ??= t.appName;
+		entry.scopes ??= t.scopes;
+		if (t.expiresAt && t.expiresAt.getTime() > now.getTime()) {
+			entry.activeTokenCount += 1;
+			if (
+				!entry.latestTokenExpiresAt ||
+				t.expiresAt.getTime() > entry.latestTokenExpiresAt.getTime()
+			) {
+				entry.latestTokenExpiresAt = t.expiresAt;
+			}
+		}
+		mcpByClient.set(t.clientId, entry);
+	}
+	for (const c of mcpConsents) {
+		const entry = mcpByClient.get(c.clientId) ?? {
+			clientId: c.clientId,
+			appName: c.appName,
+			scopes: c.scopes,
+			activeTokenCount: 0,
+			latestTokenExpiresAt: null,
+			consentGiven: null,
+		};
+		entry.appName ??= c.appName;
+		entry.scopes ??= c.scopes;
+		entry.consentGiven = c.consentGiven;
+		mcpByClient.set(c.clientId, entry);
+	}
 
 	return {
 		user: userRow,
@@ -282,5 +405,7 @@ export async function getUserDetail(
 		ledger,
 		coupons,
 		auditLogs,
+		sessions,
+		mcpConnections: [...mcpByClient.values()],
 	};
 }
