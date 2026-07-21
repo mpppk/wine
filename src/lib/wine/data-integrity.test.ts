@@ -1,13 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { aopArraySchema } from "./aop-schema";
+import rawAops from "./aops.json";
 import { AOPS } from "./aops-data";
 import { MICHELIN_GRAPES_ARTICLE_URL, PRODUCER_INFO } from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
 // aops.json と public/data/aop/*.geojson の整合性を検証する。
-// (aops.json のスキーマ検証自体は aops-data.ts の読み込み時に行われる)
+// aops.json のスキーマ検証はかつて aops-data.ts の読み込み時(=全ページの初期ロード)に
+// 行われていたが、コールドスタートのコストになるためランタイムから外した(#32)。
+// 代わりに以下のテストで検証し、壊れたデータをデプロイ前(CI)に検出する。
+
+describe("aops.json のスキーマ検証(#32: ランタイムからテストへ移設)", () => {
+	it("aops.json 全件が aopArraySchema を満たす", () => {
+		// throw されると詳細なパスが出るよう parse をそのまま実行する
+		expect(() => aopArraySchema.parse(rawAops)).not.toThrow();
+	});
+});
 
 describe("地域マスタ(REGIONS)とRegionId SSOTの整合性", () => {
 	it("REGIONS の id 集合が REGION_ID_LIST と過不足なく一致する", () => {
