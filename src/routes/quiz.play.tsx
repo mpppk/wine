@@ -85,6 +85,7 @@ function QuizSession({
 		reset,
 		skip,
 		next,
+		retry,
 	} = useQuizSession(regionId, quizTypes, isAuthenticated);
 	// 10問回答ごとに「次へ」へ広告を割り込ませる(無料会員のみ)
 	const { adOpen, onAdOpenChange, nextWithAd } = useQuizAdInterstitial(
@@ -124,6 +125,22 @@ function QuizSession({
 					<Button asChild variant="outline">
 						<Link to="/quiz">設定に戻る</Link>
 					</Button>
+				</div>
+			)}
+
+			{phase === "error" && (
+				<div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+					<p className="text-sm text-muted-foreground">
+						問題の読み込みに失敗しました。
+						<br />
+						通信環境を確認して再試行してください。
+					</p>
+					<div className="flex gap-2">
+						<Button onClick={retry}>再試行</Button>
+						<Button asChild variant="outline">
+							<Link to="/quiz">設定に戻る</Link>
+						</Button>
+					</div>
 				</div>
 			)}
 
