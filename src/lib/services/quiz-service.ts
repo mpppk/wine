@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { dailyActivity, quizQuestionStat } from "#/db/schema";
 import { jstDayKey } from "#/lib/dashboard/jst";
+import { BadRequestError } from "#/lib/errors";
 import {
 	candidateCountsByAopId,
 	candidateCountsByType,
@@ -66,7 +67,8 @@ export async function getNextQuestions(
 			? listScopedCandidates(regionId, quizTypes, scopeAopId)
 			: listCandidates(regionId, quizTypes);
 	if (candidates === null) {
-		throw new Error(`invalid scope aop: ${scopeAopId}`);
+		// クライアント申告の scopeAopId が不正 = 入力エラー(400)。
+		throw new BadRequestError(`invalid scope aop: ${scopeAopId}`);
 	}
 	if (candidates.length === 0) return { questions: [], remaining: 0, total: 0 };
 
@@ -160,7 +162,8 @@ export async function recordAnswer(
 	// クライアント申告の形式・地域は信用せず、キーから導出・検証する
 	const info = getQuestionKeyInfo(questionKey);
 	if (!info) {
-		throw new Error(`invalid question key: ${questionKey}`);
+		// クライアント申告のキー形式が不正 = 入力エラー(400)。
+		throw new BadRequestError(`invalid question key: ${questionKey}`);
 	}
 	// 更新直前の行を控えておき、リセット時にこの値へ復元できるようにする
 	const existing = await db
@@ -267,7 +270,8 @@ export async function revertAnswer(
 	// キーの妥当性を検証(recordAnswer と同じ防御)
 	const info = getQuestionKeyInfo(questionKey);
 	if (!info) {
-		throw new Error(`invalid question key: ${questionKey}`);
+		// クライアント申告のキー形式が不正 = 入力エラー(400)。
+		throw new BadRequestError(`invalid question key: ${questionKey}`);
 	}
 	if (!prior.existed) {
 		// 回答で初めて作られた行なので、丸ごと削除すれば回答前(未出題)に戻る
