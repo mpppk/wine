@@ -63,6 +63,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.5",
+		"@cloudflare/vitest-pool-workers": "^0.18.6",
 		"@tailwindcss/typography": "^0.5.16",
 		"@tanstack/devtools-vite": "^0.6.0",
 		"@testing-library/dom": "^10.4.1",
