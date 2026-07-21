@@ -39,20 +39,13 @@ import {
 	isLegalAppellation,
 } from "#/lib/wine/tags";
 import {
+	COLOR_LABELS_JA,
 	getAppellationBadgeJa,
 	getBoundarySourceNoteJa,
 	getVineyardTermJa,
 } from "#/lib/wine/terminology";
-import type { Aop, Region, WineColor } from "#/lib/wine/types";
+import type { Aop, Region } from "#/lib/wine/types";
 import { getVariety } from "#/lib/wine/varieties";
-
-const COLOR_LABELS_JA: Record<WineColor, string> = {
-	red: "赤",
-	white: "白",
-	rose: "ロゼ",
-	sparkling: "泡",
-	"sweet-white": "甘口白",
-};
 
 export function KindBadge({ aop }: { aop: Aop }) {
 	// 特級タグ持ちは地図と同じく最濃色のドットで示す

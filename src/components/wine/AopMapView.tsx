@@ -6,7 +6,8 @@ import type {
 	Popup,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "#/lib/utils";
 import {
 	BASEMAP_STYLE_URL,
 	KIND_COLORS,
@@ -246,6 +247,10 @@ export function AopMapView({
 	const hoveredIdRef = useRef<number | undefined>(undefined);
 	const boundsRef = useRef<FeatureBounds>({});
 	const loadedRef = useRef(false);
+	// AOP境界(GeoJSON)取得失敗のエラー表示と、再試行での地図再生成トリガー。
+	// reloadKey を変えると初期化effectが再走し、地図を作り直して再取得する。
+	const [loadError, setLoadError] = useState(false);
+	const [reloadKey, setReloadKey] = useState(0);
 	// イベントハンドラや地図ロード完了時に最新のprops/関数を参照するためのref
 	const stateRef = useRef({
 		aopsByIdApp: new Map<number, Aop>(),
@@ -273,9 +278,9 @@ export function AopMapView({
 	stateRef.current.onSelectAop = onSelectAop;
 	stateRef.current.getFitInset = getFitInset;
 
-	// 初期化(1回のみ)。maplibre-glはSSR不可なのでeffect内で動的import。
-	// 地図インスタンスは地域が変わったときだけ作り直す。
-	// biome-ignore lint/correctness/useExhaustiveDependencies: region.id以外はref経由で最新値を参照する
+	// 初期化。maplibre-glはSSR不可なのでeffect内で動的import。地図インスタンスは
+	// 地域が変わったとき・再試行(reloadKey)のときだけ作り直す。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: region.id/reloadKey以外はref経由で最新値を参照する
 	useEffect(() => {
 		const container = containerRef.current;
 		if (!container || mapRef.current) return;
@@ -295,6 +300,12 @@ export function AopMapView({
 			mapRef.current = map;
 			map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
 
+			// ベースマップ(OpenFreeMap)のスタイル/タイル/フォント読み込み失敗など、
+			// 外部依存の障害を無言にしない。少なくとも原因をコンソールに残す。
+			map.on("error", (e) => {
+				console.error("maplibre error", e.error ?? e);
+			});
+
 			const popup = new maplibregl.Popup({
 				closeButton: false,
 				closeOnClick: false,
@@ -305,15 +316,33 @@ export function AopMapView({
 
 			map.on("load", async () => {
 				if (cancelled) return;
-				// bbox計算のためGeoJSONは自前でfetchしてdataで渡す(二重fetch回避)
-				const [res, boundariesRes] = await Promise.all([
-					fetch(region.geojsonPath ?? ""),
-					region.boundariesPath
-						? fetch(region.boundariesPath).catch(() => undefined)
-						: Promise.resolve(undefined),
-				]);
-				if (cancelled || !res.ok) return;
-				const geojson = (await res.json()) as FeatureCollection;
+				setLoadError(false);
+				// 境界データ(任意)は並行取得。AOP本体の取得は失敗を捕捉する。
+				const boundariesPromise = region.boundariesPath
+					? fetch(region.boundariesPath).catch(() => undefined)
+					: Promise.resolve(undefined);
+				// bbox計算のためGeoJSONは自前でfetchしてdataで渡す(二重fetch回避)。
+				// 404/500やネットワーク断(fetchのreject)を握り、空の地図で無言に
+				// 壊れる/未処理rejectになるのを防ぎ、エラーオーバーレイを出す。
+				let geojson: FeatureCollection;
+				try {
+					const res = await fetch(region.geojsonPath ?? "");
+					if (cancelled) return;
+					if (!res.ok) {
+						throw new Error(`GeoJSON fetch failed: ${res.status}`);
+					}
+					geojson = (await res.json()) as FeatureCollection;
+				} catch (e) {
+					if (cancelled) return;
+					console.error(
+						`AOP境界データの読み込みに失敗しました: ${region.geojsonPath}`,
+						e,
+					);
+					setLoadError(true);
+					return;
+				}
+				const boundariesRes = await boundariesPromise;
+				if (cancelled) return;
 				for (const f of geojson.features) {
 					const idApp = Number(f.properties?.idApp);
 					const b = computeBounds(f.geometry);
@@ -609,7 +638,7 @@ export function AopMapView({
 			mapRef.current?.remove();
 			mapRef.current = null;
 		};
-	}, [region.id]);
+	}, [region.id, reloadKey]);
 
 	// フィルタ(品種・区分・タグ)を feature-state に反映
 	const applyFeatureStates = () => {
@@ -746,12 +775,31 @@ export function AopMapView({
 	useEffect(applyProgress, [progressByIdApp]);
 
 	return (
-		<div
-			ref={containerRef}
-			className={className}
-			role="application"
-			aria-label={`${region.nameJa}の${getAppellationTermJa(region.id)}地図`}
-		/>
+		<div className={cn("relative", className)}>
+			<div
+				ref={containerRef}
+				className="h-full w-full"
+				role="application"
+				aria-label={`${region.nameJa}の${getAppellationTermJa(region.id)}地図`}
+			/>
+			{loadError && (
+				<div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/90 p-6 text-center backdrop-blur">
+					<p className="text-sm font-medium">
+						地図の境界データを読み込めませんでした。
+					</p>
+					<button
+						type="button"
+						onClick={() => {
+							setLoadError(false);
+							setReloadKey((k) => k + 1);
+						}}
+						className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-accent"
+					>
+						再読み込み
+					</button>
+				</div>
+			)}
+		</div>
 	);
 }
 

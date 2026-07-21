@@ -1,5 +1,10 @@
 BETTER_AUTH_URL=http://localhost:3000
 
+# better-auth のセッションCookie署名・OAuthトークン生成に使う必須シークレット。
+# 本番/プレビューは `wrangler secret put BETTER_AUTH_SECRET` で投入する。ローカルは
+# 任意のランダム文字列でよい(例: `bunx --bun @better-auth/cli secret` で生成)。
+BETTER_AUTH_SECRET=
+
 # アフィリエイトID(任意)。未設定なら購入リンクは素の検索URLになる。
 # RAKUTEN_AFFILIATE_ID=0a1b2c3d.e4f5a6b7.0a1b2c3d.e4f5a6b8
 # MOSHIMO_AMAZON_A_ID=1234567

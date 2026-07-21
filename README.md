@@ -88,10 +88,24 @@ pnpm dlx shadcn@latest add button
 
 ## Better Auth
 
-Authentication is handled by [Better Auth](https://www.better-auth.com). Set the `BETTER_AUTH_SECRET` environment variable in your `.env.local`:
+Authentication is handled by [Better Auth](https://www.better-auth.com). It requires a
+`BETTER_AUTH_SECRET` in **every** environment — it signs session cookies and OAuth tokens.
+Generate one with:
 
 ```bash
 bunx --bun @better-auth/cli secret
 ```
+
+- **Local**: put it in `.dev.vars` as `BETTER_AUTH_SECRET=...` (see `.dev.vars.example`).
+- **Production / Preview (Cloudflare Workers)**: set it as a secret so it is never committed:
+
+  ```bash
+  bunx --bun wrangler secret put BETTER_AUTH_SECRET
+  bunx --bun wrangler secret put BETTER_AUTH_SECRET --env preview
+  ```
+
+`wrangler secret put` values are not emitted by `wrangler types`, so the binding is declared
+for TypeScript in `src/env-secrets.d.ts`. If `BETTER_AUTH_SECRET` is missing, Better Auth falls
+back to a built-in default and, with `NODE_ENV=production`, fails fast at startup.
 
 For local OAuth/MCP verification, also set `BETTER_AUTH_URL=http://localhost:3000` in `.dev.vars` (see `.dev.vars.example`).
