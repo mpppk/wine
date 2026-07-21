@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { decodePhotoBase64 } from "#/lib/drunk-wine/photo";
+import { BadRequestError, HttpError } from "#/lib/errors";
+import { logError } from "#/lib/logger";
 import * as aiService from "#/lib/services/ai-service";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
@@ -51,8 +53,20 @@ const affiliateConfig: AffiliateConfig = {
 	moshimoAmazon: env.MOSHIMO_AMAZON_A_ID ?? "",
 };
 
-function err(e: unknown): CallToolResult {
-	const message = e instanceof Error ? e.message : String(e);
+function err(
+	e: unknown,
+	ctx: { tool: string; userId: string },
+): CallToolResult {
+	// 失敗は必ずサーバ側に構造化ログを残す。どのツールが・どのユーザで・何で失敗したかを
+	// 事後に追えるようにする(従来は err の記録が無く、障害が静かに進行していた)。
+	logError("mcp tool failed", { tool: ctx.tool, userId: ctx.userId, err: e });
+	// HttpError(BadRequest 等)は利用者に見せてよい検証・入力エラーなのでそのまま返す。
+	// それ以外(D1ドライバの生エラー等)は SQL 断片やバインディング情報を、動的登録された
+	// 任意の外部 MCP クライアントへ露出しうるため、汎用文言に置き換えて内部詳細を隠す。
+	const message =
+		e instanceof HttpError
+			? e.message
+			: "内部エラーが発生しました。時間をおいて再度お試しください。";
 	return {
 		content: [{ type: "text", text: `Error: ${message}` }],
 		isError: true,
@@ -88,7 +102,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 				const user = await userService.getCurrentUser(userId);
 				return ok({ user });
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "get_current_user", userId });
 			}
 		},
 	);
@@ -115,11 +129,14 @@ export function registerReadTools(server: McpServer, userId: string) {
 					model,
 				});
 				if (result.blocked) {
+					// 残高不足は利用者へ見せてよいメッセージ。BadRequestError にすることで
+					// err() の内部エラー隠蔽を通り抜けて、そのまま MCP クライアントへ返る。
 					return err(
-						new Error(
+						new BadRequestError(
 							`AIクレジットが不足しています(残高 ${result.balance} / 必要 ${result.required})。` +
 								"プレミアムプランで毎月より多くのクレジットが付与されます。",
 						),
+						{ tool: "ask_region", userId },
 					);
 				}
 				return ok({
@@ -128,7 +145,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 					actual_tokens: result.actualTokens,
 				});
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "ask_region", userId });
 			}
 		},
 	);
@@ -156,7 +173,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 				}));
 				return ok({ regions });
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "list_wine_regions", userId });
 			}
 		},
 	);
@@ -174,7 +191,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 			try {
 				return ok({ varieties: GRAPE_VARIETIES });
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "list_grape_varieties", userId });
 			}
 		},
 	);
@@ -194,11 +211,13 @@ export function registerReadTools(server: McpServer, userId: string) {
 		async ({ region_id, grape_variety_id, kind, tags }) => {
 			try {
 				const region = getRegion(region_id);
-				if (!region) throw new Error(`Unknown region: ${region_id}`);
+				if (!region) throw new BadRequestError(`Unknown region: ${region_id}`);
 				if (!region.enabled)
-					throw new Error(`Region not yet available: ${region_id}`);
+					throw new BadRequestError(`Region not yet available: ${region_id}`);
 				if (grape_variety_id && !getVariety(grape_variety_id))
-					throw new Error(`Unknown grape variety: ${grape_variety_id}`);
+					throw new BadRequestError(
+						`Unknown grape variety: ${grape_variety_id}`,
+					);
 				const aops = listAops({
 					regionId: region_id,
 					grapeVarietyId: grape_variety_id,
@@ -212,7 +231,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 					aops,
 				});
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "list_aops", userId });
 			}
 		},
 	);
@@ -231,7 +250,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 		async ({ aop_id }) => {
 			try {
 				const aop = getAop(aop_id);
-				if (!aop) throw new Error(`Unknown AOP: ${aop_id}`);
+				if (!aop) throw new BadRequestError(`Unknown AOP: ${aop_id}`);
 				const region = getRegion(aop.region);
 				return ok({
 					aop: {
@@ -273,7 +292,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 					}),
 				});
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "get_aop", userId });
 			}
 		},
 	);
@@ -294,13 +313,15 @@ export function registerReadTools(server: McpServer, userId: string) {
 		async ({ region_id, grape_variety_id, aop_id }) => {
 			try {
 				const region = getRegion(region_id);
-				if (!region) throw new Error(`Unknown region: ${region_id}`);
+				if (!region) throw new BadRequestError(`Unknown region: ${region_id}`);
 				if (!region.enabled)
-					throw new Error(`Region not yet available: ${region_id}`);
+					throw new BadRequestError(`Region not yet available: ${region_id}`);
 				if (grape_variety_id && !getVariety(grape_variety_id))
-					throw new Error(`Unknown grape variety: ${grape_variety_id}`);
+					throw new BadRequestError(
+						`Unknown grape variety: ${grape_variety_id}`,
+					);
 				if (aop_id && !getAop(aop_id))
-					throw new Error(`Unknown AOP: ${aop_id}`);
+					throw new BadRequestError(`Unknown AOP: ${aop_id}`);
 				const params = {
 					regionId: region_id,
 					grapeVarietyId: grape_variety_id,
@@ -323,7 +344,7 @@ export function registerReadTools(server: McpServer, userId: string) {
 					structuredContent: payload as Record<string, unknown>,
 				};
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "show_aop_map", userId });
 			}
 		},
 	);
@@ -420,7 +441,9 @@ function decodePhotoArgs(args: {
 }): { bytes: Uint8Array; mimeType: string } | null {
 	if (!args.photo_base64) return null;
 	if (!args.photo_mime_type) {
-		throw new Error("photo_mime_type is required when photo_base64 is set");
+		throw new BadRequestError(
+			"photo_mime_type is required when photo_base64 is set",
+		);
 	}
 	return {
 		bytes: decodePhotoBase64(args.photo_base64, args.photo_mime_type),
@@ -478,7 +501,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 					structuredContent: payload as unknown as Record<string, unknown>,
 				};
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "register_drunk_wine", userId });
 			}
 		},
 	);
@@ -515,7 +538,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 				}
 				return ok({ entry: toEntryPayload(entry) });
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "update_drunk_wine", userId });
 			}
 		},
 	);
@@ -537,7 +560,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 					entries: entries.map(toEntryPayload),
 				});
 			} catch (e) {
-				return err(e);
+				return err(e, { tool: "list_drunk_wines", userId });
 			}
 		},
 	);
