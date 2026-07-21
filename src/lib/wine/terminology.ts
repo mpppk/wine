@@ -1,5 +1,16 @@
 import { getRegion } from "./regions";
-import type { Aop } from "./types";
+import type { Aop, WineColor } from "./types";
+
+// ワイン色の日本語表記。地図の詳細パネル(AopDetailPanel)とクイズ(lib/quiz/labels)の
+// 両方で使うドメイン語彙の単一情報源。表記変更(例「泡」→「スパークリング」)を
+// 片方だけ直して食い違うのを防ぐため、ここに集約する。
+export const COLOR_LABELS_JA: Record<WineColor, string> = {
+	red: "赤",
+	white: "白",
+	"sweet-white": "甘口白",
+	rose: "ロゼ",
+	sparkling: "泡",
+};
 
 // 地域の国(Region.country)に応じてUI表記を切り替えるヘルパー。
 // フランスは「AOP/AOC」、イタリアは「DOC/DOCG」と、原産地呼称制度の呼び名が
