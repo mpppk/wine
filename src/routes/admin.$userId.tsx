@@ -89,6 +89,7 @@ const LEDGER_TYPE_LABELS: Record<string, string> = {
 	grant: "付与",
 	consume: "消費",
 	refund: "返却",
+	grant_upgrade: "アップグレード付与",
 	admin_grant: "管理付与",
 };
 
