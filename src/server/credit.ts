@@ -74,8 +74,9 @@ export const consumeCreditsDummy = createServerFn({ method: "POST" })
 				balance: after.balance,
 			};
 		} catch (e) {
-			// 確定に失敗したら予約全額を返却して残高を巻き戻す
-			await creditService.refundReservation(
+			// 確定に失敗したら予約全額を返却して残高を巻き戻す。返却成否はログに残し、
+			// 返却自体が失敗しても元の例外 e を伝播する(#158)。
+			await creditService.refundReservationOnFailure(
 				userId,
 				requestId,
 				res.reservedCredits,

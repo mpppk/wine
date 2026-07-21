@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "#/db";
 import * as authSchema from "#/db/auth-schema";
+import { NotFoundError } from "#/lib/errors";
 
 // User account lookups shared by server functions and MCP tools. Like the rest
 // of services/, this takes the acting userId explicitly.
@@ -16,6 +17,6 @@ export async function getCurrentUser(userId: string) {
 		})
 		.from(authSchema.user)
 		.where(eq(authSchema.user.id, userId));
-	if (!user) throw new Error("User not found");
+	if (!user) throw new NotFoundError("User not found");
 	return user;
 }

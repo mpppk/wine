@@ -5,6 +5,8 @@
 // 純粋関数 extractTitleFromHtml に閉じ込め単体テスト可能にする。ネットワーク処理
 // (fetchPageTitle)はサーバ専用で、失敗しても例外を投げず null を返す。
 
+import { logWarn } from "#/lib/logger";
+
 const MAX_TITLE_LENGTH = 200;
 // タイトル抽出のために読むHTMLの上限(先頭にある <head> だけ読めれば十分)
 const MAX_HTML_BYTES = 100_000;
@@ -106,9 +108,23 @@ export async function fetchPageTitle(url: string): Promise<string | null> {
 				accept: "text/html,application/xhtml+xml",
 			},
 		});
-		if (!res.ok || !res.body) return null;
+		if (!res.ok || !res.body) {
+			// 特定サイトでタイトル取得が常に失敗しても気づけるよう記録する。ユーザ入力の
+			// URL 全体ではなく hostname に留める(#156)。
+			logWarn("page title fetch failed", {
+				hostname: parsed.hostname,
+				status: res.status,
+			});
+			return null;
+		}
 		const contentType = res.headers.get("content-type") ?? "";
-		if (!contentType.includes("text/html")) return null;
+		if (!contentType.includes("text/html")) {
+			logWarn("page title non-html", {
+				hostname: parsed.hostname,
+				contentType,
+			});
+			return null;
+		}
 
 		// 先頭 MAX_HTML_BYTES だけ読む(<head> が取れれば十分。巨大ページを全部読まない)
 		const reader = res.body.getReader();
@@ -125,7 +141,10 @@ export async function fetchPageTitle(url: string): Promise<string | null> {
 		}
 		await reader.cancel().catch(() => {});
 		return extractTitleFromHtml(html);
-	} catch {
+	} catch (e) {
+		// タイムアウト/ネットワーク例外/読み取りエラー。SSRFガードが弾いた試行も含め、
+		// hostname 単位で記録する(URL全体は残さない)(#156)。
+		logWarn("page title fetch error", { hostname: parsed.hostname, err: e });
 		return null;
 	}
 }

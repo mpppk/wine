@@ -10,6 +10,7 @@ import {
 } from "#/lib/billing/campaign-codes";
 import { ENTITLED_STATUSES, resolvePlan } from "#/lib/billing/entitlements";
 import { stripeClient } from "#/lib/billing/stripe-client";
+import { BadRequestError, ConflictError } from "#/lib/errors";
 
 // 会員区分のユーザ状態を扱うサービス層。判定ロジックは
 // #/lib/billing/entitlements の純関数に置き、ここはD1アクセスとの薄い橋渡しに徹する。
@@ -65,7 +66,8 @@ export async function extendPremiumTrial(
 		);
 	const activeRow = rows.find((r) => r.stripeSubscriptionId);
 	if (resolvePlan(rows) !== "premium" || !activeRow?.stripeSubscriptionId) {
-		throw new Error("プレミアム会員のみご利用いただけます。");
+		// 有効なサブスクが無い状態との衝突(コード引換・管理者延長で共有)。
+		throw new ConflictError("プレミアム会員のみご利用いただけます。");
 	}
 
 	// 現在の期間終了を基準に延長する。Stripe(basil API)では current_period_end は
@@ -104,7 +106,7 @@ export async function redeemExtensionCode(
 		parseCampaignCodes(env.CAMPAIGN_EXTENSION_CODES),
 	);
 	if (days === null) {
-		throw new Error("コードが正しくありません。");
+		throw new BadRequestError("コードが正しくありません。");
 	}
 	const code = normalizeCode(rawCode);
 
@@ -116,7 +118,7 @@ export async function redeemExtensionCode(
 			and(eq(couponRedemption.userId, userId), eq(couponRedemption.code, code)),
 		);
 	if (existing.length > 0) {
-		throw new Error("このコードは既に利用済みです。");
+		throw new ConflictError("このコードは既に利用済みです。");
 	}
 
 	const { newPeriodEnd } = await extendPremiumTrial(userId, days);
@@ -130,7 +132,7 @@ export async function redeemExtensionCode(
 			extendedDays: days,
 		});
 	} catch (_e) {
-		throw new Error("このコードは既に利用済みです。");
+		throw new ConflictError("このコードは既に利用済みです。");
 	}
 
 	return { extendedDays: days, newPeriodEnd };

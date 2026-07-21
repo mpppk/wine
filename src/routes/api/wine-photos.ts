@@ -5,6 +5,8 @@ import {
 	MAX_PHOTO_BYTES,
 	MAX_PHOTOS_PER_ENTRY,
 } from "#/lib/drunk-wine/photo";
+import { HttpError } from "#/lib/errors";
+import { logError } from "#/lib/logger";
 import {
 	type PhotoLayoutItem,
 	syncDrunkWinePhotos,
@@ -146,8 +148,17 @@ export const Route = createFileRoute("/api/wine-photos")({
 						headers: { "Content-Type": "application/json" },
 					});
 				} catch (e) {
-					const message = e instanceof Error ? e.message : String(e);
-					return jsonError(message, message === "Entry not found" ? 404 : 400);
+					// サービス層が投げる HttpError(404/400等)は status とメッセージを透過する。
+					// 文字列一致でstatusを決める従来方式は文言変更で壊れるため廃止(#153)。
+					if (e instanceof HttpError) {
+						return jsonError(e.message, e.status);
+					}
+					// 想定外の内部失敗は文脈付きで記録し、生メッセージは出さず500で返す(#156)。
+					logError("wine photo sync failed", {
+						userId: session.user.id,
+						err: e,
+					});
+					return jsonError("写真の保存に失敗しました", 500);
 				}
 			},
 		},

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { extractTitleFromHtml } from "./fetch-title";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { extractTitleFromHtml, fetchPageTitle } from "./fetch-title";
 
 describe("extractTitleFromHtml", () => {
 	it("<title> を抽出する", () => {
@@ -57,5 +57,42 @@ describe("extractTitleFromHtml", () => {
 
 	it("空の <title> は null", () => {
 		expect(extractTitleFromHtml("<title>   </title>")).toBeNull();
+	});
+});
+
+describe("fetchPageTitle", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("HTTPエラー時は null を返し hostname 付きで logWarn する(URL全体は残さない)", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response("nope", { status: 503 }),
+		);
+
+		const result = await fetchPageTitle("https://example.com/secret/path?q=1");
+
+		expect(result).toBeNull();
+		expect(warn).toHaveBeenCalledTimes(1);
+		const parsed = JSON.parse(warn.mock.calls[0]?.[0] as string);
+		expect(parsed).toMatchObject({
+			level: "warn",
+			msg: "page title fetch failed",
+			hostname: "example.com",
+			status: 503,
+		});
+		// フルURL(パス・クエリ)はログに載せない。
+		expect(warn.mock.calls[0]?.[0]).not.toContain("secret");
+	});
+
+	it("SSRFガードで弾かれるホストは fetch せず null(ログも出さない)", async () => {
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+		expect(await fetchPageTitle("http://127.0.0.1/")).toBeNull();
+
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(warn).not.toHaveBeenCalled();
 	});
 });

@@ -4,6 +4,7 @@ import { creditBalance, creditLedger } from "#/db/schema";
 import { refundCredits, tokensToCredits } from "#/lib/credit/credit-math";
 import { monthlyGrantForPlan } from "#/lib/credit/grants";
 import { currentMonthKey } from "#/lib/credit/month";
+import { logError, logInfo } from "#/lib/logger";
 import * as billingService from "#/lib/services/billing-service";
 
 // AIクレジットの付与・消費のD1アクセス層。判定・換算の純ロジックは #/lib/credit/ に置き、
@@ -191,6 +192,36 @@ export async function settleReservation(
 			.set({ balance: sql`${creditBalance.balance} + ${back}` })
 			.where(eq(creditBalance.userId, userId)),
 	]);
+}
+
+/**
+ * 失敗補償: 予約を返却し、その成否を requestId 付きで記録する。返却自体が D1 障害で
+ * 失敗しても throw せずログに留め、呼び出し側が本来の失敗例外を伝播できるようにする。
+ * これが無いと、AI失敗+返却失敗が重なった際に元の失敗例外が握り潰され、クレジット消失が
+ * 無記録になる(#158)。台帳(credit_ledger)との突合用に返却成功も logInfo で残す。
+ */
+export async function refundReservationOnFailure(
+	userId: string,
+	requestId: string,
+	reservedCredits: number,
+): Promise<void> {
+	try {
+		await refundReservation(userId, requestId, reservedCredits);
+		if (reservedCredits > 0) {
+			logInfo("inference failed; reservation refunded", {
+				userId,
+				requestId,
+				reservedCredits,
+			});
+		}
+	} catch (refundErr) {
+		logError("credit refund failed after inference error", {
+			userId,
+			requestId,
+			reservedCredits,
+			err: refundErr,
+		});
+	}
 }
 
 /** 失敗時: 予約全額を refund として戻す。 */

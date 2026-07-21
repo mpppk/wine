@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "#/db";
 import { aopReferenceLink } from "#/db/schema";
+import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { fetchPageTitle } from "#/lib/reference-link/fetch-title";
 import type {
 	CreateReferenceLinkInput,
@@ -37,7 +38,7 @@ function toEntry(row: ReferenceLinkRow): ReferenceLinkEntry {
 
 function assertKnownAop(aopId: string) {
 	if (!getAop(aopId)) {
-		throw new Error(`Unknown AOP: ${aopId}`);
+		throw new BadRequestError(`Unknown AOP: ${aopId}`);
 	}
 }
 
@@ -106,7 +107,7 @@ export async function updateReferenceLink(
 			),
 		);
 	// 存在しない/他ユーザ所有を区別せず同じエラーにする(存在の探索を防ぐ)
-	if (!existing) throw new Error("Entry not found");
+	if (!existing) throw new NotFoundError("Entry not found");
 
 	const nextUrl = input.url ?? existing.url;
 	// title 未指定(undefined)は変更しない。title 指定(文字列/null)は解決し直す
@@ -126,7 +127,7 @@ export async function updateReferenceLink(
 			),
 		)
 		.returning();
-	if (!row) throw new Error("Entry not found");
+	if (!row) throw new NotFoundError("Entry not found");
 	return toEntry(row);
 }
 
@@ -140,5 +141,5 @@ export async function deleteReferenceLink(
 			and(eq(aopReferenceLink.id, id), eq(aopReferenceLink.userId, userId)),
 		)
 		.returning({ id: aopReferenceLink.id });
-	if (!row) throw new Error("Entry not found");
+	if (!row) throw new NotFoundError("Entry not found");
 }

@@ -26,6 +26,7 @@ import {
 	stripReasoning,
 } from "#/lib/ai/region-qa";
 import { BadRequestError } from "#/lib/errors";
+import { logWarn } from "#/lib/logger";
 import * as creditService from "#/lib/services/credit-service";
 import * as userService from "#/lib/services/user-service";
 import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
@@ -165,7 +166,9 @@ export async function answerRegionQuestion(
 		const after = await creditService.getBalance(userId);
 		return { blocked: false, answer, actualTokens, balance: after.balance };
 	} catch (e) {
-		await creditService.refundReservation(
+		// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
+		// 潰さず伝播する(#158)。
+		await creditService.refundReservationOnFailure(
 			userId,
 			requestId,
 			res.reservedCredits,
@@ -218,8 +221,9 @@ export async function analyzeWineLabel(
 		// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
 		let totalTokens = 0;
 		let anyCallOk = false;
+		let lastPhotoErr: unknown;
 		const extractions: LabelExtraction[] = [];
-		for (const imageDataUrl of input.imageDataUrls) {
+		for (const [photoIndex, imageDataUrl] of input.imageDataUrls.entries()) {
 			try {
 				const raw = await env.AI.run(AI_LABEL_MODEL, {
 					messages: buildLabelMessages(imageDataUrl),
@@ -234,13 +238,24 @@ export async function analyzeWineLabel(
 				extractions.push(parseLabelResponse(out.response ?? ""));
 				totalTokens += out.usage?.total_tokens ?? 0;
 				anyCallOk = true;
-			} catch {
-				// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行する
+			} catch (photoErr) {
+				// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
+				// モデルエラーとJSONパース失敗を後から切り分けられるよう記録は残す(#156)。
+				lastPhotoErr = photoErr;
+				logWarn("label photo analysis failed", {
+					userId,
+					requestId,
+					photoIndex,
+					err: photoErr,
+				});
 			}
 		}
-		// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)
+		// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)。
+		// 最後の失敗要因を cause に持たせ、全滅時の原因追跡を可能にする(#156)。
 		if (!anyCallOk) {
-			throw new Error("すべての写真の解析に失敗しました");
+			throw new Error("すべての写真の解析に失敗しました", {
+				cause: lastPhotoErr,
+			});
 		}
 		const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
@@ -259,7 +274,8 @@ export async function analyzeWineLabel(
 			balance: after.balance,
 		};
 	} catch (e) {
-		await creditService.refundReservation(
+		// 返却を試み成否をログに残す。返却失敗でも元の例外 e を伝播する(#158)。
+		await creditService.refundReservationOnFailure(
 			userId,
 			requestId,
 			res.reservedCredits,
