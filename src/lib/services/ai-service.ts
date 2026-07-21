@@ -50,8 +50,8 @@ async function resolveModelKey(
 }
 
 // 地域チャットQ&Aのサービス層。Web サーバfn と MCP ツールの両方から呼ぶ単一の入口。
-// グラウンディング材料を wine サービスから解決し、PR1 のクレジット予約→(Workers AI 実行)→
-// 実測確定/失敗時返却の骨格(consumeCreditsDummy と同型)で1ターンを処理する。
+// グラウンディング材料を wine サービスから解決し、クレジット予約→(Workers AI 実行)→
+// 実測確定/失敗時返却の骨格で1ターンを処理する。
 
 export interface AskRegionInput {
 	regionId: string;
@@ -134,6 +134,8 @@ export async function answerRegionQuestion(
 	// プロフィール設定(または明示指定)→ 実モデルID＋固有オプションに解決。
 	const model = AI_REGION_QA_MODELS[await resolveModelKey(userId, input.model)];
 
+	let answer: string;
+	let actualTokens: number;
 	try {
 		const raw = await env.AI.run(model.id, {
 			messages,
@@ -154,17 +156,15 @@ export async function answerRegionQuestion(
 		};
 		const rawText = out.choices?.[0]?.message?.content ?? out.response ?? "";
 		// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
-		const answer = stripReasoning(rawText).trim();
+		answer = stripReasoning(rawText).trim();
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		const actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
+		actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
 		await creditService.settleReservation(
 			userId,
 			requestId,
 			res.reservedCredits,
 			actualTokens,
 		);
-		const after = await creditService.getBalance(userId);
-		return { blocked: false, answer, actualTokens, balance: after.balance };
 	} catch (e) {
 		// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
 		// 潰さず伝播する(#158)。
@@ -175,6 +175,10 @@ export async function answerRegionQuestion(
 		);
 		throw e;
 	}
+	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
+	// ネットプラスになるため、残高参照は try の外で行う(#144)。
+	const after = await creditService.getBalance(userId);
+	return { blocked: false, answer, actualTokens, balance: after.balance };
 }
 
 export interface AnalyzeLabelInput {
@@ -214,6 +218,8 @@ export async function analyzeWineLabel(
 		return { blocked: true, balance: res.balance, required: res.required };
 	}
 
+	let suggestions: LabelSuggestions;
+	let actualTokens: number;
 	try {
 		// 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側で行う)。
 		// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
@@ -257,22 +263,15 @@ export async function analyzeWineLabel(
 				cause: lastPhotoErr,
 			});
 		}
-		const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
+		suggestions = buildLabelSuggestions(mergeExtractions(extractions));
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		const actualTokens = totalTokens || res.reservedTokens;
+		actualTokens = totalTokens || res.reservedTokens;
 		await creditService.settleReservation(
 			userId,
 			requestId,
 			res.reservedCredits,
 			actualTokens,
 		);
-		const after = await creditService.getBalance(userId);
-		return {
-			blocked: false,
-			suggestions,
-			actualTokens,
-			balance: after.balance,
-		};
 	} catch (e) {
 		// 返却を試み成否をログに残す。返却失敗でも元の例外 e を伝播する(#158)。
 		await creditService.refundReservationOnFailure(
@@ -282,4 +281,13 @@ export async function analyzeWineLabel(
 		);
 		throw e;
 	}
+	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
+	// ネットプラスになるため、残高参照は try の外で行う(#144)。
+	const after = await creditService.getBalance(userId);
+	return {
+		blocked: false,
+		suggestions,
+		actualTokens,
+		balance: after.balance,
+	};
 }

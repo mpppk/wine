@@ -4,7 +4,7 @@ import { creditBalance, creditLedger } from "#/db/schema";
 import { refundCredits, tokensToCredits } from "#/lib/credit/credit-math";
 import { monthlyGrantForPlan } from "#/lib/credit/grants";
 import { currentMonthKey } from "#/lib/credit/month";
-import { logError, logInfo } from "#/lib/logger";
+import { logError, logInfo, logWarn } from "#/lib/logger";
 import * as billingService from "#/lib/services/billing-service";
 
 // AIクレジットの付与・消費のD1アクセス層。判定・換算の純ロジックは #/lib/credit/ に置き、
@@ -195,17 +195,43 @@ export async function reserveCredits(
 		};
 	}
 
-	const debited = await db
-		.update(creditBalance)
-		.set({ balance: sql`${creditBalance.balance} - ${required}` })
-		.where(
-			and(
-				eq(creditBalance.userId, userId),
-				sql`${creditBalance.balance} >= ${required}`,
-			),
-		)
-		.returning({ balance: creditBalance.balance });
+	// 残高減算と consume 台帳追記を単一の db.batch(=1トランザクション)で原子化する。
+	// これにより台帳 INSERT が D1 一時エラーで失敗しても残高減算ごとロールバックされ、
+	// クレジットが台帳に痕跡なく消失することを防ぐ(#143)。残高が足りる時だけ引く条件付き
+	// UPDATE の RETURNING で充足を判定する。
+	const [debited] = await db.batch([
+		db
+			.update(creditBalance)
+			.set({ balance: sql`${creditBalance.balance} - ${required}` })
+			.where(
+				and(
+					eq(creditBalance.userId, userId),
+					sql`${creditBalance.balance} >= ${required}`,
+				),
+			)
+			.returning({ balance: creditBalance.balance }),
+		db.insert(creditLedger).values({
+			id: crypto.randomUUID(),
+			userId,
+			amount: -required,
+			type: "consume",
+			requestId,
+			periodMonth: currentMonthKey(),
+			tokenAmount: estimateTokens,
+		}),
+	]);
 	if (!debited[0]) {
+		// 残高不足: 条件付き UPDATE は何も引かなかったが、同一 batch の consume INSERT は
+		// 入る。これを打ち消して台帳に幽霊 consume を残さない(残高は引かれていないため
+		// ユーザ不利は生じない)。
+		await db
+			.delete(creditLedger)
+			.where(
+				and(
+					eq(creditLedger.requestId, requestId),
+					eq(creditLedger.type, "consume"),
+				),
+			);
 		const cur = await getBalance(userId);
 		return {
 			ok: false,
@@ -214,16 +240,6 @@ export async function reserveCredits(
 			required,
 		};
 	}
-
-	await db.insert(creditLedger).values({
-		id: crypto.randomUUID(),
-		userId,
-		amount: -required,
-		type: "consume",
-		requestId,
-		periodMonth: currentMonthKey(),
-		tokenAmount: estimateTokens,
-	});
 
 	return {
 		ok: true,
@@ -243,7 +259,23 @@ export async function settleReservation(
 ): Promise<void> {
 	const back = refundCredits(reservedCredits, actualTokens);
 	if (back <= 0) return;
+	const settleRequestId = `${requestId}:settle`;
+	// UPDATE を先に置き、ガードが settle 台帳の INSERT 前の状態を見るようにする
+	// (admin-actions.grantCredits と同じ順序)。
 	await db.batch([
+		db
+			.update(creditBalance)
+			.set({ balance: sql`${creditBalance.balance} + ${back}` })
+			.where(
+				and(
+					eq(creditBalance.userId, userId),
+					// 二重加算防止: 既に settle 台帳がある(=加算済み)なら加算しない(#146)。
+					sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${settleRequestId})`,
+					// 月境界: 予約(consume)の月と現残高の月が一致する時だけ加算する。月替わり後は
+					// 台帳のみ記録し、リセット後の残高に差分が混入する/超過することを防ぐ(#147)。
+					sql`${creditBalance.periodMonth} = (SELECT period_month FROM credit_ledger WHERE request_id = ${requestId} AND type = 'consume')`,
+				),
+			),
 		db
 			.insert(creditLedger)
 			.values({
@@ -251,15 +283,11 @@ export async function settleReservation(
 				userId,
 				amount: back,
 				type: "refund",
-				requestId: `${requestId}:settle`,
+				requestId: settleRequestId,
 				periodMonth: currentMonthKey(),
 				tokenAmount: actualTokens,
 			})
 			.onConflictDoNothing({ target: creditLedger.requestId }),
-		db
-			.update(creditBalance)
-			.set({ balance: sql`${creditBalance.balance} + ${back}` })
-			.where(eq(creditBalance.userId, userId)),
 	]);
 }
 
@@ -300,7 +328,36 @@ export async function refundReservation(
 	reservedCredits: number,
 ): Promise<void> {
 	if (reservedCredits <= 0) return;
+	const settleRequestId = `${requestId}:settle`;
+	// 既に settle 済み(=消費確定済み)なら返却しない。settle 後に本関数が呼ばれても
+	// 予約全額を追加返却して消費がネットプラスになる事故を防ぐ(#144)。
+	const settled = await db
+		.select({ id: creditLedger.id })
+		.from(creditLedger)
+		.where(eq(creditLedger.requestId, settleRequestId))
+		.limit(1);
+	if (settled[0]) {
+		logWarn("refund skipped: reservation already settled", {
+			userId,
+			requestId,
+		});
+		return;
+	}
+	const refundRequestId = `${requestId}:refund`;
+	// UPDATE を先に置き、ガードが refund 台帳の INSERT 前の状態を見るようにする。
 	await db.batch([
+		db
+			.update(creditBalance)
+			.set({ balance: sql`${creditBalance.balance} + ${reservedCredits}` })
+			.where(
+				and(
+					eq(creditBalance.userId, userId),
+					// 二重加算防止: 既に refund 台帳がある(=返却済み)なら加算しない(#146)。
+					sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${refundRequestId})`,
+					// 月境界: 予約(consume)の月と現残高の月が一致する時だけ加算する(#147)。
+					sql`${creditBalance.periodMonth} = (SELECT period_month FROM credit_ledger WHERE request_id = ${requestId} AND type = 'consume')`,
+				),
+			),
 		db
 			.insert(creditLedger)
 			.values({
@@ -308,14 +365,10 @@ export async function refundReservation(
 				userId,
 				amount: reservedCredits,
 				type: "refund",
-				requestId: `${requestId}:refund`,
+				requestId: refundRequestId,
 				periodMonth: currentMonthKey(),
 				tokenAmount: null,
 			})
 			.onConflictDoNothing({ target: creditLedger.requestId }),
-		db
-			.update(creditBalance)
-			.set({ balance: sql`${creditBalance.balance} + ${reservedCredits}` })
-			.where(eq(creditBalance.userId, userId)),
 	]);
 }
