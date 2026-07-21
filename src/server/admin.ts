@@ -20,6 +20,7 @@ import {
 	ADMIN_EXTENSION_MIN_DAYS,
 } from "#/lib/admin/premium-extension";
 import { auth } from "#/lib/auth";
+import { BadRequestError } from "#/lib/errors";
 import * as adminActions from "#/lib/services/admin-actions";
 import * as adminService from "#/lib/services/admin-service";
 import { adminMiddleware } from "./middleware";
@@ -145,7 +146,7 @@ export const adminBanUser = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) => {
 		// 自分自身の BAN はロックアウトになるため拒否する。
 		if (data.userId === context.user.id) {
-			throw new Error("自分自身を利用停止することはできません。");
+			throw new BadRequestError("自分自身を利用停止することはできません。");
 		}
 		await auth.api.banUser({
 			body: {
@@ -270,7 +271,7 @@ export const adminBulkGrantCredits = createServerFn({ method: "POST" })
 			ADMIN_BULK_GRANT_MAX_USERS,
 		);
 		if (found.capped) {
-			throw new Error(
+			throw new BadRequestError(
 				`対象が多すぎます(${found.total}人)。上限 ${ADMIN_BULK_GRANT_MAX_USERS} 人以内になるよう期間を絞ってください。`,
 			);
 		}

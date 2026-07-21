@@ -10,6 +10,7 @@ import type {
 	CreateDrunkWineInput,
 	UpdateDrunkWineInput,
 } from "#/lib/drunk-wine/schema";
+import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { getAop, getVariety } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
@@ -65,11 +66,11 @@ function assertValidRefs(input: {
 	grapeVarietyIds?: string[];
 }) {
 	if (input.aopId && !getAop(input.aopId)) {
-		throw new Error(`Unknown AOP: ${input.aopId}`);
+		throw new BadRequestError(`Unknown AOP: ${input.aopId}`);
 	}
 	for (const id of input.grapeVarietyIds ?? []) {
 		if (!getVariety(id)) {
-			throw new Error(`Unknown grape variety: ${id}`);
+			throw new BadRequestError(`Unknown grape variety: ${id}`);
 		}
 	}
 }
@@ -128,7 +129,7 @@ export async function updateDrunkWine(
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning();
 	// 存在しない/他ユーザ所有を区別せず同じエラーにする(存在の探索を防ぐ)
-	if (!row) throw new Error("Entry not found");
+	if (!row) throw new NotFoundError("Entry not found");
 	return toEntry(row);
 }
 
@@ -140,7 +141,7 @@ export async function deleteDrunkWine(
 		.delete(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning({ photoKeys: drunkWine.photoKeys });
-	if (!row) throw new Error("Entry not found");
+	if (!row) throw new NotFoundError("Entry not found");
 	// R2は複数キー一括削除に対応(存在しないキーは無視される)
 	if (row.photoKeys.length > 0) await env.AVATARS.delete(row.photoKeys);
 }
@@ -187,7 +188,7 @@ export async function getDrunkWine(
 		.select()
 		.from(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
-	if (!row) throw new Error("Entry not found");
+	if (!row) throw new NotFoundError("Entry not found");
 	return toEntry(row);
 }
 
@@ -208,19 +209,19 @@ export async function syncDrunkWinePhotos(
 	layout: PhotoLayoutItem[],
 ): Promise<DrunkWineEntry> {
 	if (layout.length > MAX_PHOTOS_PER_ENTRY) {
-		throw new Error(`写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`);
+		throw new BadRequestError(`写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`);
 	}
 	const [existing] = await db
 		.select({ photoKeys: drunkWine.photoKeys })
 		.from(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
-	if (!existing) throw new Error("Entry not found");
+	if (!existing) throw new NotFoundError("Entry not found");
 
 	const currentKeys = existing.photoKeys;
 	const currentSet = new Set(currentKeys);
 	for (const item of layout) {
 		if (item.kind === "existing" && !currentSet.has(item.key)) {
-			throw new Error("Unknown photo");
+			throw new BadRequestError("Unknown photo");
 		}
 	}
 
@@ -258,7 +259,7 @@ export async function syncDrunkWinePhotos(
 	// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する
 	if (!row) {
 		if (putKeys.length > 0) await env.AVATARS.delete(putKeys);
-		throw new Error("Entry not found");
+		throw new NotFoundError("Entry not found");
 	}
 
 	// 旧配列にあって新配列に残らないキーを削除(削除・差し替え・並べ替えを一括反映)

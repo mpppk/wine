@@ -8,12 +8,33 @@ import { drizzle } from "drizzle-orm/d1";
 import * as authSchema from "#/db/auth-schema";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
+import { logError, logInfo, logWarn } from "#/lib/logger";
+
+// サブスク状態(status/periodEnd)の D1 同期は Stripe webhook(/api/auth/stripe/webhook)が
+// 唯一の経路。シークレット未設定だと全 webhook が署名検証で落ち続け、決済してもプレミアムが
+// 反映されない事故につながるため、起動パスで1度だけ警告する(#157)。|| "" のフォールバックは
+// サインアップを Stripe 設定に依存させない既存方針のため維持する。
+if (!env.STRIPE_WEBHOOK_SECRET) {
+	logWarn(
+		"STRIPE_WEBHOOK_SECRET is not set; Stripe webhooks will fail signature verification and subscription state will not sync",
+	);
+}
 
 export const auth = betterAuth({
 	database: drizzleAdapter(drizzle(env.DB), {
 		provider: "sqlite",
 		schema: authSchema,
 	}),
+	// better-auth 内部の warn/error を logger.ts の構造化1行JSONへ流し、Workers Logs で
+	// 他のアプリログと同じ形式で検索できるようにする(#157)。info/debug は多いため warn 以上のみ。
+	logger: {
+		level: "warn",
+		log: (level, message, ...args) => {
+			const fields = args.length > 0 ? { args } : {};
+			if (level === "error") logError(`better-auth: ${message}`, fields);
+			else logWarn(`better-auth: ${message}`, fields);
+		},
+	},
 	trustedOrigins: [
 		"http://localhost:3000",
 		"http://localhost:3001",
@@ -52,6 +73,31 @@ export const auth = betterAuth({
 			createCustomerOnSignUp: false,
 			subscription: {
 				enabled: true,
+				// webhook 経由のサブスク同期の受信・処理結果をアプリログに残す。決済完了→
+				// プレミアム反映、解約→D1反映といった課金イベントの成否を Workers Logs から
+				// userId(referenceId)・subscriptionId・status で追跡できるようにする(#157)。
+				onSubscriptionComplete: async ({ subscription, plan }) => {
+					logInfo("stripe subscription complete", {
+						userId: subscription.referenceId,
+						stripeSubscriptionId: subscription.stripeSubscriptionId,
+						status: subscription.status,
+						plan: plan.name,
+					});
+				},
+				onSubscriptionUpdate: async ({ subscription }) => {
+					logInfo("stripe subscription updated", {
+						userId: subscription.referenceId,
+						stripeSubscriptionId: subscription.stripeSubscriptionId,
+						status: subscription.status,
+					});
+				},
+				onSubscriptionCancel: async ({ subscription }) => {
+					logInfo("stripe subscription canceled", {
+						userId: subscription.referenceId,
+						stripeSubscriptionId: subscription.stripeSubscriptionId,
+						status: subscription.status,
+					});
+				},
 				plans: [
 					{
 						name: PREMIUM_PLAN_NAME,

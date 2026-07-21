@@ -5,6 +5,7 @@ import {
 	MAX_PHOTO_BYTES,
 	MAX_PHOTOS_PER_ENTRY,
 } from "#/lib/drunk-wine/photo";
+import { logError } from "#/lib/logger";
 import { analyzeWineLabel } from "#/lib/services/ai-service";
 
 // エチケット画像のAI解析(マイセラーの自動入力候補)。/api/wine-photos と同じ
@@ -90,8 +91,13 @@ export const Route = createFileRoute("/api/label-analysis")({
 						imageDataUrls,
 					});
 					return json(result);
-				} catch {
-					// 詳細はAIモデル都合のことが多く、ユーザに出しても行動できないため固定文言
+				} catch (e) {
+					// 詳細はAIモデル都合のことが多く、ユーザに出しても行動できないため固定文言。
+					// ただしサーバ側には文脈付きで記録し、MCP経路(tools.ts)と観測を揃える(#156)。
+					logError("label analysis failed", {
+						userId: session.user.id,
+						err: e,
+					});
 					return json({ error: "エチケットの解析に失敗しました" }, 500);
 				}
 			},

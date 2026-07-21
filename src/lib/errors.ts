@@ -35,3 +35,19 @@ export class BadRequestError extends HttpError {
 		this.name = "BadRequestError";
 	}
 }
+
+/** 対象リソースが存在しない(404)。 */
+export class NotFoundError extends HttpError {
+	constructor(message = "Not Found") {
+		super(404, message);
+		this.name = "NotFoundError";
+	}
+}
+
+/** 現在の状態と衝突して処理できない(409)。利用済みコード・多重実行など。 */
+export class ConflictError extends HttpError {
+	constructor(message = "Conflict") {
+		super(409, message);
+		this.name = "ConflictError";
+	}
+}
