@@ -14,9 +14,30 @@ import { getNextQuestions, recordAnswer, revertAnswer } from "#/server/quiz";
 
 const BATCH_SIZE = 5;
 const PREFETCH_THRESHOLD = 2;
+/** サーバ入力スキーマ(server/quiz.ts)の excludeKeys 上限。ここを超える分は載せられない */
+const EXCLUDE_KEYS_LIMIT = 50;
 /** サーバに渡す「直近解答済みキー」の上限。候補が少ない地域でも出題が
  * 枯渇しないよう、入力スキーマの上限(50)より十分小さくする */
 const RECENT_KEYS_LIMIT = 20;
+
+// queued を優先しつつ solved を詰めて重複除去し、上限件数でキャップする。
+// 補充が尽きたとき、セッション内正解済みキー(solved)をサーバの除外に載せて
+// 未正解を surface するために使う(未ログインはサーバが正解済みを除外できないため)。
+function capExcludeKeys(
+	queued: string[],
+	solved: string[],
+	limit: number,
+): string[] {
+	const out: string[] = [];
+	const seen = new Set<string>();
+	for (const key of [...queued, ...solved]) {
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(key);
+		if (out.length >= limit) break;
+	}
+	return out;
+}
 
 // done = スコープ内の問題を全問正解して終了。empty = 出題できる問題が元々0件。
 // error = 出題の取得に失敗し、表示できる問題が無い(再試行で復帰可能)。
@@ -95,11 +116,28 @@ export function useQuizSession(
 			if (fetchingRef.current || exhaustedRef.current) return;
 			fetchingRef.current = true;
 			try {
-				// 未消化キーで候補が尽きたら直近履歴を捨てて1回だけ再取得する。
+				// 未消化キーで候補が尽きたら除外条件を替えて再取得する。
 				// 未正解が数問だけ残るスコープ(例: 地図のAOP単位クイズ)では、
-				// 残りの問題が recentKeys に入って除外され続けるため、ここで
-				// 再取得しないと「問題を準備中…」のまま止まってしまう。
+				// 残りの問題が recentKeys に入って除外され続けたり、未ログイン時に
+				// 直近窓(20件)から外れた正解済みが再抽選され続けたりして、
+				// 補充しないと「問題を準備中…」のまま止まってしまう。
+				// - attempt 0: 直近履歴を除外し連続出題を避ける(効率優先)
+				// - attempt 1: セッション内正解済み(solvedKeysRef)を除外に載せ替え、
+				//   サーバに正解済みを除外させて未正解を surface する。誤答/スキップは
+				//   solvedKeysRef に入らないので drawable のまま残る
 				for (let attempt = 0; attempt < 2; attempt++) {
+					const excludeKeys =
+						attempt === 0
+							? capExcludeKeys(
+									queuedKeys,
+									recentKeysRef.current,
+									EXCLUDE_KEYS_LIMIT,
+								)
+							: capExcludeKeys(
+									queuedKeys,
+									[...solvedKeysRef.current],
+									EXCLUDE_KEYS_LIMIT,
+								);
 					const {
 						questions,
 						remaining: serverRemaining,
@@ -109,7 +147,7 @@ export function useQuizSession(
 							regionId,
 							quizTypes,
 							count: BATCH_SIZE,
-							excludeKeys: [...queuedKeys, ...recentKeysRef.current],
+							excludeKeys,
 							scopeAopId,
 							includeSolved,
 						},
@@ -132,13 +170,17 @@ export function useQuizSession(
 						});
 						return;
 					}
-					// 直近履歴が残っていれば捨てて再取得。無ければ未正解は残っておらず、
-					// 完了判定(remaining === 0)はプリフェッチ側の then で行う
-					if (recentKeysRef.current.length > 0) {
-						recentKeysRef.current = [];
-						continue;
-					}
-					return;
+				}
+				// 2回試しても未正解を1問も取得できなかった。remaining > 0(未正解が
+				// 残っているはず)なのに補充不能 = 正解済みが除外上限(50)を超える等の
+				// 稀なケース。恒久 loading を避け、キューが空ならエラー画面(再試行付き)へ
+				// 落とす。remaining === 0 のときは完了判定(done/empty)をプリフェッチ側の
+				// then に委ねるため、ここでは何もしない
+				if (remainingRef.current !== 0) {
+					setQueue((prev) => {
+						if (prev.length === 0) setPhase("error");
+						return prev;
+					});
 				}
 			} catch (error) {
 				console.error("failed to fetch quiz questions", error);

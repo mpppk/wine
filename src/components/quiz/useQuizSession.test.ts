@@ -15,6 +15,16 @@ vi.mock("@tanstack/react-router", () => ({
 
 const { useQuizSession } = await import("./useQuizSession");
 
+// テスト終了時、末尾の in-flight プリフェッチ(queue が閾値以下になり fetchMore が
+// 走る)がテスト後・環境破棄後に解決して React scheduler が window に触れるのを防ぐ。
+// unmount で以後の effect を止め、act 内で残りのマイクロ/マクロタスクを drain する。
+async function drainAndUnmount(unmount: () => void): Promise<void> {
+	await act(async () => {
+		unmount();
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	});
+}
+
 function makeQuestion(key: string): QuizQuestion {
 	return {
 		key,
@@ -103,5 +113,97 @@ describe("useQuizSession の取得失敗ハンドリング", () => {
 			await Promise.resolve();
 		});
 		await waitFor(() => expect(result.current.phase).toBe("error"));
+	});
+});
+
+// Issue #151: 取得は成功するが、返る問題が全てセッション内で正解済みのまま
+// (remaining > 0)でも、「問題を準備中…」の loading に恒久固着しないことを検証する。
+describe("useQuizSession のセッション内正解済み枯渇ハンドリング", () => {
+	beforeEach(() => {
+		getNextQuestions.mockReset();
+	});
+
+	it("補充が尽きたら solvedKeysRef を除外に載せ、未正解を surface して出題を継続する", async () => {
+		// 未ログインのサーバを模擬: セッション内の正解を知らないため、除外されて
+		// いない trap を再抽選し続ける。全 trap が除外された時だけ本当の未正解 U を返す。
+		// trap 数は queued + recent(RECENT_KEYS_LIMIT=20)で決して全除外できない数に
+		// する。こうすると修正前(attempt1 で recent を捨て除外を減らす)は全 trap を
+		// 除外できず未正解 U を surface できないまま loading に固着する。修正後は
+		// attempt1 が solved(最大50)を除外に載せるので全 trap を除外でき U が出る。
+		const TRAP = Array.from({ length: 40 }, (_, i) => `t${i}`);
+		const U = "final-unsolved";
+		getNextQuestions.mockImplementation(
+			async (arg: { data: { excludeKeys?: string[] } }) => {
+				const exclude = new Set(arg.data.excludeKeys ?? []);
+				const availableTraps = TRAP.filter((k) => !exclude.has(k));
+				const picked =
+					availableTraps.length > 0
+						? availableTraps.slice(0, 5).map(makeQuestion)
+						: [makeQuestion(U)];
+				// 未ログインではサーバの remaining は正解で減らない(全候補数を返す)
+				return {
+					questions: picked,
+					remaining: TRAP.length + 1,
+					total: TRAP.length + 1,
+				};
+			},
+		);
+
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], false),
+		);
+
+		// trap を順次正解していくと solvedKeysRef が直近窓を超えて溜まる。
+		// 修正により最終的に未正解 U が surface される(loading 固着しない)。
+		let reachedU = false;
+		for (let i = 0; i < 80; i++) {
+			await waitFor(() => expect(result.current.phase).toBe("answering"));
+			if (result.current.current?.key === U) {
+				reachedU = true;
+				break;
+			}
+			act(() => result.current.answer("a"));
+			await waitFor(() => expect(result.current.phase).toBe("feedback"));
+			act(() => result.current.next());
+		}
+
+		expect(reachedU).toBe(true);
+		expect(result.current.phase).toBe("answering");
+		expect(result.current.current?.key).toBe(U);
+		await drainAndUnmount(unmount);
+	});
+
+	it("solved 除外でも正解済みしか返らない場合は loading に固着せず error へ落ち、retry で復帰する", async () => {
+		// 除外に関わらず正解済みキーだけを返し続けるサーバ(正解済みが除外上限50を
+		// 超える等で除外しきれない稀ケースの模擬)。remaining > 0 のまま補充できない。
+		getNextQuestions.mockImplementation(async () => ({
+			questions: [makeQuestion("solved-1")],
+			remaining: 2,
+			total: 2,
+		}));
+
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], false),
+		);
+
+		// 初回の1問が出る
+		await waitFor(() => expect(result.current.current?.key).toBe("solved-1"));
+		// 正解して solvedKeysRef に積む → キュー枯渇後の補充は正解済みしか返らない
+		act(() => result.current.answer("a"));
+		await waitFor(() => expect(result.current.phase).toBe("feedback"));
+		act(() => result.current.next());
+		// 恒久 loading ではなく error(再試行可能)へ遷移する
+		await waitFor(() => expect(result.current.phase).toBe("error"));
+
+		// retry で未正解が取れれば出題へ復帰する
+		getNextQuestions.mockImplementation(async () => ({
+			questions: [makeQuestion("fresh-1")],
+			remaining: 1,
+			total: 2,
+		}));
+		act(() => result.current.retry());
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+		expect(result.current.current?.key).toBe("fresh-1");
+		await drainAndUnmount(unmount);
 	});
 });
