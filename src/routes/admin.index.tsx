@@ -121,6 +121,9 @@ function AdminUsersPage() {
 				<span className="text-sm text-muted-foreground">
 					{result.total.toLocaleString("ja-JP")}件
 				</span>
+				<Button asChild variant="outline" size="sm" className="ml-auto">
+					<Link to="/admin/bulk-credit">一括クレジット補填</Link>
+				</Button>
 			</div>
 
 			<form

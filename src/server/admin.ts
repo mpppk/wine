@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import {
+	ADMIN_BULK_GRANT_MAX_USERS,
+	ADMIN_INCIDENT_ID_MAX,
+	ADMIN_INCIDENT_ID_PATTERN,
+} from "#/lib/admin/bulk-credit";
+import {
 	ADMIN_CREDIT_GRANT_MAX,
 	ADMIN_CREDIT_GRANT_MIN,
 	ADMIN_GRANT_REASON_MAX,
@@ -207,4 +212,73 @@ export const adminRevokeMcp = createServerFn({ method: "POST" })
 			},
 		});
 		return res;
+	});
+
+// ── #116: 一括クレジット補填 ─────────────────────────────────────────────────
+
+const dateRange = z.object({
+	fromMs: z.number().int(),
+	toMs: z.number().int(),
+});
+
+/** 一括補填の対象(指定期間内に consume があるユーザ)数をプレビューする。管理者限定。 */
+export const adminBulkGrantPreview = createServerFn({ method: "GET" })
+	.middleware([adminMiddleware])
+	.inputValidator(dateRange)
+	.handler(async ({ data }) => {
+		const res = await adminService.findConsumersInRange(
+			new Date(data.fromMs),
+			new Date(data.toMs),
+			ADMIN_BULK_GRANT_MAX_USERS,
+		);
+		return {
+			affected: res.total,
+			capped: res.capped,
+			maxUsers: ADMIN_BULK_GRANT_MAX_USERS,
+		};
+	});
+
+/**
+ * 指定期間内に consume があるユーザへ一括でクレジットを付与する(#116)。理由必須。管理者限定。
+ * 冪等キーに incidentId を用いるため、同一インシデントの再実行では二重付与しない。
+ * 対象が上限を超える場合は拒否し、期間を絞ってもらう。
+ */
+export const adminBulkGrantCredits = createServerFn({ method: "POST" })
+	.middleware([adminMiddleware])
+	.inputValidator(
+		z.object({
+			incidentId: z
+				.string()
+				.trim()
+				.min(1)
+				.max(ADMIN_INCIDENT_ID_MAX)
+				.regex(ADMIN_INCIDENT_ID_PATTERN),
+			fromMs: z.number().int(),
+			toMs: z.number().int(),
+			amount: z
+				.number()
+				.int()
+				.min(ADMIN_CREDIT_GRANT_MIN)
+				.max(ADMIN_CREDIT_GRANT_MAX),
+			reason: z.string().trim().min(1).max(ADMIN_GRANT_REASON_MAX),
+		}),
+	)
+	.handler(async ({ data, context }) => {
+		const found = await adminService.findConsumersInRange(
+			new Date(data.fromMs),
+			new Date(data.toMs),
+			ADMIN_BULK_GRANT_MAX_USERS,
+		);
+		if (found.capped) {
+			throw new Error(
+				`対象が多すぎます(${found.total}人)。上限 ${ADMIN_BULK_GRANT_MAX_USERS} 人以内になるよう期間を絞ってください。`,
+			);
+		}
+		return adminActions.bulkGrantCredits({
+			actorUserId: context.user.id,
+			incidentId: data.incidentId,
+			userIds: found.userIds,
+			amount: data.amount,
+			reason: data.reason,
+		});
 	});
