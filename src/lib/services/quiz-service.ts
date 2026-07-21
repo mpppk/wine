@@ -368,7 +368,7 @@ export async function getProgress(
 	const regions = listRegions()
 		.filter((r) => r.enabled)
 		.map((region) => {
-			const counts = candidateCountsByType(region.id as RegionId);
+			const counts = candidateCountsByType(region.id);
 			const quizTypes = (Object.entries(counts) as [QuizType, number][]).map(
 				([quizType, candidateCount]) => {
 					const row = byRegionAndType.get(`${region.id}:${quizType}`);
@@ -383,7 +383,7 @@ export async function getProgress(
 					};
 				},
 			);
-			return { regionId: region.id as RegionId, quizTypes };
+			return { regionId: region.id, quizTypes };
 		});
 	return { regions };
 }

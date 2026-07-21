@@ -66,7 +66,7 @@ import {
 	getAppellationTermJa,
 	getVineyardTermJa,
 } from "#/lib/wine/terminology";
-import type { Aop, AopKind, RegionId } from "#/lib/wine/types";
+import type { Aop, AopKind } from "#/lib/wine/types";
 import { getAffiliateConfig } from "#/server/affiliate";
 import { getSession } from "#/server/auth";
 import { getAopProgress } from "#/server/quiz";
@@ -105,7 +105,7 @@ export const Route = createFileRoute("/map/$regionId")({
 		// 未ログインでも取得できる(solved=0)。行の分母表示・ログイン促しに使う。
 		const [affiliate, aopProgress] = await Promise.all([
 			getAffiliateConfig(),
-			getAopProgress({ data: { regionId: region.id as RegionId } }),
+			getAopProgress({ data: { regionId: region.id } }),
 		]);
 		return {
 			region,
@@ -230,10 +230,7 @@ function MapPage() {
 		[selectedAop, aops, region],
 	);
 	const selectedAopQuizCount = useMemo(
-		() =>
-			selectedAop
-				? countScopedQuestions(region.id as RegionId, selectedAop.id)
-				: 0,
+		() => (selectedAop ? countScopedQuestions(region.id, selectedAop.id) : 0),
 		[selectedAop, region.id],
 	);
 	const startAopQuiz = selectedAop
@@ -696,7 +693,7 @@ function MapPage() {
 				onOpenChange={(open) => {
 					if (!open) setQuizScope(null);
 				}}
-				regionId={region.id as RegionId}
+				regionId={region.id}
 				regionNameJa={region.nameJa}
 				scopeAop={
 					quizScope?.kind === "aop"

@@ -21,16 +21,24 @@ export type WineColor = "red" | "white" | "rose" | "sparkling" | "sweet-white";
  */
 export type AopKind = "regional" | "village" | "vineyard" | "winery";
 
-export type RegionId =
-	| "bourgogne"
-	| "beaujolais"
-	| "champagne"
-	| "bordeaux"
-	| "piemonte"
-	| "toscana"
-	| "alsace"
-	| "loire"
-	| "rhone";
+/**
+ * 対応地域IDの単一の情報源(SSOT)。RegionId 型・入力検証の z.enum・
+ * REGIONS の id 型・REGION_IDS はすべてこの配列から導出する。地域を追加する
+ * 場合はここに1行足すだけでよく、型・検証・出題対象が自動で同期する。
+ */
+export const REGION_ID_LIST = [
+	"bourgogne",
+	"beaujolais",
+	"champagne",
+	"bordeaux",
+	"piemonte",
+	"toscana",
+	"alsace",
+	"loire",
+	"rhone",
+] as const;
+
+export type RegionId = (typeof REGION_ID_LIST)[number];
 
 export interface GrapeVariety {
 	id: string;
@@ -137,7 +145,7 @@ export interface Subregion {
 }
 
 export interface Region {
-	id: string;
+	id: RegionId;
 	nameJa: string;
 	nameLocal: string;
 	country: string;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDescriptionSegments } from "./description-links";
-import type { Aop, Region } from "./types";
+import type { Aop, Region, RegionId } from "./types";
 
 function aop(partial: Partial<Aop> & Pick<Aop, "id" | "kind">): Aop {
 	return {
@@ -19,7 +19,7 @@ function aop(partial: Partial<Aop> & Pick<Aop, "id" | "kind">): Aop {
 	};
 }
 
-function region(id: string, nameJa: string, enabled = true): Region {
+function region(id: RegionId, nameJa: string, enabled = true): Region {
 	return {
 		id,
 		nameJa,

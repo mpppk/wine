@@ -23,7 +23,7 @@ export const Route = createFileRoute("/quiz/")({
 		return {
 			regions,
 			countsByRegion: Object.fromEntries(
-				regions.map((r) => [r.id, candidateCountsByType(r.id as RegionId)]),
+				regions.map((r) => [r.id, candidateCountsByType(r.id)]),
 			),
 		};
 	},
@@ -87,7 +87,7 @@ function QuizSetupPage() {
 					<button
 						key={region.id}
 						type="button"
-						onClick={() => selectRegion(region.id as RegionId)}
+						onClick={() => selectRegion(region.id)}
 						className={cn(
 							"rounded-xl border p-4 text-left transition-colors",
 							region.id === regionId
