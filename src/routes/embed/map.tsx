@@ -28,6 +28,12 @@ const searchSchema = z.object({
 // セッションCookieが送られない環境が多い)。
 export const Route = createFileRoute("/embed/map")({
 	validateSearch: searchSchema,
+	// このビューは MCP Apps ホスト(Claude 等)のサードパーティ iframe に埋め込まれる
+	// 前提なので、ルート既定の frame-ancestors 'none' を上書きして埋め込みを許可する。
+	// 公開データのみを表示する読み取り専用ビューのため任意オリジンからの埋め込みを許す。
+	headers: () => ({
+		"Content-Security-Policy": "frame-ancestors *",
+	}),
 	loaderDeps: ({ search }) => ({ region: search.region }),
 	loader: async ({ deps }) => {
 		const affiliate = await getAffiliateConfig();

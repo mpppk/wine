@@ -16,7 +16,7 @@ import {
 	SparklesIcon,
 	SproutIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { z } from "zod";
 import { RegionChatDialog } from "#/components/ai/RegionChatDialog";
 import { MapQuizDialog } from "#/components/quiz/MapQuizDialog";
@@ -125,6 +125,33 @@ function parseHide(
 ): Set<string> {
 	if (!hide) return new Set();
 	return new Set(hide.split(",").filter((t) => validTokens.has(t)));
+}
+
+// 選択中AOPの詳細パネル + リスト表示時の「地図で表示」ボタン。デスクトップの
+// 右サイドバーとモバイルの下部オーバーレイで同一の描画をするため、両者の重複
+// (AopDetailPanel への十数個の props 受け渡し + ボタン)を1箇所に集約する。
+// onClose はデスクトップのみ渡す(モバイルはシート側のハンドルで閉じる)。
+function SelectedAopPanel({
+	isListView,
+	onShowMap,
+	...panelProps
+}: ComponentProps<typeof AopDetailPanel> & {
+	isListView: boolean;
+	onShowMap: () => void;
+}) {
+	return (
+		<>
+			<AopDetailPanel {...panelProps} />
+			{isListView && (
+				<div className="px-4 pb-4">
+					<Button type="button" variant="outline" size="sm" onClick={onShowMap}>
+						<MapIcon className="size-4" aria-hidden />
+						地図で表示
+					</Button>
+				</div>
+			)}
+		</>
+	);
 }
 
 function MapPage() {
@@ -608,39 +635,26 @@ function MapPage() {
 				{(selectedAop || !isListView) && (
 					<aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border lg:block">
 						{selectedAop ? (
-							<>
-								<AopDetailPanel
-									aop={selectedAop}
-									ancestry={selectedAncestry}
-									onSelectAop={navigateRelated}
-									onPrev={goPrev}
-									onNext={goNext}
-									position={siblings}
-									onClose={() => selectFresh(undefined)}
-									quizQuestionCount={selectedAopQuizCount}
-									onStartQuiz={startAopQuiz}
-									affiliate={affiliate}
-									aops={aops}
-									regions={REGIONS}
-									onSelectRegion={selectRegion}
-									onBack={goBack}
-									backToName={backToName}
-									referenceLinksSlot={referenceLinksSlot}
-								/>
-								{isListView && (
-									<div className="px-4 pb-4">
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											onClick={() => setSearch({ view: undefined })}
-										>
-											<MapIcon className="size-4" aria-hidden />
-											地図で表示
-										</Button>
-									</div>
-								)}
-							</>
+							<SelectedAopPanel
+								aop={selectedAop}
+								ancestry={selectedAncestry}
+								onSelectAop={navigateRelated}
+								onPrev={goPrev}
+								onNext={goNext}
+								position={siblings}
+								onClose={() => selectFresh(undefined)}
+								quizQuestionCount={selectedAopQuizCount}
+								onStartQuiz={startAopQuiz}
+								affiliate={affiliate}
+								aops={aops}
+								regions={REGIONS}
+								onSelectRegion={selectRegion}
+								onBack={goBack}
+								backToName={backToName}
+								referenceLinksSlot={referenceLinksSlot}
+								isListView={isListView}
+								onShowMap={() => setSearch({ view: undefined })}
+							/>
 						) : (
 							treeList
 						)}
@@ -654,7 +668,7 @@ function MapPage() {
 						onDismiss={() => selectFresh(undefined)}
 						className="absolute inset-x-2 bottom-2 lg:hidden"
 					>
-						<AopDetailPanel
+						<SelectedAopPanel
 							aop={selectedAop}
 							ancestry={selectedAncestry}
 							onSelectAop={navigateRelated}
@@ -670,20 +684,9 @@ function MapPage() {
 							onBack={goBack}
 							backToName={backToName}
 							referenceLinksSlot={referenceLinksSlot}
+							isListView={isListView}
+							onShowMap={() => setSearch({ view: undefined })}
 						/>
-						{isListView && (
-							<div className="px-4 pb-4">
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => setSearch({ view: undefined })}
-								>
-									<MapIcon className="size-4" aria-hidden />
-									地図で表示
-								</Button>
-							</div>
-						)}
 					</MobileDetailSheet>
 				)}
 			</div>

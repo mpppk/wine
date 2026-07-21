@@ -38,6 +38,40 @@ Workers Builds の build / deploy command はダッシュボード（Settings > 
 - マイグレーションは冪等（適用済みの連番 SQL はスキップ）なので、プレビュー共通 DB に複数トリガーから
   適用されても問題ない。
 
+### プレビューDBのリセット
+
+プレビュー共通 DB（`wine-preview-db`）は全 PR で共有されるため、次のような場合に本番と履歴が
+乖離して壊れることがある（Issue #54）。
+
+- クローズした PR のマイグレーションがロールバックされず残留し、後で `main` に別名・同番号の
+  マイグレーションがマージされた。
+- スキーマ変更 PR を同時に複数オープンし、同じ連番の別ファイルが両方適用されて相反した
+  （`d1 migrations apply` は適用済みを**ファイル名**で記録するため、以後 apply が失敗し続ける）。
+- あるブランチの破壊的変更（`DROP TABLE`/`DROP COLUMN` 等）が共有 DB に当たり、それを知らない
+  他ブランチのプレビューが実行時エラーになった。
+
+これは本番（`wine-db`）には影響しない。プレビューだけが壊れるので、プレビュー DB を
+本番と同じスキーマ履歴で作り直す。
+
+```bash
+# 1) 適用状況を確認（何が食い違っているか把握する）
+npx wrangler d1 migrations list DB --remote --env preview
+
+# 2) プレビュー DB の全テーブルを削除して初期化する。ダッシュボードの D1 (`wine-preview-db`) で
+#    "Reset database" を使うか、以下のように内部テーブルも含めて drop する SQL を流す。
+#    （プレビュー共通データは検証用なので消えて問題ない）
+npx wrangler d1 execute DB --remote --env preview --command \
+  "SELECT 'DROP TABLE IF EXISTS \"' || name || '\";' FROM sqlite_master WHERE type='table';"
+#    出力された DROP 文を実行し、d1_migrations テーブルも含めて全削除する。
+
+# 3) main 相当の連番 SQL をゼロから適用し直す（本番と同じ履歴に揃える）
+git checkout main -- drizzle/
+npx wrangler d1 migrations apply DB --remote --env preview
+```
+
+恒久策としては「スキーマ変更 PR を1本ずつマージする」運用を守る（CLAUDE.md 参照）。それでも
+残留が問題になるなら、スキーマ変更 PR だけブランチ専用 D1 を割り当てる仕組みを別途検討する。
+
 ## 設定の確認・変更（Workers Builds API）
 
 ダッシュボード UI のほか、[Workers Builds API](https://developers.cloudflare.com/workers/ci-cd/builds/api-reference/)

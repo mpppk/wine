@@ -79,6 +79,18 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 		],
 	}),
+	// 全SSRページ共通のセキュリティレスポンスヘッダ(多層防御)。
+	// - frame-ancestors 'none': 第三者サイトの iframe への埋め込みを禁止し、
+	//   /oauth/consent(認可の Allow ボタン)等でのクリックジャッキングを防ぐ。
+	//   X-Frame-Options より新しく、埋め込みを許可したい /embed/map では
+	//   ルート単位で上書きできる(下位マッチのヘッダが後勝ちで優先される)。
+	// - nosniff: HTML応答の MIME スニッフィングを抑止する。
+	// - Referrer-Policy: クロスオリジン遷移時に参照元パスを送らない。
+	headers: () => ({
+		"Content-Security-Policy": "frame-ancestors 'none'",
+		"X-Content-Type-Options": "nosniff",
+		"Referrer-Policy": "strict-origin-when-cross-origin",
+	}),
 	shellComponent: RootDocument,
 });
 

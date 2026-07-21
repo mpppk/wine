@@ -19,6 +19,7 @@
 * `drizzle-kit`（`db:generate` / `db:push` / `db:pull`）は使わない。追跡対象が `auth-schema.ts` を含まず、本番D1に対して破壊的な差分（`user`/`session`/`oauth_*` の DROP 等）を提案しうるため、依存ごと削除済み（Issue #23）。
 * **破壊的なスキーマ変更（カラム/テーブルの削除・リネーム、NOT NULL 追加等）は expand-and-contract で2段階に分ける**（Issue #24）。deploy command はビルド成功後・デプロイ直前に `db:migrate:remote` を実行するため、適用〜新Worker反映までの短時間は「新スキーマ×旧コード」で動く。旧コードが参照する列を同一デプロイで削除すると、その window で実行時エラーになる。まず参照コードを外すデプロイを出し、次のPRで列/テーブルを削除する。
 * マイグレーションはデプロイ時に自動適用される。Cloudflare Workers Builds の各トリガーの deploy command が、ビルド成功後・デプロイ直前に `db:migrate:remote`（本番 `wine`）/ `db:migrate:preview`（プレビュー `wine-preview`）を実行するため、デプロイ前に手動で叩く必要はない。構成の詳細・確認/変更手順は `docs/deployment.md` を参照。
+* **スキーマ変更を含むPRは同時に複数オープンしない**（Issue #54）。全プレビュー環境は共通D1（`wine-preview-db`）を共有し、`db:migrate:preview` は適用済みを**ファイル名**で記録する。ブランチAが `0006_foo.sql` を適用済みのところにブランチB（同番号別名の `0006_bar.sql` を持ち foo を知らない）がビルドされると bar も追加適用され、相反する変更なら以後**全ブランチ**の apply が失敗し続ける。マイグレーションは必ず冪等（`IF NOT EXISTS`/`IF EXISTS`）に書き、スキーマ変更PRは1本ずつマージしてから次を出す。共有プレビューDBがブランチ固有の残留や破壊的変更で壊れた場合の作り直し手順は `docs/deployment.md` の「プレビューDBのリセット」を参照。
 
 ## PRの作成
 

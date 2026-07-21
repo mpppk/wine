@@ -25,6 +25,7 @@ import {
 	type RegionContextInput,
 	stripReasoning,
 } from "#/lib/ai/region-qa";
+import { BadRequestError } from "#/lib/errors";
 import * as creditService from "#/lib/services/credit-service";
 import * as userService from "#/lib/services/user-service";
 import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
@@ -71,8 +72,9 @@ export type AskRegionResult =
 /** region/aop の静的データからグラウンディング材料を組み立てる。 */
 function buildContext(regionId: string, aopId?: string): RegionContextInput {
 	const region = getRegion(regionId);
-	if (!region) throw new Error(`Unknown region: ${regionId}`);
-	if (!region.enabled) throw new Error(`Region not yet available: ${regionId}`);
+	if (!region) throw new BadRequestError(`Unknown region: ${regionId}`);
+	if (!region.enabled)
+		throw new BadRequestError(`Region not yet available: ${regionId}`);
 
 	const aopNames = listAops({ regionId }).map((a) => a.shortName);
 
@@ -199,7 +201,7 @@ export async function analyzeWineLabel(
 	input: AnalyzeLabelInput,
 ): Promise<AnalyzeLabelResult> {
 	if (input.imageDataUrls.length === 0) {
-		throw new Error("画像が指定されていません");
+		throw new BadRequestError("画像が指定されていません");
 	}
 	const estimate = estimateLabelReserveTokens(input.imageDataUrls.length);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
