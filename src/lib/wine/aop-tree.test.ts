@@ -209,34 +209,32 @@ describe("buildAopTree", () => {
 		expect(tree[0]!.villages.map((v) => v.village.id)).toEqual(["village-1"]);
 	});
 
-	it.each([
-		"bourgogne",
-		"champagne",
-		"bordeaux",
-		"piemonte",
-	])("実データ: %s の全AOPがツリーのどこかに1回以上現れる", (regionId) => {
-		const region = getRegion(regionId);
-		if (!region) throw new Error(`${regionId} not found`);
-		const aops = listAops({ regionId: region.id });
-		const tree = buildAopTree(aops, region.subregions);
-		const seen = new Set<string>();
-		for (const section of tree) {
-			for (const a of section.regionalAops) seen.add(a.id);
-			for (const v of section.villages) {
-				seen.add(v.village.id);
-				for (const vy of v.vineyards) {
-					seen.add(vy.vineyard.id);
-					for (const c of vy.climats) seen.add(c.id);
+	it.each(["bourgogne", "champagne", "bordeaux", "piemonte"])(
+		"実データ: %s の全AOPがツリーのどこかに1回以上現れる",
+		(regionId) => {
+			const region = getRegion(regionId);
+			if (!region) throw new Error(`${regionId} not found`);
+			const aops = listAops({ regionId: region.id });
+			const tree = buildAopTree(aops, region.subregions);
+			const seen = new Set<string>();
+			for (const section of tree) {
+				for (const a of section.regionalAops) seen.add(a.id);
+				for (const v of section.villages) {
+					seen.add(v.village.id);
+					for (const vy of v.vineyards) {
+						seen.add(vy.vineyard.id);
+						for (const c of vy.climats) seen.add(c.id);
+					}
+					for (const w of v.wineries) seen.add(w.id);
 				}
-				for (const w of v.wineries) seen.add(w.id);
+				for (const a of section.unassignedVineyards) seen.add(a.id);
+				for (const a of section.unassignedWineries) seen.add(a.id);
 			}
-			for (const a of section.unassignedVineyards) seen.add(a.id);
-			for (const a of section.unassignedWineries) seen.add(a.id);
-		}
-		for (const a of aops) {
-			expect(seen.has(a.id), a.id).toBe(true);
-		}
-	});
+			for (const a of aops) {
+				expect(seen.has(a.id), a.id).toBe(true);
+			}
+		},
+	);
 
 	it("実データ: モンラシェはピュリニーとシャサーニュの両方に現れる", () => {
 		const region = getRegion("bourgogne");

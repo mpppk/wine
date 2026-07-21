@@ -38,7 +38,7 @@ bun --bun run test
 
 ## Setting up Cloudflare D1
 
-This app uses Cloudflare D1 (the `DB` binding in `wrangler.jsonc`) to persist Better Auth data (users / sessions / OAuth clients).
+This app uses Cloudflare D1 (the `DB` binding in `wrangler.jsonc`) to persist Better Auth data (users / sessions / OAuth clients) and the app's own domain data (learning progress, cellar records, credit ledger, etc.).
 
 Create the D1 database:
 
@@ -52,22 +52,17 @@ Copy the generated `database_id` into `wrangler.jsonc`, replacing `00000000-0000
 bun run cf-typegen
 ```
 
-For Drizzle Kit remote operations, set these values in `.env.local`:
+### Migrations
+
+Migrations are **hand-written sequential SQL** files under `drizzle/` (`0000_*.sql`, `0001_*.sql`, …). Drizzle ORM (`src/db/schema.ts` / `src/db/auth-schema.ts`) is the runtime query layer only — schema changes are authored by hand as the next numbered SQL file and applied with `wrangler d1 migrations apply`. `drizzle-kit` (`db:generate` / `db:push` / `db:pull`) is intentionally **not** used, since its tracking state does not include the Better Auth tables and could propose destructive diffs against the production DB. See `CLAUDE.md` for the schema-change workflow.
+
+Apply migrations to the local D1 (run once initially and after every schema change, before `bun run dev`):
 
 ```bash
-CLOUDFLARE_ACCOUNT_ID=your-account-id
-CLOUDFLARE_DATABASE_ID=your-d1-database-id
-CLOUDFLARE_D1_TOKEN=your-api-token
-```
-
-Generate and apply local D1 migrations:
-
-```bash
-bun run db:generate
 bun run db:migrate:local
 ```
 
-Apply migrations to the remote D1 database after the real `database_id` is configured:
+Migrations are applied to the remote databases automatically on deploy — Cloudflare Workers Builds runs `db:migrate:remote` / `db:migrate:preview` after a successful build (see `docs/deployment.md`). To apply them manually against the production D1:
 
 ```bash
 bun run db:migrate:remote

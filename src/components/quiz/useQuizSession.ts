@@ -19,7 +19,14 @@ const PREFETCH_THRESHOLD = 2;
 const RECENT_KEYS_LIMIT = 20;
 
 // done = スコープ内の問題を全問正解して終了。empty = 出題できる問題が元々0件。
-export type QuizPhase = "loading" | "answering" | "feedback" | "empty" | "done";
+// error = 出題の取得に失敗し、表示できる問題が無い(再試行で復帰可能)。
+export type QuizPhase =
+	| "loading"
+	| "answering"
+	| "feedback"
+	| "empty"
+	| "done"
+	| "error";
 
 export interface QuizTally {
 	answered: number;
@@ -40,6 +47,8 @@ export function useQuizSession(
 	const router = useRouter();
 	const [queue, setQueue] = useState<QuizQuestion[]>([]);
 	const [phase, setPhase] = useState<QuizPhase>("loading");
+	// 取得失敗時の再試行トリガー。インクリメントで初回ロード/プリフェッチの effect を再実行する
+	const [retryNonce, setRetryNonce] = useState(0);
 	const [selectedOptionId, setSelectedOptionId] = useState<string>();
 	const [tally, setTally] = useState<QuizTally>({ answered: 0, correct: 0 });
 	// まだ正解していない問題数。初回fetchのサーバ値でシードし、以後は正解/取り消しで
@@ -133,6 +142,15 @@ export function useQuizSession(
 				}
 			} catch (error) {
 				console.error("failed to fetch quiz questions", error);
+				// 表示できる問題が無い(キューが空)ときだけエラー画面へ遷移する。捕捉時点の
+				// live な queue で判定する — 起動時に捕捉した queuedKeys では、プリフェッチ中に
+				// キューが尽きてから失敗したケース(その間の fetchMore([]) は fetchingRef で
+				// 弾かれ再取得されない)を検知できず、loading で固まってしまう。出題中の背景
+				// プリフェッチ失敗(現在の問題がキューに残る)は握りつぶし、次回に再試行させる。
+				setQueue((prev) => {
+					if (prev.length === 0) setPhase("error");
+					return prev;
+				});
 			} finally {
 				fetchingRef.current = false;
 			}
@@ -140,7 +158,9 @@ export function useQuizSession(
 		[regionId, quizTypes, scopeAopId, includeSolved, applyRemaining],
 	);
 
-	// 初回ロードとプリフェッチ
+	// 初回ロードとプリフェッチ。
+	// retryNonce はエラー後の再試行トリガー(effect 内では読まないが、変化で再実行させる)。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: retryNonce is an intentional re-run trigger, not read inside the effect
 	useEffect(() => {
 		if (queue.length <= PREFETCH_THRESHOLD) {
 			void fetchMore(queue.map((q) => q.key)).then(() => {
@@ -160,7 +180,7 @@ export function useQuizSession(
 				});
 			});
 		}
-	}, [queue, fetchMore]);
+	}, [queue, fetchMore, retryNonce]);
 
 	// キューに問題が届いたら出題フェーズへ
 	useEffect(() => {
@@ -278,6 +298,13 @@ export function useQuizSession(
 		advance();
 	}, [phase, advance]);
 
+	// 取得失敗(error)からの再試行。loading に戻し、初回ロード/プリフェッチの effect を再実行する
+	const retry = useCallback(() => {
+		if (fetchingRef.current) return;
+		setPhase("loading");
+		setRetryNonce((n) => n + 1);
+	}, []);
+
 	// 回答せず今の問題を飛ばす。記録もタリーも増やさず、直後の再出題だけ避ける
 	const skip = useCallback(() => {
 		if (phase !== "answering" || !current) return;
@@ -298,5 +325,6 @@ export function useQuizSession(
 		reset,
 		skip,
 		next,
+		retry,
 	};
 }

@@ -251,114 +251,116 @@ describe("トスカーナ(イタリア)の整合性", () => {
 describe("境界GeoJSON(<region>-boundaries.geojson)の整合性", () => {
 	const enabledRegions = REGIONS.filter((r) => r.enabled);
 
-	it.each(
-		enabledRegions.map((r) => [r.id, r] as const),
-	)("%s: 境界GeoJSONが存在し地方1つ+有効な地区で構成される", (_id, region) => {
-		const boundariesPath = path.join(
-			process.cwd(),
-			"public",
-			region.boundariesPath ?? "",
-		);
-		expect(fs.existsSync(boundariesPath), boundariesPath).toBe(true);
+	it.each(enabledRegions.map((r) => [r.id, r] as const))(
+		"%s: 境界GeoJSONが存在し地方1つ+有効な地区で構成される",
+		(_id, region) => {
+			const boundariesPath = path.join(
+				process.cwd(),
+				"public",
+				region.boundariesPath ?? "",
+			);
+			expect(fs.existsSync(boundariesPath), boundariesPath).toBe(true);
 
-		const geojson = JSON.parse(fs.readFileSync(boundariesPath, "utf8")) as {
-			features: {
-				geometry: { type: string };
-				properties: {
-					level: string;
-					regionId?: string;
-					subregionId?: string;
-					nameJa: string;
-				};
-			}[];
-		};
+			const geojson = JSON.parse(fs.readFileSync(boundariesPath, "utf8")) as {
+				features: {
+					geometry: { type: string };
+					properties: {
+						level: string;
+						regionId?: string;
+						subregionId?: string;
+						nameJa: string;
+					};
+				}[];
+			};
 
-		// 地方(level=region)はちょうど1つで、regionId が一致する
-		const regionFeatures = geojson.features.filter(
-			(f) => f.properties.level === "region",
-		);
-		expect(regionFeatures.length).toBe(1);
-		expect(regionFeatures[0]?.properties.regionId).toBe(region.id);
+			// 地方(level=region)はちょうど1つで、regionId が一致する
+			const regionFeatures = geojson.features.filter(
+				(f) => f.properties.level === "region",
+			);
+			expect(regionFeatures.length).toBe(1);
+			expect(regionFeatures[0]?.properties.regionId).toBe(region.id);
 
-		// 地区(level=subregion)は地域マスタの地理的地区(`*-regional` 以外)の
-		// サブセット。収録AOPが無い地区(cote-de-sezanne 等)は欠けてよい
-		const geographicIds = new Set(
-			region.subregions
-				.filter((s) => !s.id.endsWith("-regional"))
-				.map((s) => s.id),
-		);
-		const subregionFeatures = geojson.features.filter(
-			(f) => f.properties.level === "subregion",
-		);
-		const seen = new Set<string>();
-		for (const f of subregionFeatures) {
-			const id = f.properties.subregionId ?? "";
-			expect(geographicIds.has(id), `${region.id}: ${id}`).toBe(true);
-			expect(seen.has(id), `${region.id}: duplicate ${id}`).toBe(false);
-			seen.add(id);
-		}
-		expect(geojson.features.length).toBe(1 + subregionFeatures.length);
+			// 地区(level=subregion)は地域マスタの地理的地区(`*-regional` 以外)の
+			// サブセット。収録AOPが無い地区(cote-de-sezanne 等)は欠けてよい
+			const geographicIds = new Set(
+				region.subregions
+					.filter((s) => !s.id.endsWith("-regional"))
+					.map((s) => s.id),
+			);
+			const subregionFeatures = geojson.features.filter(
+				(f) => f.properties.level === "subregion",
+			);
+			const seen = new Set<string>();
+			for (const f of subregionFeatures) {
+				const id = f.properties.subregionId ?? "";
+				expect(geographicIds.has(id), `${region.id}: ${id}`).toBe(true);
+				expect(seen.has(id), `${region.id}: duplicate ${id}`).toBe(false);
+				seen.add(id);
+			}
+			expect(geojson.features.length).toBe(1 + subregionFeatures.length);
 
-		// 全フィーチャが面で nameJa を持つ
-		for (const f of geojson.features) {
-			expect(["Polygon", "MultiPolygon"]).toContain(f.geometry.type);
-			expect(f.properties.nameJa.length).toBeGreaterThan(0);
-		}
-	});
+			// 全フィーチャが面で nameJa を持つ
+			for (const f of geojson.features) {
+				expect(["Polygon", "MultiPolygon"]).toContain(f.geometry.type);
+				expect(f.properties.nameJa.length).toBeGreaterThan(0);
+			}
+		},
+	);
 });
 
 describe("GeoJSONとの整合性", () => {
 	const enabledRegions = REGIONS.filter((r) => r.enabled);
 
-	it.each(
-		enabledRegions.map((r) => [r.id, r] as const),
-	)("%s: GeoJSONが存在しメタデータと1:1で結合できる", (_id, region) => {
-		const geojsonPath = path.join(
-			process.cwd(),
-			"public",
-			region.geojsonPath ?? "",
-		);
-		expect(fs.existsSync(geojsonPath), geojsonPath).toBe(true);
-
-		const geojson = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as {
-			features: {
-				geometry: { type: string };
-				properties: {
-					idApp: number;
-					aopId: string;
-					kind: string;
-					tags: string[];
-					rank: number;
-				};
-			}[];
-		};
-		// ポリゴンを持たない詳細エントリ(クリマ・合成総称ノード)は GeoJSON に
-		// 現れないので、1:1 の対象から除外する。
-		const regionAops = AOPS.filter(
-			(a) => a.region === region.id && a.idApp < POLYGONLESS_IDAPP_MIN,
-		);
-		expect(geojson.features.length).toBe(regionAops.length);
-
-		const byIdApp = new Map(regionAops.map((a) => [a.idApp, a]));
-		for (const f of geojson.features) {
-			const meta = byIdApp.get(f.properties.idApp);
-			expect(meta, `idApp ${f.properties.idApp}`).toBeDefined();
-			expect(f.properties.aopId).toBe(meta?.id);
-			expect(f.properties.kind).toBe(meta?.kind);
-			expect(f.properties.tags).toEqual(meta?.tags ?? []);
-			expect(f.properties.rank).toBe(
-				{ regional: 0, village: 1, vineyard: 2, winery: 3 }[
-					meta?.kind ?? "village"
-				],
+	it.each(enabledRegions.map((r) => [r.id, r] as const))(
+		"%s: GeoJSONが存在しメタデータと1:1で結合できる",
+		(_id, region) => {
+			const geojsonPath = path.join(
+				process.cwd(),
+				"public",
+				region.geojsonPath ?? "",
 			);
-			// シャトー(winery)は点、それ以外は面
-			if (meta?.kind === "winery") {
-				expect(f.geometry.type, meta.id).toBe("Point");
-			} else {
-				expect(["Polygon", "MultiPolygon"], meta?.id).toContain(
-					f.geometry.type,
+			expect(fs.existsSync(geojsonPath), geojsonPath).toBe(true);
+
+			const geojson = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as {
+				features: {
+					geometry: { type: string };
+					properties: {
+						idApp: number;
+						aopId: string;
+						kind: string;
+						tags: string[];
+						rank: number;
+					};
+				}[];
+			};
+			// ポリゴンを持たない詳細エントリ(クリマ・合成総称ノード)は GeoJSON に
+			// 現れないので、1:1 の対象から除外する。
+			const regionAops = AOPS.filter(
+				(a) => a.region === region.id && a.idApp < POLYGONLESS_IDAPP_MIN,
+			);
+			expect(geojson.features.length).toBe(regionAops.length);
+
+			const byIdApp = new Map(regionAops.map((a) => [a.idApp, a]));
+			for (const f of geojson.features) {
+				const meta = byIdApp.get(f.properties.idApp);
+				expect(meta, `idApp ${f.properties.idApp}`).toBeDefined();
+				expect(f.properties.aopId).toBe(meta?.id);
+				expect(f.properties.kind).toBe(meta?.kind);
+				expect(f.properties.tags).toEqual(meta?.tags ?? []);
+				expect(f.properties.rank).toBe(
+					{ regional: 0, village: 1, vineyard: 2, winery: 3 }[
+						meta?.kind ?? "village"
+					],
 				);
+				// シャトー(winery)は点、それ以外は面
+				if (meta?.kind === "winery") {
+					expect(f.geometry.type, meta.id).toBe("Point");
+				} else {
+					expect(["Polygon", "MultiPolygon"], meta?.id).toContain(
+						f.geometry.type,
+					);
+				}
 			}
-		}
-	});
+		},
+	);
 });

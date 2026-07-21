@@ -163,8 +163,8 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 
 - **環境**: 本番 = Worker `wine`（D1 `wine-db`、カスタムドメイン https://wine.nibo.sh ）、プレビュー = Worker `wine-preview`（PR ごとに `https://<branch>-wine-preview.niboshi.workers.dev`）。**プレビューの D1/R2 は全 PR で共有**され、PR のマイグレーションはマージ前にプレビュー共通 DB へ先行適用される。
 - **CD は Cloudflare Workers Builds**（GitHub Actions ではない）。deploy command がビルド成功後・デプロイ直前に `db:migrate:remote` / `db:migrate:preview` を自動実行する。build/deploy command はダッシュボード（または Workers Builds API）にのみ保存され、リポジトリにはない（docs/deployment.md）。
-- **マイグレーションは手書きの連番 SQL**を `drizzle/` に追加する（`drizzle-kit generate` に頼らない）。`--> statement-breakpoint` 区切り、`IF NOT EXISTS` 付き（プレビュー共通 DB への冪等適用のため）、既存ファイルは書き換えず必ず新しい連番を積む。CI がゼロから適用可能かを検証する。なお CLAUDE.md に「schema.ts はプレースホルダ」とあるのは過去の状態で、現在はドメインテーブル 8 種が定義済み（手書き連番 SQL 運用という含意は今も有効）。
-- **CI**（`.github/workflows/ci.yml`）: typecheck（tsc）→ check（Biome）→ test（Vitest）→ `db:migrate:local`。マージ前チェックはローカルで `bun run typecheck` / `check` / `build` / `test`。
+- **マイグレーションは手書きの連番 SQL**を `drizzle/` に追加する。`drizzle-kit` は使わない（追跡対象が auth-schema.ts を含まず破壊的差分を提案しうるため、依存ごと削除済み）。`--> statement-breakpoint` 区切り、`IF NOT EXISTS` 付き（プレビュー共通 DB への冪等適用のため）、既存ファイルは書き換えず必ず新しい連番を積む。CI がゼロから適用可能かを検証する。破壊的なスキーマ変更（列・テーブルの削除/リネーム、NOT NULL 追加等）は expand-and-contract で 2 段階のデプロイに分ける（詳細は CLAUDE.md）。
+- **CI**（`.github/workflows/ci.yml`）: typecheck（tsc）→ check（Biome）→ build（Vite）→ test（Vitest）→ `db:migrate:local`。マージ前チェックはローカルで `bun run typecheck` / `check` / `build` / `test`。
 - **Terraform** は Stripe リソースのみ管理（state は R2、preview は自動 apply / production は手動）。Cloudflare リソースは wrangler.jsonc とダッシュボード管理。
 - **公開ドメインを追加・変更したら `src/lib/auth.ts` の `trustedOrigins` に登録する**（プレビューはダッシュ連結ホスト名用のワイルドカード `https://*-wine-preview...` が別途必要）。
 - binding や vars を wrangler.jsonc に追加したら `bun run cf-typegen`、wrangler types が生成しないシークレットは `src/env-secrets.d.ts` に型を足す。
@@ -172,7 +172,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 ## 横断規約
 
 - **import**: エイリアスは `#/*` = `./src/*`（package.json の Node subpath imports）。tsconfig に `@/*` も残っているが使用 0 件のデッドエントリで、新規コードは `#/` を使う。相対 import は同一ドメインディレクトリ内のみ（`../../` 越えは禁止相当。現状 0 件）。
-- **テスト**: Vitest（jsdom）。テストは対象と同ディレクトリの co-located `*.test.ts` で、**すべて `src/lib/<domain>/` の純ロジックに置く**。サービス層・server fn・コンポーネントのテストは書かない方針（モック 0 件 — モックが要らないようロジックを純関数へ分離するのが規約）。`describe`/`it` のタイトルは日本語。vitest.config.ts は vite.config.ts と意図的に分離されている（Cloudflare プラグインが vitest 起動を壊すため）。
+- **テスト**: Vitest（jsdom）。テストは対象と同ディレクトリの co-located `*.test.ts` で、**原則として `src/lib/<domain>/` の純ロジックに置く**（モックが要らないようロジックを純関数へ分離するのが規約。サービス層・server fn のテストは書かない）。複雑な UI フックは例外的にコンポーネント側でもテストする — `src/components/quiz/useQuizSession.test.ts` が例で、Cloudflare 依存を引き込む server fn とルーターを `vi.mock` し、`@testing-library/react` の `renderHook` で検証する。`describe`/`it` のタイトルは日本語。vitest.config.ts は vite.config.ts と意図的に分離されている（Cloudflare プラグインが vitest 起動を壊すため）。
 - **整形・lint**: Biome（タブインデント・ダブルクォート・organizeImports）。`routeTree.gen.ts` と `styles.css` は対象外。TypeScript は strict + `noUncheckedIndexedAccess` + `verbatimModuleSyntax`（型 import は `import type` 必須）等。
 - **言語**: 識別子・ファイル名は英語、コメントは設計理由（why)を日本語で書く文化。UI 文言・zod の `.describe()`・MCP ツールの description・ドキュメントも日本語。エラーメッセージは英語（"Unauthorized" 等）。
 - **定数の一元管理**: 上限値などの数値定数はドメイン lib に置き、zod スキーマ・サービス層・UI の全員が同じ定数を import する（二重管理禁止）。

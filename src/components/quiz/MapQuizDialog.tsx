@@ -119,6 +119,7 @@ function SessionRound({
 		reset,
 		skip,
 		next,
+		retry,
 	} = useQuizSession(
 		regionId,
 		ALL_QUIZ_TYPES,
@@ -180,6 +181,24 @@ function SessionRound({
 				<Button variant="ghost" onClick={onClose}>
 					閉じる
 				</Button>
+			</div>
+		);
+	}
+
+	if (phase === "error") {
+		return (
+			<div className="flex min-h-32 flex-col items-center justify-center gap-4 text-center">
+				<p className="text-sm text-muted-foreground">
+					問題の読み込みに失敗しました。通信環境を確認して再試行してください。
+				</p>
+				<div className="flex gap-2">
+					<Button variant="outline" onClick={retry}>
+						再試行
+					</Button>
+					<Button variant="ghost" onClick={onClose}>
+						閉じる
+					</Button>
+				</div>
 			</div>
 		);
 	}
