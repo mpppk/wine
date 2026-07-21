@@ -47,11 +47,15 @@ function ok(payload: unknown): CallToolResult {
 	};
 }
 
-// アフィリエイトIDは Workers のランタイム環境変数から供給する(未設定なら素の検索URL)
-const affiliateConfig: AffiliateConfig = {
-	rakuten: env.RAKUTEN_AFFILIATE_ID ?? "",
-	moshimoAmazon: env.MOSHIMO_AMAZON_A_ID ?? "",
-};
+// アフィリエイトIDは Workers のランタイム環境変数から供給する(未設定なら素の検索URL)。
+// env を読むのは registerReadTools 呼び出し時に遅延させる(モジュール import 時点で
+// `cloudflare:workers` の env を評価するとテスト等での import 自体が困難になるため)。
+function buildAffiliateConfig(): AffiliateConfig {
+	return {
+		rakuten: env.RAKUTEN_AFFILIATE_ID ?? "",
+		moshimoAmazon: env.MOSHIMO_AMAZON_A_ID ?? "",
+	};
+}
 
 function err(
 	e: unknown,
@@ -88,6 +92,8 @@ function toAopSummary(aop: Aop) {
 }
 
 export function registerReadTools(server: McpServer, userId: string) {
+	// env 依存(アフィリエイトID)はここで1回だけ解決する。get_aop の購入リンク生成に使う。
+	const affiliateConfig = buildAffiliateConfig();
 	server.registerTool(
 		"get_current_user",
 		{
