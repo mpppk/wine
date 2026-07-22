@@ -351,7 +351,8 @@ describe("GeoJSONとの整合性", () => {
 
 			const geojson = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as {
 				features: {
-					geometry: { type: string };
+					bbox?: number[];
+					geometry: { type: string; coordinates: unknown };
 					properties: {
 						idApp: number;
 						aopId: string;
@@ -388,7 +389,44 @@ describe("GeoJSONとの整合性", () => {
 						f.geometry.type,
 					);
 				}
+				// build:geodata が各フィーチャに事前計算した bbox([west,south,east,north])。
+				// クライアント(AopMapView)がロード時の全座標走査を省くために使う(#33)。
+				// 再生成で bbox が欠落・破損しないよう、座標から再計算して一致を検証する。
+				expect(f.bbox, `${meta?.id} bbox`).toHaveLength(4);
+				const [w, s, e, n] = f.bbox as [number, number, number, number];
+				expect(
+					[w, s, e, n].every((v) => Number.isFinite(v)),
+					`${meta?.id} bbox finite`,
+				).toBe(true);
+				expect(computeGeometryBounds(f.geometry.coordinates), meta?.id).toEqual(
+					[w, s, e, n],
+				);
 			}
 		},
 	);
 });
+
+// GeoJSONジオメトリの座標から bbox [west, south, east, north] を計算する(テスト検証用)
+function computeGeometryBounds(
+	coordinates: unknown,
+): [number, number, number, number] {
+	let west = Number.POSITIVE_INFINITY;
+	let south = Number.POSITIVE_INFINITY;
+	let east = Number.NEGATIVE_INFINITY;
+	let north = Number.NEGATIVE_INFINITY;
+	const visit = (coords: unknown): void => {
+		if (!Array.isArray(coords)) return;
+		if (typeof coords[0] === "number") {
+			const x = coords[0] as number;
+			const y = coords[1] as number;
+			if (x < west) west = x;
+			if (x > east) east = x;
+			if (y < south) south = y;
+			if (y > north) north = y;
+			return;
+		}
+		for (const c of coords) visit(c);
+	};
+	visit(coordinates);
+	return [west, south, east, north];
+}
