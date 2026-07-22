@@ -13,6 +13,7 @@
 		"format": "biome format",
 		"lint": "biome lint",
 		"check": "biome check",
+		"check:migrations": "node scripts/check-destructive-migrations.mjs",
 		"typecheck": "tsc",
 		"smoke": "bash scripts/smoke.sh",
 		"deploy": "bun run build && wrangler deploy",

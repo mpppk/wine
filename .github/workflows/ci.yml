@@ -27,6 +27,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # マイグレーション差分検出(下記 Check migrations)がベースブランチとの
+          # merge-base を必要とするため全履歴を取得する(fetch-depth:0 で origin/<base> が引ける)。
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2.1.3
@@ -60,3 +64,13 @@ jobs:
       # (リモート認証情報は不要)。
       - name: Verify D1 migrations (local)
         run: bun run db:migrate:local
+
+      # PRで追加/変更された drizzle/*.sql に破壊的変更(DROP/RENAME)や冪等性欠如が
+      # 無いかを機械的に検出する。expand-and-contract(#24)と冪等性(#54)の運用ルールを
+      # レビュー任せにせず強制する(#137)。意図的な破壊的変更は SQL 内の
+      # `-- allow-destructive-migration` マーカーでオプトアウトできる。
+      - name: Check migrations (destructive change / idempotency)
+        if: github.event_name == 'pull_request'
+        run: bun run check:migrations
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
