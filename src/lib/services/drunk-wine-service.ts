@@ -5,6 +5,7 @@ import { drunkWine } from "#/db/schema";
 import {
 	buildWinePhotoKey,
 	MAX_PHOTOS_PER_ENTRY,
+	resolveStoredPhotoMime,
 } from "#/lib/drunk-wine/photo";
 import type {
 	CreateDrunkWineInput,
@@ -234,14 +235,21 @@ export async function syncDrunkWinePhotos(
 				nextKeys.push(item.key);
 				continue;
 			}
-			const key = buildWinePhotoKey(
-				userId,
-				id,
-				crypto.randomUUID(),
-				item.mimeType,
-			);
-			await env.AVATARS.put(key, item.bytes, {
-				httpMetadata: { contentType: item.mimeType },
+			// 保存するContent-Typeは申告値ではなく実バイト(マジックバイト)から確定する。
+			// 中身がHTML/スクリプト等の画像偽装や、申告と実フォーマットの食い違いを拒否する(#150)。
+			const bytes =
+				item.bytes instanceof Uint8Array
+					? item.bytes
+					: new Uint8Array(item.bytes);
+			const mime = resolveStoredPhotoMime(bytes, item.mimeType);
+			if (!mime) {
+				throw new BadRequestError(
+					"画像として認識できないか、形式が申告値と一致しないファイルが含まれています",
+				);
+			}
+			const key = buildWinePhotoKey(userId, id, crypto.randomUUID(), mime);
+			await env.AVATARS.put(key, bytes, {
+				httpMetadata: { contentType: mime },
 			});
 			putKeys.push(key);
 			nextKeys.push(key);

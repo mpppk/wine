@@ -5,8 +5,14 @@ import {
 	MAX_PHOTO_BYTES,
 	MAX_PHOTOS_PER_ENTRY,
 	photoExtForMime,
+	resolveStoredPhotoMime,
 	sniffImageMime,
 } from "./photo";
+
+const PNG_MAGIC = new Uint8Array([
+	0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+const JPEG_MAGIC = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
 
 describe("decodePhotoBase64", () => {
 	it("base64をバイト列にデコードする", () => {
@@ -61,6 +67,30 @@ describe("buildWinePhotoKey", () => {
 		expect(() => buildWinePhotoKey("u1", "e1", "p1", "constructor")).toThrow(
 			/Unsupported image type/,
 		);
+	});
+});
+
+describe("resolveStoredPhotoMime", () => {
+	it("実バイトと申告が一致すれば実MIMEを返す", () => {
+		expect(resolveStoredPhotoMime(PNG_MAGIC, "image/png")).toBe("image/png");
+		expect(resolveStoredPhotoMime(JPEG_MAGIC, "image/jpeg")).toBe("image/jpeg");
+	});
+
+	it("申告と実フォーマットが食い違うファイルを拒否する(なりすまし)", () => {
+		// 中身はPNGだが image/jpeg と申告 → undefined
+		expect(resolveStoredPhotoMime(PNG_MAGIC, "image/jpeg")).toBeUndefined();
+	});
+
+	it("画像でない中身(HTML等)を申告MIME付きでも拒否する", () => {
+		const html = new TextEncoder().encode("<!DOCTYPE html><script>alert(1)");
+		expect(resolveStoredPhotoMime(html, "image/png")).toBeUndefined();
+	});
+
+	it("許可外の申告MIMEを拒否する", () => {
+		expect(resolveStoredPhotoMime(PNG_MAGIC, "text/html")).toBeUndefined();
+		expect(resolveStoredPhotoMime(PNG_MAGIC, "image/svg+xml")).toBeUndefined();
+		// 継承プロパティ名のすり抜けも拒否
+		expect(resolveStoredPhotoMime(PNG_MAGIC, "constructor")).toBeUndefined();
 	});
 });
 

@@ -173,6 +173,40 @@ describe("getProgress", () => {
 		expect(target?.correctCount).toBe(6);
 	});
 
+	it("失効キーで seen が候補数を超えても candidateCount にクランプする(#152)", async () => {
+		const userId = await freshUser();
+		const now = new Date();
+		const candidate = counts[quizType];
+		// 候補数を超える数の stat 行を投入(AOPデータ更新でキーが失効した状況を模す)。
+		// 全て streak 0 = weak にして、seen/weak がクランプされることを確認する。
+		const extra = candidate + 3;
+		const staleRows = Array.from({ length: extra }, (_, i) => ({
+			userId,
+			questionKey: `${quizType}:stale-${i}`,
+			quizType,
+			regionId,
+			correctCount: 1,
+			incorrectCount: 0,
+			streak: 0,
+			lastAnsweredAt: now,
+			lastCorrectAt: now,
+		}));
+		// D1 の SQL 変数上限(100)に収まるよう分割投入する(1行9変数)
+		for (let i = 0; i < staleRows.length; i += 10) {
+			await db.insert(quizQuestionStat).values(staleRows.slice(i, i + 10));
+		}
+
+		const { regions } = await getProgress(userId);
+		const target = regions
+			.find((r) => r.regionId === regionId)
+			?.quizTypes.find((q) => q.quizType === quizType);
+		expect(target?.candidateCount).toBe(candidate);
+		// seen/weak は候補数でクランプされ、負の「未出題」や100%超を生まない
+		expect(target?.seenCount).toBe(candidate);
+		expect(target?.weakCount).toBe(candidate);
+		expect(target?.masteredCount).toBe(0);
+	});
+
 	it("実績が無いユーザは全形式 0 で返る(候補数は静的データから)", async () => {
 		const userId = await freshUser();
 		const { regions } = await getProgress(userId);

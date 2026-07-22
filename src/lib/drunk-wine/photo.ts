@@ -93,6 +93,24 @@ export function sniffImageMime(bytes: Uint8Array): string | undefined {
 }
 
 /**
+ * 保存する写真の Content-Type を実バイト(マジックバイト)から確定する多層防御。
+ * 申告 mimeType が許可外、実バイトが画像として判定できない、または申告と実フォーマットが
+ * 食い違う場合は undefined を返す(呼び出し側で拒否する)。保存する contentType・拡張子は
+ * 申告値ではなくここが返す実MIMEを使うことで、中身がHTML/スクリプト等の画像偽装を弾く。
+ * アバター経路(api/upload.ts の sniffImageMime)と同じ多層防御をワイン写真経路にも適用する(#150)。
+ */
+export function resolveStoredPhotoMime(
+	bytes: Uint8Array,
+	declaredMime: string,
+): string | undefined {
+	if (!ALLOWED_PHOTO_TYPES.has(declaredMime)) return undefined;
+	const sniffed = sniffImageMime(bytes);
+	// 実フォーマットを判定できない、または申告と食い違う場合は拒否する(申告値は信用しない)
+	if (!sniffed || sniffed !== declaredMime) return undefined;
+	return sniffed;
+}
+
+/**
  * base64文字列をバイト列にデコードする。MIME不正・base64不正・
  * デコード後5MB超は Error を投げる(MCPツールがそのままエラー文言に使う)。
  */
