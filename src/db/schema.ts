@@ -190,6 +190,9 @@ export const creditLedger = sqliteTable(
 	(table) => [
 		unique("credit_ledger_request_id_uq").on(table.requestId),
 		index("credit_ledger_user_created_idx").on(table.userId, table.createdAt),
+		// 障害補填(#116)の対象抽出 findConsumersInRange は type='consume' AND created_at
+		// BETWEEN で検索する。user_id 先頭の索引では効かず全表走査になるため専用の索引を張る(#164)。
+		index("credit_ledger_type_created_idx").on(table.type, table.createdAt),
 	],
 );
 
