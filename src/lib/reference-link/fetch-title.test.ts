@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { extractTitleFromHtml, fetchPageTitle } from "./fetch-title";
+import {
+	extractTitleFromHtml,
+	fetchPageTitle,
+	isFetchableHost,
+} from "./fetch-title";
 
 describe("extractTitleFromHtml", () => {
 	it("<title> を抽出する", () => {
@@ -94,5 +98,87 @@ describe("fetchPageTitle", () => {
 
 		expect(fetchSpy).not.toHaveBeenCalled();
 		expect(warn).not.toHaveBeenCalled();
+	});
+
+	it("リダイレクト先が内部アドレスなら追わず null(毎ホップ再検証)", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		// 公開ホストが内部メタデータエンドポイントへ302リダイレクトする典型的なSSRF
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(null, {
+				status: 302,
+				headers: { location: "http://169.254.169.254/latest/meta-data/" },
+			}),
+		);
+
+		expect(await fetchPageTitle("https://example.com/redirector")).toBeNull();
+
+		// 初回(example.com)は fetch するが、内部アドレスへの2ホップ目は fetch しない
+		expect(fetchSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it("外部ホストへのリダイレクトは追ってタイトルを取得する", async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				new Response(null, {
+					status: 301,
+					headers: { location: "https://www.example.org/page" },
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response("<title>移動先ページ</title>", {
+					status: 200,
+					headers: { "content-type": "text/html; charset=utf-8" },
+				}),
+			);
+
+		expect(await fetchPageTitle("https://example.com/old")).toBe(
+			"移動先ページ",
+		);
+		expect(fetchSpy).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("isFetchableHost", () => {
+	it("公開ホスト・公開IPは許可する", () => {
+		expect(isFetchableHost("example.com")).toBe(true);
+		expect(isFetchableHost("8.8.8.8")).toBe(true);
+		expect(isFetchableHost("[2001:db8::1]")).toBe(true);
+	});
+
+	it("localhost / .local を弾く", () => {
+		expect(isFetchableHost("localhost")).toBe(false);
+		expect(isFetchableHost("printer.local")).toBe(false);
+	});
+
+	it("内部IPv4帯(ループバック・プライベート・リンクローカル)を弾く", () => {
+		for (const h of [
+			"127.0.0.1",
+			"10.0.0.1",
+			"192.168.1.1",
+			"169.254.169.254",
+			"172.16.0.1",
+			"172.31.255.255",
+			"0.0.0.0",
+		]) {
+			expect(isFetchableHost(h), h).toBe(false);
+		}
+	});
+
+	it("IPv6ループバック・未指定・ULA・リンクローカルを弾く", () => {
+		for (const h of [
+			"[::1]",
+			"[::]",
+			"[fc00::1]",
+			"[fd12:3456::1]",
+			"[fe80::1]",
+		]) {
+			expect(isFetchableHost(h), h).toBe(false);
+		}
+	});
+
+	it("IPv4-mapped IPv6 で内部アドレスを偽装しても弾く", () => {
+		expect(isFetchableHost("[::ffff:127.0.0.1]")).toBe(false);
+		expect(isFetchableHost("[::ffff:169.254.169.254]")).toBe(false);
 	});
 });
