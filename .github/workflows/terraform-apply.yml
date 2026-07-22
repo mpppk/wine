@@ -41,6 +41,11 @@ jobs:
   apply:
     name: Terraform Apply (${{ github.event.inputs.environment || 'preview' }})
     runs-on: ubuntu-latest
+    # GitHub Environment に紐付けることで、production に required reviewers /
+    # wait timer などの保護ルールを課せる(#134)。environment secrets も
+    # ここで解決される。保護ルールは GitHub の Settings → Environments で設定する
+    # (production に required reviewers を付けると apply 前に承認待ちになる)。
+    environment: ${{ github.event.inputs.environment || 'preview' }}
     env:
       # push(main) からは常に preview。手動実行のときだけ選択された環境。
       TF_ENV: ${{ github.event.inputs.environment || 'preview' }}

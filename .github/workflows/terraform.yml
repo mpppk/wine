@@ -59,9 +59,12 @@ jobs:
           terraform init -backend=false -input=false
           terraform validate
 
-      # secrets コンテキストは if 式で参照できないため、env 経由で有無を判定する
+      # secrets コンテキストは if 式で参照できないため、env 経由で有無を判定する。
+      # plan は PR では実行しない(下記 Plan の理由参照)ため、PR ではこのステップ自体を
+      # スキップして Secrets を PR コンテキストに一切露出させない。
       - name: Check credentials
         id: creds
+        if: github.event_name != 'pull_request'
         env:
           R2_ACCESS_KEY: ${{ secrets.TF_R2_ACCESS_KEY_ID }}
           STRIPE_KEY: ${{ secrets[matrix.stripe_key_secret] }}
@@ -74,8 +77,13 @@ jobs:
 
       # plan は R2(state) と Stripe の資格情報が必要。Secrets 未設定ならスキップする。
       # Stripe への書き込みは行わない(plan は読み取りのみ)。
+      #
+      # PR では plan を実行しない: terraform plan は PR ブランチの .tf をそのまま実行するため、
+      # provider 差し替えや external data source の追加で live Stripe キー / R2(state)認証情報を
+      # 持つプロセスで任意コードが動きうる(#134)。plan は push:main と workflow_dispatch に限定し、
+      # PR では fmt / validate(資格情報不要)のみ実行する。
       - name: Plan
-        if: steps.creds.outputs.available == 'true'
+        if: github.event_name != 'pull_request' && steps.creds.outputs.available == 'true'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.TF_R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_R2_SECRET_ACCESS_KEY }}
@@ -84,7 +92,12 @@ jobs:
           terraform init -reconfigure -input=false
           terraform plan -input=false -no-color
 
-      - name: Plan skipped notice
-        if: steps.creds.outputs.available != 'true'
+      - name: Plan skipped notice (secrets 未設定)
+        if: github.event_name != 'pull_request' && steps.creds.outputs.available != 'true'
         run: |
           echo "::notice title=Terraform plan (${{ matrix.env }}) をスキップ::GitHub Secrets (TF_R2_ACCESS_KEY_ID / TF_R2_SECRET_ACCESS_KEY / ${{ matrix.stripe_key_secret }}) が未設定のため validate のみ実行しました。設定方法は terraform/README.md を参照。"
+
+      - name: Plan skipped notice (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "::notice title=Terraform plan (${{ matrix.env }}) をスキップ::PR では live 認証情報を PR ブランチのコードに渡さないため plan を実行しません(fmt / validate のみ)。plan は main へのマージ後(push)または手動実行(workflow_dispatch)で確認します。"
