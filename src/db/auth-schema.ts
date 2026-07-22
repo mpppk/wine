@@ -205,6 +205,19 @@ export const subscription = sqliteTable(
 	],
 );
 
+// ── Rate limit table (better-auth rateLimit storage: "database") ─────────────
+// better-auth の永続レートリミット用。Cloudflare Workers は isolate ごとにメモリが
+// 分離するため、既定のインメモリ storage はほぼ効かない(Issue #31)。カウンタを D1 に
+// 置くことで sign-in 等のブルートフォース・列挙・スパム登録を全 isolate 横断で抑止する。
+// フィールドは better-auth の rateLimit モデル(key/count/lastRequest)に一致させる
+// (node_modules/@better-auth/core: db/get-tables.ts)。lastRequest は Date.now() の ms。
+export const rateLimit = sqliteTable("rate_limit", {
+	id: text("id").primaryKey(),
+	key: text("key").notNull().unique(),
+	count: integer("count").notNull(),
+	lastRequest: integer("last_request").notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
 	sessions: many(session),
 	accounts: many(account),
