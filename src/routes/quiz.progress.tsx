@@ -104,14 +104,17 @@ function RegionProgressCard({ progress }: { progress: RegionProgress }) {
 					</span>
 					<span className="text-sm font-normal text-muted-foreground">
 						{totals.answer > 0
-							? `正答率 ${accuracy}% ・ 未出題 ${totals.candidate - totals.seen}問`
+							? `正答率 ${accuracy}% ・ 未出題 ${Math.max(0, totals.candidate - totals.seen)}問`
 							: `全${totals.candidate}問 ・ 未学習`}
 					</span>
 				</CardTitle>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
 				{available.map((t) => {
-					const seenPct = Math.round((t.seenCount / t.candidateCount) * 100);
+					const seenPct = Math.min(
+						100,
+						Math.round((t.seenCount / t.candidateCount) * 100),
+					);
 					const typeAccuracy =
 						t.answerCount > 0
 							? Math.round((t.correctCount / t.answerCount) * 100)

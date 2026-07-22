@@ -207,48 +207,52 @@ export async function recordAnswer(
 				activityWasCorrect: wasCorrect,
 			};
 
-	await db
-		.insert(quizQuestionStat)
-		.values({
-			userId,
-			questionKey,
-			quizType: info.quizType,
-			regionId: info.regionId,
-			correctCount: wasCorrect ? 1 : 0,
-			incorrectCount: wasCorrect ? 0 : 1,
-			streak: wasCorrect ? 1 : 0,
-			lastAnsweredAt: now,
-			lastCorrectAt: wasCorrect ? now : null,
-		})
-		.onConflictDoUpdate({
-			target: [quizQuestionStat.userId, quizQuestionStat.questionKey],
-			set: {
-				correctCount: sql`${quizQuestionStat.correctCount} + ${wasCorrect ? 1 : 0}`,
-				incorrectCount: sql`${quizQuestionStat.incorrectCount} + ${wasCorrect ? 0 : 1}`,
-				streak: wasCorrect ? sql`${quizQuestionStat.streak} + 1` : 0,
+	// 問題別 stat と日次サマリーの2更新を単一の db.batch(=1トランザクション)で原子化する。
+	// 逐次 await だと1つ目成功・2つ目失敗の部分失敗で、問題別実績とヒートマップ/streak が
+	// 恒久的にずれる(修復手段なし)。D1 batch は暗黙トランザクションなので追加機構は不要(#154)。
+	await db.batch([
+		db
+			.insert(quizQuestionStat)
+			.values({
+				userId,
+				questionKey,
+				quizType: info.quizType,
+				regionId: info.regionId,
+				correctCount: wasCorrect ? 1 : 0,
+				incorrectCount: wasCorrect ? 0 : 1,
+				streak: wasCorrect ? 1 : 0,
 				lastAnsweredAt: now,
-				updatedAt: now,
-				...(wasCorrect ? { lastCorrectAt: now } : {}),
-			},
-		});
-
-	// 日次サマリーを加算(今日の学習量・連続学習日数・履歴ヒートマップの元データ)
-	await db
-		.insert(dailyActivity)
-		.values({
-			userId,
-			day: activityDay,
-			answeredCount: 1,
-			correctCount: wasCorrect ? 1 : 0,
-		})
-		.onConflictDoUpdate({
-			target: [dailyActivity.userId, dailyActivity.day],
-			set: {
-				answeredCount: sql`${dailyActivity.answeredCount} + 1`,
-				correctCount: sql`${dailyActivity.correctCount} + ${wasCorrect ? 1 : 0}`,
-				updatedAt: now,
-			},
-		});
+				lastCorrectAt: wasCorrect ? now : null,
+			})
+			.onConflictDoUpdate({
+				target: [quizQuestionStat.userId, quizQuestionStat.questionKey],
+				set: {
+					correctCount: sql`${quizQuestionStat.correctCount} + ${wasCorrect ? 1 : 0}`,
+					incorrectCount: sql`${quizQuestionStat.incorrectCount} + ${wasCorrect ? 0 : 1}`,
+					streak: wasCorrect ? sql`${quizQuestionStat.streak} + 1` : 0,
+					lastAnsweredAt: now,
+					updatedAt: now,
+					...(wasCorrect ? { lastCorrectAt: now } : {}),
+				},
+			}),
+		// 日次サマリーを加算(今日の学習量・連続学習日数・履歴ヒートマップの元データ)
+		db
+			.insert(dailyActivity)
+			.values({
+				userId,
+				day: activityDay,
+				answeredCount: 1,
+				correctCount: wasCorrect ? 1 : 0,
+			})
+			.onConflictDoUpdate({
+				target: [dailyActivity.userId, dailyActivity.day],
+				set: {
+					answeredCount: sql`${dailyActivity.answeredCount} + 1`,
+					correctCount: sql`${dailyActivity.correctCount} + ${wasCorrect ? 1 : 0}`,
+					updatedAt: now,
+				},
+			}),
+	]);
 	return snapshot;
 }
 
@@ -273,55 +277,58 @@ export async function revertAnswer(
 		// クライアント申告のキー形式が不正 = 入力エラー(400)。
 		throw new BadRequestError(`invalid question key: ${questionKey}`);
 	}
-	if (!prior.existed) {
-		// 回答で初めて作られた行なので、丸ごと削除すれば回答前(未出題)に戻る
-		await db
-			.delete(quizQuestionStat)
-			.where(
-				and(
-					eq(quizQuestionStat.userId, userId),
-					eq(quizQuestionStat.questionKey, questionKey),
-				),
-			);
-	} else {
-		await db
-			.update(quizQuestionStat)
+	// stat の復元/削除と日次サマリーの減算を単一の db.batch(=1トランザクション)で原子化する。
+	// 逐次 await だと部分失敗でヒートマップ/streak と問題別実績が恒久的にずれる(#154)。
+	const restoreStat = !prior.existed
+		? // 回答で初めて作られた行なので、丸ごと削除すれば回答前(未出題)に戻る
+			db
+				.delete(quizQuestionStat)
+				.where(
+					and(
+						eq(quizQuestionStat.userId, userId),
+						eq(quizQuestionStat.questionKey, questionKey),
+					),
+				)
+		: db
+				.update(quizQuestionStat)
+				.set({
+					correctCount: prior.correctCount,
+					incorrectCount: prior.incorrectCount,
+					streak: prior.streak,
+					// existed=true の行は lastAnsweredAt が非null。型の都合でフォールバックを置く
+					lastAnsweredAt:
+						prior.lastAnsweredAt != null
+							? new Date(prior.lastAnsweredAt)
+							: new Date(),
+					lastCorrectAt:
+						prior.lastCorrectAt != null ? new Date(prior.lastCorrectAt) : null,
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(quizQuestionStat.userId, userId),
+						eq(quizQuestionStat.questionKey, questionKey),
+					),
+				);
+
+	await db.batch([
+		restoreStat,
+		// 日次サマリーも対称的に減算(recordAnswer が計上した1件・正誤を戻す)。
+		// 負値ガードで下限0に丸める。行が無ければ何もしない(max(0,...) が保証)。
+		db
+			.update(dailyActivity)
 			.set({
-				correctCount: prior.correctCount,
-				incorrectCount: prior.incorrectCount,
-				streak: prior.streak,
-				// existed=true の行は lastAnsweredAt が非null。型の都合でフォールバックを置く
-				lastAnsweredAt:
-					prior.lastAnsweredAt != null
-						? new Date(prior.lastAnsweredAt)
-						: new Date(),
-				lastCorrectAt:
-					prior.lastCorrectAt != null ? new Date(prior.lastCorrectAt) : null,
+				answeredCount: sql`max(0, ${dailyActivity.answeredCount} - 1)`,
+				correctCount: sql`max(0, ${dailyActivity.correctCount} - ${prior.activityWasCorrect ? 1 : 0})`,
 				updatedAt: new Date(),
 			})
 			.where(
 				and(
-					eq(quizQuestionStat.userId, userId),
-					eq(quizQuestionStat.questionKey, questionKey),
+					eq(dailyActivity.userId, userId),
+					eq(dailyActivity.day, prior.activityDay),
 				),
-			);
-	}
-
-	// 日次サマリーも対称的に減算(recordAnswer が計上した1件・正誤を戻す)。
-	// 負値ガードで下限0に丸める。行が無ければ何もしない(max(0,...) が保証)。
-	await db
-		.update(dailyActivity)
-		.set({
-			answeredCount: sql`max(0, ${dailyActivity.answeredCount} - 1)`,
-			correctCount: sql`max(0, ${dailyActivity.correctCount} - ${prior.activityWasCorrect ? 1 : 0})`,
-			updatedAt: new Date(),
-		})
-		.where(
-			and(
-				eq(dailyActivity.userId, userId),
-				eq(dailyActivity.day, prior.activityDay),
 			),
-		);
+	]);
 }
 
 export interface QuizTypeProgress {
@@ -372,14 +379,18 @@ export async function getProgress(
 			const quizTypes = (Object.entries(counts) as [QuizType, number][]).map(
 				([quizType, candidateCount]) => {
 					const row = byRegionAndType.get(`${region.id}:${quizType}`);
+					// AOPデータ更新でキーが失効しても stat 行は残るため seen>candidate になりうる。
+					// getAopSolvedProgress と同様に候補数でクランプし、進捗画面の「未出題」負値・
+					// 進捗バー100%超を防ぐ(#152)。問題別カウント(seen/weak/mastered)のみ対象で、
+					// 延べ回答数(answer/correct)は1問に複数回答があるためクランプしない。
 					return {
 						quizType,
 						candidateCount,
-						seenCount: row?.seenCount ?? 0,
+						seenCount: Math.min(row?.seenCount ?? 0, candidateCount),
 						answerCount: row?.answerCount ?? 0,
 						correctCount: row?.correctCount ?? 0,
-						weakCount: row?.weakCount ?? 0,
-						masteredCount: row?.masteredCount ?? 0,
+						weakCount: Math.min(row?.weakCount ?? 0, candidateCount),
+						masteredCount: Math.min(row?.masteredCount ?? 0, candidateCount),
 					};
 				},
 			);
