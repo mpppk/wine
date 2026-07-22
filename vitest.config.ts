@@ -19,8 +19,8 @@ import { defineConfig } from "vitest/config";
 
 // D1 マイグレーションは Node 側(設定読み込み時)で読み、テスト用の分離D1へ
 // setup で適用する(workerd 側は fs を持たないため、バインディング経由で渡す)。
-// 連番SQLのみを対象にし、本番と同じスキーマ履歴を再現する
-// (drizzle/better-auth-schema-create.sql は連番外の補助ファイルなので除外)。
+// 連番SQL(NNNN_*.sql)のみを対象にし、本番と同じスキーマ履歴を再現する。
+// 連番外の補助ファイルが drizzle/ に混ざっても拾わないよう防御的にフィルタする。
 const migrations = (await readD1Migrations("./drizzle")).filter((m) =>
 	/^\d+_/.test(m.name),
 );
