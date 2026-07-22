@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
@@ -21,19 +21,11 @@ import {
 	ADMIN_CREDIT_GRANT_MIN,
 	ADMIN_GRANT_REASON_MAX,
 } from "#/lib/admin/credit-grant";
+import { requireAdminBeforeLoad } from "#/lib/admin/route-guard";
 import { adminBulkGrantCredits, adminBulkGrantPreview } from "#/server/admin";
-import { getSession } from "#/server/auth";
 
 export const Route = createFileRoute("/admin/bulk-credit")({
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-		if (session.user.role !== "admin") {
-			throw redirect({ to: "/" });
-		}
-	},
+	beforeLoad: requireAdminBeforeLoad,
 	component: BulkCreditPage,
 });
 

@@ -3,7 +3,6 @@ import {
 	createFileRoute,
 	Link,
 	notFound,
-	redirect,
 	useRouter,
 } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
@@ -35,6 +34,7 @@ import {
 	ADMIN_EXTENSION_MAX_DAYS,
 	ADMIN_EXTENSION_MIN_DAYS,
 } from "#/lib/admin/premium-extension";
+import { requireAdminBeforeLoad } from "#/lib/admin/route-guard";
 import { authClient } from "#/lib/auth-client";
 import { creditLedgerTypeLabel } from "#/lib/credit/types";
 import type { AdminUserDetail } from "#/lib/services/admin-service";
@@ -47,19 +47,9 @@ import {
 	adminRevokeSessions,
 	adminUnbanUser,
 } from "#/server/admin";
-import { getSession } from "#/server/auth";
 
 export const Route = createFileRoute("/admin/$userId")({
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-		// 非管理者には管理画面の存在を示さず、トップへ黙って戻す。
-		if (session.user.role !== "admin") {
-			throw redirect({ to: "/" });
-		}
-	},
+	beforeLoad: requireAdminBeforeLoad,
 	loader: async ({ params }) => {
 		const detail = await adminGetUserDetail({
 			data: { userId: params.userId },
