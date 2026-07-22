@@ -52,6 +52,16 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 	},
+	// レートリミット。better-auth の既定ストレージはインメモリで、多数の isolate に
+	// 分散しメモリを共有しない Cloudflare Workers 上ではほぼ効かない(Issue #31)。
+	// storage:"database" で D1(rate_limit テーブル / drizzle/0017)にカウンタを永続化し、
+	// sign-in/sign-up/change-password/change-email の既定スペシャルルール(10秒3回)と
+	// グローバル制限(10秒100回)を全 isolate 横断で有効化する。preview も Workers 実行の
+	// ため、本番以外でも効かせるよう enabled を明示する(既定は本番のみ有効)。
+	rateLimit: {
+		enabled: true,
+		storage: "database",
+	},
 	// user テーブルの独自カラム。better-auth に宣言することで getSession /
 	// updateUser / useSession が本フィールドを読み書きできる(物理カラムは
 	// drizzle/0012_user_preferred_ai_model.sql で追加)。
