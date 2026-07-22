@@ -7,6 +7,8 @@ import {
 	text,
 	unique,
 } from "drizzle-orm/sqlite-core";
+import type { AdminAuditAction } from "#/lib/admin/audit";
+import type { CreditLedgerType } from "#/lib/credit/types";
 import { user } from "./auth-schema";
 
 // ワイン学習アプリのドメインスキーマ。AOP等のコンテンツデータは静的ファイル
@@ -173,8 +175,8 @@ export const creditLedger = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		/** 符号付き表示クレジット。付与+ / 消費- / 返却+ */
 		amount: integer("amount").notNull(),
-		/** "grant" | "consume" | "refund" */
-		type: text("type").notNull(),
+		/** 台帳種別。値の定義は src/lib/credit/types.ts の CREDIT_LEDGER_TYPES が SSOT */
+		type: text("type").notNull().$type<CreditLedgerType>(),
 		/** 冪等キー。再送・二重付与を弾く */
 		requestId: text("request_id").notNull(),
 		/** 対象付与月 "YYYY-MM"(JST) */
@@ -268,8 +270,8 @@ export const adminAuditLog = sqliteTable(
 		actorUserId: text("actor_user_id").notNull(),
 		/** 対象ユーザの user.id。ユーザに紐づかない操作は null(将来用) */
 		targetUserId: text("target_user_id"),
-		/** 操作種別。例: "credit_grant" */
-		action: text("action").notNull(),
+		/** 操作種別。値の定義は src/lib/admin/audit.ts の ADMIN_AUDIT_ACTIONS が SSOT */
+		action: text("action").notNull().$type<AdminAuditAction>(),
 		/** action 固有の付随情報(JSON)。無い操作は null */
 		detail: text("detail", { mode: "json" }).$type<AdminAuditDetail>(),
 		/** 操作理由(クレジット付与など理由必須の操作で入力)。 */

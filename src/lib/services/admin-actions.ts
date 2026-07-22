@@ -8,6 +8,7 @@ import {
 	creditBalance,
 	creditLedger,
 } from "#/db/schema";
+import type { AdminAuditAction } from "#/lib/admin/audit";
 import { currentMonthKey } from "#/lib/credit/month";
 import * as billingService from "#/lib/services/billing-service";
 import { ensureCurrentMonthGranted } from "#/lib/services/credit-service";
@@ -186,7 +187,7 @@ export async function extendPremium(params: {
 export async function recordAudit(params: {
 	actorUserId: string;
 	targetUserId: string | null;
-	action: string;
+	action: AdminAuditAction;
 	reason: string;
 	detail?: AdminAuditDetail | null;
 }): Promise<void> {
