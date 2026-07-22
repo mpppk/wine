@@ -8,6 +8,7 @@ import {
 	MONTHLY_CREDITS_PREMIUM,
 } from "#/lib/billing/plans";
 import { currentMonthKey } from "#/lib/credit/month";
+import type { CreditLedgerType } from "#/lib/credit/types";
 import {
 	ensureCurrentMonthGranted,
 	getBalance,
@@ -42,7 +43,7 @@ async function makePremium(userId: string): Promise<void> {
 	});
 }
 
-async function ledgerRows(userId: string, type: string) {
+async function ledgerRows(userId: string, type: CreditLedgerType) {
 	return db
 		.select()
 		.from(creditLedger)

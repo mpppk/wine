@@ -21,6 +21,7 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
+import { adminAuditActionLabel } from "#/lib/admin/audit";
 import {
 	ADMIN_CREDIT_GRANT_MAX,
 	ADMIN_CREDIT_GRANT_MIN,
@@ -35,6 +36,7 @@ import {
 	ADMIN_EXTENSION_MIN_DAYS,
 } from "#/lib/admin/premium-extension";
 import { authClient } from "#/lib/auth-client";
+import { creditLedgerTypeLabel } from "#/lib/credit/types";
 import type { AdminUserDetail } from "#/lib/services/admin-service";
 import {
 	adminBanUser,
@@ -84,23 +86,6 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
 		</div>
 	);
 }
-
-const LEDGER_TYPE_LABELS: Record<string, string> = {
-	grant: "付与",
-	consume: "消費",
-	refund: "返却",
-	grant_upgrade: "アップグレード付与",
-	admin_grant: "管理付与",
-};
-
-const AUDIT_ACTION_LABELS: Record<string, string> = {
-	credit_grant: "クレジット付与",
-	premium_extension: "プレミアム期間延長",
-	revoke_sessions: "全セッション失効",
-	ban: "利用停止(BAN)",
-	unban: "停止解除",
-	revoke_mcp: "MCP連携失効",
-};
 
 /** 監査ログの detail(action 固有JSON)を人間可読な短い文字列に整形する。 */
 function formatAuditDetail(
@@ -319,7 +304,7 @@ function CreditCard({ detail }: { detail: AdminUserDetail }) {
 											{formatDateTime(entry.createdAt)}
 										</td>
 										<td className="px-3 py-2">
-											{LEDGER_TYPE_LABELS[entry.type] ?? entry.type}
+											{creditLedgerTypeLabel(entry.type)}
 										</td>
 										<td
 											className={`px-3 py-2 text-right tabular-nums ${entry.amount < 0 ? "text-destructive" : ""}`}
@@ -607,7 +592,7 @@ function AuditLogCard({ detail }: { detail: AdminUserDetail }) {
 											{formatDateTime(log.createdAt)}
 										</td>
 										<td className="whitespace-nowrap px-3 py-2">
-											{AUDIT_ACTION_LABELS[log.action] ?? log.action}
+											{adminAuditActionLabel(log.action)}
 										</td>
 										<td className="px-3 py-2">
 											{formatAuditDetail(log.action, log.detail)}
