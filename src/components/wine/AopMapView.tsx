@@ -345,8 +345,17 @@ export function AopMapView({
 				if (cancelled) return;
 				for (const f of geojson.features) {
 					const idApp = Number(f.properties?.idApp);
-					const b = computeBounds(f.geometry);
-					if (idApp && b) boundsRef.current[idApp] = b;
+					if (!idApp) continue;
+					// build:geodata が各フィーチャに bbox([west,south,east,north])を
+					// 事前計算して埋めている。ロード直後に全フィーチャの全座標を
+					// メインスレッドで走査する処理を省くため、それを使う。bbox を
+					// 持たない古いデータだけ従来どおり座標から計算してフォールバックする。
+					const pre =
+						f.bbox?.length === 4
+							? (f.bbox as [number, number, number, number])
+							: undefined;
+					const b = pre ?? computeBounds(f.geometry);
+					if (b) boundsRef.current[idApp] = b;
 				}
 				// 境界データは任意。取得失敗時はマスク・境界線なしで描画を続行する
 				let boundaries: FeatureCollection | undefined;

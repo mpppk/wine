@@ -504,6 +504,10 @@ async function main() {
 				tags: meta.tags ?? [],
 				rank: KIND_RANK[meta.kind],
 			};
+			// GeoJSON標準の bbox([west,south,east,north])を各フィーチャに事前計算する。
+			// クライアント(AopMapView)がロード時に全座標を走査せず、選択AOPへの
+			// ズーム範囲をここから即座に得るため(#33)。
+			f.bbox = featureBbox(f.geometry);
 		}
 		const found = new Set(features.map((f) => f.properties.idApp));
 		const absent = regionAops.filter((a) => !found.has(a.idApp));
@@ -774,6 +778,26 @@ function computeBounds(geojson) {
 		for (const c of coords) visit(c);
 	};
 	for (const f of geojson.features) visit(f.geometry.coordinates);
+	return [west, south, east, north];
+}
+
+/** 単一ジオメトリの bbox [west, south, east, north] を座標から計算する */
+function featureBbox(geometry) {
+	let west = Infinity;
+	let south = Infinity;
+	let east = -Infinity;
+	let north = -Infinity;
+	const visit = (coords) => {
+		if (typeof coords[0] === "number") {
+			if (coords[0] < west) west = coords[0];
+			if (coords[0] > east) east = coords[0];
+			if (coords[1] < south) south = coords[1];
+			if (coords[1] > north) north = coords[1];
+			return;
+		}
+		for (const c of coords) visit(c);
+	};
+	visit(geometry.coordinates);
 	return [west, south, east, north];
 }
 
