@@ -6,13 +6,13 @@
   ],
   "packageRules": [
     {
-      "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["patch", "minor"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true
     }
   ],
   "lockFileMaintenance": {
     "enabled": true,
+    "automerge": true,
     "schedule": ["before 5am on monday"]
   },
   "osvVulnerabilityAlerts": true,
