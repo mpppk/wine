@@ -99,6 +99,21 @@ describe("buildDrunkWineAppHtml", () => {
 		expect(html).toContain('=== "" ? null :');
 	});
 
+	it("フィールド定義(fields.ts)を埋め込み、汎用ループで描画する", () => {
+		// ハードコードのフィールド一覧ではなく単一情報源から生成していること
+		const html = buildDrunkWineAppHtml(BASE);
+		expect(html).toContain("FIELD_DEFS");
+		expect(html).toContain('"snakeKey":"grape_variety_ids"');
+		expect(html).toContain('"clear":"emptyArray"');
+	});
+
+	it("代表1枚だけでなくphoto_urls(全写真)を描画する(#155のドリフト修正)", () => {
+		const html = buildDrunkWineAppHtml(BASE);
+		expect(html).toContain("entry.photo_urls");
+		// 旧ホスト互換の代表1枚(photo_url)フォールバックも残す
+		expect(html).toContain("entry.photo_url ?");
+	});
+
 	it("リソースURIは静的", () => {
 		expect(DRUNK_WINE_RESOURCE_URI).toBe("ui://wine-aop/drunk-wine");
 	});

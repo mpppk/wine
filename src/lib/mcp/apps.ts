@@ -1,4 +1,5 @@
 import { createUIResource } from "@mcp-ui/server";
+import { clientFieldDefs } from "#/lib/drunk-wine/fields";
 import { GRAPE_VARIETIES } from "#/lib/wine/varieties";
 
 export interface AopMapParams {
@@ -151,6 +152,9 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
 	const varietiesJson = JSON.stringify(
 		GRAPE_VARIETIES.map((v) => ({ id: v.id, nameJa: v.nameJa })),
 	);
+	// フィールド一覧・入力種別・クリア規約の単一情報源(drunk-wine/fields.ts)を
+	// 埋め込み、render()/collectPatch() を汎用ループで駆動する。
+	const fieldDefsJson = JSON.stringify(clientFieldDefs());
 	return `<!doctype html>
 <html lang="ja">
 <head>
@@ -187,6 +191,7 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
 (function(){
   var BASE_URL = ${base};
   var VARIETIES = ${varietiesJson};
+  var FIELD_DEFS = ${fieldDefsJson};
   var entry = null;
   var rendered = false;
   var sepMode = false;
@@ -254,42 +259,63 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
     }
     return h + '</div>';
   }
+  function photosHtml(){
+    // 全写真を表示する。photo_urls(配列・先頭=代表)を優先し、無ければ
+    // 後方互換の photo_url(代表1枚)にフォールバック。
+    // postMessage経由の値なので自アプリのオリジン以外は描画しない。
+    // 前方一致は "https://host.evil.example" で偽装できるためorigin厳密比較。
+    var urls = (entry.photo_urls && entry.photo_urls.length)
+      ? entry.photo_urls
+      : (entry.photo_url ? [entry.photo_url] : []);
+    var h = "";
+    for (var i=0;i<urls.length;i++){
+      // 1件の不正URLで全滅しないようURLごとに検証する
+      var src = null;
+      try {
+        var u = new URL(urls[i], BASE_URL);
+        if (u.origin === new URL(BASE_URL).origin) src = u.toString();
+      } catch(e){}
+      if (src) h += '<img class="photo" src="' + esc(src) + '" alt="ボトル写真">';
+    }
+    return h;
+  }
+  function inputHtml(def){
+    var id = "f-" + def.snakeKey, cur = entry[def.snakeKey];
+    if (def.input === "grape") return grapeSection();
+    if (def.input === "rating")
+      return '<select id="' + id + '">' + ratingOptions(cur) + '</select>';
+    if (def.input === "textarea")
+      return '<textarea id="' + id + '">' + esc(cur || "") + '</textarea>';
+    if (def.input === "number")
+      return '<input id="' + id + '" type="number"' +
+        (def.min != null ? ' min="' + def.min + '"' : '') +
+        (def.max != null ? ' max="' + def.max + '"' : '') +
+        ' value="' + (cur != null ? esc(cur) : "") + '">';
+    var type = def.input === "date" ? "date" : "text";
+    return '<input id="' + id + '" type="' + type + '" value="' + esc(cur || "") + '"' +
+      (def.placeholder ? ' placeholder="' + esc(def.placeholder) + '"' : '') + '>';
+  }
+  function fieldBlock(def){
+    var id = "f-" + def.snakeKey;
+    return '<label for="' + id + '">' + esc(def.label) + (def.required ? " *" : "") +
+      '</label>' + inputHtml(def);
+  }
   function render(){
     rendered = true;
     var h = '<h1>' + esc(entry.name || "飲んだワイン") + '</h1>' +
-      '<p class="sub">マイセラーに記録しました。内容はこのまま編集できます。</p>';
-    if (entry.photo_url){
-      // postMessage経由の値なので自アプリのオリジン以外は描画しない。
-      // 前方一致は "https://host.evil.example" で偽装できるためorigin厳密比較
-      var src = null;
-      try {
-        var u = new URL(entry.photo_url, BASE_URL);
-        if (u.origin === new URL(BASE_URL).origin) src = u.toString();
-      } catch(e){}
-      if (src){
-        h += '<img class="photo" src="' + esc(src) + '" alt="ボトル写真">';
+      '<p class="sub">マイセラーに記録しました。内容はこのまま編集できます。</p>' +
+      photosHtml();
+    // FIELD_DEFS の順に描画。half が隣接すると1行(2カラム)にまとめる。
+    for (var i=0;i<FIELD_DEFS.length;i++){
+      var d = FIELD_DEFS[i], n = FIELD_DEFS[i+1];
+      if (d.col === "half" && n && n.col === "half"){
+        h += '<div class="row"><div>' + fieldBlock(d) + '</div><div>' +
+          fieldBlock(n) + '</div></div>';
+        i++;
+      } else {
+        h += fieldBlock(d);
       }
     }
-    h += '<label for="f-name">名前 *</label>' +
-      '<input id="f-name" value="' + esc(entry.name || "") + '">';
-    h += '<div class="row"><div><label for="f-drank_on">飲んだ日</label>' +
-      '<input id="f-drank_on" type="date" value="' + esc(entry.drank_on || "") + '"></div>' +
-      '<div><label for="f-rating">評価</label><select id="f-rating">' +
-      ratingOptions(entry.rating) + '</select></div></div>';
-    h += '<div class="row"><div><label for="f-vintage">ヴィンテージ</label>' +
-      '<input id="f-vintage" type="number" min="1800" max="2100" value="' +
-      (entry.vintage != null ? esc(entry.vintage) : "") + '"></div>' +
-      '<div><label for="f-price">価格 (円)</label>' +
-      '<input id="f-price" type="number" min="0" value="' +
-      (entry.price != null ? esc(entry.price) : "") + '"></div></div>';
-    h += '<label for="f-producer">生産者</label>' +
-      '<input id="f-producer" value="' + esc(entry.producer || "") + '">';
-    h += '<label for="f-aop_id">AOP</label>' +
-      '<input id="f-aop_id" value="' + esc(entry.aop_id || "") +
-      '" placeholder="list_aopsのid (例: gevrey-chambertin)">';
-    h += '<label>ぶどう品種</label>' + grapeSection();
-    h += '<label for="f-memo">メモ</label>' +
-      '<textarea id="f-memo">' + esc(entry.memo || "") + '</textarea>';
     h += '<button id="f-save" type="button">保存</button><span id="f-status"></span>';
     document.getElementById("app").innerHTML = h;
     document.getElementById("f-save").addEventListener("click", save);
@@ -304,36 +330,38 @@ export function buildDrunkWineAppHtml(baseUrl: string): string {
     el.className = isErr ? "errmsg" : "okmsg";
   }
   function collectPatch(){
+    // パッチ規約の単一情報源は src/lib/drunk-wine/fields.ts の
+    // collectDrunkWinePatch。本ループはサンドボックス用の near-verbatim ミラー。
+    // 空欄への変更は clear 規約に従って送る(null / [])。未変更は送らない。
     var p = {};
     function val(id){
       var el = document.getElementById(id);
       return el ? el.value.trim() : "";
     }
-    // 空欄への変更は null(クリア)として送る。未変更フィールドは送らない
-    function diffText(id, key){
-      var v = val(id);
+    for (var i=0;i<FIELD_DEFS.length;i++){
+      var d = FIELD_DEFS[i], key = d.snakeKey;
+      if (d.input === "grape"){
+        var ids = [], boxes = document.querySelectorAll("input.gv");
+        for (var j=0;j<boxes.length;j++) if (boxes[j].checked) ids.push(boxes[j].value);
+        var curG = (entry.grape_variety_ids || []).slice().sort().join(",");
+        if (ids.slice().sort().join(",") !== curG) p[key] = ids; // [] でクリア
+        continue;
+      }
+      var v = val("f-" + key);
+      if (d.clear === "never"){
+        // name はクリア不可: 空 or 未変更なら送らない
+        if (v && v !== (entry[key] || "")) p[key] = v;
+        continue;
+      }
+      if (d.input === "number" || d.input === "rating"){
+        var num = v === "" ? null : Number(v);
+        var cur = entry[key] != null ? entry[key] : null;
+        if (num !== cur) p[key] = num;
+        continue;
+      }
+      // text / date / textarea / aop
       if (v !== (entry[key] || "")) p[key] = v === "" ? null : v;
     }
-    function diffNumber(id, key){
-      var v = val(id);
-      var num = v === "" ? null : Number(v);
-      var cur = entry[key] != null ? entry[key] : null;
-      if (num !== cur) p[key] = num;
-    }
-    var name = val("f-name");
-    if (name && name !== (entry.name || "")) p.name = name;
-    diffText("f-drank_on", "drank_on");
-    diffNumber("f-rating", "rating");
-    diffNumber("f-vintage", "vintage");
-    diffNumber("f-price", "price");
-    diffText("f-producer", "producer");
-    diffText("f-aop_id", "aop_id");
-    diffText("f-memo", "memo");
-    var ids = [];
-    var boxes = document.querySelectorAll("input.gv");
-    for (var i=0;i<boxes.length;i++) if (boxes[i].checked) ids.push(boxes[i].value);
-    var cur = (entry.grape_variety_ids || []).slice().sort().join(",");
-    if (ids.slice().sort().join(",") !== cur) p.grape_variety_ids = ids;
     return p;
   }
   function save(){
