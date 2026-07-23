@@ -287,7 +287,9 @@ export function AopMapView({
 		let cancelled = false;
 
 		(async () => {
-			const maplibregl = (await import("maplibre-gl")).default;
+			// maplibre-gl v6 は ESM-only になり default export が廃止されたため、
+			// namespace import で Map/NavigationControl/Popup を参照する。
+			const maplibregl = await import("maplibre-gl");
 			if (cancelled || !containerRef.current) return;
 
 			const map = new maplibregl.Map({
