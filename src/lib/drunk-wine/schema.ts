@@ -7,6 +7,19 @@ import { z } from "zod";
 
 export const DRANK_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+// フィールドの数値・文字数の上限下限。zod と UI(Web の DrunkWineForm /
+// MCP App の編集フォーム)で同じ値を使うため、ここを単一情報源にする
+// (docs/architecture.md「上限値などの数値定数はドメイン lib に置き…」)。
+export const RATING_MIN = 1;
+export const RATING_MAX = 5;
+export const VINTAGE_MIN = 1800;
+export const VINTAGE_MAX = 2100;
+export const PRICE_MIN = 0;
+export const PRICE_MAX = 10_000_000;
+export const NAME_MAX = 200;
+export const MEMO_MAX = 2000;
+export const PRODUCER_MAX = 200;
+
 // 形式だけでなく暦として実在する日付か(2026-02-31等を弾く)。
 // Web はブラウザの date input が守るが、MCP経由は素の文字列が来る。
 // 年は1900-2100に制限(飲んだ日の現実的な範囲。Date.UTCの0-99年→1900年代
@@ -24,7 +37,7 @@ function isCalendarDate(s: string): boolean {
 }
 
 export const drunkWineFields = {
-	name: z.string().trim().min(1).max(200),
+	name: z.string().trim().min(1).max(NAME_MAX),
 	drankOn: z
 		.string()
 		.regex(DRANK_ON_PATTERN)
@@ -35,12 +48,12 @@ export const drunkWineFields = {
 		.regex(/^[a-z0-9-]+$/)
 		.max(80)
 		.optional(),
-	rating: z.number().int().min(1).max(5).optional(),
-	memo: z.string().max(2000).optional(),
-	vintage: z.number().int().min(1800).max(2100).optional(),
+	rating: z.number().int().min(RATING_MIN).max(RATING_MAX).optional(),
+	memo: z.string().max(MEMO_MAX).optional(),
+	vintage: z.number().int().min(VINTAGE_MIN).max(VINTAGE_MAX).optional(),
 	grapeVarietyIds: z.array(z.string().max(80)).max(20).optional(),
-	producer: z.string().max(200).optional(),
-	price: z.number().int().min(0).max(10_000_000).optional(),
+	producer: z.string().max(PRODUCER_MAX).optional(),
+	price: z.number().int().min(PRICE_MIN).max(PRICE_MAX).optional(),
 };
 
 export const createDrunkWineInput = z.object(drunkWineFields);
