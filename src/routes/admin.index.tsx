@@ -1,14 +1,14 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { SearchIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
+import { requireAdminBeforeLoad } from "#/lib/admin/route-guard";
 import { totalPages } from "#/lib/admin/search";
 import { authClient } from "#/lib/auth-client";
 import type { AdminUserListItem } from "#/lib/services/admin-service";
 import { adminListUsers } from "#/server/admin";
-import { getSession } from "#/server/auth";
 
 interface AdminSearch {
 	q?: string;
@@ -24,16 +24,7 @@ export const Route = createFileRoute("/admin/")({
 				: undefined,
 	}),
 	loaderDeps: ({ search }) => ({ q: search.q, page: search.page ?? 1 }),
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-		// 非管理者には管理画面の存在を示さず、トップへ黙って戻す。
-		if (session.user.role !== "admin") {
-			throw redirect({ to: "/" });
-		}
-	},
+	beforeLoad: requireAdminBeforeLoad,
 	loader: ({ deps }) => adminListUsers({ data: deps }),
 	component: AdminUsersPage,
 });

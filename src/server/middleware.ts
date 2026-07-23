@@ -1,5 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequest, setResponseStatus } from "@tanstack/react-start/server";
+import { isAdminSession } from "#/lib/admin/guard";
 import { auth } from "#/lib/auth";
 import { ForbiddenError, HttpError, UnauthorizedError } from "#/lib/errors";
 import { logError } from "#/lib/logger";
@@ -50,7 +51,8 @@ export const adminMiddleware = createMiddleware({ type: "function" }).server(
 	async ({ next }) => {
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
-		if (session?.user.role !== "admin" || session.user.banned) {
+		// role==="admin" かつ !banned の単一情報源(ルートの beforeLoad と共有)。
+		if (!isAdminSession(session)) {
 			setResponseStatus(403);
 			throw new ForbiddenError();
 		}

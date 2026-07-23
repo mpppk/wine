@@ -99,11 +99,12 @@ bunx wrangler secret put STRIPE_SECRET_KEY                         # sk_live_...
 
 ## CI (GitHub Actions)
 
-`terraform/**` を変更する PR では `.github/workflows/terraform.yml` が実行される:
+`terraform/**` を変更すると `.github/workflows/terraform.yml` が実行される:
 
-- **fmt チェックと validate**: 常に実行(資格情報不要)
-- **plan**: 以下の GitHub Secrets(リポジトリの Settings → Secrets and variables → Actions)が
-  設定されている場合のみ実行。未設定ならスキップして notice を出す
+- **fmt チェックと validate**: 常に実行(資格情報不要。PR でも実行される)
+- **plan**: **PR では実行しない**。`push`(main へのマージ)と `workflow_dispatch` でのみ実行する。
+  以下の GitHub Secrets(リポジトリの Settings → Secrets and variables → Actions)が
+  設定されている場合のみ実行し、未設定ならスキップして notice を出す
 
 | Secret 名 | 内容 |
 |---|---|
@@ -114,13 +115,22 @@ bunx wrangler secret put STRIPE_SECRET_KEY                         # sk_live_...
 
 plan は読み取りのみで Stripe に書き込まない。
 
+> **PR で plan を実行しない理由(#134)**: `terraform plan` は PR ブランチの `.tf` をそのまま実行する。
+> `required_providers` の差し替えや external data source の追加により、plan 時に **live Stripe キー**や
+> **R2(state)認証情報**(state には webhook 署名シークレットが sensitive output として格納済み)を持つ
+> プロセスで任意コードが動きうる。このためライブ資格情報を PR コンテキストに露出させず、plan は
+> main マージ後(`push`)または手動実行(`workflow_dispatch`)で確認する。差分をマージ前に見たい場合は
+> ローカルで `terraform plan` を実行する。
+
 ### apply の自動化 (`.github/workflows/terraform-apply.yml`)
 
 apply も GitHub Actions で実行できる。plan(`terraform.yml`)とは別ワークフロー:
 
 - **preview**: `main` に `terraform/**` の変更がマージされると**自動 apply**(テストモード)
 - **production**: **手動実行のみ**(Actions → Terraform Apply → Run workflow で `environment=production` を選択)。
-  ライブモードの課金リソースを変更するため自動 apply はしない
+  ライブモードの課金リソースを変更するため自動 apply はしない。apply ジョブは GitHub Environment
+  (`preview` / `production`)に紐付いており、**`production` に required reviewers を設定すると apply 前に
+  承認待ちになる**(下記「GitHub Environments の設定」参照)
 - apply 後、`webhook_secret` と Stripe APIキー(`STRIPE_SECRET_KEY`、apply に使ったキーを流用)を
   Workers に**自動投入**する(preview は versions デプロイ運用のため
   `wrangler versions secret put --env preview`、production は `wrangler secret put`)。price ID は
@@ -138,6 +148,23 @@ plan で使う4つの Secret に加えて、apply では以下が必要:
 apply ワークフローが GitHub Secrets のキー(preview は `STRIPE_TEST_API_KEY`、production は
 `STRIPE_LIVE_API_KEY`)をそのまま Workers の secret へ投入する。手動での投入は不要
 (手元から行う場合は上記「出力のアプリへの反映」の手順を使う)。
+
+### GitHub Environments の設定(手動・#134)
+
+apply ジョブ(`terraform-apply.yml`)は GitHub Environment に紐付いている
+(`environment: ${{ github.event.inputs.environment || 'preview' }}`)。保護ルールと環境スコープの
+secret は GitHub 上で手動設定する(ワークフロー側は環境を参照するだけ):
+
+1. **Environment を作成**: リポジトリの Settings → Environments で `preview` と `production` を作成する
+2. **production に承認ゲートを付ける**: `production` に **Required reviewers**(単独運用なら自分自身)または
+   **Wait timer** を設定する。これにより `workflow_dispatch` で `production` を選んで実行しても、
+   承認するまで `terraform apply -auto-approve` が走らなくなる(誤操作・環境選択ミスの一段の歯止め)
+3. **live 資格情報を environment secret へ移す(推奨)**: `STRIPE_LIVE_API_KEY` と `CLOUDFLARE_API_TOKEN` を
+   リポジトリレベル secret から **`production` の environment secret** へ移動する。リポジトリ secret は
+   全ワークフロー・全ブランチから参照可能だが、environment secret はそのジョブがその環境で走るときにのみ
+   解決されるため、ライブキーの参照可能範囲を production の apply ジョブに限定できる。同様に
+   `STRIPE_TEST_API_KEY` は `preview` の environment secret にできる
+   (`TF_R2_ACCESS_KEY_ID` / `TF_R2_SECRET_ACCESS_KEY` は両環境で使うためリポジトリ secret のままでもよい)
 
 ## 運用上の注意
 
