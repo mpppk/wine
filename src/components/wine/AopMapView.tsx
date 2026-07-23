@@ -6,6 +6,12 @@ import type {
 	Popup,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+// maplibre-gl v6 はワーカーを `new URL(`./${t}`, import.meta.url)`(t は可変)で
+// 解決するため Vite が静的にアセットとして検出できず、既定の worker URL が
+// バンドルに出力されず 404 になる(タイル/GeoJSON が読めず地図が真っ白になる)。
+// Vite の `?worker&url` でワーカー(依存の maplibre-gl-shared 含む)をバンドルし、
+// その URL を setWorkerUrl で明示指定する。
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "#/lib/utils";
 import {
@@ -291,6 +297,10 @@ export function AopMapView({
 			// namespace import で Map/NavigationControl/Popup を参照する。
 			const maplibregl = await import("maplibre-gl");
 			if (cancelled || !containerRef.current) return;
+
+			// 既定の worker URL は Vite でバンドルされず 404 になるため、
+			// `?worker&url` で出力したワーカーの URL を map 生成前に登録する。
+			maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 			const map = new maplibregl.Map({
 				container,
