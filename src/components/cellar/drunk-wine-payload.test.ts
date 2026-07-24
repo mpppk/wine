@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { DRUNK_WINE_FIELD_DEFS } from "#/lib/drunk-wine/fields";
 import {
 	buildCreateInput,
+	buildMcpUpdatePatch,
 	buildUpdatePatch,
 	type DrunkWineFormState,
+	fieldsValueFromMcpEntry,
 	toFormValues,
 } from "./drunk-wine-payload";
 
@@ -193,5 +195,94 @@ describe("buildCreateInput", () => {
 
 	it("名前はトリムして必ず送る", () => {
 		expect(buildCreateInput(state({ name: " Chablis " })).name).toBe("Chablis");
+	});
+});
+
+// ---- MCP App(/embed/drunk-wine)側の変換 --------------------------------
+// ホストから postMessage で届く snake_case のエントリは外部入力なので、
+// 型が違う値でフォームが壊れないことも固定する。
+
+const mcpEntry = {
+	id: "e1",
+	name: "Chablis",
+	drank_on: "2020-01-02",
+	rating: 3,
+	vintage: 2018,
+	producer: "Dauvissat",
+	price: 3000,
+	aop_id: "chablis",
+	region_id: "bourgogne",
+	grape_variety_ids: ["chardonnay"],
+	memo: "good",
+};
+
+describe("fieldsValueFromMcpEntry", () => {
+	it("snake_case のエントリをフォームの値へ写す", () => {
+		expect(fieldsValueFromMcpEntry(mcpEntry)).toEqual({
+			name: "Chablis",
+			drankOn: "2020-01-02",
+			rating: 3,
+			vintage: "2018",
+			producer: "Dauvissat",
+			price: "3000",
+			aopId: "chablis",
+			regionId: "bourgogne",
+			grapeVarietyIds: ["chardonnay"],
+			memo: "good",
+		});
+	});
+
+	it("null・欠落・型違いは空の入力に倒す", () => {
+		expect(
+			fieldsValueFromMcpEntry({
+				id: "e1",
+				name: null as unknown as string,
+				rating: "3" as unknown as number,
+				vintage: Number.NaN,
+				aop_id: "",
+				grape_variety_ids: undefined,
+			}),
+		).toEqual({
+			name: "",
+			drankOn: "",
+			rating: null,
+			vintage: "",
+			producer: "",
+			price: "",
+			aopId: undefined,
+			regionId: undefined,
+			grapeVarietyIds: [],
+			memo: "",
+		});
+	});
+});
+
+describe("buildMcpUpdatePatch", () => {
+	it("変更が無ければ空パッチ", () => {
+		expect(
+			buildMcpUpdatePatch(mcpEntry, fieldsValueFromMcpEntry(mcpEntry)),
+		).toEqual({});
+	});
+
+	it("変更したフィールドだけを snake_case で返す", () => {
+		const value = {
+			...fieldsValueFromMcpEntry(mcpEntry),
+			name: "Chablis 1er",
+			memo: "",
+			grapeVarietyIds: [],
+		};
+		expect(buildMcpUpdatePatch(mcpEntry, value)).toEqual({
+			name: "Chablis 1er",
+			memo: null,
+			grape_variety_ids: [],
+		});
+	});
+
+	it("regionId は送らない(AOPから導出される)", () => {
+		const value = {
+			...fieldsValueFromMcpEntry(mcpEntry),
+			regionId: "beaujolais",
+		};
+		expect(buildMcpUpdatePatch(mcpEntry, value)).toEqual({});
 	});
 });

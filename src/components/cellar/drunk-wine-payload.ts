@@ -2,6 +2,7 @@ import {
 	collectDrunkWinePatch,
 	type DrunkWineCamelEntry,
 	type DrunkWineFormValues,
+	type DrunkWinePatch,
 	type DrunkWineSnakeKey,
 	toCamelCreateFields,
 	toCamelPatch,
@@ -11,6 +12,8 @@ import type {
 	CreateDrunkWineInput,
 	UpdateDrunkWineInput,
 } from "#/lib/drunk-wine/schema";
+import type { ReceivedDrunkWineEntry } from "#/lib/mcp-app/entry";
+import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 
 // DrunkWineForm の送信ペイロード生成。パッチ規約(空欄→null / 全解除→[] /
 // name はクリア不可 / 未変更は送らない)の単一情報源は collectDrunkWinePatch
@@ -57,6 +60,88 @@ export function toFormValues(s: DrunkWineFormState): DrunkWineFormValues {
 		grape_variety_ids: s.grapeVarietyIds,
 		memo: s.memo,
 	} satisfies Record<DrunkWineSnakeKey, string | string[]>;
+}
+
+/**
+ * DrunkWineFields が扱う値。送信対象(DrunkWineFormState)に、AOP候補の絞り込み用の
+ * regionId を足したもの。Web版フォームと MCP App(/embed/drunk-wine)の両方が
+ * この形で state を持つ。
+ */
+export interface DrunkWineFieldsValue extends DrunkWineFormState {
+	regionId: string | undefined;
+}
+
+/** 送信対象のフィールドだけを取り出す(regionId は AOP から導出されるので送らない)。 */
+export function toFormState(value: DrunkWineFieldsValue): DrunkWineFormState {
+	return {
+		name: value.name,
+		drankOn: value.drankOn,
+		rating: value.rating,
+		vintage: value.vintage,
+		producer: value.producer,
+		price: value.price,
+		aopId: value.aopId,
+		grapeVarietyIds: value.grapeVarietyIds,
+		memo: value.memo,
+	};
+}
+
+/** Web版フォームの初期値。entry 未指定なら新規作成の空フォーム。 */
+export function fieldsValueFromEntry(
+	entry?: DrunkWineEntry,
+): DrunkWineFieldsValue {
+	return {
+		name: entry?.name ?? "",
+		drankOn: entry?.drankOn ?? "",
+		rating: entry?.rating ?? null,
+		vintage: entry?.vintage != null ? String(entry.vintage) : "",
+		producer: entry?.producer ?? "",
+		price: entry?.price != null ? String(entry.price) : "",
+		aopId: entry?.aopId ?? undefined,
+		regionId: entry?.regionId ?? undefined,
+		grapeVarietyIds: entry?.grapeVarietyIds ?? [],
+		memo: entry?.memo ?? "",
+	};
+}
+
+/**
+ * MCP App の初期値。ホストから postMessage で届く snake_case のエントリは
+ * 外部入力なので、型が違う値は既定値に倒す(1フィールドの不正で全体が壊れない)。
+ */
+export function fieldsValueFromMcpEntry(
+	entry: ReceivedDrunkWineEntry,
+): DrunkWineFieldsValue {
+	const text = (v: unknown): string => (typeof v === "string" ? v : "");
+	const numText = (v: unknown): string =>
+		typeof v === "number" && Number.isFinite(v) ? String(v) : "";
+	return {
+		name: text(entry.name),
+		drankOn: text(entry.drank_on),
+		rating: typeof entry.rating === "number" ? entry.rating : null,
+		vintage: numText(entry.vintage),
+		producer: text(entry.producer),
+		price: numText(entry.price),
+		aopId: text(entry.aop_id) || undefined,
+		regionId: text(entry.region_id) || undefined,
+		grapeVarietyIds: Array.isArray(entry.grape_variety_ids)
+			? entry.grape_variety_ids.filter((id) => typeof id === "string")
+			: [],
+		memo: text(entry.memo),
+	};
+}
+
+/**
+ * MCP境界(snake_case)の差分パッチ。ホスト仲介の tools/call へそのまま
+ * arguments として渡す。基準の entry も snake_case なので射影は要らない。
+ */
+export function buildMcpUpdatePatch(
+	entry: ReceivedDrunkWineEntry,
+	value: DrunkWineFieldsValue,
+): DrunkWinePatch {
+	return collectDrunkWinePatch(
+		entry as Record<string, unknown>,
+		toFormValues(toFormState(value)),
+	);
 }
 
 /**

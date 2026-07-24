@@ -13,9 +13,11 @@ import {
 // その上に載る「フォームでの見せ方」と「更新時のクリア規約」を1箇所にまとめる。
 //
 // Web の DrunkWineForm と MCP App(apps.ts のテンプレート文字列内 vanilla JS)が
-// フィールド一覧とパッチ規約を各自ハードコードしてドリフトしていた(#155)。
-// apps.ts はこの定義を JSON 埋め込みして render()/collectPatch() を汎用ループ化する。
-// そのため本モジュールはランタイム非依存に保つ(cloudflare:workers を import しない)。
+// フィールド一覧とパッチ規約を各自ハードコードしてドリフトしていた(#155)。現在は
+// MCP App も実 React 実装(/embed/drunk-wine)になり、両者がこの定義と
+// collectDrunkWinePatch を直接 import する(#189)。MCPツールの入力スキーマ
+// (schemas.ts)も同じ定義から生成するため、本モジュールはランタイム非依存に保つ
+// (cloudflare:workers を import しない)。
 
 export type DrunkWineInputKind =
 	| "text"
@@ -140,35 +142,6 @@ export type DrunkWineCamelKey =
 export type DrunkWineSnakeKey =
 	(typeof DRUNK_WINE_FIELD_DEFS)[number]["snakeKey"];
 
-// apps.ts がサンドボックス iframe のテンプレート文字列へ JSON 埋め込みする
-// クライアント安全な射影(zod 非依存の素データ)。camelKey は App では使わない。
-// undefined のプロパティは JSON.stringify で自然に落ちる。
-export interface ClientFieldDef {
-	snakeKey: string;
-	label: string;
-	input: DrunkWineInputKind;
-	clear: ClearConvention;
-	col: "full" | "half";
-	min?: number;
-	max?: number;
-	placeholder?: string;
-	required?: boolean;
-}
-
-export function clientFieldDefs(): ClientFieldDef[] {
-	return DRUNK_WINE_FIELD_DEFS.map((d) => ({
-		snakeKey: d.snakeKey,
-		label: d.label,
-		input: d.input,
-		clear: d.clear,
-		col: d.col,
-		min: "min" in d ? d.min : undefined,
-		max: "max" in d ? d.max : undefined,
-		placeholder: "placeholder" in d ? d.placeholder : undefined,
-		required: "required" in d ? d.required : undefined,
-	}));
-}
-
 // フォーム入力値。grape は選択中IDの配列、それ以外は input.value 相当の文字列。
 // キーは snakeKey。
 export type DrunkWineFormValues = Record<string, string | string[]>;
@@ -191,9 +164,8 @@ export type DrunkWineFieldArgs = {
 				: string;
 };
 
-// 差分パッチ規約の唯一のテスト可能な実装。apps.ts のテンプレート文字列内 JS は
-// (サンドボックスから TS を実行時 import できないため)このロジックを
-// near-verbatim にミラーする汎用ループを持つ。規約は fields.test.ts が固定する。
+// 差分パッチ規約の唯一の実装。Web版フォームも MCP App のフォームもこれを
+// 直接呼ぶ(ミラー実装は無い)。規約は fields.test.ts が固定する。
 //
 // 規約: 未変更フィールドは送らない / 空欄は clear 規約に従う(null or []) /
 // name はクリア不可 / number は Number() / grape は順序非依存で比較。

@@ -23,6 +23,7 @@ import { Route as QuizPlayRouteImport } from './routes/quiz.play'
 import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
 import { Route as MapRegionIdRouteImport } from './routes/map.$regionId'
 import { Route as EmbedMapRouteImport } from './routes/embed/map'
+import { Route as EmbedDrunkWineRouteImport } from './routes/embed/drunk-wine'
 import { Route as CellarNewRouteImport } from './routes/cellar.new'
 import { Route as CellarMapRouteImport } from './routes/cellar.map'
 import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
@@ -105,6 +106,11 @@ const MapRegionIdRoute = MapRegionIdRouteImport.update({
 const EmbedMapRoute = EmbedMapRouteImport.update({
   id: '/embed/map',
   path: '/embed/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedDrunkWineRoute = EmbedDrunkWineRouteImport.update({
+  id: '/embed/drunk-wine',
+  path: '/embed/drunk-wine',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CellarNewRoute = CellarNewRouteImport.update({
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/map': typeof CellarMapRoute
   '/cellar/new': typeof CellarNewRoute
+  '/embed/drunk-wine': typeof EmbedDrunkWineRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/map': typeof CellarMapRoute
   '/cellar/new': typeof CellarNewRoute
+  '/embed/drunk-wine': typeof EmbedDrunkWineRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/map': typeof CellarMapRoute
   '/cellar/new': typeof CellarNewRoute
+  '/embed/drunk-wine': typeof EmbedDrunkWineRoute
   '/embed/map': typeof EmbedMapRoute
   '/map/$regionId': typeof MapRegionIdRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/api/wine-photos'
     | '/cellar/map'
     | '/cellar/new'
+    | '/embed/drunk-wine'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
@@ -311,6 +321,7 @@ export interface FileRouteTypes {
     | '/api/wine-photos'
     | '/cellar/map'
     | '/cellar/new'
+    | '/embed/drunk-wine'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/api/wine-photos'
     | '/cellar/map'
     | '/cellar/new'
+    | '/embed/drunk-wine'
     | '/embed/map'
     | '/map/$regionId'
     | '/oauth/consent'
@@ -370,6 +382,7 @@ export interface RootRouteChildren {
   ApiWinePhotosRoute: typeof ApiWinePhotosRoute
   CellarMapRoute: typeof CellarMapRoute
   CellarNewRoute: typeof CellarNewRoute
+  EmbedDrunkWineRoute: typeof EmbedDrunkWineRoute
   EmbedMapRoute: typeof EmbedMapRoute
   MapRegionIdRoute: typeof MapRegionIdRoute
   OauthConsentRoute: typeof OauthConsentRoute
@@ -481,6 +494,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/map'
       fullPath: '/embed/map'
       preLoaderRoute: typeof EmbedMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/drunk-wine': {
+      id: '/embed/drunk-wine'
+      path: '/embed/drunk-wine'
+      fullPath: '/embed/drunk-wine'
+      preLoaderRoute: typeof EmbedDrunkWineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cellar/new': {
@@ -596,6 +616,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWinePhotosRoute: ApiWinePhotosRoute,
   CellarMapRoute: CellarMapRoute,
   CellarNewRoute: CellarNewRoute,
+  EmbedDrunkWineRoute: EmbedDrunkWineRoute,
   EmbedMapRoute: EmbedMapRoute,
   MapRegionIdRoute: MapRegionIdRoute,
   OauthConsentRoute: OauthConsentRoute,

@@ -3,11 +3,13 @@ import {
 	createRootRouteWithContext,
 	HeadContent,
 	Scripts,
+	useRouterState,
 } from "@tanstack/react-router";
 import { AdBanner } from "../components/ads/AdBanner";
 import { CommandPalette } from "../components/CommandPalette";
 import { CommandPaletteProvider } from "../components/CommandPaletteContext";
 import Header from "../components/Header";
+import { isEmbedPath } from "../lib/embed";
 import appCss from "../styles.css?url";
 
 interface MyRouterContext {
@@ -95,6 +97,14 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+	// MCP Apps ホストの iframe に埋め込むビューではアプリの共通シェルを出さない。
+	// 見た目の問題だけでなく、これらのウィジェットはセッション・課金ステータスを
+	// クライアントから取りに行くため、不透明オリジンの埋め込み先では必ず CORS で
+	// 失敗して無駄なリトライを繰り返す(埋め込みビューは認証情報を使わない)。
+	const isEmbed = useRouterState({
+		select: (s) => isEmbedPath(s.location.pathname),
+	});
+
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<head>
@@ -116,12 +126,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<HeadContent />
 			</head>
 			<body className="font-sans antialiased [overflow-wrap:anywhere]">
-				<CommandPaletteProvider>
-					<Header />
-					{children}
-					<AdBanner />
-					<CommandPalette />
-				</CommandPaletteProvider>
+				{isEmbed ? (
+					children
+				) : (
+					<CommandPaletteProvider>
+						<Header />
+						{children}
+						<AdBanner />
+						<CommandPalette />
+					</CommandPaletteProvider>
+				)}
 				<Scripts />
 			</body>
 		</html>

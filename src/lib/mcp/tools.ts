@@ -5,6 +5,7 @@ import { hasDrunkWinePatch, toCamelPatch } from "#/lib/drunk-wine/fields";
 import { decodePhotoBase64 } from "#/lib/drunk-wine/photo";
 import { BadRequestError, HttpError } from "#/lib/errors";
 import { logError } from "#/lib/logger";
+import type { McpDrunkWineEntry } from "#/lib/mcp-app/entry";
 import * as aiService from "#/lib/services/ai-service";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
@@ -358,8 +359,9 @@ export function registerReadTools(server: McpServer, userId: string) {
 }
 
 // MCPクライアントへ返すエントリ表現。photo_url はホスト(iframe外)から
-// 参照できるよう絶対URLにする。
-function toEntryPayload(entry: DrunkWineEntry) {
+// 参照できるよう絶対URLにする。形の単一情報源は McpDrunkWineEntry で、
+// MCP App のフォーム(/embed/drunk-wine)が同じ型で受け取る。
+function toEntryPayload(entry: DrunkWineEntry): McpDrunkWineEntry {
 	return {
 		id: entry.id,
 		name: entry.name,
