@@ -72,6 +72,16 @@ npx wrangler d1 migrations apply DB --remote --env preview
 恒久策としては「スキーマ変更 PR を1本ずつマージする」運用を守る（CLAUDE.md 参照）。それでも
 残留が問題になるなら、スキーマ変更 PR だけブランチ専用 D1 を割り当てる仕組みを別途検討する。
 
+## シークレットの投入
+
+過去のCI整備（PR #59/#63〜#67）で繰り返し踏んだ非対称性のまとめ。
+
+- **本番（`wine`）とプレビュー（`wine-preview`）でコマンドが異なる**。`wine-preview` は `wrangler versions upload` 運用のため `wrangler secret put` が
+  `latest version isn't currently deployed` で失敗する → `npx wrangler versions secret put <NAME> --env preview` を使う。本番は従来どおり `npx wrangler secret put <NAME>`（PR #66）。
+- **シークレット追加後、既存のプレビューには反映されない**。新しいビルドを走らせる（空コミット等）必要がある（PR #59）。
+- Terraform（R2 バックエンド）では、`terraform apply` だけでなく **`terraform output` を実行するステップにも R2 の AWS 系認証情報が必要**
+  （`No valid credential sources found` で失敗する。PR #64）。GitHub Actions のステップ `if:` 式では `secrets` コンテキストを参照できないため、env に展開してから判定する（PR #60）。
+
 ## 設定の確認・変更（Workers Builds API）
 
 ダッシュボード UI のほか、[Workers Builds API](https://developers.cloudflare.com/workers/ci-cd/builds/api-reference/)
