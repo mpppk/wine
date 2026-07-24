@@ -34,6 +34,20 @@
 
 ### Cloudflare Workersの環境での動作確認
 * PR作成後に、Cloudflare Workersの環境が自動で立ち上がります。この環境が作成されたら、上記記載の動作確認をCloudflare Workersの環境で行なってください。
+* 実行環境からプレビューURLにブラウザ到達できない場合（プロキシのCONNECT reset / bot保護 Error 1010）は、`verify` skill の「プレビューに到達できない場合の代替手順」に従い、代替した旨と手順をPR本文に明記する。
+
+## 過去PRで繰り返しハマったポイント
+
+過去の全PR（#1〜#186）の振り返りから抽出した頻出の落とし穴。該当する作業では必ず確認する。
+
+* **着手前に重複を確認する**: origin/main を最新化し、同一Issue・機能の既存PR/マージ済みコミットを確認してから実装する（古いmain基点のセッション再開で機能一式2,500行超を丸ごと再実装 → クローズ #61、同一Issueへの並行PRで相互巻き戻しリスク #167/#168）。Issue対応のPR本文には必ず `Closes #N` を書く（auto-close漏れによる「どのIssueが未対応か」の再調査が7本以上のPRで繰り返された）。
+* **CIが緑でもランタイムで壊れる変更がある**: バンドラのアセット解決に関わる依存更新や、Node前提の実装がWorkersで無効化するケースは typecheck/build/test では検出できない（maplibre-gl v6 の worker が Vite に検出されず実行時404で地図が真っ白 #184、メモリ保持のレートリミットが isolate 分散でほぼ無効 #178）。この種の変更はプレビュー実機で該当画面を必ず目視する。
+* **wrangler と `@cloudflare/vite-plugin` はペアで更新する**: wrangler 単独更新は旧pluginが生成する `dist/server/wrangler.json` の `legacy_env` を新CLIが拒否して deploy が失敗する（#103）。更新時は `npx wrangler deploy --dry-run` を本番/preview 両envで検証する。
+* **Workers AI のモデル追加・切替・呼び出し変更**は `workers-ai` skill のチェックリストに従う（`AiModels` 型未登録モデルは呼べない、`guided_json` は型を保証しない、reasoningモデルの thinking で出力が途切れる等。#100/#103/#106/#108/#110 で反復）。
+* **横断的な防御・規約は共通チョークポイント（SSOT）に寄せる**: ログ/エラー型/画像MIME検証/認可ガード/フォーム仕様を経路ごとに書くと、後発の経路で必ず適用漏れする（MIME検証がワイン写真経路に未適用 #174、adminガード条件が beforeLoad×3 と middleware でドリフト #177、MCP Appフォーム仕様の5重実装で photo_urls 対応漏れ #185、構造化ログが新ドメイン群で未適用 #166）。新しい入出力経路を足すときは既存の関門を通し、同種の定義が2箇所以上に現れたらSSOT化する。
+* **金銭・クレジットの書き込みは既存イディオム以外の形を新設しない**: `db.batch` 原子化 + `requestId` 冪等（UPDATE側にも `NOT EXISTS(request_id)` ガード）+ 条件付きUPDATE + 月境界ガード（docs/architecture.md 参照）。この形から外れた書き込みの原子性・冪等性欠落の修正が #165〜#168/#173 に集中した（settle と refund の requestId が別キーだと unique 制約が二重返金を防げない等）。
+* **Stripe 決済の実機確認には自動化不可領域がある**: Checkout のカード入力・Billing Portal（closed shadow DOM）はブラウザ自動化できない → Test Plan に手動確認依頼を明記する。固定ドメイン前提の経路（Checkout 戻りURL・webhook）はブランチプレビューでは404になり、マージ後にしか検証できない（#59/#70）。
+* **クイズの出題キュー・完了判定の変更時**は「小スコープ（AOP単位の数問）で最後の未正解をスキップ/不正解にする」「取得結果が全てセッション内正解済み」のケースを必ず確認する（「問題を準備中…」固着が #76 → #169 と経路を変えて再発。escape hatch を外さない）。
 
 # 環境
 
