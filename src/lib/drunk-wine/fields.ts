@@ -1,3 +1,4 @@
+import type { CreateDrunkWineInput, UpdateDrunkWineInput } from "./schema";
 import {
 	PRICE_MAX,
 	PRICE_MIN,
@@ -175,7 +176,7 @@ export type DrunkWineFormValues = Record<string, string | string[]>;
 export type DrunkWinePatch = Record<string, string | number | string[] | null>;
 
 // MCP 境界(snake_case)の書き込みツール引数の型。update/register ハンドラの args と
-// tools.ts の toWinePatch 入力に使う。値スキーマの clear 規約から型を導出する:
+// toCamelPatch の入力に使う。値スキーマの clear 規約から型を導出する:
 // clear:"null" のフィールドだけ null 許容、grape は string[]、数値系は number。
 // 全フィールド optional(register の name は上位スキーマで非 optional に絞られる)。
 export type DrunkWineFieldArgs = {
@@ -236,4 +237,72 @@ export function collectDrunkWinePatch(
 		if (v !== cur) patch[key] = v === "" ? null : v;
 	}
 	return patch;
+}
+
+// ---- 境界のキー射影 -------------------------------------------------------
+// サービス層(camelCase)と MCP/フォーム(snake_case)の対応も DRUNK_WINE_FIELD_DEFS
+// から導出する。値は変換せず、キーの読み替えだけを行う。
+
+/** camelCase のエントリ(DrunkWineEntry 等)を受ける構造型。定義外のキーは無視される。 */
+export type DrunkWineCamelEntry = { [K in DrunkWineCamelKey]?: unknown };
+
+/** snakeKey keyed のパッチ。DrunkWinePatch も DrunkWineFieldArgs もこれに代入できる。 */
+export type DrunkWineSnakePatch = {
+	[K in DrunkWineSnakeKey]?: string | number | string[] | null;
+};
+
+/**
+ * camelCase のエントリを snakeKey keyed へ射影する(collectDrunkWinePatch の
+ * 第1引数用)。aopNameJa / regionId / photoUrls / updatedAt などフィールド定義に
+ * 無いキーは落ちるので、差分の基準として過不足のない形になる。
+ */
+export function toSnakeEntry(
+	entry: DrunkWineCamelEntry,
+): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const d of DRUNK_WINE_FIELD_DEFS) {
+		out[d.snakeKey] = (entry as Record<string, unknown>)[d.camelKey];
+	}
+	return out;
+}
+
+// 値の型は検証されないキャストを伴うため、変換の実体はこの1関数に閉じて
+// 呼び出し側(フォーム・MCPツール)にキャストを散らさない。
+function toCamelKeyed(patch: DrunkWineSnakePatch): Record<string, unknown> {
+	const source = patch as Record<string, unknown>;
+	const out: Record<string, unknown> = {};
+	for (const d of DRUNK_WINE_FIELD_DEFS) {
+		// 未指定(キーが無い/undefined)は「変更しない」。サービス層は各キーを
+		// 明示的に読むので、キーごと落としても undefined を入れても等価。
+		if (source[d.snakeKey] !== undefined) out[d.camelKey] = source[d.snakeKey];
+	}
+	return out;
+}
+
+/** snakeKey パッチ → 更新入力(camelCase)。null は「クリア」としてそのまま渡す。 */
+export function toCamelPatch(
+	patch: DrunkWineSnakePatch,
+): Omit<UpdateDrunkWineInput, "id"> {
+	return toCamelKeyed(patch) as Omit<UpdateDrunkWineInput, "id">;
+}
+
+/**
+ * snakeKey パッチ → 作成入力(camelCase)。
+ * 空エントリ({})を基準に collectDrunkWinePatch を通したパッチには null が現れない
+ * (クリアすべき既存値が無いため空欄はキーごと落ちる)ので、そのまま作成入力にできる。
+ * name は必須なので呼び出し側が明示的に足す。
+ */
+export function toCamelCreateFields(
+	patch: DrunkWineSnakePatch,
+): Omit<CreateDrunkWineInput, "name"> {
+	return toCamelKeyed(patch) as Omit<CreateDrunkWineInput, "name">;
+}
+
+/**
+ * 送るべき変更があるか。全キーが未指定のパッチで UPDATE を発行すると
+ * 空 SET になるため、呼び出し側はこれでガードする。
+ * null(クリア)は「変更あり」として扱う。
+ */
+export function hasDrunkWinePatch(patch: Record<string, unknown>): boolean {
+	return Object.values(patch).some((v) => v !== undefined);
 }
