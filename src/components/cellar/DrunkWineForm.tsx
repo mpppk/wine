@@ -9,13 +9,13 @@ import {
 	XIcon,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { GrapeVarietyMultiSelect } from "#/components/cellar/GrapeVarietyMultiSelect";
 import {
 	type AnalysisPhotoSource,
 	analyzeLabelPhotos,
 } from "#/components/cellar/label-analysis";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
-import { Checkbox } from "#/components/ui/checkbox";
 import {
 	CommandDialog,
 	CommandEmpty,
@@ -45,7 +45,6 @@ import {
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { cn } from "#/lib/utils";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
-import { GRAPE_VARIETIES } from "#/lib/wine/varieties";
 import { createDrunkWine, updateDrunkWine } from "#/server/drunk-wine";
 
 const REGION_NONE = "__none__";
@@ -152,14 +151,6 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 		[regionId],
 	);
 	const selectedAop = aopId ? getAop(aopId) : undefined;
-	const redVarieties = GRAPE_VARIETIES.filter((v) => v.color === "red");
-	const whiteVarieties = GRAPE_VARIETIES.filter((v) => v.color === "white");
-
-	const toggleVariety = (id: string) => {
-		setGrapeVarietyIds((prev) =>
-			prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
-		);
-	};
 
 	// 既存写真の表示URL(キャッシュバスタ付き)。解析時のfetchにも使う
 	const photoSrc = (p: PhotoItem): string =>
@@ -550,33 +541,10 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 				<Label asChild>
 					<legend>ぶどう品種(複数選択可)</legend>
 				</Label>
-				{[
-					{ label: "黒ブドウ", varieties: redVarieties },
-					{ label: "白ブドウ", varieties: whiteVarieties },
-				].map((group) => (
-					<div key={group.label} className="flex flex-col gap-2">
-						<p className="text-xs font-medium text-muted-foreground">
-							{group.label}
-						</p>
-						<div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-							{group.varieties.map((v) => (
-								<div key={v.id} className="flex items-center gap-2">
-									<Checkbox
-										id={`grape-${v.id}`}
-										checked={grapeVarietyIds.includes(v.id)}
-										onCheckedChange={() => toggleVariety(v.id)}
-									/>
-									<Label
-										htmlFor={`grape-${v.id}`}
-										className="text-sm font-normal"
-									>
-										{v.nameJa}
-									</Label>
-								</div>
-							))}
-						</div>
-					</div>
-				))}
+				<GrapeVarietyMultiSelect
+					value={grapeVarietyIds}
+					onChange={setGrapeVarietyIds}
+				/>
 			</fieldset>
 
 			<div className="flex flex-col gap-3">
