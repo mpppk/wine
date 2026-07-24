@@ -9,6 +9,11 @@ import {
 	XIcon,
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import {
+	buildCreateInput,
+	buildUpdatePatch,
+	type DrunkWineFormState,
+} from "#/components/cellar/drunk-wine-payload";
 import { GrapeVarietyMultiSelect } from "#/components/cellar/GrapeVarietyMultiSelect";
 import {
 	type AnalysisPhotoSource,
@@ -36,6 +41,7 @@ import {
 import { Textarea } from "#/components/ui/textarea";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import { CREDIT_BALANCE_QUERY_KEY } from "#/lib/credit/use-credit";
+import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
 import {
 	ALLOWED_PHOTO_TYPES,
 	MAX_PHOTO_BYTES,
@@ -100,8 +106,9 @@ async function syncPhotos(
 	return body.entry;
 }
 
-// 追加/編集共用のフォーム。作成と更新でserver fnのnull/undefined規約が
-// 異なる(更新は null=クリア)ため、送信ペイロードだけ分岐する。
+// 追加/編集共用のフォーム。送信ペイロードの規約(空欄→null / 全解除→[] /
+// name はクリア不可 / 未変更は送らない)は src/lib/drunk-wine/fields.ts が単一情報源で、
+// フォーム state との橋渡しは drunk-wine-payload.ts に切り出してある。更新は差分パッチ。
 // 写真は複数枚。エントリ確定後でないとR2キー(entryId依存)が決まらないので、
 // server fn成功後に /api/wine-photos へ写真集合を同期POSTする(追加・削除・並べ替えを一括反映)。
 export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
@@ -141,9 +148,13 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	// 新規写真の localId 採番用(既存は e{i}、新規は n{連番})
 	const newIdRef = useRef(0);
-	// 新規作成でエントリ作成後に写真アップロードだけ失敗した場合、
-	// 再送信で重複エントリを作らないよう作成済みエントリを覚えて更新に切り替える
-	const createdRef = useRef<DrunkWineEntry | null>(null);
+	// 直近にサーバで確定したエントリ。2つの役割がある:
+	//  - 新規作成でエントリ作成後に写真アップロードだけ失敗した場合、再送信で
+	//    重複エントリを作らないよう更新に切り替える
+	//  - 更新の差分パッチの基準。entry propは初期表示時のスナップショットなので、
+	//    保存成功後の再送信ではこちらを優先しないと「一度保存した値に戻す」変更が
+	//    差分ゼロと判定されて反映されない
+	const savedRef = useRef<DrunkWineEntry | null>(null);
 
 	const regions = useMemo(() => listRegions().filter((r) => r.enabled), []);
 	const aopCandidates = useMemo(
@@ -278,50 +289,37 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 
 	const { mutate: save, isPending } = useMutation({
 		mutationFn: async () => {
-			const trimmedName = name.trim();
-			const vintageNum = vintage === "" ? undefined : Number(vintage);
-			const priceNum = price === "" ? undefined : Number(price);
+			const state: DrunkWineFormState = {
+				name,
+				drankOn,
+				rating,
+				vintage,
+				producer,
+				price,
+				aopId,
+				grapeVarietyIds,
+				memo,
+			};
 
 			let saved: DrunkWineEntry;
-			const existing = entry ?? createdRef.current;
+			const existing = savedRef.current ?? entry;
 			if (existing) {
-				// 更新: null=クリア(空欄に戻した項目もDBへ反映する)
-				saved = await updateDrunkWine({
-					data: {
-						id: existing.id,
-						name: trimmedName,
-						drankOn: drankOn === "" ? null : drankOn,
-						aopId: aopId ?? null,
-						rating,
-						memo: memo === "" ? null : memo,
-						vintage: vintageNum ?? null,
-						grapeVarietyIds,
-						producer: producer.trim() === "" ? null : producer.trim(),
-						price: priceNum ?? null,
-					},
-				});
+				// 更新: 変更したフィールドだけを送る(null=クリア)。
+				// 全キー未指定のパッチは空UPDATEになるので送信自体をスキップする
+				const patch = buildUpdatePatch(existing, state);
+				saved = hasDrunkWinePatch(patch)
+					? await updateDrunkWine({ data: { id: existing.id, ...patch } })
+					: existing;
 			} else {
-				saved = await createDrunkWine({
-					data: {
-						name: trimmedName,
-						drankOn: drankOn === "" ? undefined : drankOn,
-						aopId,
-						rating: rating ?? undefined,
-						memo: memo === "" ? undefined : memo,
-						vintage: vintageNum,
-						grapeVarietyIds:
-							grapeVarietyIds.length > 0 ? grapeVarietyIds : undefined,
-						producer: producer.trim() === "" ? undefined : producer.trim(),
-						price: priceNum,
-					},
-				});
-				createdRef.current = saved;
+				saved = await createDrunkWine({ data: buildCreateInput(state) });
 			}
+			savedRef.current = saved;
 			// 写真集合を同期する。新規追加も既存の削除・並べ替えもここで反映される。
 			// 新規作成で写真が無い場合はスキップ(不要なリクエストを避ける)
 			const hadPhotos = (entry?.photoUrls.length ?? 0) > 0;
 			if (photos.length > 0 || hadPhotos) {
 				saved = await syncPhotos(saved.id, photos);
+				savedRef.current = saved;
 			}
 			return saved;
 		},

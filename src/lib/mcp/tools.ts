@@ -1,12 +1,8 @@
 import { env } from "cloudflare:workers";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import {
-	DRUNK_WINE_FIELD_DEFS,
-	type DrunkWineFieldArgs,
-} from "#/lib/drunk-wine/fields";
+import { hasDrunkWinePatch, toCamelPatch } from "#/lib/drunk-wine/fields";
 import { decodePhotoBase64 } from "#/lib/drunk-wine/photo";
-import type { UpdateDrunkWineInput } from "#/lib/drunk-wine/schema";
 import { BadRequestError, HttpError } from "#/lib/errors";
 import { logError } from "#/lib/logger";
 import * as aiService from "#/lib/services/ai-service";
@@ -361,21 +357,6 @@ export function registerReadTools(server: McpServer, userId: string) {
 	);
 }
 
-// MCPツールのsnake_case入力とサービス層のcamelCase入力の橋渡し。
-// undefinedのキーはサービス層(drizzle)が「変更なし」として無視し、
-// null は「クリア」としてそのまま渡す(update時のみ)。フィールド一覧と
-// snake↔camel 対応は単一情報源 DRUNK_WINE_FIELD_DEFS から生成する。
-function toWinePatch(
-	args: DrunkWineFieldArgs,
-): Omit<UpdateDrunkWineInput, "id"> {
-	const patch: Record<string, string | number | string[] | null | undefined> =
-		{};
-	for (const d of DRUNK_WINE_FIELD_DEFS) {
-		patch[d.camelKey] = args[d.snakeKey];
-	}
-	return patch as Omit<UpdateDrunkWineInput, "id">;
-}
-
 // MCPクライアントへ返すエントリ表現。photo_url はホスト(iframe外)から
 // 参照できるよう絶対URLにする。
 function toEntryPayload(entry: DrunkWineEntry) {
@@ -468,7 +449,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 			try {
 				const photo = decodePhotoArgs(args);
 				let entry = await drunkWineService.createDrunkWine(userId, {
-					...toWinePatch(args),
+					...toCamelPatch(args),
 					name: args.name,
 				});
 				// エントリ作成後の写真保存失敗を isError にするとクライアントが
@@ -516,10 +497,9 @@ export function registerWriteTools(server: McpServer, userId: string) {
 		async (args) => {
 			try {
 				const photo = decodePhotoArgs(args);
-				const patch = toWinePatch(args);
-				const hasFieldPatch = Object.values(patch).some((v) => v !== undefined);
+				const patch = toCamelPatch(args);
 				// 写真のみの更新でUPDATE文が空にならないよう分岐する
-				let entry = hasFieldPatch
+				let entry = hasDrunkWinePatch(patch)
 					? await drunkWineService.updateDrunkWine(userId, {
 							id: args.id,
 							...patch,
