@@ -174,6 +174,22 @@ export type DrunkWineFormValues = Record<string, string | string[]>;
 
 export type DrunkWinePatch = Record<string, string | number | string[] | null>;
 
+// MCP 境界(snake_case)の書き込みツール引数の型。update/register ハンドラの args と
+// tools.ts の toWinePatch 入力に使う。値スキーマの clear 規約から型を導出する:
+// clear:"null" のフィールドだけ null 許容、grape は string[]、数値系は number。
+// 全フィールド optional(register の name は上位スキーマで非 optional に絞られる)。
+export type DrunkWineFieldArgs = {
+	[D in (typeof DRUNK_WINE_FIELD_DEFS)[number] as D["snakeKey"]]?: D["input"] extends "grape"
+		? string[]
+		: D["input"] extends "number" | "rating"
+			? D["clear"] extends "null"
+				? number | null
+				: number
+			: D["clear"] extends "null"
+				? string | null
+				: string;
+};
+
 // 差分パッチ規約の唯一のテスト可能な実装。apps.ts のテンプレート文字列内 JS は
 // (サンドボックスから TS を実行時 import できないため)このロジックを
 // near-verbatim にミラーする汎用ループを持つ。規約は fields.test.ts が固定する。
