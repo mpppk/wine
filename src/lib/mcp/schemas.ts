@@ -3,8 +3,10 @@ import { AI_MAX_QUESTION_CHARS, REGION_QA_MODEL_KEYS } from "#/lib/ai/config";
 import {
 	DRUNK_WINE_FIELD_DEFS,
 	type DrunkWineSnakeKey,
+	WINE_TASTING_FIELDS,
+	type WineTastingSnakeKey,
 } from "#/lib/drunk-wine/fields";
-import { drunkWineFields } from "#/lib/drunk-wine/schema";
+import { drunkWineFields, wineTastingFields } from "#/lib/drunk-wine/schema";
 import { AOP_TAG_IDS } from "#/lib/wine/tags";
 
 // MCPツールの入力スキーマ。DB/ランタイム依存を持たせず、vitest(jsdom)で
@@ -112,32 +114,85 @@ const photoMimeType = z
 	.optional()
 	.describe("写真のMIMEタイプ (photo_base64 指定時は必須)");
 
+const STATUS_DESCRIBE =
+	"所有状態。wishlist=気になる(未購入) / owned=手元にある / finished=飲み終えた。" +
+	"省略時は finished(飲み終えた記録として登録される)";
+
 const REGISTER_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	name: "ワイン名(ラベル表記。必須)",
-	drank_on: "飲んだ日 (YYYY-MM-DD)",
-	rating: "評価 (1〜5の整数)",
+	status: STATUS_DESCRIBE,
 	vintage: "ヴィンテージ (1800〜2100の年)",
 	price: "価格 (円)",
 	producer: "生産者名 (200文字まで)",
 	aop_id: "紐付けるAOPのID (list_aopsのid。任意)",
 	grape_variety_ids: "ぶどう品種ID (list_grape_varietiesのid。最大20件)",
-	memo: "メモ・感想 (2000文字まで)",
 };
 
 // null クリア可のフィールドは「。nullでクリア」、品種は「。[]でクリア」を付す。
-// name はクリア不可なので付けない。
+// name / status はクリア不可なので付けない。
 const UPDATE_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	name: "ワイン名(ラベル表記)",
-	drank_on: "飲んだ日 (YYYY-MM-DD)。nullでクリア",
-	rating: "評価 (1〜5の整数)。nullでクリア",
+	status:
+		"所有状態。wishlist=気になる(未購入) / owned=手元にある / finished=飲み終えた",
 	vintage: "ヴィンテージ (1800〜2100の年)。nullでクリア",
 	price: "価格 (円)。nullでクリア",
 	producer: "生産者名 (200文字まで)。nullでクリア",
 	aop_id: "紐付けるAOPのID (list_aopsのid)。nullでクリア",
 	grape_variety_ids:
 		"ぶどう品種ID (list_grape_varietiesのid。最大20件)。[]でクリア",
-	memo: "メモ・感想 (2000文字まで)。nullでクリア",
 };
+
+// 飲用記録(wine_tasting)の引数。DRUNK_WINE_FIELD_DEFS 由来ではないので
+// photo_base64 と同じく手書きで足す。ツール名も既存引数名も変えないことで、
+// 既存の外部クライアント(Claude 等)は従来どおりの呼び方が通り続ける。
+const REGISTER_TASTING_DESCRIBE: Record<WineTastingSnakeKey, string> = {
+	drank_on: "飲んだ日 (YYYY-MM-DD)。指定すると飲用記録1件付きで登録する",
+	rating: "評価 (1〜5の整数)。飲用記録に記録される",
+	memo: "メモ・感想 (2000文字まで)。飲用記録に記録される",
+};
+
+const UPDATE_TASTING_DESCRIBE: Record<WineTastingSnakeKey, string> = {
+	drank_on:
+		"最新の飲用記録の飲んだ日を更新する (YYYY-MM-DD)。飲用記録が無ければ1件作成。" +
+		"nullで日付だけクリア(記録自体は消えない)。別の日に飲んだ記録を足すには add_wine_tasting を使う",
+	rating: "最新の飲用記録の評価 (1〜5の整数)。nullでクリア",
+	memo: "最新の飲用記録のメモ (2000文字まで)。nullでクリア",
+};
+
+type TastingFieldSchemas = {
+	[S in WineTastingSnakeKey]: (typeof wineTastingFields)[Extract<
+		(typeof WINE_TASTING_FIELDS)[number],
+		{ snakeKey: S }
+	>["camelKey"]];
+};
+type NullableTastingFieldSchemas = {
+	[S in WineTastingSnakeKey]: NullableOf<TastingFieldSchemas[S]>;
+};
+
+function buildTastingFields(
+	describe: Record<WineTastingSnakeKey, string>,
+): TastingFieldSchemas {
+	const shape = {} as Record<WineTastingSnakeKey, z.ZodTypeAny>;
+	for (const d of WINE_TASTING_FIELDS) {
+		shape[d.snakeKey] = wineTastingFields[d.camelKey].describe(
+			describe[d.snakeKey],
+		);
+	}
+	return shape as unknown as TastingFieldSchemas;
+}
+
+/** 更新側は「nullでその列をクリア」を許す(記録の行自体は消さない)。 */
+function buildNullableTastingFields(
+	describe: Record<WineTastingSnakeKey, string>,
+): NullableTastingFieldSchemas {
+	const shape = {} as Record<WineTastingSnakeKey, z.ZodTypeAny>;
+	for (const d of WINE_TASTING_FIELDS) {
+		shape[d.snakeKey] = wineTastingFields[d.camelKey]
+			.nullable()
+			.describe(describe[d.snakeKey]);
+	}
+	return shape as unknown as NullableTastingFieldSchemas;
+}
 
 // DRUNK_WINE_FIELD_DEFS を走査して MCP の raw shape を生成する。
 // drunkWineFields[d.camelKey] は camelKey が値スキーマの実キーでないと
@@ -191,24 +246,41 @@ function buildUpdateFields(): UpdateFieldSchemas {
 	return shape as unknown as UpdateFieldSchemas;
 }
 
+const entryIdArg = z
+	.string()
+	.min(1)
+	.max(80)
+	.describe(
+		"更新するエントリのID (register_drunk_wine / list_drunk_wines の entry.id)",
+	);
+
 export const registerDrunkWineInput = {
 	...buildRegisterFields(),
+	...buildTastingFields(REGISTER_TASTING_DESCRIBE),
 	photo_base64: photoBase64,
 	photo_mime_type: photoMimeType,
 };
 
 // 更新は id のみ必須。未指定(undefined)のフィールドは変更せず、null は
 // 「クリアする」の意(Webのserver fnと同じ規約。編集フォームAppが空欄にした
-// フィールドを null で送ってくる)。name は必須項目なのでクリア不可。
+// フィールドを null で送ってくる)。name / status は必須項目なのでクリア不可。
 export const updateDrunkWineInput = {
-	id: z
-		.string()
-		.min(1)
-		.max(80)
-		.describe(
-			"更新するエントリのID (register_drunk_wine / list_drunk_wines の entry.id)",
-		),
+	id: entryIdArg,
 	...buildUpdateFields(),
+	...buildNullableTastingFields(UPDATE_TASTING_DESCRIBE),
 	photo_base64: photoBase64,
 	photo_mime_type: photoMimeType,
+};
+
+// 飲用記録を1件足す。update_drunk_wine の飲用記録引数は「最新1件の更新」なので、
+// 同じワインを別の日に飲んだ記録を残すにはこちらを使う。
+export const addWineTastingInput = {
+	drunk_wine_id: entryIdArg.describe(
+		"飲用記録を足すエントリのID (list_drunk_wines の entry.id)",
+	),
+	...buildTastingFields({
+		drank_on: "飲んだ日 (YYYY-MM-DD)。省略可(日付を覚えていない場合)",
+		rating: "評価 (1〜5の整数)",
+		memo: "メモ・感想 (2000文字まで)",
+	}),
 };

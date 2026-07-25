@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronsUpDownIcon, StarIcon } from "lucide-react";
+import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import type React from "react";
 import { useMemo, useState } from "react";
 import type { DrunkWineFieldsValue } from "#/components/cellar/drunk-wine-payload";
@@ -21,7 +21,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/ui/select";
-import { Textarea } from "#/components/ui/textarea";
+import { WINE_STATUSES, type WineStatus } from "#/lib/drunk-wine/status";
 import { cn } from "#/lib/utils";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
 
@@ -32,16 +32,25 @@ export interface DrunkWineFieldsProps {
 	/** 変更のあったキーだけを渡す。呼び出し側が state にマージする。 */
 	onChange: (patch: Partial<DrunkWineFieldsValue>) => void;
 	/**
-	 * ぶどう品種とメモの間に差し込む写真UI。Web版フォームだけが渡す
+	 * ぶどう品種の後に差し込む写真UI。Web版フォームだけが渡す
 	 * (写真の追加・削除は認証必須の /api/wine-photos を叩くため、
 	 * 無認証で動く MCP App のフォームからは操作できない)。
 	 */
 	photoSlot?: React.ReactNode;
+	/**
+	 * 末尾に差し込む飲用記録UI。Web版フォームだけが渡す(新規作成なら1件ぶんの
+	 * 入力、編集なら記録一覧)。MCP App は保存経路が update_drunk_wine の
+	 * レガシー引数なので、自前で TastingFields を描画する。
+	 */
+	tastingSlot?: React.ReactNode;
 }
 
 /**
- * 「飲んだワイン」の入力項目一式。Web版フォーム(DrunkWineForm)と
+ * マイセラーの銘柄(ボトル)の入力項目一式。Web版フォーム(DrunkWineForm)と
  * MCP App のフォーム(/embed/drunk-wine)で共有する表示層。
+ *
+ * 飲んだ日・評価・メモはここに無い。飲用記録(1:N)へ移したため(Issue #195)、
+ * TastingFields が担当する。
  *
  * 以前は MCP App 側が apps.ts のテンプレート文字列内 vanilla JS で同じフォームを
  * 別実装しており、photo_urls 非対応などのドリフトが起きていた(#155/#189)。
@@ -56,6 +65,7 @@ export function DrunkWineFields({
 	value,
 	onChange,
 	photoSlot,
+	tastingSlot,
 }: DrunkWineFieldsProps) {
 	const [aopPickerOpen, setAopPickerOpen] = useState(false);
 	const regions = useMemo(() => listRegions().filter((r) => r.enabled), []);
@@ -82,48 +92,29 @@ export function DrunkWineFields({
 				/>
 			</div>
 
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="wine-status">状態</Label>
+				<Select
+					value={value.status}
+					onValueChange={(v) => onChange({ status: v as WineStatus })}
+				>
+					<SelectTrigger id="wine-status" className="w-full">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{WINE_STATUSES.map((s) => (
+							<SelectItem key={s.id} value={s.id}>
+								{s.labelJa}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<p className="text-xs text-muted-foreground">
+					{WINE_STATUSES.find((s) => s.id === value.status)?.descriptionJa}
+				</p>
+			</div>
+
 			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="wine-drank-on">飲んだ日</Label>
-					<Input
-						id="wine-drank-on"
-						type="date"
-						value={value.drankOn}
-						onChange={(e) => onChange({ drankOn: e.target.value })}
-					/>
-				</div>
-
-				<div className="flex flex-col gap-1.5">
-					<Label>評価</Label>
-					<div className="flex h-9 items-center gap-0.5">
-						{[1, 2, 3, 4, 5].map((n) => {
-							const active = value.rating !== null && n <= value.rating;
-							return (
-								<button
-									key={n}
-									type="button"
-									aria-label={`星${n}`}
-									aria-pressed={value.rating === n}
-									onClick={() =>
-										onChange({ rating: value.rating === n ? null : n })
-									}
-									className="rounded-sm p-1 transition-transform hover:scale-110 focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none"
-								>
-									<StarIcon
-										className={cn(
-											"size-6",
-											active
-												? "fill-amber-400 text-amber-400"
-												: "text-muted-foreground/40",
-										)}
-										aria-hidden
-									/>
-								</button>
-							);
-						})}
-					</div>
-				</div>
-
 				<div className="flex flex-col gap-1.5">
 					<Label htmlFor="wine-vintage">ヴィンテージ</Label>
 					<Input
@@ -149,18 +140,25 @@ export function DrunkWineFields({
 					/>
 				</div>
 
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="wine-price">価格(円)</Label>
-					<Input
-						id="wine-price"
-						type="number"
-						min={0}
-						max={10_000_000}
-						value={value.price}
-						onChange={(e) => onChange({ price: e.target.value })}
-						placeholder="例: 5000"
-					/>
-				</div>
+				{/*
+				 * 未購入(wishlist)では価格を出さない。state は消さずに描画だけ止める:
+				 * 空文字にすると差分パッチが price: null(クリア)を送り、買った後に
+				 * 状態を戻したときへ既存の価格が失われる。
+				 */}
+				{value.status !== "wishlist" && (
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="wine-price">価格(円)</Label>
+						<Input
+							id="wine-price"
+							type="number"
+							min={0}
+							max={10_000_000}
+							value={value.price}
+							onChange={(e) => onChange({ price: e.target.value })}
+							placeholder="例: 5000"
+						/>
+					</div>
+				)}
 			</div>
 
 			<fieldset className="flex flex-col gap-3">
@@ -281,17 +279,7 @@ export function DrunkWineFields({
 
 			{photoSlot}
 
-			<div className="flex flex-col gap-1.5">
-				<Label htmlFor="wine-memo">メモ</Label>
-				<Textarea
-					id="wine-memo"
-					value={value.memo}
-					onChange={(e) => onChange({ memo: e.target.value })}
-					placeholder="味わいの感想、合わせた料理など"
-					maxLength={2000}
-					rows={4}
-				/>
-			</div>
+			{tastingSlot}
 		</>
 	);
 }

@@ -1,4 +1,9 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	redirect,
+	useNavigate,
+} from "@tanstack/react-router";
 import {
 	ArrowLeftIcon,
 	ListIcon,
@@ -8,11 +13,19 @@ import {
 	XIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { z } from "zod";
+import { CellarFilterChips } from "#/components/cellar/CellarFilterChips";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
+import {
+	CELLAR_FILTER_IDS,
+	countCellarFilters,
+	DEFAULT_CELLAR_FILTER,
+	matchesCellarFilter,
+} from "#/lib/drunk-wine/filter";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
@@ -20,6 +33,13 @@ import { getSession } from "#/server/auth";
 import { listDrunkWines } from "#/server/drunk-wine";
 
 export const Route = createFileRoute("/cellar/map")({
+	// 一覧(/cellar)と同じ絞り込み条件を URL で引き継ぐ(規約は cellar.index.tsx 参照)
+	validateSearch: z.object({
+		filter: z
+			.enum(CELLAR_FILTER_IDS)
+			.catch(DEFAULT_CELLAR_FILTER)
+			.default(DEFAULT_CELLAR_FILTER),
+	}),
 	beforeLoad: async () => {
 		const session = await getSession();
 		if (!session) {
@@ -90,9 +110,18 @@ function AopWinePanel({
 }
 
 function CellarMapPage() {
-	const entries = Route.useLoaderData();
+	const allEntries = Route.useLoaderData();
+	const { filter } = Route.useSearch();
+	const navigate = useNavigate({ from: Route.fullPath });
 
-	// AOP紐付けありのエントリを地域別に集計(regionId は AOP紐付け時のみ非null)
+	const counts = useMemo(() => countCellarFilters(allEntries), [allEntries]);
+	const entries = useMemo(
+		() => allEntries.filter((e) => matchesCellarFilter(e, filter)),
+		[allEntries, filter],
+	);
+
+	// AOP紐付けありのエントリを地域別に集計(regionId は AOP紐付け時のみ非null)。
+	// 絞り込み後の集合から作るので、highlightAopIds も件数バッジもフィルタに追従する。
 	const linkedEntries = useMemo(
 		() => entries.filter((e) => e.aopId !== null && e.regionId !== null),
 		[entries],
@@ -179,6 +208,14 @@ function CellarMapPage() {
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2">
 				<PageHeader />
 				<div className="ml-auto flex flex-wrap items-center gap-2">
+					<CellarFilterChips
+						value={filter}
+						counts={counts}
+						onChange={(next) => {
+							navigate({ search: { filter: next }, replace: true });
+							setSelectedAopId(undefined);
+						}}
+					/>
 					<fieldset
 						className="flex flex-wrap items-center gap-1"
 						aria-label="地域切替"
@@ -221,9 +258,13 @@ function CellarMapPage() {
 
 			{unlinkedCount > 0 && (
 				<p className="border-b border-border bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground">
-					AOP未紐付けの記録が {unlinkedCount}{" "}
+					AOP未紐付けのワインが {unlinkedCount}{" "}
 					件あります(地図には表示されません)。{" "}
-					<Link to="/cellar" className="underline underline-offset-2">
+					<Link
+						to="/cellar"
+						search={{ filter }}
+						className="underline underline-offset-2"
+					>
 						<ListIcon
 							className="inline size-3.5 align-text-bottom"
 							aria-hidden
