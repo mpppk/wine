@@ -2,10 +2,17 @@
 // Cloudflare Workers Logs(Workers Observability)を CLI から検索する。
 //
 // ダッシュボードに入れない環境(Claude Code on the web / CI など)から、本番 `wine` と
-// プレビュー `wine-preview` のランタイムログを後追いで調べるための入口。
-// `wrangler tail` は「今まさに流れているログ」しか見えず、再現操作と同時に走らせる必要が
-// あるため、PRのプレビューで起きたエラーを後から追う用途には使えない。こちらは
-// Observability に蓄積済みのログを検索する(保持期間は Cloudflare のプラン依存)。
+// デプロイ済みプレビュー `wine-preview` のランタイムログを後追いで調べるための入口。
+// `wrangler tail` は「今まさに流れているログ」しか見えず再現操作と同時実行が必要なため、
+// 後から追う用途はこちらでカバーする(Observability に蓄積済みのログを検索する)。
+//
+// 【重要な制約】PRごとのプレビューURL(`<branch>-wine-preview.*` / `<commit>-wine-preview.*`)
+// へのアクセスはログに残らない。Cloudflare の Preview URLs の制約で、Workers Logs・
+// `wrangler tail`・Logpush のいずれからも参照できない:
+//   https://developers.cloudflare.com/workers/versions-and-deployments/preview-urls/#limitations
+// `--env preview` で見えるのは、デプロイ済みバージョン(main のミラー、
+// https://wine-preview.niboshi.workers.dev)へのアクセス分のみ。
+// PR段階で実機ログが要る場合は、ローカル(`bun run dev`)で再現するか、マージ後に確認する。
 //
 // 前提: wrangler.jsonc の `observability.enabled: true`(本番/preview 双方に効く)と、
 //       `CLOUDFLARE_API_TOKEN`(Workers Observability の Read 権限を含むこと)。
@@ -33,6 +40,8 @@ const LEVELS = ["debug", "info", "log", "warn", "error"];
 const USAGE = `使い方: bun run logs [オプション]
 
   --env <production|preview>  対象環境(既定: production)。wrangler.jsonc の worker 名を引く
+                              ※ preview は「デプロイ済みの wine-preview」(main ミラー)。
+                                 PRごとのプレビューURLのログは Cloudflare 側の制約で取得できない
   --worker <name>             worker 名を直接指定(--env より優先)
   --since <30m|2h|3d>         遡る期間(既定: 1h)
   --limit <n>                 最大取得件数(既定: 50)
@@ -376,8 +385,10 @@ async function main(argv) {
 		console.log(
 			"\nログがありません。次を確認してください:\n" +
 				`  - 対象期間(--since ${opts.since})にその環境へのアクセスがあったか\n` +
-				"  - プレビューは PR ごとに立ち上がるため、未アクセスなら 0 件になる\n" +
-				"  - Workers Logs の保持期間を過ぎていないか(プラン依存)",
+				"  - PRごとのプレビューURL(<branch>-wine-preview.*)へのアクセスは、Cloudflare の\n" +
+				"    制約でログに出ない(Preview URLs の Limitations)。--env preview で見えるのは\n" +
+				"    デプロイ済み https://wine-preview.niboshi.workers.dev への分のみ\n" +
+				"  - Workers Logs の保持期間(最大7日)を過ぎていないか",
 		);
 	}
 	return 0;
