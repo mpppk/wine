@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
 	collectDrunkWinePatch,
+	collectWineTastingPatch,
 	DRUNK_WINE_FIELD_DEFS,
 	type DrunkWineFieldDef,
 	hasDrunkWinePatch,
 	toCamelPatch,
+	toCamelTastingPatch,
 	toSnakeEntry,
+	WINE_TASTING_FIELDS,
 } from "./fields";
-import { drunkWineFields, RATING_MAX, RATING_MIN } from "./schema";
+import {
+	drunkWineFields,
+	updateDrunkWineInput,
+	updateWineTastingInput,
+	wineTastingFields,
+} from "./schema";
 
 const byCamelKey = new Map(
 	(DRUNK_WINE_FIELD_DEFS as readonly DrunkWineFieldDef[]).map((d) => [
@@ -23,18 +31,16 @@ describe("DRUNK_WINE_FIELD_DEFS", () => {
 		expect(camelKeys).toEqual(schemaKeys);
 	});
 
-	it("snakeKey 集合が期待の9件と一致する", () => {
+	it("snakeKey 集合が期待の7件と一致する(飲んだ日/評価/メモは飲用記録へ移動済み)", () => {
 		const snakeKeys = DRUNK_WINE_FIELD_DEFS.map((d) => d.snakeKey).sort();
 		expect(snakeKeys).toEqual(
 			[
 				"aop_id",
-				"drank_on",
 				"grape_variety_ids",
-				"memo",
 				"name",
 				"price",
 				"producer",
-				"rating",
+				"status",
 				"vintage",
 			].sort(),
 		);
@@ -46,15 +52,54 @@ describe("DRUNK_WINE_FIELD_DEFS", () => {
 		expect(name?.required).toBe(true);
 	});
 
+	it("status は select かつクリア不可(NOT NULL列へ null を送らない)", () => {
+		const status = byCamelKey.get("status");
+		expect(status?.input).toBe("select");
+		expect(status?.clear).toBe("never");
+	});
+
 	it("ぶどう品種は [] でクリアする規約", () => {
 		expect(byCamelKey.get("grapeVarietyIds")?.clear).toBe("emptyArray");
 	});
+});
 
-	it("評価の下限・上限が値スキーマの定数と揃っている", () => {
-		const rating = byCamelKey.get("rating");
-		expect(rating?.input).toBe("rating");
-		expect(rating?.min).toBe(RATING_MIN);
-		expect(rating?.max).toBe(RATING_MAX);
+// 更新スキーマは手書きのミラーなので、キー集合とクリア規約を実行時にも突合する
+// (コンパイル時のキー欠落検出は schema.ts の Record 代入が担当)。
+describe("updateDrunkWineInput と値スキーマの突合", () => {
+	it("shape のキーが drunkWineFields ∪ {id} と一致する", () => {
+		expect(Object.keys(updateDrunkWineInput.shape).sort()).toEqual(
+			[...Object.keys(drunkWineFields), "id"].sort(),
+		);
+	});
+
+	it("clear:'null' のフィールドだけが null を受理する", () => {
+		for (const def of DRUNK_WINE_FIELD_DEFS) {
+			const result = updateDrunkWineInput.safeParse({
+				id: "e1",
+				[def.camelKey]: null,
+			});
+			expect(
+				result.success,
+				`${def.camelKey} (clear=${def.clear}) の null 受理`,
+			).toBe(def.clear === "null");
+		}
+	});
+});
+
+describe("WINE_TASTING_FIELDS", () => {
+	it("camelKey 集合が wineTastingFields のキーと一致する", () => {
+		expect(WINE_TASTING_FIELDS.map((d) => d.camelKey).sort()).toEqual(
+			Object.keys(wineTastingFields).sort(),
+		);
+	});
+
+	it("updateWineTastingInput の全フィールドが null を受理する(列のクリア)", () => {
+		for (const def of WINE_TASTING_FIELDS) {
+			expect(
+				updateWineTastingInput.safeParse({ id: "t1", [def.camelKey]: null })
+					.success,
+			).toBe(true);
+		}
 	});
 });
 
@@ -62,25 +107,21 @@ describe("collectDrunkWinePatch", () => {
 	it("未変更なら空パッチ", () => {
 		const entry = {
 			name: "Chablis",
-			drank_on: "2020-01-02",
-			rating: 4,
+			status: "finished",
 			vintage: 2018,
 			price: 3000,
 			producer: "Dauvissat",
 			aop_id: "chablis",
 			grape_variety_ids: ["chardonnay"],
-			memo: "good",
 		};
 		const values = {
 			name: "Chablis",
-			drank_on: "2020-01-02",
-			rating: "4",
+			status: "finished",
 			vintage: "2018",
 			price: "3000",
 			producer: "Dauvissat",
 			aop_id: "chablis",
 			grape_variety_ids: ["chardonnay"],
-			memo: "good",
 		};
 		expect(collectDrunkWinePatch(entry, values)).toEqual({});
 	});
@@ -98,9 +139,9 @@ describe("collectDrunkWinePatch", () => {
 	});
 
 	it("数値フィールドは Number() でパースし、空欄はnull", () => {
-		expect(collectDrunkWinePatch({}, { rating: "4" })).toEqual({ rating: 4 });
-		expect(collectDrunkWinePatch({ rating: 5 }, { rating: "" })).toEqual({
-			rating: null,
+		expect(collectDrunkWinePatch({}, { price: "4" })).toEqual({ price: 4 });
+		expect(collectDrunkWinePatch({ price: 5 }, { price: "" })).toEqual({
+			price: null,
 		});
 	});
 
@@ -109,6 +150,30 @@ describe("collectDrunkWinePatch", () => {
 		expect(collectDrunkWinePatch({ name: "A" }, { name: "B" })).toEqual({
 			name: "B",
 		});
+	});
+
+	it("status は変更時だけ送り、null は決して送らない", () => {
+		expect(
+			collectDrunkWinePatch({ status: "finished" }, { status: "owned" }),
+		).toEqual({ status: "owned" });
+		expect(
+			collectDrunkWinePatch({ status: "owned" }, { status: "owned" }),
+		).toEqual({});
+		// 空文字(select が値を持たない異常系)でもクリアを送らない
+		expect(collectDrunkWinePatch({ status: "owned" }, { status: "" })).toEqual(
+			{},
+		);
+	});
+
+	it("非表示のフィールドの値を保持していれば差分に載らない(wishlist の価格)", () => {
+		// 価格入力は wishlist で描画しないが state は残す。空文字にすると
+		// price: null のクリアが飛んで既存値が失われる。
+		expect(
+			collectDrunkWinePatch(
+				{ status: "owned", price: 3000 },
+				{ status: "wishlist", price: "3000" },
+			),
+		).toEqual({ status: "wishlist" });
 	});
 
 	it("ぶどう品種は全解除で [] を送る", () => {
@@ -129,9 +194,39 @@ describe("collectDrunkWinePatch", () => {
 		).toEqual({});
 	});
 
-	it("日付・テキストの変更を送る", () => {
+	it("テキストの変更を送る", () => {
 		expect(
-			collectDrunkWinePatch(
+			collectDrunkWinePatch({ aop_id: "chablis" }, { aop_id: "morgon" }),
+		).toEqual({ aop_id: "morgon" });
+	});
+});
+
+describe("collectWineTastingPatch", () => {
+	it("未変更なら空パッチ", () => {
+		expect(
+			collectWineTastingPatch(
+				{ drank_on: "2020-01-02", rating: 4, memo: "good" },
+				{ drank_on: "2020-01-02", rating: "4", memo: "good" },
+			),
+		).toEqual({});
+	});
+
+	it("空欄は null でクリアする(記録の行は消さない)", () => {
+		expect(
+			collectWineTastingPatch(
+				{ drank_on: "2020-01-02", rating: 4, memo: "good" },
+				{ drank_on: "", rating: "", memo: "" },
+			),
+		).toEqual({ drank_on: null, rating: null, memo: null });
+	});
+
+	it("評価は Number() でパースする", () => {
+		expect(collectWineTastingPatch({}, { rating: "5" })).toEqual({ rating: 5 });
+	});
+
+	it("日付の変更を送る", () => {
+		expect(
+			collectWineTastingPatch(
 				{ drank_on: "2020-01-01" },
 				{ drank_on: "2020-02-02" },
 			),
@@ -144,6 +239,9 @@ describe("toSnakeEntry", () => {
 	const entry = {
 		id: "e1",
 		name: "Chablis",
+		status: "finished",
+		lastDrankOn: "2020-01-02",
+		tastingCount: 1,
 		drankOn: "2020-01-02",
 		aopId: "chablis",
 		aopNameJa: "シャブリ",
@@ -159,31 +257,27 @@ describe("toSnakeEntry", () => {
 		updatedAt: 2,
 	};
 
-	it("フィールド定義の9キーちょうどに射影する(定義外のキーは落ちる)", () => {
+	it("フィールド定義のキーちょうどに射影する(定義外のキーは落ちる)", () => {
 		const snake = toSnakeEntry(entry);
 		expect(Object.keys(snake).sort()).toEqual(
 			DRUNK_WINE_FIELD_DEFS.map((d) => d.snakeKey).sort(),
 		);
 		expect(snake).toEqual({
 			name: "Chablis",
-			drank_on: "2020-01-02",
-			rating: 4,
+			status: "finished",
 			vintage: 2018,
 			price: 3000,
 			producer: "Dauvissat",
 			aop_id: "chablis",
 			grape_variety_ids: ["chardonnay"],
-			memo: "good",
 		});
 	});
 
 	it("DBのnullとフォームの空欄は差分にならない", () => {
 		const cleared = {
 			name: "Chablis",
-			drankOn: null,
+			status: "finished",
 			aopId: null,
-			rating: null,
-			memo: null,
 			vintage: null,
 			grapeVarietyIds: [],
 			producer: null,
@@ -191,14 +285,12 @@ describe("toSnakeEntry", () => {
 		};
 		const values = {
 			name: "Chablis",
-			drank_on: "",
-			rating: "",
+			status: "finished",
 			vintage: "",
 			price: "",
 			producer: "",
 			aop_id: "",
 			grape_variety_ids: [],
-			memo: "",
 		};
 		expect(collectDrunkWinePatch(toSnakeEntry(cleared), values)).toEqual({});
 	});
@@ -207,8 +299,8 @@ describe("toSnakeEntry", () => {
 describe("toCamelPatch", () => {
 	it("snakeKey を camelKey に読み替える", () => {
 		expect(
-			toCamelPatch({ drank_on: "2020-01-02", grape_variety_ids: ["gamay"] }),
-		).toEqual({ drankOn: "2020-01-02", grapeVarietyIds: ["gamay"] });
+			toCamelPatch({ aop_id: "morgon", grape_variety_ids: ["gamay"] }),
+		).toEqual({ aopId: "morgon", grapeVarietyIds: ["gamay"] });
 	});
 
 	it("空パッチは空のまま", () => {
@@ -216,7 +308,7 @@ describe("toCamelPatch", () => {
 	});
 
 	it("null(クリア)は落とさず、undefined(未指定)は落とす", () => {
-		expect(toCamelPatch({ aop_id: null, memo: undefined })).toEqual({
+		expect(toCamelPatch({ aop_id: null, producer: undefined })).toEqual({
 			aopId: null,
 		});
 	});
@@ -231,17 +323,29 @@ describe("toCamelPatch", () => {
 	});
 });
 
+describe("toCamelTastingPatch", () => {
+	it("snakeKey を camelKey に読み替え、undefined は落とす", () => {
+		expect(
+			toCamelTastingPatch({ drank_on: "2020-01-02", rating: undefined }),
+		).toEqual({ drankOn: "2020-01-02" });
+	});
+
+	it("null(クリア)は残す", () => {
+		expect(toCamelTastingPatch({ memo: null })).toEqual({ memo: null });
+	});
+});
+
 describe("hasDrunkWinePatch", () => {
 	it("変更が無ければ false", () => {
 		expect(hasDrunkWinePatch({})).toBe(false);
-		expect(hasDrunkWinePatch({ memo: undefined })).toBe(false);
+		expect(hasDrunkWinePatch({ producer: undefined })).toBe(false);
 	});
 
 	it("クリア(null)は変更として扱う", () => {
-		expect(hasDrunkWinePatch({ memo: null })).toBe(true);
+		expect(hasDrunkWinePatch({ producer: null })).toBe(true);
 	});
 
 	it("値の変更は変更として扱う", () => {
-		expect(hasDrunkWinePatch({ rating: 5 })).toBe(true);
+		expect(hasDrunkWinePatch({ price: 5 })).toBe(true);
 	});
 });

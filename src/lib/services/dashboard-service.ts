@@ -10,10 +10,7 @@ import {
 } from "#/lib/dashboard/recommend";
 import { computeStreak } from "#/lib/dashboard/streak";
 import type { RegionId } from "#/lib/wine/types";
-import {
-	countAndLatestDrunkWine,
-	type DrunkWineEntry,
-} from "./drunk-wine-service";
+import { type DrunkWineEntry, getCellarSummary } from "./drunk-wine-service";
 import { getProgress } from "./quiz-service";
 
 // ログイン後トップページの学習ダッシュボード用サービス層。既存の集計
@@ -32,7 +29,15 @@ export interface DashboardData {
 	/** 「今日はどこから」= おすすめ1件 */
 	recommendation: Recommendation;
 	/** マイセラー */
-	cellar: { count: number; latest: DrunkWineEntry | null };
+	/**
+	 * マイセラー。tastedCount は「飲んだことがある銘柄数」、totalCount は
+	 * 未飲・気になるを含む登録総数(所有状態と飲用履歴は独立した2軸)。
+	 */
+	cellar: {
+		tastedCount: number;
+		totalCount: number;
+		latest: DrunkWineEntry | null;
+	};
 }
 
 export async function getDashboard(userId: string): Promise<DashboardData> {
@@ -99,7 +104,7 @@ export async function getDashboard(userId: string): Promise<DashboardData> {
 		};
 	});
 
-	const cellar = await countAndLatestDrunkWine(userId);
+	const cellar = await getCellarSummary(userId);
 
 	return {
 		today: {

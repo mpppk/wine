@@ -163,11 +163,20 @@ function TodaySummary({
 						value={`${streak}`}
 						sub="日"
 					/>
+					{/*
+					 * 未飲ワインも登録できるようになったため「飲んだ本数」と登録総数が
+					 * 一致しなくなった。タイルの主値は飲んだ本数のままにし、登録総数は
+					 * 補助表示に出して意味の違いが見えるようにする。
+					 */}
 					<StatTile
 						icon={<WineIcon className="size-4" aria-hidden />}
-						label="セラー"
-						value={`${cellar.count}`}
-						sub="本"
+						label="飲んだ"
+						value={`${cellar.tastedCount}`}
+						sub={
+							cellar.totalCount > cellar.tastedCount
+								? `本 / 登録${cellar.totalCount}`
+								: "本"
+						}
 					/>
 				</div>
 

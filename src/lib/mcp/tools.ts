@@ -1,7 +1,11 @@
 import { env } from "cloudflare:workers";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { hasDrunkWinePatch, toCamelPatch } from "#/lib/drunk-wine/fields";
+import {
+	hasDrunkWinePatch,
+	toCamelPatch,
+	WINE_TASTING_FIELDS,
+} from "#/lib/drunk-wine/fields";
 import { decodePhotoBase64 } from "#/lib/drunk-wine/photo";
 import { BadRequestError, HttpError } from "#/lib/errors";
 import { logError } from "#/lib/logger";
@@ -32,6 +36,7 @@ import {
 	DRUNK_WINE_RESOURCE_URI,
 } from "./apps";
 import {
+	addWineTastingInput,
 	askRegionInput,
 	getAopInput,
 	listAopsInput,
@@ -365,6 +370,9 @@ function toEntryPayload(entry: DrunkWineEntry): McpDrunkWineEntry {
 	return {
 		id: entry.id,
 		name: entry.name,
+		status: entry.status,
+		last_drank_on: entry.lastDrankOn,
+		tasting_count: entry.tastingCount,
 		drank_on: entry.drankOn,
 		aop_id: entry.aopId,
 		aop_name_ja: entry.aopNameJa,
@@ -413,6 +421,23 @@ function appendPhotoLayout(
 	];
 }
 
+/**
+ * 銘柄のパッチと飲用記録のパッチを分離する。飲んだ日・評価・メモは wine_tasting へ
+ * 移ったが、ツールの引数名は変えていない(既存クライアントの呼び方を壊さないため)。
+ * 未指定のキーは落とし、null は「その列をクリア」の意で保持する。
+ */
+function splitTastingArgs(args: Record<string, unknown>): {
+	drankOn?: string | null;
+	rating?: number | null;
+	memo?: string | null;
+} | null {
+	const patch: Record<string, unknown> = {};
+	for (const d of WINE_TASTING_FIELDS) {
+		if (args[d.snakeKey] !== undefined) patch[d.camelKey] = args[d.snakeKey];
+	}
+	return Object.keys(patch).length > 0 ? patch : null;
+}
+
 // 写真引数を検証・デコードする。DB書き込み前に呼び、不正なら先に失敗させる。
 function decodePhotoArgs(args: {
 	photo_base64?: string;
@@ -436,11 +461,13 @@ export function registerWriteTools(server: McpServer, userId: string) {
 		{
 			title: "Register Drunk Wine",
 			description:
-				"飲んだワインをマイセラーに記録する。ボトルラベルの写真から読み取った" +
-				"ワイン名・ヴィンテージ・生産者・AOPなどをそのまま渡す用途を想定。" +
+				"ワインをマイセラーに記録する。飲んだワインだけでなく、買ってまだ飲んで" +
+				"いないボトルや気になっているワインも status で登録できる。ボトルラベルの" +
+				"写真から読み取ったワイン名・ヴィンテージ・生産者・AOPなどをそのまま渡す用途を想定。" +
 				"写真自体も photo_base64 + photo_mime_type で添付すると保存される" +
 				"(1エントリに複数枚保持でき、添付は既存写真への追記。最大6枚)。" +
 				"aop_id は list_aops、grape_variety_ids は list_grape_varieties の id を使う(いずれも任意)。" +
+				"drank_on / rating / memo を渡すと飲用記録1件付きで登録する。" +
 				"対応ホストでは登録内容をその場で編集できるフォームUIが描画される。",
 			inputSchema: registerDrunkWineInput,
 			annotations: { readOnlyHint: false, destructiveHint: false },
@@ -450,9 +477,20 @@ export function registerWriteTools(server: McpServer, userId: string) {
 		async (args) => {
 			try {
 				const photo = decodePhotoArgs(args);
+				const tasting = splitTastingArgs(args);
 				let entry = await drunkWineService.createDrunkWine(userId, {
 					...toCamelPatch(args),
 					name: args.name,
+					// null(クリア)は作成時には意味を持たないので undefined に倒す
+					...(tasting
+						? {
+								tasting: {
+									drankOn: tasting.drankOn ?? undefined,
+									rating: tasting.rating ?? undefined,
+									memo: tasting.memo ?? undefined,
+								},
+							}
+						: {}),
 				});
 				// エントリ作成後の写真保存失敗を isError にするとクライアントが
 				// リトライして重複登録するため、entry.id 付きの成功として返し
@@ -490,9 +528,12 @@ export function registerWriteTools(server: McpServer, userId: string) {
 		{
 			title: "Update Drunk Wine",
 			description:
-				"記録済みの飲んだワインを更新する。id と変更したいフィールドだけを渡す" +
-				"(未指定のフィールドは変更されない)。写真は photo_base64 + " +
-				"photo_mime_type で既存写真に追記できる(最大6枚)。",
+				"記録済みのワインを更新する。id と変更したいフィールドだけを渡す" +
+				"(未指定のフィールドは変更されない)。status で所有状態を変えられる" +
+				"(飲み終えた→また買った場合は owned に戻す)。" +
+				"drank_on / rating / memo は最新の飲用記録を更新する(飲用記録が無ければ1件作る)。" +
+				"別の日に飲んだ記録を追加するには add_wine_tasting を使う。" +
+				"写真は photo_base64 + photo_mime_type で既存写真に追記できる(最大6枚)。",
 			inputSchema: updateDrunkWineInput,
 			annotations: { readOnlyHint: false, destructiveHint: false },
 		},
@@ -500,13 +541,23 @@ export function registerWriteTools(server: McpServer, userId: string) {
 			try {
 				const photo = decodePhotoArgs(args);
 				const patch = toCamelPatch(args);
-				// 写真のみの更新でUPDATE文が空にならないよう分岐する
+				const tasting = splitTastingArgs(args);
+				// 銘柄・飲用記録・写真のいずれも指定が無ければ空UPDATEになるため、
+				// 「変更のあるものだけ順に適用する」形で分岐する
 				let entry = hasDrunkWinePatch(patch)
 					? await drunkWineService.updateDrunkWine(userId, {
 							id: args.id,
 							...patch,
 						})
 					: await drunkWineService.getDrunkWine(userId, args.id);
+				if (tasting) {
+					entry =
+						(await drunkWineService.updateLatestWineTasting(
+							userId,
+							args.id,
+							tasting,
+						)) ?? entry;
+				}
 				if (photo) {
 					entry = await drunkWineService.syncDrunkWinePhotos(
 						userId,
@@ -526,7 +577,9 @@ export function registerWriteTools(server: McpServer, userId: string) {
 		{
 			title: "List Drunk Wines",
 			description:
-				"マイセラーに記録した飲んだワインの一覧を新しい順に返す。" +
+				"マイセラーに記録したワインの一覧を新しい順に返す。飲んだワインだけでなく" +
+				"未飲(status=owned)・気になる(status=wishlist)も含む。" +
+				"飲んだことがあるかは tasting_count > 0 で判定する。" +
 				"エントリの編集には update_drunk_wine に entry.id を渡す。",
 			annotations: { readOnlyHint: true },
 		},
@@ -539,6 +592,35 @@ export function registerWriteTools(server: McpServer, userId: string) {
 				});
 			} catch (e) {
 				return err(e, { tool: "list_drunk_wines", userId });
+			}
+		},
+	);
+
+	server.registerTool(
+		"add_wine_tasting",
+		{
+			title: "Add Wine Tasting",
+			description:
+				"記録済みのワインに飲用記録を1件追加する。同じワインを複数回飲んだ場合に、" +
+				"回ごとの日付・評価・メモを残せる。最新の飲用記録を書き換えたいだけなら" +
+				"update_drunk_wine の drank_on / rating / memo を使う。",
+			inputSchema: addWineTastingInput,
+			annotations: { readOnlyHint: false, destructiveHint: false },
+		},
+		async (args) => {
+			try {
+				const entry = await drunkWineService.addWineTasting(
+					userId,
+					args.drunk_wine_id,
+					{
+						drankOn: args.drank_on,
+						rating: args.rating,
+						memo: args.memo,
+					},
+				);
+				return ok({ entry: toEntryPayload(entry) });
+			} catch (e) {
+				return err(e, { tool: "add_wine_tasting", userId });
 			}
 		},
 	);
