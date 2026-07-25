@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { SquareChevronRightIcon } from "lucide-react";
 import BetterAuthHeader from "../integrations/better-auth/header-user.tsx";
+import { isEmbedPath } from "../lib/embed";
 import { useCommandPalette } from "./CommandPaletteContext";
 import { CreditBalanceIndicator } from "./credit/CreditBalanceIndicator";
 import { Button } from "./ui/button";
@@ -10,7 +11,8 @@ export default function Header() {
 	const pathname = useLocation({ select: (l) => l.pathname });
 
 	// /embed/* はMCP Appsのiframeに埋め込まれるため、アプリのナビゲーションは出さない
-	if (pathname.startsWith("/embed")) {
+	// (__root でも共通シェルごと外しているが、単体で使われた場合の保険として残す)
+	if (isEmbedPath(pathname)) {
 		return null;
 	}
 

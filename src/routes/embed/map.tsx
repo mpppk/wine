@@ -29,10 +29,14 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/embed/map")({
 	validateSearch: searchSchema,
 	// このビューは MCP Apps ホスト(Claude 等)のサードパーティ iframe に埋め込まれる
-	// 前提なので、ルート既定の frame-ancestors 'none' を上書きして埋め込みを許可する。
+	// 前提なので、ルート既定の frame-ancestors 'none' を打ち消して埋め込みを許可する。
 	// 公開データのみを表示する読み取り専用ビューのため任意オリジンからの埋め込みを許す。
+	// `frame-ancestors *` では足りない: ホストは App のHTMLを sandbox
+	// (allow-same-origin 無し)の iframe で描画するため、その中から開くこのページの
+	// 祖先オリジンは不透明("null")になり、ネットワークスキームのURLしか一致しない
+	// `*` にマッチせず読み込み自体が拒否される(#189)。空のポリシーで祖先を問わない。
 	headers: () => ({
-		"Content-Security-Policy": "frame-ancestors *",
+		"Content-Security-Policy": "",
 	}),
 	loaderDeps: ({ search }) => ({ region: search.region }),
 	loader: async ({ deps }) => {

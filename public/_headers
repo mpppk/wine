@@ -5,6 +5,11 @@
 # 別URLになる。長期不変キャッシュにしてよい(再訪・ページ遷移での再検証を無くす)。
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+  # MCP Apps ホストのサンドボックス iframe(allow-same-origin 無し)から
+  # /embed/* を開くと、その文書は不透明オリジンになる。module script は常に
+  # CORS モードで取得されるため、ACAO が無いと自分のバンドルすら読めず
+  # ハイドレーションできない(#189)。アセットは公開の静的ファイルなので * でよい。
+  Access-Control-Allow-Origin: *
 
 # AOP境界データ(GeoJSON)。ファイル名にハッシュを持たないため immutable にはできないが、
 # 更新頻度は低い。1日はそのまま使い、以降1週間は stale-while-revalidate で

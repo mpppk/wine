@@ -1,6 +1,5 @@
 import { createUIResource } from "@mcp-ui/server";
-import { clientFieldDefs } from "#/lib/drunk-wine/fields";
-import { GRAPE_VARIETIES } from "#/lib/wine/varieties";
+import { RELAY_READY_MESSAGE } from "#/lib/mcp-app/host-bridge";
 
 export interface AopMapParams {
 	regionId: string;
@@ -140,329 +139,78 @@ export function buildAopMapAppHtml(baseUrl: string): string {
 // register_drunk_wine 用の MCP Apps (SEP) リソースURI。
 export const DRUNK_WINE_RESOURCE_URI = "ui://wine-aop/drunk-wine";
 
-// register_drunk_wine の結果を表示・編集する自己完結フォームHTML。
-// エントリデータはホストからの postMessage(ui/notifications/tool-result
-// または ui-lifecycle-iframe-render-data)でのみ受け取り、URLパラメータや
-// fetch にエントリIDを載せない(IDOR防止)。保存はホスト仲介の tools/call
-// (SEP) / {type:"tool"} (mcp-ui) で update_drunk_wine を呼ぶ。
-// 品種マスタはHTML生成時に埋め込む(サンドボックスiframeからの
-// クロスオリジンfetchはCORSで通らないため)。
+// register_drunk_wine の結果を表示・編集するフォームの中継HTML。
+//
+// フォーム本体は /embed/drunk-wine(実 React・Web版と共通の入力コンポーネント)で、
+// ここはホストのサンドボックス iframe とその中の自オリジン iframe を繋ぐだけの
+// 透過的な中継に徹する。以前はこのテンプレート文字列の中でフォーム描画も差分
+// パッチ生成も実装しており、typecheck も lint も効かず substring テストしか
+// 書けなかった(#155/#189)。この中継はフィールド名もツール名も知らないので、
+// 項目を増やしても手を入れる必要がない。
+//
+// エントリはホストからの postMessage(ui/notifications/tool-result または
+// ui-lifecycle-iframe-render-data)でのみ受け取り、URLには載せない(IDOR防止)。
+// 保存もホスト仲介の tools/call (SEP) / {type:"tool"} (mcp-ui) のまま。
 export function buildDrunkWineAppHtml(baseUrl: string): string {
 	const base = JSON.stringify(baseUrl);
-	const varietiesJson = JSON.stringify(
-		GRAPE_VARIETIES.map((v) => ({ id: v.id, nameJa: v.nameJa })),
-	);
-	// フィールド一覧・入力種別・クリア規約の単一情報源(drunk-wine/fields.ts)を
-	// 埋め込み、render()/collectPatch() を汎用ループで駆動する。
-	const fieldDefsJson = JSON.stringify(clientFieldDefs());
+	const ready = JSON.stringify(RELAY_READY_MESSAGE.__wineRelay);
 	return `<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html,body{margin:0;background:transparent;font:14px/1.6 system-ui,sans-serif}
-  .card{max-width:560px;margin:8px auto;padding:16px;background:#fff;color:#111827;
-    border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
-  h1{font-size:16px;margin:0 0 4px}
-  .sub{font-size:12px;color:#6b7280;margin:0 0 8px}
-  label{display:block;font-size:12px;color:#6b7280;margin:10px 0 2px}
-  input,select,textarea{width:100%;box-sizing:border-box;padding:6px 8px;
-    border:1px solid #d1d5db;border-radius:6px;font:inherit;background:#fff;color:#111827}
-  textarea{min-height:72px;resize:vertical}
-  .row{display:flex;gap:10px}
-  .row>div{flex:1;min-width:0}
-  .vars{display:flex;flex-wrap:wrap;gap:2px 14px;max-height:150px;overflow:auto;
-    border:1px solid #e5e7eb;border-radius:6px;padding:8px}
-  .vars label{display:flex;align-items:center;gap:5px;margin:0;font-size:13px;color:#111827}
-  .vars input{width:auto;margin:0}
-  img.photo{max-width:100%;max-height:220px;border-radius:8px;display:block;margin:6px 0}
-  button{margin-top:14px;padding:8px 18px;border:0;border-radius:8px;
-    background:#9f1239;color:#fff;font:inherit;cursor:pointer}
-  button:disabled{opacity:.5;cursor:default}
-  #f-status{margin-left:10px;font-size:13px}
-  #f-status.okmsg{color:#16a34a}
-  #f-status.errmsg{color:#dc2626}
+  html,body{margin:0;height:100%;background:transparent}
+  iframe{border:0;width:100%;height:100%;display:block}
+  #status{font:14px system-ui,sans-serif;color:#6b7280;padding:16px}
 </style>
 </head>
 <body>
-<div class="card" id="app"><p class="sub">登録結果を待っています…</p></div>
+<div id="status">フォームを読み込み中…</div>
 <script>
 (function(){
-  var BASE_URL = ${base};
-  var VARIETIES = ${varietiesJson};
-  var FIELD_DEFS = ${fieldDefsJson};
-  var entry = null;
-  var rendered = false;
-  var sepMode = false;
-  var nextId = 2;
-  var pending = null;
+  var READY = ${ready};
+  var childReady = false;
+  var queued = [];
+  var frame = document.createElement("iframe");
+  frame.src = ${base} + "/embed/drunk-wine";
+  frame.title = "飲んだワインの編集フォーム";
 
-  function post(msg){ try { window.parent.postMessage(msg, "*"); } catch(e){} }
-  function esc(s){
-    return String(s).replace(/[&<>"']/g, function(c){
-      return c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;"
-        : c === '"' ? "&quot;" : "&#39;";
-    });
+  function toChild(msg){
+    // 子のロード完了前にホストが render-data を送ってくることがあるため、
+    // 準備完了の合図が来るまで貯める
+    if (!childReady){ queued.push(msg); return; }
+    // 子はこのフレームの sandbox を継承して不透明オリジンになるため、
+    // targetOrigin にオリジンを指定すると配送されない("*" しか届かない)。
+    // 送るのはホスト由来のメッセージだけで、宛先は自分が生成した固定URLの
+    // フレームに限られる。
+    try { frame.contentWindow.postMessage(msg, "*"); } catch(e){}
   }
-  function findEntry(p){
-    if (!p || typeof p !== "object") return null;
-    try {
-      var cands = [p];
-      var sc = p.structuredContent || (p.result && p.result.structuredContent);
-      if (sc) cands.push(sc);
-      var content = p.content || (p.result && p.result.content) ||
-        (p.renderData && p.renderData.content);
-      if (Array.isArray(content)){
-        for (var i=0;i<content.length;i++){
-          var c = content[i];
-          if (c && c.type === "text" && c.text){
-            try { cands.push(JSON.parse(c.text)); } catch(e){}
-          }
-        }
-      }
-      for (var j=0;j<cands.length;j++){
-        var o = cands[j];
-        if (o && typeof o === "object" && o.entry && o.entry.id) return o.entry;
-      }
-      if (p.renderData){ var r = findEntry(p.renderData); if (r) return r; }
-    } catch(e){}
-    return null;
-  }
-  function textOf(res){
-    var content = res && res.content;
-    if (Array.isArray(content)){
-      for (var i=0;i<content.length;i++){
-        if (content[i] && content[i].type === "text") return content[i].text;
-      }
-    }
-    return "";
-  }
-  function ratingOptions(sel){
-    var h = '<option value="">未評価</option>';
-    for (var i=1;i<=5;i++){
-      var stars = "";
-      for (var j=0;j<i;j++) stars += "★";
-      h += '<option value="' + i + '"' + (sel === i ? " selected" : "") + '>' +
-        stars + " (" + i + ')</option>';
-    }
-    return h;
-  }
-  function grapeSection(){
-    var ids = entry.grape_variety_ids || [];
-    var h = '<div class="vars">';
-    for (var i=0;i<VARIETIES.length;i++){
-      var v = VARIETIES[i];
-      h += '<label><input type="checkbox" class="gv" value="' + esc(v.id) + '"' +
-        (ids.indexOf(v.id) >= 0 ? " checked" : "") + '>' +
-        esc(v.nameJa || v.id) + '</label>';
-    }
-    return h + '</div>';
-  }
-  function photosHtml(){
-    // 全写真を表示する。photo_urls(配列・先頭=代表)を優先し、無ければ
-    // 後方互換の photo_url(代表1枚)にフォールバック。
-    // postMessage経由の値なので自アプリのオリジン以外は描画しない。
-    // 前方一致は "https://host.evil.example" で偽装できるためorigin厳密比較。
-    var urls = (entry.photo_urls && entry.photo_urls.length)
-      ? entry.photo_urls
-      : (entry.photo_url ? [entry.photo_url] : []);
-    var h = "";
-    for (var i=0;i<urls.length;i++){
-      // 1件の不正URLで全滅しないようURLごとに検証する
-      var src = null;
-      try {
-        var u = new URL(urls[i], BASE_URL);
-        if (u.origin === new URL(BASE_URL).origin) src = u.toString();
-      } catch(e){}
-      if (src) h += '<img class="photo" src="' + esc(src) + '" alt="ボトル写真">';
-    }
-    return h;
-  }
-  function inputHtml(def){
-    var id = "f-" + def.snakeKey, cur = entry[def.snakeKey];
-    if (def.input === "grape") return grapeSection();
-    if (def.input === "rating")
-      return '<select id="' + id + '">' + ratingOptions(cur) + '</select>';
-    if (def.input === "textarea")
-      return '<textarea id="' + id + '">' + esc(cur || "") + '</textarea>';
-    if (def.input === "number")
-      return '<input id="' + id + '" type="number"' +
-        (def.min != null ? ' min="' + def.min + '"' : '') +
-        (def.max != null ? ' max="' + def.max + '"' : '') +
-        ' value="' + (cur != null ? esc(cur) : "") + '">';
-    var type = def.input === "date" ? "date" : "text";
-    return '<input id="' + id + '" type="' + type + '" value="' + esc(cur || "") + '"' +
-      (def.placeholder ? ' placeholder="' + esc(def.placeholder) + '"' : '') + '>';
-  }
-  function fieldBlock(def){
-    var id = "f-" + def.snakeKey;
-    return '<label for="' + id + '">' + esc(def.label) + (def.required ? " *" : "") +
-      '</label>' + inputHtml(def);
-  }
-  function render(){
-    rendered = true;
-    var h = '<h1>' + esc(entry.name || "飲んだワイン") + '</h1>' +
-      '<p class="sub">マイセラーに記録しました。内容はこのまま編集できます。</p>' +
-      photosHtml();
-    // FIELD_DEFS の順に描画。half が隣接すると1行(2カラム)にまとめる。
-    for (var i=0;i<FIELD_DEFS.length;i++){
-      var d = FIELD_DEFS[i], n = FIELD_DEFS[i+1];
-      if (d.col === "half" && n && n.col === "half"){
-        h += '<div class="row"><div>' + fieldBlock(d) + '</div><div>' +
-          fieldBlock(n) + '</div></div>';
-        i++;
-      } else {
-        h += fieldBlock(d);
-      }
-    }
-    h += '<button id="f-save" type="button">保存</button><span id="f-status"></span>';
-    document.getElementById("app").innerHTML = h;
-    document.getElementById("f-save").addEventListener("click", save);
-  }
-  function maybeRender(){
-    if (entry && !rendered) render();
-  }
-  function setStatus(text, isErr){
-    var el = document.getElementById("f-status");
-    if (!el) return;
-    el.textContent = text || "";
-    el.className = isErr ? "errmsg" : "okmsg";
-  }
-  function collectPatch(){
-    // パッチ規約の単一情報源は src/lib/drunk-wine/fields.ts の
-    // collectDrunkWinePatch。本ループはサンドボックス用の near-verbatim ミラー。
-    // 空欄への変更は clear 規約に従って送る(null / [])。未変更は送らない。
-    var p = {};
-    function val(id){
-      var el = document.getElementById(id);
-      return el ? el.value.trim() : "";
-    }
-    for (var i=0;i<FIELD_DEFS.length;i++){
-      var d = FIELD_DEFS[i], key = d.snakeKey;
-      if (d.input === "grape"){
-        var ids = [], boxes = document.querySelectorAll("input.gv");
-        for (var j=0;j<boxes.length;j++) if (boxes[j].checked) ids.push(boxes[j].value);
-        var curG = (entry.grape_variety_ids || []).slice().sort().join(",");
-        if (ids.slice().sort().join(",") !== curG) p[key] = ids; // [] でクリア
-        continue;
-      }
-      var v = val("f-" + key);
-      if (d.clear === "never"){
-        // name はクリア不可: 空 or 未変更なら送らない
-        if (v && v !== (entry[key] || "")) p[key] = v;
-        continue;
-      }
-      if (d.input === "number" || d.input === "rating"){
-        var num = v === "" ? null : Number(v);
-        var cur = entry[key] != null ? entry[key] : null;
-        if (num !== cur) p[key] = num;
-        continue;
-      }
-      // text / date / textarea / aop
-      if (v !== (entry[key] || "")) p[key] = v === "" ? null : v;
-    }
-    return p;
-  }
-  function save(){
-    if ((pending && !pending.timedOut) || !entry) return;
-    var patch = collectPatch();
-    if (!Object.keys(patch).length){ setStatus("変更はありません", false); return; }
-    patch.id = entry.id;
-    var btn = document.getElementById("f-save");
-    if (btn) btn.disabled = true;
-    setStatus("保存中…", false);
-    // ホスト側でツール実行のユーザ承認を挟む場合があるため長めに待つ。
-    // タイムアウト後も pending は保持し、遅れて届いた応答を反映する
-    var timer = setTimeout(function(){
-      if (pending) pending.timedOut = true;
-      if (btn) btn.disabled = false;
-      setStatus("ホストの応答がありません(ツール実行の承認待ちの可能性があります)", true);
-    }, 60000);
-    if (sepMode){
-      var id = nextId++;
-      pending = { kind: "sep", id: id, timer: timer };
-      post({ jsonrpc: "2.0", id: id, method: "tools/call",
-        params: { name: "update_drunk_wine", arguments: patch } });
-    } else {
-      var mid = "update-drunk-wine-" + (nextId++);
-      pending = { kind: "ui", id: mid, timer: timer };
-      post({ type: "tool", messageId: mid,
-        payload: { toolName: "update_drunk_wine", params: patch } });
-    }
-  }
-  function settleSave(res, errText){
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    pending = null;
-    var btn = document.getElementById("f-save");
-    if (btn) btn.disabled = false;
-    if (errText){ setStatus(errText, true); return; }
-    if (res && res.result &&
-      (res.result.content || res.result.structuredContent || res.result.isError)){
-      res = res.result;
-    }
-    if (res && res.isError){
-      setStatus(textOf(res) || "保存に失敗しました", true);
-      return;
-    }
-    // フォームは再構築しない: 応答待ちの間(特にタイムアウト後の遅延応答)に
-    // ユーザが入力した内容を render() で破棄しないため。差分比較の基準
-    // (entry)だけをサーバ確定値に更新する
-    var e = findEntry(res);
-    if (e) entry = e;
-    setStatus("保存しました", false);
+  function toHost(msg){
+    try { window.parent.postMessage(msg, "*"); } catch(e){}
   }
   window.addEventListener("message", function(ev){
-    // ホスト(親フレーム)以外からのメッセージは受け付けない
-    if (ev.source !== window.parent) return;
     var m = ev.data;
     if (!m || typeof m !== "object") return;
-    // ui/initialize への応答 → SEPモード確定
-    if (m.id === 1 && m.result){
-      sepMode = true;
-      post({ jsonrpc: "2.0", method: "ui/notifications/initialized" });
-      return;
-    }
-    if (m.method === "ui/notifications/tool-result"){
-      var e = findEntry(m.params);
-      if (e && !rendered){ entry = e; maybeRender(); }
-      return;
-    }
-    if (m.type === "ui-lifecycle-iframe-render-data"){
-      var re = findEntry(m.payload);
-      if (re && !rendered){ entry = re; maybeRender(); }
-      return;
-    }
-    if (pending && pending.kind === "sep" && m.jsonrpc === "2.0" && m.id === pending.id){
-      if (m.error) settleSave(null, (m.error && m.error.message) || "保存に失敗しました");
-      else settleSave(m.result);
-      return;
-    }
-    if (pending && pending.kind === "ui" &&
-      m.type === "ui-message-response" && m.messageId === pending.id){
-      var pl = m.payload || {};
-      if (pl.error){
-        settleSave(null, typeof pl.error === "string" ? pl.error : "保存に失敗しました");
-      } else {
-        settleSave(pl.response);
+    if (ev.source === frame.contentWindow){
+      if (m.__wineRelay === READY){
+        childReady = true;
+        var pendingMsgs = queued;
+        queued = [];
+        for (var i=0;i<pendingMsgs.length;i++) toChild(pendingMsgs[i]);
+        return;
       }
+      toHost(m);
       return;
     }
+    // ホスト(親フレーム)以外からのメッセージは受け付けない
+    if (ev.source === window.parent) toChild(m);
   });
-  // どちらのハンドシェイクにも応答できるよう両方送る
-  post({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: {
-    protocolVersion: "2025-06-18",
-    appInfo: { name: "wine-aop", version: "1.0.0" }, appCapabilities: {} } });
-  post({ type: "ui-lifecycle-iframe-ready" });
-  post({ type: "ui-request-render-data" });
-  setTimeout(function(){
-    if (!entry){
-      document.getElementById("app").innerHTML = '<p class="sub">' +
-        '登録結果を受信できませんでした。ホストがツール結果の配信' +
-        '(MCP Apps / mcp-ui)に対応している必要があります。</p>';
-    }
-  }, 10000);
+  frame.addEventListener("load", function(){
+    var status = document.getElementById("status");
+    if (status) status.remove();
+  });
+  document.body.appendChild(frame);
 })();
 </script>
 </body>

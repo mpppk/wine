@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { RELAY_READY_MESSAGE } from "#/lib/mcp-app/host-bridge";
 import {
 	AOP_MAP_RESOURCE_URI,
 	buildAopMapAppHtml,
@@ -61,57 +62,44 @@ describe("buildAopMapAppHtml", () => {
 });
 
 describe("buildDrunkWineAppHtml", () => {
-	it("ホスト仲介の tools/call とデュアルハンドシェイクを含む", () => {
+	// フォーム本体は /embed/drunk-wine の実 React 実装(DrunkWineEmbedForm)で、
+	// このHTMLはホストと自オリジンiframeを繋ぐ中継でしかない。中継が
+	// ドメイン知識を持ち始めたら二重実装の再発なので、そこを回帰で押さえる。
+	it("実装は /embed/drunk-wine を埋め込む中継である", () => {
 		const html = buildDrunkWineAppHtml(BASE);
 		expect(html).toContain(JSON.stringify(BASE));
-		expect(html).toContain("tools/call");
-		expect(html).toContain("update_drunk_wine");
-		expect(html).toContain("ui/notifications/tool-result");
-		expect(html).toContain("ui-lifecycle-iframe-ready");
+		expect(html).toContain("/embed/drunk-wine");
 	});
 
 	it("エントリIDをURLパラメータで受け渡さない(IDOR防止)", () => {
-		expect(buildDrunkWineAppHtml(BASE)).not.toContain("?id=");
-	});
-
-	it("品種マスタを埋め込み、CORSが必要なfetchをしない", () => {
 		const html = buildDrunkWineAppHtml(BASE);
-		expect(html).toContain("pinot-noir");
-		expect(html).toContain("ピノ・ノワール");
-		expect(html).not.toContain("fetch(");
+		expect(html).not.toContain("?id=");
+		expect(html).not.toContain("entry.id");
 	});
 
-	it("親フレーム以外からのpostMessageを無視する", () => {
-		expect(buildDrunkWineAppHtml(BASE)).toContain(
-			"ev.source !== window.parent",
-		);
-	});
-
-	it("写真は自オリジンのみ描画する(前方一致でなくorigin厳密比較)", () => {
-		expect(buildDrunkWineAppHtml(BASE)).toContain(
-			"u.origin === new URL(BASE_URL).origin",
-		);
-	});
-
-	it("クリア(null)を含むパッチを送れる", () => {
-		// 空欄への変更を null として送る diff ヘルパが存在すること
+	it("フォーム仕様・ツール名・パッチ規約を持たない(中継に徹する)", () => {
 		const html = buildDrunkWineAppHtml(BASE);
-		expect(html).toContain('=== "" ? null :');
+		// ツール呼び出しの組み立ては App 側(host-bridge.ts)の責務
+		expect(html).not.toContain("update_drunk_wine");
+		expect(html).not.toContain("tools/call");
+		// フィールド定義・品種マスタの埋め込みも不要になった
+		expect(html).not.toContain("snakeKey");
+		expect(html).not.toContain("pinot-noir");
+		// 入力要素を自前で組み立てない
+		expect(html).not.toContain("<textarea");
+		expect(html).not.toContain("checkbox");
 	});
 
-	it("フィールド定義(fields.ts)を埋め込み、汎用ループで描画する", () => {
-		// ハードコードのフィールド一覧ではなく単一情報源から生成していること
+	it("子フレーム・親フレーム以外からのメッセージを中継しない", () => {
 		const html = buildDrunkWineAppHtml(BASE);
-		expect(html).toContain("FIELD_DEFS");
-		expect(html).toContain('"snakeKey":"grape_variety_ids"');
-		expect(html).toContain('"clear":"emptyArray"');
+		expect(html).toContain("ev.source === frame.contentWindow");
+		expect(html).toContain("ev.source === window.parent");
 	});
 
-	it("代表1枚だけでなくphoto_urls(全写真)を描画する(#155のドリフト修正)", () => {
+	it("子の準備完了までホストからのメッセージをバッファする", () => {
 		const html = buildDrunkWineAppHtml(BASE);
-		expect(html).toContain("entry.photo_urls");
-		// 旧ホスト互換の代表1枚(photo_url)フォールバックも残す
-		expect(html).toContain("entry.photo_url ?");
+		expect(html).toContain("childReady");
+		expect(html).toContain(RELAY_READY_MESSAGE.__wineRelay);
 	});
 
 	it("リソースURIは静的", () => {
@@ -126,6 +114,6 @@ describe("buildDrunkWineUiResource", () => {
 		expect(res.resource.uri.startsWith("ui://wine-aop/drunk-wine")).toBe(true);
 		expect(String(res.resource.mimeType)).toContain("text/html");
 		expect(String(res.resource.text)).toContain("<!doctype html>");
-		expect(String(res.resource.text)).toContain("update_drunk_wine");
+		expect(String(res.resource.text)).toContain("/embed/drunk-wine");
 	});
 });
