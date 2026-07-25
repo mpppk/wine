@@ -15,10 +15,17 @@ import { auth } from "#/lib/auth";
 
 const BASE_URL = "http://localhost:3000";
 
-function signInProbe(): Request {
+/**
+ * ip を渡すと `CF-Connecting-IP` を付けて送る(Cloudflare 実機と同じ形)。
+ * 省略時はIPヘッダ無し = better-auth がテスト環境で 127.0.0.1 にフォールバックする。
+ */
+function signInProbe(ip?: string): Request {
 	return new Request(`${BASE_URL}/api/auth/sign-in/email`, {
 		method: "GET",
-		headers: { origin: BASE_URL },
+		headers: {
+			origin: BASE_URL,
+			...(ip ? { "cf-connecting-ip": ip } : {}),
+		},
 	});
 }
 
@@ -41,5 +48,30 @@ describe("auth rate limiting (D1 permanent storage, #31)", () => {
 			"SELECT count(*) AS c FROM rate_limit",
 		).first<{ c: number }>();
 		expect(row?.c ?? 0).toBeGreaterThan(0);
+	});
+});
+
+// レートリミットのバケットがクライアントIPごとに分かれることを検証する(Issue #197)。
+// `advanced.ipAddress.ipAddressHeaders` 未設定だと better-auth は既定の x-forwarded-for
+// しか見ずIPを解決できず、全リクエストが「パスごとの単一共有バケット」に集約される。
+// その状態では 1クライアントの sign-in 連打で無関係な全ユーザが 429 になる。
+// このテストは設定が外れた場合や、better-auth 更新でIP解決の仕様が変わった場合に落ちる
+// (CIが緑でも実機で壊れる類の変更を検出するための回帰テスト)。
+describe("rate limit is keyed per client IP (#197)", () => {
+	it("does not spill one client's 429 over to a different IP", async () => {
+		// ドキュメント用アドレス(TEST-NET-3)。他テストのバケットと衝突しない値を使う。
+		const noisyClient = "203.0.113.10";
+		const innocentClient = "203.0.113.11";
+
+		const statuses: number[] = [];
+		for (let i = 0; i < 5; i++) {
+			statuses.push((await auth.handler(signInProbe(noisyClient))).status);
+		}
+		// 連打した側は既定スペシャルルール(10秒3回)を超えて 429 になる
+		expect(statuses.at(-1)).toBe(429);
+
+		// 別IPは影響を受けない。IPが解決できていないと同じバケットを共有して 429 になる。
+		const other = await auth.handler(signInProbe(innocentClient));
+		expect(other.status).not.toBe(429);
 	});
 });

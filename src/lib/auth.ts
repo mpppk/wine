@@ -62,6 +62,23 @@ export const auth = betterAuth({
 		enabled: true,
 		storage: "database",
 	},
+	// レートリミットのキーに使うクライアントIPの解決方法(Issue #197)。
+	// better-auth の既定は `x-forwarded-for` のみを見るが、Cloudflare は同ヘッダに
+	// クライアント申告分を残したまま実IPを追記するため複数エントリになりうる。
+	// better-auth は trustedProxies 未設定時「エントリが1個の場合のみ採用」する実装
+	// (@better-auth/core の getIPFromHeader)なので、その場合IPが解決できない。
+	// 解決できないと全リクエストが `パスごとの単一共有バケット` に集約され、
+	// 1クライアントの sign-in 連打で全ユーザが 429 になる(既定のスペシャルルールは10秒3回)。
+	//
+	// `CF-Connecting-IP` は Cloudflare がエッジで必ず**上書き**する単一IPのため、
+	// クライアントからの偽装が不可能で、Workers 上では常に解決できる。
+	// 逆に x-forwarded-for を trustedProxies 無しで信頼する構成は偽装で
+	// レートリミットを回避されうるため採らない。
+	advanced: {
+		ipAddress: {
+			ipAddressHeaders: ["cf-connecting-ip"],
+		},
+	},
 	// user テーブルの独自カラム。better-auth に宣言することで getSession /
 	// updateUser / useSession が本フィールドを読み書きできる(物理カラムは
 	// drizzle/0012_user_preferred_ai_model.sql で追加)。
