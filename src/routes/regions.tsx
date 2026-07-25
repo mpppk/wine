@@ -56,6 +56,9 @@ function RegionsPage() {
 								<p className="text-sm leading-relaxed text-muted-foreground">
 									{region.description}
 								</p>
+								<p className="mt-3 border-l-2 border-primary/30 pl-3 text-sm leading-relaxed text-muted-foreground">
+									{region.learningFocus}
+								</p>
 							</CardContent>
 						</Card>
 					</Link>

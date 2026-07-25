@@ -11,10 +11,12 @@ import {
 } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
+import { shouldShowStarterGuide } from "#/lib/dashboard/onboarding";
 import type { DashboardData } from "#/lib/services/dashboard-service";
 import { cn } from "#/lib/utils";
 import { getRegion } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
+import { StarterGuide } from "./StarterGuide";
 
 // ログイン後トップページの学習ダッシュボード。getDashboard の結果を受け取り、
 // 「今日どこから学ぶか」「今日どれだけ学んだか」を一望できるよう描画する。
@@ -26,6 +28,13 @@ export function DashboardView({
 	data: DashboardData;
 	userName: string | null;
 }) {
+	// ガイド表示中はヒートマップを出さない(学習を始めたばかりのユーザには
+	// 空のマス目が並ぶだけで、次の一手の邪魔になる)。
+	const showGuide = shouldShowStarterGuide({
+		seen: data.mastery.seen,
+		cellarCount: data.cellar.count,
+	});
+
 	return (
 		<main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
 			<header>
@@ -37,6 +46,13 @@ export function DashboardView({
 				</p>
 			</header>
 
+			{showGuide && (
+				<StarterGuide
+					regionId={data.recommendation.regionId}
+					seen={data.mastery.seen}
+					cellarCount={data.cellar.count}
+				/>
+			)}
 			<RecommendationHero recommendation={data.recommendation} />
 			<TodaySummary
 				today={data.today}
@@ -45,7 +61,7 @@ export function DashboardView({
 			/>
 			<MasteryCard mastery={data.mastery} />
 			{data.mastery.weak > 0 && <ReviewCard weak={data.mastery.weak} />}
-			<HeatmapCard heatmap={data.heatmap} />
+			{!showGuide && <HeatmapCard heatmap={data.heatmap} />}
 			<QuickAccess />
 		</main>
 	);
@@ -67,7 +83,10 @@ function RecommendationHero({
 
 	let heading: string;
 	let detail: string;
-	if (reason === "weak") {
+	if (reason === "starter") {
+		heading = `${regionName}から始めましょう`;
+		detail = `${regionName}には出題できる問題が ${count} 問あります。`;
+	} else if (reason === "weak") {
 		heading = "苦手を復習しましょう";
 		detail = `${regionName} に直近で間違えた問題が ${count} 問あります。`;
 	} else if (reason === "unseen") {
@@ -91,6 +110,11 @@ function RecommendationHero({
 				<div>
 					<p className="text-lg font-semibold">{heading}</p>
 					<p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+					{region && (
+						<p className="mt-2 border-l-2 border-primary/30 pl-3 text-sm leading-relaxed text-muted-foreground">
+							{region.learningFocus}
+						</p>
+					)}
 				</div>
 				{recommendation.regionId != null ? (
 					<Button asChild size="lg" className="self-start">

@@ -16,7 +16,20 @@ export interface RegionStat {
 }
 
 /** おすすめの理由。UIの見出し・説明の出し分けに使う */
-export type RecommendationReason = "weak" | "unseen" | "mastery" | "empty";
+export type RecommendationReason =
+	| "starter"
+	| "weak"
+	| "unseen"
+	| "mastery"
+	| "empty";
+
+/**
+ * まだ何も解いていないユーザに最初に薦める地域。収録数の多寡で決まる "unseen" に
+ * 任せると入口が偶然で決まってしまうため、意図して起点を固定する。
+ * ブルゴーニュは畑(クリマ)単位の違いがそのまま味の違いになる地域で、
+ * 「地図で区画を覚える」というこのアプリの学び方を最も体感しやすい。
+ */
+export const STARTER_REGION_ID: RegionId = "bourgogne";
 
 export interface Recommendation {
 	regionId: RegionId | null;
@@ -39,6 +52,17 @@ export function pickRecommendation(
 
 	// playable は上の早期returnで非空が保証されるため、各ソート結果の先頭は必ず存在する。
 	// noUncheckedIndexedAccess 下では型がそれを追えないので先頭要素をローカルに束縛して扱う。
+
+	// 0) まだ1問も解いていない: 起点を固定して「どこから始めるか」を迷わせない。
+	//    起点の地域が出題不能(candidateCount 0)なら通常の優先度に委ねる。
+	const starter = playable.find((r) => r.regionId === STARTER_REGION_ID);
+	if (starter && playable.every((r) => r.seenCount === 0)) {
+		return {
+			regionId: starter.regionId,
+			reason: "starter",
+			count: starter.candidateCount,
+		};
+	}
 
 	// 1) 苦手が最も多い地域(苦手があれば最優先で復習に誘導)
 	const byWeak = [...playable].sort((a, b) => b.weakCount - a.weakCount);

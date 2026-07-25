@@ -165,4 +165,10 @@ export interface Region {
 	boundaryAttribution?: string;
 	subregions: Subregion[];
 	description: string;
+	/**
+	 * この地域を「何に着目して学ぶと面白いか」の1文。地理的な概要である description とは
+	 * 役割を分け、学習の動機づけ(地図・区画を覚えると何が分かるようになるか)を書く。
+	 * ダッシュボードのおすすめ枠・スターターガイド・地域選択・クイズ設定で共用する。
+	 */
+	learningFocus: string;
 }

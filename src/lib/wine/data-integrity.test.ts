@@ -35,6 +35,15 @@ describe("地域マスタ(REGIONS)とRegionId SSOTの整合性", () => {
 	it("REGION_IDS は REGION_ID_LIST を参照している", () => {
 		expect([...REGION_IDS]).toEqual([...REGION_ID_LIST]);
 	});
+
+	// 学習の動機づけ文はダッシュボード・地域選択・クイズ設定で共用するため、
+	// 地域を追加したときの書き忘れ(空文字での埋め合わせ)をここで止める。
+	it("全地域が description と learningFocus を持つ", () => {
+		for (const region of REGIONS) {
+			expect(region.description.trim(), region.id).not.toBe("");
+			expect(region.learningFocus.trim(), region.id).not.toBe("");
+		}
+	});
 });
 
 describe("AOPメタデータの整合性", () => {

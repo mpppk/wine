@@ -9,6 +9,7 @@ import { AdBanner } from "../components/ads/AdBanner";
 import { CommandPalette } from "../components/CommandPalette";
 import { CommandPaletteProvider } from "../components/CommandPaletteContext";
 import Header from "../components/Header";
+import { STARTER_GUIDE_INIT_SCRIPT } from "../lib/dashboard/guide-dismissal";
 import { isEmbedPath } from "../lib/embed";
 import appCss from "../styles.css?url";
 
@@ -17,6 +18,11 @@ interface MyRouterContext {
 }
 
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode==='auto'){root.removeAttribute('data-theme')}else{root.setAttribute('data-theme',mode)}root.style.colorScheme=resolved;}catch(e){}})();`;
+
+// ハイドレーション前に localStorage を見て html の状態を整えるブートストラップ。
+// テーマのFOUCと、閉じたスターターガイドのちらつきを防ぐ。どちらも「描画前に
+// html へ印を付けて CSS 側で解決する」同じ形なので1つの script にまとめる。
+const BOOT_SCRIPT = `${THEME_INIT_SCRIPT}${STARTER_GUIDE_INIT_SCRIPT}`;
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
 	head: () => ({
@@ -121,8 +127,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					content="#09090b"
 					media="(prefers-color-scheme: dark)"
 				/>
-				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Static theme bootstrap script must run before hydration. */}
-				<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Static bootstrap script must run before hydration. */}
+				<script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
 				<HeadContent />
 			</head>
 			<body className="font-sans antialiased [overflow-wrap:anywhere]">
