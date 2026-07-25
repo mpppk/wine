@@ -29,7 +29,6 @@ function region(id: RegionId, nameJa: string, enabled = true): Region {
 		enabled,
 		subregions: [],
 		description: "-",
-		learningFocus: "-",
 	};
 }
 

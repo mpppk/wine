@@ -44,8 +44,6 @@ export function StarterGuide({
 		regionId != null ? (getRegion(regionId)?.nameJa ?? "") : "";
 
 	// ステップごとの説明文。「なぜやるのか」を1行で書く。
-	// 地域ごとの着目点(learningFocus)は直下のおすすめ枠が出すのでここでは繰り返さない
-	// (「閉じる」はCSS側の判定なので、ガイドの表示有無で他の要素を出し分けられない)。
 	const detailOf = (id: StarterStepId): string => {
 		if (id === "map") {
 			return regionName

@@ -381,7 +381,6 @@ describe("getAopAncestry", () => {
 			{ id: "bourgogne-regional", nameJa: "地方名AOC(広域)" },
 		],
 		description: "-",
-		learningFocus: "-",
 	};
 
 	it("畑は親の村名AOC・地区・地方を返す", () => {

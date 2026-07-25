@@ -110,11 +110,6 @@ function RecommendationHero({
 				<div>
 					<p className="text-lg font-semibold">{heading}</p>
 					<p className="mt-1 text-sm text-muted-foreground">{detail}</p>
-					{region && (
-						<p className="mt-2 border-l-2 border-primary/30 pl-3 text-sm leading-relaxed text-muted-foreground">
-							{region.learningFocus}
-						</p>
-					)}
 				</div>
 				{recommendation.regionId != null ? (
 					<Button asChild size="lg" className="self-start">

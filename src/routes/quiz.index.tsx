@@ -37,7 +37,6 @@ function QuizSetupPage() {
 		regions[0]?.id as RegionId,
 	);
 	const counts = countsByRegion[regionId];
-	const selectedRegion = regions.find((r) => r.id === regionId);
 	// 地域を切り替えたら、その地域で成立する形式を全選択に戻す
 	const [selectedTypes, setSelectedTypes] = useState<QuizType[]>(() =>
 		QUIZ_TYPES.filter((t) => (counts?.[t.id] ?? 0) > 0).map((t) => t.id),
@@ -103,13 +102,6 @@ function QuizSetupPage() {
 					</button>
 				))}
 			</div>
-
-			{/* 着目点は選択中の地域ぶんだけ出す(全カードに載せるとグリッドが読みにくくなる) */}
-			{selectedRegion && (
-				<p className="mt-3 border-l-2 border-primary/30 pl-3 text-sm leading-relaxed text-muted-foreground">
-					{selectedRegion.learningFocus}
-				</p>
-			)}
 
 			<h2 className="mt-6 text-sm font-medium text-muted-foreground">
 				クイズ形式
