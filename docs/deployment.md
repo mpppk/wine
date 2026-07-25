@@ -72,6 +72,30 @@ npx wrangler d1 migrations apply DB --remote --env preview
 恒久策としては「スキーマ変更 PR を1本ずつマージする」運用を守る（CLAUDE.md 参照）。それでも
 残留が問題になるなら、スキーマ変更 PR だけブランチ専用 D1 を割り当てる仕組みを別途検討する。
 
+## ランタイムログの確認
+
+`wrangler.jsonc` の `observability.enabled: true` により、本番・プレビューとも
+**Workers Logs**（Workers Observability）にランタイムログが蓄積される。ダッシュボードに
+入れない環境（Claude Code on the web / CI）からは `bun run logs` で検索する。
+
+```bash
+bun run logs                             # 本番(wine)の直近1時間
+bun run logs --env preview --since 3h    # プレビュー(wine-preview)の直近3時間
+bun run logs --level error,warn          # エラー・警告のみ
+bun run logs --grep stripe --since 1d    # message の部分一致
+bun run logs --version <version-id>      # 特定バージョン(PRのプレビュー)に限定
+bun run logs --json                      # 生JSON(jq で加工する場合)
+```
+
+- `CLOUDFLARE_API_TOKEN`（Workers Observability の Read 権限を含むこと）が必要。account id は
+  自動解決されるが、複数アカウントに属する場合のみ `CLOUDFLARE_ACCOUNT_ID` を指定する。
+- **プレビューはPRごとに別バージョンとして立ち上がるが、Worker 名はいずれも `wine-preview`**。
+  複数PRのプレビューが同時に動いていると混ざるため、切り分けたい場合は `--version` を使う
+  （version id は出力の `--json` か、Workers Builds のデプロイ結果から得られる）。
+- `wrangler tail` は「今まさに流れているログ」のみで、再現操作と同時に走らせる必要がある。
+  PRのプレビューで起きたエラーを後から追う用途には `bun run logs` を使う。
+- 保持期間は Cloudflare のプラン依存（それ以前を追う必要が出たら Logpush で R2 へ転送する）。
+
 ## シークレットの投入
 
 過去のCI整備（PR #59/#63〜#67）で繰り返し踏んだ非対称性のまとめ。

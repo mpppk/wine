@@ -5,6 +5,7 @@
 * `bun run test` は2プロジェクト構成（`vitest.config.ts`）。`unit`=jsdom 上の純ロジック単体テスト（`*.test.ts`）、`workers`=`@cloudflare/vitest-pool-workers` で workerd+実D1(miniflare) を用意して D1/`env` 依存コードを検証するテスト(`*.workers.test.ts`、`test/apply-migrations.ts` がマイグレーション適用）。D1・`env` に触れる挙動のテストは後者に置く（分離D1で本番/プレビューには触れない）。
 * ローカルDB: 初回・スキーマ変更後は `bun run db:migrate:local` してから `bun run dev`
 * OAuth/MCP をローカル検証する場合は `.dev.vars` に `BETTER_AUTH_URL=http://localhost:3000` を設定（`.dev.vars.example` 参照）
+* デプロイ済み環境のランタイムログは `bun run logs`（本番）/ `bun run logs --env preview`（プレビュー）で検索する。`--level error,warn` / `--grep <text>` / `--since 3h` / `--version <id>` で絞り込む。プレビューで踏んだエラーの調査や、CIは緑なのに実機で壊れる類の切り分けに使う（`wrangler tail` はライブのみで後追いできない）。詳細は `docs/deployment.md` の「ランタイムログの確認」を参照。
 
 ## 実装プランの作成
 
