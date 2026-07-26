@@ -1,27 +1,85 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { DRUNK_WINE_FIELD_DEFS } from "#/lib/drunk-wine/fields";
-import { registerDrunkWineInput, updateDrunkWineInput } from "./schemas";
+import {
+	DRUNK_WINE_FIELD_DEFS,
+	WINE_TASTING_FIELDS,
+} from "#/lib/drunk-wine/fields";
+import {
+	addWineTastingInput,
+	registerDrunkWineInput,
+	updateDrunkWineInput,
+} from "./schemas";
 
 // schemas.ts の register/update 入力は DRUNK_WINE_FIELD_DEFS から生成される。
 // ここでは「生成物が clear 規約どおりに振る舞うこと」を defs 駆動で検証する
-// (フィールドを足すと自動的にカバーされる)。挙動は生成前の手書き版と不変。
+// (フィールドを足すと自動的にカバーされる)。
+//
+// 飲んだ日・評価・メモは飲用記録(1:N)へ移ったが、MCP のツール引数としては
+// 残している。外部クライアント(Claude 等)が従来の呼び方を続けられることが要件
+// なので、引数の存在自体をここで回帰固定する。
 
 const registerSchema = z.object(registerDrunkWineInput);
 const updateSchema = z.object(updateDrunkWineInput);
-const snakeKeys = DRUNK_WINE_FIELD_DEFS.map((d) => d.snakeKey).sort();
+const snakeKeys = DRUNK_WINE_FIELD_DEFS.map((d) => d.snakeKey);
+const tastingKeys = WINE_TASTING_FIELDS.map((d) => d.snakeKey);
 
 describe("生成された MCP 入力スキーマのキー集合", () => {
-	it("register = 9フィールド + photo2", () => {
+	it("register = 銘柄フィールド + 飲用記録の互換引数 + photo2", () => {
 		expect(Object.keys(registerDrunkWineInput).sort()).toEqual(
-			[...snakeKeys, "photo_base64", "photo_mime_type"].sort(),
+			[...snakeKeys, ...tastingKeys, "photo_base64", "photo_mime_type"].sort(),
 		);
 	});
 
-	it("update = id + 9フィールド + photo2", () => {
+	it("update = id + 銘柄フィールド + 飲用記録の互換引数 + photo2", () => {
 		expect(Object.keys(updateDrunkWineInput).sort()).toEqual(
-			["id", ...snakeKeys, "photo_base64", "photo_mime_type"].sort(),
+			[
+				"id",
+				...snakeKeys,
+				...tastingKeys,
+				"photo_base64",
+				"photo_mime_type",
+			].sort(),
 		);
+	});
+
+	it("add_wine_tasting = drunk_wine_id + 飲用記録フィールド", () => {
+		expect(Object.keys(addWineTastingInput).sort()).toEqual(
+			["drunk_wine_id", ...tastingKeys].sort(),
+		);
+	});
+});
+
+// 後方互換の回帰固定。ここが落ちたら既存の外部クライアントが壊れる。
+describe("既存クライアントの呼び方", () => {
+	it("register は drank_on / rating / memo を従来どおり受け取る", () => {
+		const parsed = registerSchema.parse({
+			name: "Chablis",
+			drank_on: "2020-01-02",
+			rating: 4,
+			memo: "good",
+		});
+		expect(parsed.drank_on).toBe("2020-01-02");
+		expect(parsed.rating).toBe(4);
+		expect(parsed.memo).toBe("good");
+	});
+
+	it("update は drank_on / rating / memo を従来どおり受け取り null も許す", () => {
+		const parsed = updateSchema.parse({
+			id: "x",
+			drank_on: null,
+			rating: null,
+			memo: null,
+		});
+		expect(parsed.drank_on).toBeNull();
+		expect(parsed.rating).toBeNull();
+		expect(parsed.memo).toBeNull();
+	});
+
+	it("飲用記録の引数にも base バリデーションが効く", () => {
+		expect(() => registerSchema.parse({ name: "X", rating: 6 })).toThrow();
+		expect(() =>
+			registerSchema.parse({ name: "X", drank_on: "2026-02-31" }),
+		).toThrow();
 	});
 });
 
@@ -68,6 +126,7 @@ describe("registerDrunkWineInput", () => {
 	it("各フィールドの妥当値を受理する", () => {
 		const parsed = registerSchema.parse({
 			name: "テスト",
+			status: "owned",
 			drank_on: "2020-01-02",
 			rating: 4,
 			vintage: 2019,
@@ -77,12 +136,17 @@ describe("registerDrunkWineInput", () => {
 			grape_variety_ids: ["chardonnay"],
 			memo: "メモ",
 		});
-		expect(parsed.rating).toBe(4);
+		expect(parsed.status).toBe("owned");
 		expect(parsed.grape_variety_ids).toEqual(["chardonnay"]);
 	});
 
-	it("base バリデーションは維持される(rating 6 / vintage 1700 は不可)", () => {
-		expect(() => registerSchema.parse({ name: "X", rating: 6 })).toThrow();
+	it("status は enum 外の値を拒否する", () => {
+		expect(() =>
+			registerSchema.parse({ name: "X", status: "drunk" }),
+		).toThrow();
+	});
+
+	it("base バリデーションは維持される(vintage 1700 は不可)", () => {
 		expect(() => registerSchema.parse({ name: "X", vintage: 1700 })).toThrow();
 	});
 });

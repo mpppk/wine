@@ -1,11 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
+import { db } from "#/db";
+import { user } from "#/db/auth-schema";
 import { getProducerPurchaseLinks } from "#/lib/wine/affiliate";
 import { listAops, listRegions } from "#/lib/wine/service";
 import type { Aop } from "#/lib/wine/types";
 import { AOP_MAP_RESOURCE_URI } from "./apps";
-import { registerReadTools } from "./tools";
+import { registerReadTools, registerWriteTools } from "./tools";
 
 // tools.ts はトップレベルで `cloudflare:workers` の env を評価する(get_aop の URL 生成・
 // affiliate 設定)。workers プール上なら env が使えるので、実ハンドラを駆動して
@@ -41,6 +43,25 @@ function collectReadTools(userId = "tester") {
 		},
 	} as unknown as McpServer;
 	registerReadTools(server, userId);
+	return tools;
+}
+
+/** 書き込みツール(D1を引く)を同じスタブで駆動する。 */
+function collectWriteTools(userId: string) {
+	const tools = new Map<
+		string,
+		{ config: Record<string, unknown>; handler: ToolHandler }
+	>();
+	const server = {
+		registerTool(
+			name: string,
+			config: Record<string, unknown>,
+			handler: ToolHandler,
+		) {
+			tools.set(name, { config, handler });
+		},
+	} as unknown as McpServer;
+	registerWriteTools(server, userId);
 	return tools;
 }
 
@@ -198,5 +219,311 @@ describe("show_aop_map", () => {
 		const res = await entry.handler({ region_id: "___no_such_region___" });
 		expect(res.isError).toBe(true);
 		expect(firstText(res)).toContain("Unknown region");
+	});
+});
+
+// ---- マイセラーの書き込みツール ------------------------------------------
+// 飲んだ日・評価・メモは wine_tasting(1:N)へ移したが、ツール名も引数名も変えて
+// いない。既存の外部クライアント(Claude 等)が従来の呼び方を続けられることを
+// 実D1上で固定する。ここが落ちたら公開済みのMCPインターフェースが壊れている。
+
+let writeSeq = 0;
+async function freshWriteUser(): Promise<string> {
+	writeSeq += 1;
+	const id = `mcp-write-${writeSeq}`;
+	await db.insert(user).values({
+		id,
+		name: "mcp tester",
+		email: `${id}@example.com`,
+		emailVerified: false,
+	});
+	return id;
+}
+
+type EntryPayload = {
+	entry: {
+		id: string;
+		status: string;
+		tasting_count: number;
+		last_drank_on: string | null;
+		drank_on: string | null;
+		rating: number | null;
+		memo: string | null;
+	};
+};
+
+function writeHandler(
+	tools: ReturnType<typeof collectWriteTools>,
+	name: string,
+): ToolHandler {
+	const t = tools.get(name);
+	if (!t) throw new Error(`${name} が登録されていない`);
+	return t.handler;
+}
+
+describe("register_drunk_wine の後方互換", () => {
+	it("旧クライアントの呼び方(name + drank_on/rating/memo)で飲用記録が1件できる", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const res = await writeHandler(
+			tools,
+			"register_drunk_wine",
+		)({
+			name: "Chablis",
+			drank_on: "2020-01-02",
+			rating: 4,
+			memo: "good",
+		});
+		expect(res.isError).toBeFalsy();
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		// 返却は従来と同じキー・同じ値
+		expect(entry.drank_on).toBe("2020-01-02");
+		expect(entry.rating).toBe(4);
+		expect(entry.memo).toBe("good");
+		// 新しい表現も同時に載る
+		expect(entry.status).toBe("finished");
+		expect(entry.tasting_count).toBe(1);
+		expect(entry.last_drank_on).toBe("2020-01-02");
+	});
+
+	it("status もレガシー引数も無い登録でも飲用記録が1件できる", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const res = await writeHandler(
+			tools,
+			"register_drunk_wine",
+		)({
+			name: "名前だけ",
+		});
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		expect(entry.status).toBe("finished");
+		expect(entry.tasting_count).toBe(1);
+		expect(entry.last_drank_on).toBeNull();
+	});
+
+	it("status=wishlist なら飲用記録を作らない", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const res = await writeHandler(
+			tools,
+			"register_drunk_wine",
+		)({
+			name: "気になる",
+			status: "wishlist",
+		});
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		expect(entry.status).toBe("wishlist");
+		expect(entry.tasting_count).toBe(0);
+	});
+});
+
+describe("update_drunk_wine の飲用記録引数", () => {
+	it("2回更新しても件数は1のまま(最新1件の in-place 更新)", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const created = (
+			(
+				await writeHandler(
+					tools,
+					"register_drunk_wine",
+				)({
+					name: "Sancerre",
+					drank_on: "2020-01-01",
+				})
+			).structuredContent as unknown as EntryPayload
+		).entry;
+
+		const update = writeHandler(tools, "update_drunk_wine");
+		await update({ id: created.id, drank_on: "2021-01-01" });
+		const res = await update({ id: created.id, drank_on: "2022-01-01" });
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		// MCP App は保存のたびに update を投げる。追加にすると増え続けてしまう
+		expect(entry.tasting_count).toBe(1);
+		expect(entry.drank_on).toBe("2022-01-01");
+	});
+
+	it("飲用記録が0件のエントリに rating だけ渡すと1件作られる", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const created = (
+			(
+				await writeHandler(
+					tools,
+					"register_drunk_wine",
+				)({
+					name: "在庫",
+					status: "owned",
+				})
+			).structuredContent as unknown as EntryPayload
+		).entry;
+		expect(created.tasting_count).toBe(0);
+
+		const res = await writeHandler(
+			tools,
+			"update_drunk_wine",
+		)({
+			id: created.id,
+			rating: 5,
+		});
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		expect(entry.tasting_count).toBe(1);
+		expect(entry.rating).toBe(5);
+		// 所有状態は勝手に変えない(2軸は独立)
+		expect(entry.status).toBe("owned");
+	});
+
+	it("drank_on: null は列のクリアで、記録は消えない", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const created = (
+			(
+				await writeHandler(
+					tools,
+					"register_drunk_wine",
+				)({
+					name: "Muscadet",
+					drank_on: "2020-01-01",
+					rating: 3,
+				})
+			).structuredContent as unknown as EntryPayload
+		).entry;
+
+		const res = await writeHandler(
+			tools,
+			"update_drunk_wine",
+		)({
+			id: created.id,
+			drank_on: null,
+		});
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		expect(entry.tasting_count).toBe(1);
+		expect(entry.drank_on).toBeNull();
+		expect(entry.last_drank_on).toBeNull();
+		expect(entry.rating).toBe(3);
+	});
+
+	it("銘柄フィールドを送らず飲用記録引数だけでも成功する(空UPDATEにならない)", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const created = (
+			(await writeHandler(tools, "register_drunk_wine")({ name: "Riesling" }))
+				.structuredContent as unknown as EntryPayload
+		).entry;
+
+		const res = await writeHandler(
+			tools,
+			"update_drunk_wine",
+		)({
+			id: created.id,
+			memo: "あとから追記",
+		});
+		expect(res.isError).toBeFalsy();
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		expect(entry.memo).toBe("あとから追記");
+	});
+
+	it("status で所有状態を戻せる(もう一度買った)", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const created = (
+			(
+				await writeHandler(
+					tools,
+					"register_drunk_wine",
+				)({
+					name: "Beaujolais",
+					drank_on: "2020-01-01",
+				})
+			).structuredContent as unknown as EntryPayload
+		).entry;
+
+		const res = await writeHandler(
+			tools,
+			"update_drunk_wine",
+		)({
+			id: created.id,
+			status: "owned",
+		});
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		// 手元にある かつ 飲んだことがある
+		expect(entry.status).toBe("owned");
+		expect(entry.tasting_count).toBe(1);
+	});
+});
+
+describe("add_wine_tasting", () => {
+	it("2件目以降の飲用記録を追加できる", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const created = (
+			(
+				await writeHandler(
+					tools,
+					"register_drunk_wine",
+				)({
+					name: "Bourgogne Rouge",
+					drank_on: "2020-01-01",
+				})
+			).structuredContent as unknown as EntryPayload
+		).entry;
+
+		const res = await writeHandler(
+			tools,
+			"add_wine_tasting",
+		)({
+			drunk_wine_id: created.id,
+			drank_on: "2024-06-06",
+			rating: 5,
+		});
+		const { entry } = res.structuredContent as unknown as EntryPayload;
+		expect(entry.tasting_count).toBe(2);
+		expect(entry.last_drank_on).toBe("2024-06-06");
+	});
+
+	it("他ユーザのエントリには追加できない", async () => {
+		const owner = await freshWriteUser();
+		const other = await freshWriteUser();
+		const created = (
+			(
+				await writeHandler(
+					collectWriteTools(owner),
+					"register_drunk_wine",
+				)({
+					name: "Barolo",
+				})
+			).structuredContent as unknown as EntryPayload
+		).entry;
+
+		const res = await writeHandler(
+			collectWriteTools(other),
+			"add_wine_tasting",
+		)({ drunk_wine_id: created.id, rating: 1 });
+		expect(res.isError).toBe(true);
+		expect(firstText(res)).toContain("Entry not found");
+	});
+});
+
+describe("list_drunk_wines", () => {
+	it("未飲・気になるも含めて返し、判定用の新キーが載る", async () => {
+		const userId = await freshWriteUser();
+		const tools = collectWriteTools(userId);
+		const register = writeHandler(tools, "register_drunk_wine");
+		await register({ name: "飲んだ", drank_on: "2020-01-01" });
+		await register({ name: "在庫", status: "owned" });
+		await register({ name: "気になる", status: "wishlist" });
+
+		const res = await writeHandler(tools, "list_drunk_wines")({});
+		const payload = res.structuredContent as unknown as {
+			count: number;
+			entries: EntryPayload["entry"][];
+		};
+		expect(payload.count).toBe(3);
+		const tasted = payload.entries.filter((e) => e.tasting_count > 0);
+		expect(tasted).toHaveLength(1);
+		expect(payload.entries.map((e) => e.status).sort()).toEqual([
+			"finished",
+			"owned",
+			"wishlist",
+		]);
 	});
 });

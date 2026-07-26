@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import type { AdminAuditAction } from "#/lib/admin/audit";
 import type { CreditLedgerType } from "#/lib/credit/types";
+import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { user } from "./auth-schema";
 
 // ワイン学習アプリのドメインスキーマ。AOP等のコンテンツデータは静的ファイル
@@ -50,12 +51,22 @@ export const quizQuestionStat = sqliteTable(
 );
 
 /**
- * ユーザが飲んだワインの記録(マイセラー)。AOP・ブドウ品種は静的マスタ
+ * ユーザのマイセラー(銘柄/ボトル)。AOP・ブドウ品種は静的マスタ
  * (src/lib/wine/)への文字列参照でFKは張れないため、存在検証はサービス層で行う。
  * 写真は複数枚をR2(AVATARSバケット)にキー "wines/{userId}/{id}/{photoId}.{ext}" で
  * 保存し、photoKeys にそのキーの配列(表示順。先頭=代表サムネイル)を持つ。
  * (旧単一列 photo_key の既存データはマイグレーションで配列へ退避しており、
  * フラット形式の旧キーも配列内にそのまま入りうる。)
+ *
+ * 所有状態(status)と飲用履歴(wineTasting の 1:N)は**直交する2軸**で持つ(Issue #195)。
+ * 「以前飲んだワインをもう一度購入した」= status='owned' かつ 飲用記録あり、のように
+ * 組み合わせがそのまま実際の状況に対応する。単一の enum に潰すとこれが表現できない。
+ *
+ * lastDrankOn / tastingCount は wineTasting の集計キャッシュ。一覧・地図・
+ * ダッシュボードがいずれも drunk_wine の単表クエリで、JOIN + GROUP BY にすると
+ * 3経路すべてに波及するため非正規化する(dailyActivity と同じ理由付け)。更新は
+ * recomputeDrunkWineAggregates(drunk-wine-service.ts)が全再計算で行い、飲用記録の
+ * 書き換えと同一の db.batch に必ず含める。
  */
 export const drunkWine = sqliteTable(
 	"drunk_wine",
@@ -66,12 +77,28 @@ export const drunkWine = sqliteTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
-		/** 飲んだ日 "YYYY-MM-DD"(時刻不要のためtext) */
+		/** 所有状態。値のSSOTは src/lib/drunk-wine/status.ts */
+		status: text("status")
+			.notNull()
+			.$type<WineStatus>()
+			.default(DEFAULT_WINE_STATUS),
+		/**
+		 * 最新の飲用記録の飲んだ日 = max(wine_tasting.drank_on)。飲用記録が無い、
+		 * または全件が日付未入力なら null。
+		 */
+		lastDrankOn: text("last_drank_on"),
+		/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
+		tastingCount: integer("tasting_count").notNull().default(0),
+		/**
+		 * @deprecated 最新の飲用記録の射影。読み取り側の切り替えが済むまで
+		 * 二重書きし、次PRで削除する(expand-and-contract)。
+		 */
 		drankOn: text("drank_on"),
 		/** 静的AOPマスタの Aop.id(任意) */
 		aopId: text("aop_id"),
-		/** 1–5 */
+		/** @deprecated 最新の飲用記録の射影。1–5。次PRで削除 */
 		rating: integer("rating"),
+		/** @deprecated 最新の飲用記録の射影。次PRで削除 */
 		memo: text("memo"),
 		/** ヴィンテージ(収穫年) */
 		vintage: integer("vintage"),
@@ -98,6 +125,45 @@ export const drunkWine = sqliteTable(
 	},
 	(table) => [
 		index("drunk_wine_user_created_idx").on(table.userId, table.createdAt),
+	],
+);
+
+/**
+ * 飲用記録。1つの銘柄(drunkWine)を複数回飲んだ履歴を持つ(1:N)。同じワインを2回
+ * 飲んで評価が違うのは当然なので、評価とメモは銘柄側ではなくここに属する。
+ *
+ * drankOn は nullable。「飲んだが日付を覚えていない」記録があり、旧データの移送でも
+ * 日付未入力の行を飲用記録1件として作るため(取りこぼすと集計から消える)。
+ *
+ * userId は drunkWine 経由で辿れるが、所有権チェックを JOIN 無しの
+ * `WHERE id AND userId` で行う規約(docs/architecture.md)のため冗長に持つ。
+ */
+export const wineTasting = sqliteTable(
+	"wine_tasting",
+	{
+		id: text("id").primaryKey(),
+		drunkWineId: text("drunk_wine_id")
+			.notNull()
+			.references(() => drunkWine.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 飲んだ日 "YYYY-MM-DD"。覚えていない場合は null */
+		drankOn: text("drank_on"),
+		/** 1–5 */
+		rating: integer("rating"),
+		memo: text("memo"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("wine_tasting_entry_drank_idx").on(table.drunkWineId, table.drankOn),
+		index("wine_tasting_user_drank_idx").on(table.userId, table.drankOn),
 	],
 );
 

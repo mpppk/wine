@@ -72,6 +72,50 @@ npx wrangler d1 migrations apply DB --remote --env preview
 恒久策としては「スキーマ変更 PR を1本ずつマージする」運用を守る（CLAUDE.md 参照）。それでも
 残留が問題になるなら、スキーマ変更 PR だけブランチ専用 D1 を割り当てる仕組みを別途検討する。
 
+## ランタイムログの確認
+
+`wrangler.jsonc` の `observability.enabled: true` により、本番・プレビューとも
+**Workers Logs**（Workers Observability）にランタイムログが蓄積される。ダッシュボードに
+入れない環境（Claude Code on the web / CI）からは `bun run logs` で検索する。
+
+```bash
+bun run logs                             # 本番(wine)の直近1時間
+bun run logs --env preview --since 3h    # プレビュー(wine-preview)の直近3時間
+bun run logs --level error,warn          # エラー・警告のみ
+bun run logs --grep stripe --since 1d    # message の部分一致
+bun run logs --version <version-id>      # 特定バージョン(PRのプレビュー)に限定
+bun run logs --json                      # 生JSON(jq で加工する場合)
+```
+
+- `CLOUDFLARE_API_TOKEN`（Workers Observability の Read 権限を含むこと）が必要。account id は
+  自動解決されるが、複数アカウントに属する場合のみ `CLOUDFLARE_ACCOUNT_ID` を指定する。
+- `wrangler tail` は「今まさに流れているログ」のみで、再現操作と同時に走らせる必要がある。
+  後から追う用途には `bun run logs` を使う。
+- 保持期間は最大7日（それ以前を追う必要が出たら Logpush で R2 へ転送する）。
+
+> [!IMPORTANT]
+> **PRごとのプレビューURL（`https://<branch>-wine-preview.niboshi.workers.dev` /
+> `https://<commit>-wine-preview.niboshi.workers.dev`）へのアクセスはログに残らない。**
+> Cloudflare の [Preview URLs の制約](https://developers.cloudflare.com/workers/versions-and-deployments/preview-urls/#limitations)で、
+> Workers Logs・`wrangler tail`・Logpush のいずれからも参照できない（"You cannot view logs for
+> Preview URLs today"）。`observability.enabled` の設定とは無関係で、回避策はない。
+>
+> `--env preview` で見えるのは、**デプロイ済みバージョン**（main のミラー、
+> https://wine-preview.niboshi.workers.dev ）へのアクセス分のみ。
+>
+> したがって **PRのプレビューで踏んだエラーは、実機ログからは追えない**。PR段階では
+> ローカル（`bun run dev`）で再現するか、`console.log` の代わりにエラーをレスポンスへ
+> 出すなどブラウザから観測できる形にする。確実な実機ログはマージ後（本番、または
+> main ミラーのプレビュー）で確認する。
+
+検証記録（2026-07-25、PR #196）: 同一秒に本番とプレビューURLへ同じリクエストを投げたところ、
+本番のみログに出た。プレビュー側はアプリが `{"ok":true}` を返しており Worker は実行されている。
+
+| 対象 | 結果 |
+|---|---|
+| `https://wine.nibo.sh/api/auth/ok?probe=...` | ✅ 約30秒後にログ取得 |
+| `https://claude-...-wine-preview.niboshi.workers.dev/api/auth/ok?probe=...` | ❌ 0件（5分待っても出ず） |
+
 ## シークレットの投入
 
 過去のCI整備（PR #59/#63〜#67）で繰り返し踏んだ非対称性のまとめ。

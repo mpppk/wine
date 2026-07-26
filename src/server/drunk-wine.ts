@@ -3,13 +3,17 @@ import { z } from "zod";
 import {
 	createDrunkWineInput,
 	updateDrunkWineInput,
+	updateWineTastingInput,
+	wineTastingFields,
 } from "#/lib/drunk-wine/schema";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import { authMiddleware } from "./middleware";
 
-// マイセラー(飲んだワイン)のRPC。全てユーザ固有データなので認証必須。
+// マイセラーのRPC。全てユーザ固有データなので認証必須。
 // 写真アップロードはバイナリを扱うため server fn ではなく
 // /api/wine-photos (FormData) で行う。
+
+const entryId = z.string().min(1).max(80);
 
 export const createDrunkWine = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
@@ -27,7 +31,7 @@ export const updateDrunkWine = createServerFn({ method: "POST" })
 
 export const deleteDrunkWine = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
-	.inputValidator(z.object({ id: z.string().min(1).max(80) }))
+	.inputValidator(z.object({ id: entryId }))
 	.handler(({ data, context }) =>
 		drunkWineService.deleteDrunkWine(context.user.id, data.id),
 	);
@@ -38,7 +42,51 @@ export const listDrunkWines = createServerFn({ method: "GET" })
 
 export const getDrunkWine = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
-	.inputValidator(z.object({ id: z.string().min(1).max(80) }))
+	.inputValidator(z.object({ id: entryId }))
 	.handler(({ data, context }) =>
 		drunkWineService.getDrunkWine(context.user.id, data.id),
 	);
+
+// ---- 飲用記録 -------------------------------------------------------------
+
+export const listWineTastings = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ drunkWineId: entryId }))
+	.handler(({ data, context }) =>
+		drunkWineService.listWineTastings(context.user.id, data.drunkWineId),
+	);
+
+export const addWineTasting = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ drunkWineId: entryId, ...wineTastingFields }))
+	.handler(({ data, context }) => {
+		const { drunkWineId, ...tasting } = data;
+		return drunkWineService.addWineTasting(
+			context.user.id,
+			drunkWineId,
+			tasting,
+		);
+	});
+
+export const updateWineTasting = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(updateWineTastingInput)
+	.handler(({ data, context }) =>
+		drunkWineService.updateWineTasting(context.user.id, data),
+	);
+
+export const deleteWineTasting = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ id: entryId }))
+	.handler(({ data, context }) =>
+		drunkWineService.deleteWineTasting(context.user.id, data.id),
+	);
+
+/** 「飲んだ」ボタン。飲用記録の追加と status='finished' を1操作で行う。 */
+export const markWineDrunk = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ id: entryId, ...wineTastingFields }))
+	.handler(({ data, context }) => {
+		const { id, ...tasting } = data;
+		return drunkWineService.markWineDrunk(context.user.id, id, tasting);
+	});

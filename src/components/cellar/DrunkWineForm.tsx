@@ -9,15 +9,19 @@ import { useRef, useState } from "react";
 import { DrunkWineFields } from "#/components/cellar/DrunkWineFields";
 import {
 	buildCreateInput,
+	buildTastingInput,
 	buildUpdatePatch,
 	type DrunkWineFieldsValue,
+	EMPTY_TASTING_DRAFT,
 	fieldsValueFromEntry,
 	toFormState,
+	type WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
 import {
 	type AnalysisPhotoSource,
 	analyzeLabelPhotos,
 } from "#/components/cellar/label-analysis";
+import { TastingFields } from "#/components/cellar/TastingFields";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
@@ -39,6 +43,11 @@ export interface DrunkWineFormProps {
 	entry?: DrunkWineEntry;
 	/** 保存(写真アップロードを含む)が完了したエントリを受け取る */
 	onSaved: (entry: DrunkWineEntry) => void | Promise<void>;
+	/**
+	 * 編集時の飲用記録セクション(TastingList)。新規作成時は記録がまだ無いので
+	 * 未指定にし、フォーム内の TastingFields で1件ぶんを同時入力する。
+	 */
+	tastingSlot?: React.ReactNode;
 }
 
 // フォームが扱う写真1枚。既存はR2キー保持、新規はローカルFile+プレビューURL。
@@ -90,13 +99,21 @@ async function syncPhotos(
 // フォーム state との橋渡しは drunk-wine-payload.ts に切り出してある。更新は差分パッチ。
 // 写真は複数枚。エントリ確定後でないとR2キー(entryId依存)が決まらないので、
 // server fn成功後に /api/wine-photos へ写真集合を同期POSTする(追加・削除・並べ替えを一括反映)。
-export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
+export function DrunkWineForm({
+	entry,
+	onSaved,
+	tastingSlot,
+}: DrunkWineFormProps) {
 	// 入力項目の state は MCP App のフォームと共有する形(DrunkWineFieldsValue)で持つ
 	const [values, setValues] = useState<DrunkWineFieldsValue>(() =>
 		fieldsValueFromEntry(entry),
 	);
 	const update = (patch: Partial<DrunkWineFieldsValue>) =>
 		setValues((prev) => ({ ...prev, ...patch }));
+	// 新規作成時にだけ使う「最初の1件」の飲用記録。編集時は tastingSlot(TastingList)
+	// が担当するので触らない。
+	const [tastingDraft, setTastingDraft] =
+		useState<WineTastingDraft>(EMPTY_TASTING_DRAFT);
 	// 写真は複数枚。表示順=配列順、先頭が代表(サムネイル)。既存写真はキーで保持する
 	const [photos, setPhotos] = useState<PhotoItem[]>(() =>
 		(entry?.photoUrls ?? []).map((url, i) => ({
@@ -264,7 +281,11 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 					? await updateDrunkWine({ data: { id: existing.id, ...patch } })
 					: existing;
 			} else {
-				saved = await createDrunkWine({ data: buildCreateInput(state) });
+				// 新規作成は銘柄と飲用記録を1リクエストで作る(サービス層が db.batch で
+				// 原子化する)。写真だけは R2 キーが entryId 依存なので2段階のまま。
+				saved = await createDrunkWine({
+					data: buildCreateInput(state, buildTastingInput(tastingDraft)),
+				});
 			}
 			savedRef.current = saved;
 			// 写真集合を同期する。新規追加も既存の削除・並べ替えもここで反映される。
@@ -398,6 +419,25 @@ export function DrunkWineForm({ entry, onSaved }: DrunkWineFormProps) {
 				value={values}
 				onChange={update}
 				photoSlot={photoSection}
+				tastingSlot={
+					tastingSlot ?? (
+						<fieldset className="flex flex-col gap-4">
+							<Label asChild>
+								<legend>飲んだ記録(任意)</legend>
+							</Label>
+							<p className="-mt-2 text-xs text-muted-foreground">
+								飲んだ日や感想を入れると、飲用記録として保存されます。まだ飲んでいない場合は空のままで構いません。
+							</p>
+							<TastingFields
+								value={tastingDraft}
+								onChange={(patch) =>
+									setTastingDraft((d) => ({ ...d, ...patch }))
+								}
+								idPrefix="wine-tasting"
+							/>
+						</fieldset>
+					)
+				}
 			/>
 
 			{error && <p className="text-sm text-destructive">{error}</p>}

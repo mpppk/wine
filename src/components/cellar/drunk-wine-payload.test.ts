@@ -2,49 +2,47 @@ import { describe, expect, it } from "vitest";
 import { DRUNK_WINE_FIELD_DEFS } from "#/lib/drunk-wine/fields";
 import {
 	buildCreateInput,
+	buildMcpTastingArgs,
 	buildMcpUpdatePatch,
+	buildTastingInput,
 	buildUpdatePatch,
 	type DrunkWineFormState,
 	fieldsValueFromMcpEntry,
+	tastingDraftFromMcpEntry,
 	toFormValues,
+	type WineTastingDraft,
 } from "./drunk-wine-payload";
 
 // フォームで一通り入力済みの state と、それに対応する既存エントリ
 const filled: DrunkWineFormState = {
 	name: "Chablis",
-	drankOn: "2020-01-02",
-	rating: 3,
+	status: "finished",
 	vintage: "2018",
 	producer: "Dauvissat",
 	price: "3000",
 	aopId: "chablis",
 	grapeVarietyIds: ["chardonnay"],
-	memo: "good",
 };
 
 const savedEntry = {
 	name: "Chablis",
-	drankOn: "2020-01-02",
-	rating: 3,
+	status: "finished",
 	vintage: 2018,
 	producer: "Dauvissat",
 	price: 3000,
 	aopId: "chablis",
 	grapeVarietyIds: ["chardonnay"],
-	memo: "good",
 };
 
 // 何も入力していない新規作成フォームの初期 state
 const empty: DrunkWineFormState = {
 	name: "",
-	drankOn: "",
-	rating: null,
+	status: "finished",
 	vintage: "",
 	producer: "",
 	price: "",
 	aopId: undefined,
 	grapeVarietyIds: [],
-	memo: "",
 };
 
 const state = (patch: Partial<DrunkWineFormState>): DrunkWineFormState => ({
@@ -59,9 +57,7 @@ describe("toFormValues", () => {
 		);
 	});
 
-	it("rating の number|null と aopId の undefined を規約側の表現へ正規化する", () => {
-		expect(toFormValues(filled).rating).toBe("3");
-		expect(toFormValues(state({ rating: null })).rating).toBe("");
+	it("aopId の undefined を規約側の表現へ正規化する", () => {
 		expect(toFormValues(filled).aop_id).toBe("chablis");
 		expect(toFormValues(state({ aopId: undefined })).aop_id).toBe("");
 	});
@@ -69,14 +65,12 @@ describe("toFormValues", () => {
 	it("入力値をフィールドごとに取り違えていない", () => {
 		expect(toFormValues(filled)).toEqual({
 			name: "Chablis",
-			drank_on: "2020-01-02",
-			rating: "3",
+			status: "finished",
 			vintage: "2018",
 			price: "3000",
 			producer: "Dauvissat",
 			aop_id: "chablis",
 			grape_variety_ids: ["chardonnay"],
-			memo: "good",
 		});
 	});
 });
@@ -86,25 +80,31 @@ describe("buildUpdatePatch", () => {
 		expect(buildUpdatePatch(savedEntry, filled)).toEqual({});
 		expect(
 			buildUpdatePatch(
-				{ ...savedEntry, aopId: null, rating: null, grapeVarietyIds: [] },
-				state({ aopId: undefined, rating: null, grapeVarietyIds: [] }),
+				{ ...savedEntry, aopId: null, grapeVarietyIds: [] },
+				state({ aopId: undefined, grapeVarietyIds: [] }),
 			),
 		).toEqual({});
 	});
 
 	it("id を含めない(呼び出し側が付ける)", () => {
-		expect(buildUpdatePatch(savedEntry, state({ memo: "great" }))).toEqual({
-			memo: "great",
+		expect(
+			buildUpdatePatch(savedEntry, state({ producer: "Raveneau" })),
+		).toEqual({ producer: "Raveneau" });
+	});
+
+	it("所有状態の変更を送る", () => {
+		expect(buildUpdatePatch(savedEntry, state({ status: "owned" }))).toEqual({
+			status: "owned",
 		});
 	});
 
-	it("評価は変更と解除の両方を送る", () => {
-		expect(buildUpdatePatch(savedEntry, state({ rating: 5 }))).toEqual({
-			rating: 5,
-		});
-		expect(buildUpdatePatch(savedEntry, state({ rating: null }))).toEqual({
-			rating: null,
-		});
+	it("wishlist へ変えても価格の state を保持していればクリアしない", () => {
+		// 価格入力は wishlist で描画しないが、state を残すことで既存値が消えない
+		expect(buildUpdatePatch(savedEntry, state({ status: "wishlist" }))).toEqual(
+			{
+				status: "wishlist",
+			},
+		);
 	});
 
 	it("AOPの紐付け解除は null を送る", () => {
@@ -122,11 +122,13 @@ describe("buildUpdatePatch", () => {
 		});
 	});
 
-	it("メモは空白だけならクリアし、前後空白だけの違いは送らない", () => {
-		expect(buildUpdatePatch(savedEntry, state({ memo: "   " }))).toEqual({
-			memo: null,
+	it("生産者は空白だけならクリアし、前後空白だけの違いは送らない", () => {
+		expect(buildUpdatePatch(savedEntry, state({ producer: "   " }))).toEqual({
+			producer: null,
 		});
-		expect(buildUpdatePatch(savedEntry, state({ memo: " good " }))).toEqual({});
+		expect(
+			buildUpdatePatch(savedEntry, state({ producer: " Dauvissat " })),
+		).toEqual({});
 	});
 
 	it("名前は空欄でも送らず、変更はトリムして送る", () => {
@@ -162,39 +164,67 @@ describe("buildUpdatePatch", () => {
 });
 
 describe("buildCreateInput", () => {
-	it("未入力のフィールドは送らない", () => {
+	it("未入力のフィールドは送らない(status は必ず送る)", () => {
 		expect(buildCreateInput({ ...empty, name: "Chablis" })).toEqual({
 			name: "Chablis",
+			status: "finished",
 		});
 	});
 
 	it("入力済みのフィールドを camelCase で送る", () => {
 		expect(buildCreateInput(filled)).toEqual({
 			name: "Chablis",
-			drankOn: "2020-01-02",
-			rating: 3,
+			status: "finished",
 			vintage: 2018,
 			price: 3000,
 			producer: "Dauvissat",
 			aopId: "chablis",
 			grapeVarietyIds: ["chardonnay"],
-			memo: "good",
 		});
+	});
+
+	it("飲用記録を渡すと tasting としてネストする", () => {
+		const input = buildCreateInput(filled, {
+			drankOn: "2020-01-02",
+			rating: 4,
+		});
+		expect(input.tasting).toEqual({ drankOn: "2020-01-02", rating: 4 });
 	});
 
 	it("作成入力に null は現れない(空欄はキーごと落ちる)", () => {
 		const input = buildCreateInput(
-			state({ memo: "", producer: "  ", rating: null, aopId: undefined }),
+			state({ producer: "  ", aopId: undefined, price: "" }),
 		);
 		expect(Object.values(input)).not.toContain(null);
-		expect(input).not.toHaveProperty("memo");
 		expect(input).not.toHaveProperty("producer");
-		expect(input).not.toHaveProperty("rating");
 		expect(input).not.toHaveProperty("aopId");
+		expect(input).not.toHaveProperty("price");
 	});
 
 	it("名前はトリムして必ず送る", () => {
 		expect(buildCreateInput(state({ name: " Chablis " })).name).toBe("Chablis");
+	});
+});
+
+describe("buildTastingInput", () => {
+	it("全項目が空なら undefined(記録を作らない)", () => {
+		expect(
+			buildTastingInput({ drankOn: "", rating: null, memo: "  " }),
+		).toBeUndefined();
+	});
+
+	it("1つでも入力があれば作成入力を返す", () => {
+		expect(buildTastingInput({ drankOn: "", rating: 4, memo: "" })).toEqual({
+			drankOn: undefined,
+			rating: 4,
+			memo: undefined,
+		});
+	});
+
+	it("メモはトリムする", () => {
+		expect(
+			buildTastingInput({ drankOn: "", rating: null, memo: " good " })?.memo,
+		).toBe("good");
 	});
 });
 
@@ -205,6 +235,7 @@ describe("buildCreateInput", () => {
 const mcpEntry = {
 	id: "e1",
 	name: "Chablis",
+	status: "finished",
 	drank_on: "2020-01-02",
 	rating: 3,
 	vintage: 2018,
@@ -220,15 +251,13 @@ describe("fieldsValueFromMcpEntry", () => {
 	it("snake_case のエントリをフォームの値へ写す", () => {
 		expect(fieldsValueFromMcpEntry(mcpEntry)).toEqual({
 			name: "Chablis",
-			drankOn: "2020-01-02",
-			rating: 3,
+			status: "finished",
 			vintage: "2018",
 			producer: "Dauvissat",
 			price: "3000",
 			aopId: "chablis",
 			regionId: "bourgogne",
 			grapeVarietyIds: ["chardonnay"],
-			memo: "good",
 		});
 	});
 
@@ -237,23 +266,41 @@ describe("fieldsValueFromMcpEntry", () => {
 			fieldsValueFromMcpEntry({
 				id: "e1",
 				name: null as unknown as string,
-				rating: "3" as unknown as number,
+				status: "unknown-status",
 				vintage: Number.NaN,
 				aop_id: "",
 				grape_variety_ids: undefined,
 			}),
 		).toEqual({
 			name: "",
-			drankOn: "",
-			rating: null,
+			// 未知の status は既定へ倒す(1フィールドの不正で全体を壊さない)
+			status: "finished",
 			vintage: "",
 			producer: "",
 			price: "",
 			aopId: undefined,
 			regionId: undefined,
 			grapeVarietyIds: [],
-			memo: "",
 		});
+	});
+});
+
+describe("tastingDraftFromMcpEntry", () => {
+	it("最新1件の射影をフォームの値へ写す", () => {
+		expect(tastingDraftFromMcpEntry(mcpEntry)).toEqual({
+			drankOn: "2020-01-02",
+			rating: 3,
+			memo: "good",
+		});
+	});
+
+	it("欠落・型違いは空に倒す", () => {
+		expect(
+			tastingDraftFromMcpEntry({
+				id: "e1",
+				rating: "3" as unknown as number,
+			}),
+		).toEqual({ drankOn: "", rating: null, memo: "" });
 	});
 });
 
@@ -268,12 +315,12 @@ describe("buildMcpUpdatePatch", () => {
 		const value = {
 			...fieldsValueFromMcpEntry(mcpEntry),
 			name: "Chablis 1er",
-			memo: "",
+			producer: "",
 			grapeVarietyIds: [],
 		};
 		expect(buildMcpUpdatePatch(mcpEntry, value)).toEqual({
 			name: "Chablis 1er",
-			memo: null,
+			producer: null,
 			grape_variety_ids: [],
 		});
 	});
@@ -284,5 +331,51 @@ describe("buildMcpUpdatePatch", () => {
 			regionId: "beaujolais",
 		};
 		expect(buildMcpUpdatePatch(mcpEntry, value)).toEqual({});
+	});
+
+	it("ホストが status を落としても、未編集なら status を送らない", () => {
+		// 素の entry を基準にすると status:"finished" を送ってしまい、
+		// 手元にあるワインが黙って飲み終わり扱いになる
+		const { status: _omitted, ...withoutStatus } = mcpEntry;
+		expect(
+			buildMcpUpdatePatch(
+				withoutStatus,
+				fieldsValueFromMcpEntry(withoutStatus),
+			),
+		).toEqual({});
+	});
+
+	it("status を落としたエントリでも、ユーザが変えた分は送る", () => {
+		const { status: _omitted, ...withoutStatus } = mcpEntry;
+		const value = {
+			...fieldsValueFromMcpEntry(withoutStatus),
+			status: "owned" as const,
+		};
+		expect(buildMcpUpdatePatch(withoutStatus, value)).toEqual({
+			status: "owned",
+		});
+	});
+});
+
+describe("buildMcpTastingArgs", () => {
+	const draft = tastingDraftFromMcpEntry(mcpEntry);
+
+	it("変更が無ければ空", () => {
+		expect(buildMcpTastingArgs(mcpEntry, draft)).toEqual({});
+	});
+
+	it("変更した項目だけをレガシー引数名(snake_case)で返す", () => {
+		expect(
+			buildMcpTastingArgs(mcpEntry, {
+				...draft,
+				rating: 5,
+			} as WineTastingDraft),
+		).toEqual({ rating: 5 });
+	});
+
+	it("空欄は null(その列のクリア)として送る", () => {
+		expect(buildMcpTastingArgs(mcpEntry, { ...draft, memo: "" })).toEqual({
+			memo: null,
+		});
 	});
 });

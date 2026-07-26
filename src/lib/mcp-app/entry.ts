@@ -1,4 +1,4 @@
-// MCP ツールが返す「飲んだワイン」エントリの表現(snake_case)。
+// MCP ツールが返すマイセラーのエントリ表現(snake_case)。
 //
 // 生成側は tools.ts の toEntryPayload、消費側は MCP App のフォーム
 // (/embed/drunk-wine)。両者はプロセスも信頼境界も異なる(ホスト仲介の
@@ -10,11 +10,20 @@
 export interface McpDrunkWineEntry {
 	id: string;
 	name: string;
+	/** 所有状態: "wishlist" | "owned" | "finished" */
+	status: string;
+	/** 最新の飲用記録の飲んだ日。飲用記録が無い/全件日付未入力なら null */
+	last_drank_on: string | null;
+	/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
+	tasting_count: number;
+	/** 最新の飲用記録の飲んだ日(last_drank_on と同値)。既存クライアント互換で残す */
 	drank_on: string | null;
 	aop_id: string | null;
 	aop_name_ja: string | null;
 	region_id: string | null;
+	/** 最新の飲用記録の評価。既存クライアント互換で残す */
 	rating: number | null;
+	/** 最新の飲用記録のメモ。既存クライアント互換で残す */
 	memo: string | null;
 	vintage: number | null;
 	grape_variety_ids: string[];

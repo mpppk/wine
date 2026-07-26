@@ -1,14 +1,7 @@
 import type { CreateDrunkWineInput, UpdateDrunkWineInput } from "./schema";
-import {
-	PRICE_MAX,
-	PRICE_MIN,
-	RATING_MAX,
-	RATING_MIN,
-	VINTAGE_MAX,
-	VINTAGE_MIN,
-} from "./schema";
+import { PRICE_MAX, PRICE_MIN, VINTAGE_MAX, VINTAGE_MIN } from "./schema";
 
-// 飲んだワイン編集フォームの「表示 + 差分パッチ規約」の単一情報源。
+// マイセラーの銘柄編集フォームの「表示 + 差分パッチ規約」の単一情報源。
 // 値のバリデーション自体は drunkWineFields(schema.ts)が単一情報源で、ここは
 // その上に載る「フォームでの見せ方」と「更新時のクリア規約」を1箇所にまとめる。
 //
@@ -19,14 +12,7 @@ import {
 // (schemas.ts)も同じ定義から生成するため、本モジュールはランタイム非依存に保つ
 // (cloudflare:workers を import しない)。
 
-export type DrunkWineInputKind =
-	| "text"
-	| "date"
-	| "number"
-	| "rating"
-	| "textarea"
-	| "grape"
-	| "aop";
+export type DrunkWineInputKind = "text" | "select" | "number" | "grape" | "aop";
 
 // 更新時に「空欄にしたら何を送るか」。
 // - "null": 空欄→null でクリア(大半のフィールド)
@@ -52,8 +38,12 @@ export interface DrunkWineFieldDef {
 	required?: boolean;
 }
 
-// 配列の順序＝App フォームの描画順。half の隣接ペアが現行の
-// 「飲んだ日/評価」「ヴィンテージ/価格」の2カラム行を再現する。
+// 配列の順序＝App フォームの描画順。half の隣接ペアが「ヴィンテージ/価格」の
+// 2カラム行を再現する。
+//
+// 飲んだ日・評価・メモはここに無い。「同じワインを複数回飲む」を扱うため
+// wine_tasting(1:N)へ移した(Issue #195)。MCP の後方互換引数としては
+// WINE_TASTING_FIELDS 側で扱う。
 export const DRUNK_WINE_FIELD_DEFS = [
 	{
 		camelKey: "name",
@@ -65,22 +55,13 @@ export const DRUNK_WINE_FIELD_DEFS = [
 		required: true,
 	},
 	{
-		camelKey: "drankOn",
-		snakeKey: "drank_on",
-		label: "飲んだ日",
-		input: "date",
-		clear: "null",
+		camelKey: "status",
+		snakeKey: "status",
+		label: "状態",
+		input: "select",
+		// NOT NULL 列。空欄でのクリアは無く、変わったときだけ送る
+		clear: "never",
 		col: "half",
-	},
-	{
-		camelKey: "rating",
-		snakeKey: "rating",
-		label: "評価",
-		input: "rating",
-		clear: "null",
-		col: "half",
-		min: RATING_MIN,
-		max: RATING_MAX,
 	},
 	{
 		camelKey: "vintage",
@@ -127,15 +108,23 @@ export const DRUNK_WINE_FIELD_DEFS = [
 		clear: "emptyArray",
 		col: "full",
 	},
-	{
-		camelKey: "memo",
-		snakeKey: "memo",
-		label: "メモ",
-		input: "textarea",
-		clear: "null",
-		col: "full",
-	},
 ] as const satisfies readonly DrunkWineFieldDef[];
+
+// 飲用記録(wine_tasting)のフィールド。銘柄の DRUNK_WINE_FIELD_DEFS とは別に持つ:
+// 1:N は「1エントリ=1レコード」前提の差分パッチ規約(collectDrunkWinePatch)では
+// 構造的に表現できない(どの飲用記録への差分かを表せない)ため。
+// ここは MCP のレガシー引数(register/update の drank_on/rating/memo)と MCP App の
+// patch が使う snake↔camel 対応の単一情報源。
+export const WINE_TASTING_FIELDS = [
+	{ camelKey: "drankOn", snakeKey: "drank_on", label: "飲んだ日" },
+	{ camelKey: "rating", snakeKey: "rating", label: "評価" },
+	{ camelKey: "memo", snakeKey: "memo", label: "メモ" },
+] as const;
+
+export type WineTastingCamelKey =
+	(typeof WINE_TASTING_FIELDS)[number]["camelKey"];
+export type WineTastingSnakeKey =
+	(typeof WINE_TASTING_FIELDS)[number]["snakeKey"];
 
 export type DrunkWineCamelKey =
 	(typeof DRUNK_WINE_FIELD_DEFS)[number]["camelKey"];
@@ -155,7 +144,7 @@ export type DrunkWinePatch = Record<string, string | number | string[] | null>;
 export type DrunkWineFieldArgs = {
 	[D in (typeof DRUNK_WINE_FIELD_DEFS)[number] as D["snakeKey"]]?: D["input"] extends "grape"
 		? string[]
-		: D["input"] extends "number" | "rating"
+		: D["input"] extends "number"
 			? D["clear"] extends "null"
 				? number | null
 				: number
@@ -191,20 +180,21 @@ export function collectDrunkWinePatch(
 		const v = (typeof raw === "string" ? raw : "").trim();
 
 		if (def.clear === "never") {
-			// name: 空 or 未変更なら送らない(必須なのでクリア不可)
+			// name / status: 空 or 未変更なら送らない(クリア不可。status は NOT NULL 列で
+			// select が常に非空値を返すため、この分岐が null 送出を構造的に防ぐ)
 			const curName = (entry[key] as string | undefined) ?? "";
 			if (v && v !== curName) patch[key] = v;
 			continue;
 		}
 
-		if (def.input === "number" || def.input === "rating") {
+		if (def.input === "number") {
 			const num = v === "" ? null : Number(v);
 			const cur = (entry[key] ?? null) as number | null;
 			if (num !== cur) patch[key] = num;
 			continue;
 		}
 
-		// text / date / textarea / aop: 空欄への変更は null(クリア)として送る
+		// text / aop: 空欄への変更は null(クリア)として送る
 		const cur = (entry[key] as string | undefined) ?? "";
 		if (v !== cur) patch[key] = v === "" ? null : v;
 	}
@@ -277,4 +267,54 @@ export function toCamelCreateFields(
  */
 export function hasDrunkWinePatch(patch: Record<string, unknown>): boolean {
 	return Object.values(patch).some((v) => v !== undefined);
+}
+
+// ---- 飲用記録 -------------------------------------------------------------
+// 銘柄と同じ差分規約(未変更は送らない / 空欄は null でクリア / rating は Number)を
+// 飲用記録にも適用する。MCP App のフォームがレガシー引数を組み立てるのに使う。
+
+export type WineTastingFormValues = Record<string, string>;
+
+export type WineTastingPatch = Record<string, string | number | null>;
+
+/** snakeKey keyed の飲用記録パッチ。MCP のレガシー引数もこの形。 */
+export type WineTastingSnakePatch = {
+	[K in WineTastingSnakeKey]?: string | number | null;
+};
+
+export function collectWineTastingPatch(
+	entry: Record<string, unknown>,
+	values: WineTastingFormValues,
+): WineTastingPatch {
+	const patch: WineTastingPatch = {};
+	for (const def of WINE_TASTING_FIELDS) {
+		const key = def.snakeKey;
+		const v = (values[key] ?? "").trim();
+
+		if (def.camelKey === "rating") {
+			const num = v === "" ? null : Number(v);
+			const cur = (entry[key] ?? null) as number | null;
+			if (num !== cur) patch[key] = num;
+			continue;
+		}
+
+		const cur = (entry[key] as string | undefined) ?? "";
+		if (v !== cur) patch[key] = v === "" ? null : v;
+	}
+	return patch;
+}
+
+/** snakeKey パッチ → camelCase。null は「その列をクリア」の意でそのまま渡す。 */
+export function toCamelTastingPatch(
+	patch: WineTastingSnakePatch,
+): Record<WineTastingCamelKey, string | number | null | undefined> {
+	const source = patch as Record<string, string | number | null | undefined>;
+	const out = {} as Record<
+		WineTastingCamelKey,
+		string | number | null | undefined
+	>;
+	for (const d of WINE_TASTING_FIELDS) {
+		if (source[d.snakeKey] !== undefined) out[d.camelKey] = source[d.snakeKey];
+	}
+	return out;
 }

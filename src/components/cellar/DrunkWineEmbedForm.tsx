@@ -1,11 +1,16 @@
 import { useMemo, useState } from "react";
 import { DrunkWineFields } from "#/components/cellar/DrunkWineFields";
 import {
+	buildMcpTastingArgs,
 	buildMcpUpdatePatch,
 	type DrunkWineFieldsValue,
 	fieldsValueFromMcpEntry,
+	tastingDraftFromMcpEntry,
+	type WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
+import { TastingFields } from "#/components/cellar/TastingFields";
 import { Button } from "#/components/ui/button";
+import { Label } from "#/components/ui/label";
 import type { DrunkWinePatch } from "#/lib/drunk-wine/fields";
 import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
 import type { ReceivedDrunkWineEntry } from "#/lib/mcp-app/entry";
@@ -81,16 +86,24 @@ export function DrunkWineEmbedForm({
 	const [values, setValues] = useState<DrunkWineFieldsValue>(() =>
 		fieldsValueFromMcpEntry(entry),
 	);
+	// 飲用記録は 1:N だが、ホストから届くのは最新1件の射影なので、この画面では
+	// その1件だけを編集する(update_drunk_wine のレガシー引数が最新1件を更新する)。
+	// 別の日に飲んだ記録の追加は add_wine_tasting ツールの担当。
+	const [tastingDraft, setTastingDraft] = useState<WineTastingDraft>(() =>
+		tastingDraftFromMcpEntry(entry),
+	);
 
 	const photos = useMemo(() => photoSources(entry, baseUrl), [entry, baseUrl]);
 
 	const save = () => {
 		const patch = buildMcpUpdatePatch(entry, values);
-		if (!hasDrunkWinePatch(patch)) {
+		const tastingArgs = buildMcpTastingArgs(entry, tastingDraft);
+		const merged = { ...patch, ...tastingArgs };
+		if (!hasDrunkWinePatch(merged)) {
 			onNoChanges?.();
 			return;
 		}
-		onSave(patch);
+		onSave(merged);
 	};
 
 	return (
@@ -121,6 +134,21 @@ export function DrunkWineEmbedForm({
 			<DrunkWineFields
 				value={values}
 				onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
+				tastingSlot={
+					<fieldset className="flex flex-col gap-4">
+						<Label asChild>
+							<legend>最新の飲んだ記録</legend>
+						</Label>
+						<TastingFields
+							value={tastingDraft}
+							onChange={(patch) =>
+								setTastingDraft((prev) => ({ ...prev, ...patch }))
+							}
+							idPrefix="embed-tasting"
+							disabled={saving}
+						/>
+					</fieldset>
+				}
 			/>
 
 			<div className="flex items-center gap-3">
