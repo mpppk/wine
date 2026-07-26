@@ -24,7 +24,7 @@ const STEP_COPY: Record<
 	quiz: { icon: PlayIcon, title: "クイズで覚える", cta: "クイズを始める" },
 	cellar: {
 		icon: WineIcon,
-		title: "飲んだワインを記録する",
+		title: "ワインをマイセラーに登録する",
 		cta: "セラーに登録する",
 	},
 };
@@ -32,14 +32,14 @@ const STEP_COPY: Record<
 export function StarterGuide({
 	regionId,
 	seen,
-	cellarCount,
+	cellarTotalCount,
 }: {
 	/** おすすめの地域。地図・クイズの遷移先と学習の着目点に使う */
 	regionId: RegionId | null;
 	seen: number;
-	cellarCount: number;
+	cellarTotalCount: number;
 }) {
-	const steps = buildStarterSteps({ seen, cellarCount });
+	const steps = buildStarterSteps({ seen, cellarTotalCount });
 	const regionName =
 		regionId != null ? (getRegion(regionId)?.nameJa ?? "") : "";
 
@@ -55,7 +55,7 @@ export function StarterGuide({
 				? `${regionName}の4択クイズで、眺めた産地を記憶に定着させます。`
 				: "4択クイズで、眺めた産地を記憶に定着させます。";
 		}
-		return "飲んだ1本を記録すると、覚えた知識と実際の味わいがつながります。";
+		return "飲んだ1本も、気になっている1本も記録できます。覚えた知識と実際のワインがつながります。";
 	};
 
 	return (
@@ -71,7 +71,7 @@ export function StarterGuide({
 							ようこそ。まずはこの3ステップから
 						</p>
 						<p className="mt-1 text-sm text-muted-foreground">
-							地図で眺めて、クイズで覚えて、飲んだ1本を記録する。これがこのアプリの
+							地図で眺めて、クイズで覚えて、気になった1本を記録する。これがこのアプリの
 							おすすめの使い方です。
 						</p>
 					</div>

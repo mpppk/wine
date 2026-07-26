@@ -32,7 +32,7 @@ export function DashboardView({
 	// 空のマス目が並ぶだけで、次の一手の邪魔になる)。
 	const showGuide = shouldShowStarterGuide({
 		seen: data.mastery.seen,
-		cellarCount: data.cellar.count,
+		cellarTotalCount: data.cellar.totalCount,
 	});
 
 	return (
@@ -50,7 +50,7 @@ export function DashboardView({
 				<StarterGuide
 					regionId={data.recommendation.regionId}
 					seen={data.mastery.seen}
-					cellarCount={data.cellar.count}
+					cellarTotalCount={data.cellar.totalCount}
 				/>
 			)}
 			<RecommendationHero recommendation={data.recommendation} />

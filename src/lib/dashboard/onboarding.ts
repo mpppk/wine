@@ -19,8 +19,12 @@ export interface StarterStep {
 export interface StarterInput {
 	/** 一度でも解いた問題数(DashboardData.mastery.seen) */
 	seen: number;
-	/** マイセラーの登録数(DashboardData.cellar.count) */
-	cellarCount: number;
+	/**
+	 * マイセラーの登録総数(DashboardData.cellar.totalCount)。飲んだ本数
+	 * (tastedCount)ではなく総数を見る: セラーのステップは「マイセラーを使い始めた」
+	 * ことの確認なので、「気になる」「セラーにある」での登録でも完了とする(#200)。
+	 */
+	cellarTotalCount: number;
 }
 
 /**
@@ -29,12 +33,12 @@ export interface StarterInput {
  */
 export function buildStarterSteps({
 	seen,
-	cellarCount,
+	cellarTotalCount,
 }: StarterInput): StarterStep[] {
 	return [
 		{ id: "map", done: null },
 		{ id: "quiz", done: seen > 0 },
-		{ id: "cellar", done: cellarCount > 0 },
+		{ id: "cellar", done: cellarTotalCount > 0 },
 	];
 }
 
