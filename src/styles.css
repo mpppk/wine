@@ -131,6 +131,13 @@ body,
   }
 }
 
+/* スターターガイドを「閉じた」ユーザ向け。__root.tsx のブートストラップスクリプトが
+   ペイント前に html へ属性を立てるので、SSR された時点で描画されずちらつかない。
+   属性の名前は src/lib/dashboard/guide-dismissal.ts が単一情報源。 */
+html[data-starter-guide-dismissed="1"] [data-starter-guide] {
+	display: none;
+}
+
 /* MapLibre popup (AOP hover) — アプリのテーマトークンに合わせる */
 .aop-popup .maplibregl-popup-content {
 	background: var(--background);
