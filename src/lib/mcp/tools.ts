@@ -287,6 +287,8 @@ export function registerReadTools(server: McpServer, userId: string) {
 						// 生産者ではなくAOP自体(purchase_links)に付ける
 						producers: aop.producers.map((p) => ({
 							name: p.name,
+							// 代表キュヴェ・単独所有畑・傘下エステート等の補足(無ければ null)
+							note: p.note ?? null,
 							purchase_links:
 								aop.kind === "winery"
 									? null

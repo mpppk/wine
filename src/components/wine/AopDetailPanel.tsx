@@ -29,11 +29,7 @@ import {
 	KIND_COLORS,
 	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
-import {
-	getProducerInfo,
-	MICHELIN_GRAPES_ARTICLE_URL,
-	type ProducerInfo,
-} from "#/lib/wine/producer-info";
+import { getProducerInfo, type ProducerInfo } from "#/lib/wine/producer-info";
 import {
 	classificationPanelBadgeJa,
 	isLegalAppellation,
@@ -450,6 +446,9 @@ function ProducersSection({
 						) : (
 							producer.name
 						)}
+						{producer.note && (
+							<span className="text-muted-foreground">（{producer.note}）</span>
+						)}
 					</li>
 				))}
 			</ul>
@@ -532,17 +531,18 @@ function ProducerPurchaseDialog({
 						{info.description}
 					</p>
 				)}
-				{info && (
+				{info?.sources?.map((source) => (
 					<a
-						href={MICHELIN_GRAPES_ARTICLE_URL}
+						key={source.url}
+						href={source.url}
 						target="_blank"
 						rel="noopener noreferrer"
-						aria-label={`${name}のMICHELIN Grapes掲載記事を開く`}
+						aria-label={`${name}の${source.label}掲載ページを開く`}
 						className={buttonVariants({ variant: "outline" })}
 					>
-						MICHELIN Grapes
+						{source.label}
 					</a>
-				)}
+				))}
 				{info?.officialWebsite && (
 					<a
 						href={info.officialWebsite}

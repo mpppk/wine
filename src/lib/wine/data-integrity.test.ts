@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { aopArraySchema } from "./aop-schema";
 import rawAops from "./aops.json";
 import { AOPS } from "./aops-data";
-import { MICHELIN_GRAPES_ARTICLE_URL, PRODUCER_INFO } from "./producer-info";
+import { MICHELIN_GRAPES_SOURCE, PRODUCER_INFO } from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
@@ -213,10 +213,75 @@ describe("生産者情報(PRODUCER_INFO)の整合性", () => {
 	});
 
 	it("MICHELIN Grapes 記事URLは michelin.com の有効な https URL", () => {
-		expect(() => new URL(MICHELIN_GRAPES_ARTICLE_URL)).not.toThrow();
-		const url = new URL(MICHELIN_GRAPES_ARTICLE_URL);
+		expect(() => new URL(MICHELIN_GRAPES_SOURCE.url)).not.toThrow();
+		const url = new URL(MICHELIN_GRAPES_SOURCE.url);
 		expect(url.protocol).toBe("https:");
 		expect(url.hostname).toMatch(/(^|\.)michelin\.com$/);
+	});
+
+	// 出典は生産者ごとに持つ(#202)。「解説があれば MICHELIN Grapes 選出」という
+	// 既定を復活させると、ブルゴーニュ以外の生産者に誤った掲載元が表示される。
+	it("各エントリの出典はラベルと有効な https URL を持つ", () => {
+		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
+			for (const source of info.sources ?? []) {
+				expect(source.label.length, name).toBeGreaterThan(0);
+				expect(() => new URL(source.url), name).not.toThrow();
+				expect(source.url, name).toMatch(/^https:\/\//);
+			}
+		}
+	});
+
+	it("MICHELIN Grapes を出典に持つのはブルゴーニュの生産者だけ", () => {
+		const bourgogneProducers = new Set(
+			AOPS.filter((a) => a.region === "bourgogne").flatMap((a) =>
+				a.producers.map((p) => p.name),
+			),
+		);
+		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
+			if (!info.sources?.some((s) => s.url === MICHELIN_GRAPES_SOURCE.url)) {
+				continue;
+			}
+			expect(bourgogneProducers.has(name), name).toBe(true);
+		}
+	});
+});
+
+describe("生産者名の表記ゆれ", () => {
+	const producerNames = [
+		...new Set(AOPS.flatMap((a) => a.producers.map((p) => p.name))),
+	];
+
+	/** アクセント・大小文字・空白の違いを潰した比較キー */
+	const normalize = (name: string): string =>
+		name
+			.normalize("NFD")
+			// NFD で分離した結合ダイアクリティカルマーク(U+0300〜U+036F)を落とす
+			.replace(/[̀-ͯ]/g, "")
+			.toLowerCase()
+			.replace(/\s+/g, "");
+
+	// PRODUCER_INFO / PRODUCER_SEARCH_KEYWORDS は生産者名をキーに引くため、
+	// アクセント違い・空白違いの表記ゆれがあると同じ生産者が別キーに分裂し、
+	// 片方だけ解説も検索キーワードも引けない状態になる(#202)。
+	it("アクセント・空白違いだけの生産者名が併存しない", () => {
+		const byKey = new Map<string, string[]>();
+		for (const name of producerNames) {
+			const key = normalize(name);
+			byKey.set(key, [...(byKey.get(key) ?? []), name]);
+		}
+		const collisions = [...byKey.values()].filter((names) => names.length > 1);
+		expect(collisions).toEqual([]);
+	});
+
+	// 「Krug (Clos du Mesnil)」のような括弧書きは name ではなく note に置く。
+	// name に混ぜると同じ生産者が別キーに分裂する。ボルドーのシャトー(winery)の
+	// producers は所有者/運営体の説明であり辞書キーにならないため対象外。
+	it("winery 以外の生産者名に括弧書きの別名が混ざらない", () => {
+		const named = AOPS.filter((a) => a.kind !== "winery").flatMap((a) =>
+			a.producers.map((p) => ({ aopId: a.id, name: p.name })),
+		);
+		const withParen = named.filter(({ name }) => /[(（]/.test(name));
+		expect(withParen).toEqual([]);
 	});
 });
 

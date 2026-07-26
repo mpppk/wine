@@ -4340,7 +4340,7 @@
 		],
 		"soil": "シャンパーニュAOCと同一の生産地域。チョーク基盤に地区ごとの粘土・泥灰土が重なる。",
 		"producers": [
-			"Bollinger (La Côte aux Enfants)",
+			{ "name": "Bollinger", "note": "La Côte aux Enfants" },
 			"Egly-Ouriet",
 			"Georges Laval"
 		],
@@ -4392,7 +4392,11 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Krug (Clos d'Ambonnay)", "Eric Rodez", "Marie-Noëlle Ledru"],
+		"producers": [
+			{ "name": "Krug", "note": "Clos d'Ambonnay" },
+			"Eric Rodez",
+			"Marie-Noëlle Ledru"
+		],
 		"description": "モンターニュ南東斜面のピノ・ノワールの銘醸村。ブジーと並び称される力強い果実味が特徴で、クリュッグの単一区画「クロ・ダンボネイ」で世界的に知られる。"
 	},
 	{
@@ -4637,7 +4641,11 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Salon", "Krug (Clos du Mesnil)", "Pierre Péters"],
+		"producers": [
+			"Salon",
+			{ "name": "Krug", "note": "Clos du Mesnil" },
+			"Pierre Péters"
+		],
 		"description": "シャルドネの最高峰と称される村。サロン、クリュッグの「クロ・デュ・メニル」など伝説的なブラン・ド・ブランを生む。鋭い酸と圧倒的なミネラル感が持ち味。"
 	},
 	{
@@ -5330,7 +5338,10 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Moët & Chandon (アビー・ドーヴィレール)", "G. Tribaut"],
+		"producers": [
+			{ "name": "Moët & Chandon", "note": "アビー・ドーヴィレール" },
+			"G. Tribaut"
+		],
 		"description": "「シャンパーニュ発祥の地」と称される村。修道士ドン・ペリニヨンが眠るオーヴィレール修道院があり、現在はモエ・エ・シャンドンが所有する。"
 	},
 	{
@@ -5446,7 +5457,10 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Philipponnat (Clos des Goisses)", "Billecart-Salmon"],
+		"producers": [
+			{ "name": "Philipponnat", "note": "Clos des Goisses" },
+			"Billecart-Salmon"
+		],
 		"description": "格付け99%を持つ事実上グラン・クリュ級の村。フィリポナの銘醸単一畑「クロ・デ・ゴワス」を擁する。2016年合併で現在はアイ・シャンパーニュ市の一部(地図は旧村域)。"
 	},
 	{
@@ -8834,7 +8848,7 @@
 			}
 		],
 		"soil": "ボンム高台に位置し、砂利質と粘土石灰質を主体とするテロワール。",
-		"producers": ["ベルナール・マグレ (Bernard Magrez)"],
+		"producers": ["ベルナール・マグレ(Bernard Magrez)"],
 		"description": "ソーテルヌAOCの1855年格付け第1級。ボンム地区の丘陵頂部にある小規模なシャトーで、繊細さとフレッシュな酸を備えた古典的な貴腐甘口白を造る。"
 	},
 	{
@@ -8896,7 +8910,7 @@
 			}
 		],
 		"soil": "シャトー・ディケムに隣接し、粘土を下層に持つ砂利まじりの砂質土壌。",
-		"producers": ["AXAミレジム (AXA Millésimes)"],
+		"producers": ["AXAミレジム(AXA Millésimes)"],
 		"description": "ソーテルヌAOCの1855年格付け第1級。プレニャック村のディケム隣接地にあり、凝縮感と力強く豊満な甘美さを備えたリッチな作風で名高い。"
 	},
 	{
@@ -9016,7 +9030,7 @@
 			}
 		],
 		"soil": "ディケムに近い高台に位置し、砂利質と砂質粘土が石灰質を覆う土壌。",
-		"producers": ["ドメーヌ・バロン・ド・ロチルド (ラフィット)"],
+		"producers": ["ドメーヌ・バロン・ド・ロチルド(ラフィット)"],
 		"description": "ソーテルヌAOCの1855年格付け第1級。ファルグ村のディケムに近い高台にあり、濃密で凝縮した力強い作風で知られ、ラフィットのロートシルト家が所有する。"
 	},
 	{
@@ -13282,7 +13296,10 @@
 			}
 		],
 		"soil": "ロワール右岸の急斜面に露出する青色片岩・砂岩・火山岩。",
-		"producers": ["Domaine des Baumard", "Nicolas Joly (Coulée de Serrant)"],
+		"producers": [
+			"Domaine des Baumard",
+			{ "name": "Nicolas Joly", "note": "Coulée de Serrant" }
+		],
 		"description": "シュナン・ブランの辛口白の頂点の一つ。痩せた片岩土壌の急斜面から、ミネラル豊かで長熟する凝縮した辛口を生む。"
 	},
 	{
@@ -14675,7 +14692,7 @@
 			}
 		],
 		"soil": "標高の高い粘土石灰質・砂質の斜面。",
-		"producers": ["Domaine du Moulin", "Domaine Jaume", "Perrin (Vinsobres)"],
+		"producers": ["Domaine du Moulin", "Domaine Jaume", "Perrin & Fils"],
 		"description": "ドローム県の標高の高い畑を持つ南ローヌ北端のクリュ(2006年昇格)。グルナッシュとシラーを一定比率で混ぜる規定を持ち、冷涼感のある引き締まった赤を生む。"
 	},
 	{
@@ -14850,7 +14867,7 @@
 		"producers": [
 			"Domaine Pélaquié",
 			"Château Courac",
-			"Domaine de la Rémejeanne"
+			"Domaine de la Réméjeanne"
 		],
 		"description": "ローヌ右岸ガール県のクリュ(2023年にコート・デュ・ローヌ・ヴィラージュ・ローダンから昇格)。赤・ロゼに加え、右岸では珍しく良質な白の伝統を持つ村。"
 	},
@@ -15510,7 +15527,11 @@
 			}
 		],
 		"soil": "トスカーナ中部の広範な丘陵。粘土石灰質を中心に地区(コッリ・フィオレンティーニ、ルフィナ等7サブゾーン)ごとに土壌が変化する。",
-		"producers": ["Ruffino", "Rocca delle Macìe", "Nipozzano (Frescobaldi)"],
+		"producers": [
+			"Ruffino",
+			"Rocca delle Macìe",
+			{ "name": "Frescobaldi", "note": "Castello Nipozzano" }
+		],
 		"description": "サンジョヴェーゼ70%以上を核とする広域DOCG。7つのサブゾーン(特にルフィナは長熟)を持ち、日常的な軽快さから本格派まで幅広い。クラッシコとは別の生産地域。"
 	},
 	{
@@ -15863,7 +15884,10 @@
 			}
 		],
 		"soil": "グロッセート県を中心とする南トスカーナ沿岸の広域。海に近い温暖な平野〜丘陵で多様な土壌。",
-		"producers": ["Tenuta Ammiraglia (Frescobaldi)", "Rocca di Frassinello"],
+		"producers": [
+			{ "name": "Frescobaldi", "note": "Tenuta Ammiraglia" },
+			"Rocca di Frassinello"
+		],
 		"description": "南トスカーナ海岸部をカバーする広域DOC。サンジョヴェーゼやヴェルメンティーノに加え国際品種も認められ、赤・白・ロゼ・スパークリングまで多彩。新興生産者の受け皿。"
 	},
 	{
@@ -16220,7 +16244,7 @@
 			}
 		],
 		"soil": "キアンティ・ルフィナ東方、標高700mに及ぶ冷涼な高地。フレスコバルディが19世紀からフランス品種を導入。",
-		"producers": ["Frescobaldi (Castello di Pomino)"],
+		"producers": [{ "name": "Frescobaldi", "note": "Castello di Pomino" }],
 		"description": "トスカーナでは珍しい高標高・冷涼産地。シャルドネやピノを用いた気品ある白で知られ、フレスコバルディが歴史的に主導してきた小さなDOC。"
 	}
 ]

@@ -1,18 +1,39 @@
-// 生産者に関する簡単な解説と公式サイト。生産者名クリック時の購入リンク
+// 生産者に関する簡単な解説・掲載元・公式サイト。生産者名クリック時の購入リンク
 // ダイアログ(AopDetailPanel の ProducerPurchaseDialog)で表示する。
 //
 // 同じ生産者が複数の畑・村に登場するため、aops.json 側にインラインで持たせると
 // 解説・URLが重複する。affiliate.ts の PRODUCER_SEARCH_KEYWORDS と同様、生産者名を
 // キーにした共通辞書としてここで一元管理する。
 //
-// キーは aops.json の producers に現れる表記そのものと一致させること
-// (data-integrity テストで参照整合性を検証する)。
+// キーは aops.json の producers の name と一致させること
+// (data-integrity テストで参照整合性を検証する)。括弧書きのキュヴェ名・所有者名は
+// name ではなく AopProducer.note 側に置く(キーが分裂して辞書を引けなくなるため)。
+
+export interface ProducerSource {
+	/** ダイアログのボタンに出すラベル(例: "MICHELIN Grapes") */
+	label: string;
+	/** 掲載元(一次情報)へのURL */
+	url: string;
+}
 
 export interface ProducerInfo {
 	/** 生産者の簡単な解説(日本語・1〜2文) */
 	description: string;
 	/** 公式サイトのURL。存在する場合のみ。アフィリエイトではない一次情報リンク */
 	officialWebsite?: string;
+	/**
+	 * 掲載元。**生産者ごとに持つ**(辞書全体に効く既定値は置かない)。
+	 *
+	 * ここに置いてよいのは「リンクできる一次情報」だけ:
+	 *   - 公的格付けの公式ページ(1855年 / グラーヴ1959年 / サンテミリオン2022年 等)
+	 *   - MICHELIN Grapes のような、選出という事実を掲載した公式記事
+	 *   - 生産者団体の公開会員名簿
+	 *
+	 * 商業ワインガイド(Bettane+Desseauve / La Revue du Vin de France /
+	 * Gambero Rosso 等)の評価・星の数・掲載事実は**置かない**。選定の内部参考に
+	 * とどめる(掲載の選択自体がガイドの創作的表現・データベース権の対象になりうる)。
+	 */
+	sources?: ProducerSource[];
 }
 
 /**
@@ -21,24 +42,44 @@ export interface ProducerInfo {
  *
  * ミシュラン側に生産者ごとの個別ページは存在せず、全生産者がこの1記事内のカードとして
  * のみ掲載されている(2026-07 時点。個別ページ・アンカーによるディープリンクも不可)。
- * そのため PRODUCER_INFO の各生産者(いずれも MICHELIN Grapes 選出)ダイアログでは、
- * 掲載元としてこの共通記事へのリンクを表示する。日本語版は存在せず英語(gb/en)のみ。
+ * そのため MICHELIN_GRAPES_PRODUCERS の各生産者では、掲載元としてこの共通記事への
+ * リンクを表示する。日本語版は存在せず英語(gb/en)のみ。
  */
-export const MICHELIN_GRAPES_ARTICLE_URL =
-	"https://guide.michelin.com/gb/en/article/wine/the-michelin-guide-s-burgundy-wine-selection";
+export const MICHELIN_GRAPES_SOURCE: ProducerSource = {
+	label: "MICHELIN Grapes",
+	url: "https://guide.michelin.com/gb/en/article/wine/the-michelin-guide-s-burgundy-wine-selection",
+};
 
 /**
- * 生産者名 → 解説・公式サイト。
- *
- * 初期データは、ミシュランガイドが2026年に初めて発表したブルゴーニュ格付け
- * 「MICHELIN Grapes」で最高評価(3グレープ)を獲得した9生産者。解説・公式サイトの
- * 有無はいずれもウェブ調査で確認済み。DRC・ルロワなど公式サイトを持たない造り手は
- * officialWebsite を省略する。
- *
- * この辞書のエントリはいずれも MICHELIN Grapes 選出生産者であり、ダイアログでは
- * 共通の掲載記事(MICHELIN_GRAPES_ARTICLE_URL)へのリンクを表示する。
+ * グループ単位で共通の出典を付ける。エントリごとに同じ出典を94回書く冗長さを避けつつ、
+ * 「どのグループに属するか」は明示的に選ぶ必要があるため、既定値にはならない。
  */
-export const PRODUCER_INFO: Record<string, ProducerInfo> = {
+function withSource(
+	producers: Record<string, Omit<ProducerInfo, "sources">>,
+	source: ProducerSource,
+): Record<string, ProducerInfo> {
+	return Object.fromEntries(
+		Object.entries(producers).map(([name, info]) => [
+			name,
+			{ ...info, sources: [source] },
+		]),
+	);
+}
+
+/**
+ * MICHELIN Grapes 選出生産者(2026年初回発表・ブルゴーニュの94生産者)。
+ *
+ * **このオブジェクトに入れたエントリだけ**が MICHELIN_GRAPES_SOURCE を出典に持つ。
+ * MICHELIN Grapes はブルゴーニュ限定の格付けで他地域へ横展開できないため、
+ * 「解説があれば MICHELIN Grapes 選出」という既定を置いてはいけない(#202)。
+ *
+ * 解説・公式サイトの有無はいずれもウェブ調査で確認済み。DRC・ルロワなど公式サイトを
+ * 持たない造り手は officialWebsite を省略する。
+ */
+const MICHELIN_GRAPES_PRODUCERS: Record<
+	string,
+	Omit<ProducerInfo, "sources">
+> = {
 	"Domaine de la Romanée-Conti": {
 		description:
 			"ヴォーヌ・ロマネに本拠を置くドメーヌで、ロマネ・コンティとラ・ターシュを単独所有する。ビオディナミを採用し、グラン・クリュを中心に長命な赤ワインと少量の白を産する。",
@@ -478,7 +519,17 @@ export const PRODUCER_INFO: Record<string, ProducerInfo> = {
 	},
 };
 
-/** 生産者名から解説・公式サイトを引く。未登録なら undefined */
+/**
+ * 生産者名 → 解説・掲載元・公式サイト。
+ *
+ * MICHELIN Grapes 以外の基準で足す生産者はこのオブジェクトに直接書き、sources を
+ * エントリごとに明示すること(ブルゴーニュ以外の拡充は #203)。
+ */
+export const PRODUCER_INFO: Record<string, ProducerInfo> = {
+	...withSource(MICHELIN_GRAPES_PRODUCERS, MICHELIN_GRAPES_SOURCE),
+};
+
+/** 生産者名から解説・掲載元・公式サイトを引く。未登録なら undefined */
 export function getProducerInfo(name: string): ProducerInfo | undefined {
 	return PRODUCER_INFO[name];
 }
