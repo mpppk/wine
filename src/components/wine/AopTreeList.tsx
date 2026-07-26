@@ -15,6 +15,12 @@ import {
 import { classificationBadgeJa, isLegalAppellation } from "#/lib/wine/tags";
 import type { Aop, Subregion } from "#/lib/wine/types";
 
+/**
+ * 行の選択ハンドラ。同じAOPが複数の村の下に現れうるため、AOP id に加えて
+ * 「どの行か」を一意に表す rowKey(祖先ノードのidを連ねたパス)を渡す。
+ */
+type RowSelect = (aopId: string, rowKey: string) => void;
+
 /** AOP(slug)単位の正解進捗。solved=正解済み問題数 / total=候補問題総数 */
 export interface AopProgress {
 	solved: number;
@@ -82,6 +88,16 @@ export function AopTreeList({
 	// 未ログイン時は正解が記録されず分数(0/total)が動かないため、出題数だけを示す
 	const countOnly = !isAuthenticated;
 
+	// 直前にユーザーが押した行(の rowKey)。複数村にまたがる畑(ボンヌ・マール等)は
+	// 同じAOPが村ごとに複数行現れるため、AOP id だけではどの行が押されたか決まらない。
+	// 押された行そのものへスクロールするために覚えておく(選択状態は id 単位なので
+	// 再描画は不要 = state ではなく ref)。id が現在の選択と一致するときだけ使う。
+	const activeRowRef = useRef<{ aopId: string; rowKey: string } | null>(null);
+	const handleRowSelect = (aopId: string, rowKey: string) => {
+		activeRowRef.current = { aopId, rowKey };
+		onSelect(aopId);
+	};
+
 	// 選択AOPが変わったら、その行をスクロール表示領域内に入れる。情報パネルの
 	// 前へ/次へ(←/→)で領域外のAOPへ移った際、リストの選択位置を見失わないため。
 	// モバイルでは詳細パネルがリスト下部に重なるので、被覆量(getScrollInset().bottom)
@@ -89,31 +105,53 @@ export function AopTreeList({
 	// 必要な分だけ動かす。既に見えている行では動かさない。block:"nearest" +
 	// scroll-margin ではブラウザ差で下端補正が効かないことがあるため手動計算する。
 	// getInset は fitBounds と同様にスクロール実行時の最新実測値を読む getter。
+	//
+	// 同じAOPの行が複数ある場合の対象行は、
+	//   1. 直前に押された行(あればそれが唯一の正解。押した行以外へ飛ぶのを防ぐ)
+	//   2. なければ(地図クリック・前へ/次へ等)現在のスクロール位置から最も近い行
+	// とする。常に先頭行を採ると、2つ目以降の行を押したときに1つ目へ飛んでしまう。
 	const navRef = useRef<HTMLElement>(null);
 	useEffect(() => {
 		if (!selectedAopId) return;
-		const row = navRef.current?.querySelector<HTMLElement>(
-			`[data-aop-id="${CSS.escape(selectedAopId)}"]`,
-		);
-		if (!row) return;
-		let scroller = row.parentElement;
+		// セレクタに値を埋め込まず dataset で突き合わせる(id のエスケープ不要)
+		const rows = Array.from(
+			navRef.current?.querySelectorAll<HTMLElement>("[data-aop-id]") ?? [],
+		).filter((r) => r.dataset.aopId === selectedAopId);
+		const first = rows[0];
+		if (!first) return;
+		const active = activeRowRef.current;
+		const tapped =
+			active?.aopId === selectedAopId
+				? rows.find((r) => r.dataset.aopRowKey === active.rowKey)
+				: undefined;
+		let scroller = first.parentElement;
 		while (scroller && scroller !== document.body) {
 			const oy = getComputedStyle(scroller).overflowY;
 			if (oy === "auto" || oy === "scroll") break;
 			scroller = scroller.parentElement;
 		}
 		if (!scroller || scroller === document.body) {
-			row.scrollIntoView({ block: "nearest" });
+			(tapped ?? first).scrollIntoView({ block: "nearest" });
 			return;
 		}
 		const inset = getScrollInset?.().bottom ?? 0;
 		const view = scroller.getBoundingClientRect();
-		const r = row.getBoundingClientRect();
 		const visibleTop = view.top;
 		const visibleBottom = view.bottom - inset;
-		if (r.bottom > visibleBottom)
-			scroller.scrollTop += r.bottom - visibleBottom;
-		else if (r.top < visibleTop) scroller.scrollTop -= visibleTop - r.top;
+		// 行を可視範囲に収めるのに必要なスクロール量。0 なら既に見えている。
+		const scrollDelta = (row: HTMLElement): number => {
+			const r = row.getBoundingClientRect();
+			if (r.bottom > visibleBottom) return r.bottom - visibleBottom;
+			if (r.top < visibleTop) return r.top - visibleTop;
+			return 0;
+		};
+		const target =
+			tapped ??
+			rows.reduce((best, r) =>
+				Math.abs(scrollDelta(r)) < Math.abs(scrollDelta(best)) ? r : best,
+			);
+		const delta = scrollDelta(target);
+		if (delta !== 0) scroller.scrollTop += delta;
 	}, [selectedAopId, getScrollInset]);
 
 	const visibleSections = sections
@@ -202,8 +240,9 @@ export function AopTreeList({
 									<li key={aop.id}>
 										<AopRow
 											aop={aop}
+											rowKey={`${section.subregion.id}/${aop.id}`}
 											selected={aop.id === selectedAopId}
-											onSelect={onSelect}
+											onSelect={handleRowSelect}
 											progressMode={progressMode}
 											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
@@ -218,10 +257,11 @@ export function AopTreeList({
 									<VillageItem
 										key={node.village.id}
 										node={node}
+										pathPrefix={section.subregion.id}
 										villageVisible={visibleAopIds.has(node.village.id)}
 										visibleAopIds={visibleAopIds}
 										selectedAopId={selectedAopId}
-										onSelect={onSelect}
+										onSelect={handleRowSelect}
 										progressMode={progressMode}
 										countOnly={countOnly}
 										rowProgressByAopId={rowProgress}
@@ -235,8 +275,9 @@ export function AopTreeList({
 									<li key={aop.id}>
 										<AopRow
 											aop={aop}
+											rowKey={`${section.subregion.id}/${aop.id}`}
 											selected={aop.id === selectedAopId}
-											onSelect={onSelect}
+											onSelect={handleRowSelect}
 											progressMode={progressMode}
 											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
@@ -251,8 +292,9 @@ export function AopTreeList({
 									<li key={aop.id}>
 										<AopRow
 											aop={aop}
+											rowKey={`${section.subregion.id}/${aop.id}`}
 											selected={aop.id === selectedAopId}
-											onSelect={onSelect}
+											onSelect={handleRowSelect}
 											progressMode={progressMode}
 											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
@@ -270,6 +312,7 @@ export function AopTreeList({
 
 function VillageItem({
 	node,
+	pathPrefix,
 	villageVisible,
 	visibleAopIds,
 	selectedAopId,
@@ -279,10 +322,12 @@ function VillageItem({
 	rowProgressByAopId,
 }: {
 	node: VillageNode;
+	/** 祖先ノードの rowKey。この村配下の行の rowKey はここから組み立てる */
+	pathPrefix: string;
 	villageVisible: boolean;
 	visibleAopIds: ReadonlySet<string>;
 	selectedAopId?: string;
-	onSelect: (aopId: string) => void;
+	onSelect: RowSelect;
 	progressMode: boolean;
 	countOnly: boolean;
 	rowProgressByAopId?: Record<string, AopProgress>;
@@ -291,11 +336,13 @@ function VillageItem({
 	const villageProgress = progressMode
 		? rowProgressByAopId?.[node.village.id]
 		: undefined;
+	const villageKey = `${pathPrefix}/${node.village.id}`;
 	return (
 		<li>
 			{villageVisible ? (
 				<AopRow
 					aop={node.village}
+					rowKey={villageKey}
 					selected={node.village.id === selectedAopId}
 					onSelect={onSelect}
 					progressMode={progressMode}
@@ -322,6 +369,7 @@ function VillageItem({
 						<VineyardItem
 							key={vn.vineyard.id}
 							node={vn}
+							pathPrefix={villageKey}
 							vineyardVisible={visibleAopIds.has(vn.vineyard.id)}
 							selectedAopId={selectedAopId}
 							onSelect={onSelect}
@@ -334,6 +382,7 @@ function VillageItem({
 						<li key={aop.id}>
 							<AopRow
 								aop={aop}
+								rowKey={`${villageKey}/${aop.id}`}
 								selected={aop.id === selectedAopId}
 								onSelect={onSelect}
 								progressMode={progressMode}
@@ -351,6 +400,7 @@ function VillageItem({
 /** 畑(総称AOC/畑名AOC)と、その配下の個別クリマを入れ子表示する。 */
 function VineyardItem({
 	node,
+	pathPrefix,
 	vineyardVisible,
 	selectedAopId,
 	onSelect,
@@ -359,18 +409,22 @@ function VineyardItem({
 	rowProgressByAopId,
 }: {
 	node: VineyardNode;
+	/** 祖先ノード(村)の rowKey。複数村にまたがる畑はこれで行が区別される */
+	pathPrefix: string;
 	vineyardVisible: boolean;
 	selectedAopId?: string;
-	onSelect: (aopId: string) => void;
+	onSelect: RowSelect;
 	progressMode: boolean;
 	countOnly: boolean;
 	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
+	const vineyardKey = `${pathPrefix}/${node.vineyard.id}`;
 	return (
 		<li>
 			{vineyardVisible ? (
 				<AopRow
 					aop={node.vineyard}
+					rowKey={vineyardKey}
 					selected={node.vineyard.id === selectedAopId}
 					onSelect={onSelect}
 					progressMode={progressMode}
@@ -391,6 +445,7 @@ function VineyardItem({
 						<li key={climat.id}>
 							<AopRow
 								aop={climat}
+								rowKey={`${vineyardKey}/${climat.id}`}
 								selected={climat.id === selectedAopId}
 								onSelect={onSelect}
 								progressMode={progressMode}
@@ -407,6 +462,7 @@ function VineyardItem({
 
 function AopRow({
 	aop,
+	rowKey,
 	selected,
 	onSelect,
 	progressMode = false,
@@ -414,8 +470,13 @@ function AopRow({
 	progress,
 }: {
 	aop: Aop;
+	/**
+	 * この行を一意に指す識別子(祖先ノードのidを "/" で連ねたパス)。
+	 * 複数村にまたがる畑は同じAOPが複数行に現れるため、AOP id では行を特定できない。
+	 */
+	rowKey: string;
 	selected: boolean;
-	onSelect: (aopId: string) => void;
+	onSelect: RowSelect;
 	/** 進捗モード時はバッジを進捗インジケータに置換し、ドットを正解率で着色する */
 	progressMode?: boolean;
 	/** 未ログイン時は進捗インジケータを分数でなく出題数(クイズN問)で表示する */
@@ -443,7 +504,8 @@ function AopRow({
 		<button
 			type="button"
 			data-aop-id={aop.id}
-			onClick={() => onSelect(aop.id)}
+			data-aop-row-key={rowKey}
+			onClick={() => onSelect(aop.id, rowKey)}
 			aria-current={selected || undefined}
 			className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${
 				selected ? "bg-muted font-medium" : complete ? "bg-emerald-500/10" : ""
