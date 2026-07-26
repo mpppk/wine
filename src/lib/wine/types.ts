@@ -59,8 +59,17 @@ export interface AopGrape {
  * 読み込み時にこの形へ正規化される(aop-schema.ts)。
  */
 export interface AopProducer {
-	/** 表示名 */
+	/**
+	 * 生産者名。PRODUCER_INFO / PRODUCER_SEARCH_KEYWORDS の辞書キーになるため、
+	 * キュヴェ名・畑名・所有者名を括弧書きで足さないこと(同じ生産者が別キーに
+	 * 分裂し、解説も検索キーワードも引けなくなる)。補足は note に分ける。
+	 */
 	name: string;
+	/**
+	 * このAOPにおける補足(代表キュヴェ・単独所有畑・傘下エステート等)。
+	 * 表示は「name（note）」。辞書引きには使わない。
+	 */
+	note?: string;
 	/**
 	 * ECサイト検索用のキーワード(カタカナ表記等)。省略時は
 	 * affiliate.ts の共通辞書 → name の順でフォールバックする。

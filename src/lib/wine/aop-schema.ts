@@ -16,6 +16,7 @@ const producerSchema = z.union([
 		.transform((name): AopProducer => ({ name })),
 	z.object({
 		name: z.string().min(1),
+		note: z.string().min(1).optional(),
 		searchKeyword: z.string().min(1).optional(),
 		links: z
 			.object({
