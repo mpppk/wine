@@ -314,7 +314,8 @@ export function AopDetailPanel({
 				<p className="text-sm leading-relaxed">{aop.soil}</p>
 			</section>
 
-			<ProducersSection aop={aop} affiliate={affiliate} />
+			{/* key で AOP 切替時に展開状態・開いているダイアログをリセットする */}
+			<ProducersSection key={aop.id} aop={aop} affiliate={affiliate} />
 
 			{referenceLinksSlot}
 
@@ -402,10 +403,21 @@ function DescriptionLink({
 	);
 }
 
+/**
+ * 折りたたまずに常時表示する生産者の件数。これを超える分は「ほかN件を表示」で開く。
+ *
+ * ボルドーのように格付けされたシャトーを網羅的に載せるAOPがあり(サンテミリオン特級は
+ * 70件超)、全件を常時展開すると詳細パネルが生産者リストだけで埋まる。既存AOPで
+ * この閾値を超えるのはムルソー(18件)のみ。
+ */
+const PRODUCERS_COLLAPSE_THRESHOLD = 12;
+
 // 主要な生産者のリストを表示する。購入リンク(アフィリエイト)を持つ生産者は
 // 名前をリンクにし、タップで開くダイアログ内に楽天/Amazonリンク・広告表記をまとめる。
 // winery(シャトー)の producers は所有者/運営体なのでリンクせず、代わりにシャトー名
 // 自体をリンクにして、シャトーを検索する購入リンクをダイアログで出す。
+//
+// 展開状態は AOP をまたいで持ち越さない(呼び出し側で key={aop.id} を渡している)。
 function ProducersSection({
 	aop,
 	affiliate,
@@ -419,18 +431,25 @@ function ProducersSection({
 		links: PurchaseLinks;
 		info: ProducerInfo | null;
 	} | null>(null);
+	const [expanded, setExpanded] = useState(false);
 	const wineryLinks = getWineryPurchaseLinks(aop, affiliate);
 	const rows = aop.producers.map((p) => ({
 		producer: p,
 		links: wineryLinks ? null : getProducerPurchaseLinks(p, affiliate),
 	}));
+	const collapsible = rows.length > PRODUCERS_COLLAPSE_THRESHOLD;
+	const visibleRows =
+		collapsible && !expanded
+			? rows.slice(0, PRODUCERS_COLLAPSE_THRESHOLD)
+			: rows;
+	const hiddenCount = rows.length - visibleRows.length;
 	return (
 		<section>
 			<h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 				主要な生産者
 			</h3>
 			<ul className="list-inside list-disc text-sm leading-relaxed">
-				{rows.map(({ producer, links }) => (
+				{visibleRows.map(({ producer, links }) => (
 					<li key={producer.name}>
 						{links ? (
 							<ProducerLinkButton
@@ -452,6 +471,18 @@ function ProducersSection({
 					</li>
 				))}
 			</ul>
+			{collapsible && (
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					onClick={() => setExpanded((v) => !v)}
+					aria-expanded={expanded}
+					className="-ml-2 h-auto py-1 text-muted-foreground hover:text-foreground"
+				>
+					{expanded ? "折りたたむ" : `ほか${hiddenCount}件を表示`}
+				</Button>
+			)}
 			{wineryLinks && (
 				<p className="mt-1 text-sm leading-relaxed">
 					<ProducerLinkButton
