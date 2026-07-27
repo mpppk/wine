@@ -9,31 +9,47 @@
 // (data-integrity テストで参照整合性を検証する)。括弧書きのキュヴェ名・所有者名は
 // name ではなく AopProducer.note 側に置く(キーが分裂して辞書を引けなくなるため)。
 
-export interface ProducerSource {
-	/** ダイアログのボタンに出すラベル(例: "MICHELIN Grapes") */
-	label: string;
-	/** 掲載元(一次情報)へのURL */
-	url: string;
+/**
+ * 生産者が受けた賞・格付け。ダイアログの「受賞・格付け」セクションに1行ずつ出す。
+ *
+ * **載せてよいのは受賞という事実(誰が・何を・いつ)だけ**。出典を必ず添えて、
+ * 読者が一次情報を確認できる形にする。ガイドの掲載リストを網羅的に転記したり、
+ * 評価文・テイスティングコメントを翻訳・要約して載せるのは対象外
+ * (事実そのものに著作権は及ばないが、リストの選択・配列やコメントの表現は
+ * ガイド側の著作物になりうる)。
+ */
+export interface ProducerAward {
+	/** 賞・格付けの名称。授与元を含む完全な表示名にする。年は含めない */
+	name: string;
+	/** 階級・等級。持たない賞では省略する(例: "2グレープ" / "第一級") */
+	tier?: string;
+	/** 受賞対象のワイン。生産者ではなく特定のワインに与える賞で使う */
+	wine?: string;
+	/** 受賞年。年次の賞は受賞年、公的格付けは制定年 */
+	year: number;
+	/** 受賞事実を確認できる一次情報のURL */
+	url?: string;
 }
 
 export interface ProducerInfo {
-	/** 生産者の簡単な解説(日本語・1〜2文) */
-	description: string;
+	/**
+	 * 生産者の簡単な解説(日本語・1〜2文)。
+	 *
+	 * 受賞だけ登録して解説を持たない生産者があるため任意。ただし
+	 * **description も awards も無いエントリは作らない**(ダイアログが空になる)。
+	 * 解説はガイドの記述を翻訳・要約せず、公式サイト等の一次情報から自分で書く。
+	 */
+	description?: string;
 	/** 公式サイトのURL。存在する場合のみ。アフィリエイトではない一次情報リンク */
 	officialWebsite?: string;
 	/**
-	 * 掲載元。**生産者ごとに持つ**(辞書全体に効く既定値は置かない)。
+	 * 受賞・格付け。**生産者ごとに持つ**(辞書全体に効く既定値は置かない)。
 	 *
-	 * ここに置いてよいのは「リンクできる一次情報」だけ:
-	 *   - 公的格付けの公式ページ(1855年 / グラーヴ1959年 / サンテミリオン2022年 等)
-	 *   - MICHELIN Grapes のような、選出という事実を掲載した公式記事
-	 *   - 生産者団体の公開会員名簿
-	 *
-	 * 商業ワインガイド(Bettane+Desseauve / La Revue du Vin de France /
-	 * Gambero Rosso 等)の評価・星の数・掲載事実は**置かない**。選定の内部参考に
-	 * とどめる(掲載の選択自体がガイドの創作的表現・データベース権の対象になりうる)。
+	 * 公的格付け(1855年 / グラーヴ1959年 / サンテミリオン2022年 等)と、
+	 * 商業ワインガイドの受賞(Gambero Rosso トレ・ビッキエーリ 等)の双方を置ける。
+	 * **裏が取れたものだけ**を入れ、確認できない受賞は登録しない(推測で埋めない)。
 	 */
-	sources?: ProducerSource[];
+	awards?: ProducerAward[];
 }
 
 /**
@@ -42,44 +58,56 @@ export interface ProducerInfo {
  *
  * ミシュラン側に生産者ごとの個別ページは存在せず、全生産者がこの1記事内のカードとして
  * のみ掲載されている(2026-07 時点。個別ページ・アンカーによるディープリンクも不可)。
- * そのため MICHELIN_GRAPES_PRODUCERS の各生産者では、掲載元としてこの共通記事への
- * リンクを表示する。日本語版は存在せず英語(gb/en)のみ。
+ * そのため MICHELIN Grapes の各生産者では、出典としてこの共通記事へのリンクを表示する。
+ * 日本語版は存在せず英語(gb/en)のみ。
  */
-export const MICHELIN_GRAPES_SOURCE: ProducerSource = {
-	label: "MICHELIN Grapes",
-	url: "https://guide.michelin.com/gb/en/article/wine/the-michelin-guide-s-burgundy-wine-selection",
-};
+export const MICHELIN_GRAPES_URL =
+	"https://guide.michelin.com/gb/en/article/wine/the-michelin-guide-s-burgundy-wine-selection";
+
+/** MICHELIN Grapes の初回発表年。階級はこの年の発表内容 */
+const MICHELIN_GRAPES_YEAR = 2026;
+
+/** MICHELIN Grapes の階級。記事の Two Grapes / One Grape / Selected に対応する */
+const michelinGrapesAward = (tier: string): ProducerAward => ({
+	name: "MICHELIN Grapes",
+	tier,
+	year: MICHELIN_GRAPES_YEAR,
+	url: MICHELIN_GRAPES_URL,
+});
 
 /**
- * グループ単位で共通の出典を付ける。エントリごとに同じ出典を94回書く冗長さを避けつつ、
+ * グループ単位で共通の受賞を付ける。エントリごとに同じ受賞を94回書く冗長さを避けつつ、
  * 「どのグループに属するか」は明示的に選ぶ必要があるため、既定値にはならない。
  */
-function withSource(
-	producers: Record<string, Omit<ProducerInfo, "sources">>,
-	source: ProducerSource,
+function withAward(
+	producers: Record<string, Omit<ProducerInfo, "awards">>,
+	award: ProducerAward,
 ): Record<string, ProducerInfo> {
 	return Object.fromEntries(
 		Object.entries(producers).map(([name, info]) => [
 			name,
-			{ ...info, sources: [source] },
+			{ ...info, awards: [award] },
 		]),
 	);
 }
 
 /**
- * MICHELIN Grapes 選出生産者(2026年初回発表・ブルゴーニュの94生産者)。
+ * MICHELIN Grapes 選出生産者(2026年初回発表・ブルゴーニュの94生産者)。階級ごとに
+ * 3つのオブジェクトに分け、PRODUCER_INFO で階級付きの受賞を付与する。
  *
- * **このオブジェクトに入れたエントリだけ**が MICHELIN_GRAPES_SOURCE を出典に持つ。
+ * **これらのオブジェクトに入れたエントリだけ**が MICHELIN Grapes を受賞に持つ。
  * MICHELIN Grapes はブルゴーニュ限定の格付けで他地域へ横展開できないため、
  * 「解説があれば MICHELIN Grapes 選出」という既定を置いてはいけない(#202)。
  *
  * 解説・公式サイトの有無はいずれもウェブ調査で確認済み。DRC・ルロワなど公式サイトを
  * 持たない造り手は officialWebsite を省略する。
+ *
+ * 3グレープの9件は、元は階級の記録なくこの辞書に入っていた(#105 で MICHELIN の
+ * 94件を取り込む際、既存エントリには階級コメントが付かなかった)。公式記事の
+ * "94 wine estates ... with nine awarded the highest distinction of Three Grapes"
+ * と、残り3階級が 20 + 33 + 32 = 85 件で 94 - 85 = 9 と一致することから確定した。
  */
-const MICHELIN_GRAPES_PRODUCERS: Record<
-	string,
-	Omit<ProducerInfo, "sources">
-> = {
+const MICHELIN_THREE_GRAPES: Record<string, Omit<ProducerInfo, "awards">> = {
 	"Domaine de la Romanée-Conti": {
 		description:
 			"ヴォーヌ・ロマネに本拠を置くドメーヌで、ロマネ・コンティとラ・ターシュを単独所有する。ビオディナミを採用し、グラン・クリュを中心に長命な赤ワインと少量の白を産する。",
@@ -123,7 +151,10 @@ const MICHELIN_GRAPES_PRODUCERS: Record<
 			"サン・トーバンを本拠とする白ワインの造り手。オリヴィエ・ラミが高密植栽培(オート・ダンシテ)を用い、ミネラル感のある辛口白を生産する。",
 		officialWebsite: "https://www.domainehubertlamy.com/",
 	},
-	// ── MICHELIN Grapes 2グレープ（Two Grapes） ──
+};
+
+/** MICHELIN Grapes 2グレープ（Two Grapes） */
+const MICHELIN_TWO_GRAPES: Record<string, Omit<ProducerInfo, "awards">> = {
 	"Domaine Denis Mortet": {
 		description:
 			"ジュヴレ・シャンベルタンの家族経営ドメーヌ。2006年の当主ドニ・モルテ没後は息子アルノーらが継承し、特級シャンベルタンを筆頭とする力強い赤ワインを造る。",
@@ -218,7 +249,10 @@ const MICHELIN_GRAPES_PRODUCERS: Record<
 			"コート・シャロネーズのリュリー村を本拠とする家族経営ドメーヌ。1994年よりヴァンサン・デュルイユが率い、リュリーのほかピュリニー・モンラッシェやニュイ・サン・ジョルジュも産する。",
 		officialWebsite: "https://www.dureuil-janthial.fr/",
 	},
-	// ── MICHELIN Grapes 1グレープ（One Grape） ──
+};
+
+/** MICHELIN Grapes 1グレープ（One Grape） */
+const MICHELIN_ONE_GRAPE: Record<string, Omit<ProducerInfo, "awards">> = {
 	"Domaine Armand Rousseau": {
 		description:
 			"ジュヴレ・シャンベルタンに拠点を置くドメーヌ。シャンベルタンやクロ・ド・ベーズなど複数のグラン・クリュを所有し、ピノ・ノワールの赤を手掛ける。現在はルソー家4代目が運営。",
@@ -371,7 +405,10 @@ const MICHELIN_GRAPES_PRODUCERS: Record<
 			"サン・ロマン村を拠点とする家族経営のドメーヌ。ビュイッソン家が代々畑を耕し、現在はフランクとフレデリック兄弟が運営。ビオディナミを実践し、赤白双方を手がける。",
 		officialWebsite: "https://www.domaine-buisson.com/",
 	},
-	// ── MICHELIN Grapes 選出（Selected） ──
+};
+
+/** MICHELIN Grapes 選出（Selected）。グレープの付かない選出枠 */
+const MICHELIN_SELECTED: Record<string, Omit<ProducerInfo, "awards">> = {
 	"Domaine Berthaut-Gerbet": {
 		description:
 			"フィサンに拠点を置くドメーヌ。ベルト家とジェルベ家の畑を統合し、当主アメリー・ベルトがフィサンを軸にヴォーヌ・ロマネなどコート・ド・ニュイの畑を手がける。",
@@ -520,16 +557,19 @@ const MICHELIN_GRAPES_PRODUCERS: Record<
 };
 
 /**
- * 生産者名 → 解説・掲載元・公式サイト。
+ * 生産者名 → 解説・受賞・公式サイト。
  *
- * MICHELIN Grapes 以外の基準で足す生産者はこのオブジェクトに直接書き、sources を
+ * MICHELIN Grapes 以外の基準で足す生産者はこのオブジェクトに直接書き、awards を
  * エントリごとに明示すること(ブルゴーニュ以外の拡充は #203)。
  */
 export const PRODUCER_INFO: Record<string, ProducerInfo> = {
-	...withSource(MICHELIN_GRAPES_PRODUCERS, MICHELIN_GRAPES_SOURCE),
+	...withAward(MICHELIN_THREE_GRAPES, michelinGrapesAward("3グレープ")),
+	...withAward(MICHELIN_TWO_GRAPES, michelinGrapesAward("2グレープ")),
+	...withAward(MICHELIN_ONE_GRAPE, michelinGrapesAward("1グレープ")),
+	...withAward(MICHELIN_SELECTED, michelinGrapesAward("選出")),
 };
 
-/** 生産者名から解説・掲載元・公式サイトを引く。未登録なら undefined */
+/** 生産者名から解説・受賞・公式サイトを引く。未登録なら undefined */
 export function getProducerInfo(name: string): ProducerInfo | undefined {
 	return PRODUCER_INFO[name];
 }

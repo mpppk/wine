@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { aopArraySchema } from "./aop-schema";
 import rawAops from "./aops.json";
 import { AOPS } from "./aops-data";
-import { MICHELIN_GRAPES_SOURCE, PRODUCER_INFO } from "./producer-info";
+import { MICHELIN_GRAPES_URL, PRODUCER_INFO } from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
@@ -199,9 +199,11 @@ describe("生産者情報(PRODUCER_INFO)の整合性", () => {
 		}
 	});
 
-	it("各エントリは説明文を持ち、公式サイトは有効なURL", () => {
+	it("公式サイトは有効なURL。説明文はあるなら非空", () => {
 		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
-			expect(info.description.length, name).toBeGreaterThan(0);
+			if (info.description !== undefined) {
+				expect(info.description.length, name).toBeGreaterThan(0);
+			}
 			if (info.officialWebsite !== undefined) {
 				expect(
 					() => new URL(info.officialWebsite as string),
@@ -212,37 +214,69 @@ describe("生産者情報(PRODUCER_INFO)の整合性", () => {
 		}
 	});
 
+	// description は任意なので、両方無いとダイアログが生産者名と購入リンクだけになる。
+	// 受賞も解説も持たないなら PRODUCER_INFO に登録する意味がない。
+	it("説明文と受賞の少なくとも一方を持つ", () => {
+		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
+			const hasAward = (info.awards?.length ?? 0) > 0;
+			expect(info.description !== undefined || hasAward, name).toBe(true);
+		}
+	});
+
 	it("MICHELIN Grapes 記事URLは michelin.com の有効な https URL", () => {
-		expect(() => new URL(MICHELIN_GRAPES_SOURCE.url)).not.toThrow();
-		const url = new URL(MICHELIN_GRAPES_SOURCE.url);
+		expect(() => new URL(MICHELIN_GRAPES_URL)).not.toThrow();
+		const url = new URL(MICHELIN_GRAPES_URL);
 		expect(url.protocol).toBe("https:");
 		expect(url.hostname).toMatch(/(^|\.)michelin\.com$/);
 	});
 
-	// 出典は生産者ごとに持つ(#202)。「解説があれば MICHELIN Grapes 選出」という
-	// 既定を復活させると、ブルゴーニュ以外の生産者に誤った掲載元が表示される。
-	it("各エントリの出典はラベルと有効な https URL を持つ", () => {
+	// 受賞は生産者ごとに持つ(#202)。「解説があれば MICHELIN Grapes 選出」という
+	// 既定を復活させると、ブルゴーニュ以外の生産者に誤った受賞が表示される。
+	it("各エントリの受賞は名称・妥当な年・有効な https URL を持つ", () => {
+		// 未来の年や、公的格付けの最古(1855年メドック)より前の年を弾く
+		const maxYear = new Date().getFullYear() + 1;
 		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
-			for (const source of info.sources ?? []) {
-				expect(source.label.length, name).toBeGreaterThan(0);
-				expect(() => new URL(source.url), name).not.toThrow();
-				expect(source.url, name).toMatch(/^https:\/\//);
+			for (const award of info.awards ?? []) {
+				expect(award.name.length, name).toBeGreaterThan(0);
+				expect(award.year, name).toBeGreaterThanOrEqual(1855);
+				expect(award.year, name).toBeLessThanOrEqual(maxYear);
+				if (award.url !== undefined) {
+					expect(() => new URL(award.url as string), name).not.toThrow();
+					expect(award.url, name).toMatch(/^https:\/\//);
+				}
 			}
 		}
 	});
 
-	it("MICHELIN Grapes を出典に持つのはブルゴーニュの生産者だけ", () => {
+	it("MICHELIN Grapes を受賞に持つのはブルゴーニュの生産者だけ", () => {
 		const bourgogneProducers = new Set(
 			AOPS.filter((a) => a.region === "bourgogne").flatMap((a) =>
 				a.producers.map((p) => p.name),
 			),
 		);
 		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
-			if (!info.sources?.some((s) => s.url === MICHELIN_GRAPES_SOURCE.url)) {
-				continue;
-			}
+			if (!info.awards?.some((a) => a.url === MICHELIN_GRAPES_URL)) continue;
 			expect(bourgogneProducers.has(name), name).toBe(true);
 		}
+	});
+
+	// 公式記事が「94 estates のうち9件が最上位の Three Grapes」と明記している。
+	// 階級の付け替えでこの内訳が崩れたら、記事と食い違う表示になる。
+	it("MICHELIN Grapes の階級内訳が公式記事の94件と一致する", () => {
+		const byTier = new Map<string, number>();
+		for (const info of Object.values(PRODUCER_INFO)) {
+			for (const award of info.awards ?? []) {
+				if (award.url !== MICHELIN_GRAPES_URL) continue;
+				const tier = award.tier ?? "(なし)";
+				byTier.set(tier, (byTier.get(tier) ?? 0) + 1);
+			}
+		}
+		expect(Object.fromEntries(byTier)).toEqual({
+			"3グレープ": 9,
+			"2グレープ": 20,
+			"1グレープ": 33,
+			選出: 32,
+		});
 	});
 });
 

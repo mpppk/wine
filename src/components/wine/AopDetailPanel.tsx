@@ -29,7 +29,11 @@ import {
 	KIND_COLORS,
 	KIND_LABELS_JA,
 } from "#/lib/wine/map-style";
-import { getProducerInfo, type ProducerInfo } from "#/lib/wine/producer-info";
+import {
+	getProducerInfo,
+	type ProducerAward,
+	type ProducerInfo,
+} from "#/lib/wine/producer-info";
 import {
 	classificationPanelBadgeJa,
 	isLegalAppellation,
@@ -562,18 +566,9 @@ function ProducerPurchaseDialog({
 						{info.description}
 					</p>
 				)}
-				{info?.sources?.map((source) => (
-					<a
-						key={source.url}
-						href={source.url}
-						target="_blank"
-						rel="noopener noreferrer"
-						aria-label={`${name}の${source.label}掲載ページを開く`}
-						className={buttonVariants({ variant: "outline" })}
-					>
-						{source.label}
-					</a>
-				))}
+				{info?.awards && info.awards.length > 0 && (
+					<AwardsSection producerName={name} awards={info.awards} />
+				)}
 				{info?.officialWebsite && (
 					<a
 						href={info.officialWebsite}
@@ -612,6 +607,69 @@ function ProducerPurchaseDialog({
 				</p>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/**
+ * 生産者の受賞・格付けを「いつ・何を」の形で並べる。出典URLがあれば行全体をリンクに
+ * する(広告ではないので購入リンクの rel="sponsored nofollow" は付けない)。
+ */
+function AwardsSection({
+	producerName,
+	awards,
+}: {
+	producerName: string;
+	awards: ProducerAward[];
+}) {
+	return (
+		<section>
+			<h3 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+				受賞・格付け
+			</h3>
+			<ul className="flex flex-col gap-1.5">
+				{awards.map((award) => {
+					const body = (
+						<>
+							<span className="shrink-0 tabular-nums text-muted-foreground">
+								{award.year}
+							</span>
+							<span className="min-w-0 font-medium">{award.name}</span>
+							{award.tier && (
+								<span className="shrink-0 rounded-sm border border-border px-1 py-px text-[10px] font-normal text-muted-foreground">
+									{award.tier}
+								</span>
+							)}
+							{award.wine && (
+								<span className="min-w-0 truncate text-xs text-muted-foreground">
+									{award.wine}
+								</span>
+							)}
+						</>
+					);
+					return (
+						<li
+							key={`${award.name}-${award.year}-${award.tier ?? ""}-${award.wine ?? ""}`}
+						>
+							{award.url ? (
+								<a
+									href={award.url}
+									target="_blank"
+									rel="noopener noreferrer"
+									aria-label={`${producerName}の${award.name}掲載ページを開く`}
+									className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm underline-offset-4 hover:underline"
+								>
+									{body}
+								</a>
+							) : (
+								<div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
+									{body}
+								</div>
+							)}
+						</li>
+					);
+				})}
+			</ul>
+		</section>
 	);
 }
 
