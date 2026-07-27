@@ -31,6 +31,12 @@ export const AOP_TAGS = [
 		labelJa: "サンテミリオン第1特別級B",
 		badgeJa: "B",
 	},
+	// グラーヴ1959年格付けは等級を分けない単一クラス(赤/白の別はあるが上下は無い)
+	{
+		id: "cru-classe-de-graves",
+		labelJa: "グラーヴ格付け(1959年)",
+		badgeJa: "GC",
+	},
 	// イタリアの格付け(区分ではなく法的等級なのでタグで表現)
 	{ id: "docg", labelJa: "DOCG" },
 	{ id: "doc", labelJa: "DOC" },
@@ -107,6 +113,11 @@ export const CLASSIFICATION_TAG_RANK: Partial<Record<AopTagId, number>> = {
 	"cinquieme-cru-classe-1855": 5,
 	"premier-grand-cru-classe-a": 1,
 	"premier-grand-cru-classe-b": 2,
+	// グラーヴ格付けは単一クラスなので、制度内で並べ替える必要が無い。
+	// ランクを持たせないと getPrimaryClassificationTag が tags 先頭に落ちるため、
+	// 1855年第1級の Haut-Brion と同じ村に並んだときに順序が不定になる。
+	// 制度内で唯一の等級として 1 を置く(制度をまたぐ比較には使わない)。
+	"cru-classe-de-graves": 1,
 };
 
 /**

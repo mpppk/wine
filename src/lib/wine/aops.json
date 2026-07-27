@@ -9917,6 +9917,474 @@
 		"description": "第1特別級B(2012年昇格)、AOCサンテミリオン・グランクリュ。1990年代に少量・高品質を追求した「ガレージワイン(ヴァン・ド・ガラージュ)」の草分けとして名を上げ、メルロー主体の濃密な作風で知られる。"
 	},
 	{
+		"id": "chateau-bouscaut",
+		"idApp": 911103,
+		"name": "Château Bouscaut",
+		"shortName": "Château Bouscaut",
+		"nameJa": "シャトー・ブスコー",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "砂利質の表土の下に粘土を含む、カドージャックの緩やかな丘の土壌。",
+		"producers": ["ソフィー・リュルトン(Famille Lurton)"],
+		"description": "グラーヴ格付け(1959年)のシャトーで、カドージャックに位置する。赤白ともに格付けされ、赤はメルロー比率が高くしなやかな作風。"
+	},
+	{
+		"id": "chateau-carbonnieux",
+		"idApp": 911104,
+		"name": "Château Carbonnieux",
+		"shortName": "Château Carbonnieux",
+		"nameJa": "シャトー・カルボニュー",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "レオニャンの砂利質丘陵。水はけの良いギュンツ期の砂利が厚く堆積する。",
+		"producers": ["ペラン家(Famille Perrin)"],
+		"description": "グラーヴ格付け(1959年)のシャトーで、赤白ともに格付けされる。ペサック・レオニャン有数の規模を持ち、辛口白の産地としての評価が高い。"
+	},
+	{
+		"id": "domaine-de-chevalier",
+		"idApp": 911105,
+		"name": "Domaine de Chevalier",
+		"shortName": "Domaine de Chevalier",
+		"nameJa": "ドメーヌ・ド・シュヴァリエ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "レオニャン南部、森に囲まれた砂質を含む砂利質土壌。下層は粘土。",
+		"producers": ["オリヴィエ・ベルナール(Famille Bernard)"],
+		"description": "グラーヴ格付け(1959年)のドメーヌで、赤白ともに格付けされる。森に囲まれた冷涼な区画から、長期熟成型の辛口白でとくに知られる。"
+	},
+	{
+		"id": "chateau-couhins",
+		"idApp": 911106,
+		"name": "Château Couhins",
+		"shortName": "Château Couhins",
+		"nameJa": "シャトー・クーアン",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "ヴィルナーヴ・ドルノンの砂利質・砂質土壌。",
+		"producers": ["INRAE(フランス国立農学研究所)"],
+		"description": "グラーヴ格付け(1959年)を白で受けるシャトー。フランス国立農学研究所(INRAE)が所有し、栽培・醸造研究の場も兼ねる。"
+	},
+	{
+		"id": "chateau-couhins-lurton",
+		"idApp": 911107,
+		"name": "Château Couhins-Lurton",
+		"shortName": "Château Couhins-Lurton",
+		"nameJa": "シャトー・クーアン・リュルトン",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			}
+		],
+		"soil": "ヴィルナーヴ・ドルノンの砂利質土壌。粘土を含む区画もある。",
+		"producers": [
+			"ヴィニョーブル・アンドレ・リュルトン(Vignobles André Lurton)"
+		],
+		"description": "グラーヴ格付け(1959年)を白で受けるシャトー。1968年にクーアンから分割され、ソーヴィニヨン・ブラン主体の辛口白を産する。"
+	},
+	{
+		"id": "chateau-de-fieuzal",
+		"idApp": 911108,
+		"name": "Château de Fieuzal",
+		"shortName": "Château de Fieuzal",
+		"nameJa": "シャトー・ド・フューザル",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "レオニャンの砂利質丘陵。下層に粘土と鉄分を含む。",
+		"producers": ["ロックラン・クイン(Lochlann Quinn)"],
+		"description": "グラーヴ格付け(1959年)を赤で受けるシャトー。レオニャンの砂利質丘陵に位置し、白も高い評価を得ている。"
+	},
+	{
+		"id": "chateau-haut-bailly",
+		"idApp": 911109,
+		"name": "Château Haut-Bailly",
+		"shortName": "Château Haut-Bailly",
+		"nameJa": "シャトー・オー・バイイ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			}
+		],
+		"soil": "レオニャンの砂利に砂を多く含む丘。古樹の混植区画を持つ。",
+		"producers": ["ウィルマース家(Famille Wilmers)"],
+		"description": "グラーヴ格付け(1959年)を赤で受けるシャトー。単一の丘に畑がまとまり、古樹の混植区画に由来する繊細で緻密な赤で知られる。"
+	},
+	{
+		"id": "chateau-latour-martillac",
+		"idApp": 911110,
+		"name": "Château Latour-Martillac",
+		"shortName": "Château Latour-Martillac",
+		"nameJa": "シャトー・ラトゥール・マルティヤック",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "マルティヤックの砂利質台地。白の区画は粘土石灰質を含む。",
+		"producers": ["クレスマン家(Famille Kressmann)"],
+		"description": "グラーヴ格付け(1959年)のシャトーで、赤白ともに格付けされる。マルティヤックに位置し、クレスマン家が一世紀近く所有する。"
+	},
+	{
+		"id": "chateau-malartic-lagraviere",
+		"idApp": 911111,
+		"name": "Château Malartic-Lagravière",
+		"shortName": "Château Malartic-Lagravière",
+		"nameJa": "シャトー・マラルティック・ラグラヴィエール",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "レオニャンの砂利質台地(ラ・グラヴィエール=砂利の意)。",
+		"producers": ["ボニー家(Famille Bonnie)"],
+		"description": "グラーヴ格付け(1959年)のシャトーで、赤白ともに格付けされる。名前のラグラヴィエールは畑の砂利質土壌に由来する。"
+	},
+	{
+		"id": "chateau-la-mission-haut-brion",
+		"idApp": 911112,
+		"name": "Château La Mission Haut-Brion",
+		"shortName": "Château La Mission Haut-Brion",
+		"nameJa": "シャトー・ラ・ミッション・オー・ブリオン",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			}
+		],
+		"soil": "ペサックの砂利が厚く堆積した都市近郊の丘。オー・ブリオンと道を挟んで向かい合う。",
+		"producers": ["ドメーヌ・クラレンス・ディロン(ディロン家)"],
+		"description": "グラーヴ格付け(1959年)を赤で受けるシャトー。オー・ブリオンと道を挟んで向かい合い、同じくドメーヌ・クラレンス・ディロンが所有する。"
+	},
+	{
+		"id": "chateau-olivier",
+		"idApp": 911113,
+		"name": "Château Olivier",
+		"shortName": "Château Olivier",
+		"nameJa": "シャトー・オリヴィエ",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "semillon",
+				"role": "principal"
+			}
+		],
+		"soil": "レオニャンの砂利質土壌。区画により粘土石灰質を含む。",
+		"producers": ["ド・ベスマン家(Famille de Bethmann)"],
+		"description": "グラーヴ格付け(1959年)のシャトーで、赤白ともに格付けされる。中世の城館を構え、ド・ベスマン家が所有する。"
+	},
+	{
+		"id": "chateau-pape-clement",
+		"idApp": 911114,
+		"name": "Château Pape Clément",
+		"shortName": "Château Pape Clément",
+		"nameJa": "シャトー・パープ・クレマン",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			}
+		],
+		"soil": "ペサックの砂利質土壌。市街地に囲まれた古い区画。",
+		"producers": ["ベルナール・マグレ(Bernard Magrez)"],
+		"description": "グラーヴ格付け(1959年)を赤で受けるシャトー。14世紀の教皇クレメンス5世に由来する名を持ち、ボルドー最古級の畑のひとつ。"
+	},
+	{
+		"id": "chateau-smith-haut-lafitte",
+		"idApp": 911115,
+		"name": "Château Smith Haut Lafitte",
+		"shortName": "Château Smith Haut Lafitte",
+		"nameJa": "シャトー・スミス・オー・ラフィット",
+		"region": "bordeaux",
+		"subregionId": "graves-sauternais",
+		"kind": "winery",
+		"villageAopIds": ["pessac-leognan"],
+		"tags": ["cru-classe-de-graves"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルティヤックの砂利質丘陵。下層に石灰質を含む。",
+		"producers": ["カティアール家(Daniel & Florence Cathiard)"],
+		"description": "グラーヴ格付け(1959年)を赤で受けるシャトー。カティアール家のもとで有機・ビオディナミ栽培を進め、白も高く評価される。"
+	},
+	{
+		"id": "la-mondotte",
+		"idApp": 911116,
+		"name": "La Mondotte",
+		"shortName": "La Mondotte",
+		"nameJa": "ラ・モンドット",
+		"region": "bordeaux",
+		"subregionId": "libournais",
+		"kind": "winery",
+		"villageAopIds": ["saint-emilion-grand-cru"],
+		"tags": ["premier-grand-cru-classe-b"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			}
+		],
+		"soil": "サンテミリオンの石灰岩台地上、粘土石灰質の薄い表土。",
+		"producers": [
+			"ステファン・フォン・ネイペルグ伯爵(Comte Stephan von Neipperg)"
+		],
+		"description": "サンテミリオン格付け(2022年)第1特別級B。石灰岩台地上の小さな区画からメルロー主体の凝縮した赤を産する。カノン・ラ・ガフリエールと同じネイペルグ伯爵家が所有。"
+	},
+	{
 		"id": "clos-fourtet",
 		"idApp": 911102,
 		"name": "Clos Fourtet",

@@ -146,10 +146,9 @@ describe("AOPメタデータの整合性", () => {
 
 	it("ボルドー: シャトー(winery)の件数と格付けの内訳", () => {
 		const wineries = AOPS.filter((a) => a.kind === "winery");
-		// 2022年格付けから離脱した La Gaffelière を winery から外し、
-		// saint-emilion-grand-cru の producers へ移したぶん 103 → 102 ではなく
-		// 102 → 101。B は依然12件だが、正しい12件になるのは La Mondotte 追加後。
-		expect(wineries.length).toBe(101);
+		// 101(#216 で La Gaffelière を producers へ移した後) + グラーヴ1959年格付け13
+		// + La Mondotte 1 = 115。
+		expect(wineries.length).toBe(115);
 		expect(wineries.every((a) => a.region === "bordeaux")).toBe(true);
 		const countTag = (t: string) =>
 			AOPS.filter((a) => a.tags?.includes(t as never)).length;
@@ -161,14 +160,16 @@ describe("AOPメタデータの整合性", () => {
 		expect(countTag("quatrieme-cru-classe-1855")).toBe(10);
 		expect(countTag("cinquieme-cru-classe-1855")).toBe(18);
 		// サンテミリオン2022 1er GCC。公式の内訳は A 2件 / B 12件。
-		// La Gaffelière を外した時点では B は11件で、La Mondotte を足して12件に戻す。
 		expect(countTag("premier-grand-cru-classe-a")).toBe(2);
-		expect(countTag("premier-grand-cru-classe-b")).toBe(11);
+		expect(countTag("premier-grand-cru-classe-b")).toBe(12);
+		// グラーヴ1959年格付けは全16件。うち Haut-Brion は1855年第1級として既収録、
+		// La Tour Haut-Brion(2004年最終) と Laville Haut-Brion(2008年最終・
+		// La Mission Haut-Brion Blanc に改名) は現存しないため載せない。
+		expect(countTag("cru-classe-de-graves")).toBe(13);
 	});
 
 	// 2022年格付けの B に La Gaffelière(2022年に離脱)が混ざっていた不具合の回帰防止。
 	// 公式(サンテミリオンワイン評議会)の一覧と突き合わせて名前を固定する。
-	// La Mondotte は未収録のため、追加時にこのリストへ足すこと。
 	it("サンテミリオン第1特別級は公式の顔ぶれと一致する", () => {
 		const namesOf = (tag: string) =>
 			AOPS.filter((a) => a.tags?.includes(tag as never))
@@ -190,6 +191,31 @@ describe("AOPメタデータの整合性", () => {
 			"Château Trottevieille",
 			"Château Valandraud",
 			"Clos Fourtet",
+			"La Mondotte",
+		]);
+	});
+
+	// グラーヴ1959年格付けの顔ぶれ。現存しない2件を足し戻さないための固定。
+	it("グラーヴ格付けは現存する13件と一致する", () => {
+		const names = AOPS.filter((a) =>
+			a.tags?.includes("cru-classe-de-graves" as never),
+		)
+			.map((a) => a.name)
+			.sort();
+		expect(names).toEqual([
+			"Château Bouscaut",
+			"Château Carbonnieux",
+			"Château Couhins",
+			"Château Couhins-Lurton",
+			"Château Haut-Bailly",
+			"Château La Mission Haut-Brion",
+			"Château Latour-Martillac",
+			"Château Malartic-Lagravière",
+			"Château Olivier",
+			"Château Pape Clément",
+			"Château Smith Haut Lafitte",
+			"Château de Fieuzal",
+			"Domaine de Chevalier",
 		]);
 	});
 
