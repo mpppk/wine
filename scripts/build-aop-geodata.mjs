@@ -357,6 +357,25 @@ const WINERY_COORDS_BY_AOP_ID = {
 	"chateau-trottevieille": [-0.14508, 44.89478],
 	"chateau-valandraud": [-0.0855, 44.8878],
 	"clos-fourtet": [-0.15807, 44.89509],
+	// グラーヴ1959年格付け(#203)。出典: OSM Nominatim で各シャトー名を検索し、
+	// ペサック・レオニャン圏内に収まることを確認した。
+	"chateau-bouscaut": [-0.54568, 44.74779],
+	"chateau-carbonnieux": [-0.56898, 44.74532],
+	"domaine-de-chevalier": [-0.62927, 44.71962],
+	"chateau-couhins": [-0.56268, 44.75374],
+	// クーアン・リュルトンは建物単位の登録が無いため、公式サイト記載の住所
+	// (48, Chemin de Martillac)の街路点。クーアンと同じ Chambéry 集落内。
+	"chateau-couhins-lurton": [-0.56588, 44.75739],
+	"chateau-de-fieuzal": [-0.60724, 44.71384],
+	"chateau-haut-bailly": [-0.58151, 44.73316],
+	"chateau-latour-martillac": [-0.53931, 44.71153],
+	"chateau-malartic-lagraviere": [-0.6045, 44.7367],
+	"chateau-la-mission-haut-brion": [-0.60946, 44.81173],
+	"chateau-olivier": [-0.61731, 44.74495],
+	"chateau-pape-clement": [-0.64671, 44.80568],
+	"chateau-smith-haut-lafitte": [-0.55835, 44.73226],
+	// ラ・モンドットは OSM の畑区画 "Mondotte 1〜4" の重心。
+	"la-mondotte": [-0.14053, 44.88627],
 };
 
 // 簡略化の許容誤差(m)と除去する飛び地の最小面積(m²)。
