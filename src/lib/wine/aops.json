@@ -6592,7 +6592,12 @@
 			}
 		],
 		"soil": "サン・テミリオンと同一区域。石灰岩台地・粘土石灰質の斜面・砂利質の麓。",
-		"producers": ["Château Pavie", "Château Figeac", "Château Angélus"],
+		"producers": [
+			"Château Pavie",
+			"Château Figeac",
+			"Château Angélus",
+			"Château La Gaffelière"
+		],
 		"description": "サン・テミリオンと同じ区域だが、収量や熟成の規定が厳しい上位AOC。独自の格付け(2022年版)を持ち、頂点の第1特別級A/BのシャトーはこのAOCで瓶詰めする。"
 	},
 	{
@@ -9760,36 +9765,6 @@
 		"soil": "村南、斜面下部から麓にかけての砂質・粘土質を含む粘土石灰質土壌。",
 		"producers": ["ノイペルグ伯爵家(Vignobles Comtes von Neipperg)"],
 		"description": "サンテミリオン格付け(2022)第1特別級B、AOCサンテミリオン・グランクリュ。コート下部のテロワールでメルロー主体、有機栽培によるふくよかで表現力豊かな作風。ノイペルグ伯爵家が所有。"
-	},
-	{
-		"id": "chateau-la-gaffeliere",
-		"idApp": 911096,
-		"name": "Château La Gaffelière",
-		"shortName": "Château La Gaffelière",
-		"nameJa": "シャトー・ラ・ガフリエール",
-		"region": "bordeaux",
-		"subregionId": "libournais",
-		"kind": "winery",
-		"villageAopIds": ["saint-emilion-grand-cru"],
-		"tags": ["premier-grand-cru-classe-b"],
-		"colors": ["red"],
-		"grapes": [
-			{
-				"varietyId": "merlot",
-				"role": "principal"
-			},
-			{
-				"varietyId": "cabernet-franc",
-				"role": "principal"
-			},
-			{
-				"varietyId": "cabernet-sauvignon",
-				"role": "accessory"
-			}
-		],
-		"soil": "南向き斜面の粘土石灰質土壌で、斜面下部はよりシリカ(砂質)に富む。",
-		"producers": ["マレ・ロクフォール家(Famille de Malet-Roquefort)"],
-		"description": "サンテミリオン格付け(2022)第1特別級B、AOCサンテミリオン・グランクリュ。コートの粘土石灰質テロワールからメルロー主体で、伝統的で骨格のある赤を産する。マレ・ロクフォール家が3世紀以上所有。"
 	},
 	{
 		"id": "chateau-larcis-ducasse",

@@ -79,6 +79,7 @@ const PRODUCER_SEARCH_KEYWORDS: Record<string, string> = {
 	"Château Angélus": "シャトー・アンジェリュス",
 	"Château Pavie": "シャトー・パヴィ",
 	"Vieux Château Certan": "ヴィユー・シャトー・セルタン",
+	"Château La Gaffelière": "シャトー・ラ・ガフリエール",
 	// MICHELIN Grapes 2/1/選出（2026 追加）
 	"Domaine Denis Mortet": "ドニ・モルテ",
 	"Domaine Dujac": "ドメーヌ・デュジャック",

@@ -146,7 +146,10 @@ describe("AOPメタデータの整合性", () => {
 
 	it("ボルドー: シャトー(winery)の件数と格付けの内訳", () => {
 		const wineries = AOPS.filter((a) => a.kind === "winery");
-		expect(wineries.length).toBe(102);
+		// 2022年格付けから離脱した La Gaffelière を winery から外し、
+		// saint-emilion-grand-cru の producers へ移したぶん 103 → 102 ではなく
+		// 102 → 101。B は依然12件だが、正しい12件になるのは La Mondotte 追加後。
+		expect(wineries.length).toBe(101);
 		expect(wineries.every((a) => a.region === "bordeaux")).toBe(true);
 		const countTag = (t: string) =>
 			AOPS.filter((a) => a.tags?.includes(t as never)).length;
@@ -157,9 +160,37 @@ describe("AOPメタデータの整合性", () => {
 		expect(countTag("troisieme-cru-classe-1855")).toBe(14);
 		expect(countTag("quatrieme-cru-classe-1855")).toBe(10);
 		expect(countTag("cinquieme-cru-classe-1855")).toBe(18);
-		// サンテミリオン2022 1er GCC
+		// サンテミリオン2022 1er GCC。公式の内訳は A 2件 / B 12件。
+		// La Gaffelière を外した時点では B は11件で、La Mondotte を足して12件に戻す。
 		expect(countTag("premier-grand-cru-classe-a")).toBe(2);
-		expect(countTag("premier-grand-cru-classe-b")).toBe(12);
+		expect(countTag("premier-grand-cru-classe-b")).toBe(11);
+	});
+
+	// 2022年格付けの B に La Gaffelière(2022年に離脱)が混ざっていた不具合の回帰防止。
+	// 公式(サンテミリオンワイン評議会)の一覧と突き合わせて名前を固定する。
+	// La Mondotte は未収録のため、追加時にこのリストへ足すこと。
+	it("サンテミリオン第1特別級は公式の顔ぶれと一致する", () => {
+		const namesOf = (tag: string) =>
+			AOPS.filter((a) => a.tags?.includes(tag as never))
+				.map((a) => a.name)
+				.sort();
+		expect(namesOf("premier-grand-cru-classe-a")).toEqual([
+			"Château Figeac",
+			"Château Pavie",
+		]);
+		expect(namesOf("premier-grand-cru-classe-b")).toEqual([
+			"Château Beau-Séjour Bécot",
+			"Château Beauséjour (Héritiers Duffau-Lagarrosse)",
+			"Château Bélair-Monange",
+			"Château Canon",
+			"Château Canon la Gaffelière",
+			"Château Larcis Ducasse",
+			"Château Pavie Macquin",
+			"Château Troplong Mondot",
+			"Château Trottevieille",
+			"Château Valandraud",
+			"Clos Fourtet",
+		]);
 	});
 
 	it("ボルドー1855/サンテミリオン格付けタグは winery のみが持つ", () => {
