@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 import { aopArraySchema } from "./aop-schema";
 import rawAops from "./aops.json";
 import { AOPS } from "./aops-data";
-import { MICHELIN_GRAPES_URL, PRODUCER_INFO } from "./producer-info";
+import {
+	MICHELIN_GRAPES_URL,
+	PRODUCER_INFO,
+	type ProducerAward,
+} from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
@@ -186,6 +190,10 @@ describe("AOPメタデータの整合性", () => {
 	});
 });
 
+/** Gambero Rosso トレ・ビッキエーリの受賞かどうか */
+const isTreBicchieri = (award: ProducerAward): boolean =>
+	award.name.includes("トレ・ビッキエーリ");
+
 describe("生産者情報(PRODUCER_INFO)の整合性", () => {
 	// 全AOPに登場する生産者名の集合。PRODUCER_INFO のキーはここに含まれていないと
 	// ダイアログで表示されず、表記ゆれの温床になるため参照整合性を検証する。
@@ -277,6 +285,46 @@ describe("生産者情報(PRODUCER_INFO)の整合性", () => {
 			"1グレープ": 33,
 			選出: 32,
 		});
+	});
+
+	// MICHELIN Grapes のブルゴーニュ限定と対になる制約。トレ・ビッキエーリは
+	// イタリア2地域の生産者にしか付かない(地域を跨いだ誤付与を防ぐ)。
+	it("トレ・ビッキエーリを受賞に持つのはピエモンテ/トスカーナの生産者だけ", () => {
+		const italyProducers = new Set(
+			AOPS.filter(
+				(a) => a.region === "piemonte" || a.region === "toscana",
+			).flatMap((a) => a.producers.map((p) => p.name)),
+		);
+		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
+			if (!info.awards?.some(isTreBicchieri)) continue;
+			expect(italyProducers.has(name), name).toBe(true);
+		}
+	});
+
+	// トレ・ビッキエーリは生産者ではなく個別のワインへの賞。対象ワインの無い
+	// エントリは登録ミスで、ダイアログに何を獲ったのか出ない。
+	it("トレ・ビッキエーリは受賞ワイン名を持つ", () => {
+		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
+			for (const award of info.awards ?? []) {
+				if (!isTreBicchieri(award)) continue;
+				expect(award.wine?.length ?? 0, name).toBeGreaterThan(0);
+			}
+		}
+	});
+
+	// 受賞リスト(ピエモンテ77件/トスカーナ93件)と収録生産者の積集合。取りこぼしや
+	// 重複追加をここで検出する。件数を動かすときは出典を引き直すこと。
+	it("トレ・ビッキエーリの地域別件数が調査結果と一致する", () => {
+		const regionOf = new Map(
+			AOPS.flatMap((a) => a.producers.map((p) => [p.name, a.region] as const)),
+		);
+		const byRegion = new Map<string, number>();
+		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
+			if (!info.awards?.some(isTreBicchieri)) continue;
+			const region = regionOf.get(name) ?? "(不明)";
+			byRegion.set(region, (byRegion.get(region) ?? 0) + 1);
+		}
+		expect(Object.fromEntries(byRegion)).toEqual({ piemonte: 30, toscana: 38 });
 	});
 });
 
