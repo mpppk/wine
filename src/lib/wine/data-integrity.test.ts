@@ -212,6 +212,39 @@ describe("AOPメタデータの整合性", () => {
 		expect(names.has("La Mondotte")).toBe(false);
 	});
 
+	// クリュ・ブルジョワは**2025年格付け**の Exceptionnel 14件だけを載せる
+	// (Supérieur 36件・通常級120件は載せない。#209 の意図的な線引き)。
+	// Wikipedia 等が載せているのは2020年版で、2025年版とは14件中8件が別物。
+	// 公式PDFの一覧で AOC ごとの内訳まで確認した値を固定する。
+	it("クリュ・ブルジョワ Exceptionnel 2025 が AOC ごとに正しく入っている", () => {
+		const producersOf = (id: string) =>
+			new Set(AOPS.find((a) => a.id === id)?.producers.map((p) => p.name));
+		const expected: Record<string, string[]> = {
+			medoc: ["Château la Cardonne", "Château Castera", "Château Laujac"],
+			"haut-medoc": [
+				"Château Malescasse",
+				"Château de Malleret",
+				"Château Paloumey",
+				"Château Reysson",
+				"Château du Taillan",
+			],
+			"listrac-medoc": ["Château Reverdi"],
+			margaux: [
+				"Château d'Arsac",
+				"Château Mongravey",
+				"Château Paveil de Luze",
+			],
+			"saint-estephe": ["Château le Crock", "Château Laffitte Carcasset"],
+		};
+		let total = 0;
+		for (const [aopId, names] of Object.entries(expected)) {
+			const have = producersOf(aopId);
+			for (const n of names) expect(have?.has(n), `${aopId}: ${n}`).toBe(true);
+			total += names.length;
+		}
+		expect(total).toBe(14);
+	});
+
 	// グラーヴ1959年格付けの顔ぶれ。現存しない2件を足し戻さないための固定。
 	it("グラーヴ格付けは現存する13件と一致する", () => {
 		const names = AOPS.filter((a) =>

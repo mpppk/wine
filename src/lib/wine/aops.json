@@ -6132,7 +6132,13 @@
 			}
 		],
 		"soil": "ジロンド川左岸、半島北部(バ・メドック)の砂利と粘土の混じる土壌。オー・メドックより粘土がち。",
-		"producers": ["Château Potensac", "Château Loudenne"],
+		"producers": [
+			"Château Potensac",
+			"Château Loudenne",
+			"Château la Cardonne",
+			"Château Castera",
+			"Château Laujac"
+		],
 		"description": "メドック半島全体を包含する地区AOC。実質的には半島北部(バ・メドック)のシャトーが名乗る赤専用の呼称で、カベルネ・ソーヴィニヨンとメルロを主体とする。"
 	},
 	{
@@ -6171,7 +6177,12 @@
 		"producers": [
 			"Château La Lagune",
 			"Château Cantemerle",
-			"Château Sociando-Mallet"
+			"Château Sociando-Mallet",
+			"Château Malescasse",
+			"Château de Malleret",
+			"Château Paloumey",
+			"Château Reysson",
+			"Château du Taillan"
 		],
 		"description": "メドック半島南部の地区AOC。ポイヤックやマルゴーなど6つの村名AOCを内包し、それらの村名を名乗れない区画や村外のシャトーが用いる。1855年格付けのシャトーも複数含む。"
 	},
@@ -6211,7 +6222,9 @@
 		"producers": [
 			"Château Cos d'Estournel",
 			"Château Montrose",
-			"Château Calon-Ségur"
+			"Château Calon-Ségur",
+			"Château le Crock",
+			"Château Laffitte Carcasset"
 		],
 		"description": "メドック北端の村名AOC。粘土質の影響で力強くタンニンの豊かな長熟型の赤を生む。コス・デストゥルネルやモンローズなど2級シャトーが牽引する。"
 	},
@@ -6328,7 +6341,14 @@
 			}
 		],
 		"soil": "メドックで最も薄く軽い砂利質土壌。5つのコミューンにまたがる。",
-		"producers": ["Château Margaux", "Château Palmer", "Château Rauzan-Ségla"],
+		"producers": [
+			"Château Margaux",
+			"Château Palmer",
+			"Château Rauzan-Ségla",
+			"Château d'Arsac",
+			"Château Mongravey",
+			"Château Paveil de Luze"
+		],
 		"description": "メドック最南部の村名AOC。薄い砂利土壌から生まれる香り高くしなやかな赤で知られ、第1級シャトー・マルゴーを頂点に最多21の格付けシャトーを擁する。"
 	},
 	{
@@ -6364,7 +6384,11 @@
 			}
 		],
 		"soil": "メドック内陸部の標高が高い石灰岩・砂利の丘。メルロの比率が高め。",
-		"producers": ["Château Clarke", "Château Fourcas-Hosten"],
+		"producers": [
+			"Château Clarke",
+			"Château Fourcas-Hosten",
+			"Château Reverdi"
+		],
 		"description": "メドック内陸の村名AOC。1855年格付けシャトーは持たないが、堅実で骨格のしっかりした赤を産する。クリュ・ブルジョワが中心。"
 	},
 	{
