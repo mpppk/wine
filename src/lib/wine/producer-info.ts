@@ -557,6 +557,536 @@ const MICHELIN_SELECTED: Record<string, Omit<ProducerInfo, "awards">> = {
 };
 
 /**
+ * Gambero Rosso「Vini d'Italia」の最高評価トレ・ビッキエーリ2026(2026年版ガイド)。
+ *
+ * MICHELIN Grapes と違い階級が無く、受賞は**生産者ではなく個別のワイン**に与えられる
+ * ため、エントリごとに wine を持つ(withAward のグループ適用は使えない)。
+ *
+ * 掲載しているのは 2026年版の全508受賞のうち、**このアプリが独自基準で既に収録して
+ * いる生産者と重なる68件だけ**。ガイドの掲載リストを網羅的に転記しない規約
+ * (docs/architecture.md「ガイド由来情報の取り扱い」)に従う。評価文・テイスティング
+ * コメントは持ち込まず、受賞という事実と出典のみを載せる。
+ *
+ * wine は出典の表記をそのまま入れる(Ris. / Sup. / V. V. / Cl. の略記も展開しない)。
+ * 訳したり展開したりすると原典と照合できなくなる。
+ */
+const TRE_BICCHIERI_2026_PIEMONTE_URL =
+	"https://www.gamberorosso.it/notizie/vino/degustazioni/tre-bicchieri-2026-migliori-vini-piemonte/";
+const TRE_BICCHIERI_2026_TOSCANA_URL =
+	"https://www.gamberorosso.it/notizie/vino/degustazioni/tre-bicchieri-2026-migliori-vini-toscana/";
+
+const treBicchieri2026 = (wine: string, url: string): ProducerAward => ({
+	name: "Gambero Rosso トレ・ビッキエーリ",
+	wine,
+	year: 2026,
+	url,
+});
+
+/** トレ・ビッキエーリ2026 受賞（ピエモンテ・30件） */
+const TRE_BICCHIERI_2026_PIEMONTE: Record<string, ProducerInfo> = {
+	Accornero: {
+		awards: [
+			treBicchieri2026(
+				"Barbera del Monferrato Sup. Giulin 2023",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Angelo Negro": {
+		awards: [
+			treBicchieri2026(
+				"Roero Arneis Sette Anni Ris. 2018",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Bava: {
+		awards: [
+			treBicchieri2026(
+				"M.to Nebbiolo Sup. Serre di San Pietro 2022",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Bersano: {
+		awards: [
+			treBicchieri2026("Nizza Cremosina 2022", TRE_BICCHIERI_2026_PIEMONTE_URL),
+		],
+	},
+	"Bruno Giacosa": {
+		awards: [
+			treBicchieri2026(
+				"Barbaresco Asili Ris. 2020",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Ca' del Baio": {
+		awards: [
+			treBicchieri2026(
+				"Barbaresco Asili Ris. 2020",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Cascina delle Rose": {
+		awards: [
+			treBicchieri2026(
+				"Barbaresco Rio Sordo 2022",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Castellari Bergaglio": {
+		awards: [
+			treBicchieri2026(
+				"Gavi del Comune di Gavi Rovereto Vignavecchia 2019",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Cavallotto: {
+		awards: [
+			treBicchieri2026(
+				"Barolo Vignolo Ris. 2019",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Coppo: {
+		awards: [
+			treBicchieri2026("Nizza Pomorosso 2022", TRE_BICCHIERI_2026_PIEMONTE_URL),
+		],
+	},
+	"Domenico Clerico": {
+		awards: [
+			treBicchieri2026(
+				"Barolo Ginestra Ciabot Mentin 2021",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Enrico Serafino": {
+		awards: [
+			treBicchieri2026(
+				"Alta Langa Pas Dosé Sboccatura Tardiva Zero Ris. 2019",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Ferraris Agricola": {
+		awards: [
+			treBicchieri2026(
+				"Barbera d'Asti Sup. Colli Astiani Viti Centenarie 2021",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"G.B. Burlotto": {
+		awards: [
+			treBicchieri2026(
+				"Barolo Castelletto 2021",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"G.D. Vajra": {
+		awards: [
+			treBicchieri2026(
+				"Barolo Coste di Rose 2021",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Gaja: {
+		awards: [
+			treBicchieri2026(
+				"Barbaresco Sorì Tildin 2022",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Giacomo Conterno": {
+		awards: [
+			treBicchieri2026("Barolo Francia 2021", TRE_BICCHIERI_2026_PIEMONTE_URL),
+		],
+	},
+	"Luigi Spertino": {
+		awards: [
+			treBicchieri2026(
+				"Barbera d'Asti La Bigia 2023",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Marziano Abbona": {
+		awards: [
+			treBicchieri2026(
+				"Dogliani Papà Celso 2024",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Michele Chiarlo": {
+		awards: [
+			treBicchieri2026("Barolo Cerequio 2021", TRE_BICCHIERI_2026_PIEMONTE_URL),
+		],
+	},
+	"Monchiero Carbone": {
+		awards: [
+			treBicchieri2026(
+				"Roero Arneis Renesio Incisa Ris. 2020",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Nicola Bergaglio": {
+		awards: [
+			treBicchieri2026(
+				"Gavi del Comune di Gavi Rovereto Minaia 2024",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Orsolani: {
+		awards: [
+			treBicchieri2026("Caluso Vintàge 2020", TRE_BICCHIERI_2026_PIEMONTE_URL),
+		],
+	},
+	"Pico Maccario": {
+		awards: [
+			treBicchieri2026(
+				"Barbera d'Asti Lavignone 2024",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Pio Cesare": {
+		awards: [
+			treBicchieri2026(
+				"Barbaresco Bricco di Treiso Il Bricco 2021",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Sottimano: {
+		awards: [
+			treBicchieri2026(
+				"Barbaresco Currà 2020",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Tacchino: {
+		awards: [
+			treBicchieri2026(
+				"Dolcetto di Ovada Sup. Du Riva 2020",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	"Torraccia del Piantavigna": {
+		awards: [
+			treBicchieri2026("Gattinara 2020", TRE_BICCHIERI_2026_PIEMONTE_URL),
+		],
+	},
+	Travaglini: {
+		awards: [
+			treBicchieri2026(
+				"Gattinara V. Ronchi Ris. 2019",
+				TRE_BICCHIERI_2026_PIEMONTE_URL,
+			),
+		],
+	},
+	Vietti: {
+		awards: [
+			treBicchieri2026("Barolo Brunate 2021", TRE_BICCHIERI_2026_PIEMONTE_URL),
+		],
+	},
+};
+
+/** トレ・ビッキエーリ2026 受賞（トスカーナ・38件） */
+const TRE_BICCHIERI_2026_TOSCANA: Record<string, ProducerInfo> = {
+	Argentiera: {
+		awards: [
+			treBicchieri2026(
+				"Bolgheri Rosso Sup. Argentiera 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Avignonesi: {
+		awards: [
+			treBicchieri2026(
+				"Nobile di Montepulciano Poggetto di Sopra 2021",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Barone Ricasoli": {
+		awards: [
+			treBicchieri2026(
+				"Chianti Cl. Gran Selezione Colledilà 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Biondi-Santi": {
+		awards: [
+			treBicchieri2026(
+				"Brunello di Montalcino Ris. 2018",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Boscarelli: {
+		awards: [
+			treBicchieri2026(
+				"Nobile di Montepulciano Costa Grande 2021",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Bruni: {
+		awards: [
+			treBicchieri2026(
+				"Maremma Alicante Oltreconfine 2023",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Canalicchio di Sopra": {
+		awards: [
+			treBicchieri2026(
+				"Brunello di Montalcino V. Montosoli 2020",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Casanova di Neri": {
+		awards: [
+			treBicchieri2026(
+				"Brunello di Montalcino Tenuta Nuova 2020",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Castello di Monsanto": {
+		awards: [
+			treBicchieri2026(
+				"Chianti Cl. Gran Selezione Vign. Il Poggio 2020",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Castello di Volpaia": {
+		awards: [
+			treBicchieri2026(
+				"Chianti Cl. Gran Selezione Coltassala 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Col d'Orcia": {
+		awards: [
+			treBicchieri2026(
+				"Brunello di Montalcino V. Nastagio 2020",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	ColleMassari: {
+		awards: [
+			treBicchieri2026(
+				"Montecucco Sangiovese Poggio Lombrone Ris. 2021",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Fattoria Le Pupille": {
+		awards: [
+			treBicchieri2026("Poggio Valente 2022", TRE_BICCHIERI_2026_TOSCANA_URL),
+		],
+	},
+	Fontodi: {
+		awards: [
+			treBicchieri2026(
+				"Flaccianello della Pieve 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Frescobaldi: {
+		awards: [
+			treBicchieri2026(
+				"Chianti Rufina Terraelectae V. Montesodi Ris. 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Fuligni: {
+		awards: [
+			treBicchieri2026(
+				"Brunello di Montalcino Ris. 2019",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Grattamacco: {
+		awards: [
+			treBicchieri2026(
+				"Bolgheri Rosso Sup. Grattamacco 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Il Colombaio di Santa Chiara": {
+		awards: [
+			treBicchieri2026(
+				"Vernaccia di San Gimignano L'Albereta Ris. 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Isole e Olena": {
+		awards: [
+			treBicchieri2026("Chianti Cl. 2022", TRE_BICCHIERI_2026_TOSCANA_URL),
+		],
+	},
+	"Le Macchiole": {
+		awards: [
+			treBicchieri2026("Paleo Rosso 2022", TRE_BICCHIERI_2026_TOSCANA_URL),
+		],
+	},
+	"Marchesi Antinori": {
+		awards: [treBicchieri2026("Solaia 2022", TRE_BICCHIERI_2026_TOSCANA_URL)],
+	},
+	Montenidoli: {
+		awards: [
+			treBicchieri2026(
+				"Vernaccia di San Gimignano Carato 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Ornellaia: {
+		awards: [
+			treBicchieri2026(
+				"Bolgheri Bianco Ornellaia 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Panizzi: {
+		awards: [
+			treBicchieri2026(
+				"Vernaccia di San Gimignano Ris. 2021",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Petra: {
+		awards: [treBicchieri2026("Petra 2022", TRE_BICCHIERI_2026_TOSCANA_URL)],
+	},
+	Piaggia: {
+		awards: [
+			treBicchieri2026("Poggio de' Colli 2022", TRE_BICCHIERI_2026_TOSCANA_URL),
+		],
+	},
+	"Podere Sapaio": {
+		awards: [
+			treBicchieri2026(
+				"Bolgheri Rosso Volpolo 2023",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Poggio di Sotto": {
+		awards: [
+			treBicchieri2026(
+				"Brunello di Montalcino Ris. 2019",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Poliziano: {
+		awards: [
+			treBicchieri2026(
+				"Nobile di Montepulciano Asinone 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	Riecine: {
+		awards: [treBicchieri2026("La Gioia 2021", TRE_BICCHIERI_2026_TOSCANA_URL)],
+	},
+	"Rocca delle Macìe": {
+		awards: [
+			treBicchieri2026(
+				"Chianti Cl. Tenuta Sant'Alfonso 2023",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Rocca di Frassinello": {
+		awards: [
+			treBicchieri2026(
+				"Maremma Toscana Merlot Baffonero 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"San Felice": {
+		awards: [
+			treBicchieri2026(
+				"Chianti Cl. Il Grigio Ris. 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Stefano Amerighi": {
+		awards: [
+			treBicchieri2026(
+				"Cortona Syrah Apice 2021",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Tenuta San Guido": {
+		awards: [
+			treBicchieri2026(
+				"Bolgheri Sassicaia 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Tenuta di Artimino": {
+		awards: [
+			treBicchieri2026(
+				"Carmignano Grumarello Ris. 2021",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Tenuta di Capezzana": {
+		awards: [
+			treBicchieri2026(
+				"Carmignano Trefiano Ris. 2021",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+	"Tenuta di Valgiano": {
+		awards: [
+			treBicchieri2026(
+				"Colline Lucchesi Tenuta di Valgiano 2022",
+				TRE_BICCHIERI_2026_TOSCANA_URL,
+			),
+		],
+	},
+};
+
+/**
  * 生産者名 → 解説・受賞・公式サイト。
  *
  * MICHELIN Grapes 以外の基準で足す生産者はこのオブジェクトに直接書き、awards を
@@ -567,6 +1097,8 @@ export const PRODUCER_INFO: Record<string, ProducerInfo> = {
 	...withAward(MICHELIN_TWO_GRAPES, michelinGrapesAward("2グレープ")),
 	...withAward(MICHELIN_ONE_GRAPE, michelinGrapesAward("1グレープ")),
 	...withAward(MICHELIN_SELECTED, michelinGrapesAward("選出")),
+	...TRE_BICCHIERI_2026_PIEMONTE,
+	...TRE_BICCHIERI_2026_TOSCANA,
 };
 
 /** 生産者名から解説・受賞・公式サイトを引く。未登録なら undefined */
