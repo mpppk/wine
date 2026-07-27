@@ -9993,7 +9993,15 @@
 			"Giacomo Conterno",
 			"Bartolo Mascarello",
 			"G.D. Vajra",
-			"Vietti"
+			"Vietti",
+			"Poderi Aldo Conterno",
+			"Luciano Sandrone",
+			"Paolo Scavino",
+			"Cavallotto",
+			"Massolino",
+			"Elio Grasso",
+			"Domenico Clerico",
+			"Roberto Voerzio"
 		],
 		"description": "ネッビオーロ100%から生まれる「ワインの王、王のワイン」。11のコムーネにまたがり、区画(MGA)ごとの個性が際立つイタリア最高峰の赤。最低熟成38ヶ月。"
 	},
@@ -10015,7 +10023,16 @@
 			}
 		],
 		"soil": "タナロ川に近いトルトニアーノ期の石灰質泥灰土。バローロより温暖で土壌もやや軽く、早熟でエレガントなネッビオーロを生む。",
-		"producers": ["Gaja", "Produttori del Barbaresco", "Bruno Giacosa"],
+		"producers": [
+			"Gaja",
+			"Produttori del Barbaresco",
+			"Bruno Giacosa",
+			"Roagna",
+			"Sottimano",
+			"Bruno Rocca",
+			"Ca' del Baio",
+			"Cascina delle Rose"
+		],
 		"description": "ネッビオーロ100%。バローロと並ぶ銘醸だが、より繊細で優美なスタイル。ガヤが世界的名声を築いた。最低熟成26ヶ月、4コムーネ(バルバレスコ/ネイヴェ/トレイゾ/アルバ)。"
 	},
 	{
@@ -10036,7 +10053,7 @@
 			}
 		],
 		"soil": "ランゲ南部の石灰質・砂質泥灰土。標高がやや高く、凝縮したドルチェットを育む。",
-		"producers": ["Chionetti", "Pecchenino", "San Fereolo"],
+		"producers": ["Chionetti", "Pecchenino", "San Fereolo", "Marziano Abbona"],
 		"description": "ドルチェット100%。ドルチェットを最も真剣に表現する産地で、力強くタンニンのある長熟型。かつてはDolcetto di Doglianiと呼ばれた。"
 	},
 	{
@@ -10112,7 +10129,13 @@
 			}
 		],
 		"soil": "タナロ川左岸ロエロ地区の砂質土壌(サッビエ)。ランゲより砂が多く、軽やかで香り高いネッビオーロとアルネイスの白を生む。",
-		"producers": ["Matteo Correggia", "Malvirà", "Bruno Giacosa"],
+		"producers": [
+			"Matteo Correggia",
+			"Malvirà",
+			"Bruno Giacosa",
+			"Monchiero Carbone",
+			"Angelo Negro"
+		],
 		"description": "赤はネッビオーロ主体、白はアルネイス(ロエロ・アルネイス)。砂質土壌ゆえの繊細さが身上で、アルネイスはピエモンテを代表する白品種。"
 	},
 	{
@@ -10179,7 +10202,13 @@
 			}
 		],
 		"soil": "アスティ県を中心とする石灰質泥灰土(マルヌ)。バルベーラの本拠。",
-		"producers": ["Braida", "Coppo", "Vietti"],
+		"producers": [
+			"Braida",
+			"Coppo",
+			"Vietti",
+			"Luigi Spertino",
+			"Pico Maccario"
+		],
 		"description": "バルベーラ主体(90%以上)。豊かな酸と果実味が持ち味で、樽熟のスペリオーレは長熟。ブライダのブリッコ・デッルッチェッローネが名声を確立した。"
 	},
 	{
@@ -10313,7 +10342,13 @@
 			}
 		],
 		"soil": "アレッサンドリア県ガヴィ周辺の石灰質・白亜質土壌。",
-		"producers": ["La Scolca", "Villa Sparina", "Broglia"],
+		"producers": [
+			"La Scolca",
+			"Villa Sparina",
+			"Broglia",
+			"Nicola Bergaglio",
+			"Castellari Bergaglio"
+		],
 		"description": "コルテーゼ100%の辛口白(Cortese di Gaviとも)。ミネラルとシトラスの効いたシャープな酸が身上で、ピエモンテを代表する白ワイン。"
 	},
 	{
@@ -10342,7 +10377,12 @@
 			}
 		],
 		"soil": "アルト・ピエモンテ(北部)の火山性・斑岩質の酸性土壌。標高が高く冷涼。",
-		"producers": ["Travaglini", "Nervi-Conterno", "Antoniolo"],
+		"producers": [
+			"Travaglini",
+			"Nervi-Conterno",
+			"Antoniolo",
+			"Torraccia del Piantavigna"
+		],
 		"description": "ネッビオーロ(現地名スパンナ)主体の長熟赤。火山性土壌由来のミネラルと鋭い酸が特徴で、バローロとは異なる繊細さを持つ。"
 	},
 	{
@@ -15489,7 +15529,15 @@
 			"Marchesi Antinori",
 			"Castello di Ama",
 			"Fontodi",
-			"Isole e Olena"
+			"Isole e Olena",
+			"Fèlsina",
+			"Querciabella",
+			"Riecine",
+			"San Giusto a Rentennano",
+			"Badia a Coltibuono",
+			"Barone Ricasoli",
+			"Castello di Volpaia",
+			"Castello di Monsanto"
 		],
 		"description": "サンジョヴェーゼ80%以上(2020年からは白品種不可)。黒い雄鶏(ガッロ・ネロ)を象徴とする歴史的中核地区で、上位に Riserva、最上位に単一畑主体の Gran Selezione を擁する。"
 	},
@@ -15581,7 +15629,20 @@
 			}
 		],
 		"soil": "モンタルチーノの丘(標高〜600m)。北部は冷涼でエレガント、南部はより温暖で力強い。ガレストロ・粘土・海成堆積土が混在。",
-		"producers": ["Biondi-Santi", "Casanova di Neri", "Il Poggione", "Soldera"],
+		"producers": [
+			"Biondi-Santi",
+			"Casanova di Neri",
+			"Il Poggione",
+			"Soldera",
+			"Poggio di Sotto",
+			"Valdicava",
+			"Cerbaiona",
+			"Salvioni",
+			"Lisini",
+			"Fuligni",
+			"Siro Pacenti",
+			"Canalicchio di Sopra"
+		],
 		"description": "サンジョヴェーゼ100%(地元名ブルネッロ)。最低熟成5年(うち樽2年)、リゼルヴァは6年。19世紀ビオンディ・サンティが確立したイタリア最高峰の長熟赤。"
 	},
 	{
@@ -15781,7 +15842,12 @@
 			}
 		],
 		"soil": "塔の街サン・ジミニャーノを囲む砂質・粘土質の丘。ミネラルと骨格を白に与える。",
-		"producers": ["Panizzi", "Montenidoli", "Teruzzi"],
+		"producers": [
+			"Panizzi",
+			"Montenidoli",
+			"Teruzzi",
+			"Il Colombaio di Santa Chiara"
+		],
 		"description": "トスカーナを代表する辛口白。地場品種ヴェルナッチャ85%以上から、塩味を伴うコクとほろ苦い余韻を生む。イタリア初のDOC(1966年)にして州唯一の白DOCG。"
 	},
 	{
@@ -15822,7 +15888,16 @@
 			}
 		],
 		"soil": "ティレニア海に面したボルゲリの沖積・小石混じりの土壌。海風と温暖な気候がボルドー品種を完熟させる。",
-		"producers": ["Tenuta San Guido", "Ornellaia", "Grattamacco"],
+		"producers": [
+			"Tenuta San Guido",
+			"Ornellaia",
+			"Grattamacco",
+			"Le Macchiole",
+			"Michele Satta",
+			"Guado al Tasso",
+			"Podere Sapaio",
+			"Argentiera"
+		],
 		"description": "「スーパートスカーナ」を生んだ聖地。カベルネ・メルロ主体の国際品種ブレンドを公式に認めたDOCで、サッシカイアやオルネッライアが世界的名声を確立した。白はヴェルメンティーノ。"
 	},
 	{
@@ -15916,7 +15991,7 @@
 			}
 		],
 		"soil": "マレンマ内陸のスカンサーノ周辺の丘。温暖で日照に恵まれ、豊かな果実味を生む。",
-		"producers": ["Fattoria Le Pupille", "Poggio Argentiera"],
+		"producers": ["Fattoria Le Pupille", "Poggio Argentiera", "Bruni"],
 		"description": "サンジョヴェーゼ(地元名モレッリーノ)85%以上。マレンマの温暖さゆえに丸く柔らかく、若くから親しみやすい。マレンマを代表する赤DOCG。"
 	},
 	{
@@ -16103,7 +16178,12 @@
 			}
 		],
 		"soil": "フィレンツェ北西、プラート近郊の丘陵。粘土石灰質の温暖な斜面。",
-		"producers": ["Tenuta di Capezzana", "Fattoria Ambra"],
+		"producers": [
+			"Tenuta di Capezzana",
+			"Fattoria Ambra",
+			"Piaggia",
+			"Tenuta di Artimino"
+		],
 		"description": "サンジョヴェーゼ主体にカベルネの補助を古くから認めた稀有な産地。メディチ家が16世紀に境界を定めた歴史を持ち、スーパートスカーナの先駆けともいえる小さなDOCG。"
 	},
 	{
