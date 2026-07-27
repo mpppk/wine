@@ -195,6 +195,23 @@ describe("AOPメタデータの整合性", () => {
 		]);
 	});
 
+	// サンテミリオン格付けの Grands Crus Classés は2022年版で71件。公式一覧を
+	// 数えた値で、公式ページの本文や二次情報が「66」「62」と述べることがあるが
+	// 列挙されている名前は71ある。件数の記述ではなくリストを信用すること。
+	// Premiers(A2 + B12)は winery、GCC は producers に置く(#209 の規約。winery に
+	// すると aop-classification クイズが単一ラベル71件に偏る)。
+	it("サンテミリオン・グラン・クリュの producers に GCC 71件が入っている", () => {
+		const segc = AOPS.find((a) => a.id === "saint-emilion-grand-cru");
+		const names = new Set(segc?.producers.map((p) => p.name));
+		// Premiers A の2件 + 格付けを離脱した La Gaffelière(#216) + GCC 71 = 75
+		expect(names.size).toBe(75);
+		for (const n of ["Château Soutard", "Clos des Jacobins", "Lassegue"]) {
+			expect(names.has(n), n).toBe(true);
+		}
+		// Premiers は winery 側にあるので producers に重複させない
+		expect(names.has("La Mondotte")).toBe(false);
+	});
+
 	// グラーヴ1959年格付けの顔ぶれ。現存しない2件を足し戻さないための固定。
 	it("グラーヴ格付けは現存する13件と一致する", () => {
 		const names = AOPS.filter((a) =>
