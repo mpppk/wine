@@ -257,3 +257,76 @@ export function buildUpdatePatch(
 		collectDrunkWinePatch(toSnakeEntry(entry), toFormValues(s)),
 	);
 }
+
+// ---- 未保存の変更(離脱ガード) ---------------------------------------------
+// フォームの state は全てローカルなので、離脱すると内容が消える。特に「エチケットから
+// 自動入力」は AI クレジットを消費して値を埋めるため、失われるのは入力の手間だけでは
+// ない(#238)。判定はここに置き、フォーム側でフィールドを再列挙しない。
+
+/**
+ * 比較用に正規化した送信対象フィールド。
+ * satisfies により、DrunkWineFormState へフィールドを足したのにここへ足し忘れると
+ * コンパイルエラーになる(比較漏れ=「変更したのに警告が出ない」を防ぐ)。
+ */
+function normalizeFormState(s: DrunkWineFormState) {
+	return {
+		name: s.name.trim(),
+		status: s.status,
+		vintage: s.vintage.trim(),
+		producer: s.producer.trim(),
+		price: s.price.trim(),
+		// AOP 未選択は undefined と "" のどちらもありうる
+		aopId: s.aopId ?? "",
+		// 並び順は送信内容に影響しないので集合として比較する
+		grapeVarietyIds: [...s.grapeVarietyIds].sort().join(","),
+	} satisfies Record<keyof DrunkWineFormState, string>;
+}
+
+/** 送信対象のフィールドが同値か(前後空白と品種の並び順は無視する)。 */
+export function drunkWineFormStateEquals(
+	a: DrunkWineFormState,
+	b: DrunkWineFormState,
+): boolean {
+	const na = normalizeFormState(a);
+	const nb = normalizeFormState(b);
+	return (Object.keys(na) as (keyof typeof na)[]).every((k) => na[k] === nb[k]);
+}
+
+/** 飲用記録の下書きが同値か。 */
+function tastingDraftEquals(a: WineTastingDraft, b: WineTastingDraft): boolean {
+	return (
+		a.drankOn === b.drankOn &&
+		a.rating === b.rating &&
+		a.memo.trim() === b.memo.trim()
+	);
+}
+
+export interface UnsavedDrunkWineChangesInput {
+	/** 初期表示の値(= 直近に保存済みの内容)。fieldsValueFromEntry の結果を渡す。 */
+	initial: DrunkWineFieldsValue;
+	/** 現在のフォーム値。 */
+	values: DrunkWineFieldsValue;
+	/** 新規作成時の「最初の1件」の飲用記録。編集時は EMPTY_TASTING_DRAFT のまま。 */
+	tasting: WineTastingDraft;
+	/** 保存済みの写真キー(表示順)。 */
+	initialPhotoKeys: readonly string[];
+	/** 現在の写真(表示順)。既存はR2キー、まだ保存していない新規写真は null。 */
+	photoKeys: readonly (string | null)[];
+}
+
+/** 保存されていない変更があるか(離脱ガードの判定)。 */
+export function hasUnsavedDrunkWineChanges({
+	initial,
+	values,
+	tasting,
+	initialPhotoKeys,
+	photoKeys,
+}: UnsavedDrunkWineChangesInput): boolean {
+	if (!drunkWineFormStateEquals(toFormState(values), toFormState(initial))) {
+		return true;
+	}
+	if (!tastingDraftEquals(tasting, EMPTY_TASTING_DRAFT)) return true;
+	// 追加・削除・並べ替えのいずれも「保存すると結果が変わる」ので未保存扱いにする。
+	if (photoKeys.length !== initialPhotoKeys.length) return true;
+	return photoKeys.some((key, i) => key !== initialPhotoKeys[i]);
+}

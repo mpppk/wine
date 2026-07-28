@@ -14,6 +14,7 @@ import {
 	type DrunkWineFieldsValue,
 	EMPTY_TASTING_DRAFT,
 	fieldsValueFromEntry,
+	hasUnsavedDrunkWineChanges,
 	toFormState,
 	type WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
@@ -22,6 +23,7 @@ import {
 	analyzeLabelPhotos,
 } from "#/components/cellar/label-analysis";
 import { TastingFields } from "#/components/cellar/TastingFields";
+import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
@@ -132,6 +134,21 @@ export function DrunkWineForm({
 	//    保存成功後の再送信ではこちらを優先しないと「一度保存した値に戻す」変更が
 	//    差分ゼロと判定されて反映されない
 	const savedRef = useRef<DrunkWineEntry | null>(null);
+	// 保存が完了して呼び出し側が遷移する間だけ離脱ガードを黙らせる。state ではなく ref
+	// なのは、保存成功と遷移が同じ tick で起きるため(再レンダリングが間に合わない)。
+	const leavingAfterSaveRef = useRef(false);
+
+	// 未保存の変更の有無。初期値(=直近に保存した内容)と現在値を比べる。
+	// 判定ロジックは drunk-wine-payload.ts が単一情報源(#238)。
+	const baseline = savedRef.current ?? entry;
+	const isDirty = () =>
+		hasUnsavedDrunkWineChanges({
+			initial: fieldsValueFromEntry(baseline),
+			values,
+			tasting: tastingDraft,
+			initialPhotoKeys: (baseline?.photoUrls ?? []).map(imageKeyFromPath),
+			photoKeys: photos.map((p) => (p.kind === "existing" ? p.key : null)),
+		});
 
 	// 既存写真の表示URL(キャッシュバスタ付き)。解析時のfetchにも使う
 	const photoSrc = (p: PhotoItem): string =>
@@ -297,6 +314,8 @@ export function DrunkWineForm({
 			for (const p of photos) {
 				if (p.kind === "new") URL.revokeObjectURL(p.previewUrl);
 			}
+			// 保存済みなので、この後の遷移は警告しない(onSaved が遷移することが多い)
+			leavingAfterSaveRef.current = true;
 			await onSaved(saved);
 		},
 		onError: (err: Error) => setError(err.message),
@@ -449,6 +468,11 @@ export function DrunkWineForm({
 			<InsufficientCreditsDialog
 				open={showInsufficient}
 				onOpenChange={setShowInsufficient}
+			/>
+
+			{/* 未保存のまま離脱しようとしたら警告する(保存直後の遷移は除く) */}
+			<UnsavedChangesGuard
+				shouldBlock={() => !leavingAfterSaveRef.current && isDirty()}
 			/>
 		</form>
 	);
