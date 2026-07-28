@@ -1,3 +1,4 @@
+import { env as testEnv } from "cloudflare:test";
 import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "#/db";
@@ -12,6 +13,7 @@ import type { CreditLedgerType } from "#/lib/credit/types";
 import {
 	ensureCurrentMonthGranted,
 	getBalance,
+	reclaimOrphanReservations,
 	refundReservation,
 	reserveCredits,
 	settleReservation,
@@ -261,5 +263,283 @@ describe("refundReservation のガード (#144/#146)", () => {
 		await refundReservation(userId, requestId, 30);
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
 		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(1);
+	});
+});
+
+// --- 孤児予約の回収 (#246) -------------------------------------------------
+//
+// 打ち切り(クライアント切断・isolate 強制終了)で確定も返却もされなかった予約を、
+// 次の予約時に回収する挙動を実D1で検証する。「猶予を過ぎた」状態は created_at を
+// 直接過去へ倒して作る(テストで実時間を待たないため)。
+
+/** 予約(consume)台帳の作成時刻を指定ミリ秒だけ過去へ倒す。 */
+async function ageReservation(requestId: string, ms: number): Promise<void> {
+	await db
+		.update(creditLedger)
+		.set({ createdAt: new Date(Date.now() - ms) })
+		.where(
+			and(
+				eq(creditLedger.requestId, requestId),
+				eq(creditLedger.type, "consume"),
+			),
+		);
+}
+
+/** 回収の猶予(10分)を確実に超える経過時間。 */
+const PAST_GRACE_MS = 30 * 60 * 1000;
+
+describe("reclaimOrphanReservations (#246)", () => {
+	let userId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+		await ensureCurrentMonthGranted(userId);
+	});
+
+	it("猶予を過ぎても確定も返却もされていない予約を返却する", async () => {
+		const requestId = `orphan-${userId}`;
+		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await ageReservation(requestId, PAST_GRACE_MS);
+
+		await reclaimOrphanReservations(userId);
+
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(1);
+	});
+
+	it("猶予内の予約は回収しない(実行中のリクエストを奪わない)", async () => {
+		const requestId = `inflight-${userId}`;
+		await reserveCredits(userId, 30_000, requestId);
+		// created_at は現在時刻のまま(=まだ実行中とみなす)。
+
+		await reclaimOrphanReservations(userId);
+
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(0);
+	});
+
+	it("確定済み(差分返却あり)の予約は回収しない", async () => {
+		const requestId = `settled-${userId}`;
+		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await settleReservation(userId, requestId, 30, 10_000); // +20 → 40
+		await ageReservation(requestId, PAST_GRACE_MS);
+
+		await reclaimOrphanReservations(userId);
+
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30 + 20);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(0);
+	});
+
+	it("差分0で確定した予約(実測=見積)も回収しない", async () => {
+		// 実測トークンが取れないモデルでは actualTokens=予約全量となり返却は0になる。
+		// この場合も :settle の証跡が残らないと、正常な消費を孤児と誤判定して二重取りに
+		// なる。settleReservation が amount=0 の行を残すことがこのケースの防波堤。
+		const requestId = `settled-zero-${userId}`;
+		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await settleReservation(userId, requestId, 30, 30_000); // 差分0
+		await ageReservation(requestId, PAST_GRACE_MS);
+
+		const settleRows = await ledgerByRequestId(`${requestId}:settle`);
+		expect(settleRows).toHaveLength(1);
+		expect(settleRows[0]?.amount).toBe(0);
+		// 実測トークンは差分0でも記録しておく(監査用)。
+		expect(settleRows[0]?.tokenAmount).toBe(30_000);
+
+		await reclaimOrphanReservations(userId);
+
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(0);
+	});
+
+	it("既に返却済みの予約を二重に返却しない", async () => {
+		const requestId = `already-refunded-${userId}`;
+		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await refundReservation(userId, requestId, 30); // +30 → 50
+		await ageReservation(requestId, PAST_GRACE_MS);
+
+		await reclaimOrphanReservations(userId);
+
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(1);
+	});
+
+	it("過去月の孤児は残高へ加算しない(月境界・#147)", async () => {
+		// 先月の予約が孤児のまま残っているところへ当月の残高がリセットされた状態。
+		const requestId = `orphan-oldmonth-${userId}`;
+		await db.insert(creditLedger).values({
+			id: `consume-${requestId}`,
+			userId,
+			amount: -30,
+			type: "consume",
+			requestId,
+			periodMonth: "2000-01",
+			tokenAmount: 30_000,
+			createdAt: new Date(Date.now() - PAST_GRACE_MS),
+		});
+
+		await reclaimOrphanReservations(userId);
+
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(0);
+	});
+
+	it("1回の回収は上限件数までに抑える", async () => {
+		// 上限(10)を超える孤児を作り、1回の呼び出しで全部は処理しないことを確認する。
+		// 予約をすべて済ませてから一括で過去へ倒す(reserveCredits 自体が回収を挟むため、
+		// 1件ずつ倒すと次の予約でその都度回収されてしまう)。
+		const requestIds = Array.from(
+			{ length: 12 },
+			(_, i) => `orphan-many-${userId}-${i}`,
+		);
+		for (const requestId of requestIds) {
+			await reserveCredits(userId, 1_000, requestId); // 1クレジットずつ
+		}
+		for (const requestId of requestIds) {
+			await ageReservation(requestId, PAST_GRACE_MS);
+		}
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 12);
+
+		await reclaimOrphanReservations(userId);
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 2);
+
+		// 残りは次の機会に回収される。
+		await reclaimOrphanReservations(userId);
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
+	});
+
+	it("予約の入口で回収が走り、孤児のせいで残高不足だったユーザがブロックされない", async () => {
+		// FREE=50 のうち 40 を孤児として失った状態。次の 30 クレジットの予約は、
+		// 回収が無ければ残高10で不足ブロックになる。
+		const orphanId = `orphan-blocking-${userId}`;
+		await reserveCredits(userId, 40_000, orphanId);
+		await ageReservation(orphanId, PAST_GRACE_MS);
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 40);
+
+		const res = await reserveCredits(userId, 30_000, `next-${userId}`);
+
+		expect(res.ok).toBe(true);
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30);
+		expect(await ledgerByRequestId(`${orphanId}:refund`)).toHaveLength(1);
+	});
+});
+
+describe("settleReservation の返却済みガード (#246)", () => {
+	let userId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+		await ensureCurrentMonthGranted(userId);
+	});
+
+	it("返却済みの予約は確定しない(消費のネットプラス防止)", async () => {
+		// 回収が予約全額を返却した後に、生き延びていたリクエストが確定を試みる競合。
+		const requestId = `settle-after-refund-${userId}`;
+		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await refundReservation(userId, requestId, 30); // +30 → 50
+
+		await settleReservation(userId, requestId, 30, 10_000);
+
+		// 差分20が上乗せされず、返却後の残高のまま。
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
+		expect(await ledgerByRequestId(`${requestId}:settle`)).toHaveLength(0);
+	});
+});
+
+// --- 既存データの補填マイグレーション (drizzle/0020) ------------------------
+//
+// 回収の健全性は「確定した予約には必ず :settle 行がある」ことに依るが、本変更以前は
+// 差分0の確定が台帳に何も書かなかった。0020 はその積み残しを「確定済み」として塗り潰し、
+// 正常に消費し切った予約が回収(=二重取り)されないようにする。SQL 自体を実D1で走らせて
+// 検証する(マイグレーション本体は vitest.config.ts が TEST_MIGRATIONS に載せている)。
+
+/** drizzle/0020 の SQL を現在のテスト用D1へ適用する。 */
+async function applyOrphanBackfill(): Promise<void> {
+	const migration = testEnv.TEST_MIGRATIONS.find((m) =>
+		m.name.startsWith("0020_"),
+	);
+	if (!migration) throw new Error("drizzle/0020 が TEST_MIGRATIONS に無い");
+	for (const query of migration.queries) {
+		await testEnv.DB.prepare(query).run();
+	}
+}
+
+describe("drizzle/0020 既存予約の確定マーカー補填 (#246)", () => {
+	let userId: string;
+	let requestId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+		await ensureCurrentMonthGranted(userId);
+		// 本変更以前に「差分0で確定した予約」を再現する: consume だけがあり、
+		// :settle も :refund も無い(= 孤児と見分けが付かない)状態。
+		requestId = `legacy-settled-${userId}`;
+		await db.batch([
+			db.insert(creditLedger).values({
+				id: `consume-${requestId}`,
+				userId,
+				amount: -30,
+				type: "consume",
+				requestId,
+				periodMonth: currentMonthKey(),
+				tokenAmount: 30_000,
+				createdAt: new Date(Date.now() - PAST_GRACE_MS),
+			}),
+			db
+				.update(creditBalance)
+				.set({ balance: MONTHLY_CREDITS_FREE - 30 })
+				.where(eq(creditBalance.userId, userId)),
+		]);
+	});
+
+	it("未確定の consume に :settle マーカー(amount=0)を補う", async () => {
+		await applyOrphanBackfill();
+
+		const marker = await ledgerByRequestId(`${requestId}:settle`);
+		expect(marker).toHaveLength(1);
+		expect(marker[0]?.amount).toBe(0);
+		expect(marker[0]?.userId).toBe(userId);
+		// 元の consume の付与月を引き継ぐ(月境界ガードの参照先と整合させる)。
+		expect(marker[0]?.periodMonth).toBe(currentMonthKey());
+		// 残高は動かさない(既に引かれたままで据え置く)。
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30);
+	});
+
+	it("補填後は回収の対象にならない(クレジットの二重取りを防ぐ)", async () => {
+		await applyOrphanBackfill();
+
+		await reclaimOrphanReservations(userId);
+
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(0);
+	});
+
+	it("冪等: 再適用してもマーカーは増えない", async () => {
+		await applyOrphanBackfill();
+		await applyOrphanBackfill();
+
+		expect(await ledgerByRequestId(`${requestId}:settle`)).toHaveLength(1);
+	});
+
+	it("返却済みの予約にはマーカーを付けない(返却が確定に化けない)", async () => {
+		const refundedId = `legacy-refunded-${userId}`;
+		await db.insert(creditLedger).values({
+			id: `consume-${refundedId}`,
+			userId,
+			amount: -10,
+			type: "consume",
+			requestId: refundedId,
+			periodMonth: currentMonthKey(),
+			tokenAmount: 10_000,
+		});
+		await db.insert(creditLedger).values({
+			id: `refund-${refundedId}`,
+			userId,
+			amount: 10,
+			type: "refund",
+			requestId: `${refundedId}:refund`,
+			periodMonth: currentMonthKey(),
+			tokenAmount: null,
+		});
+
+		await applyOrphanBackfill();
+
+		expect(await ledgerByRequestId(`${refundedId}:settle`)).toHaveLength(0);
 	});
 });

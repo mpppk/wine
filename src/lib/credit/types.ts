@@ -6,7 +6,8 @@
 //  - grant         : 月次の自動付与
 //  - grant_upgrade : 月途中のプレミアムアップグレードによる差分付与
 //  - consume       : AI利用による消費(符号は負)
-//  - refund        : 失敗時などの返却
+//  - refund        : 失敗時などの返却。実測確定(`:settle`)の差分返却も同じ種別で記録し、
+//                    差分が0でも「確定済み」の証跡として amount=0 の行を残す(#246)
 //  - admin_grant   : 管理画面からの手動/一括付与(月次付与と区別する)
 export const CREDIT_LEDGER_TYPES = [
 	{ id: "grant", labelJa: "付与" },
