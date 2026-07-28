@@ -9,12 +9,67 @@ import {
 	creditLedger,
 } from "#/db/schema";
 import type { AdminAuditAction } from "#/lib/admin/audit";
+import { auth } from "#/lib/auth";
 import { currentMonthKey } from "#/lib/credit/month";
+import { BadRequestError } from "#/lib/errors";
+import { logError, logInfo } from "#/lib/logger";
 import * as billingService from "#/lib/services/billing-service";
 import { ensureCurrentMonthGranted } from "#/lib/services/credit-service";
 
 // 管理画面の「書き込み(副作用あり)」操作のサービス層。閲覧専用の admin-service とは
-// 分離し、各操作は admin_audit_log に証跡を残す。
+// 分離し、各操作は admin_audit_log に証跡を残す。業務判定(自己BANの拒否など)も
+// ここに置き、server fn(#/server/admin.ts)は認可 + zod 検証 + 委譲に徹する
+// (docs/architecture.md)。
+
+const DAY_SECONDS = 24 * 60 * 60;
+
+/**
+ * 「外部副作用(better-auth / Stripe / 別トランザクションのD1書き込み)を適用してから
+ * 監査ログを書く」操作の共通後処理(#251)。
+ *
+ * クレジット付与のように操作と監査を同一 db.batch へ載せられる場合と違い、better-auth や
+ * Stripe の副作用は D1 のバッチに同居できない。後段の記録が落ちると「操作は適用済み・
+ * 証跡ゼロ」が成立し、adminMiddleware の `server fn failed` ログには操作者IDしか乗らない
+ * ため、対象ユーザも操作内容も復元できなくなる。
+ *
+ * そこで記録の原子化ではなく**欠落を必ず検知できる形**にする:
+ *  1. 副作用の成功直後に logInfo を出す(記録が落ちても「誰が誰に何をしたか」は残る)
+ *  2. 記録の失敗は同じフィールド付きで logError してから rethrow する(監査欠落の明示)
+ *
+ * 副作用を伴う管理操作はすべてこの1関数を通す。経路ごとにログを書くと後から足した操作で
+ * 必ず漏れるため(CLAUDE.md「横断的な防御・規約は共通チョークポイントに寄せる」)。
+ */
+async function recordAfterEffect(params: {
+	actorUserId: string;
+	targetUserId: string | null;
+	action: AdminAuditAction;
+	reason: string;
+	detail?: AdminAuditDetail | null;
+	/**
+	 * 監査記録の書き込み。既定は admin_audit_log の1行 INSERT。
+	 * 他の行も同じ batch で書く操作(プレミアム延長の coupon_redemption)は差し替える。
+	 */
+	write?: () => Promise<unknown>;
+}): Promise<void> {
+	const { actorUserId, targetUserId, action, reason, detail } = params;
+	const fields = { actorUserId, targetUserId, action, reason, detail };
+	// 副作用はこの時点で適用済み。記録の成否に関わらず痕跡を残す。
+	logInfo("admin action applied", fields);
+	try {
+		if (params.write) {
+			await params.write();
+		} else {
+			await recordAudit({ actorUserId, targetUserId, action, reason, detail });
+		}
+	} catch (e) {
+		// 適用済みなのに監査ログが無い状態。ログが唯一の証跡になるので内容ごと残す。
+		logError("admin audit record failed; action already applied", {
+			...fields,
+			err: e,
+		});
+		throw e;
+	}
+}
 
 export interface GrantCreditsResult {
 	/** 付与後の残高。 */
@@ -159,25 +214,129 @@ export async function extendPremium(params: {
 
 	// 適用履歴を coupon_redemption(管理者発行の合成コード)と監査ログに記録する。
 	// コードは unique(userId, code) を満たすよう毎回一意にする(接頭辞 "admin:" で判別)。
+	// Stripe は延長済みで補償もできないため、記録が落ちた場合は logError で欠落を残す(#251)。
 	const code = `admin:${crypto.randomUUID()}`;
-	await db.batch([
-		db.insert(couponRedemption).values({
-			id: crypto.randomUUID(),
-			userId: targetUserId,
-			code,
-			extendedDays: days,
-		}),
-		db.insert(adminAuditLog).values({
-			id: crypto.randomUUID(),
-			actorUserId,
-			targetUserId,
-			action: "premium_extension",
-			detail: { days, newPeriodEnd, stripeSubscriptionId, code },
-			reason,
-		}),
-	]);
+	await recordAfterEffect({
+		actorUserId,
+		targetUserId,
+		action: "premium_extension",
+		reason,
+		detail: { days, newPeriodEnd, stripeSubscriptionId, code },
+		write: () =>
+			db.batch([
+				db.insert(couponRedemption).values({
+					id: crypto.randomUUID(),
+					userId: targetUserId,
+					code,
+					extendedDays: days,
+				}),
+				db.insert(adminAuditLog).values({
+					id: crypto.randomUUID(),
+					actorUserId,
+					targetUserId,
+					action: "premium_extension",
+					detail: { days, newPeriodEnd, stripeSubscriptionId, code },
+					reason,
+				}),
+			]),
+	});
 
 	return { extendedDays: days, newPeriodEnd };
+}
+
+// ── #115: セッション/MCP失効・BAN ──────────────────────────────────────────────
+// better-auth admin プラグインのサーバAPIは、呼び出し元(管理者)のリクエストヘッダを
+// 渡してプラグイン側の admin 認可を通す必要があるため、headers を引数で受け取る。
+
+/** 対象ユーザの全セッションを強制ログアウトする(#115)。 */
+export async function revokeSessions(params: {
+	actorUserId: string;
+	targetUserId: string;
+	reason: string;
+	/** 操作した管理者のリクエストヘッダ(better-auth の admin 認可に必要)。 */
+	headers: Headers;
+}): Promise<{ ok: true }> {
+	const { actorUserId, targetUserId, reason, headers } = params;
+	await auth.api.revokeUserSessions({
+		body: { userId: targetUserId },
+		headers,
+	});
+	await recordAfterEffect({
+		actorUserId,
+		targetUserId,
+		action: "revoke_sessions",
+		reason,
+	});
+	return { ok: true };
+}
+
+/**
+ * ユーザを BAN(利用停止)する(#115)。expiresInDays 未指定は無期限。
+ * 自分自身の BAN は管理画面からのロックアウトになるため、副作用の前に拒否する。
+ */
+export async function banUser(params: {
+	actorUserId: string;
+	targetUserId: string;
+	reason: string;
+	expiresInDays?: number;
+	headers: Headers;
+}): Promise<{ ok: true }> {
+	const { actorUserId, targetUserId, reason, expiresInDays, headers } = params;
+	if (targetUserId === actorUserId) {
+		throw new BadRequestError("自分自身を利用停止することはできません。");
+	}
+	await auth.api.banUser({
+		body: {
+			userId: targetUserId,
+			banReason: reason,
+			banExpiresIn: expiresInDays ? expiresInDays * DAY_SECONDS : undefined,
+		},
+		headers,
+	});
+	await recordAfterEffect({
+		actorUserId,
+		targetUserId,
+		action: "ban",
+		reason,
+		detail: { banExpiresInDays: expiresInDays ?? null },
+	});
+	return { ok: true };
+}
+
+/** ユーザの BAN を解除する(#115)。 */
+export async function unbanUser(params: {
+	actorUserId: string;
+	targetUserId: string;
+	reason: string;
+	headers: Headers;
+}): Promise<{ ok: true }> {
+	const { actorUserId, targetUserId, reason, headers } = params;
+	await auth.api.unbanUser({ body: { userId: targetUserId }, headers });
+	await recordAfterEffect({
+		actorUserId,
+		targetUserId,
+		action: "unban",
+		reason,
+	});
+	return { ok: true };
+}
+
+/** ユーザの MCP(OAuth)連携をすべて失効し、削除件数を監査ログに残す(#115)。 */
+export async function revokeMcp(params: {
+	actorUserId: string;
+	targetUserId: string;
+	reason: string;
+}): Promise<{ tokensDeleted: number; consentsDeleted: number }> {
+	const { actorUserId, targetUserId, reason } = params;
+	const res = await revokeMcpConnections(targetUserId);
+	await recordAfterEffect({
+		actorUserId,
+		targetUserId,
+		action: "revoke_mcp",
+		reason,
+		detail: res,
+	});
+	return res;
 }
 
 /**
