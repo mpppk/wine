@@ -1,13 +1,16 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UNAUTHORIZED_MESSAGE } from "#/lib/errors";
 import type { QuizQuestion } from "#/lib/quiz/types";
 
 // server function / router は Cloudflare 依存を引き込むためモックする。
 const getNextQuestions = vi.fn();
+const recordAnswer = vi.fn();
+const revertAnswer = vi.fn();
 vi.mock("#/server/quiz", () => ({
 	getNextQuestions: (...args: unknown[]) => getNextQuestions(...args),
-	recordAnswer: vi.fn(),
-	revertAnswer: vi.fn(),
+	recordAnswer: (...args: unknown[]) => recordAnswer(...args),
+	revertAnswer: (...args: unknown[]) => revertAnswer(...args),
 }));
 vi.mock("@tanstack/react-router", () => ({
 	useRouter: () => ({ invalidate: vi.fn() }),
@@ -204,6 +207,103 @@ describe("useQuizSession のセッション内正解済み枯渇ハンドリン�
 		act(() => result.current.retry());
 		await waitFor(() => expect(result.current.phase).toBe("answering"));
 		expect(result.current.current?.key).toBe("fresh-1");
+		await drainAndUnmount(unmount);
+	});
+});
+
+// Issue #255: 解答のサーバ保存が失敗しても、正解演出・残数・完了画面はローカルで
+// 進んでしまう。ユーザが「保存された」と誤解しないよう、失敗を状態として表に出す。
+describe("useQuizSession の解答記録失敗ハンドリング (#255)", () => {
+	beforeEach(() => {
+		getNextQuestions.mockReset();
+		recordAnswer.mockReset();
+		revertAnswer.mockReset();
+		getNextQuestions.mockImplementation(async () => ({
+			questions: [makeQuestion("q1"), makeQuestion("q2"), makeQuestion("q3")],
+			remaining: 3,
+			total: 3,
+		}));
+	});
+
+	it("記録が401で失敗すると saveFailure に unauthorized が立つ", async () => {
+		recordAnswer.mockRejectedValue(new Error(UNAUTHORIZED_MESSAGE));
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], true),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+		expect(result.current.saveFailure).toBeNull();
+
+		act(() => result.current.answer("a"));
+
+		await waitFor(() =>
+			expect(result.current.saveFailure).toEqual({
+				kind: "unauthorized",
+				count: 1,
+			}),
+		);
+		// 保存は失敗しているが出題自体は継続できる(学習を止めない)。
+		expect(result.current.phase).toBe("feedback");
+		await drainAndUnmount(unmount);
+	});
+
+	it("401以外の失敗は unknown として立ち、連続失敗を数える", async () => {
+		recordAnswer.mockRejectedValue(new Error("network down"));
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], true),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+
+		act(() => result.current.answer("a"));
+		await waitFor(() =>
+			expect(result.current.saveFailure).toEqual({
+				kind: "unknown",
+				count: 1,
+			}),
+		);
+		act(() => result.current.next());
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+		act(() => result.current.answer("a"));
+		await waitFor(() =>
+			expect(result.current.saveFailure).toEqual({
+				kind: "unknown",
+				count: 2,
+			}),
+		);
+		await drainAndUnmount(unmount);
+	});
+
+	it("記録が1件でも通れば表示は解消する", async () => {
+		recordAnswer.mockRejectedValueOnce(new Error("network down"));
+		recordAnswer.mockResolvedValue(null);
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], true),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+
+		act(() => result.current.answer("a"));
+		await waitFor(() => expect(result.current.saveFailure).not.toBeNull());
+
+		act(() => result.current.next());
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+		act(() => result.current.answer("a"));
+
+		await waitFor(() => expect(result.current.saveFailure).toBeNull());
+		await drainAndUnmount(unmount);
+	});
+
+	it("未ログインでは記録しないので保存失敗も出さない", async () => {
+		// 未ログインは元から「実績が残らない」仕様。ここでバナーを出すと常時表示になる。
+		recordAnswer.mockRejectedValue(new Error(UNAUTHORIZED_MESSAGE));
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], false),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+
+		act(() => result.current.answer("a"));
+		await waitFor(() => expect(result.current.phase).toBe("feedback"));
+
+		expect(recordAnswer).not.toHaveBeenCalled();
+		expect(result.current.saveFailure).toBeNull();
 		await drainAndUnmount(unmount);
 	});
 });

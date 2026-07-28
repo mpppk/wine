@@ -5,6 +5,7 @@ import {
 	useQuizAdInterstitial,
 } from "#/components/ads/AdInterstitialDialog";
 import { QuizQuestionView } from "#/components/quiz/QuizQuestionView";
+import { QuizSaveAlert } from "#/components/quiz/QuizSaveAlert";
 import { useQuizSession } from "#/components/quiz/useQuizSession";
 import { Button } from "#/components/ui/button";
 import {
@@ -115,6 +116,7 @@ function SessionRound({
 		selectedOptionId,
 		tally,
 		remaining,
+		saveFailure,
 		answer,
 		reset,
 		skip,
@@ -150,6 +152,7 @@ function SessionRound({
 		const retryLabel = isAuthenticated ? "再チャレンジ" : "もう一度";
 		return (
 			<div className="flex min-h-32 flex-col items-center justify-center gap-4 text-center">
+				<QuizSaveAlert failure={saveFailure} />
 				<p className="text-3xl" aria-hidden>
 					🎉
 				</p>
@@ -210,6 +213,7 @@ function SessionRound({
 				{tally.answered > 0 &&
 					`${remaining !== null ? " ・ " : ""}${tally.answered}問中${tally.correct}問正解`}
 			</p>
+			<QuizSaveAlert failure={saveFailure} />
 			{current && (
 				<QuizQuestionView
 					question={current}
