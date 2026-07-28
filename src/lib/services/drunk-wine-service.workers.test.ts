@@ -403,22 +403,16 @@ describe("getCellarSummary", () => {
 	});
 });
 
-describe("既存データのバックフィル", () => {
-	it("旧スキーマ相当の行(飲用記録なし)を移送すると集計が復旧する", async () => {
+describe("集計キャッシュの復旧", () => {
+	it("飲用記録を後から入れて再計算すると集計が復旧する", async () => {
+		// drizzle/0018 のバックフィル(INSERT ... SELECT + 再計算 UPDATE)と同じ形。
+		// 旧列(drank_on/rating/memo)は 0019 で削除済みなので、移送元ではなく
+		// 「集計が 0 の行に飲用記録を足して打ち直す」復旧手順として固定する。
 		const userId = await freshUser();
-		// マイグレーション前の行を模す: status/集計列は DEFAULT のまま、旧列だけ持つ
 		const id = crypto.randomUUID();
-		await db.insert(drunkWine).values({
-			id,
-			userId,
-			name: "旧データ",
-			drankOn: "2019-09-09",
-			rating: 4,
-			memo: "移送前",
-		});
+		await db.insert(drunkWine).values({ id, userId, name: "集計が崩れた行" });
 		expect((await wineRow(id))?.tastingCount).toBe(0);
 
-		// マイグレーションの INSERT ... SELECT + 再計算 UPDATE と同じ効果
 		await db.insert(wineTasting).values({
 			id: `legacy-${id}`,
 			drunkWineId: id,
