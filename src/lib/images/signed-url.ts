@@ -60,6 +60,19 @@ export function ownerOfPrivateImageKey(key: string): string | null {
 	return m?.[1] ?? null;
 }
 
+/**
+ * そのユーザの非公開画像(マイセラー写真)を全て含むR2キーの接頭辞。
+ * 退会・ユーザ削除時の一括削除で列挙の起点に使う(#252)。
+ *
+ * キーのレイアウトは ownerOfPrivateImageKey が解釈する形と一対でなければ
+ * ならない。片方だけ変えると「所有者は判定できるが削除で拾えない」ズレが
+ * 生まれ、削除したはずの個人データが R2 に残る。同じモジュールに置いて
+ * テストで往復させるのはそのため。
+ */
+export function privateImagePrefixForUser(userId: string): string {
+	return `wines/${userId}/`;
+}
+
 /** HMAC-SHA256 の署名鍵として鍵素材をインポートする。 */
 export function importImageSigningKey(
 	material: ArrayBuffer | Uint8Array,
