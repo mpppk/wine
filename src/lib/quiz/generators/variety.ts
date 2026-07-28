@@ -1,6 +1,7 @@
-import { aopAllowsGrape, getAop, listAops } from "#/lib/wine/service";
+import { aopAllowsGrape, getAop } from "#/lib/wine/service";
 import type { Aop, RegionId } from "#/lib/wine/types";
 import { GRAPE_VARIETIES, getVariety } from "#/lib/wine/varieties";
+import { isOpenEndedAppellation, listClosedListAops } from "../aop-pool";
 import { buildVarietyKey, type ParsedQuestionKey } from "../keys";
 import { aopOptionLabel } from "../labels";
 import { type Rng, sample, shuffle } from "../rng";
@@ -14,8 +15,13 @@ import type { QuizQuestion } from "../types";
 
 const MIN_DISTRACTOR_POOL = 3;
 
+// 開かれた広域呼称(IGT)は正解側(「主に〜から造られる」)にもディストラクタ側
+// (「その品種を全く含まない」)にも載せない。どちらも収録品種が網羅である前提の
+// 主張になるため(aop-pool.ts 参照)
 function distractorPoolFor(regionId: RegionId, varietyId: string): Aop[] {
-	return listAops({ regionId }).filter((a) => !aopAllowsGrape(a, varietyId));
+	return listClosedListAops({ regionId }).filter(
+		(a) => !aopAllowsGrape(a, varietyId),
+	);
 }
 
 export function enumerateVarietyKeys(regionId: RegionId): string[] {
@@ -23,7 +29,7 @@ export function enumerateVarietyKeys(regionId: RegionId): string[] {
 	for (const variety of GRAPE_VARIETIES) {
 		const pool = distractorPoolFor(regionId, variety.id);
 		if (pool.length < MIN_DISTRACTOR_POOL) continue;
-		const corrects = listAops({ regionId }).filter((a) =>
+		const corrects = listClosedListAops({ regionId }).filter((a) =>
 			a.grapes.some(
 				(g) => g.varietyId === variety.id && g.role === "principal",
 			),
@@ -49,7 +55,7 @@ export function materializeVarietyQuestion(
 ): QuizQuestion | null {
 	const correct = getAop(parsed.aopId);
 	const variety = getVariety(parsed.varietyId);
-	if (!correct || !variety) return null;
+	if (!correct || !variety || isOpenEndedAppellation(correct)) return null;
 	// 正解の再検証(データ更新でキーが古びた場合の防御)
 	if (
 		!correct.grapes.some(

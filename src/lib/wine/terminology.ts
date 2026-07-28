@@ -1,3 +1,4 @@
+import { AOPS } from "./aops-data";
 import { getRegion } from "./regions";
 import type { Aop, WineColor } from "./types";
 
@@ -17,11 +18,20 @@ export const COLOR_LABELS_JA: Record<WineColor, string> = {
 // 異なるため、地域スコープの画面ではこの関数を通して総称を出す。
 // アプリ名など国に依らないグローバルな見出しは従来どおり "AOP" のまま。
 
-/** 地域IDに対応する原産地呼称の総称(日本語UI用)。 */
+/**
+ * 地域IDに対応する原産地呼称の総称(日本語UI用)。
+ *
+ * 「N DOC/DOCG」のように収録件数と並べて出すため、IGT を収録している州では
+ * IGT も総称に含める(でないと IGT の1件を DOC/DOCG として数えることになる)。
+ * IGT を持たない州(ピエモンテ)では逆に含めない。#212
+ */
 export function getAppellationTermJa(regionId: string): string {
 	const region = getRegion(regionId);
-	if (region?.country === "Italy") return "DOC/DOCG";
-	return "AOP";
+	if (region?.country !== "Italy") return "AOP";
+	const hasIgt = AOPS.some(
+		(a) => a.region === regionId && a.tags?.includes("igt"),
+	);
+	return hasIgt ? "DOC/DOCG/IGT" : "DOC/DOCG";
 }
 
 /**
@@ -29,9 +39,14 @@ export function getAppellationTermJa(regionId: string): string {
  * 出し分ける(フランス=AOC / イタリア=DOC/DOCG)。isLegalAppellation が真の
  * AOPに付与する。見出し用の getAppellationTermJa(仏は "AOP")とは別に、
  * バッジでは通称の "AOC" を用いる。
+ *
+ * IGT は同じイタリアでも DOC/DOCG とは別階級の呼称なので "IGT" を出す(#212)。
+ * 地域ではなくAOP単位で決まる情報なので、判定はここに閉じる(呼び出し側で
+ * タグを見て出し分けない)。
  */
-export function getAppellationBadgeJa(regionId: string): string {
-	const region = getRegion(regionId);
+export function getAppellationBadgeJa(aop: Aop): string {
+	if (aop.tags?.includes("igt")) return "IGT";
+	const region = getRegion(aop.region);
 	if (region?.country === "Italy") return "DOC/DOCG";
 	return "AOC";
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
 import { REGION_IDS } from "#/lib/wine/regions";
+import { isOpenEndedAppellation } from "../aop-pool";
 import { parseKey } from "../keys";
 import { principalComboId } from "../labels";
 import { mulberry32 } from "../rng";
@@ -12,10 +13,13 @@ import {
 const byId = new Map(AOPS.map((a) => [a.id, a]));
 
 describe("主要品種クイズ", () => {
-	it("主要品種を持つ全AOP分のキーが列挙される", () => {
+	// IGT(開かれた広域呼称)は「主要品種」が定まらないため対象外(#212)。
+	it("主要品種を持つ全AOP分(IGTを除く)のキーが列挙される", () => {
 		const total = REGION_IDS.flatMap((r) => enumerateAopVarietyKeys(r));
-		const withPrincipal = AOPS.filter((a) =>
-			a.grapes.some((g) => g.role === "principal"),
+		const withPrincipal = AOPS.filter(
+			(a) =>
+				a.grapes.some((g) => g.role === "principal") &&
+				!isOpenEndedAppellation(a),
 		);
 		expect(total.length).toBe(withPrincipal.length);
 		expect(new Set(total).size).toBe(total.length);

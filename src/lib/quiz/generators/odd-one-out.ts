@@ -1,5 +1,5 @@
 import { getRegion } from "#/lib/wine/regions";
-import { aopAllowsGrape, getAop, listAops } from "#/lib/wine/service";
+import { aopAllowsGrape, getAop, type listAops } from "#/lib/wine/service";
 import { AOP_TAG_IDS, AOP_TAG_LABELS_JA, type AopTagId } from "#/lib/wine/tags";
 import {
 	type Aop,
@@ -8,6 +8,7 @@ import {
 	type WineColor,
 } from "#/lib/wine/types";
 import { GRAPE_VARIETIES, getVariety } from "#/lib/wine/varieties";
+import { listClosedListAops } from "../aop-pool";
 import {
 	buildOddOneOutKey,
 	type OddOneOutAxis,
@@ -39,6 +40,8 @@ const MIN_POOL = 3;
  * 除外する軸とその理由(Issue #25):
  * - doc: 「DOCに格付けされていない」の正解が上位の DOCG(例: バローロ)になり、
  *   下位であるかのように誤誘導する。
+ * - igt: doc と同じ理由。IGT は DOC/DOCG の下位なので「IGTに格付けされていない」の
+ *   正解が上位の DOCG(例: ブルネッロ)を指し、下位であるかのように誤誘導する(#212)。
  * - 1855年格付け(第1〜5級) / サンテミリオン第1特別級A・B: これらはシャトー(winery)単位の
  *   格付けで、プール(シャトー)と正解候補(村名AOC)の kind が食い違い、「村 vs シャトー」を
  *   問う退化した設問になる。シャトーの格付けは aop-classification 形式で扱う。
@@ -52,8 +55,10 @@ const ODD_ONE_OUT_TAG_AXES: ReadonlySet<AopTagId> = new Set<AopTagId>([
 // クリマ・合成総称ノード(ポリゴンを持たない詳細エントリ = idApp>=930000)は
 // 仲間外れクイズの出題主体・選択肢にしない。数が多く難度が跳ねるうえ、地図クイズ
 // (重心依存)では自動除外される一方、仲間外れは非依存なのでここで明示的に除く。
+// 開かれた広域呼称(IGT)も除く: 全軸が「性質を持たない」を主張する形式なので、
+// 収録品種・色が網羅でないIGTを混ぜると偽の設問になる(aop-pool.ts 参照)。
 const listQuizAops: typeof listAops = (filter) =>
-	listAops(filter).filter((a) => a.idApp < POLYGONLESS_IDAPP_MIN);
+	listClosedListAops(filter).filter((a) => a.idApp < POLYGONLESS_IDAPP_MIN);
 
 /** 軸ごとの「性質を持つ側のプール」。3件未満なら問題が成立しない */
 function poolFor(
