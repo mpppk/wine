@@ -111,8 +111,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 		select: (s) => isEmbedPath(s.location.pathname),
 	});
 
+	// UI・meta description とも全編日本語なので lang も ja。en のままだと
+	// スクリーンリーダーが英語TTSで日本語を読もうとして破綻する(#236)
 	return (
-		<html lang="en" suppressHydrationWarning>
+		<html lang="ja" suppressHydrationWarning>
 			<head>
 				{/* theme-color is set as literal tags (not via head() meta) because
 				    TanStack Router dedupes meta by name, dropping one of the two
