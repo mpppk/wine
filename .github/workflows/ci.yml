@@ -59,6 +59,22 @@ jobs:
       - name: Test
         run: bun run test
 
+      # build が通っても deploy で落ちる非互換を検出する(#103: wrangler 単独更新で、
+      # 旧 @cloudflare/vite-plugin が生成する dist/server/wrangler.json の legacy_env を
+      # 新 CLI が拒否した)。dry-run は生成された設定を実際に読んでバンドル・バインディングを
+      # 解決するが、アップロードはしないため認証情報を必要としない。
+      # 本番は直前の Build 成果物(dist/)をそのまま検証し、preview は CLOUDFLARE_ENV=preview で
+      # 再ビルドしてから検証する(env ごとに vars/バインディングが異なるため)。
+      - name: Verify deploy config (production, dry-run)
+        run: bun run check:deploy
+        env:
+          WRANGLER_SEND_METRICS: "false"
+
+      - name: Verify deploy config (preview, dry-run)
+        run: bun run check:deploy:preview
+        env:
+          WRANGLER_SEND_METRICS: "false"
+
       # 手書き連番SQLがゼロから適用可能かを検証する。ローカルの miniflare SQLite に
       # 全マイグレーションを適用し、構文エラー・連番の衝突・migrate 忘れを検出する
       # (リモート認証情報は不要)。
