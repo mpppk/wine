@@ -201,6 +201,8 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - **月次付与は Cron ではなく遅延付与**: 残高参照・消費の入口で必ず `ensureCurrentMonthGranted` を呼ぶ。繰越なし。管理画面のような「閲覧が付与を起こしてはいけない」文脈では `credit_balance` を生 SELECT する（`admin-service.ts`）。
 - **AI 消費の骨格**: `reserveCredits`（見積で予約）→ `env.AI.run` → `settleReservation`（実測で確定）/ 失敗時 `refundReservation`（全額返却して再 throw）。クレジットを消費する新機能は必ずこのパターンに従い、`requestId` に用途プレフィックス付き一意キーを使う。
 - 管理画面の金銭的操作は理由必須 + `admin_audit_log` への記録をセットにし、可能な限り `requestId` で冪等化する（プレミアム延長は例外的に非冪等で、UI 側の二重送信防止に依存）。
+- **外部（Stripe）への書き込みを D1 の記録で補償するときは、「適用されていない」と確信できる失敗だけを巻き戻す**（`stripe-write.ts` の `issueStripeWrite` / `isUnconfirmedStripeWrite`・#248）。接続断・タイムアウト・5xx・冪等キー衝突は**適用済みかもしれない**ので記録を残す側に倒す。判断ミスのコストが非対称で、「消すべき記録を残した」はサポートで復旧できるが「残すべき記録を消した」は二重適用になり、契約期間の延長は台帳に痕跡が残らず後から検知も取り消しもできない。Stripe への書き込みには引換単位の `Idempotency-Key` を併せて付ける。
+- **補償処理そのものの失敗で元例外をマスクしない**: 補償を `try/catch` で包み、失敗したら両方の例外を 1 行のログ（`err` + `originalErr`）に残して**元例外を rethrow** する（`refundReservationOnFailure`・`redeemExtensionCode`。#158 / #248）。
 
 ### MCP サーバー（`src/lib/mcp/`）
 

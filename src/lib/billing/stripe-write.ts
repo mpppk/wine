@@ -72,9 +72,7 @@ export function isUnconfirmedStripeWrite(error: unknown): boolean {
  * = **先行するリクエストが既に受理されている**ことを示す。4xx の一括扱いに混ぜると
  * 「拒否された」と誤読して二重適用を招くため、明示的に除外する。
  */
-export function classifyStripeWriteFailure(
-	error: unknown,
-): StripeWriteOutcome {
+export function classifyStripeWriteFailure(error: unknown): StripeWriteOutcome {
 	if (typeof error !== "object" || error === null) return "unknown";
 	const { statusCode, rawType, type } = error as {
 		statusCode?: unknown;

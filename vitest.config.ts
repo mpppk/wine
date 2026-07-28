@@ -65,6 +65,9 @@ export default defineConfig({
 								// tools.ts の buildAffiliateConfig が参照(未設定なら素の検索URL)
 								RAKUTEN_AFFILIATE_ID: "",
 								MOSHIMO_AMAZON_A_ID: "",
+								// 期間延長コード(billing-service の引換テスト用)。本番の値とは
+								// 無関係で、書式(CODE=days)だけ合わせてある
+								CAMPAIGN_EXTENSION_CODES: "TESTCODE=7",
 							},
 						},
 					}),
