@@ -6,8 +6,11 @@ import {
 	buildMcpUpdatePatch,
 	buildTastingInput,
 	buildUpdatePatch,
+	type DrunkWineFieldsValue,
 	type DrunkWineFormState,
+	EMPTY_TASTING_DRAFT,
 	fieldsValueFromMcpEntry,
+	hasUnsavedDrunkWineChanges,
 	tastingDraftFromMcpEntry,
 	toFormValues,
 	type WineTastingDraft,
@@ -377,5 +380,123 @@ describe("buildMcpTastingArgs", () => {
 		expect(buildMcpTastingArgs(mcpEntry, { ...draft, memo: "" })).toEqual({
 			memo: null,
 		});
+	});
+});
+
+// 離脱ガードの判定(#238)。ここが緩むと「変更したのに警告が出ない」= 入力が消える。
+// AIクレジットを消費した自動入力も同じ state に載るので、検出漏れは実損になる。
+describe("hasUnsavedDrunkWineChanges", () => {
+	const initial = { ...empty, regionId: undefined } as DrunkWineFieldsValue;
+	const base = {
+		initial,
+		values: initial,
+		tasting: EMPTY_TASTING_DRAFT,
+		initialPhotoKeys: [] as string[],
+		photoKeys: [] as (string | null)[],
+	};
+
+	it("何も触っていない新規フォームは未保存扱いにしない", () => {
+		expect(hasUnsavedDrunkWineChanges(base)).toBe(false);
+	});
+
+	it("入力すると未保存になる", () => {
+		expect(
+			hasUnsavedDrunkWineChanges({
+				...base,
+				values: { ...initial, name: "Chablis" },
+			}),
+		).toBe(true);
+	});
+
+	it("エチケット解析で埋まる項目(生産者・ヴィンテージ・AOP・品種)も検出する", () => {
+		// 自動入力はAIクレジットを消費するので、ここを取りこぼすと実損になる
+		for (const patch of [
+			{ producer: "Dauvissat" },
+			{ vintage: "2018" },
+			{ aopId: "chablis" },
+			{ grapeVarietyIds: ["chardonnay"] },
+		]) {
+			expect(
+				hasUnsavedDrunkWineChanges({
+					...base,
+					values: { ...initial, ...patch },
+				}),
+			).toBe(true);
+		}
+	});
+
+	it("前後空白だけの違いと品種の並び順は未保存扱いにしない", () => {
+		const saved = {
+			...initial,
+			name: "Chablis",
+			grapeVarietyIds: ["chardonnay", "aligote"],
+		} as DrunkWineFieldsValue;
+		expect(
+			hasUnsavedDrunkWineChanges({
+				...base,
+				initial: saved,
+				values: {
+					...saved,
+					name: "  Chablis  ",
+					grapeVarietyIds: ["aligote", "chardonnay"],
+				},
+			}),
+		).toBe(false);
+	});
+
+	it("編集時は保存済みの値との差分で判定する", () => {
+		const saved = { ...initial, name: "Chablis" } as DrunkWineFieldsValue;
+		expect(
+			hasUnsavedDrunkWineChanges({ ...base, initial: saved, values: saved }),
+		).toBe(false);
+		expect(
+			hasUnsavedDrunkWineChanges({
+				...base,
+				initial: saved,
+				values: { ...saved, price: "3000" },
+			}),
+		).toBe(true);
+	});
+
+	it("飲用記録の下書き(飲んだ日・評価・メモ)も未保存として扱う", () => {
+		for (const tasting of [
+			{ ...EMPTY_TASTING_DRAFT, drankOn: "2026-07-28" },
+			{ ...EMPTY_TASTING_DRAFT, rating: 4 },
+			{ ...EMPTY_TASTING_DRAFT, memo: "good" },
+		]) {
+			expect(hasUnsavedDrunkWineChanges({ ...base, tasting })).toBe(true);
+		}
+	});
+
+	it("写真の追加・削除・並べ替えを未保存として扱う", () => {
+		const saved = {
+			...base,
+			initialPhotoKeys: ["wines/u/a.jpg", "wines/u/b.jpg"],
+		};
+		// 変更なし
+		expect(
+			hasUnsavedDrunkWineChanges({
+				...saved,
+				photoKeys: ["wines/u/a.jpg", "wines/u/b.jpg"],
+			}),
+		).toBe(false);
+		// 追加(未保存の新規写真は null)
+		expect(
+			hasUnsavedDrunkWineChanges({
+				...saved,
+				photoKeys: ["wines/u/a.jpg", "wines/u/b.jpg", null],
+			}),
+		).toBe(true);
+		// 削除
+		expect(
+			hasUnsavedDrunkWineChanges({ ...saved, photoKeys: ["wines/u/a.jpg"] }),
+		).toBe(true);
+		// 並べ替え(先頭=代表写真が変わる)
+		expect(
+			hasUnsavedDrunkWineChanges({
+				...saved,
+				photoKeys: ["wines/u/b.jpg", "wines/u/a.jpg"],
+			}),
+		).toBe(true);
 	});
 });
