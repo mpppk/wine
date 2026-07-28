@@ -19,13 +19,10 @@ import {
 	ADMIN_EXTENSION_MAX_DAYS,
 	ADMIN_EXTENSION_MIN_DAYS,
 } from "#/lib/admin/premium-extension";
-import { auth } from "#/lib/auth";
 import { BadRequestError } from "#/lib/errors";
 import * as adminActions from "#/lib/services/admin-actions";
 import * as adminService from "#/lib/services/admin-service";
 import { adminMiddleware } from "./middleware";
-
-const DAY_SECONDS = 24 * 60 * 60;
 
 // 管理画面(ユーザ管理)のRPC。すべて adminMiddleware で role="admin" のみに制限する。
 
@@ -102,8 +99,9 @@ export const adminExtendPremium = createServerFn({ method: "POST" })
 	);
 
 // ── #115: セッション/MCP失効・BAN ──────────────────────────────────────────────
-// better-auth admin プラグインのサーバAPIを、呼び出し元(admin)のリクエストヘッダ付きで
-// 呼ぶ(プラグイン側の admin 認可を通すためヘッダが必要)。全操作を監査ログに記録する。
+// 副作用(better-auth API)と監査記録は分離できないためサービス層の1関数に閉じる(#251)。
+// better-auth admin プラグインの認可には呼び出し元(admin)のリクエストヘッダが要るので、
+// ヘッダだけをここで取り出して渡す。
 
 /** 全セッションを強制ログアウトする(#115)。理由必須。管理者限定。 */
 export const adminRevokeSessions = createServerFn({ method: "POST" })
@@ -114,19 +112,14 @@ export const adminRevokeSessions = createServerFn({ method: "POST" })
 			reason: z.string().trim().min(1).max(ADMIN_GRANT_REASON_MAX),
 		}),
 	)
-	.handler(async ({ data, context }) => {
-		await auth.api.revokeUserSessions({
-			body: { userId: data.userId },
-			headers: getRequest().headers,
-		});
-		await adminActions.recordAudit({
+	.handler(({ data, context }) =>
+		adminActions.revokeSessions({
 			actorUserId: context.user.id,
 			targetUserId: data.userId,
-			action: "revoke_sessions",
 			reason: data.reason,
-		});
-		return { ok: true as const };
-	});
+			headers: getRequest().headers,
+		}),
+	);
 
 /** ユーザを BAN(利用停止)する(#115)。理由必須、期限は任意(未指定は無期限)。管理者限定。 */
 export const adminBanUser = createServerFn({ method: "POST" })
@@ -143,30 +136,15 @@ export const adminBanUser = createServerFn({ method: "POST" })
 				.optional(),
 		}),
 	)
-	.handler(async ({ data, context }) => {
-		// 自分自身の BAN はロックアウトになるため拒否する。
-		if (data.userId === context.user.id) {
-			throw new BadRequestError("自分自身を利用停止することはできません。");
-		}
-		await auth.api.banUser({
-			body: {
-				userId: data.userId,
-				banReason: data.reason,
-				banExpiresIn: data.expiresInDays
-					? data.expiresInDays * DAY_SECONDS
-					: undefined,
-			},
-			headers: getRequest().headers,
-		});
-		await adminActions.recordAudit({
+	.handler(({ data, context }) =>
+		adminActions.banUser({
 			actorUserId: context.user.id,
 			targetUserId: data.userId,
-			action: "ban",
 			reason: data.reason,
-			detail: { banExpiresInDays: data.expiresInDays ?? null },
-		});
-		return { ok: true as const };
-	});
+			expiresInDays: data.expiresInDays,
+			headers: getRequest().headers,
+		}),
+	);
 
 /** ユーザの BAN を解除する(#115)。理由必須。管理者限定。 */
 export const adminUnbanUser = createServerFn({ method: "POST" })
@@ -177,19 +155,14 @@ export const adminUnbanUser = createServerFn({ method: "POST" })
 			reason: z.string().trim().min(1).max(ADMIN_GRANT_REASON_MAX),
 		}),
 	)
-	.handler(async ({ data, context }) => {
-		await auth.api.unbanUser({
-			body: { userId: data.userId },
-			headers: getRequest().headers,
-		});
-		await adminActions.recordAudit({
+	.handler(({ data, context }) =>
+		adminActions.unbanUser({
 			actorUserId: context.user.id,
 			targetUserId: data.userId,
-			action: "unban",
 			reason: data.reason,
-		});
-		return { ok: true as const };
-	});
+			headers: getRequest().headers,
+		}),
+	);
 
 /** ユーザの MCP(OAuth)連携をすべて失効する(#115)。理由必須。管理者限定。 */
 export const adminRevokeMcp = createServerFn({ method: "POST" })
@@ -200,20 +173,13 @@ export const adminRevokeMcp = createServerFn({ method: "POST" })
 			reason: z.string().trim().min(1).max(ADMIN_GRANT_REASON_MAX),
 		}),
 	)
-	.handler(async ({ data, context }) => {
-		const res = await adminActions.revokeMcpConnections(data.userId);
-		await adminActions.recordAudit({
+	.handler(({ data, context }) =>
+		adminActions.revokeMcp({
 			actorUserId: context.user.id,
 			targetUserId: data.userId,
-			action: "revoke_mcp",
 			reason: data.reason,
-			detail: {
-				tokensDeleted: res.tokensDeleted,
-				consentsDeleted: res.consentsDeleted,
-			},
-		});
-		return res;
-	});
+		}),
+	);
 
 // ── #116: 一括クレジット補填 ─────────────────────────────────────────────────
 
