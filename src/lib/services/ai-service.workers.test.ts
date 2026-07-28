@@ -1,18 +1,55 @@
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { creditLedger } from "#/db/schema";
+import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
+import { tokensToCredits } from "#/lib/credit/credit-math";
+import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
 import { NotFoundError } from "#/lib/errors";
-import { answerRegionQuestion } from "./ai-service";
+import { analyzeWineLabel, answerRegionQuestion } from "./ai-service";
 
-// ai-service のクレジット予約まわりを実D1で検証する。AI バインディングはテスト環境に
-// 用意していない(vitest.config.ts)ため、env.AI.run に到達する経路は対象にせず、
-// 「予約する前に落ちる/予約したら必ず補償される」という予約の前後関係だけを見る。
+// ai-service のクレジット予約まわりを実D1で検証する。vitest.config.ts は AI バインディングを
+// 用意しない(ローカルでもリモート接続を張るため)ので、env.AI はテスト内で差し替える。
+// 見るのは推論の中身ではなく「予約 → 実測確定 / 失敗時返却」の骨格 —— つまり
+// 推論が失敗したときにユーザのクレジットが焼き付いて消えないこと(#144/#158/#245)。
 
 async function ledgerRowsOf(userId: string) {
 	return db.select().from(creditLedger).where(eq(creditLedger.userId, userId));
 }
+
+async function balanceOf(userId: string): Promise<number> {
+	const row = await env.DB.prepare(
+		"SELECT balance FROM credit_balance WHERE user_id = ?",
+	)
+		.bind(userId)
+		.first<{ balance: number }>();
+	return row?.balance ?? 0;
+}
+
+async function seedUser(): Promise<string> {
+	const id = crypto.randomUUID();
+	await env.DB.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+		.bind(id, "ai-user", `${id}@example.test`)
+		.run();
+	return id;
+}
+
+/**
+ * env.AI を差し替える。答えの中身ではなく「AI 呼び出しが成功/失敗したときに
+ * 台帳と残高がどうなるか」を固定するためのスタブ。
+ */
+function stubAiRun(run: () => Promise<unknown>): void {
+	(env as unknown as { AI: { run: () => Promise<unknown> } }).AI = { run };
+}
+
+afterEach(() => {
+	delete (env as unknown as { AI?: unknown }).AI;
+});
+
+/** data URI 1枚ぶんのダミー(中身はスタブが解析しないので任意) */
+const PHOTO = "data:image/jpeg;base64,AAAA";
 
 describe("answerRegionQuestion のモデル解決順序 (#245)", () => {
 	it("モデル解決の失敗で予約が無記録で消えない", async () => {
@@ -33,6 +70,101 @@ describe("answerRegionQuestion のモデル解決順序 (#245)", () => {
 
 		// 予約より前に落ちるので台帳には何も残らない。モデル解決が予約の後にあると、
 		// ここに返却されないままの consume 行(と月次付与の grant 行)が残る。
+		expect(await ledgerRowsOf(userId)).toHaveLength(0);
+	});
+});
+
+describe("answerRegionQuestion の予約 → 確定/返却", () => {
+	const ask = (userId: string) =>
+		answerRegionQuestion(userId, {
+			regionId: "bourgogne",
+			question: "シャブリの土壌は?",
+		});
+
+	it("推論が失敗したら予約を全額返却し、残高を元に戻す", async () => {
+		const userId = await seedUser();
+		const boom = new Error("AI unavailable");
+		stubAiRun(() => Promise.reject(boom));
+
+		// 推論失敗はそのまま呼び出し側へ伝える(返却が例外を握り潰さない #158)
+		await expect(ask(userId)).rejects.toBe(boom);
+
+		// 当月付与ぶんが丸ごと残っている = 予約が焼き付いていない
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+
+		const rows = await ledgerRowsOf(userId);
+		const consume = rows.find((r) => r.type === "consume");
+		const refund = rows.find((r) => r.requestId?.endsWith(REFUND_SUFFIX));
+		expect(consume).toBeDefined();
+		expect(refund).toBeDefined();
+		// 返却額は予約額と同額(=差し引きゼロ)。台帳にも痕跡が残る(#143)
+		expect(refund?.amount).toBe(-(consume?.amount ?? 0));
+		// 消費は確定していないので settle 台帳は無い
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
+	});
+
+	it("推論が成功したら実測ぶんだけ消費し、差分を戻す", async () => {
+		const userId = await seedUser();
+		const actualTokens = 42;
+		stubAiRun(async () => ({
+			response: "キンメリジャンの石灰質土壌です。",
+			usage: { total_tokens: actualTokens },
+		}));
+
+		const result = await ask(userId);
+
+		expect(result).toMatchObject({
+			blocked: false,
+			answer: "キンメリジャンの石灰質土壌です。",
+			actualTokens,
+		});
+		// 見積との差分は戻るので、最終的な消費は実測ぶんだけ
+		const expected = MONTHLY_CREDITS_FREE - tokensToCredits(actualTokens);
+		expect(await balanceOf(userId)).toBe(expected);
+		expect((result as { balance: number }).balance).toBe(expected);
+
+		const rows = await ledgerRowsOf(userId);
+		// 確定は settle 接尾辞の台帳で表す(返却済みかどうかの判別に使う #146)
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
+	});
+
+	it("実測が取れないモデルでも予約全量を消費として確定する(返却0=安全側)", async () => {
+		const userId = await seedUser();
+		// usage を返さないモデル。ここで「実測0」と扱うと予約全額が戻り、消費が無料になる
+		stubAiRun(async () => ({ response: "回答" }));
+
+		const result = await ask(userId);
+
+		expect(result).toMatchObject({ blocked: false });
+		expect(await balanceOf(userId)).toBeLessThan(MONTHLY_CREDITS_FREE);
+	});
+});
+
+describe("analyzeWineLabel の予約 → 返却", () => {
+	it("全ての写真の解析に失敗したら予約を全額返却する", async () => {
+		const userId = await seedUser();
+		stubAiRun(() => Promise.reject(new Error("model error")));
+
+		// 個々の写真の失敗はスキップされるが、全滅なら推論失敗として throw する
+		await expect(
+			analyzeWineLabel(userId, { imageDataUrls: [PHOTO, PHOTO] }),
+		).rejects.toThrow("すべての写真の解析に失敗しました");
+
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
+	});
+
+	it("画像が空なら予約せずに 400 で弾く", async () => {
+		const userId = await seedUser();
+
+		await expect(
+			analyzeWineLabel(userId, { imageDataUrls: [] }),
+		).rejects.toThrow();
+
+		// 予約前に落ちるので台帳は空(月次付与すら走らない)
 		expect(await ledgerRowsOf(userId)).toHaveLength(0);
 	});
 });

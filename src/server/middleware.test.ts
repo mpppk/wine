@@ -1,3 +1,4 @@
+import type { MockInstance } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	BadRequestError,
@@ -69,6 +70,13 @@ function throwingNext(e: unknown): Next {
 	return () => Promise.reject(e);
 }
 
+/** console スパイが受けた最初の1行を構造化ログとして読む */
+function loggedLine(spy: MockInstance): Record<string, unknown> {
+	const call = spy.mock.calls[0];
+	expect(call).toBeDefined();
+	return JSON.parse(String(call?.[0]));
+}
+
 beforeEach(() => {
 	hooks.statuses = [];
 	hooks.requestUrl = "https://wine.test/_serverFn/quiz.saveAnswer";
@@ -88,7 +96,7 @@ describe("authMiddleware", () => {
 		expect(next).not.toHaveBeenCalled();
 		// 認証切れは正常系なので warn。error にすると障害シグナルを薄める(#255)
 		expect(warn).toHaveBeenCalledTimes(1);
-		const line = JSON.parse(warn.mock.calls[0][0] as string);
+		const line = loggedLine(warn);
 		expect(line).toMatchObject({
 			level: "warn",
 			msg: "server fn unauthorized",
@@ -142,7 +150,7 @@ describe("authMiddleware", () => {
 		// 5xx のまま(既定)にする。ここで 4xx を付けると障害が成功系に見える
 		expect(hooks.statuses).toEqual([]);
 		expect(error).toHaveBeenCalledTimes(1);
-		const line = JSON.parse(error.mock.calls[0][0] as string);
+		const line = loggedLine(error);
 		expect(line).toMatchObject({
 			level: "error",
 			msg: "server fn failed",
@@ -229,7 +237,7 @@ describe("optionalAuthMiddleware", () => {
 
 		await expect(runOptional({ next: throwingNext(boom) })).rejects.toBe(boom);
 
-		const line = JSON.parse(error.mock.calls[0][0] as string);
+		const line = loggedLine(error);
 		expect(line).toMatchObject({ level: "error", msg: "server fn failed" });
 		expect(line.userId).toBeUndefined();
 	});

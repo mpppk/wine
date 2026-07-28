@@ -446,3 +446,68 @@ describe("bulkGrantCredits のD1呼び出し数", () => {
 		expect(adminRows.length).toBe(5);
 	});
 });
+
+describe("grantCredits の冪等性", () => {
+	it("同一 requestId の再送は加算も監査追記もせず、alreadyApplied で返す", async () => {
+		const targetUserId = await freshUser();
+		// 実運用では管理画面のリトライ・二重クリックがこの形で届く
+		const requestId = `admin_grant:${crypto.randomUUID()}`;
+
+		const first = await adminActions.grantCredits({
+			actorUserId: "admin-grant-actor",
+			targetUserId,
+			amount: 30,
+			reason: "障害のお詫び",
+			requestId,
+		});
+		expect(first.alreadyApplied).toBe(false);
+
+		const second = await adminActions.grantCredits({
+			actorUserId: "admin-grant-actor",
+			targetUserId,
+			amount: 30,
+			reason: "障害のお詫び(再送)",
+			requestId,
+		});
+
+		expect(second.alreadyApplied).toBe(true);
+		// 残高が動いていないこと。ここが崩れると再送のたびに二重付与になる
+		expect(second.balanceAfter).toBe(first.balanceAfter);
+
+		const adminRows = (
+			await db
+				.select({ requestId: creditLedger.requestId })
+				.from(creditLedger)
+				.where(eq(creditLedger.userId, targetUserId))
+		).filter((r) => r.requestId === requestId);
+		expect(adminRows).toHaveLength(1);
+
+		// 監査ログも1件のまま(付与していないのに「付与した」記録が増えない)
+		const audits = (await auditRows(targetUserId)).filter(
+			(r) => r.action === "credit_grant",
+		);
+		expect(audits).toHaveLength(1);
+	});
+
+	it("requestId が異なれば別の付与として加算する", async () => {
+		const targetUserId = await freshUser();
+
+		const first = await adminActions.grantCredits({
+			actorUserId: "admin-grant-actor",
+			targetUserId,
+			amount: 10,
+			reason: "1回目",
+			requestId: `admin_grant:${crypto.randomUUID()}`,
+		});
+		const second = await adminActions.grantCredits({
+			actorUserId: "admin-grant-actor",
+			targetUserId,
+			amount: 10,
+			reason: "2回目",
+			requestId: `admin_grant:${crypto.randomUUID()}`,
+		});
+
+		expect(second.alreadyApplied).toBe(false);
+		expect(second.balanceAfter).toBe(first.balanceAfter + 10);
+	});
+});
