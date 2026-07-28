@@ -199,7 +199,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - **会員区分は導出値**: DB に plan カラムは持たず、better-auth/stripe の `subscription` テーブルから `resolvePlan()`（`entitlements.ts`）で `"free" | "premium"` を導出する。プラン・料金・クレジット数値は `plans.ts` に集約。
 - **クレジットは「追記専用台帳 + 残高キャッシュ」**: `credit_ledger`（unique な `requestId` が冪等キー）と `credit_balance` を同一 `db.batch` で更新。残高は `WHERE balance >= required` の条件付き UPDATE でのみ減算し、負値を構造的に禁止。残高不足は throw せず `{ blocked: true }` を返す（アップグレード誘導 UI につなげるため）。
 - **月次付与は Cron ではなく遅延付与**: 残高参照・消費の入口で必ず `ensureCurrentMonthGranted` を呼ぶ。繰越なし。管理画面のような「閲覧が付与を起こしてはいけない」文脈では `credit_balance` を生 SELECT する（`admin-service.ts`）。
-- **AI 消費の骨格**: `reserveCredits`（見積で予約）→ `env.AI.run` → `settleReservation`（実測で確定）/ 失敗時 `refundReservation`（全額返却して再 throw）。クレジットを消費する新機能は必ずこのパターンに従い、`requestId` に用途プレフィックス付き一意キーを使う。
+- **AI 消費の骨格**: `reserveCredits`（見積で予約）→ `env.AI.run` → `settleReservation`（実測で確定）/ 失敗時 `refundReservation`（全額返却して再 throw）。クレジットを消費する新機能は必ずこのパターンに従い、`requestId` に用途プレフィックス付き一意キーを使う。**予約は必ず `:settle` か `:refund` のどちらかで決着させる**（差分 0 の確定も `amount=0` の `:settle` 行を残す）。後始末は `waitUntil` で打ち切りから守り、それでも宙に浮いた予約は次回の `reserveCredits` が回収する（#246。詳細は [docs/ai-credit-system.md](./ai-credit-system.md)）。**予約と独立な準備（モデル解決などの D1 読み）は予約より前に済ませる**。予約の後・返却を担う `try` の外に `await` を置くと、そこでの throw が返却に届かず予約が無記録で消える（#245）。
 - 管理画面の金銭的操作は理由必須 + `admin_audit_log` への記録をセットにし、可能な限り `requestId` で冪等化する（プレミアム延長は例外的に非冪等で、UI 側の二重送信防止に依存）。
 
 ### MCP サーバー（`src/lib/mcp/`）
