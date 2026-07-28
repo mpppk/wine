@@ -469,7 +469,10 @@ describe("hasUnsavedDrunkWineChanges", () => {
 	});
 
 	it("写真の追加・削除・並べ替えを未保存として扱う", () => {
-		const saved = { ...base, initialPhotoKeys: ["wines/u/a.jpg", "wines/u/b.jpg"] };
+		const saved = {
+			...base,
+			initialPhotoKeys: ["wines/u/a.jpg", "wines/u/b.jpg"],
+		};
 		// 変更なし
 		expect(
 			hasUnsavedDrunkWineChanges({
