@@ -100,6 +100,10 @@ export function classificationPanelBadgeJa(aop: Aop): string | undefined {
 	) {
 		return undefined;
 	}
+	// IGT は制度内の序列ではなく呼称そのもの。詳細パネルでは AppellationBadge が
+	// 制度名(IGT)を出すため、ここで返すと同じ文言のバッジが2つ並ぶ(#212)。
+	// リスト行(classificationBadgeJa)は badgeJa を持たないので元からバッジ無し。
+	if (tag === "igt") return undefined;
 	return formatAopTagJa(aop, tag);
 }
 

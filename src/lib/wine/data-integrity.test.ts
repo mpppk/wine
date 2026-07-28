@@ -11,7 +11,12 @@ import {
 	type ProducerAward,
 } from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
-import { CLASSIFICATION_TAG_RANK, isLegalAppellation } from "./tags";
+import {
+	CLASSIFICATION_TAG_RANK,
+	classificationBadgeJa,
+	classificationPanelBadgeJa,
+	isLegalAppellation,
+} from "./tags";
 import { getNonAppellationBadgeJa } from "./terminology";
 import type { Aop } from "./types";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
@@ -635,6 +640,15 @@ describe("IGT(トスカーナ)の扱い(#212)", () => {
 		for (const aop of igtAops) {
 			expect(isLegalAppellation(aop), aop.id).toBe(false);
 			expect(getNonAppellationBadgeJa(aop), aop.id).toBe("IGT");
+		}
+	});
+
+	// AppellationBadge が制度名(IGT)を出すので、格付けバッジ側は出さない。
+	// 両方返すと詳細パネルに同じ文言のバッジが2つ並ぶ(実機で発生させた)。
+	it("IGTは格付けバッジを出さない(制度名バッジと重複するため)", () => {
+		for (const aop of igtAops) {
+			expect(classificationPanelBadgeJa(aop), aop.id).toBeUndefined();
+			expect(classificationBadgeJa(aop), aop.id).toBeUndefined();
 		}
 	});
 
