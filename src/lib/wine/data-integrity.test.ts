@@ -597,7 +597,14 @@ const producerNamesOf = (aops: readonly Aop[]): string[] => [
  * 未登録の生産者はラテン文字のまま楽天を検索することになり、ほぼヒットしない。
  * 地域の整備が終わったらここへ足す。**外すのは後退**なので理由を残すこと。
  */
-const KEYWORD_COMPLETE_REGIONS = ["rhone", "beaujolais"] as const;
+const KEYWORD_COMPLETE_REGIONS = ["rhone", "beaujolais", "champagne"] as const;
+/**
+ * カタカナ+中黒の原則から外れる検索語。**この表に載せた分だけ**が例外で、
+ * `Salon` は「サロン」単独だと家具・美容室が大量にヒットするためカテゴリ語を足している。
+ */
+const KEYWORD_EXCEPTIONS: Record<string, string> = {
+	Salon: "サロン シャンパーニュ",
+};
 
 describe("検索キーワードを整備済みの地域(#211)", () => {
 	it.each(KEYWORD_COMPLETE_REGIONS)(
@@ -615,7 +622,12 @@ describe("検索キーワードを整備済みの地域(#211)", () => {
 		"%s: 検索キーワードはカタカナと中黒だけ",
 		(id) => {
 			for (const name of producerNamesOf(AOPS.filter((a) => a.region === id))) {
-				expect(PRODUCER_SEARCH_KEYWORDS[name], name).toMatch(/^[ァ-ヴー・]+$/);
+				const keyword = PRODUCER_SEARCH_KEYWORDS[name];
+				if (KEYWORD_EXCEPTIONS[name]) {
+					expect(keyword, name).toBe(KEYWORD_EXCEPTIONS[name]);
+					continue;
+				}
+				expect(keyword, name).toMatch(/^[ァ-ヴー・]+$/);
 			}
 		},
 	);
@@ -785,6 +797,179 @@ describe("ボージョレの生産者(#228)", () => {
 		for (const name of allNames) {
 			expect(PRODUCER_INFO[name]?.awards, name).toBeUndefined();
 		}
+	});
+});
+
+describe("シャンパーニュの生産者(#224)", () => {
+	const champagne = AOPS.filter((a) => a.region === "champagne");
+	const producersOf = (aopId: string): string[] =>
+		champagne.find((a) => a.id === aopId)?.producers.map((p) => p.name) ?? [];
+	const allNames = [
+		...new Set(champagne.flatMap((a) => a.producers.map((p) => p.name))),
+	];
+
+	// 件数だけでは中身の取り違えを検出できない(#216)ので、代表的な格付け村は
+	// 顔ぶれを固定する。全件、村に本拠を置くことを公的企業登記(Annuaire des
+	// Entreprises)で、大手メゾンの畑所有を UMC の村ページで確認済み。
+	it("主要なグラン・クリュ村の生産者は選定した顔ぶれと一致する", () => {
+		expect(producersOf("ambonnay")).toEqual([
+			"Egly-Ouriet",
+			"Eric Rodez",
+			"Marie-Noëlle Ledru",
+			"Paul Déthune",
+			"Krug",
+		]);
+		expect(producersOf("avize")).toEqual([
+			"Jacques Selosse",
+			"Agrapart & Fils",
+			"De Sousa",
+			"Franck Bonville",
+			"Varnier-Fannière",
+		]);
+		expect(producersOf("ay")).toEqual([
+			"Bollinger",
+			"Deutz",
+			"Ayala",
+			"Henri Giraud",
+			"Gatinois",
+			"Henri Goutorbe",
+			"Lallier",
+		]);
+		expect(producersOf("bouzy")).toEqual([
+			"Paul Bara",
+			"Pierre Paillard",
+			"Barnaut",
+			"Benoît Lahaye",
+			"André Clouet",
+			"Brice",
+		]);
+		expect(producersOf("le-mesnil-sur-oger")).toEqual([
+			"Salon",
+			"Delamotte",
+			"Krug",
+			"Pierre Péters",
+			"Robert Moncuit",
+			"Pertois-Moriset",
+			"Guy Charlemagne",
+			"Launois Père & Fils",
+		]);
+		expect(producersOf("verzenay")).toEqual([
+			"G.H. Mumm",
+			"Michel Arnould",
+			"Hugues Godmé",
+			"Pehu-Simonet",
+			"Jacques Rousseaux",
+		]);
+	});
+
+	// Club Trésors de Champagne(Special Club)の公開会員名簿(2026-07 時点の25社)は
+	// #224 の選定の一次情報。会員のうち収録済みの格付け村に本拠を置く16社が、
+	// その村に載っていることを固定する(名簿は入れ替わるため、外すときは版を確認する)。
+	// 残る9社は格付け村ではない村(Montigny-sous-Châtillon / Étoges / Festigny /
+	// Férebrianges / Villevenard / Chaumuzy / Moussy / Ville-sur-Arce / Les Riceys)に
+	// 本拠を置くため、対応する AOP を持たない。
+	it("Club Trésors 会員が本拠の村に載っている", () => {
+		const members: [string, string][] = [
+			["bouzy", "Paul Bara"],
+			["chouilly", "Roland Champion"],
+			["chouilly", "Vazart-Coquart"],
+			["dizy", "Gaston Chiquet"],
+			["sacy", "Dumenil"],
+			["sacy", "Hervieux-Dumez"],
+			["ludes", "Forget-Chemin"],
+			["verzy", "Fresnet-Juillet"],
+			["verzy", "Juillet-Lallement"],
+			["cuis", "Pierre Gimonnet & Fils"],
+			["ay", "Henri Goutorbe"],
+			["mareuil-sur-ay", "Marc Hébrart"],
+			["chigny-les-roses", "J. Lassalle"],
+			["le-mesnil-sur-oger", "Pertois-Moriset"],
+			["villers-marmery", "A. Margaine"],
+			["cumieres", "Sanchez-Le Guédard"],
+		];
+		const missing = members.filter(
+			([aopId, name]) => !producersOf(aopId).includes(name),
+		);
+		expect(missing).toEqual([]);
+	});
+
+	// #224 の起点は「生産者が1件しか無いAOPが多数ある」こと(62AOP中34村)。
+	// 下の9村は、UMC の村ページに畑を所有するメゾンの記載が無いか1社しかなく、
+	// かつ公的企業登記にも銘柄を名乗る造り手が見つからなかった村。
+	// ここに村を足すときは、一次情報を引き直してから足すこと。
+	const SINGLE_PRODUCER_AOPS = [
+		// 既存の記載を据え置いた村(UMCにも登記にも裏付けが見つからなかった)
+		"bezannes",
+		"coligny",
+		"cormontreuil",
+		"etrechy",
+		"montbre",
+		"villers-aux-noeuds",
+		// 一次情報で確認できた造り手/メゾンがちょうど1件だった村
+		"coulommes-la-montagne",
+		"trois-puits",
+		"voipreux",
+	];
+
+	it("生産者が1件だけのAOPは明示した9村に限られる", () => {
+		const singles = champagne
+			.filter((a) => a.producers.length < 2)
+			.map((a) => a.id)
+			.sort();
+		expect(singles).toEqual([...SINGLE_PRODUCER_AOPS].sort());
+	});
+
+	// #224 の調査で「その村の造り手ではない」と分かった組み合わせ。理由を残さないと
+	// 「網羅されていない」と判断して後から足し戻される(#216 と同じ趣旨)。
+	// 名前自体は正しい村・地方総称の側に残っているものが多いので、村ごとに禁止する。
+	it("調査で外した生産者が村ごとに復活していない", () => {
+		const removed: Record<string, string[]> = {
+			// 1584年アイ創業だが2009年にエペルネへ本拠を移した。地方総称 champagne に移動
+			ay: ["Gosset"],
+			// ランス本拠。UMCのシルリー村ページに畑所有の記載がない
+			// (17〜18世紀の「シルリーのワイン」は造り手の所在を示すものではない)
+			sillery: ["Ruinart"],
+			// ヴェルテュ本拠。vertus 側に載せる
+			cramant: ["Larmandier-Bernier"],
+			// 以下は UMC の村ページが挙げるメゾンと食い違っていたもの
+			"beaumont-sur-vesle": ["Moët & Chandon", "Veuve Clicquot"],
+			"billy-le-grand": ["Veuve Clicquot"],
+			"bergeres-les-vertus": ["Veuve Clicquot"],
+			"pargny-les-reims": ["G.H. Mumm"],
+			sacy: ["Pommery"],
+			taissy: ["Taittinger"],
+			vaudemange: ["Veuve Clicquot"],
+			"ville-dommange": ["Pommery"],
+			"villers-allerand": ["G.H. Mumm"],
+			"les-mesneux": ["Pommery"],
+			"trois-puits": ["Pommery"],
+			voipreux: ["Nicolas Feuillatte"],
+			"villeneuve-renneville-chevigny": ["Nicolas Feuillatte"],
+			// UMCの村ページに記載が無く、村に本拠を置く造り手へ差し替えた
+			sermiers: ["G.H. Mumm"],
+			"coulommes-la-montagne": ["G.H. Mumm"],
+			"avenay-val-d-or": ["Moët & Chandon"],
+			bisseuil: ["Moët & Chandon"],
+		};
+		const revived = Object.entries(removed).flatMap(([aopId, names]) =>
+			names.filter((name) => producersOf(aopId).includes(name)),
+		);
+		expect(revived).toEqual([]);
+	});
+
+	// シャンパーニュには生産者の公的格付けが無く(格付けされるのは村)、
+	// Club Trésors の会員名簿も加入年を持たないため awards には載せない。
+	// 理由は producer-info.ts のコメントが単一情報源(#224)。
+	it("シャンパーニュの生産者は受賞を持たない", () => {
+		for (const name of allNames) {
+			expect(PRODUCER_INFO[name]?.awards, name).toBeUndefined();
+		}
+	});
+
+	it("件数スナップショット(62AOP / 生産者ユニーク145件 / 延べ189件)", () => {
+		expect(champagne.length).toBe(62);
+		expect(allNames.length).toBe(145);
+		expect(champagne.reduce((n, a) => n + a.producers.length, 0)).toBe(189);
 	});
 });
 

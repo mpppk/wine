@@ -4363,7 +4363,22 @@
 			"Veuve Clicquot",
 			"Louis Roederer",
 			"Bollinger",
-			"Krug"
+			"Krug",
+			"Pol Roger",
+			"Charles Heidsieck",
+			"Piper-Heidsieck",
+			"Perrier-Jouët",
+			"Taittinger",
+			"Pommery",
+			"Ruinart",
+			"Laurent-Perrier",
+			"Lanson",
+			"Bruno Paillard",
+			{ "name": "Gosset", "note": "1584年アイ創業、2009年よりエペルネに本拠" },
+			{
+				"name": "Nicolas Feuillatte",
+				"note": "協同組合連合 Terroirs et Vignerons de Champagne のブランド"
+			}
 		],
 		"description": "瓶内二次発酵によるスパークリングワインの世界的基準となるAOC。地方全域約34,000haをカバーし、村の格付け「エシェル・デ・クリュ」(グラン・クリュ17村/プルミエ・クリュ42村)が品質の目安として用いられる。"
 	},
@@ -4411,7 +4426,8 @@
 		"producers": [
 			{ "name": "Bollinger", "note": "La Côte aux Enfants" },
 			"Egly-Ouriet",
-			"Georges Laval"
+			"Georges Laval",
+			{ "name": "Paul Bara", "note": "ブジー・ルージュ" }
 		],
 		"description": "シャンパーニュ地方で造られる非発泡(スティル)ワインのAOC。生産地域はシャンパーニュAOCと完全に重なる。ブジーやアイの赤が有名で、温暖化とともに注目度が上昇している。"
 	},
@@ -4432,7 +4448,11 @@
 			}
 		],
 		"soil": "シャブリと同系統のキンメリジャン期泥灰土(石灰質泥灰岩)。コート・デ・バールの丘陵斜面に畑が広がる。",
-		"producers": ["Alexandre Bonnet", "Olivier Horiot"],
+		"producers": [
+			"Alexandre Bonnet",
+			"Olivier Horiot",
+			"Laurenti Père et Fils"
+		],
 		"description": "オーブ県レ・リセ村のピノ・ノワールから造られる、長期熟成能力を持つ非発泡ロゼの単独AOC。良年にのみ少量生産され、「フランスで最も稀少なロゼ」とも呼ばれる。"
 	},
 	{
@@ -4462,9 +4482,11 @@
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
 		"producers": [
-			{ "name": "Krug", "note": "Clos d'Ambonnay" },
+			"Egly-Ouriet",
 			"Eric Rodez",
-			"Marie-Noëlle Ledru"
+			"Marie-Noëlle Ledru",
+			"Paul Déthune",
+			{ "name": "Krug", "note": "Clos d'Ambonnay" }
 		],
 		"description": "モンターニュ南東斜面のピノ・ノワールの銘醸村。ブジーと並び称される力強い果実味が特徴で、クリュッグの単一区画「クロ・ダンボネイ」で世界的に知られる。"
 	},
@@ -4490,7 +4512,13 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Jacques Selosse", "Agrapart & Fils", "De Sousa"],
+		"producers": [
+			"Jacques Selosse",
+			"Agrapart & Fils",
+			"De Sousa",
+			"Franck Bonville",
+			"Varnier-Fannière"
+		],
 		"description": "コート・デ・ブラン中央部のシャルドネのグラン・クリュ。ジャック・セロスをはじめ先鋭的な栽培家が集まり、テロワール表現の最前線となっている村。"
 	},
 	{
@@ -4519,7 +4547,15 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Bollinger", "Deutz", "Gosset"],
+		"producers": [
+			"Bollinger",
+			"Deutz",
+			"Ayala",
+			"Henri Giraud",
+			"Gatinois",
+			"Henri Goutorbe",
+			"Lallier"
+		],
 		"description": "マルヌ川北岸の南向き斜面に広がるピノ・ノワールの歴史的銘醸村。ボランジェやドゥーツが本拠を置く。2016年に隣村と合併し現在はアイ・シャンパーニュ市の一部(地図は旧村域)。"
 	},
 	{
@@ -4548,7 +4584,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Moët & Chandon", "Veuve Clicquot"],
+		"producers": ["Louis Roederer", "Joël Vautier"],
 		"description": "モンターニュ北東端の小さなグラン・クリュ。栽培面積はわずかで、収穫のほとんどが大手メゾンに供給される。ピノ・ノワール主体。"
 	},
 	{
@@ -4577,7 +4613,14 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Paul Bara", "Barnaut", "Pierre Paillard"],
+		"producers": [
+			"Paul Bara",
+			"Pierre Paillard",
+			"Barnaut",
+			"Benoît Lahaye",
+			"André Clouet",
+			"Brice"
+		],
 		"description": "南向き斜面が生む完熟ピノ・ノワールで名高いグラン・クリュ。コトー・シャンプノワの赤「ブジー・ルージュ」の産地としても地方随一の知名度を誇る。"
 	},
 	{
@@ -4602,7 +4645,13 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["R&L Legras", "Vazart-Coquart"],
+		"producers": [
+			"R&L Legras",
+			"Vazart-Coquart",
+			"Roland Champion",
+			"Legras & Haas",
+			{ "name": "Nicolas Feuillatte", "note": "プリュムコックに本拠" }
+		],
 		"description": "コート・デ・ブラン最北部、エペルネに隣接するシャルドネの村。格付けはシャルドネのみ100%(グラン・クリュ)で、ピノ・ノワールはプルミエ・クリュ扱いという珍しい二重格付けを持つ。"
 	},
 	{
@@ -4627,7 +4676,14 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Larmandier-Bernier", "Diebolt-Vallois", "Lilbert-Fils"],
+		"producers": [
+			"Diebolt-Vallois",
+			"Lilbert-Fils",
+			"Bonnaire",
+			"Pertois-Lebrun",
+			"Voirin-Jumel",
+			"Sugot-Feneuil"
+		],
 		"description": "チョークの丘に抱かれたシャルドネのグラン・クリュ。柔らかな泡立ちの「クレマン(古くはクレマン・ド・クラマン)」の語源となった村として知られる。"
 	},
 	{
@@ -4656,7 +4712,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Guy de Chassey"],
+		"producers": ["Guy de Chassey", "Yves Beautrait", "Bollinger"],
 		"description": "モンターニュ南麓の森に囲まれた小さなグラン・クリュ。ピノ・ノワール主体で収穫の多くはメゾンへ供給される。2016年に隣村と合併し現在はヴァル・ド・リーヴル市の一部(地図は旧村域)。"
 	},
 	{
@@ -4685,7 +4741,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Champagne Mailly Grand Cru"],
+		"producers": ["Champagne Mailly Grand Cru", "Ernest Remy"],
 		"description": "モンターニュ北面のグラン・クリュ。村内の生産者のみで構成される協同組合「マイィ・グラン・クリュ」が高品質なグラン・クリュ100%シャンパーニュを造ることで有名。"
 	},
 	{
@@ -4712,8 +4768,13 @@
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
 		"producers": [
 			"Salon",
+			"Delamotte",
 			{ "name": "Krug", "note": "Clos du Mesnil" },
-			"Pierre Péters"
+			"Pierre Péters",
+			"Robert Moncuit",
+			"Pertois-Moriset",
+			"Guy Charlemagne",
+			"Launois Père & Fils"
 		],
 		"description": "シャルドネの最高峰と称される村。サロン、クリュッグの「クロ・デュ・メニル」など伝説的なブラン・ド・ブランを生む。鋭い酸と圧倒的なミネラル感が持ち味。"
 	},
@@ -4764,7 +4825,7 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Moët & Chandon"],
+		"producers": ["Moët & Chandon", "Lang-Biemont", "Legras-Frapart"],
 		"description": "コート・デ・ブラン北端の平坦なシャルドネの村。1985年昇格組で、収穫の大半が大手メゾンや協同組合に供給される。"
 	},
 	{
@@ -4793,7 +4854,10 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Moët & Chandon"],
+		"producers": [
+			"Moët & Chandon",
+			{ "name": "François Chaumont", "note": "ピュイジューの畑のみで醸造" }
+		],
 		"description": "17グラン・クリュ中最小の栽培面積しか持たない村。モンターニュ北東部に位置し、収穫はほぼ全量が大手メゾンに供給される。"
 	},
 	{
@@ -4822,7 +4886,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["François Secondé", "Ruinart"],
+		"producers": ["François Secondé", "Moët & Chandon", "Billecart-Salmon"],
 		"description": "17〜18世紀には「シルリーのワイン」として欧州宮廷で最も高名だった歴史的な村。現在は村内で瓶詰めまで行う生産者が少なく、フランソワ・スコンデが代表格。"
 	},
 	{
@@ -4851,7 +4915,7 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Laurent-Perrier"],
+		"producers": ["Laurent-Perrier", "Chauvet", "Lamiable"],
 		"description": "ローラン・ペリエが本拠を置くマルヌ川沿いの村。格付けはピノ・ノワールのみ100%(グラン・クリュ)で、シャルドネはプルミエ・クリュ扱いという二重格付けを持つ。"
 	},
 	{
@@ -4880,7 +4944,13 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["G.H. Mumm", "Michel Arnould", "Hugues Godmé"],
+		"producers": [
+			"G.H. Mumm",
+			"Michel Arnould",
+			"Hugues Godmé",
+			"Pehu-Simonet",
+			"Jacques Rousseaux"
+		],
 		"description": "風車のランドマークで知られる北向き斜面のグラン・クリュ。北向きながら(むしろそれゆえに)緊張感ある酸を備えたピノ・ノワールを生み、多くのメゾンの骨格を担う。"
 	},
 	{
@@ -4909,7 +4979,14 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Louis Roederer", "Etienne Lefevre"],
+		"producers": [
+			"Louis Roederer",
+			"Etienne Lefevre",
+			"Cuperly",
+			"Louis de Sacy",
+			"Fresnet-Juillet",
+			"Juillet-Lallement"
+		],
 		"description": "ヴェルズネイに隣接する北〜北東向き斜面の村。1985年にグラン・クリュへ昇格。引き締まった酸のピノ・ノワールとシャルドネの双方で評価が高い。"
 	},
 	{
@@ -4938,7 +5015,7 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Moët & Chandon"],
+		"producers": ["Yves Ruffin", "Hubert Billiard"],
 		"description": "グランド・ヴァレ・ド・ラ・マルヌの支谷に位置するピノ・ノワール主体のプルミエ・クリュ。ムティニーとアイの背後の丘に畑が続く。"
 	},
 	{
@@ -4963,7 +5040,7 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Veuve Clicquot"],
+		"producers": ["Lallier", "Bertrand Vallois"],
 		"description": "コート・デ・ブラン最南端、モン・エメ(聖なる丘)の麓に広がるシャルドネの村。丘を境にコート・ド・セザンヌへと続く。"
 	},
 	{
@@ -5017,7 +5094,7 @@
 			}
 		],
 		"soil": "チョーク層が浅く露出する石灰質土壌。モンターニュ東面では例外的にシャルドネに適した区画が広がる。",
-		"producers": ["Veuve Clicquot"],
+		"producers": ["G.H. Mumm", "Bonnevie-Bocart"],
 		"description": "モンターニュ東面(ペルト・エ・ノワール)の村。この一帯は例外的にシャルドネの比率が高く、隣のヴォードマンジュとともにブレンドの酸の供給源として重宝される。"
 	},
 	{
@@ -5046,7 +5123,7 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Moët & Chandon"],
+		"producers": ["Deutz", "Gonet-Médeville"],
 		"description": "マルヌ川南岸、トゥール・シュル・マルヌの対岸に位置するプルミエ・クリュ。2016年にアイ等と合併し現在はアイ・シャンパーニュ市の一部(地図は旧村域)。"
 	},
 	{
@@ -5075,7 +5152,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Bonnet-Ponson"],
+		"producers": ["Bonnet-Ponson", "Bertrand Delespierre"],
 		"description": "プティット・モンターニュの中核をなす村のひとつ。ムニエとピノ・ノワールを中心に、当主自ら瓶詰めするレコルタン・マニピュランも多い。"
 	},
 	{
@@ -5104,7 +5181,7 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Autréau de Champillon"],
+		"producers": ["Autréau de Champillon", "Moët & Chandon"],
 		"description": "エペルネからランスへ抜ける峠道沿い、マルヌ渓谷を見下ろす展望で知られる村。ピノ・ノワールとムニエ主体のプルミエ・クリュ。"
 	},
 	{
@@ -5133,7 +5210,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Cattier", "Gardet"],
+		"producers": ["Cattier", "Gardet", "J. Lassalle", "J. Dumangin Fils"],
 		"description": "バラの村の名を持つモンターニュ北面のプルミエ・クリュ。カティエの単一区画「クロ・デュ・ムーラン」が有名。"
 	},
 	{
@@ -5216,7 +5293,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["G.H. Mumm"],
+		"producers": ["Jean-Marie Massonnot"],
 		"description": "プティット・モンターニュ西部のムニエ主体の村。小規模栽培家が多く、収穫の多くはメゾンや協同組合に供給される。"
 	},
 	{
@@ -5241,7 +5318,7 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Pierre Gimonnet & Fils"],
+		"producers": ["Pierre Gimonnet & Fils", "Paul Michel"],
 		"description": "コート・デ・ブラン北部の斜面上部に畑を持つシャルドネの村。ピエール・ジモネの本拠地として、切れ味の良いブラン・ド・ブランで知られる。"
 	},
 	{
@@ -5270,7 +5347,14 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Georges Laval", "René Geoffroy"],
+		"producers": [
+			"Georges Laval",
+			{
+				"name": "René Geoffroy",
+				"note": "2008年に醸造所をアイへ移転、畑はキュミエールに残る"
+			},
+			"Sanchez-Le Guédard"
+		],
 		"description": "マルヌ川北岸の急な南向き斜面を持ち、地方で最も早く収穫が始まる村のひとつ。ビオ栽培の先駆者ジョルジュ・ラヴァルの本拠地。コトー・シャンプノワの赤でも有名。"
 	},
 	{
@@ -5378,7 +5462,7 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Moët & Chandon"],
+		"producers": ["Moët & Chandon", "Ayala"],
 		"description": "コート・デ・ブラン背後の谷あいに位置するシャルドネ主体のプルミエ・クリュ。キュイの背後からアヴィーズ方面へ畑が続く。"
 	},
 	{
@@ -5409,7 +5493,9 @@
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
 		"producers": [
 			{ "name": "Moët & Chandon", "note": "アビー・ドーヴィレール" },
-			"G. Tribaut"
+			"G. Tribaut",
+			"Locret-Lachaud",
+			"Louis Nicaise"
 		],
 		"description": "「シャンパーニュ発祥の地」と称される村。修道士ドン・ペリニヨンが眠るオーヴィレール修道院があり、現在はモエ・エ・シャンドンが所有する。"
 	},
@@ -5439,7 +5525,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["L. Aubry Fils"],
+		"producers": ["L. Aubry Fils", "Vincent Perseval"],
 		"description": "プティット・モンターニュ西部の村。オーブリー兄弟がアルバンヌ等の歴史的品種の復活に取り組む本拠地として知られる。"
 	},
 	{
@@ -5468,7 +5554,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Pommery"],
+		"producers": ["Moët & Chandon", "Jacquinet-Dumez"],
 		"description": "ランス南西郊外に位置するプティット・モンターニュの小さなプルミエ・クリュ。収穫の多くはメゾンへ供給される。"
 	},
 	{
@@ -5497,7 +5583,13 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Canard-Duchêne", "Ployez-Jacquemart"],
+		"producers": [
+			"Canard-Duchêne",
+			"Ployez-Jacquemart",
+			"Bérêche & Fils",
+			"Forget-Chemin",
+			"Forget-Brimont"
+		],
 		"description": "モンターニュ北面の斜面に位置し、カナール・デュシェーヌが本拠を置く村。ピノ・ノワール主体に3品種がバランスよく植わる。"
 	},
 	{
@@ -5528,7 +5620,9 @@
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
 		"producers": [
 			{ "name": "Philipponnat", "note": "Clos des Goisses" },
-			"Billecart-Salmon"
+			"Billecart-Salmon",
+			"Marc Hébrart",
+			"R. Pouillon & Fils"
 		],
 		"description": "格付け99%を持つ事実上グラン・クリュ級の村。フィリポナの銘醸単一畑「クロ・デ・ゴワス」を擁する。2016年合併で現在はアイ・シャンパーニュ市の一部(地図は旧村域)。"
 	},
@@ -5587,7 +5681,7 @@
 			}
 		],
 		"soil": "チョーク基盤の上に粘土・泥灰土が厚く堆積する。川沿いの温和な気候と相まって、ふくよかなピノ・ノワールとムニエに適する。",
-		"producers": ["Moët & Chandon"],
+		"producers": ["Moët & Chandon", "Bollinger"],
 		"description": "アイの背後の丘の上に位置するピノ・ノワール主体の村。マルヌ渓谷とモンターニュを結ぶ尾根に畑が広がる。"
 	},
 	{
@@ -5616,7 +5710,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["G.H. Mumm"],
+		"producers": ["Moët & Chandon", "Veuve Clicquot", "Leguay-Truchon"],
 		"description": "プティット・モンターニュ西部のムニエ主体の村。ジュイ・レ・ランスに隣接し、小規模栽培家が中心。"
 	},
 	{
@@ -5641,7 +5735,7 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Vollereaux"],
+		"producers": ["Vollereaux", "Mandois", "Jean-Marc Sélèque"],
 		"description": "エペルネ南郊、コトー・シュド・デペルネの入口に位置するプルミエ・クリュ。シャルドネとムニエが植わり、ヴォルロー等の家族経営メゾンが本拠を置く。"
 	},
 	{
@@ -5670,7 +5764,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Vilmart & Cie"],
+		"producers": ["Vilmart & Cie", "Hubert Paulet", "Marc Chauvet"],
 		"description": "モンターニュ北面の中心的なプルミエ・クリュのひとつ。長期樽熟成で知られるヴィルマールの本拠地。3品種がバランスよく栽培される。"
 	},
 	{
@@ -5699,7 +5793,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Pommery"],
+		"producers": ["Dumenil", "Hervieux-Dumez", "Veuve Clicquot"],
 		"description": "プティット・モンターニュ、エキュイユの隣村。ムニエとピノ・ノワール主体で、ランスを見晴らす斜面に畑が広がる。"
 	},
 	{
@@ -5728,7 +5822,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["G.H. Mumm"],
+		"producers": ["Manceaux-Talbot", "R. Froment & Fils"],
 		"description": "モンターニュ北西面の森に接する村。ムニエ主体で、収穫の多くはメゾンや協同組合へ供給される。"
 	},
 	{
@@ -5757,7 +5851,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Taittinger"],
+		"producers": ["Moët & Chandon", "Georges Vollereaux"],
 		"description": "ランス南東郊外のプルミエ・クリュ。ヴェール川沿いの緩斜面に小さな畑が残る。"
 	},
 	{
@@ -5786,7 +5880,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Moët & Chandon"],
+		"producers": ["Moët & Chandon", "Bollinger"],
 		"description": "格付け99%を持つ事実上グラン・クリュ級の村。ブジーとルーヴォワに挟まれたピノ・ノワールの銘産地。2016年合併で現在はヴァル・ド・リーヴル市の一部(地図は旧村域)。"
 	},
 	{
@@ -5811,7 +5905,7 @@
 			}
 		],
 		"soil": "チョーク層が浅く露出する石灰質土壌。モンターニュ東面では例外的にシャルドネに適した区画が広がる。",
-		"producers": ["David Léclapart"],
+		"producers": ["David Léclapart", "Pascal Redon & Fils"],
 		"description": "モンターニュ東面ながらシャルドネが大半を占める特異な村。ビオディナミの旗手ダヴィッド・レクラパールの本拠地として世界的に知られる。"
 	},
 	{
@@ -5840,7 +5934,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Pommery"],
+		"producers": ["Baillette-Prudhomme"],
 		"description": "ランス南郊の最小級プルミエ・クリュのひとつ。都市近郊にわずかな畑が残る。"
 	},
 	{
@@ -5865,7 +5959,7 @@
 			}
 		],
 		"soil": "チョーク層が浅く露出する石灰質土壌。モンターニュ東面では例外的にシャルドネに適した区画が広がる。",
-		"producers": ["Veuve Clicquot"],
+		"producers": ["G.H. Mumm", "Cher Potron"],
 		"description": "モンターニュ東端、ビイ・ル・グランの隣村。この一帯では例外的にシャルドネ比率が高く、ブレンドに繊細な酸をもたらす。"
 	},
 	{
@@ -5890,7 +5984,13 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Larmandier-Bernier", "Veuve Fourny & Fils"],
+		"producers": [
+			"Larmandier-Bernier",
+			"Veuve Fourny & Fils",
+			"Duval-Leroy",
+			"Guy Larmandier",
+			"Pascal Doquet"
+		],
 		"description": "コート・デ・ブラン最大の栽培面積を持つ村。シャルドネ主体だがピノ・ノワールも植わる。ラルマンディエ・ベルニエの本拠地。2018年合併で現在はブラン・コトー市の一部(地図は旧村域)。"
 	},
 	{
@@ -5919,7 +6019,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Pommery"],
+		"producers": ["Veuve Clicquot", "Bergeronneau-Marion"],
 		"description": "プティット・モンターニュ、サン・リエの丘の麓に位置する村。ムニエとピノ・ノワール主体で、ランス平野を一望する斜面に畑が広がる。"
 	},
 	{
@@ -5944,7 +6044,7 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Nicolas Feuillatte"],
+		"producers": ["Deutz", "Veuve Clicquot"],
 		"description": "ヴェルテュの東に位置するシャルドネのプルミエ・クリュ。平坦な立地で、収穫の多くは協同組合へ供給される。"
 	},
 	{
@@ -5973,7 +6073,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["G.H. Mumm"],
+		"producers": ["Laurent-Perrier", "Stroebel"],
 		"description": "モンターニュ北面、リリー・ラ・モンターニュの西隣の村。ムニエ比率が高く、森に接する冷涼な斜面に畑を持つ。"
 	},
 	{
@@ -6027,7 +6127,7 @@
 			}
 		],
 		"soil": "チョーク層が浅く露出する石灰質土壌。モンターニュ東面では例外的にシャルドネに適した区画が広がる。",
-		"producers": ["A. Margaine"],
+		"producers": ["A. Margaine", "Sadi Malot"],
 		"description": "ピノ・ノワールの海に浮かぶシャルドネの島と呼ばれるモンターニュ東面の村。マルゲーヌのブラン・ド・ブランがその個性を象徴する。"
 	},
 	{
@@ -6052,7 +6152,7 @@
 			}
 		],
 		"soil": "ベレムナイト化石を含む純粋なチョーク(白亜)がほぼ地表まで達する。ミネラル感に富むシャルドネの理想的な土壌。",
-		"producers": ["Nicolas Feuillatte"],
+		"producers": ["Veuve Clicquot"],
 		"description": "ヴェルテュ南東の小さなシャルドネの村。2018年合併で現在はブラン・コトー市の一部(地図は旧村域)。"
 	},
 	{
@@ -6081,7 +6181,7 @@
 			}
 		],
 		"soil": "白亜紀のチョーク(白亜)層を基盤に、粘土や砂・褐色石灰土が表土を覆う。保水性と排水性のバランスに優れ、力強いピノ・ノワールを育む。",
-		"producers": ["Lelarge-Pugeot"],
+		"producers": ["Lelarge-Pugeot", "Roger Coulon"],
 		"description": "プティット・モンターニュ北西端のムニエ主体の村。ビオ栽培を実践するルラルジュ・ピュジョーの本拠地。"
 	},
 	{
