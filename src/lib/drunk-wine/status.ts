@@ -64,6 +64,24 @@ export function pickAopStatus(
 	return best;
 }
 
+/**
+ * AOPごとの代表状態を作る(地図の色分け用)。AOP未紐付けのエントリは地図に
+ * 出せないので落とす。1AOPに複数エントリがあるときの畳み方は pickAopStatus と
+ * 同じ優先度で、ここが「AOP単位の状態」の唯一の導出口になる。
+ */
+export function buildAopStatusMap(
+	entries: Iterable<{ aopId: string | null; status: WineStatus }>,
+): Map<string, WineStatus> {
+	const byAop = new Map<string, WineStatus>();
+	for (const e of entries) {
+		if (!e.aopId) continue;
+		const current = byAop.get(e.aopId);
+		const next = pickAopStatus(current ? [current, e.status] : [e.status]);
+		if (next) byAop.set(e.aopId, next);
+	}
+	return byAop;
+}
+
 /** 飲んだことがあるか。所有状態には依存しない(2軸が独立しているため) */
 export function isTasted(entry: { tastingCount: number }): boolean {
 	return entry.tastingCount > 0;
