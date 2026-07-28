@@ -12,9 +12,19 @@ export class HttpError extends Error {
 	}
 }
 
+/**
+ * 認証切れ・未ログインのメッセージ。
+ *
+ * server function の例外はクライアントへ渡る途中で素の `Error` に平坦化され、
+ * クラス名(`UnauthorizedError`)も HTTP ステータスも失われる。クライアント側で
+ * 「セッション失効」を見分けられる手掛かりはこのメッセージだけなので、
+ * 送出側と判定側(`#/lib/quiz/save-status.ts`)が同じ定数を参照する(#255)。
+ */
+export const UNAUTHORIZED_MESSAGE = "Unauthorized";
+
 /** 認証切れ・未ログイン(401)。 */
 export class UnauthorizedError extends HttpError {
-	constructor(message = "Unauthorized") {
+	constructor(message = UNAUTHORIZED_MESSAGE) {
 		super(401, message);
 		this.name = "UnauthorizedError";
 	}

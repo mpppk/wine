@@ -3,7 +3,7 @@ import { getRequest, setResponseStatus } from "@tanstack/react-start/server";
 import { isAdminSession } from "#/lib/admin/guard";
 import { auth } from "#/lib/auth";
 import { ForbiddenError, HttpError, UnauthorizedError } from "#/lib/errors";
-import { logError } from "#/lib/logger";
+import { logError, logWarn } from "#/lib/logger";
 
 // server function が throw すると既定では HTTP 500 になる。認証切れ(正常系)や
 // クライアント入力エラー(4xx相当)まで 5xx に混ざると、Workers のメトリクス上で
@@ -37,6 +37,12 @@ export const authMiddleware = createMiddleware({ type: "function" }).server(
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session) {
 			setResponseStatus(401);
+			// 認証切れは正常系だが、痕跡が皆無だと「クイズの進捗が保存されていない」等の
+			// 問い合わせを裏取りする手段が無くなる(#255)。error ではなく warn で残し、
+			// 障害シグナル(logError)を薄めずに追跡だけ可能にする。
+			logWarn("server fn unauthorized", {
+				path: new URL(request.url).pathname,
+			});
 			throw new UnauthorizedError();
 		}
 		return runWithHttpStatus(

@@ -6,6 +6,7 @@ import {
 	useQuizAdInterstitial,
 } from "#/components/ads/AdInterstitialDialog";
 import { QuizQuestionView } from "#/components/quiz/QuizQuestionView";
+import { QuizSaveAlert } from "#/components/quiz/QuizSaveAlert";
 import { useQuizSession } from "#/components/quiz/useQuizSession";
 import { Button } from "#/components/ui/button";
 import { candidateCountsByType } from "#/lib/quiz/generators";
@@ -81,6 +82,7 @@ function QuizSession({
 		selectedOptionId,
 		tally,
 		remaining,
+		saveFailure,
 		answer,
 		reset,
 		skip,
@@ -110,6 +112,9 @@ function QuizSession({
 						` ・ ${tally.answered}問中${tally.correct}問正解`}
 				</p>
 			</div>
+
+			{/* 保存失敗の告知。完了画面も含めて全フェーズで見えるようヘッダ直下に置く(#255) */}
+			<QuizSaveAlert failure={saveFailure} />
 
 			{phase === "loading" && (
 				<div className="flex flex-1 items-center justify-center">

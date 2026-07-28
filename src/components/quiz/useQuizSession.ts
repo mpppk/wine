@@ -1,5 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { addSaveFailure, type QuizSaveFailure } from "#/lib/quiz/save-status";
 import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
 import type { AnswerSnapshot } from "#/lib/services/quiz-service";
 import type { RegionId } from "#/lib/wine/types";
@@ -72,6 +73,10 @@ export function useQuizSession(
 	const [retryNonce, setRetryNonce] = useState(0);
 	const [selectedOptionId, setSelectedOptionId] = useState<string>();
 	const [tally, setTally] = useState<QuizTally>({ answered: 0, correct: 0 });
+	// 解答のサーバ保存に失敗した状態。ローカルの正解演出・残数・完了画面は保存の成否と
+	// 無関係に進むため、これを出さないとユーザは保存されたと信じたまま進捗を失う(#255)。
+	// 記録が1件でも通れば解消する。
+	const [saveFailure, setSaveFailure] = useState<QuizSaveFailure | null>(null);
 	// まだ正解していない問題数。初回fetchのサーバ値でシードし、以後は正解/取り消しで
 	// クライアント側で増減する(ログイン=永続実績ベース、未ログイン=セッション内)。
 	const [remaining, setRemainingState] = useState<number | null>(null);
@@ -278,10 +283,17 @@ export function useQuizSession(
 					questionKey: current.key,
 					promise: enqueueMutation(() =>
 						recordAnswer({ data: { questionKey: current.key, wasCorrect } }),
-					).catch((error) => {
-						console.error("failed to record quiz answer", error);
-						return null;
-					}),
+					)
+						.then((snapshot) => {
+							// 1件でも通ったら以後は保存できている。バナーを下げる。
+							setSaveFailure(null);
+							return snapshot;
+						})
+						.catch((error) => {
+							console.error("failed to record quiz answer", error);
+							setSaveFailure((prev) => addSaveFailure(prev, error));
+							return null;
+						}),
 				};
 			} else {
 				recordRef.current = null;
@@ -323,7 +335,9 @@ export function useQuizSession(
 					await revertAnswer({ data: { questionKey: current.key, prior } });
 				}
 			}).catch((error) => {
+				// 取り消しの失敗もサーバ側が実際と食い違う状態なので、記録失敗と同じく表示する。
 				console.error("failed to revert quiz answer", error);
+				setSaveFailure((prev) => addSaveFailure(prev, error));
 			});
 		}
 	}, [phase, current, selectedOptionId, enqueueMutation, applyRemaining]);
@@ -363,6 +377,7 @@ export function useQuizSession(
 		selectedOptionId,
 		tally,
 		remaining,
+		saveFailure,
 		answer,
 		reset,
 		skip,
