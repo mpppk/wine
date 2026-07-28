@@ -201,6 +201,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - **月次付与は Cron ではなく遅延付与**: 残高参照・消費の入口で必ず `ensureCurrentMonthGranted` を呼ぶ。繰越なし。管理画面のような「閲覧が付与を起こしてはいけない」文脈では `credit_balance` を生 SELECT する（`admin-service.ts`）。
 - **AI 消費の骨格**: `reserveCredits`（見積で予約）→ `env.AI.run` → `settleReservation`（実測で確定）/ 失敗時 `refundReservation`（全額返却して再 throw）。クレジットを消費する新機能は必ずこのパターンに従い、`requestId` に用途プレフィックス付き一意キーを使う。
 - 管理画面の金銭的操作は理由必須 + `admin_audit_log` への記録をセットにし、可能な限り `requestId` で冪等化する（プレミアム延長は例外的に非冪等で、UI 側の二重送信防止に依存）。
+- **外部副作用（better-auth / Stripe）を伴う管理操作は `recordAfterEffect` を通す**（`admin-actions.ts`, #251）。これらは D1 の `db.batch` に同居できず「操作は適用済み・監査ログは無い」が成立しうるため、記録の原子化ではなく**欠落の検知**で守る: 副作用の成功直後に `logInfo("admin action applied", …)`、記録の失敗は同じフィールド付きで `logError("admin audit record failed; action already applied", …)` を出してから rethrow する。副作用を伴う管理操作を追加するときも経路ごとにログを書かず、この関数を経由させる。
 
 ### MCP サーバー（`src/lib/mcp/`）
 
