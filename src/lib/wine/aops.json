@@ -6720,7 +6720,27 @@
 			}
 		],
 		"soil": "台地の砂利・粘土に鉄分を含む「クラス・ド・フェール(鉄分の錆)」が点在。メルロが個性的な深みを得る。",
-		"producers": ["Pétrus", "Château Le Pin", "Vieux Château Certan"],
+		"producers": [
+			"Pétrus",
+			"Château Le Pin",
+			"Vieux Château Certan",
+			"Château Lafleur",
+			"Château Trotanoy",
+			"Château L'Évangile",
+			"Château La Conseillante",
+			"Château La Fleur-Pétrus",
+			"Château L'Église-Clinet",
+			"Château Clinet",
+			"Château Hosanna",
+			"Château Gazin",
+			"Château Nenin",
+			"Château Beauregard",
+			"Château Petit-Village",
+			"Château La Pointe",
+			"Château Rouget",
+			"Château de Sales",
+			"Château Latour à Pomerol"
+		],
 		"description": "右岸の小さな村名AOC。公式の格付け制度を持たないが、鉄分を含む粘土土壌から生まれるメルロ主体の赤は世界最高値で取引される。ペトリュスやル・パンが象徴的。"
 	},
 	{

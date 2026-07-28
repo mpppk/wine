@@ -1087,6 +1087,116 @@ const TRE_BICCHIERI_2026_TOSCANA: Record<string, ProducerInfo> = {
 };
 
 /**
+ * ボルドーの公的格付け。1855年メドック/ソーテルヌ・バルサック、グラーヴ1959年、
+ * サンテミリオン2022年。**格付けを持つシャトーのうち、AOPの producers 配列にも
+ * 名前が載っているものだけ**がここに来る(winery エントリ側は tags からバッジが
+ * 出るので awards は要らない)。
+ *
+ * 1855年格付けとグラーヴ格付けは url を持たない。授与元(1855年格付け協会の
+ * crus-classes.com、グラーヴの格付け個別ページ)にこの実行環境から到達できず、
+ * 二次情報を一次情報として貼るのを避けたため。**リンクを付けられない場合は url を
+ * 省く**(事実だけ載せる)。到達手段ができたら追記する。
+ */
+const BORDEAUX_CLASSIFICATIONS: Record<string, ProducerInfo> = {
+	"Château Calon-Ségur": {
+		awards: [{ name: "メドック格付け", tier: "第3級", year: 1855 }],
+	},
+	"Château Cantemerle": {
+		awards: [{ name: "メドック格付け", tier: "第5級", year: 1855 }],
+	},
+	"Château Climens": {
+		awards: [
+			{ name: "ソーテルヌ・バルサック格付け", tier: "第1級", year: 1855 },
+		],
+	},
+	"Château Cos d'Estournel": {
+		awards: [{ name: "メドック格付け", tier: "第2級", year: 1855 }],
+	},
+	"Château Coutet": {
+		awards: [
+			{ name: "ソーテルヌ・バルサック格付け", tier: "第1級", year: 1855 },
+		],
+	},
+	"Château Ducru-Beaucaillou": {
+		awards: [{ name: "メドック格付け", tier: "第2級", year: 1855 }],
+	},
+	"Château Figeac": {
+		awards: [
+			{
+				name: "サンテミリオン格付け",
+				tier: "第1特別級A",
+				year: 2022,
+				url: "https://vins-saint-emilion.com/en/welcome-in-the-vineyard/the-2022-classification/",
+			},
+		],
+	},
+	"Château Gruaud-Larose": {
+		awards: [{ name: "メドック格付け", tier: "第2級", year: 1855 }],
+	},
+	"Château Guiraud": {
+		awards: [
+			{ name: "ソーテルヌ・バルサック格付け", tier: "第1級", year: 1855 },
+		],
+	},
+	"Château Haut-Brion": {
+		awards: [{ name: "メドック格付け", tier: "第1級", year: 1855 }],
+	},
+	"Château La Lagune": {
+		awards: [{ name: "メドック格付け", tier: "第3級", year: 1855 }],
+	},
+	"Château Lafite Rothschild": {
+		awards: [{ name: "メドック格付け", tier: "第1級", year: 1855 }],
+	},
+	"Château Latour": {
+		awards: [{ name: "メドック格付け", tier: "第1級", year: 1855 }],
+	},
+	"Château Léoville-Las Cases": {
+		awards: [{ name: "メドック格付け", tier: "第2級", year: 1855 }],
+	},
+	"Château Margaux": {
+		awards: [{ name: "メドック格付け", tier: "第1級", year: 1855 }],
+	},
+	"Château Montrose": {
+		awards: [{ name: "メドック格付け", tier: "第2級", year: 1855 }],
+	},
+	"Château Mouton Rothschild": {
+		awards: [{ name: "メドック格付け", tier: "第1級", year: 1855 }],
+	},
+	"Château Palmer": {
+		awards: [{ name: "メドック格付け", tier: "第3級", year: 1855 }],
+	},
+	"Château Pape Clément": {
+		awards: [{ name: "グラーヴ格付け", tier: "クリュ・クラッセ", year: 1959 }],
+	},
+	"Château Pavie": {
+		awards: [
+			{
+				name: "サンテミリオン格付け",
+				tier: "第1特別級A",
+				year: 2022,
+				url: "https://vins-saint-emilion.com/en/welcome-in-the-vineyard/the-2022-classification/",
+			},
+		],
+	},
+	"Château Rauzan-Ségla": {
+		awards: [{ name: "メドック格付け", tier: "第2級", year: 1855 }],
+	},
+	"Château Suduiraut": {
+		awards: [
+			{ name: "ソーテルヌ・バルサック格付け", tier: "第1級", year: 1855 },
+		],
+	},
+	"Château d'Yquem": {
+		awards: [
+			{ name: "ソーテルヌ・バルサック格付け", tier: "特別第1級", year: 1855 },
+		],
+	},
+	"Domaine de Chevalier": {
+		awards: [{ name: "グラーヴ格付け", tier: "クリュ・クラッセ", year: 1959 }],
+	},
+};
+
+/**
  * 生産者名 → 解説・受賞・公式サイト。
  *
  * MICHELIN Grapes 以外の基準で足す生産者はこのオブジェクトに直接書き、awards を
@@ -1097,6 +1207,7 @@ export const PRODUCER_INFO: Record<string, ProducerInfo> = {
 	...withAward(MICHELIN_TWO_GRAPES, michelinGrapesAward("2グレープ")),
 	...withAward(MICHELIN_ONE_GRAPE, michelinGrapesAward("1グレープ")),
 	...withAward(MICHELIN_SELECTED, michelinGrapesAward("選出")),
+	...BORDEAUX_CLASSIFICATIONS,
 	...TRE_BICCHIERI_2026_PIEMONTE,
 	...TRE_BICCHIERI_2026_TOSCANA,
 };
