@@ -633,6 +633,7 @@ const KEYWORD_COMPLETE_REGIONS = [
 	"beaujolais",
 	"champagne",
 	"alsace",
+	"loire",
 ] as const;
 /**
  * カタカナ+中黒の原則から外れる検索語。**この表に載せた分だけ**が例外で、
@@ -1142,6 +1143,184 @@ describe("アルザスの生産者(#227)", () => {
 	// アルザスに生産者の公的格付けは無く、年次ガイドの掲載リストは転記しない方針。
 	// 受賞を足すときは授与元・受賞名・年・出典URLが揃うことを確認してから入れる。
 	it("アルザスの生産者は受賞を持たない", () => {
+		for (const name of allNames) {
+			expect(PRODUCER_INFO[name]?.awards, name).toBeUndefined();
+		}
+	});
+});
+
+describe("ロワールの生産者(#226)", () => {
+	const loire = AOPS.filter((a) => a.region === "loire");
+	const producersOf = (id: string): string[] =>
+		loire.find((a) => a.id === id)?.producers.map((p) => p.name) ?? [];
+	const allNames = producerNamesOf(loire);
+	const namesIn = (subregionId: string): string[] =>
+		producerNamesOf(loire.filter((a) => a.subregionId === subregionId));
+
+	// #226 の起点は「AOP 50件に対して生産者55件(1AOPあたり約1件)」。件数だけでは
+	// 中身の取り違えを検出できない(#216)ので、主要AOPは顔ぶれを固定する。
+	// 出典は Vins du Centre-Loire (BIVC) 公式の生産者名簿。
+	it("サンセールの生産者は選定した9件と一致する", () => {
+		expect(producersOf("sancerre")).toEqual([
+			"Domaine Vacheron",
+			"Henri Bourgeois",
+			"Alphonse Mellot",
+			"Domaine François Cotat",
+			"Domaine Pascal Cotat",
+			"Domaine Edmond Vatan",
+			"Domaine Lucien Crochet",
+			"Domaine Vincent Pinard",
+			"Domaine Claude Riffault",
+		]);
+	});
+
+	// 出典: Syndicat AOC Savennières 公式サイトの vignerons 一覧
+	it("サヴニエールの生産者は公式名簿から選んだ8件と一致する", () => {
+		expect(producersOf("savennieres")).toEqual([
+			"Domaine des Baumard",
+			"Nicolas Joly",
+			"Château d'Épiré",
+			"Domaine du Closel",
+			"Eric Morgat",
+			"Damien Laureau",
+			"Domaine FL",
+			"Château Pierre-Bise",
+		]);
+	});
+
+	// 出典: Syndicat des Vins de Saumur 公式サイトの appellation 別 vignerons 名簿
+	it("ソーミュール・シャンピニーの生産者は選定した8件と一致する", () => {
+		expect(producersOf("saumur-champigny")).toEqual([
+			"Clos Rougeard",
+			"Domaine Filliatreau",
+			"Château du Hureau",
+			"Domaine Arnaud Lambert",
+			"Domaine des Roches Neuves",
+			"Château de Villeneuve",
+			"Château Yvonne",
+			"Domaine de Nerleux",
+		]);
+	});
+
+	// ロワール唯一のグラン・クリュ。`tags` を持たない(格付けバッジは winery 由来)ため、
+	// 生産者の顔ぶれ自体が唯一の回帰点になる。
+	it("カール・ド・ショームの生産者は選定した6件と一致する", () => {
+		expect(producersOf("quarts-de-chaume")).toEqual([
+			"Domaine des Baumard",
+			"Château Pierre-Bise",
+			"Domaine FL",
+			"Domaine de la Bergerie",
+			"Château de Plaisance",
+			"Domaine des Forges",
+		]);
+	});
+
+	// 出典: Fédération des Vins de Nantes 公式の annuaire du vignoble
+	it("ミュスカデ・セーヴル・エ・メーヌの生産者は選定した9件と一致する", () => {
+		expect(producersOf("muscadet-sevre-et-maine")).toEqual([
+			"Domaine de la Pépière",
+			"Domaine de l'Ecu",
+			"Domaine Luneau-Papin",
+			"Domaines Landron",
+			"Domaine Michel Brégeon",
+			"Gadais Père et Fils",
+			"La Haute Févrie",
+			"Bonnet-Huteau",
+			"Domaine Bruno Cormerais",
+		]);
+	});
+
+	// ロワールは4地区+地方名にまたがり品種も産地ごとに違う。どれか1地区だけ厚くすると
+	// 学習上の偏りになるため、地区ごとのユニーク生産者数を固定する。
+	it("4地区のいずれかに偏っていない", () => {
+		const counts = {
+			"pays-nantais": namesIn("pays-nantais").length,
+			"anjou-saumur": namesIn("anjou-saumur").length,
+			touraine: namesIn("touraine").length,
+			"centre-loire": namesIn("centre-loire").length,
+		};
+		expect(counts).toEqual({
+			"pays-nantais": 24,
+			"anjou-saumur": 53,
+			touraine: 56,
+			"centre-loire": 40,
+		});
+		// 最も薄い地区が最も厚い地区の1/3を下回らない(=どこかが手薄になっていない)
+		const values = Object.values(counts);
+		expect(Math.min(...values) * 3).toBeGreaterThanOrEqual(Math.max(...values));
+	});
+
+	/**
+	 * 生産者が3件未満でよいAOP。ここに載せた分だけが例外で、理由が無いものは
+	 * 「まだ調べていない」と同義なので下限テストで落とす。
+	 */
+	const SMALL_AOPS: Record<string, number> = {
+		// 生産者は全体で6軒しかない極小AOC。公式に確認できたのは Maison Rousseau だけ
+		"touraine-noble-joue": 1,
+		// 55haの極小AOC。ソーミュールの生産者組合は7appellation別名簿にこのAOCを持たず、
+		// 公式サイトで名乗りを確認できたのが2件にとどまる
+		"cabernet-de-saumur": 2,
+		// AOC Orléans の生産者組合サイト(aoc-orleans.fr)は失効しており、
+		// 公式に裏の取れる造り手が2件しか残っていない
+		orleans: 2,
+		"orleans-clery": 2,
+	};
+
+	it("生産者が1件だけのAOPが無い(例外は理由付きで明示する)", () => {
+		for (const aop of loire) {
+			const min = SMALL_AOPS[aop.id] ?? 3;
+			expect(aop.producers.length, aop.id).toBeGreaterThanOrEqual(min);
+		}
+	});
+
+	// #226 の調査で「実在しない/旧称だった/そのAOCを名乗っていない」と判明したもの。
+	// 理由を残さないと「網羅されていない」と判断して後から足し戻される(#216 と同じ趣旨)。
+	it("調査で除外・改称した名前が復活していない", () => {
+		const removed = [
+			// 2013年に会社更生、2014年に Ampelidae へ事業譲渡され法人は抹消済み
+			"Cave du Haut-Poitou",
+			// 実在するのは Tessa Laroche の「Domaine aux Moines」。この名のシャトーは無い
+			"Château de la Roche aux Moines",
+			// 2023年に Bollinger 傘下で "Langlois" へ改称(Château を外した)
+			"Langlois-Château",
+			// 公式サイト・生産者組合の表記は Maison Rousseau
+			"Rousseau Frères",
+			// 実在するのは Sébastien Vaillant の「Domaine Sébastien Vaillant」
+			"Domaine du Vaillant",
+			// BIVC 名簿の表記は Domaine de Reuilly / Vignobles Berthier / Domaine Pellé
+			"Denis Jamain",
+			"Domaine Berthier",
+			"Henry Pellé",
+			// 公式サイトの表記は Clos Saint-Fiacre / Domaine de Châtenoy(いずれも綴り違い)
+			"Clos St-Fiacre",
+			"Domaine de Chatenoy",
+			// Fédération des Vins de Nantes 名簿の表記は Vignoble Guindon
+			"Domaine Guindon",
+		];
+		expect(allNames.filter((name) => removed.includes(name))).toEqual([]);
+	});
+
+	// 名簿と突き合わせて「そのAOCを名乗っていない」と判明した配置。件数では検出できない。
+	it("公式名簿と矛盾する配置が復活していない", () => {
+		// Fédération des Vins de Nantes の名簿で Pépière は Gros-Plant を持たない
+		expect(producersOf("gros-plant-du-pays-nantais")).not.toContain(
+			"Domaine de la Pépière",
+		);
+		// Syndicat des Vins de Saumur の Coteaux de Saumur 名簿(52件)に含まれない
+		expect(producersOf("coteaux-de-saumur")).not.toContain(
+			"Domaine des Roches Neuves",
+		);
+		// 同 Saumur Puy-Notre-Dame 名簿(17件)に含まれない
+		expect(producersOf("saumur-puy-notre-dame")).not.toContain(
+			"Château de Villeneuve",
+		);
+		// BIVC 名簿の Alphonse Mellot はサンセール/プイィ・フュメ/コート・ド・ラ・シャリテのみ
+		expect(producersOf("coteaux-du-giennois")).not.toContain("Alphonse Mellot");
+	});
+
+	// ロワールに生産者の公的格付けは無く、年次ガイドの掲載リストは転記しない方針。
+	// 受賞を足すときは授与元・受賞名・年・出典URLが揃うことを確認してから入れる。
+	it("ロワールの生産者は受賞を持たない", () => {
 		for (const name of allNames) {
 			expect(PRODUCER_INFO[name]?.awards, name).toBeUndefined();
 		}
