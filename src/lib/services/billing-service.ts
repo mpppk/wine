@@ -4,12 +4,17 @@ import { db } from "#/db";
 import { subscription } from "#/db/auth-schema";
 import { couponRedemption } from "#/db/schema";
 import {
+	extensionIdempotencyKey,
 	normalizeCode,
 	parseCampaignCodes,
 	resolveExtensionDays,
 } from "#/lib/billing/campaign-codes";
 import { ENTITLED_STATUSES, resolvePlan } from "#/lib/billing/entitlements";
 import { stripeClient } from "#/lib/billing/stripe-client";
+import {
+	issueStripeWrite,
+	isUnconfirmedStripeWrite,
+} from "#/lib/billing/stripe-write";
 import { BadRequestError, ConflictError } from "#/lib/errors";
 import { logError } from "#/lib/logger";
 
@@ -50,6 +55,7 @@ export interface RedeemExtensionResult {
 export async function extendPremiumTrial(
 	userId: string,
 	days: number,
+	options: { idempotencyKey?: string } = {},
 ): Promise<{ newPeriodEnd: number; stripeSubscriptionId: string }> {
 	// 有効なサブスク(active/trialing)と Stripe subscription id を取得する。
 	const rows = await db
@@ -70,27 +76,32 @@ export async function extendPremiumTrial(
 		// 有効なサブスクが無い状態との衝突(コード引換・管理者延長で共有)。
 		throw new ConflictError("プレミアム会員のみご利用いただけます。");
 	}
+	const stripeSubscriptionId = activeRow.stripeSubscriptionId;
 
 	// 現在の期間終了を基準に延長する。Stripe(basil API)では current_period_end は
 	// Subscription 本体ではなく Subscription Item 側にあるため items から読む。
-	const stripeSub = await stripeClient.subscriptions.retrieve(
-		activeRow.stripeSubscriptionId,
-	);
+	const stripeSub =
+		await stripeClient.subscriptions.retrieve(stripeSubscriptionId);
 	const currentPeriodEnd = stripeSub.items.data[0]?.current_period_end;
 	if (!currentPeriodEnd) {
 		throw new Error("現在の契約期間を取得できませんでした。");
 	}
 	// trial_end は Unix 秒。既存の期間終了に日数を足して後ろ倒しする。
 	const newTrialEnd = currentPeriodEnd + days * 24 * 60 * 60;
-	await stripeClient.subscriptions.update(activeRow.stripeSubscriptionId, {
-		trial_end: newTrialEnd,
-		proration_behavior: "none",
-	});
+	// 書き込みは issueStripeWrite で包む。ここから先の失敗だけが「適用されたか不明」に
+	// なりうる(これより前の失敗は Stripe に何も送っていないので巻き戻して安全)。
+	// 包む範囲を1呼び出しに限るのが重要で、広げると印の意味が失われる(#248)。
+	await issueStripeWrite(() =>
+		stripeClient.subscriptions.update(
+			stripeSubscriptionId,
+			{ trial_end: newTrialEnd, proration_behavior: "none" },
+			options.idempotencyKey
+				? { idempotencyKey: options.idempotencyKey }
+				: undefined,
+		),
+	);
 
-	return {
-		newPeriodEnd: newTrialEnd * 1000,
-		stripeSubscriptionId: activeRow.stripeSubscriptionId,
-	};
+	return { newPeriodEnd: newTrialEnd * 1000, stripeSubscriptionId };
 }
 
 /**
@@ -128,18 +139,52 @@ export async function redeemExtensionCode(
 
 	// 記録確定後に Stripe を延長する。延長に失敗したら、記録した引換行を打ち消して
 	// (補償)整合を保つ。リトライ時に再度引換できるようにするためでもある。
+	//
+	// ただし**巻き戻してよいのは「Stripe が適用していない」と確信できるときだけ**(#248)。
+	// 応答が失われただけで延長は適用済み、というケースで引換行を消すと、ユーザは同じ
+	// コードをもう一度使えてしまい二重に延長される(7日コードで計14日)。冪等キーを
+	// 付けるのはその再送を Stripe 側でも止めるため。
 	try {
-		const { newPeriodEnd } = await extendPremiumTrial(userId, days);
+		const { newPeriodEnd } = await extendPremiumTrial(userId, days, {
+			idempotencyKey: extensionIdempotencyKey(userId, code),
+		});
 		return { extendedDays: days, newPeriodEnd };
 	} catch (e) {
-		await db
-			.delete(couponRedemption)
-			.where(
-				and(
-					eq(couponRedemption.userId, userId),
-					eq(couponRedemption.code, code),
-				),
+		if (isUnconfirmedStripeWrite(e)) {
+			// 適用されたか分からない。引換行を残して再引換を封じる(残高ではなく契約期間
+			// なので、二重適用は後から検知も取り消しもできない)。行が残ること自体が
+			// 「このコードは決着待ち」の記録になり、問い合わせ時の裏取りに使える。
+			logError("extension code kept; stripe extension outcome unconfirmed", {
+				userId,
+				code,
+				days,
+				err: e,
+			});
+			throw new ConflictError(
+				"延長処理の結果を確認できませんでした。延長が適用されている可能性があるため、しばらく待ってから契約状況をご確認ください。反映されない場合はお問い合わせください。",
 			);
+		}
+		try {
+			await db
+				.delete(couponRedemption)
+				.where(
+					and(
+						eq(couponRedemption.userId, userId),
+						eq(couponRedemption.code, code),
+					),
+				);
+		} catch (compensationErr) {
+			// 補償の失敗で元例外を握り潰さない(#158 と同じイディオム)。ここを素通りさせると
+			// 「延長されていないのに引換行だけ残り、ユーザは以後ずっと利用済みで弾かれる」
+			// 状態の理由がどこにも残らない。両方の例外を1行に残して元例外を投げ直す。
+			logError("extension code compensation failed; redemption row left", {
+				userId,
+				code,
+				err: compensationErr,
+				originalErr: e,
+			});
+			throw e;
+		}
 		logError("extension code redemption rolled back after stripe failure", {
 			userId,
 			code,

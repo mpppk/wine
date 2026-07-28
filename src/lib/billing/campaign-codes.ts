@@ -36,6 +36,25 @@ export function normalizeCode(code: string): string {
 }
 
 /**
+ * 引換1回を一意に指す Stripe の冪等キー(#248)。
+ *
+ * 「このユーザがこのコードで受ける延長」は unique(user_id, code) と同じ粒度で1回きり
+ * なので、そのままキーにできる。応答が失われて再送されても、Stripe 側は先行リクエストの
+ * 結果を返すだけで trial_end を2度動かさない。
+ *
+ * 引換行を巻き戻した後の正当な再挑戦も同じキーになるが、パラメータ検証で弾かれた
+ * リクエストは Stripe が冪等結果を保存しないため通る。逆に「Stripe が受理して 4xx を
+ * 返した」ケースは同じ結果が再生されうるので、コードは消費されないまま同じエラーが
+ * 返る(二重延長よりは安全側)。
+ *
+ * コードは normalizeCode 済みの値を渡すこと。大文字小文字の違いでキーが割れると、
+ * 同じ引換が別リクエスト扱いになる。
+ */
+export function extensionIdempotencyKey(userId: string, code: string): string {
+	return `extension:${userId}:${normalizeCode(code)}`;
+}
+
+/**
  * 入力コードに対応する延長日数を返す。未定義・無効なら null。
  * 入力は大文字小文字・前後空白を無視して照合する。
  */
