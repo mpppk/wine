@@ -628,7 +628,12 @@ const producerNamesOf = (aops: readonly Aop[]): string[] => [
  * 未登録の生産者はラテン文字のまま楽天を検索することになり、ほぼヒットしない。
  * 地域の整備が終わったらここへ足す。**外すのは後退**なので理由を残すこと。
  */
-const KEYWORD_COMPLETE_REGIONS = ["rhone", "beaujolais", "champagne"] as const;
+const KEYWORD_COMPLETE_REGIONS = [
+	"rhone",
+	"beaujolais",
+	"champagne",
+	"alsace",
+] as const;
 /**
  * カタカナ+中黒の原則から外れる検索語。**この表に載せた分だけ**が例外で、
  * `Salon` は「サロン」単独だと家具・美容室が大量にヒットするためカテゴリ語を足している。
@@ -1001,6 +1006,145 @@ describe("シャンパーニュの生産者(#224)", () => {
 		expect(champagne.length).toBe(62);
 		expect(allNames.length).toBe(145);
 		expect(champagne.reduce((n, a) => n + a.producers.length, 0)).toBe(189);
+	});
+});
+
+describe("アルザスの生産者(#227)", () => {
+	const alsace = AOPS.filter((a) => a.region === "alsace");
+	const producersOf = (id: string): string[] =>
+		alsace.find((a) => a.id === id)?.producers.map((p) => p.name) ?? [];
+	const allNames = [
+		...new Set(alsace.flatMap((a) => a.producers.map((p) => p.name))),
+	];
+
+	// アルザスには村名AOCが無く、51件のグラン・クリュ(畑)が地方名AOCの直下に並ぶ。
+	// 「村の代表生産者」ではなく「その畑を実際に手がける造り手」を置く構造を固定する。
+	it("51件のグラン・クリュ + 地方名2件で構成される", () => {
+		expect(alsace.length).toBe(53);
+		expect(alsace.filter((a) => a.kind === "vineyard").length).toBe(51);
+		expect(alsace.filter((a) => a.kind === "regional").length).toBe(2);
+	});
+
+	// 生産者が1件だけのグラン・クリュを無くすのが #227 の主目的。
+	it("生産者が1件だけのグラン・クリュが無い", () => {
+		const thin = alsace
+			.filter((a) => a.producers.length < 2)
+			.map((a) => `${a.id}(${a.producers.length})`);
+		expect(thin).toEqual([]);
+	});
+
+	// 件数だけでは中身の取り違えを検出できない(#216)ため、主要グラン・クリュは
+	// 顔ぶれを固定する。全件、各生産者の公式サイトでその畑のワインを確認済み。
+	it("シュロスベルグの造り手は選定した6件と一致する", () => {
+		expect(producersOf("schlossberg")).toEqual([
+			"Domaine Weinbach",
+			"Paul Blanck",
+			"Albert Mann",
+			"Bott-Geyl",
+			"Jean-Marc Bernhard",
+			"Jean Becker",
+		]);
+	});
+
+	it("ランゲンの造り手は選定した3件と一致する", () => {
+		expect(producersOf("rangen")).toEqual([
+			"Domaine Zind-Humbrecht",
+			"Domaine Schoffit",
+			"Wolfberger",
+		]);
+	});
+
+	it("ブラントの造り手は選定した6件と一致する", () => {
+		expect(producersOf("brand")).toEqual([
+			"Domaine Zind-Humbrecht",
+			"Josmeyer",
+			"Albert Boxler",
+			"Charles Baur",
+			"Cave de Turckheim",
+			"Cave Jean Geiler",
+		]);
+	});
+
+	it("ヘングストの造り手は選定した6件と一致する", () => {
+		expect(producersOf("hengst")).toEqual([
+			"Domaine Zind-Humbrecht",
+			"Josmeyer",
+			"Albert Mann",
+			"Barmès-Buecher",
+			"Wunsch & Mann",
+			"Cave Jean Geiler",
+		]);
+	});
+
+	it("シェーネンブールの造り手は選定した8件と一致する", () => {
+		expect(producersOf("schoenenbourg")).toEqual([
+			"Dopff au Moulin",
+			"Marc Tempé",
+			"Marcel Deiss",
+			"Hugel",
+			"Bott-Geyl",
+			"Meyer-Fonné",
+			"Mittnacht Frères",
+			"Cave de Ribeauvillé",
+		]);
+	});
+
+	it("アルテンベルグ・ド・ベルグハイムの造り手は選定した5件と一致する", () => {
+		expect(producersOf("altenberg-de-bergheim")).toEqual([
+			"Marcel Deiss",
+			"Gustave Lorentz",
+			"Sylvie Spielmann",
+			"Jean Sipp",
+			"Cave de Ribeauvillé",
+		]);
+	});
+
+	// ゲブヴィレールの4グラン・クリュは Domaines Schlumberger が大半を所有する
+	// (キッテルレは26haのうち20ha)。2件しか置けないのは意図的で、手薄なのではない。
+	it("ゲブヴィレールの4グラン・クリュは2大生産者で構成される", () => {
+		for (const id of ["kitterle", "kessler", "saering"]) {
+			expect(producersOf(id).sort(), id).toEqual([
+				"Dirler-Cadé",
+				"Domaines Schlumberger",
+			]);
+		}
+		expect(producersOf("spiegel")).toEqual([
+			"Dirler-Cadé",
+			"Domaines Schlumberger",
+			"Cave du Vieil Armand",
+		]);
+	});
+
+	// #227 の調査で「同じ造り手の別表記」「公式の畑リストに無い」と判明したもの。
+	// 理由を残さないと後から足し戻されるため名前で禁止する(#216 と同じ趣旨)。
+	it("重複・旧称の生産者名が復活していない", () => {
+		const removed = [
+			// "Domaine Zind-Humbrecht" と同一。公式サイトの名乗りは Domaine 付き
+			"Zind-Humbrecht",
+			// 2009年に Domaine Rieflé が Seppi Landmann を取得し、
+			// 現在は1つの Domaine Rieflé-Landmann(2ブランドを併記)
+			"Domaine Rieflé",
+			"Seppi Landmann",
+			// 協同組合の商号・ラベル表記は Cave Jean Geiler(法人名はカーヴ・ヴィニコル・ダンジェルスハイム)
+			"Cave d'Ingersheim",
+		];
+		expect(allNames.filter((name) => removed.includes(name))).toEqual([]);
+	});
+
+	it("公式の畑リストに無い組み合わせが復活していない", () => {
+		// Jean-Marc Bernhard の公式グラン・クリュはフロリモン/ケフェルコップフ/マンブール/
+		// フュルステンチューム/シュロスベルグ/ヴィネック・シュロスベルグ。ゾンマーベルグは無い
+		expect(producersOf("sommerberg")).not.toContain("Jean-Marc Bernhard");
+		// Bott-Geyl の公式グラン・クリュにマルクランは無い
+		expect(producersOf("marckrain")).not.toContain("Bott-Geyl");
+	});
+
+	// アルザスに生産者の公的格付けは無く、年次ガイドの掲載リストは転記しない方針。
+	// 受賞を足すときは授与元・受賞名・年・出典URLが揃うことを確認してから入れる。
+	it("アルザスの生産者は受賞を持たない", () => {
+		for (const name of allNames) {
+			expect(PRODUCER_INFO[name]?.awards, name).toBeUndefined();
+		}
 	});
 });
 
