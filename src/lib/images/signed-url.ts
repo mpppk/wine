@@ -73,6 +73,16 @@ export function privateImagePrefixForUser(userId: string): string {
 	return `wines/${userId}/`;
 }
 
+/**
+ * そのユーザのアバター画像(avatars/{userId}.{ext})に前方一致するR2キーの接頭辞。
+ *
+ * **末尾のドットが本質**。`avatars/${userId}` だけだと userId="user-1" の接頭辞が
+ * `avatars/user-10.png` にも一致し、他人のアバターを巻き込んで削除する。
+ */
+export function avatarPrefixForUser(userId: string): string {
+	return `avatars/${userId}.`;
+}
+
 /** HMAC-SHA256 の署名鍵として鍵素材をインポートする。 */
 export function importImageSigningKey(
 	material: ArrayBuffer | Uint8Array,
