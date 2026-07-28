@@ -51,3 +51,34 @@ export class ConflictError extends HttpError {
 		this.name = "ConflictError";
 	}
 }
+
+/**
+ * server function が throw した HttpError を**クライアント側で**判別する。
+ *
+ * TanStack Start は throw された値を seroval でシリアライズして返すため
+ * (`start-server-core/server-functions-handler.js` の catch)、クライアントが
+ * 受け取るのは素の Error で **プロトタイプは失われる**。つまり
+ * `error instanceof HttpError` はサーバ境界を越えると必ず false になる。
+ * 一方 `name` と own プロパティの `status` は保たれるので、そちらで判定する。
+ *
+ * サーバ側(サービス層・ミドルウェア)では instanceof で判定してよいが、
+ * **境界をまたいだ判定はこの関数だけを使う**。経路ごとに判定を書くと、
+ * instanceof で書いた側が黙って常に false になる(#255)。
+ */
+export function httpErrorStatus(error: unknown): number | undefined {
+	if (error instanceof HttpError) return error.status;
+	if (typeof error !== "object" || error === null) return undefined;
+	const status = (error as { status?: unknown }).status;
+	return typeof status === "number" ? status : undefined;
+}
+
+/** 認証切れ・未ログイン(401)か。クライアント・サーバのどちらからでも使える */
+export function isUnauthorizedError(error: unknown): boolean {
+	if (httpErrorStatus(error) === 401) return true;
+	// status が落ちた場合の保険。seroval は Error の name を保つ
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		(error as { name?: unknown }).name === "UnauthorizedError"
+	);
+}
