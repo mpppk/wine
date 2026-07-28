@@ -230,6 +230,25 @@ R2（`AVATARS` バインディング）に置いた画像は `/api/images/{r2Key
 - **署名鍵は R2 の `_internal/image-url-signing-key` に置き、初回アクセス時に乱数で自動生成する**（`src/lib/images/signing-key.ts`）。新しいシークレットを増やすと「本番だけ設定済み・プレビューは未設定」という環境差（`BETTER_AUTH_SECRET` が実際にそうなっている）を作るため、全環境に必ず存在する R2 を使う。このキーは `avatars/`・`wines/` のどちらでもないので `isAllowedImageKey` に弾かれ、配信経路からは読み出せない。
 - MCP ツールが返す `photo_urls` / `photo_url` は `tools.ts` の `toSignedPhotoUrl` が署名する。R2 キーと配信 URL の相互変換は `imagePathForKey` / `imageKeyFromPath` に集約する（サービス層・MCP・フォームで別々に文字列を組まない）。
 
+### ユーザ削除の後始末（`src/lib/services/user-deletion-service.ts`）
+
+D1 のドメインテーブルは全て user への `ON DELETE cascade` を張っているので、better-auth が user 行を消せば連動して消える。**消えないのは D1 の外にあるもの**で、これを誰も後始末していなかった（Issue #252）。
+
+- **Stripe のサブスクリプション** — 解約されないと、アプリ側のユーザだけが消えて**課金が継続する**
+- **R2 のオブジェクト** — `wines/{userId}/...`・`avatars/{userId}.*` はキーに userId を含む個人データで、無期限に残留する
+- **`subscription` 行** — `referenceId` は FK の無い文字列参照なので孤児化する
+
+**フックは `databaseHooks.user.delete` に置く。`user.deleteUser.beforeDelete` ではない。** 後者は本人によるセルフ退会（`/delete-user`）専用のフックで、admin プラグインの `/admin/remove-user` は `internalAdapter.deleteUser` を直接呼ぶため**発火しない**（better-auth の `plugins/admin/routes.mjs`）。`databaseHooks` は user モデルの削除そのものに掛かるので、どちらの経路からでも必ず通る。この置き場所の違いは型でもテストでも自明にならないため、`user-deletion-service.workers.test.ts` が admin 経路を実際に叩いて固定している。
+
+**before と after の使い分けには理由がある**（順序を入れ替えないこと）。
+
+- **before**（Stripe 解約 + `subscription` 行削除）— 失敗したら throw して**削除自体を中止**する。先にユーザを消すと解約に必要な紐付け（`subscription.referenceId`）が失われ、課金だけが残る。中止すればユーザは残るので、原因を直して再実行できる。
+- **after**（R2 削除）— 失敗しても throw せず error ログに倒す。before に置くと、この後の user 行削除が失敗したときに「生きているユーザの写真だけ消えた」状態になり復旧できない。after なら残るのは「消し損ねた個人データ」で、userId をログに残せば後から消せる。
+
+**Stripe の解約は D1 の `status` で絞らない**。`status` は webhook 経由でしか更新されず、取りこぼしがあると実際は active なのに D1 上は canceled に見える。D1 を信じてスキップすると課金が残るため、`stripeSubscriptionId` を持つ行は全て cancel を試し、「既に解約済み・存在しない」に相当する 4xx だけ無視して続行する。
+
+R2 の削除範囲は `privateImagePrefixForUser()` / `avatarPrefixForUser()`（`signed-url.ts`）が単一情報源。**所有者判定（`ownerOfPrivateImageKey`）と削除範囲がズレると、消したはずの個人データが残る**ため同じモジュールに置く。接頭辞の末尾の `/`・`.` は必須で、落とすと `user-1` の削除が `user-10` のデータを巻き込む。
+
 ## インフラ・デプロイ
 
 - **環境**: 本番 = Worker `wine`（D1 `wine-db`、カスタムドメイン https://wine.nibo.sh ）、プレビュー = Worker `wine-preview`（PR ごとに `https://<branch>-wine-preview.niboshi.workers.dev`）。**プレビューの D1/R2 は全 PR で共有**され、PR のマイグレーションはマージ前にプレビュー共通 DB へ先行適用される。

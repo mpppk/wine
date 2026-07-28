@@ -6,6 +6,7 @@ import {
 	importImageSigningKey,
 	isPrivateImageKey,
 	ownerOfPrivateImageKey,
+	privateImagePrefixForUser,
 	SIGNED_IMAGE_URL_TTL_MS,
 	signImageKey,
 	verifyImageSignature,
@@ -42,6 +43,22 @@ describe("ownerOfPrivateImageKey", () => {
 		expect(ownerOfPrivateImageKey("wines/flat-legacy.jpg")).toBeNull();
 		expect(ownerOfPrivateImageKey("wines/user-1/entry-1/a/b.jpg")).toBeNull();
 		expect(ownerOfPrivateImageKey("avatars/user-1.png")).toBeNull();
+	});
+});
+
+describe("privateImagePrefixForUser", () => {
+	it("そのユーザの写真キーだけに前方一致する", () => {
+		const prefix = privateImagePrefixForUser("user-1");
+		expect(KEY.startsWith(prefix)).toBe(true);
+		// IDの前方一致で他人のキーを巻き込まない(user-1 と user-10)
+		expect("wines/user-10/entry-1/photo-1.jpg".startsWith(prefix)).toBe(false);
+		expect("avatars/user-1.png".startsWith(prefix)).toBe(false);
+	});
+
+	// 所有者判定と削除範囲がズレると、消したはずの個人データがR2に残る(#252)
+	it("接頭辞に一致するキーの所有者は必ずそのユーザになる", () => {
+		expect(ownerOfPrivateImageKey(KEY)).toBe("user-1");
+		expect(KEY.startsWith(privateImagePrefixForUser("user-1"))).toBe(true);
 	});
 });
 
