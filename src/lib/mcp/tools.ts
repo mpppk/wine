@@ -8,6 +8,14 @@ import {
 } from "#/lib/drunk-wine/fields";
 import { decodePhotoBase64 } from "#/lib/drunk-wine/photo";
 import { BadRequestError, HttpError } from "#/lib/errors";
+import {
+	EXPIRES_PARAM,
+	expiresAtFrom,
+	imageKeyFromPath,
+	SIGNATURE_PARAM,
+	signImageKey,
+} from "#/lib/images/signed-url";
+import { getImageSigningKey } from "#/lib/images/signing-key";
 import { logError } from "#/lib/logger";
 import type { McpDrunkWineEntry } from "#/lib/mcp-app/entry";
 import * as aiService from "#/lib/services/ai-service";
@@ -365,10 +373,37 @@ export function registerReadTools(server: McpServer, userId: string) {
 	);
 }
 
+/**
+ * マイセラー写真の絶対URL。ホスト(iframe外)から参照できるよう絶対URLにしたうえで、
+ * 短命の署名を付ける。MCPホストは第三者であり Cookie も乗らないため、この署名が
+ * 唯一の認可根拠になる(Issue #149)。期限が切れたらツールを呼び直せば新しいURLが返る。
+ */
+async function toSignedPhotoUrl(
+	relativeUrl: string,
+	updatedAt: number,
+): Promise<string> {
+	const r2Key = imageKeyFromPath(relativeUrl);
+	const expiresAt = expiresAtFrom(Date.now());
+	const sig = await signImageKey(await getImageSigningKey(), r2Key, expiresAt);
+	const url = new URL(relativeUrl, env.BETTER_AUTH_URL);
+	// /api/images は immutable キャッシュで返し、写真差し替えでもキーが
+	// 変わらないことがあるため updatedAt でキャッシュバストする。
+	url.searchParams.set("v", String(updatedAt));
+	url.searchParams.set(EXPIRES_PARAM, String(expiresAt));
+	url.searchParams.set(SIGNATURE_PARAM, sig);
+	return url.toString();
+}
+
 // MCPクライアントへ返すエントリ表現。photo_url はホスト(iframe外)から
 // 参照できるよう絶対URLにする。形の単一情報源は McpDrunkWineEntry で、
 // MCP App のフォーム(/embed/drunk-wine)が同じ型で受け取る。
-function toEntryPayload(entry: DrunkWineEntry): McpDrunkWineEntry {
+async function toEntryPayload(
+	entry: DrunkWineEntry,
+): Promise<McpDrunkWineEntry> {
+	// photo_urls は全写真(表示順・先頭=代表)、photo_url は後方互換の代表1枚。
+	const photoUrls = await Promise.all(
+		entry.photoUrls.map((url) => toSignedPhotoUrl(url, entry.updatedAt)),
+	);
 	return {
 		id: entry.id,
 		name: entry.name,
@@ -385,23 +420,11 @@ function toEntryPayload(entry: DrunkWineEntry): McpDrunkWineEntry {
 		grape_variety_ids: entry.grapeVarietyIds,
 		producer: entry.producer,
 		price: entry.price,
-		// /api/images は immutable キャッシュで返し、写真差し替えでもキーが
-		// 変わらないことがあるため updatedAt でキャッシュバストする。
-		// photo_urls は全写真(表示順・先頭=代表)、photo_url は後方互換の代表1枚。
-		photo_urls: entry.photoUrls.map(
-			(url) => `${new URL(url, env.BETTER_AUTH_URL)}?v=${entry.updatedAt}`,
-		),
-		photo_url: entry.photoUrls[0]
-			? `${new URL(entry.photoUrls[0], env.BETTER_AUTH_URL)}?v=${entry.updatedAt}`
-			: null,
+		photo_urls: photoUrls,
+		photo_url: photoUrls[0] ?? null,
 		created_at: entry.createdAt,
 		updated_at: entry.updatedAt,
 	};
-}
-
-/** 相対 photoUrl(/api/images/{key})から R2キーを復元する。DTOのURLはクエリを持たない。 */
-function photoKeyFromUrl(url: string): string {
-	return url.replace(/^\/api\/images\//, "");
 }
 
 /**
@@ -416,7 +439,7 @@ function appendPhotoLayout(
 		...entry.photoUrls.map(
 			(url): drunkWineService.PhotoLayoutItem => ({
 				kind: "existing",
-				key: photoKeyFromUrl(url),
+				key: imageKeyFromPath(url),
 			}),
 		),
 		{ kind: "new", bytes: photo.bytes, mimeType: photo.mimeType },
@@ -510,7 +533,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 					}
 				}
 				const payload = {
-					entry: toEntryPayload(entry),
+					entry: await toEntryPayload(entry),
 					...(photoError ? { photo_error: photoError } : {}),
 				};
 				// mcp-ui 対応ホスト向けに編集フォームUIリソースを添付する
@@ -567,7 +590,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 						appendPhotoLayout(entry, photo),
 					);
 				}
-				return ok({ entry: toEntryPayload(entry) });
+				return ok({ entry: await toEntryPayload(entry) });
 			} catch (e) {
 				return err(e, { tool: "update_drunk_wine", userId });
 			}
@@ -590,7 +613,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 				const entries = await drunkWineService.listDrunkWines(userId);
 				return ok({
 					count: entries.length,
-					entries: entries.map(toEntryPayload),
+					entries: await Promise.all(entries.map(toEntryPayload)),
 				});
 			} catch (e) {
 				return err(e, { tool: "list_drunk_wines", userId });
@@ -620,7 +643,7 @@ export function registerWriteTools(server: McpServer, userId: string) {
 						memo: args.memo,
 					},
 				);
-				return ok({ entry: toEntryPayload(entry) });
+				return ok({ entry: await toEntryPayload(entry) });
 			} catch (e) {
 				return err(e, { tool: "add_wine_tasting", userId });
 			}

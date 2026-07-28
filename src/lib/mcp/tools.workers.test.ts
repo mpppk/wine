@@ -3,6 +3,12 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
+import { isAuthorizedForPrivateImage } from "#/lib/images/authorize";
+import {
+	EXPIRES_PARAM,
+	imageKeyFromPath,
+	SIGNATURE_PARAM,
+} from "#/lib/images/signed-url";
 import { getProducerPurchaseLinks } from "#/lib/wine/affiliate";
 import { listAops, listRegions } from "#/lib/wine/service";
 import type { Aop } from "#/lib/wine/types";
@@ -525,5 +531,52 @@ describe("list_drunk_wines", () => {
 			"owned",
 			"wishlist",
 		]);
+	});
+});
+
+// ---- MCP が返す写真URL(Issue #149) ---------------------------------------
+// photo_urls / photo_url はサードパーティのMCPホスト(Claude 等)へ渡り、その
+// 会話履歴やログに残る。以前は無認証で恒久的に読めるURLをそのまま渡していた。
+// 短命の署名を必ず載せることをここで固定する。
+describe("MCP が返す写真URLの署名", () => {
+	// 1x1 PNG(マジックバイトの検証を通る最小の実データ)
+	const PNG_BASE64 =
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+	it("photo_urls は exp/sig 付きで、その署名だけで配信が認可される", async () => {
+		const userId = await freshWriteUser();
+		const res = await writeHandler(
+			collectWriteTools(userId),
+			"register_drunk_wine",
+		)({
+			name: "写真つき",
+			photo_base64: PNG_BASE64,
+			photo_mime_type: "image/png",
+		});
+		expect(res.isError).toBeFalsy();
+		const { entry } = res.structuredContent as unknown as {
+			entry: { photo_urls: string[]; photo_url: string | null };
+		};
+		expect(entry.photo_urls).toHaveLength(1);
+		expect(entry.photo_url).toBe(entry.photo_urls[0]);
+
+		const url = new URL(entry.photo_urls[0] as string);
+		expect(url.searchParams.get(EXPIRES_PARAM)).toMatch(/^\d+$/);
+		expect(url.searchParams.get(SIGNATURE_PARAM)).toBeTruthy();
+
+		// 署名だけで(Cookie 無しで)配信が通ること
+		const r2Key = imageKeyFromPath(url.pathname);
+		expect(r2Key.startsWith(`wines/${userId}/`)).toBe(true);
+		expect(
+			await isAuthorizedForPrivateImage(new Request(url), url, r2Key),
+		).toBe(true);
+
+		// 署名を落とすと通らない = URLの推測不能性だけに依存していない
+		const bare = new URL(url);
+		bare.searchParams.delete(EXPIRES_PARAM);
+		bare.searchParams.delete(SIGNATURE_PARAM);
+		expect(
+			await isAuthorizedForPrivateImage(new Request(bare), bare, r2Key),
+		).toBe(false);
 	});
 });
