@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { drunkWine, wineTasting } from "#/db/schema";
 import { jstDayKey } from "#/lib/dashboard/jst";
@@ -36,16 +36,14 @@ export interface DrunkWineEntry {
 	lastDrankOn: string | null;
 	/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
 	tastingCount: number;
-	/** @deprecated lastDrankOn と同値。読み取り側の切り替えが済むまでの互換用 */
-	drankOn: string | null;
 	aopId: string | null;
 	/** AOP紐付け時のみ。静的マスタから導出 */
 	aopNameJa: string | null;
 	regionId: RegionId | null;
-	/** @deprecated 最新の飲用記録の射影。互換用 */
-	rating: number | null;
-	/** @deprecated 最新の飲用記録の射影。互換用 */
-	memo: string | null;
+	/** 最新の飲用記録の評価。飲用記録が無い/未入力なら null */
+	lastRating: number | null;
+	/** 最新の飲用記録のメモ。飲用記録が無い/未入力なら null */
+	lastMemo: string | null;
 	vintage: number | null;
 	grapeVarietyIds: string[];
 	producer: string | null;
@@ -65,7 +63,14 @@ export interface WineTastingEntry {
 	updatedAt: number;
 }
 
-type DrunkWineRow = typeof drunkWine.$inferSelect;
+/**
+ * エントリ1件を組み立てるのに必要な行。drunk_wine の列に、最新の飲用記録から
+ * 導出した評価・メモを足したもの(列としては持たない。selectEntry 参照)。
+ */
+type DrunkWineRow = typeof drunkWine.$inferSelect & {
+	lastRating: number | null;
+	lastMemo: string | null;
+};
 type WineTastingRow = typeof wineTasting.$inferSelect;
 
 function toEntry(row: DrunkWineRow): DrunkWineEntry {
@@ -76,12 +81,11 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		status: row.status,
 		lastDrankOn: row.lastDrankOn,
 		tastingCount: row.tastingCount,
-		drankOn: row.drankOn,
 		aopId: row.aopId,
 		aopNameJa: aop?.nameJa ?? null,
 		regionId: aop?.region ?? null,
-		rating: row.rating,
-		memo: row.memo,
+		lastRating: row.lastRating,
+		lastMemo: row.lastMemo,
 		vintage: row.vintage,
 		grapeVarietyIds: row.grapeVarietyIds,
 		producer: row.producer,
@@ -115,13 +119,24 @@ function toTastingEntry(row: WineTastingRow): WineTastingEntry {
 
 /** 「最新の飲用記録」の定義。SQLite は DESC で NULL を先頭に置くため、
  *  第1キーで日付未入力を末尾へ落とす。これで「最新行の drank_on」と
- *  「max(drank_on)」が常に一致する。 */
-const LATEST_TASTING_ORDER = sql`order by ${wineTasting.drankOn} is null, ${wineTasting.drankOn} desc, ${wineTasting.createdAt} desc`;
+ *  「max(drank_on)」が常に一致する。相関サブクエリ内では下記のエイリアスで修飾する。 */
+const LATEST_TASTING_ORDER = sql`order by t.drank_on is null, t.drank_on desc, t.created_at desc`;
 
-function latestTastingValue(
+/**
+ * 最新の飲用記録の1列を引く相関サブクエリ。
+ *
+ * **テーブル修飾を自前で書く必要がある**。drizzle は SELECT の `sql` テンプレート内で
+ * 列参照をテーブル名なし(`"rating"`, `"id"`)に描画するため、そのまま書くと内側の
+ * wine_tasting と外側の drunk_wine で同名列(`id`)が衝突し、SQLite は内側スコープを
+ * 優先して `wine_tasting.drunk_wine_id = wine_tasting.id` という常に偽の条件になる
+ * (静かに null が返るだけでエラーにならない)。UPDATE の SET 内では逆に完全修飾で
+ * 描画されるため、同じ式でも文脈によって意味が変わる。エイリアス `t` と
+ * `"drunk_wine".id` で明示すれば、どちらの文脈でも正しく相関する。
+ */
+function latestTastingValue<T extends number | string>(
 	column: typeof wineTasting.rating | typeof wineTasting.memo,
 ) {
-	return sql`(select ${column} from ${wineTasting} where ${wineTasting.drunkWineId} = ${drunkWine.id} ${LATEST_TASTING_ORDER} limit 1)`;
+	return sql<T | null>`(select t.${sql.raw(column.name)} from ${wineTasting} t where t.drunk_wine_id = ${drunkWine}.id ${LATEST_TASTING_ORDER} limit 1)`;
 }
 
 const TASTING_COUNT_EXPR = sql`(select count(*) from ${wineTasting} where ${wineTasting.drunkWineId} = ${drunkWine.id})`;
@@ -129,9 +144,11 @@ const MAX_DRANK_ON_EXPR = sql`(select max(${wineTasting.drankOn}) from ${wineTas
 
 /**
  * 飲用記録から集計キャッシュを再計算する UPDATE を組み立てる(実行はしない。
- * 呼び出し側が db.batch に積む)。旧列 drank_on/rating/memo への二重書きも
- * ここで行う — 同じ SET に3行足すだけで、一覧・地図・MCP payload の読み取り側を
- * 触らずに済む(expand-and-contract。次PRでこの3行と列を同時に削除する)。
+ * 呼び出し側が db.batch に積む)。
+ *
+ * 非正規化して持つのは last_drank_on(MAX)と tasting_count(COUNT)だけ。評価・メモは
+ * 「最新1件の値」なので集計ではなく、読み取り時に selectEntry の相関サブクエリで
+ * 導出する(#205)。旧 drank_on/rating/memo への二重書きはここから外した。
  *
  * extra で status も同時に変えられる(markWineDrunk が使う)。
  */
@@ -145,13 +162,38 @@ function recomputeDrunkWineAggregates(
 		.set({
 			tastingCount: TASTING_COUNT_EXPR,
 			lastDrankOn: MAX_DRANK_ON_EXPR,
-			drankOn: MAX_DRANK_ON_EXPR,
-			rating: latestTastingValue(wineTasting.rating),
-			memo: latestTastingValue(wineTasting.memo),
 			...(extra?.status ? { status: extra.status } : {}),
 		})
-		.where(and(eq(drunkWine.id, drunkWineId), eq(drunkWine.userId, userId)))
-		.returning();
+		.where(and(eq(drunkWine.id, drunkWineId), eq(drunkWine.userId, userId)));
+}
+
+/**
+ * エントリを読み直す SELECT。最新の飲用記録の評価・メモを相関サブクエリで載せる。
+ *
+ * 列を増やして非正規化する案も採れるが、そうすると「最新1件の射影」を書き戻す
+ * 経路がまた増え、#205 で消したはずの二重管理が名前を変えて戻ってくる。
+ * (drunk_wine_id, drank_on) の複合インデックスが効くので、相関サブクエリでも
+ * 1行あたりインデックス参照2回で済む。
+ *
+ * 変更系は db.batch の最後にこれを積んで最終状態を得る(UPDATE の RETURNING では
+ * サブクエリを使えないため)。
+ */
+function selectEntry(userId: string, id: string) {
+	return db
+		.select({
+			...getTableColumns(drunkWine),
+			lastRating: latestTastingValue<number>(wineTasting.rating),
+			lastMemo: latestTastingValue<string>(wineTasting.memo),
+		})
+		.from(drunkWine)
+		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
+}
+
+/** db.batch の結果末尾(selectEntry)から1件取り出す。無ければ NotFound。 */
+function entryFromBatch(results: unknown[]): DrunkWineEntry {
+	const row = (results.at(-1) as DrunkWineRow[] | undefined)?.[0];
+	if (!row) throw new NotFoundError("Entry not found");
+	return toEntry(row);
 }
 
 /** 所有権を確認して銘柄の存在を保証する。存在しない/他ユーザは同一エラー。 */
@@ -217,19 +259,20 @@ export async function createDrunkWine(
 	if (!tasting) {
 		const [row] = await db.insert(drunkWine).values(values).returning();
 		if (!row) throw new Error("Failed to insert drunk wine");
-		return toEntry(row);
+		// 飲用記録が無いので最新1件も無い。読み直さずに null で組み立てる。
+		return toEntry({ ...row, lastRating: null, lastMemo: null });
 	}
 
 	// 銘柄と飲用記録を1トランザクションで作る(写真と違いR2キーの物理制約が無い)。
-	// 3文目の再計算の returning から最終状態を得る。
-	const [, , updated] = await db.batch([
-		db.insert(drunkWine).values(values),
-		db.insert(wineTasting).values(buildTastingValues(userId, id, tasting)),
-		recomputeDrunkWineAggregates(userId, id),
-	]);
-	const row = updated[0];
-	if (!row) throw new Error("Failed to insert drunk wine");
-	return toEntry(row);
+	// 最後の SELECT から最終状態を得る。
+	return entryFromBatch(
+		await db.batch([
+			db.insert(drunkWine).values(values),
+			db.insert(wineTasting).values(buildTastingValues(userId, id, tasting)),
+			recomputeDrunkWineAggregates(userId, id),
+			selectEntry(userId, id),
+		]),
+	);
 }
 
 export async function updateDrunkWine(
@@ -239,22 +282,25 @@ export async function updateDrunkWine(
 	assertValidRefs(input);
 	const { id, ...patch } = input;
 	// undefined = 変更しない / null = クリア。undefinedキーはdrizzleが無視する
-	const [row] = await db
-		.update(drunkWine)
-		.set({
-			name: patch.name,
-			status: patch.status,
-			aopId: patch.aopId,
-			vintage: patch.vintage,
-			grapeVarietyIds: patch.grapeVarietyIds,
-			producer: patch.producer,
-			price: patch.price,
-		})
-		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
-		.returning();
-	// 存在しない/他ユーザ所有を区別せず同じエラーにする(存在の探索を防ぐ)
-	if (!row) throw new NotFoundError("Entry not found");
-	return toEntry(row);
+	// 存在しない/他ユーザ所有は SELECT が0件になり、区別せず同じエラーになる
+	// (存在の探索を防ぐ)。
+	return entryFromBatch(
+		await db.batch([
+			db
+				.update(drunkWine)
+				.set({
+					name: patch.name,
+					status: patch.status,
+					aopId: patch.aopId,
+					vintage: patch.vintage,
+					grapeVarietyIds: patch.grapeVarietyIds,
+					producer: patch.producer,
+					price: patch.price,
+				})
+				.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId))),
+			selectEntry(userId, id),
+		]),
+	);
 }
 
 // ---- 飲用記録 -------------------------------------------------------------
@@ -302,15 +348,15 @@ export async function addWineTasting(
 	input: CreateWineTastingInput,
 ): Promise<DrunkWineEntry> {
 	await assertOwnsDrunkWine(userId, drunkWineId);
-	const [, updated] = await db.batch([
-		db
-			.insert(wineTasting)
-			.values(buildTastingValues(userId, drunkWineId, input)),
-		recomputeDrunkWineAggregates(userId, drunkWineId),
-	]);
-	const row = updated[0];
-	if (!row) throw new NotFoundError("Entry not found");
-	return toEntry(row);
+	return entryFromBatch(
+		await db.batch([
+			db
+				.insert(wineTasting)
+				.values(buildTastingValues(userId, drunkWineId, input)),
+			recomputeDrunkWineAggregates(userId, drunkWineId),
+			selectEntry(userId, drunkWineId),
+		]),
+	);
 }
 
 /** 所有する飲用記録を引く。存在しない/他ユーザは同一エラー。 */
@@ -361,10 +407,10 @@ export async function updateWineTasting(
 	const target = await findOwnedTasting(userId, id);
 	const update = buildTastingUpdate(userId, id, patch);
 	const recompute = recomputeDrunkWineAggregates(userId, target.drunkWineId);
-	const results = await db.batch(update ? [update, recompute] : [recompute]);
-	const row = (results.at(-1) as (typeof drunkWine.$inferSelect)[])[0];
-	if (!row) throw new NotFoundError("Entry not found");
-	return toEntry(row);
+	const read = selectEntry(userId, target.drunkWineId);
+	return entryFromBatch(
+		await db.batch(update ? [update, recompute, read] : [recompute, read]),
+	);
 }
 
 export async function deleteWineTasting(
@@ -372,17 +418,17 @@ export async function deleteWineTasting(
 	tastingId: string,
 ): Promise<DrunkWineEntry> {
 	const target = await findOwnedTasting(userId, tastingId);
-	const [, updated] = await db.batch([
-		db
-			.delete(wineTasting)
-			.where(
-				and(eq(wineTasting.id, tastingId), eq(wineTasting.userId, userId)),
-			),
-		recomputeDrunkWineAggregates(userId, target.drunkWineId),
-	]);
-	const row = updated[0];
-	if (!row) throw new NotFoundError("Entry not found");
-	return toEntry(row);
+	return entryFromBatch(
+		await db.batch([
+			db
+				.delete(wineTasting)
+				.where(
+					and(eq(wineTasting.id, tastingId), eq(wineTasting.userId, userId)),
+				),
+			recomputeDrunkWineAggregates(userId, target.drunkWineId),
+			selectEntry(userId, target.drunkWineId),
+		]),
+	);
 }
 
 /**
@@ -400,15 +446,15 @@ export async function markWineDrunk(
 		...input,
 		drankOn: input?.drankOn ?? jstDayKey(new Date()),
 	};
-	const [, updated] = await db.batch([
-		db
-			.insert(wineTasting)
-			.values(buildTastingValues(userId, drunkWineId, tasting)),
-		recomputeDrunkWineAggregates(userId, drunkWineId, { status: "finished" }),
-	]);
-	const row = updated[0];
-	if (!row) throw new NotFoundError("Entry not found");
-	return toEntry(row);
+	return entryFromBatch(
+		await db.batch([
+			db
+				.insert(wineTasting)
+				.values(buildTastingValues(userId, drunkWineId, tasting)),
+			recomputeDrunkWineAggregates(userId, drunkWineId, { status: "finished" }),
+			selectEntry(userId, drunkWineId),
+		]),
+	);
 }
 
 /**
@@ -461,10 +507,10 @@ export async function updateLatestWineTasting(
 
 	const update = buildTastingUpdate(userId, latest.id, patch);
 	const recompute = recomputeDrunkWineAggregates(userId, drunkWineId);
-	const results = await db.batch(update ? [update, recompute] : [recompute]);
-	const row = (results.at(-1) as (typeof drunkWine.$inferSelect)[])[0];
-	if (!row) throw new NotFoundError("Entry not found");
-	return toEntry(row);
+	const read = selectEntry(userId, drunkWineId);
+	return entryFromBatch(
+		await db.batch(update ? [update, recompute, read] : [recompute, read]),
+	);
 }
 
 export async function deleteDrunkWine(
@@ -484,7 +530,11 @@ export async function listDrunkWines(
 	userId: string,
 ): Promise<DrunkWineEntry[]> {
 	const rows = await db
-		.select()
+		.select({
+			...getTableColumns(drunkWine),
+			lastRating: latestTastingValue<number>(wineTasting.rating),
+			lastMemo: latestTastingValue<string>(wineTasting.memo),
+		})
 		.from(drunkWine)
 		.where(eq(drunkWine.userId, userId))
 		.orderBy(desc(drunkWine.createdAt));
@@ -514,7 +564,11 @@ export async function getCellarSummary(userId: string): Promise<{
 		.from(drunkWine)
 		.where(eq(drunkWine.userId, userId));
 	const [latestRow] = await db
-		.select()
+		.select({
+			...getTableColumns(drunkWine),
+			lastRating: latestTastingValue<number>(wineTasting.rating),
+			lastMemo: latestTastingValue<string>(wineTasting.memo),
+		})
 		.from(drunkWine)
 		.where(eq(drunkWine.userId, userId))
 		.orderBy(desc(drunkWine.createdAt))
@@ -530,10 +584,7 @@ export async function getDrunkWine(
 	userId: string,
 	id: string,
 ): Promise<DrunkWineEntry> {
-	const [row] = await db
-		.select()
-		.from(drunkWine)
-		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
+	const [row] = await selectEntry(userId, id);
 	if (!row) throw new NotFoundError("Entry not found");
 	return toEntry(row);
 }
@@ -620,5 +671,7 @@ export async function syncDrunkWinePhotos(
 	const removed = currentKeys.filter((key) => !nextSet.has(key));
 	if (removed.length > 0) await env.AVATARS.delete(removed);
 
-	return toEntry(row);
+	// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
+	// 返却用に読み直す(R2 の後始末が済んでから)。
+	return getDrunkWine(userId, id);
 }

@@ -81,7 +81,9 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 					)}
 					<CardContent className="flex flex-col gap-1 p-3">
 						<p className="line-clamp-2 text-sm font-medium">{entry.name}</p>
-						{entry.rating !== null && <RatingStars rating={entry.rating} />}
+						{entry.lastRating !== null && (
+							<RatingStars rating={entry.lastRating} />
+						)}
 						<div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
 							{entry.lastDrankOn && <span>{entry.lastDrankOn}</span>}
 							{entry.tastingCount > 1 && (
