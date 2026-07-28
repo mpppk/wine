@@ -28,7 +28,14 @@
 			}
 		],
 		"soil": "花崗岩を主体に、閃緑岩や粘土石灰質も混じる多様な土壌。",
-		"producers": ["Château de la Chaize", "Château Thivin"],
+		"producers": [
+			"Château de la Chaize",
+			"Château Thivin",
+			"Domaine Ruet",
+			"Domaine Laurent Martray",
+			"Château de Pierreux",
+			"Domaine Jean-Claude Lapalu"
+		],
 		"description": "ブルイィ山の裾野に広がる、10クリュ中最大の面積を持つ最南端のクリュ。果実味豊かで親しみやすいスタイル。"
 	},
 	{
@@ -60,7 +67,14 @@
 			}
 		],
 		"soil": "花崗岩質の砂と石英を含む斜面。",
-		"producers": ["Château de Chénas", "Domaine Thillardon"],
+		"producers": [
+			"Cave du Château de Chénas",
+			"Domaine Thillardon",
+			"Domaine de Chênepierre",
+			"Domaine Pascal et Jean-Philippe Granger",
+			"Château Bonnet",
+			"Domaines Piron"
+		],
 		"description": "10クリュ中最小のアペラシオン。かつて樫(シェーヌ)の森だった土地に由来する名を持ち、花のような香りと厚みのある味わい。"
 	},
 	{
@@ -92,7 +106,13 @@
 			}
 		],
 		"soil": "痩せた花崗岩質の砂(ゴール)。",
-		"producers": ["Domaine Émile Cheysson", "Domaine de la Grosse Pierre"],
+		"producers": [
+			"Domaine Émile Cheysson",
+			"Domaine de la Grosse Pierre",
+			"Damien Coquelet",
+			"Château de Raousset",
+			"Domaine Georges Descombes"
+		],
 		"description": "標高250〜450mと10クリュ中最も高地にある。冷涼さを反映した、軽やかで花の香りに富むエレガントなスタイル。"
 	},
 	{
@@ -124,7 +144,14 @@
 			}
 		],
 		"soil": "ブルイィ山の斜面を覆う青みがかった閃緑岩(ピエール・ブルー)。",
-		"producers": ["Château Thivin", "Domaine Nicole Chanrion"],
+		"producers": [
+			"Château Thivin",
+			"Domaine Nicole Chanrion",
+			"Domaine Jean-Claude Lapalu",
+			"Les Roches Bleues",
+			"Château des Ravatys",
+			"Domaine Chevalier-Métrat"
+		],
 		"description": "ブルイィ山の斜面に位置するクリュ。火山性の硬い岩盤に由来するミネラル感と引き締まった果実味が特徴。"
 	},
 	{
@@ -156,7 +183,14 @@
 			}
 		],
 		"soil": "ピンク色の花崗岩(ゴール・ローズ)。",
-		"producers": ["Clos de la Roilette", "Domaine de la Madone"],
+		"producers": [
+			"Clos de la Roilette",
+			"Domaine de la Madone",
+			"Domaine Chignard",
+			"Yvon Métras",
+			"Château de Poncié",
+			"Domaine des Marrans"
+		],
 		"description": "「ボジョレーの女王」と呼ばれるクリュ。ピンク花崗岩の土壌から、スミレやバラを思わせる華やかでシルキーな赤を生む。"
 	},
 	{
@@ -188,7 +222,14 @@
 			}
 		],
 		"soil": "西部は花崗岩、東部は粘土や古い沖積土が混じる複雑な土壌。",
-		"producers": ["Château de Juliénas", "Domaine du Clos du Fief"],
+		"producers": [
+			"Château de Juliénas",
+			"Domaine du Clos du Fief",
+			"Domaine Pascal et Jean-Philippe Granger",
+			"Domaines Perrachon et Fils",
+			"Château Bonnet",
+			"Domaine de la Vieille Église"
+		],
 		"description": "ユリウス・カエサルに由来する名を持つ北部のクリュ。スパイス香をともなう、構成のしっかりした赤ワインを生む。"
 	},
 	{
@@ -223,7 +264,11 @@
 		"producers": [
 			"Jean Foillard",
 			"Marcel Lapierre",
-			"Domaine Louis-Claude Desvignes"
+			"Domaine Louis-Claude Desvignes",
+			"Jean-Paul Thévenet",
+			"Jean-Marc Burgaud",
+			"Domaine Georges Descombes",
+			"Domaines Piron"
 		],
 		"description": "ブルゴーニュの村名格にも例えられる力強いクリュ。チェリーやキルシュの風味と熟成力で知られ、自然派ワインの聖地でもある。"
 	},
@@ -259,7 +304,11 @@
 		"producers": [
 			"Château des Jacques",
 			"Château du Moulin-à-Vent",
-			"Domaine Diochon"
+			"Domaine Diochon",
+			"Domaine Labruyère",
+			"Domaine Richard Rottiers",
+			"Domaine Paul Janin et Fils",
+			"Domaines Chermette"
 		],
 		"description": "丘上の風車に名を由来する「ボジョレーの王」。10クリュ中最も骨格があり、10年を超える熟成にも耐える。"
 	},
@@ -292,7 +341,13 @@
 			}
 		],
 		"soil": "ピンク花崗岩が風化した砂質土壌。",
-		"producers": ["Guy Breton", "Domaine Rochette"],
+		"producers": [
+			"Guy Breton",
+			"Domaine Rochette",
+			"Charly Thévenet",
+			"Julien Sunier",
+			"Domaine de Vernus"
+		],
 		"description": "1988年に昇格した最も新しいクリュ。ラズベリーを思わせるチャーミングな果実味の、比較的早飲みのスタイル。"
 	},
 	{
@@ -324,7 +379,14 @@
 			}
 		],
 		"soil": "花崗岩に粘土質・珪質の層が混じる。",
-		"producers": ["Domaine des Duc", "Domaine des Billards"],
+		"producers": [
+			"Domaine des Duc",
+			"Domaine des Billards",
+			"Domaine du Paradis",
+			"Domaine Chardigny",
+			"Domaine des Pierres",
+			"Domaine Pascal et Jean-Philippe Granger"
+		],
 		"description": "最北端のクリュ。「聖なる愛」を意味する名からバレンタインの定番として人気で、チャーミングかつ滑らかな味わい。"
 	},
 	{
@@ -364,7 +426,14 @@
 			}
 		],
 		"soil": "北部は花崗岩・片岩質、南部(ピエール・ドレ地区)は粘土石灰質。",
-		"producers": ["Georges Duboeuf", "Domaine Dupeuble"],
+		"producers": [
+			"Georges Duboeuf",
+			"Domaine Dupeuble",
+			"Domaine des Terres Dorées",
+			"Domaines Chermette",
+			"Domaine JG Chasselay",
+			"Maison Coquard"
+		],
 		"description": "ガメイ主体の軽快な赤で知られる地方名AOC。ボジョレー・ヌーヴォーの産地としても有名で、白はシャルドネから造られる。"
 	},
 	{
