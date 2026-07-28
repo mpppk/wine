@@ -29,6 +29,7 @@ import {
 import { STATUS_COLORS } from "#/lib/drunk-wine/map-style";
 import {
 	buildAopStatusMap,
+	hasMixedAopStatus,
 	WINE_STATUS_LABELS_JA,
 	WINE_STATUSES,
 } from "#/lib/drunk-wine/status";
@@ -167,12 +168,22 @@ function CellarMapPage() {
 		() => AOP_KINDS.filter((k) => aops.some((a) => a.kind === k)),
 		[aops],
 	);
+	// 表示中の地域のエントリ。色分けと凡例の注記はどちらもここから導く。
+	const regionEntries = useMemo(
+		() => linkedEntries.filter((e) => e.regionId === regionId),
+		[linkedEntries, regionId],
+	);
 	// AOPごとの代表状態(色分けの入力)。混在AOPの畳み方は buildAopStatusMap が
 	// 単一情報源で、優先度は owned > wishlist > finished。
 	const statusByAopId = useMemo(
-		() =>
-			buildAopStatusMap(linkedEntries.filter((e) => e.regionId === regionId)),
-		[linkedEntries, regionId],
+		() => buildAopStatusMap(regionEntries),
+		[regionEntries],
+	);
+	// 注記は実データに混在があるときだけ出す(絞り込みチップからは導けない。
+	// "飲んだことがある" は所有状態と直交し、"飲み終わった" のチップは無い)。
+	const mixedStatus = useMemo(
+		() => hasMixedAopStatus(regionEntries),
+		[regionEntries],
 	);
 
 	const highlightAopIds = useMemo(() => {
@@ -313,9 +324,7 @@ function CellarMapPage() {
 					</div>
 				)}
 
-				{region && (
-					<StatusLegend showMixedNote={filter === DEFAULT_CELLAR_FILTER} />
-				)}
+				{region && <StatusLegend showMixedNote={mixedStatus} />}
 
 				{/* デスクトップ: 右サイドバー / モバイル: 下部オーバーレイ */}
 				{selectedAop && selectedAopEntries.length > 0 && (

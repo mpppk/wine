@@ -82,6 +82,28 @@ export function buildAopStatusMap(
 	return byAop;
 }
 
+/**
+ * 状態の異なるエントリを持つAOPが1つでもあるか。地図の凡例に「混在は owned を
+ * 優先して表示している」という注記を出すかの判定に使う。
+ *
+ * 絞り込みチップ(filter.ts)から導出してはいけない。チップは所有状態と1対1では
+ * なく、"tasted"(飲んだことがある)は所有状態と直交するため owned と finished が
+ * 同居しうるし、"finished" のチップはそもそも存在しない。実データを見るのが唯一
+ * 正確で、混在が無いときに注記を出さずに済む。
+ */
+export function hasMixedAopStatus(
+	entries: Iterable<{ aopId: string | null; status: WineStatus }>,
+): boolean {
+	const seen = new Map<string, WineStatus>();
+	for (const e of entries) {
+		if (!e.aopId) continue;
+		const prev = seen.get(e.aopId);
+		if (prev !== undefined && prev !== e.status) return true;
+		seen.set(e.aopId, e.status);
+	}
+	return false;
+}
+
 /** 飲んだことがあるか。所有状態には依存しない(2軸が独立しているため) */
 export function isTasted(entry: { tastingCount: number }): boolean {
 	return entry.tastingCount > 0;

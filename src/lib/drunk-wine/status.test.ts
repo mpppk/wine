@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildAopStatusMap,
 	DEFAULT_WINE_STATUS,
+	hasMixedAopStatus,
 	isTasted,
 	pickAopStatus,
 	WINE_STATUS_IDS,
@@ -92,6 +93,40 @@ describe("buildAopStatusMap", () => {
 
 	it("空入力なら空のMap", () => {
 		expect(buildAopStatusMap([]).size).toBe(0);
+	});
+});
+
+describe("hasMixedAopStatus", () => {
+	it("同じAOPに違う状態があれば true", () => {
+		expect(
+			hasMixedAopStatus([
+				{ aopId: "chablis", status: "owned" },
+				{ aopId: "chablis", status: "finished" },
+			]),
+		).toBe(true);
+	});
+
+	it("AOPごとに状態が1つなら false(別AOPで状態が違っても混在ではない)", () => {
+		expect(
+			hasMixedAopStatus([
+				{ aopId: "chablis", status: "owned" },
+				{ aopId: "beaune", status: "finished" },
+				{ aopId: "chablis", status: "owned" },
+			]),
+		).toBe(false);
+	});
+
+	it("AOP未紐付けは無視する", () => {
+		expect(
+			hasMixedAopStatus([
+				{ aopId: null, status: "owned" },
+				{ aopId: null, status: "finished" },
+			]),
+		).toBe(false);
+	});
+
+	it("空入力なら false", () => {
+		expect(hasMixedAopStatus([])).toBe(false);
 	});
 });
 
