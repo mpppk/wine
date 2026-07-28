@@ -13,7 +13,7 @@
 		"format": "biome format",
 		"lint": "biome lint",
 		"check": "biome check",
-		"check:migrations": "node scripts/check-destructive-migrations.mjs",
+		"check:migrations": "bun scripts/check-destructive-migrations.mjs",
 		"check:deploy": "wrangler deploy --dry-run",
 		"check:deploy:preview": "CLOUDFLARE_ENV=preview vite build && CLOUDFLARE_ENV=preview wrangler deploy --dry-run",
 		"typecheck": "tsc",
