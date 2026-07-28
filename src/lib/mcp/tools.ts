@@ -16,7 +16,7 @@ import {
 	signImageKey,
 } from "#/lib/images/signed-url";
 import { getImageSigningKey } from "#/lib/images/signing-key";
-import { logError } from "#/lib/logger";
+import { logError, logWarn } from "#/lib/logger";
 import type { McpDrunkWineEntry } from "#/lib/mcp-app/entry";
 import * as aiService from "#/lib/services/ai-service";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
@@ -72,22 +72,51 @@ function buildAffiliateConfig(): AffiliateConfig {
 	};
 }
 
+/**
+ * 外部の MCP クライアントへ返してよい文言に落とす。
+ *
+ * HttpError(BadRequest 等)は利用者に見せてよい検証・入力エラーなのでそのまま返す。
+ * それ以外(D1/R2 ドライバの生エラー等)は SQL 断片やバインディング情報を、動的登録された
+ * 任意の外部 MCP クライアントへ露出しうるため、汎用文言に置き換えて内部詳細を隠す(#47)。
+ *
+ * ツールの失敗(err)と、成功応答に混ぜる部分的失敗(写真の保存失敗)の両方がここを通る。
+ * 経路ごとに書くと、後から足した経路で必ず生メッセージが漏れる(#250 がまさにそれ)。
+ */
+function externalMessage(e: unknown): string {
+	return e instanceof HttpError
+		? e.message
+		: "内部エラーが発生しました。時間をおいて再度お試しください。";
+}
+
+/**
+ * 失敗の記録。想定内の 4xx(HttpError)と内部エラーでレベルを分ける(#250)。
+ *
+ * `ask_region` の残高不足のように、正常系として HttpError を投げる経路がある。これらを
+ * error で残すと `bun run logs --level error` が日常イベントで埋まり、本当の障害
+ * (D1/R2/AI の失敗)が埋もれる。server fn 側の境界(`runWithHttpStatus`)と同じ方針に揃える
+ * ——ただし MCP は外部クライアントが相手で入力ミスの傾向も知りたいため、無ログではなく warn。
+ */
+function logToolFailure(
+	e: unknown,
+	ctx: { tool: string; userId: string },
+): void {
+	const fields = { tool: ctx.tool, userId: ctx.userId, err: e };
+	if (e instanceof HttpError) {
+		logWarn("mcp tool rejected", { ...fields, status: e.status });
+	} else {
+		logError("mcp tool failed", fields);
+	}
+}
+
 function err(
 	e: unknown,
 	ctx: { tool: string; userId: string },
 ): CallToolResult {
 	// 失敗は必ずサーバ側に構造化ログを残す。どのツールが・どのユーザで・何で失敗したかを
 	// 事後に追えるようにする(従来は err の記録が無く、障害が静かに進行していた)。
-	logError("mcp tool failed", { tool: ctx.tool, userId: ctx.userId, err: e });
-	// HttpError(BadRequest 等)は利用者に見せてよい検証・入力エラーなのでそのまま返す。
-	// それ以外(D1ドライバの生エラー等)は SQL 断片やバインディング情報を、動的登録された
-	// 任意の外部 MCP クライアントへ露出しうるため、汎用文言に置き換えて内部詳細を隠す。
-	const message =
-		e instanceof HttpError
-			? e.message
-			: "内部エラーが発生しました。時間をおいて再度お試しください。";
+	logToolFailure(e, ctx);
 	return {
-		content: [{ type: "text", text: `Error: ${message}` }],
+		content: [{ type: "text", text: `Error: ${externalMessage(e)}` }],
 		isError: true,
 	};
 }
@@ -529,7 +558,16 @@ export function registerWriteTools(server: McpServer, userId: string) {
 							appendPhotoLayout(entry, photo),
 						);
 					} catch (e) {
-						photoError = `写真の保存に失敗しました(記録自体は作成済み。update_drunk_wine で id を指定して再添付できる): ${e instanceof Error ? e.message : String(e)}`;
+						// 成功応答に混ぜて返すため err() を通らない。ここで記録しないと
+						// 「Claude から写真付きで登録すると写真だけ消える」が無ログで進行する
+						// (Web 経路は wine-photos.ts で記録済み。#250)。
+						logError("mcp photo attach failed", {
+							tool: "register_drunk_wine",
+							userId,
+							entryId: entry.id,
+							err: e,
+						});
+						photoError = `写真の保存に失敗しました(記録自体は作成済み。update_drunk_wine で id を指定して再添付できる): ${externalMessage(e)}`;
 					}
 				}
 				const payload = {

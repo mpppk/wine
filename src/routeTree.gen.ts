@@ -9,53 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as RegionsRouteImport } from './routes/regions'
-import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as QuizIndexRouteImport } from './routes/quiz.index'
-import { Route as CellarIndexRouteImport } from './routes/cellar.index'
-import { Route as AdminIndexRouteImport } from './routes/admin.index'
-import { Route as QuizProgressRouteImport } from './routes/quiz.progress'
-import { Route as QuizPlayRouteImport } from './routes/quiz.play'
-import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
-import { Route as MapRegionIdRouteImport } from './routes/map.$regionId'
-import { Route as EmbedMapRouteImport } from './routes/embed/map'
-import { Route as EmbedDrunkWineRouteImport } from './routes/embed/drunk-wine'
-import { Route as CellarNewRouteImport } from './routes/cellar.new'
-import { Route as CellarMapRouteImport } from './routes/cellar.map'
-import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
-import { Route as ApiUploadRouteImport } from './routes/api/upload'
-import { Route as ApiMcpRouteImport } from './routes/api/mcp'
-import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
-import { Route as AdminBulkCreditRouteImport } from './routes/admin.bulk-credit'
-import { Route as AdminUserIdRouteImport } from './routes/admin.$userId'
-import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as RegionsRouteImport } from './routes/regions'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
-import { Route as CellarEntryIdEditRouteImport } from './routes/cellar.$entryId.edit'
-import { Route as ApiImagesSplatRouteImport } from './routes/api/images/$'
+import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminUserIdRouteImport } from './routes/admin.$userId'
+import { Route as AdminBulkCreditRouteImport } from './routes/admin.bulk-credit'
+import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
+import { Route as ApiMcpRouteImport } from './routes/api/mcp'
+import { Route as ApiUploadRouteImport } from './routes/api/upload'
+import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
+import { Route as CellarIndexRouteImport } from './routes/cellar.index'
+import { Route as CellarMapRouteImport } from './routes/cellar.map'
+import { Route as CellarNewRouteImport } from './routes/cellar.new'
+import { Route as EmbedDrunkWineRouteImport } from './routes/embed/drunk-wine'
+import { Route as EmbedMapRouteImport } from './routes/embed/map'
+import { Route as MapRegionIdRouteImport } from './routes/map.$regionId'
+import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
+import { Route as QuizIndexRouteImport } from './routes/quiz.index'
+import { Route as QuizPlayRouteImport } from './routes/quiz.play'
+import { Route as QuizProgressRouteImport } from './routes/quiz.progress'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiImagesSplatRouteImport } from './routes/api/images/$'
+import { Route as CellarEntryIdEditRouteImport } from './routes/cellar.$entryId.edit'
 
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegionsRoute = RegionsRouteImport.update({
-  id: '/regions',
-  path: '/regions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -63,89 +48,41 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const QuizIndexRoute = QuizIndexRouteImport.update({
-  id: '/quiz/',
-  path: '/quiz/',
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CellarIndexRoute = CellarIndexRouteImport.update({
-  id: '/cellar/',
-  path: '/cellar/',
+const RegionsRoute = RegionsRouteImport.update({
+  id: '/regions',
+  path: '/regions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownOauthAuthorizationServerRoute =
+  DotwellKnownOauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DotwellKnownOauthProtectedResourceRoute =
+  DotwellKnownOauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const QuizProgressRoute = QuizProgressRouteImport.update({
-  id: '/quiz/progress',
-  path: '/quiz/progress',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const QuizPlayRoute = QuizPlayRouteImport.update({
-  id: '/quiz/play',
-  path: '/quiz/play',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OauthConsentRoute = OauthConsentRouteImport.update({
-  id: '/oauth/consent',
-  path: '/oauth/consent',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MapRegionIdRoute = MapRegionIdRouteImport.update({
-  id: '/map/$regionId',
-  path: '/map/$regionId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedMapRoute = EmbedMapRouteImport.update({
-  id: '/embed/map',
-  path: '/embed/map',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedDrunkWineRoute = EmbedDrunkWineRouteImport.update({
-  id: '/embed/drunk-wine',
-  path: '/embed/drunk-wine',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CellarNewRoute = CellarNewRouteImport.update({
-  id: '/cellar/new',
-  path: '/cellar/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CellarMapRoute = CellarMapRouteImport.update({
-  id: '/cellar/map',
-  path: '/cellar/map',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWinePhotosRoute = ApiWinePhotosRouteImport.update({
-  id: '/api/wine-photos',
-  path: '/api/wine-photos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiUploadRoute = ApiUploadRouteImport.update({
-  id: '/api/upload',
-  path: '/api/upload',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiMcpRoute = ApiMcpRouteImport.update({
-  id: '/api/mcp',
-  path: '/api/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiLabelAnalysisRoute = ApiLabelAnalysisRouteImport.update({
-  id: '/api/label-analysis',
-  path: '/api/label-analysis',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminBulkCreditRoute = AdminBulkCreditRouteImport.update({
-  id: '/admin/bulk-credit',
-  path: '/admin/bulk-credit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUserIdRoute = AdminUserIdRouteImport.update({
@@ -153,21 +90,84 @@ const AdminUserIdRoute = AdminUserIdRouteImport.update({
   path: '/admin/$userId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DotwellKnownOauthProtectedResourceRoute =
-  DotwellKnownOauthProtectedResourceRouteImport.update({
-    id: '/.well-known/oauth-protected-resource',
-    path: '/.well-known/oauth-protected-resource',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const DotwellKnownOauthAuthorizationServerRoute =
-  DotwellKnownOauthAuthorizationServerRouteImport.update({
-    id: '/.well-known/oauth-authorization-server',
-    path: '/.well-known/oauth-authorization-server',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const CellarEntryIdEditRoute = CellarEntryIdEditRouteImport.update({
-  id: '/cellar/$entryId/edit',
-  path: '/cellar/$entryId/edit',
+const AdminBulkCreditRoute = AdminBulkCreditRouteImport.update({
+  id: '/admin/bulk-credit',
+  path: '/admin/bulk-credit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLabelAnalysisRoute = ApiLabelAnalysisRouteImport.update({
+  id: '/api/label-analysis',
+  path: '/api/label-analysis',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiUploadRoute = ApiUploadRouteImport.update({
+  id: '/api/upload',
+  path: '/api/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWinePhotosRoute = ApiWinePhotosRouteImport.update({
+  id: '/api/wine-photos',
+  path: '/api/wine-photos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CellarIndexRoute = CellarIndexRouteImport.update({
+  id: '/cellar/',
+  path: '/cellar/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CellarMapRoute = CellarMapRouteImport.update({
+  id: '/cellar/map',
+  path: '/cellar/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CellarNewRoute = CellarNewRouteImport.update({
+  id: '/cellar/new',
+  path: '/cellar/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedDrunkWineRoute = EmbedDrunkWineRouteImport.update({
+  id: '/embed/drunk-wine',
+  path: '/embed/drunk-wine',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedMapRoute = EmbedMapRouteImport.update({
+  id: '/embed/map',
+  path: '/embed/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRegionIdRoute = MapRegionIdRouteImport.update({
+  id: '/map/$regionId',
+  path: '/map/$regionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizIndexRoute = QuizIndexRouteImport.update({
+  id: '/quiz/',
+  path: '/quiz/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizPlayRoute = QuizPlayRouteImport.update({
+  id: '/quiz/play',
+  path: '/quiz/play',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuizProgressRoute = QuizProgressRouteImport.update({
+  id: '/quiz/progress',
+  path: '/quiz/progress',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiImagesSplatRoute = ApiImagesSplatRouteImport.update({
@@ -175,9 +175,9 @@ const ApiImagesSplatRoute = ApiImagesSplatRouteImport.update({
   path: '/api/images/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
+const CellarEntryIdEditRoute = CellarEntryIdEditRouteImport.update({
+  id: '/cellar/$entryId/edit',
+  path: '/cellar/$entryId/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -398,32 +398,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/regions': {
-      id: '/regions'
-      path: '/regions'
-      fullPath: '/regions'
-      preLoaderRoute: typeof RegionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -433,137 +412,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/quiz/': {
-      id: '/quiz/'
-      path: '/quiz'
-      fullPath: '/quiz/'
-      preLoaderRoute: typeof QuizIndexRouteImport
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/cellar/': {
-      id: '/cellar/'
-      path: '/cellar'
-      fullPath: '/cellar/'
-      preLoaderRoute: typeof CellarIndexRouteImport
+    '/regions': {
+      id: '/regions'
+      path: '/regions'
+      fullPath: '/regions'
+      preLoaderRoute: typeof RegionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/': {
-      id: '/admin/'
-      path: '/admin'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/quiz/progress': {
-      id: '/quiz/progress'
-      path: '/quiz/progress'
-      fullPath: '/quiz/progress'
-      preLoaderRoute: typeof QuizProgressRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/quiz/play': {
-      id: '/quiz/play'
-      path: '/quiz/play'
-      fullPath: '/quiz/play'
-      preLoaderRoute: typeof QuizPlayRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/oauth/consent': {
-      id: '/oauth/consent'
-      path: '/oauth/consent'
-      fullPath: '/oauth/consent'
-      preLoaderRoute: typeof OauthConsentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/map/$regionId': {
-      id: '/map/$regionId'
-      path: '/map/$regionId'
-      fullPath: '/map/$regionId'
-      preLoaderRoute: typeof MapRegionIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/map': {
-      id: '/embed/map'
-      path: '/embed/map'
-      fullPath: '/embed/map'
-      preLoaderRoute: typeof EmbedMapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/drunk-wine': {
-      id: '/embed/drunk-wine'
-      path: '/embed/drunk-wine'
-      fullPath: '/embed/drunk-wine'
-      preLoaderRoute: typeof EmbedDrunkWineRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cellar/new': {
-      id: '/cellar/new'
-      path: '/cellar/new'
-      fullPath: '/cellar/new'
-      preLoaderRoute: typeof CellarNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cellar/map': {
-      id: '/cellar/map'
-      path: '/cellar/map'
-      fullPath: '/cellar/map'
-      preLoaderRoute: typeof CellarMapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/wine-photos': {
-      id: '/api/wine-photos'
-      path: '/api/wine-photos'
-      fullPath: '/api/wine-photos'
-      preLoaderRoute: typeof ApiWinePhotosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/upload': {
-      id: '/api/upload'
-      path: '/api/upload'
-      fullPath: '/api/upload'
-      preLoaderRoute: typeof ApiUploadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/mcp': {
-      id: '/api/mcp'
-      path: '/api/mcp'
-      fullPath: '/api/mcp'
-      preLoaderRoute: typeof ApiMcpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/label-analysis': {
-      id: '/api/label-analysis'
-      path: '/api/label-analysis'
-      fullPath: '/api/label-analysis'
-      preLoaderRoute: typeof ApiLabelAnalysisRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/bulk-credit': {
-      id: '/admin/bulk-credit'
-      path: '/admin/bulk-credit'
-      fullPath: '/admin/bulk-credit'
-      preLoaderRoute: typeof AdminBulkCreditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/$userId': {
-      id: '/admin/$userId'
-      path: '/admin/$userId'
-      fullPath: '/admin/$userId'
-      preLoaderRoute: typeof AdminUserIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-authorization-server': {
@@ -573,11 +447,137 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/cellar/$entryId/edit': {
-      id: '/cellar/$entryId/edit'
-      path: '/cellar/$entryId/edit'
-      fullPath: '/cellar/$entryId/edit'
-      preLoaderRoute: typeof CellarEntryIdEditRouteImport
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/$userId': {
+      id: '/admin/$userId'
+      path: '/admin/$userId'
+      fullPath: '/admin/$userId'
+      preLoaderRoute: typeof AdminUserIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/bulk-credit': {
+      id: '/admin/bulk-credit'
+      path: '/admin/bulk-credit'
+      fullPath: '/admin/bulk-credit'
+      preLoaderRoute: typeof AdminBulkCreditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/label-analysis': {
+      id: '/api/label-analysis'
+      path: '/api/label-analysis'
+      fullPath: '/api/label-analysis'
+      preLoaderRoute: typeof ApiLabelAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/upload': {
+      id: '/api/upload'
+      path: '/api/upload'
+      fullPath: '/api/upload'
+      preLoaderRoute: typeof ApiUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/wine-photos': {
+      id: '/api/wine-photos'
+      path: '/api/wine-photos'
+      fullPath: '/api/wine-photos'
+      preLoaderRoute: typeof ApiWinePhotosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cellar/': {
+      id: '/cellar/'
+      path: '/cellar'
+      fullPath: '/cellar/'
+      preLoaderRoute: typeof CellarIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cellar/map': {
+      id: '/cellar/map'
+      path: '/cellar/map'
+      fullPath: '/cellar/map'
+      preLoaderRoute: typeof CellarMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cellar/new': {
+      id: '/cellar/new'
+      path: '/cellar/new'
+      fullPath: '/cellar/new'
+      preLoaderRoute: typeof CellarNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/drunk-wine': {
+      id: '/embed/drunk-wine'
+      path: '/embed/drunk-wine'
+      fullPath: '/embed/drunk-wine'
+      preLoaderRoute: typeof EmbedDrunkWineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/map': {
+      id: '/embed/map'
+      path: '/embed/map'
+      fullPath: '/embed/map'
+      preLoaderRoute: typeof EmbedMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/map/$regionId': {
+      id: '/map/$regionId'
+      path: '/map/$regionId'
+      fullPath: '/map/$regionId'
+      preLoaderRoute: typeof MapRegionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/': {
+      id: '/quiz/'
+      path: '/quiz'
+      fullPath: '/quiz/'
+      preLoaderRoute: typeof QuizIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/play': {
+      id: '/quiz/play'
+      path: '/quiz/play'
+      fullPath: '/quiz/play'
+      preLoaderRoute: typeof QuizPlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/progress': {
+      id: '/quiz/progress'
+      path: '/quiz/progress'
+      fullPath: '/quiz/progress'
+      preLoaderRoute: typeof QuizProgressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/images/$': {
@@ -587,11 +587,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImagesSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
+    '/cellar/$entryId/edit': {
+      id: '/cellar/$entryId/edit'
+      path: '/cellar/$entryId/edit'
+      fullPath: '/cellar/$entryId/edit'
+      preLoaderRoute: typeof CellarEntryIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

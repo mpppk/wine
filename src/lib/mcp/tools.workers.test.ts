@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { describe, expect, it } from "vitest";
+import type { MockInstance } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { isAuthorizedForPrivateImage } from "#/lib/images/authorize";
@@ -9,6 +10,7 @@ import {
 	imageKeyFromPath,
 	SIGNATURE_PARAM,
 } from "#/lib/images/signed-url";
+import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import { getProducerPurchaseLinks } from "#/lib/wine/affiliate";
 import { listAops, listRegions } from "#/lib/wine/service";
 import type { Aop } from "#/lib/wine/types";
@@ -21,6 +23,10 @@ import { registerReadTools, registerWriteTools } from "./tools";
 // (Issue #51)。BETTER_AUTH_URL はテスト設定(vitest.config.ts)で与えている。
 
 const BASE_URL = "http://localhost:3000";
+
+// 1x1 PNG(マジックバイトの検証を通る最小の実データ)
+const PNG_1X1_BASE64 =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 // err() が返すエラーレスポンスのテキストミラー(content[0])を取り出す。
 function firstText(res: CallToolResult): string {
@@ -578,5 +584,128 @@ describe("MCP が返す写真URLの署名", () => {
 		expect(
 			await isAuthorizedForPrivateImage(new Request(bare), bare, r2Key),
 		).toBe(false);
+	});
+});
+
+// ---- エラー処理とログのドリフト (#250) ------------------------------------
+// MCP は外部クライアントが相手なので、(a) 想定内の 4xx を error レベルで残さない
+// (`bun run logs --level error` が日常イベントで埋まると本当の障害が埋もれる)、
+// (b) 内部エラーの生メッセージを外へ出さない、(c) 成功応答に混ぜる部分的失敗も
+// 必ずサーバに記録する、の3点を実ハンドラで固定する。
+
+/** 構造化ログ(1行JSON)を msg で拾う。 */
+function loggedLines(
+	spy: MockInstance<(...a: unknown[]) => void>,
+	msg: string,
+) {
+	return spy.mock.calls
+		.map(([line]) => {
+			try {
+				return JSON.parse(String(line)) as Record<string, unknown>;
+			} catch {
+				return null;
+			}
+		})
+		.filter((o): o is Record<string, unknown> => o?.msg === msg);
+}
+
+describe("MCP ツールのエラー処理とログ", () => {
+	let warnSpy: MockInstance<(...a: unknown[]) => void>;
+	let errorSpy: MockInstance<(...a: unknown[]) => void>;
+
+	beforeEach(() => {
+		warnSpy = vi
+			.spyOn(console, "warn")
+			.mockImplementation(() => {}) as MockInstance<(...a: unknown[]) => void>;
+		errorSpy = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {}) as MockInstance<(...a: unknown[]) => void>;
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("想定内の4xx(未知の region_id)は warn で記録し、error レベルには出さない", async () => {
+		const t = tools.get("list_aops");
+		if (!t) throw new Error("list_aops が登録されていない");
+		const res = await t.handler({ region_id: "___no_such_region___" });
+
+		expect(res.isError).toBe(true);
+		const warns = loggedLines(warnSpy, "mcp tool rejected");
+		expect(warns).toHaveLength(1);
+		expect(warns[0]).toMatchObject({ tool: "list_aops", status: 400 });
+		// 障害シグナルを薄めない: error レベルには出さない
+		expect(loggedLines(errorSpy, "mcp tool failed")).toHaveLength(0);
+	});
+
+	it("写真の入力エラー(base64不正)は利用者に理由が伝わる文言で返る", async () => {
+		const userId = await freshWriteUser();
+		const res = await writeHandler(
+			collectWriteTools(userId),
+			"register_drunk_wine",
+		)({
+			name: "壊れた写真",
+			photo_base64: "!!!not-base64!!!",
+			photo_mime_type: "image/png",
+		});
+
+		expect(res.isError).toBe(true);
+		// 「内部エラー。時間をおいて再試行」だと送り直しても直らない
+		expect(firstText(res)).toContain("Invalid base64 image data");
+		expect(firstText(res)).not.toContain("内部エラー");
+		expect(loggedLines(warnSpy, "mcp tool rejected")).toHaveLength(1);
+		expect(loggedLines(errorSpy, "mcp tool failed")).toHaveLength(0);
+	});
+
+	it("内部エラーは error で記録し、生メッセージは外へ出さない", async () => {
+		const userId = await freshWriteUser();
+		vi.spyOn(drunkWineService, "createDrunkWine").mockRejectedValueOnce(
+			new Error("D1_ERROR: no such column: secret_internal_column"),
+		);
+		const res = await writeHandler(
+			collectWriteTools(userId),
+			"register_drunk_wine",
+		)({ name: "内部エラー" });
+
+		expect(res.isError).toBe(true);
+		expect(firstText(res)).toContain("内部エラーが発生しました");
+		expect(firstText(res)).not.toContain("secret_internal_column");
+		const errors = loggedLines(errorSpy, "mcp tool failed");
+		expect(errors).toHaveLength(1);
+		expect(String(errors[0]?.err)).toContain("secret_internal_column");
+	});
+
+	it("写真の保存失敗は成功応答でも記録し、photo_error に生メッセージを載せない", async () => {
+		const userId = await freshWriteUser();
+		vi.spyOn(drunkWineService, "syncDrunkWinePhotos").mockRejectedValueOnce(
+			new Error("R2 error: put failed on bucket internal-detail"),
+		);
+		const res = await writeHandler(
+			collectWriteTools(userId),
+			"register_drunk_wine",
+		)({
+			name: "写真の保存に失敗",
+			photo_base64: PNG_1X1_BASE64,
+			photo_mime_type: "image/png",
+		});
+
+		// 記録自体は作成済みなので isError にはしない(リトライで重複登録させない)
+		expect(res.isError).toBeFalsy();
+		const payload = res.structuredContent as unknown as {
+			entry: { id: string };
+			photo_error?: string;
+		};
+		expect(payload.photo_error).toBeTruthy();
+		expect(payload.photo_error).toContain("update_drunk_wine");
+		expect(payload.photo_error).not.toContain("internal-detail");
+
+		const errors = loggedLines(errorSpy, "mcp photo attach failed");
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatchObject({
+			tool: "register_drunk_wine",
+			userId,
+			entryId: payload.entry.id,
+		});
 	});
 });

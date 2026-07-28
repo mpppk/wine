@@ -1,6 +1,8 @@
 // ワイン写真の共通制約とR2キー生成。Webのアップロードルートと
 // MCPツール(base64受け取り)の両方から使う純関数群。
 
+import { BadRequestError } from "#/lib/errors";
+
 // 許可MIMEの単一情報源。Set・accept属性はここから導出する
 // (src/lib/mcp/schemas.ts の z.enum はリテラルが必要なため手書きだが、
 // 変更時はここと同期すること)。
@@ -111,15 +113,16 @@ export function resolveStoredPhotoMime(
 }
 
 /**
- * base64文字列をバイト列にデコードする。MIME不正・base64不正・
- * デコード後5MB超は Error を投げる(MCPツールがそのままエラー文言に使う)。
+ * base64文字列をバイト列にデコードする。MIME不正・base64不正・デコード後5MB超は
+ * いずれもクライアント入力起因なので BadRequestError を投げる(#250)。素の Error だと
+ * MCP・server fn の境界が「内部エラー」に丸めてしまい、送り直せば直る失敗だと伝わらない。
  */
 export function decodePhotoBase64(
 	base64: string,
 	mimeType: string,
 ): Uint8Array {
 	if (!ALLOWED_PHOTO_TYPES.has(mimeType)) {
-		throw new Error(`Unsupported image type: ${mimeType}`);
+		throw new BadRequestError(`Unsupported image type: ${mimeType}`);
 	}
 	// data URL で渡された場合はプレフィックスを剥がす
 	const raw = base64.replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
@@ -127,10 +130,10 @@ export function decodePhotoBase64(
 	try {
 		binary = atob(raw);
 	} catch {
-		throw new Error("Invalid base64 image data");
+		throw new BadRequestError("Invalid base64 image data");
 	}
 	if (binary.length > MAX_PHOTO_BYTES) {
-		throw new Error("Image exceeds 5 MB limit");
+		throw new BadRequestError("Image exceeds 5 MB limit");
 	}
 	const bytes = new Uint8Array(binary.length);
 	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
