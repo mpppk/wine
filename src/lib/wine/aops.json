@@ -17182,5 +17182,54 @@
 		"soil": "キアンティ・ルフィナ東方、標高700mに及ぶ冷涼な高地。フレスコバルディが19世紀からフランス品種を導入。",
 		"producers": [{ "name": "Frescobaldi", "note": "Castello di Pomino" }],
 		"description": "トスカーナでは珍しい高標高・冷涼産地。シャルドネやピノを用いた気品ある白で知られ、フレスコバルディが歴史的に主導してきた小さなDOC。"
+	},
+	{
+		"id": "toscana-igt",
+		"idApp": 921029,
+		"name": "Toscana",
+		"shortName": "Toscana IGT",
+		"nameJa": "トスカーナIGT",
+		"region": "toscana",
+		"subregionId": "toscana-regional",
+		"kind": "regional",
+		"tags": ["igt"],
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "petit-verdot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "accessory"
+			}
+		],
+		"soil": "トスカーナ州全域。DOC(G)の生産地域と重なり、標高も土壌も産地ごとに大きく異なる。",
+		"producers": [
+			{ "name": "Montevertine", "note": "Le Pergole Torte" },
+			{ "name": "Masseto", "note": "Masseto / Massetino" },
+			{ "name": "Marchesi Antinori", "note": "Tignanello / Solaia" }
+		],
+		"description": "トスカーナ州全域をカバーする広域呼称。DOC(G)より下位の等級だが、生産規約が品種と製法をほとんど縛らないため、キャンティの規定に収まらないサンジョヴェーゼ100%やボルドー品種主体のワイン(いわゆるスーパートスカーナ)の受け皿になった。等級は下でも価格と評価は州の最上位という逆転が起きているのがこの呼称の特徴。"
 	}
 ]

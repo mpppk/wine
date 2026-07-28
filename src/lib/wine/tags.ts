@@ -40,6 +40,10 @@ export const AOP_TAGS = [
 	// イタリアの格付け(区分ではなく法的等級なのでタグで表現)
 	{ id: "docg", labelJa: "DOCG" },
 	{ id: "doc", labelJa: "DOC" },
+	// IGT(Indicazione Geografica Tipica) は DOC/DOCG の下位にある法的呼称。
+	// スーパートスカーナ(Tignanello / Masseto / Le Pergole Torte 等)は DOC(G) の
+	// 規定に縛られないためこの呼称を名乗る。#212
+	{ id: "igt", labelJa: "IGT" },
 ] as const;
 
 export type AopTagId = (typeof AOP_TAGS)[number]["id"];
@@ -84,10 +88,15 @@ export function classificationBadgeJa(aop: Aop): string | undefined {
  * ブルゴーニュ村名の premier-cru は「村内に 1er Cru 区画がある」意で村自体は
  * 格付けを持たないため undefined(バッジを出さない)。classificationBadgeJa /
  * formatAopTagJa と同じドメイン規則。
+ *
+ * igt も undefined。IGT は「呼称そのもの」であり格付けの階級ではないため、
+ * 呼称バッジ(getAppellationBadgeJa)が既に "IGT" を出す。両方返すと詳細パネルに
+ * 「IGT」が2つ並ぶ。呼称名の表示は呼称バッジ側を唯一の担当とする。
  */
 export function classificationPanelBadgeJa(aop: Aop): string | undefined {
 	const tag = primaryClassificationTag(aop);
 	if (!tag) return undefined;
+	if (tag === "igt") return undefined;
 	if (
 		tag === "premier-cru" &&
 		aop.kind === "village" &&
@@ -192,5 +201,8 @@ export function isLegalAppellation(aop: Aop): boolean {
 	) {
 		return false;
 	}
+	// IGT は DOC/DOCG の下位だが、EU の IGP に対応する法的呼称であって「非AOC」では
+	// ない。よってここでは true を返し、呼称バッジ側(getAppellationBadgeJa)が
+	// "DOC/DOCG" ではなく "IGT" を出すことで階級の違いを示す。#212
 	return true; // regional / village / vineyard は既定でアペラシオン
 }

@@ -147,6 +147,31 @@ describe("仲間外れクイズ", () => {
 		}
 	});
 
+	// IGT は DOC/DOCG の下位呼称。「IGTに格付けされていない」の正解が上位の DOCG
+	// (ブルネッロ等)を指すと、下位であるかのように誤誘導する(doc 軸を外したのと
+	// 同じ理由。#25 / #212)。軸としても、選択肢に混ざる形でも出さない。
+	it("igt は仲間外れの軸にも選択肢にもならない", () => {
+		const igtAopIds = new Set(
+			AOPS.filter((a) => a.tags?.includes("igt")).map((a) => a.id),
+		);
+		expect(igtAopIds.size).toBeGreaterThan(0); // データが消えたら無意味なテスト
+		const rng = mulberry32(7);
+		for (const regionId of REGION_IDS) {
+			for (const key of enumerateOddOneOutKeys(regionId)) {
+				const parsed = parseKey(key);
+				if (parsed?.quizType !== "odd-one-out") throw new Error(key);
+				expect(parsed.axisValue, key).not.toBe("igt");
+				expect(igtAopIds.has(parsed.aopId), key).toBe(false);
+				const q = materializeOddOneOutQuestion(parsed, rng);
+				for (const option of q?.options ?? []) {
+					expect(igtAopIds.has(option.id), `${key} option=${option.id}`).toBe(
+						false,
+					);
+				}
+			}
+		}
+	});
+
 	it("ピエモンテで docg 軸の仲間外れが生成される(過剰除外の回帰防止)", () => {
 		const docgKeys = enumerateOddOneOutKeys("piemonte").filter((key) => {
 			const parsed = parseKey(key);

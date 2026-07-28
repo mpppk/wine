@@ -548,11 +548,14 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 		}
 	});
 
-	it("docg / doc タグはイタリア(ピエモンテ / トスカーナ)以外に付かない", () => {
+	it("docg / doc / igt タグはイタリア(ピエモンテ / トスカーナ)以外に付かない", () => {
 		const italianRegions = new Set(["piemonte", "toscana"]);
 		for (const aop of AOPS.filter((a) => !italianRegions.has(a.region))) {
 			const tags = aop.tags ?? [];
-			expect(tags.includes("docg") || tags.includes("doc"), aop.id).toBe(false);
+			expect(
+				tags.includes("docg") || tags.includes("doc") || tags.includes("igt"),
+				aop.id,
+			).toBe(false);
 		}
 	});
 
@@ -566,16 +569,20 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 describe("トスカーナ(イタリア)の整合性", () => {
 	const toscana = AOPS.filter((a) => a.region === "toscana");
 
-	it("件数スナップショット(DOCG11 / DOC17 / 計28)", () => {
-		expect(toscana.length).toBe(28);
+	it("件数スナップショット(DOCG11 / DOC17 / IGT1 / 計29)", () => {
+		expect(toscana.length).toBe(29);
 		expect(toscana.filter((a) => a.tags?.includes("docg")).length).toBe(11);
 		expect(toscana.filter((a) => a.tags?.includes("doc")).length).toBe(17);
+		expect(toscana.filter((a) => a.tags?.includes("igt")).length).toBe(1);
 	});
 
-	it("各レコードは docg / doc のちょうど一方を持つ", () => {
+	it("各レコードは docg / doc / igt のちょうど一つを持つ", () => {
 		for (const aop of toscana) {
 			const tags = aop.tags ?? [];
-			const n = Number(tags.includes("docg")) + Number(tags.includes("doc"));
+			const n =
+				Number(tags.includes("docg")) +
+				Number(tags.includes("doc")) +
+				Number(tags.includes("igt"));
 			expect(n, aop.id).toBe(1);
 		}
 	});
@@ -584,6 +591,30 @@ describe("トスカーナ(イタリア)の整合性", () => {
 		for (const aop of toscana) {
 			expect(["regional", "village"]).toContain(aop.kind);
 		}
+	});
+
+	// スーパートスカーナは DOC(G) を名乗らないため #210 で掲載を見送った造り手が
+	// いる(#212)。IGT エントリの顔ぶれを固定して、後から DOC(G) 側へ移されたり
+	// 消えたりするのを防ぐ。件数だけのスナップショットは中身の取り違えを
+	// 検出できない(#216 の教訓)。
+	//
+	// 出典の強さに差があることに注意:
+	//  - Marchesi Antinori: 公式 antinori.it の銘柄ページが "Tignanello Toscana IGT"
+	//    "Solaia Toscana IGT" と明記
+	//  - Masseto: 公式 masseto.com のテクニカルシートが "Massetino ... Toscana IGT"
+	//    と明記
+	//  - Montevertine: **公式 montevertine.it は呼称を一切書いていない**。
+	//    「1982年に Consorzio del Chianti Classico を脱退し、以後は単に Montevertine
+	//    として」とだけ述べる。Toscana IGT はラベル・流通情報での確認にとどまるため、
+	//    公式サイトを引いて「呼称の記載が無い」と判断して外さないこと。
+	it("トスカーナIGTの造り手はスーパータスカンの造り手と一致する", () => {
+		const igt = toscana.find((a) => a.tags?.includes("igt"));
+		expect(igt?.id).toBe("toscana-igt");
+		expect(igt?.producers.map((p) => p.name)).toEqual([
+			"Montevertine",
+			"Masseto",
+			"Marchesi Antinori",
+		]);
 	});
 });
 
