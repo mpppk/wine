@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { PRODUCER_SEARCH_KEYWORDS } from "./affiliate";
 import { aopArraySchema } from "./aop-schema";
 import rawAops from "./aops.json";
 import { AOPS } from "./aops-data";
@@ -581,6 +582,124 @@ describe("トスカーナ(イタリア)の整合性", () => {
 	it("区分は regional / village のみ(畑・ワイナリーは無し)", () => {
 		for (const aop of toscana) {
 			expect(["regional", "village"]).toContain(aop.kind);
+		}
+	});
+});
+
+describe("ローヌの生産者(#225)", () => {
+	const rhone = AOPS.filter((a) => a.region === "rhone");
+	const producerNames = (aops: typeof rhone): string[] => [
+		...new Set(aops.flatMap((a) => a.producers.map((p) => p.name))),
+	];
+	const allNames = producerNames(rhone);
+
+	// ローヌは #225 以前、生産者の検索キーワードが1件も無くラテン文字表記のまま
+	// 楽天を検索していた。地域単位で全員ぶん揃える方針(#211)を回帰固定する。
+	it("全生産者が検索キーワードのカタカナ表記を持つ", () => {
+		const missing = allNames.filter(
+			(name) => PRODUCER_SEARCH_KEYWORDS[name] === undefined,
+		);
+		expect(missing).toEqual([]);
+	});
+
+	it("検索キーワードはカタカナと中黒だけで書かれている", () => {
+		for (const name of allNames) {
+			expect(PRODUCER_SEARCH_KEYWORDS[name], name).toMatch(/^[ァ-ヴー・]+$/);
+		}
+	});
+
+	// 「シャトーヌフ・デュ・パプが3件しかない」が #225 の起点。件数だけでは中身の
+	// 取り違えを検出できない(#216)ので顔ぶれを固定する。全件が公式の生産者組合
+	// (Fédération des Syndicats de Producteurs de Châteauneuf-du-Pape)の名簿で確認済み。
+	it("シャトーヌフ・デュ・パプの生産者は選定した18件と一致する", () => {
+		const cdp = rhone.find((a) => a.id === "chateauneuf-du-pape");
+		expect(cdp?.producers.map((p) => p.name)).toEqual([
+			"Château de Beaucastel",
+			"Château Rayas",
+			"Domaine du Vieux Télégraphe",
+			"Clos des Papes",
+			"Domaine du Pégaü",
+			"Château La Nerthe",
+			"Domaine de la Janasse",
+			"Domaine Henri Bonneau",
+			"Le Vieux Donjon",
+			"Domaine Charvin",
+			"Domaine de Marcoux",
+			"Domaine Roger Sabon",
+			"Clos du Mont-Olivet",
+			"Château de la Gardine",
+			"Château Fortia",
+			"Domaine de Beaurenard",
+			"Clos Saint-Jean",
+			"Château Mont-Redon",
+		]);
+	});
+
+	// 北ローヌ(シラー単一品種の急斜面)と南ローヌ(グルナッシュ主体の広域)は
+	// 学習上どちらも重要。片側だけ厚くならないことを固定する。
+	it("北ローヌ・南ローヌのどちらかに偏っていない", () => {
+		const nord = producerNames(
+			rhone.filter((a) => a.subregionId === "rhone-septentrional"),
+		).length;
+		const sud = producerNames(
+			rhone.filter((a) => a.subregionId === "rhone-meridional"),
+		).length;
+		expect(nord).toBe(43);
+		expect(sud).toBe(68);
+		// 少ない側が多い側の半分を下回らない(=どちらかが手薄になっていない)
+		expect(Math.min(nord, sud) * 2).toBeGreaterThanOrEqual(Math.max(nord, sud));
+	});
+
+	// 北ローヌ・南ローヌの各クリュに「代表的な造り手が一通り」載っている状態を固定する。
+	// 下限を割ってよいのは理由がある2つだけ。周辺地区(ディオワ等)は対象外。
+	const MIN_PRODUCERS: Record<string, number> = {
+		// AOC全域を単一の所有者が持つモノポールなので1件で正しい
+		"chateau-grillet": 1,
+		// 2023年にクリュへ昇格した新しいAOC。公式サイトが応答せず、
+		// 一次情報で造り手を確認できたのが4件にとどまる
+		laudun: 4,
+	};
+
+	it("北ローヌ・南ローヌのクリュは造り手を5件以上持つ", () => {
+		const crus = rhone.filter(
+			(a) =>
+				a.kind === "village" &&
+				(a.subregionId === "rhone-septentrional" ||
+					a.subregionId === "rhone-meridional"),
+		);
+		for (const aop of crus) {
+			const min = MIN_PRODUCERS[aop.id] ?? 5;
+			expect(aop.producers.length, aop.id).toBeGreaterThanOrEqual(min);
+		}
+	});
+
+	// #225 の調査で「載せてはいけない/旧称だった」と判明したもの。理由を残さないと
+	// 「網羅されていない」と判断して後から足し戻されるため、名前で禁止する(#216 と同じ趣旨)。
+	it("調査で除外・改称した名前が復活していない", () => {
+		const removed = [
+			// 2010年ヴィンテージ以降 AOC ラストーを名乗らず IGP Vaucluse で瓶詰めしている
+			"Domaine Gourt de Mautens",
+			// 2015年に Rhonéa 傘下となり、カーヴの名称は Balma Venitia
+			"Vignerons de Beaumes de Venise",
+			// 公式の生産者名簿・組合名簿で実在を確認できなかった
+			"Cave de Grignan",
+			"Domaine Fauchier-Marchal",
+			"Domaine des Vins de Clairette",
+			"Domaine de l'Amarine",
+			// 2009年の4カーヴ合併で Les Vignerons Créateurs になった
+			"Cave de Bellegarde",
+			// 同一生産者の表記ゆれ。Cave de Die Jaillance / Caves Carod に統一
+			"Cave Jaillance",
+			"Cave Carod",
+		];
+		expect(allNames.filter((name) => removed.includes(name))).toEqual([]);
+	});
+
+	// ローヌには公的格付けが無く、年次ガイドのリストは転記しない方針。
+	// 受賞を足すときは授与元・年・出典URLが取れることを確認してから入れる(#225)。
+	it("ローヌの生産者は受賞を持たない", () => {
+		for (const name of allNames) {
+			expect(PRODUCER_INFO[name]?.awards, name).toBeUndefined();
 		}
 	});
 });

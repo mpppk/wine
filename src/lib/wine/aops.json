@@ -14886,7 +14886,16 @@
 			}
 		],
 		"soil": "急斜面の雲母片岩・片岩。北の「コート・ブロンド」と南の「コート・ブリュンヌ」で土壌が異なる。",
-		"producers": ["E. Guigal", "Domaine Jamet", "René Rostaing"],
+		"producers": [
+			"E. Guigal",
+			"Domaine Jamet",
+			"René Rostaing",
+			"Domaine Stéphane Ogier",
+			"Domaine Clusel-Roch",
+			"Domaine Jean-Michel Gerin",
+			"Domaine Bernard Levet",
+			"Vidal-Fleury"
+		],
 		"description": "北ローヌ最北の急斜面の赤。シラーにヴィオニエを最大20%まで白ブドウとして共醸でき、華やかな香りと繊細さを備える。「焼けた丘」の名の通り日照に恵まれた段々畑の銘醸地。"
 	},
 	{
@@ -14906,7 +14915,15 @@
 			}
 		],
 		"soil": "花崗岩が風化した砂質土壌「アルゼル」。",
-		"producers": ["Georges Vernay", "E. Guigal", "Yves Cuilleron"],
+		"producers": [
+			"Georges Vernay",
+			"E. Guigal",
+			"Yves Cuilleron",
+			"Domaine André Perret",
+			"Domaine François Villard",
+			"Domaine Yves Gangloff",
+			"Domaine Christophe Pichon"
+		],
 		"description": "ヴィオニエ単一の白の聖地。杏やスイカズラのような芳香と豊かな果実味を持つ、世界のヴィオニエの規範となる辛口白。"
 	},
 	{
@@ -14926,7 +14943,12 @@
 			}
 		],
 		"soil": "花崗岩の風化土壌。円形劇場状の急斜面。",
-		"producers": ["Château-Grillet"],
+		"producers": [
+			{
+				"name": "Château-Grillet",
+				"note": "AOC全域を単独所有するモノポール"
+			}
+		],
 		"description": "ヴィオニエ単一の白のみを産む、フランスでも稀な単一所有(モノポール)の村名AOC。コンドリューに囲まれた約3.5haの円形劇場状の畑で、熟成能力の高い白を生む。"
 	},
 	{
@@ -14954,7 +14976,16 @@
 			}
 		],
 		"soil": "花崗岩と片岩の斜面。ローヌ右岸を南北約50kmにわたり伸びる。",
-		"producers": ["Jean-Louis Chave", "E. Guigal", "Domaine Coursodon"],
+		"producers": [
+			"Jean-Louis Chave",
+			"E. Guigal",
+			"Domaine Coursodon",
+			"Domaine Pierre Gonon",
+			"Domaine Bernard Gripa",
+			"Domaine Faury",
+			"Domaine Pierre Gaillard",
+			"M. Chapoutier"
+		],
 		"description": "右岸を南北に長く伸びる北ローヌ最大の村名AOC。シラーの赤はしなやかで親しみやすく、マルサンヌ/ルーサンヌの白も産む。エルミタージュより軽快で日常的なスタイル。"
 	},
 	{
@@ -14982,7 +15013,16 @@
 			}
 		],
 		"soil": "エルミタージュの丘を囲む平地〜丘陵。沖積の礫と黄土、花崗岩が混じる。",
-		"producers": ["Paul Jaboulet Aîné", "Alain Graillot", "Domaine Combier"],
+		"producers": [
+			"Paul Jaboulet Aîné",
+			"Alain Graillot",
+			"Domaine Combier",
+			"Domaine Belle",
+			"Domaine des Lises",
+			"Domaine Emmanuel Darnaud",
+			"Domaine des Rémizières",
+			"Cave de Tain"
+		],
 		"description": "北ローヌ最大の生産量を誇る村名AOC。エルミタージュの丘を取り囲む広い産地で、手頃で果実味豊かなシラーの赤が主体。白も少量産する。"
 	},
 	{
@@ -15010,7 +15050,16 @@
 			}
 		],
 		"soil": "花崗岩を基盤に、砂・黄土・氷河性の礫が乗る南向きの丘。区画ごとに大きく異なる。",
-		"producers": ["Jean-Louis Chave", "M. Chapoutier", "Paul Jaboulet Aîné"],
+		"producers": [
+			"Jean-Louis Chave",
+			"M. Chapoutier",
+			"Paul Jaboulet Aîné",
+			"Delas Frères",
+			"Domaine Marc Sorrel",
+			"E. Guigal",
+			"Ferraton Père & Fils",
+			"Cave de Tain"
+		],
 		"description": "ローヌ左岸に孤立する南向きの丘に広がる北ローヌの頂点。長期熟成する力強く荘厳なシラーの赤と、マルサンヌ主体の長命な白を生む歴史的銘醸地。"
 	},
 	{
@@ -15030,7 +15079,16 @@
 			}
 		],
 		"soil": "花崗岩の風化土壌の急な段々畑。円形劇場状に日照を集める。",
-		"producers": ["Auguste Clape", "Thierry Allemand", "Vincent Paris"],
+		"producers": [
+			"Auguste Clape",
+			"Thierry Allemand",
+			"Vincent Paris",
+			"Alain Voge",
+			"Domaine Courbis",
+			"Domaine Franck Balthazar",
+			"Guillaume Gilles",
+			"Domaine du Coulet"
+		],
 		"description": "ヴィオニエの補助も白ワインも認めない、シラー100%だけの村名AOC。ケルト語で「焼けた大地」を意味し、濃密で野性的、力強い赤を生む北ローヌ最南の赤の銘醸地。"
 	},
 	{
@@ -15054,7 +15112,14 @@
 			}
 		],
 		"soil": "花崗岩と石灰岩が混じる斜面。",
-		"producers": ["Jean-Louis Chave", "Domaine du Tunnel", "Alain Voge"],
+		"producers": [
+			"Jean-Louis Chave",
+			"Domaine du Tunnel",
+			"Alain Voge",
+			"Domaine Bernard Gripa",
+			"Domaine Chaboud-Cellier",
+			"Cave de Tain"
+		],
 		"description": "北ローヌ最南の白専門AOC。マルサンヌ/ルーサンヌから、瓶内二次発酵の伝統的スパークリングとふくよかな辛口白を生む。"
 	},
 	{
@@ -15133,7 +15198,25 @@
 		"producers": [
 			"Château de Beaucastel",
 			"Château Rayas",
-			"Domaine du Vieux Télégraphe"
+			"Domaine du Vieux Télégraphe",
+			"Clos des Papes",
+			"Domaine du Pégaü",
+			"Château La Nerthe",
+			"Domaine de la Janasse",
+			"Domaine Henri Bonneau",
+			"Le Vieux Donjon",
+			"Domaine Charvin",
+			"Domaine de Marcoux",
+			"Domaine Roger Sabon",
+			"Clos du Mont-Olivet",
+			"Château de la Gardine",
+			{
+				"name": "Château Fortia",
+				"note": "AOC制度を主導したバロン・ル・ロワの所領"
+			},
+			"Domaine de Beaurenard",
+			"Clos Saint-Jean",
+			"Château Mont-Redon"
 		],
 		"description": "南ローヌの象徴。認可13品種(色違いを数えて18)のブレンドが認められ、グルナッシュを軸に力強く温かみのある赤を生む。教皇のアヴィニョン捕囚に由来する名を持ち、丸石(ガレ)に覆われた畑で知られる。"
 	},
@@ -15165,7 +15248,12 @@
 		"producers": [
 			"Domaine du Cayron",
 			"Château de Saint Cosme",
-			"Domaine Santa Duc"
+			"Domaine Santa Duc",
+			"Domaine Les Pallières",
+			"Domaine Raspail-Ay",
+			"Domaine du Grapillon d'Or",
+			"Domaine La Bouïssière",
+			"Domaine Les Goubert"
 		],
 		"description": "ダンテル・ド・モンミライユの岩峰の麓に広がる、グルナッシュ主体の力強い赤の銘醸地。「シャトーヌフの隣人」とも呼ばれ、標高の高い畑が新鮮さを与える。"
 	},
@@ -15197,7 +15285,11 @@
 		"producers": [
 			"Domaine La Monardière",
 			"Château des Tours",
-			"Domaine de Montvac"
+			"Domaine de Montvac",
+			"Domaine Le Sang des Cailloux",
+			"Domaine des Amouriers",
+			"Domaine La Garrigue",
+			"Château de Montmirail"
 		],
 		"description": "ジゴンダスの南に隣接する村名AOC。グルナッシュ主体の暖かくスパイシーな赤が主体で、ジゴンダスより穏やかで手頃。ガリグ(地中海性低木)の香りが特徴。"
 	},
@@ -15229,7 +15321,10 @@
 		"producers": [
 			"Domaine Alary",
 			"Domaine Oratoire Saint-Martin",
-			"Marcel Richaud"
+			"Marcel Richaud",
+			"Domaine Brusset",
+			"Domaine Rabasse Charavin",
+			"Domaine Les Hautes Cances"
 		],
 		"description": "2016年にコート・デュ・ローヌ・ヴィラージュから昇格した南ローヌの新しいクリュ。グルナッシュ主体の凝縮した赤と少量の白を産する、実力派として評価の高い村。"
 	},
@@ -15261,7 +15356,9 @@
 		"producers": [
 			"Domaine de Beaurenard",
 			"Domaine des Escaravailles",
-			"Domaine Gourt de Mautens"
+			"Domaine La Soumade",
+			"Domaine du Trapadis",
+			"Domaine Elodie Balme"
 		],
 		"description": "辛口赤の村名AOC(2010〜)であると同時に、グルナッシュを主体とする酒精強化甘口ワイン(ヴァン・ドゥー・ナチュレル)の産地としても知られる南ローヌの村。濃密で温かみのある赤を生む。"
 	},
@@ -15290,7 +15387,13 @@
 			}
 		],
 		"soil": "標高の高い粘土石灰質・砂質の斜面。",
-		"producers": ["Domaine du Moulin", "Domaine Jaume", "Perrin & Fils"],
+		"producers": [
+			"Domaine du Moulin",
+			"Domaine Jaume",
+			"Perrin & Fils",
+			"Domaine Chaume-Arnaud",
+			"La Vinsobraise"
+		],
 		"description": "ドローム県の標高の高い畑を持つ南ローヌ北端のクリュ(2006年昇格)。グルナッシュとシラーを一定比率で混ぜる規定を持ち、冷涼感のある引き締まった赤を生む。"
 	},
 	{
@@ -15321,7 +15424,10 @@
 		"producers": [
 			"Domaine de Durban",
 			"Château Redortier",
-			"Domaine de Fenouillet"
+			"Domaine de Fenouillet",
+			"Domaine de Cassan",
+			"Domaine Saint-Amant",
+			"Balma Venitia"
 		],
 		"description": "ダンテル・ド・モンミライユ南麓の赤専門クリュ(2005年昇格)。三畳紀の赤色砂岩を含む独特の土壌から、スパイシーで色濃い赤を生む。同名の甘口ミュスカ(別AOC)でも有名な村。"
 	},
@@ -15349,7 +15455,9 @@
 		"producers": [
 			"Domaine de Durban",
 			"Domaine des Bernardins",
-			"Vignerons de Beaumes de Venise"
+			"Domaine de Coyeux",
+			"Domaine de Fenouillet",
+			"Balma Venitia"
 		],
 		"description": "ミュスカ・ブラン・ア・プティ・グランから造る、南ローヌ屈指の酒精強化甘口白(ヴァン・ドゥー・ナチュレル)。ブドウの果汁にアルコールを添加して発酵を止め、豊かな甘みと華やかなマスカット香を残す。"
 	},
@@ -15393,7 +15501,10 @@
 		"producers": [
 			"Château Mont-Redon",
 			"Domaine de la Mordorée",
-			"Château de Ségriès"
+			"Château de Ségriès",
+			"Château Saint-Roch",
+			"Domaine Maby",
+			"Domaine Lafond Roc-Epine"
 		],
 		"description": "ローヌ右岸、タヴェルの北に位置する赤・白・ロゼの三色を産する村名AOC。グルナッシュ主体の赤に加え、良質なロゼと白でも知られ、シャトーヌフに近い品質を手頃な価格で提供する。"
 	},
@@ -15433,7 +15544,10 @@
 		"producers": [
 			"Château d'Aquéria",
 			"Domaine de la Mordorée",
-			"Prieuré de Montézargues"
+			"Prieuré de Montézargues",
+			"Domaine Maby",
+			"Château de Trinquevedel",
+			"Domaine Lafond Roc-Epine"
 		],
 		"description": "フランスで唯一ロゼだけを産する村名AOC。グルナッシュ主体の色濃く力強い辛口ロゼは食中酒としての評価が高く、「ロゼの王」と称される歴史的産地。"
 	},
@@ -15465,7 +15579,8 @@
 		"producers": [
 			"Domaine Pélaquié",
 			"Château Courac",
-			"Domaine de la Réméjeanne"
+			"Domaine de la Réméjeanne",
+			"Château Saint-Maurice"
 		],
 		"description": "ローヌ右岸ガール県のクリュ(2023年にコート・デュ・ローヌ・ヴィラージュ・ローダンから昇格)。赤・ロゼに加え、右岸では珍しく良質な白の伝統を持つ村。"
 	},
@@ -15742,7 +15857,12 @@
 			}
 		],
 		"soil": "ドローム県の砂質・粘土石灰質のテラス。",
-		"producers": ["Domaine de Montine", "Domaine Saint-Luc", "Cave de Grignan"],
+		"producers": [
+			"Domaine de Montine",
+			"Domaine Saint-Luc",
+			"Domaine de Grangeneuve",
+			"Cave La Suzienne"
+		],
 		"description": "南ローヌ北端、ドローム県の広域AOC(旧コトー・デュ・トリカスタン、2010年改称)。トリュフの産地としても知られ、しなやかで親しみやすいグルナッシュ・シラーの赤を主体に産する。"
 	},
 	{
@@ -15768,7 +15888,7 @@
 		"soil": "ドローム渓谷(ディオワ)の石灰質・泥灰土。標高が高く冷涼。",
 		"producers": [
 			"Jean-Claude Raspail",
-			"Cave Carod",
+			"Caves Carod",
 			"Domaine Achard-Vincent"
 		],
 		"description": "名にクレレットを冠すが、実際はミュスカ主体で造る甘口〜半甘口スパークリング。「メトード・ディオワーズ・アンセストラル(祖法)」による一度の発酵だけで、低アルコールで華やかなマスカット香の泡を生む冷涼産地。"
@@ -15798,7 +15918,11 @@
 			}
 		],
 		"soil": "ディオワの石灰質・泥灰土。",
-		"producers": ["Cave Carod", "Jean-Claude Raspail", "Cave Jaillance"],
+		"producers": [
+			"Caves Carod",
+			"Jean-Claude Raspail",
+			"Cave de Die Jaillance"
+		],
 		"description": "ディオワで瓶内二次発酵(伝統方式)から造る辛口クレマン。クレレットを主体とし、クレレット・ド・ディーの甘口とは対照的な、きりっとした辛口スパークリング。"
 	},
 	{
@@ -15818,7 +15942,11 @@
 			}
 		],
 		"soil": "ディオワの石灰質・泥灰土の斜面。",
-		"producers": ["Cave Carod", "Domaine Achard-Vincent", "Cave Jaillance"],
+		"producers": [
+			"Caves Carod",
+			"Domaine Achard-Vincent",
+			"Cave de Die Jaillance"
+		],
 		"description": "ディオワで造られるクレレット100%の辛口スティル白。同じ産地の発泡2AOC(クレレット・ド・ディー/クレマン・ド・ディー)に対し、こちらは非発泡の静かな白を生む。"
 	},
 	{
@@ -15854,11 +15982,7 @@
 			}
 		],
 		"soil": "ディオワ上流の石灰質の急斜面。標高が高く冷涼。",
-		"producers": [
-			"Domaine Fauchier-Marchal",
-			"Cave de Die Jaillance",
-			"Domaine des Vins de Clairette"
-		],
+		"producers": ["Cave de Die Jaillance", "Caves Carod", "Domaine de Maupas"],
 		"description": "ディオワ最上流の冷涼な小AOC。ローヌでは珍しくガメイを主体とする赤・ロゼと、アリゴテ/シャルドネの白を産する、ブルゴーニュ的な品種構成を持つ例外的な産地。"
 	},
 	{
@@ -15878,7 +16002,12 @@
 			}
 		],
 		"soil": "コスティエール地区の丸石を含む砂質・シルト土壌。",
-		"producers": ["Mas Carlot", "Domaine de l'Amarine", "Cave de Bellegarde"],
+		"producers": [
+			"Mas Carlot",
+			"Les Vignerons Créateurs",
+			"Terre des Chardons",
+			"Clos des Boutes"
+		],
 		"description": "ニーム近郊ベルガルド村の、クレレット100%の辛口白専門AOC。コスティエール・ド・ニームに囲まれた小さな産地で、ふくよかで柔らかな白を生む。"
 	},
 	{

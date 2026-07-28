@@ -1197,6 +1197,42 @@ const BORDEAUX_CLASSIFICATIONS: Record<string, ProducerInfo> = {
 };
 
 /**
+ * ローヌの生産者。
+ *
+ * **ローヌには生産者の公的格付けが無い**ため、このグループは awards を持たない。
+ * 年次ガイド(Bettane+Desseauve / La Revue du Vin de France)の掲載は「リストという
+ * 成果物」側なので転記しない。市場データの Liv-ex Power 100 は 2025年版でローヌ枠が
+ * 5ブランドあるが、公開されている範囲では顔ぶれが Rayas しか特定できず、しかも
+ * ブランド単位("Rayas / Dom. des Tours / Château des Tours" が1エントリ)なので
+ * 生産者エントリに対応付けられない。裏が取れたものだけ登録する規約に従い見送る(#225)。
+ *
+ * 解説は各生産者の公式サイトで確認できた事実だけを書く。公式サイトが無い/確認できない
+ * 生産者(Château Rayas 等)はここに置かず、検索キーワードのみを持たせる。
+ */
+const RHONE_PRODUCERS: Record<string, ProducerInfo> = {
+	"E. Guigal": {
+		description:
+			"コート・ロティのアンピュイに1946年から続くネゴシアン兼ドメーヌ。本拠のシャトー・ダンピュイのほか、コート・ロティの単一畑ラ・ムーリーヌ／ラ・テュルク／ラ・ランドンヌ、コンドリューのラ・ドリアンヌ、エルミタージュのエックス・ヴォトを産する。",
+		officialWebsite: "https://www.guigal.com/",
+	},
+	"Domaine du Vieux Télégraphe": {
+		description:
+			"1891年にアンリ・ブリュニエが興し、6代にわたりブリュニエ家が営むシャトーヌフ・デュ・パプの造り手。丸石に覆われたラ・クラウ台地に畑を持つ。",
+		officialWebsite: "https://www.vieux-telegraphe.fr/",
+	},
+	"Château Fortia": {
+		description:
+			"シャトーヌフ・デュ・パプの中心に32haの畑を持つ所領。17世紀から続き、AOC制度の礎となる原産地統制の考えを主導したバロン・ピエール・ル・ロワの居城として知られる。",
+		officialWebsite: "https://www.chateau-fortia.com/",
+	},
+	"Cave de Tain": {
+		description:
+			"タン・レルミタージュに本拠を置く協同組合。エルミタージュ、クローズ・エルミタージュ、サン・ジョセフ、サン・ペレー、コルナスの北ローヌ5クリュをカバーする。",
+		officialWebsite: "https://www.cavedetain.com/",
+	},
+};
+
+/**
  * 生産者名 → 解説・受賞・公式サイト。
  *
  * MICHELIN Grapes 以外の基準で足す生産者はこのオブジェクトに直接書き、awards を
@@ -1210,6 +1246,7 @@ export const PRODUCER_INFO: Record<string, ProducerInfo> = {
 	...BORDEAUX_CLASSIFICATIONS,
 	...TRE_BICCHIERI_2026_PIEMONTE,
 	...TRE_BICCHIERI_2026_TOSCANA,
+	...RHONE_PRODUCERS,
 };
 
 /** 生産者名から解説・受賞・公式サイトを引く。未登録なら undefined */
