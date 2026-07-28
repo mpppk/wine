@@ -176,6 +176,15 @@ export interface Region {
 	boundariesPath?: string;
 	/** 境界データの出典表記(地図のattributionコントロールに表示)。外部データ利用時に設定 */
 	boundaryAttribution?: string;
+	/**
+	 * 収録エントリの総称(見出しの「N ◯◯」)。省略時は国から導く
+	 * (フランス="AOP" / イタリア="DOC/DOCG")。
+	 *
+	 * **収録エントリが既定の制度だけに収まらない地域で明示する。** トスカーナは
+	 * DOC(G) の枠外の IGT を1件含むため、既定のままだと件数を「29 DOC/DOCG」と
+	 * 数えて事実と食い違う(#212)。
+	 */
+	appellationTermJa?: string;
 	subregions: Subregion[];
 	description: string;
 }

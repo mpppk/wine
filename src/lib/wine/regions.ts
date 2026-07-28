@@ -83,6 +83,8 @@ export const REGIONS: Region[] = [
 		boundariesPath: "/data/aop/toscana-boundaries.geojson",
 		boundaryAttribution:
 			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
+		// DOC(G)の枠外のIGTを1件含むため、件数の見出しを既定の "DOC/DOCG" にしない(#212)
+		appellationTermJa: "DOC/DOCG/IGT",
 		subregions: [
 			{ id: "chianti", nameJa: "キアンティ" },
 			{ id: "montalcino", nameJa: "モンタルチーノ" },

@@ -17,7 +17,7 @@ import {
 	classificationPanelBadgeJa,
 	isLegalAppellation,
 } from "./tags";
-import { getNonAppellationBadgeJa } from "./terminology";
+import { getAppellationTermJa, getNonAppellationBadgeJa } from "./terminology";
 import type { Aop } from "./types";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
@@ -650,6 +650,16 @@ describe("IGT(トスカーナ)の扱い(#212)", () => {
 			expect(classificationPanelBadgeJa(aop), aop.id).toBeUndefined();
 			expect(classificationBadgeJa(aop), aop.id).toBeUndefined();
 		}
+	});
+
+	// 見出しは「N ◯◯」と件数を総称でラベルする。IGTを含む地域で既定の
+	// "DOC/DOCG" のままだと、IGTをDOC/DOCGとして数えることになる。
+	it("IGTを含む地域の総称はIGTを含む", () => {
+		for (const region of new Set(igtAops.map((a) => a.region))) {
+			expect(getAppellationTermJa(region), region).toContain("IGT");
+		}
+		// IGTを持たないイタリアの地域は既定のまま
+		expect(getAppellationTermJa("piemonte")).toBe("DOC/DOCG");
 	});
 
 	// 格付けの序列に載せると「IGTのほうが上/下」を数値で比較できてしまう。

@@ -20,6 +20,7 @@ export const COLOR_LABELS_JA: Record<WineColor, string> = {
 /** 地域IDに対応する原産地呼称の総称(日本語UI用)。 */
 export function getAppellationTermJa(regionId: string): string {
 	const region = getRegion(regionId);
+	if (region?.appellationTermJa) return region.appellationTermJa;
 	if (region?.country === "Italy") return "DOC/DOCG";
 	return "AOP";
 }
