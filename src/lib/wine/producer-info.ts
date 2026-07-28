@@ -1233,6 +1233,35 @@ const RHONE_PRODUCERS: Record<string, ProducerInfo> = {
 };
 
 /**
+ * ボージョレの生産者。
+ *
+ * ローヌ(#225)と同じく**生産者の公的格付けが無い**ため awards は持たない。
+ * 解説は各生産者の公式サイトで確認できた事実だけを書く。
+ */
+const BEAUJOLAIS_PRODUCERS: Record<string, ProducerInfo> = {
+	"Domaine Chignard": {
+		description:
+			"フルーリー村の家族経営ドメーヌ。フルーリー(レ・モリエ／キュヴェ・スペシアル)とジュリエナ(ボーヴェルネ)、ボージョレ・ヴィラージュを産する。",
+		officialWebsite: "https://domaine-chignard.com/",
+	},
+	"Julien Sunier": {
+		description:
+			"2008年に2.2haで立ち上げ、現在9haを有機栽培で営む造り手。モルゴン・フルーリー・レニエの3クリュを手がける。",
+		officialWebsite: "https://julien-sunier.com/",
+	},
+	"Domaine Labruyère": {
+		description:
+			"1850年からムーラン・ナ・ヴァンで続くラブリュイエール家のドメーヌ。クリュ内でも古い所領のひとつ。",
+		officialWebsite: "https://www.domaine-labruyere.com/",
+	},
+	"Domaine de Vernus": {
+		description:
+			"2019年にレニエ・デュレットで設立。フレデリック・ジャメトンがギヨーム・ルジェと組み、レニエのほかモルゴン・シルーブル・フルーリー・ムーラン・ナ・ヴァンを産する。",
+		officialWebsite: "https://www.domainedevernus.com/",
+	},
+};
+
+/**
  * 生産者名 → 解説・受賞・公式サイト。
  *
  * MICHELIN Grapes 以外の基準で足す生産者はこのオブジェクトに直接書き、awards を
@@ -1247,6 +1276,7 @@ export const PRODUCER_INFO: Record<string, ProducerInfo> = {
 	...TRE_BICCHIERI_2026_PIEMONTE,
 	...TRE_BICCHIERI_2026_TOSCANA,
 	...RHONE_PRODUCERS,
+	...BEAUJOLAIS_PRODUCERS,
 };
 
 /** 生産者名から解説・受賞・公式サイトを引く。未登録なら undefined */

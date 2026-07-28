@@ -11,6 +11,7 @@ import {
 	type ProducerAward,
 } from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
+import type { Aop } from "./types";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
 // aops.json と public/data/aop/*.geojson の整合性を検証する。
@@ -586,27 +587,44 @@ describe("トスカーナ(イタリア)の整合性", () => {
 	});
 });
 
+/** AOPごとの生産者名(重複を除く) */
+const producerNamesOf = (aops: readonly Aop[]): string[] => [
+	...new Set(aops.flatMap((a) => a.producers.map((p) => p.name))),
+];
+
+/**
+ * 「その地域の生産者は全員カタカナ検索語を持つ」を満たすと宣言した地域(#211)。
+ * 未登録の生産者はラテン文字のまま楽天を検索することになり、ほぼヒットしない。
+ * 地域の整備が終わったらここへ足す。**外すのは後退**なので理由を残すこと。
+ */
+const KEYWORD_COMPLETE_REGIONS = ["rhone", "beaujolais"] as const;
+
+describe("検索キーワードを整備済みの地域(#211)", () => {
+	it.each(KEYWORD_COMPLETE_REGIONS)(
+		"%s: 全生産者がカタカナ表記を持つ",
+		(id) => {
+			const names = producerNamesOf(AOPS.filter((a) => a.region === id));
+			expect(names.length).toBeGreaterThan(0);
+			expect(
+				names.filter((name) => PRODUCER_SEARCH_KEYWORDS[name] === undefined),
+			).toEqual([]);
+		},
+	);
+
+	it.each(KEYWORD_COMPLETE_REGIONS)(
+		"%s: 検索キーワードはカタカナと中黒だけ",
+		(id) => {
+			for (const name of producerNamesOf(AOPS.filter((a) => a.region === id))) {
+				expect(PRODUCER_SEARCH_KEYWORDS[name], name).toMatch(/^[ァ-ヴー・]+$/);
+			}
+		},
+	);
+});
+
 describe("ローヌの生産者(#225)", () => {
 	const rhone = AOPS.filter((a) => a.region === "rhone");
-	const producerNames = (aops: typeof rhone): string[] => [
-		...new Set(aops.flatMap((a) => a.producers.map((p) => p.name))),
-	];
+	const producerNames = producerNamesOf;
 	const allNames = producerNames(rhone);
-
-	// ローヌは #225 以前、生産者の検索キーワードが1件も無くラテン文字表記のまま
-	// 楽天を検索していた。地域単位で全員ぶん揃える方針(#211)を回帰固定する。
-	it("全生産者が検索キーワードのカタカナ表記を持つ", () => {
-		const missing = allNames.filter(
-			(name) => PRODUCER_SEARCH_KEYWORDS[name] === undefined,
-		);
-		expect(missing).toEqual([]);
-	});
-
-	it("検索キーワードはカタカナと中黒だけで書かれている", () => {
-		for (const name of allNames) {
-			expect(PRODUCER_SEARCH_KEYWORDS[name], name).toMatch(/^[ァ-ヴー・]+$/);
-		}
-	});
 
 	// 「シャトーヌフ・デュ・パプが3件しかない」が #225 の起点。件数だけでは中身の
 	// 取り違えを検出できない(#216)ので顔ぶれを固定する。全件が公式の生産者組合
@@ -698,6 +716,72 @@ describe("ローヌの生産者(#225)", () => {
 	// ローヌには公的格付けが無く、年次ガイドのリストは転記しない方針。
 	// 受賞を足すときは授与元・年・出典URLが取れることを確認してから入れる(#225)。
 	it("ローヌの生産者は受賞を持たない", () => {
+		for (const name of allNames) {
+			expect(PRODUCER_INFO[name]?.awards, name).toBeUndefined();
+		}
+	});
+});
+
+describe("ボージョレの生産者(#228)", () => {
+	const beaujolais = AOPS.filter((a) => a.region === "beaujolais");
+	const allNames = producerNamesOf(beaujolais);
+
+	/** ボージョレの10クリュ。広域AOCの beaujolais は含まない */
+	const CRU_IDS = [
+		"brouilly",
+		"chenas",
+		"chiroubles",
+		"cote-de-brouilly",
+		"fleurie",
+		"julienas",
+		"morgon",
+		"moulin-a-vent",
+		"regnie",
+		"saint-amour",
+	];
+
+	// 着手前は全11AOPが一律2件で、10クリュそれぞれの代表的な造り手を
+	// 反映できていなかった(#228)。
+	it("10クリュすべてが5件以上の造り手を持つ", () => {
+		for (const id of CRU_IDS) {
+			const cru = beaujolais.find((a) => a.id === id);
+			expect(cru, id).toBeDefined();
+			expect(cru?.producers.length, id).toBeGreaterThanOrEqual(5);
+		}
+	});
+
+	it("クリュの一覧はボージョレの10クリュと一致する", () => {
+		const villages = beaujolais
+			.filter((a) => a.kind === "village")
+			.map((a) => a.id)
+			.sort();
+		expect(villages).toEqual([...CRU_IDS].sort());
+	});
+
+	// 自然派の系譜(いわゆる「ギャング・オブ・フォー」)はボージョレの学習文脈で
+	// 外せない。モルゴン/レニエに散らばるので、顔ぶれとして固定する。
+	it("ギャング・オブ・フォーの4人がクリュの生産者に載っている", () => {
+		for (const name of [
+			"Marcel Lapierre",
+			"Jean Foillard",
+			"Jean-Paul Thévenet",
+			"Guy Breton",
+		]) {
+			expect(allNames, name).toContain(name);
+		}
+	});
+
+	// #228 の調査で「公式名簿の表記と違う」と分かったもの。
+	it("調査で改称した名前が復活していない", () => {
+		const removed = [
+			// クリュ・シェナのODG名簿での表記は「Cave du Château de Chénas」(協同組合)
+			"Château de Chénas",
+		];
+		expect(allNames.filter((name) => removed.includes(name))).toEqual([]);
+	});
+
+	// ローヌ(#225)と同じく公的格付けが無く、年次ガイドのリストは転記しない方針。
+	it("ボージョレの生産者は受賞を持たない", () => {
 		for (const name of allNames) {
 			expect(PRODUCER_INFO[name]?.awards, name).toBeUndefined();
 		}

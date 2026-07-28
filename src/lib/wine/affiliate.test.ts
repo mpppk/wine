@@ -94,9 +94,11 @@ describe("getProducerPurchaseLinks", () => {
 		);
 	});
 
+	// 実在の生産者名を使うと、その地域の検索キーワードを整備した時点でこのテストが
+	// 落ちる(#228 で "Guy Breton" が辞書に入り実際に落ちた)。架空の名前を使う。
 	it("辞書に無い名前はそのまま検索語になる", () => {
-		const links = getProducerPurchaseLinks({ name: "Guy Breton" });
-		expect(links?.rakuten).toContain(encodeURIComponent("Guy Breton"));
+		const links = getProducerPurchaseLinks({ name: "Domaine Introuvable" });
+		expect(links?.rakuten).toContain(encodeURIComponent("Domaine Introuvable"));
 	});
 
 	it("手動リンク(links)は自動生成より優先される", () => {
