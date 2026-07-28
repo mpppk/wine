@@ -126,13 +126,17 @@ export async function answerRegionQuestion(
 	const estimate = estimateReserveTokens(messages);
 	const requestId = `ask_region:${crypto.randomUUID()}`;
 
+	// プロフィール設定(または明示指定)→ 実モデルID＋固有オプションに解決。
+	// **予約より前**に解決する(#245)。明示指定が無ければ D1 を読むため、一時エラーや
+	// NotFoundError で throw しうる。予約の後・try の外でこれを await すると、その throw が
+	// 下の catch(refundReservationOnFailure)に届かず、予約が返却も記録もされずに消える。
+	// モデル解決は予約と独立なので、先に済ませて「予約したら必ず try で囲まれている」形にする。
+	const model = AI_REGION_QA_MODELS[await resolveModelKey(userId, input.model)];
+
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
 	if (!res.ok) {
 		return { blocked: true, balance: res.balance, required: res.required };
 	}
-
-	// プロフィール設定(または明示指定)→ 実モデルID＋固有オプションに解決。
-	const model = AI_REGION_QA_MODELS[await resolveModelKey(userId, input.model)];
 
 	let answer: string;
 	let actualTokens: number;

@@ -199,9 +199,11 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - **会員区分は導出値**: DB に plan カラムは持たず、better-auth/stripe の `subscription` テーブルから `resolvePlan()`（`entitlements.ts`）で `"free" | "premium"` を導出する。プラン・料金・クレジット数値は `plans.ts` に集約。
 - **クレジットは「追記専用台帳 + 残高キャッシュ」**: `credit_ledger`（unique な `requestId` が冪等キー）と `credit_balance` を同一 `db.batch` で更新。残高は `WHERE balance >= required` の条件付き UPDATE でのみ減算し、負値を構造的に禁止。残高不足は throw せず `{ blocked: true }` を返す（アップグレード誘導 UI につなげるため）。
 - **月次付与は Cron ではなく遅延付与**: 残高参照・消費の入口で必ず `ensureCurrentMonthGranted` を呼ぶ。繰越なし。管理画面のような「閲覧が付与を起こしてはいけない」文脈では `credit_balance` を生 SELECT する（`admin-service.ts`）。
-- **AI 消費の骨格**: `reserveCredits`（見積で予約）→ `env.AI.run` → `settleReservation`（実測で確定）/ 失敗時 `refundReservation`（全額返却して再 throw）。クレジットを消費する新機能は必ずこのパターンに従い、`requestId` に用途プレフィックス付き一意キーを使う。
+- **AI 消費の骨格**: `reserveCredits`（見積で予約）→ `env.AI.run` → `settleReservation`（実測で確定）/ 失敗時 `refundReservation`（全額返却して再 throw）。クレジットを消費する新機能は必ずこのパターンに従い、`requestId` に用途プレフィックス付き一意キーを使う。**予約は必ず `:settle` か `:refund` のどちらかで決着させる**（差分 0 の確定も `amount=0` の `:settle` 行を残す）。後始末は `waitUntil` で打ち切りから守り、それでも宙に浮いた予約は次回の `reserveCredits` が回収する（#246。詳細は [docs/ai-credit-system.md](./ai-credit-system.md)）。**予約と独立な準備（モデル解決などの D1 読み）は予約より前に済ませる**。予約の後・返却を担う `try` の外に `await` を置くと、そこでの throw が返却に届かず予約が無記録で消える（#245）。
 - 管理画面の金銭的操作は理由必須 + `admin_audit_log` への記録をセットにし、可能な限り `requestId` で冪等化する（プレミアム延長は例外的に非冪等で、UI 側の二重送信防止に依存）。
 - **外部副作用（better-auth / Stripe）を伴う管理操作は `recordAfterEffect` を通す**（`admin-actions.ts`, #251）。これらは D1 の `db.batch` に同居できず「操作は適用済み・監査ログは無い」が成立しうるため、記録の原子化ではなく**欠落の検知**で守る: 副作用の成功直後に `logInfo("admin action applied", …)`、記録の失敗は同じフィールド付きで `logError("admin audit record failed; action already applied", …)` を出してから rethrow する。副作用を伴う管理操作を追加するときも経路ごとにログを書かず、この関数を経由させる。
+- **外部（Stripe）への書き込みを D1 の記録で補償するときは、「適用されていない」と確信できる失敗だけを巻き戻す**（`stripe-write.ts` の `issueStripeWrite` / `isUnconfirmedStripeWrite`・#248）。接続断・タイムアウト・5xx・冪等キー衝突は**適用済みかもしれない**ので記録を残す側に倒す。判断ミスのコストが非対称で、「消すべき記録を残した」はサポートで復旧できるが「残すべき記録を消した」は二重適用になり、契約期間の延長は台帳に痕跡が残らず後から検知も取り消しもできない。Stripe への書き込みには引換単位の `Idempotency-Key` を併せて付ける。
+- **補償処理そのものの失敗で元例外をマスクしない**: 補償を `try/catch` で包み、失敗したら両方の例外を 1 行のログ（`err` + `originalErr`）に残して**元例外を rethrow** する（`refundReservationOnFailure`・`redeemExtensionCode`。#158 / #248）。
 
 ### MCP サーバー（`src/lib/mcp/`）
 
@@ -228,6 +230,25 @@ R2（`AVATARS` バインディング）に置いた画像は `/api/images/{r2Key
 - TTL は `SIGNED_IMAGE_URL_TTL_MS`（1 時間）。MCP ホスト（Claude 等）の会話履歴やログに URL が残っても露出が恒久化しない長さにしている。切れたらツールを呼び直せば新しい URL が返る。
 - **署名鍵は R2 の `_internal/image-url-signing-key` に置き、初回アクセス時に乱数で自動生成する**（`src/lib/images/signing-key.ts`）。新しいシークレットを増やすと「本番だけ設定済み・プレビューは未設定」という環境差（`BETTER_AUTH_SECRET` が実際にそうなっている）を作るため、全環境に必ず存在する R2 を使う。このキーは `avatars/`・`wines/` のどちらでもないので `isAllowedImageKey` に弾かれ、配信経路からは読み出せない。
 - MCP ツールが返す `photo_urls` / `photo_url` は `tools.ts` の `toSignedPhotoUrl` が署名する。R2 キーと配信 URL の相互変換は `imagePathForKey` / `imageKeyFromPath` に集約する（サービス層・MCP・フォームで別々に文字列を組まない）。
+
+### ユーザ削除の後始末（`src/lib/services/user-deletion-service.ts`）
+
+D1 のドメインテーブルは全て user への `ON DELETE cascade` を張っているので、better-auth が user 行を消せば連動して消える。**消えないのは D1 の外にあるもの**で、これを誰も後始末していなかった（Issue #252）。
+
+- **Stripe のサブスクリプション** — 解約されないと、アプリ側のユーザだけが消えて**課金が継続する**
+- **R2 のオブジェクト** — `wines/{userId}/...`・`avatars/{userId}.*` はキーに userId を含む個人データで、無期限に残留する
+- **`subscription` 行** — `referenceId` は FK の無い文字列参照なので孤児化する
+
+**フックは `databaseHooks.user.delete` に置く。`user.deleteUser.beforeDelete` ではない。** 後者は本人によるセルフ退会（`/delete-user`）専用のフックで、admin プラグインの `/admin/remove-user` は `internalAdapter.deleteUser` を直接呼ぶため**発火しない**（better-auth の `plugins/admin/routes.mjs`）。`databaseHooks` は user モデルの削除そのものに掛かるので、どちらの経路からでも必ず通る。この置き場所の違いは型でもテストでも自明にならないため、`user-deletion-service.workers.test.ts` が admin 経路を実際に叩いて固定している。
+
+**before と after の使い分けには理由がある**（順序を入れ替えないこと）。
+
+- **before**（Stripe 解約 + `subscription` 行削除）— 失敗したら throw して**削除自体を中止**する。先にユーザを消すと解約に必要な紐付け（`subscription.referenceId`）が失われ、課金だけが残る。中止すればユーザは残るので、原因を直して再実行できる。
+- **after**（R2 削除）— 失敗しても throw せず error ログに倒す。before に置くと、この後の user 行削除が失敗したときに「生きているユーザの写真だけ消えた」状態になり復旧できない。after なら残るのは「消し損ねた個人データ」で、userId をログに残せば後から消せる。
+
+**Stripe の解約は D1 の `status` で絞らない**。`status` は webhook 経由でしか更新されず、取りこぼしがあると実際は active なのに D1 上は canceled に見える。D1 を信じてスキップすると課金が残るため、`stripeSubscriptionId` を持つ行は全て cancel を試し、「既に解約済み・存在しない」に相当する 4xx だけ無視して続行する。
+
+R2 の削除範囲は `privateImagePrefixForUser()` / `avatarPrefixForUser()`（`signed-url.ts`）が単一情報源。**所有者判定（`ownerOfPrivateImageKey`）と削除範囲がズレると、消したはずの個人データが残る**ため同じモジュールに置く。接頭辞の末尾の `/`・`.` は必須で、落とすと `user-1` の削除が `user-10` のデータを巻き込む。
 
 ## インフラ・デプロイ
 

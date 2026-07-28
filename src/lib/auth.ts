@@ -9,6 +9,10 @@ import * as authSchema from "#/db/auth-schema";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
 import { logError, logInfo, logWarn } from "#/lib/logger";
+import {
+	cleanupAfterUserDelete,
+	cleanupBeforeUserDelete,
+} from "#/lib/services/user-deletion-service";
 
 // サブスク状態(status/periodEnd)の D1 同期は Stripe webhook(/api/auth/stripe/webhook)が
 // 唯一の経路。シークレット未設定だと全 webhook が署名検証で落ち続け、決済してもプレミアムが
@@ -73,6 +77,27 @@ export const auth = betterAuth({
 	advanced: {
 		ipAddress: {
 			ipAddressHeaders: ["cf-connecting-ip"],
+		},
+	},
+	// ユーザ削除時に D1 の外(Stripe・R2)へ残るものを後始末する(#252)。
+	//
+	// **`user.deleteUser.beforeDelete` ではなくここに置く**。あちらは本人による
+	// セルフ退会(`/delete-user`)専用のフックで、admin プラグインの
+	// `/admin/remove-user` は internalAdapter.deleteUser を直接呼ぶため発火しない
+	// (better-auth の plugins/admin/routes.mjs)。databaseHooks は user モデルの
+	// 削除そのものに掛かるので、どちらの経路からでも必ず通る。
+	databaseHooks: {
+		user: {
+			delete: {
+				// 失敗したら throw して削除を中止させる。先にユーザを消すと Stripe の
+				// サブスクとの紐付け(subscription.referenceId)が失われ、課金だけが残る。
+				before: async (user) => {
+					await cleanupBeforeUserDelete(user.id);
+				},
+				after: async (user) => {
+					await cleanupAfterUserDelete(user.id);
+				},
+			},
 		},
 	},
 	// user テーブルの独自カラム。better-auth に宣言することで getSession /

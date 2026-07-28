@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	extensionIdempotencyKey,
 	normalizeCode,
 	parseCampaignCodes,
 	resolveExtensionDays,
@@ -61,6 +62,21 @@ describe("resolveExtensionDays", () => {
 
 	it("空Mapでは常に null", () => {
 		expect(resolveExtensionDays("WINE7", new Map())).toBeNull();
+	});
+});
+
+describe("extensionIdempotencyKey", () => {
+	// キーが割れると同じ引換が Stripe から別リクエストに見え、冪等の意味が無くなる(#248)
+	it("同じユーザ・コードなら表記が違っても同じキーになる", () => {
+		expect(extensionIdempotencyKey("user-1", "wine7")).toBe(
+			extensionIdempotencyKey("user-1", " WINE7 "),
+		);
+	});
+
+	it("ユーザまたはコードが違えば別のキーになる", () => {
+		const key = extensionIdempotencyKey("user-1", "WINE7");
+		expect(extensionIdempotencyKey("user-2", "WINE7")).not.toBe(key);
+		expect(extensionIdempotencyKey("user-1", "SUMMER")).not.toBe(key);
 	});
 });
 

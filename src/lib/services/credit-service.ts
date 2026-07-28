@@ -1,9 +1,16 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { waitUntil } from "cloudflare:workers";
+import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { creditBalance, creditLedger } from "#/db/schema";
 import { refundCredits, tokensToCredits } from "#/lib/credit/credit-math";
 import { monthlyGrantForPlan } from "#/lib/credit/grants";
 import { currentMonthKey } from "#/lib/credit/month";
+import {
+	REFUND_SUFFIX,
+	refundRequestId,
+	SETTLE_SUFFIX,
+	settleRequestId,
+} from "#/lib/credit/reservation";
 import { logError, logInfo, logWarn } from "#/lib/logger";
 import * as billingService from "#/lib/services/billing-service";
 
@@ -16,6 +23,42 @@ import * as billingService from "#/lib/services/billing-service";
 //
 // 消費はトークン従量で、消費量が事前に確定しないため「予約(reserve)→ 実測確定(settle)」で
 // 扱う: 先に最大見積を条件付きで引き(残高不足ならブロック)、実測との差分を返却する。
+//
+// 予約の後始末(確定/返却)はリクエストが打ち切られても完走させ、それでも取りこぼした分は
+// 次回の予約時に回収する(#246)。詳細は keepAlive / reclaimOrphanReservations を参照。
+
+/**
+ * D1 への後始末をリクエストのライフサイクルから切り離して完走させる。
+ *
+ * Workers はクライアント切断・isolate 入替でリクエストコンテキストを打ち切ることがあり、
+ * その時点で未完了の I/O は失敗する。確定(settle)・返却(refund)が落ちると予約したクレジットが
+ * 宙に浮くため、書き込みの promise を waitUntil に登録して打ち切り後も完走させる(#246)。
+ *
+ * 呼び出し側は戻り値を await して従来どおり完了を待つ(waitUntil は待機の代わりではなく、
+ * 「待たれなくなっても走り切らせる」ための保険)。リクエストコンテキストの外
+ * (workers テスト・将来の Cron)では waitUntil が使えないため、その場合は素通しする。
+ */
+function keepAlive<T>(work: Promise<T>): Promise<T> {
+	try {
+		waitUntil(work);
+	} catch {
+		// リクエストコンテキスト外。呼び出し側の await だけで完了を待つ。
+	}
+	return work;
+}
+
+/**
+ * 予約を孤児(=打ち切りで確定も返却もされなかった)とみなすまでの猶予。実行中のリクエストを
+ * 誤って回収しないよう、AI 推論を含む1リクエストの現実的な上限より十分長く取る。
+ */
+const ORPHAN_GRACE_MS = 10 * 60 * 1000;
+/** 1回の入口で回収する上限。1リクエストあたりのD1呼び出し数を抑える。 */
+const ORPHAN_RECLAIM_LIMIT = 10;
+/**
+ * 孤児の走査範囲(現在時刻からの遡り幅)。返却が残高に反映されるのは予約と同じ付与月の間
+ * だけなので、それを十分に含む長さがあれば足りる。索引レンジを絞って全期間走査を防ぐ。
+ */
+const ORPHAN_SCAN_WINDOW_MS = 40 * 24 * 60 * 60 * 1000;
 
 export interface CreditBalance {
 	balance: number;
@@ -170,6 +213,10 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
  * 予約: 最大見積分を consume として仮計上し、残高から引く。
  * - 同一 requestId の予約が既にあれば再計上しない(冪等)
  * - 残高が足りる時だけ引く条件付きUPDATE。空結果=残高不足でブロック(throw しない)
+ *
+ * 引く前に孤児予約を回収する(#246)。AI を使う唯一の入口なので、打ち切りで宙に浮いた
+ * クレジットはここで戻る。残高チェックより前に置くことで、孤児のせいで残高不足になって
+ * いたユーザがそのままブロックされ続けることも防ぐ。
  */
 export async function reserveCredits(
 	userId: string,
@@ -177,6 +224,7 @@ export async function reserveCredits(
 	requestId: string,
 ): Promise<ReserveResult> {
 	await ensureCurrentMonthGranted(userId);
+	await reclaimOrphanReservations(userId);
 	const required = tokensToCredits(estimateTokens);
 
 	const dup = await db
@@ -250,7 +298,16 @@ export async function reserveCredits(
 	};
 }
 
-/** 確定: 実測トークンで予約との差分を refund として戻す。差分が無ければ何もしない。 */
+/**
+ * 確定: 実測トークンで予約との差分を refund として戻す。
+ *
+ * 差分が0でも `:settle` 台帳を amount=0 で必ず記録する。この行は「この予約は確定済み」の
+ * 唯一の証跡で、
+ *  - 確定後に返却が呼ばれた時の二重返却ガード(#144)。差分0の確定で行が無いと、この
+ *    ガードが素通りして予約全額が追加返却される
+ *  - 孤児予約の検出(#246)。確定済みと打ち切られた予約を区別する唯一の手掛かり
+ * の両方が成立するために要る。実測トークンの記録先でもある。
+ */
 export async function settleReservation(
 	userId: string,
 	requestId: string,
@@ -258,37 +315,63 @@ export async function settleReservation(
 	actualTokens: number,
 ): Promise<void> {
 	const back = refundCredits(reservedCredits, actualTokens);
-	if (back <= 0) return;
-	const settleRequestId = `${requestId}:settle`;
+	const settleId = settleRequestId(requestId);
+	const refundId = refundRequestId(requestId);
+
+	// 既に返却済みなら確定しない。孤児回収(#246)が予約全額を戻した後に、生き延びていた
+	// リクエストが差分を足すと消費がネットプラスになる(refundReservation の逆向きガード)。
+	const refunded = await db
+		.select({ id: creditLedger.id })
+		.from(creditLedger)
+		.where(eq(creditLedger.requestId, refundId))
+		.limit(1);
+	if (refunded[0]) {
+		logWarn("settle skipped: reservation already refunded", {
+			userId,
+			requestId,
+		});
+		return;
+	}
+
+	const marker = db
+		.insert(creditLedger)
+		.values({
+			id: crypto.randomUUID(),
+			userId,
+			amount: back,
+			type: "refund",
+			requestId: settleId,
+			periodMonth: currentMonthKey(),
+			tokenAmount: actualTokens,
+		})
+		.onConflictDoNothing({ target: creditLedger.requestId });
+
+	// 戻す差分が無い場合は残高を触らず証跡だけ残す(balance + 0 の無駄な書き込みを避ける)。
+	if (back <= 0) {
+		await keepAlive(marker);
+		return;
+	}
+
 	// UPDATE を先に置き、ガードが settle 台帳の INSERT 前の状態を見るようにする
 	// (admin-actions.grantCredits と同じ順序)。
-	await db.batch([
-		db
-			.update(creditBalance)
-			.set({ balance: sql`${creditBalance.balance} + ${back}` })
-			.where(
-				and(
-					eq(creditBalance.userId, userId),
-					// 二重加算防止: 既に settle 台帳がある(=加算済み)なら加算しない(#146)。
-					sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${settleRequestId})`,
-					// 月境界: 予約(consume)の月と現残高の月が一致する時だけ加算する。月替わり後は
-					// 台帳のみ記録し、リセット後の残高に差分が混入する/超過することを防ぐ(#147)。
-					sql`${creditBalance.periodMonth} = (SELECT period_month FROM credit_ledger WHERE request_id = ${requestId} AND type = 'consume')`,
+	await keepAlive(
+		db.batch([
+			db
+				.update(creditBalance)
+				.set({ balance: sql`${creditBalance.balance} + ${back}` })
+				.where(
+					and(
+						eq(creditBalance.userId, userId),
+						// 二重加算防止: 既に settle 台帳がある(=加算済み)なら加算しない(#146)。
+						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${settleId})`,
+						// 月境界: 予約(consume)の月と現残高の月が一致する時だけ加算する。月替わり後は
+						// 台帳のみ記録し、リセット後の残高に差分が混入する/超過することを防ぐ(#147)。
+						sql`${creditBalance.periodMonth} = (SELECT period_month FROM credit_ledger WHERE request_id = ${requestId} AND type = 'consume')`,
+					),
 				),
-			),
-		db
-			.insert(creditLedger)
-			.values({
-				id: crypto.randomUUID(),
-				userId,
-				amount: back,
-				type: "refund",
-				requestId: settleRequestId,
-				periodMonth: currentMonthKey(),
-				tokenAmount: actualTokens,
-			})
-			.onConflictDoNothing({ target: creditLedger.requestId }),
-	]);
+			marker,
+		]),
+	);
 }
 
 /**
@@ -328,13 +411,13 @@ export async function refundReservation(
 	reservedCredits: number,
 ): Promise<void> {
 	if (reservedCredits <= 0) return;
-	const settleRequestId = `${requestId}:settle`;
+	const settleId = settleRequestId(requestId);
 	// 既に settle 済み(=消費確定済み)なら返却しない。settle 後に本関数が呼ばれても
 	// 予約全額を追加返却して消費がネットプラスになる事故を防ぐ(#144)。
 	const settled = await db
 		.select({ id: creditLedger.id })
 		.from(creditLedger)
-		.where(eq(creditLedger.requestId, settleRequestId))
+		.where(eq(creditLedger.requestId, settleId))
 		.limit(1);
 	if (settled[0]) {
 		logWarn("refund skipped: reservation already settled", {
@@ -343,32 +426,107 @@ export async function refundReservation(
 		});
 		return;
 	}
-	const refundRequestId = `${requestId}:refund`;
+	const refundId = refundRequestId(requestId);
 	// UPDATE を先に置き、ガードが refund 台帳の INSERT 前の状態を見るようにする。
-	await db.batch([
-		db
-			.update(creditBalance)
-			.set({ balance: sql`${creditBalance.balance} + ${reservedCredits}` })
+	await keepAlive(
+		db.batch([
+			db
+				.update(creditBalance)
+				.set({ balance: sql`${creditBalance.balance} + ${reservedCredits}` })
+				.where(
+					and(
+						eq(creditBalance.userId, userId),
+						// 二重加算防止: 既に refund 台帳がある(=返却済み)なら加算しない(#146)。
+						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${refundId})`,
+						// 月境界: 予約(consume)の月と現残高の月が一致する時だけ加算する(#147)。
+						sql`${creditBalance.periodMonth} = (SELECT period_month FROM credit_ledger WHERE request_id = ${requestId} AND type = 'consume')`,
+					),
+				),
+			db
+				.insert(creditLedger)
+				.values({
+					id: crypto.randomUUID(),
+					userId,
+					amount: reservedCredits,
+					type: "refund",
+					requestId: refundId,
+					periodMonth: currentMonthKey(),
+					tokenAmount: null,
+				})
+				.onConflictDoNothing({ target: creditLedger.requestId }),
+		]),
+	);
+}
+
+/**
+ * 打ち切りで孤児化した予約(=一定時間が経っても `:settle` も `:refund` も付いていない
+ * consume)を洗い出して返却する遅延修復(#246)。
+ *
+ * Workers はクライアント切断・isolate 強制終了・デプロイ入替でリクエストを打ち切りうる。
+ * keepAlive で後始末は完走させるが、AI 実行そのものが打ち切られた場合は catch にも
+ * 到達しないため、予約したクレジットが台帳上「消費」のまま宙に浮く。月次リセットまで
+ * 残高が戻らないので、次に予約する時にまとめて回収する。
+ *
+ * Cron は使わない。付与を `ensureCurrentMonthGranted` の遅延実行で賄っている設計
+ * (docs/ai-credit-system.md)に合わせ、入口でのついで回収にする。
+ *
+ * 検出の健全性は「確定した予約には必ず `:settle` 行がある」ことに依る。差分0の確定でも
+ * settleReservation が amount=0 の証跡を残し、本変更以前の既存行は drizzle/0020 が
+ * 確定済みとして補填しているため、正常に消費された予約を誤って返却することはない。
+ *
+ * 失敗しても呼び出し側の処理は止めない(回収は best-effort。次の機会に再試行される)。
+ */
+export async function reclaimOrphanReservations(userId: string): Promise<void> {
+	const now = Date.now();
+	const month = currentMonthKey();
+	let orphans: Array<{ requestId: string; amount: number }>;
+	try {
+		orphans = await db
+			.select({
+				requestId: creditLedger.requestId,
+				amount: creditLedger.amount,
+			})
+			.from(creditLedger)
 			.where(
 				and(
-					eq(creditBalance.userId, userId),
-					// 二重加算防止: 既に refund 台帳がある(=返却済み)なら加算しない(#146)。
-					sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${refundRequestId})`,
-					// 月境界: 予約(consume)の月と現残高の月が一致する時だけ加算する(#147)。
-					sql`${creditBalance.periodMonth} = (SELECT period_month FROM credit_ledger WHERE request_id = ${requestId} AND type = 'consume')`,
+					eq(creditLedger.userId, userId),
+					eq(creditLedger.type, "consume"),
+					// 返却が残高に反映されるのは予約と同じ付与月の間だけ(#147)。過去月の
+					// 孤児を拾っても台帳ノイズが増えるだけなので当月に絞る。
+					eq(creditLedger.periodMonth, month),
+					// 索引(user_id, created_at)のレンジで候補を絞る。下限が無いと全期間走査になる。
+					gte(creditLedger.createdAt, new Date(now - ORPHAN_SCAN_WINDOW_MS)),
+					// 実行中のリクエストの予約を回収しないための猶予。
+					lt(creditLedger.createdAt, new Date(now - ORPHAN_GRACE_MS)),
+					sql`NOT EXISTS (SELECT 1 FROM credit_ledger m WHERE m.request_id = ${creditLedger.requestId} || ${SETTLE_SUFFIX})`,
+					sql`NOT EXISTS (SELECT 1 FROM credit_ledger m WHERE m.request_id = ${creditLedger.requestId} || ${REFUND_SUFFIX})`,
 				),
-			),
-		db
-			.insert(creditLedger)
-			.values({
-				id: crypto.randomUUID(),
+			)
+			.orderBy(asc(creditLedger.createdAt))
+			.limit(ORPHAN_RECLAIM_LIMIT);
+	} catch (err) {
+		logError("orphan reservation scan failed", { userId, err });
+		return;
+	}
+
+	for (const orphan of orphans) {
+		// consume の amount は負。返却額は符号を戻した絶対値。
+		const reservedCredits = -orphan.amount;
+		try {
+			await refundReservation(userId, orphan.requestId, reservedCredits);
+			logInfo("orphan reservation reclaimed", {
 				userId,
-				amount: reservedCredits,
-				type: "refund",
-				requestId: refundRequestId,
-				periodMonth: currentMonthKey(),
-				tokenAmount: null,
-			})
-			.onConflictDoNothing({ target: creditLedger.requestId }),
-	]);
+				requestId: orphan.requestId,
+				reservedCredits,
+			});
+		} catch (err) {
+			// 1件の失敗で残りを諦めない(次の機会にも再度候補に挙がる)。
+			logError("orphan reservation reclaim failed", {
+				userId,
+				requestId: orphan.requestId,
+				reservedCredits,
+				err,
+			});
+		}
+	}
 }
