@@ -363,6 +363,61 @@ describe("生産者情報(PRODUCER_INFO)の整合性", () => {
 		}
 	});
 
+	// 公的格付けの awards は、格付けを持つシャトーのうち producers 配列にも
+	// 名前が載っているものだけに付く(winery 側は tags からバッジが出る)。
+	// 1855年とグラーヴは授与元にこの環境から到達できないため url を持たない。
+	it("ボルドーの公的格付けを awards に持つ生産者の内訳", () => {
+		const byLabel = new Map<string, number>();
+		for (const info of Object.values(PRODUCER_INFO)) {
+			for (const a of info.awards ?? []) {
+				if (a.year !== 1855 && a.year !== 1959 && a.year !== 2022) continue;
+				byLabel.set(
+					`${a.name} ${a.tier}`,
+					(byLabel.get(`${a.name} ${a.tier}`) ?? 0) + 1,
+				);
+			}
+		}
+		expect(Object.fromEntries(byLabel)).toEqual({
+			"メドック格付け 第1級": 5,
+			"メドック格付け 第2級": 6,
+			"メドック格付け 第3級": 3,
+			"メドック格付け 第5級": 1,
+			"ソーテルヌ・バルサック格付け 特別第1級": 1,
+			"ソーテルヌ・バルサック格付け 第1級": 4,
+			"グラーヴ格付け クリュ・クラッセ": 2,
+			"サンテミリオン格付け 第1特別級A": 2,
+		});
+	});
+
+	// awards の tier は winery 側の格付けタグと食い違ってはいけない。
+	// 片方だけ直して不整合になるのを防ぐ。
+	it("公的格付けの awards は winery のタグと一致する", () => {
+		const TIER_BY_TAG: Record<string, string> = {
+			"premier-cru-superieur-1855": "特別第1級",
+			"premier-cru-classe-1855": "第1級",
+			"deuxieme-cru-classe-1855": "第2級",
+			"troisieme-cru-classe-1855": "第3級",
+			"quatrieme-cru-classe-1855": "第4級",
+			"cinquieme-cru-classe-1855": "第5級",
+			"cru-classe-de-graves": "クリュ・クラッセ",
+			"premier-grand-cru-classe-a": "第1特別級A",
+		};
+		const tagOf = new Map(
+			AOPS.filter((a) => a.kind === "winery" && a.tags?.length).map((a) => [
+				a.name,
+				a.tags?.[0] as string,
+			]),
+		);
+		for (const [name, info] of Object.entries(PRODUCER_INFO)) {
+			for (const a of info.awards ?? []) {
+				if (a.year !== 1855 && a.year !== 1959 && a.year !== 2022) continue;
+				const tag = tagOf.get(name);
+				expect(tag, name).toBeDefined();
+				expect(a.tier, name).toBe(TIER_BY_TAG[tag as string]);
+			}
+		}
+	});
+
 	it("MICHELIN Grapes を受賞に持つのはブルゴーニュの生産者だけ", () => {
 		const bourgogneProducers = new Set(
 			AOPS.filter((a) => a.region === "bourgogne").flatMap((a) =>
