@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { oauthAccessToken, oauthConsent } from "#/db/auth-schema";
 import {
@@ -14,7 +14,12 @@ import { currentMonthKey } from "#/lib/credit/month";
 import { BadRequestError } from "#/lib/errors";
 import { logError, logInfo } from "#/lib/logger";
 import * as billingService from "#/lib/services/billing-service";
-import { ensureCurrentMonthGranted } from "#/lib/services/credit-service";
+import {
+	type BatchStatement,
+	ensureCurrentMonthGranted,
+	ensureCurrentMonthGrantedMany,
+	runInChunkedBatches,
+} from "#/lib/services/credit-service";
 
 // 管理画面の「書き込み(副作用あり)」操作のサービス層。閲覧専用の admin-service とは
 // 分離し、各操作は admin_audit_log に証跡を残す。業務判定(自己BANの拒否など)も
@@ -405,36 +410,96 @@ export async function bulkGrantCredits(params: {
 	amount: number;
 	reason: string;
 }): Promise<BulkGrantResult> {
-	let granted = 0;
-	let alreadyApplied = 0;
-	for (const userId of params.userIds) {
-		const res = await grantCredits({
-			actorUserId: params.actorUserId,
-			targetUserId: userId,
-			amount: params.amount,
-			reason: params.reason,
-			requestId: `admin_grant:${params.incidentId}:${userId}`,
-		});
-		if (res.alreadyApplied) alreadyApplied += 1;
-		else granted += 1;
+	const { actorUserId, incidentId, amount, reason } = params;
+	const userIds = [...new Set(params.userIds)];
+	const requestIdOf = (userId: string) => `admin_grant:${incidentId}:${userId}`;
+
+	// 当月の残高行を全員ぶん確定させる(単体の grantCredits と同じ「案A: 加算の基準を
+	// 当月付与額に揃える」前提)。セットベース版を使うのは、単体版のループだと
+	// 1ユーザ3〜4クエリで 200人分が Workers のサブリクエスト上限を超えるため(#253)。
+	await ensureCurrentMonthGrantedMany(userIds);
+	const month = currentMonthKey();
+
+	// 既に同一 requestId で付与済みのユーザを1クエリで洗い出す(冪等再送の判定)。
+	// 実際の二重加算防止は下の NOT EXISTS ガードが担うので、ここは件数の内訳を
+	// 返すためだけに使う。
+	const requestIds = userIds.map(requestIdOf);
+	const appliedRows =
+		requestIds.length > 0
+			? await db
+					.select({ requestId: creditLedger.requestId })
+					.from(creditLedger)
+					.where(inArray(creditLedger.requestId, requestIds))
+			: [];
+	const applied = new Set(
+		appliedRows.map((r) => r.requestId).filter((id): id is string => !!id),
+	);
+
+	const pending = userIds.filter((id) => !applied.has(requestIdOf(id)));
+	const alreadyApplied = userIds.length - pending.length;
+	const granted = pending.length;
+
+	// 付与本体。1ユーザぶんの「条件付き残高加算 + 台帳追記」を単体版と同じ形で積み、
+	// db.batch(=1サブリクエスト)へ畳む。残高加算に NOT EXISTS(request_id) を付ける形も
+	// 単体版と同一で、チャンクが分断されても二重加算しない。
+	const statements: BatchStatement[] = [];
+	for (const targetUserId of pending) {
+		const requestId = requestIdOf(targetUserId);
+		statements.push(
+			db
+				.update(creditBalance)
+				.set({
+					balance: sql`${creditBalance.balance} + ${amount}`,
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(creditBalance.userId, targetUserId),
+						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${requestId})`,
+					),
+				),
+			db
+				.insert(creditLedger)
+				.values({
+					id: crypto.randomUUID(),
+					userId: targetUserId,
+					amount,
+					type: "admin_grant",
+					requestId,
+					periodMonth: month,
+					tokenAmount: null,
+				})
+				.onConflictDoNothing({ target: creditLedger.requestId }),
+			// 監査ログ。単体付与と同じ action で、一括かどうかは incidentId で判別する
+			db.insert(adminAuditLog).values({
+				id: crypto.randomUUID(),
+				actorUserId,
+				targetUserId,
+				action: "credit_grant",
+				detail: { amount, requestId, periodMonth: month, incidentId },
+				reason,
+			}),
+		);
 	}
+	await runInChunkedBatches(statements);
+
 	await recordAudit({
-		actorUserId: params.actorUserId,
+		actorUserId,
 		targetUserId: null,
 		action: "bulk_credit_grant",
-		reason: params.reason,
+		reason,
 		detail: {
-			incidentId: params.incidentId,
-			affected: params.userIds.length,
+			incidentId,
+			affected: userIds.length,
 			granted,
 			alreadyApplied,
-			amount: params.amount,
+			amount,
 		},
 	});
 	return {
-		affected: params.userIds.length,
+		affected: userIds.length,
 		granted,
 		alreadyApplied,
-		totalGranted: granted * params.amount,
+		totalGranted: granted * amount,
 	};
 }

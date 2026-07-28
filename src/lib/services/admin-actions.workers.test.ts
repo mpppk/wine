@@ -1,9 +1,15 @@
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import type { MockInstance } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
-import { adminAuditLog, couponRedemption } from "#/db/schema";
+import {
+	adminAuditLog,
+	couponRedemption,
+	creditBalance,
+	creditLedger,
+} from "#/db/schema";
 
 // D1(実SQLite)上で、副作用を伴う管理操作の「証跡」を検証する(#251)。
 // better-auth と Stripe は外部副作用なのでモックし、D1 への記録とログ出力だけを見る。
@@ -26,6 +32,8 @@ const extendPremiumTrial = vi.fn();
 vi.mock("#/lib/services/billing-service", () => ({
 	extendPremiumTrial: (...args: unknown[]) => extendPremiumTrial(...args),
 	isPremiumUser: vi.fn(),
+	// 一括付与のセットベース版が使う(#253)。プレミアム無しとして扱う
+	listPremiumUserIds: vi.fn(async () => new Set<string>()),
 }));
 
 const adminActions = await import("./admin-actions");
@@ -316,5 +324,125 @@ describe("extendPremium", () => {
 			action: "premium_extension",
 			detail: { days: 5, stripeSubscriptionId: "sub_test" },
 		});
+	});
+});
+
+// #253 の回帰。一括付与は最大200ユーザで、直列ループだと1ユーザ約6回のD1呼び出しに
+// なり Workers のサブリクエスト上限(1リクエスト1,000。D1もここに計上される)を超えて
+// "Too many subrequests" で部分付与になっていた。requestId 冪等なので再実行は安全だが、
+// 再実行でも付与済みユーザぶんのクエリを消費するため200人規模では完走できない。
+//
+// ここでは実D1の呼び出し回数を env.DB の prepare / batch を数えて直接測る。
+// **人数に対して線形に増えないこと**が本質なので、人数を変えて2回測って比べる。
+describe("bulkGrantCredits のD1呼び出し数", () => {
+	// D1 で**サブリクエストとして数えられるのは実際の実行**(prepare した文の
+	// run/all/first/raw と batch)であって、prepare 自体はローカルの構築なので数えない。
+	// prepare を数えると db.batch に積んだ文まで1件ずつ計上され、実態と合わない。
+	async function countD1Calls(userIds: string[], incidentId: string) {
+		let executions = 0;
+		const realPrepare = env.DB.prepare.bind(env.DB);
+		const prepareSpy = vi
+			.spyOn(env.DB, "prepare")
+			.mockImplementation((query: string) => {
+				const stmt = realPrepare(query);
+				return new Proxy(stmt, {
+					get(target, prop, receiver) {
+						const value = Reflect.get(target, prop, receiver);
+						if (
+							typeof value === "function" &&
+							(prop === "all" ||
+								prop === "run" ||
+								prop === "first" ||
+								prop === "raw")
+						) {
+							return (...args: unknown[]) => {
+								executions += 1;
+								return (value as (...a: unknown[]) => unknown).apply(
+									target,
+									args,
+								);
+							};
+						}
+						return typeof value === "function" ? value.bind(target) : value;
+					},
+				});
+			});
+		const batchSpy = vi.spyOn(env.DB, "batch");
+		try {
+			await adminActions.bulkGrantCredits({
+				actorUserId: "admin-bulk-actor",
+				incidentId,
+				userIds,
+				amount: 3,
+				reason: "検証",
+			});
+			return executions + batchSpy.mock.calls.length;
+		} finally {
+			prepareSpy.mockRestore();
+			batchSpy.mockRestore();
+		}
+	}
+
+	it("対象人数に対して線形に増えず、上限200人でもサブリクエスト上限に収まる", async () => {
+		const few: string[] = [];
+		for (let i = 0; i < 4; i++) few.push(await freshUser());
+		const many: string[] = [];
+		for (let i = 0; i < 24; i++) many.push(await freshUser());
+
+		const callsFew = await countD1Calls(few, "incident-few");
+		const callsMany = await countD1Calls(many, "incident-many");
+
+		// 6倍の人数でも呼び出し回数はほぼ変わらない(直列ループなら6倍に増える)
+		expect(callsMany).toBeLessThan(callsFew * 2);
+		// 200人へ外挿しても上限1,000に十分収まる
+		const perUser = (callsMany - callsFew) / (many.length - few.length);
+		expect(200 * perUser + callsFew).toBeLessThan(1000);
+	});
+
+	it("全員に加算され、再実行しても二重加算しない(冪等)", async () => {
+		const users: string[] = [];
+		for (let i = 0; i < 5; i++) users.push(await freshUser());
+
+		const first = await adminActions.bulkGrantCredits({
+			actorUserId: "admin-bulk-actor",
+			incidentId: "incident-idem",
+			userIds: users,
+			amount: 7,
+			reason: "検証",
+		});
+		expect(first.granted).toBe(5);
+		expect(first.alreadyApplied).toBe(0);
+
+		const balances = await db
+			.select({ userId: creditBalance.userId, balance: creditBalance.balance })
+			.from(creditBalance);
+		const byUser = new Map(balances.map((r) => [r.userId, r.balance]));
+		const afterFirst = users.map((u) => byUser.get(u));
+		for (const b of afterFirst) expect(b).toBeGreaterThanOrEqual(7);
+
+		const second = await adminActions.bulkGrantCredits({
+			actorUserId: "admin-bulk-actor",
+			incidentId: "incident-idem",
+			userIds: users,
+			amount: 7,
+			reason: "検証(再実行)",
+		});
+		expect(second.granted).toBe(0);
+		expect(second.alreadyApplied).toBe(5);
+
+		const after = await db
+			.select({ userId: creditBalance.userId, balance: creditBalance.balance })
+			.from(creditBalance);
+		const byUser2 = new Map(after.map((r) => [r.userId, r.balance]));
+		expect(users.map((u) => byUser2.get(u))).toEqual(afterFirst);
+
+		// 台帳も1ユーザ1行のまま
+		const ledger = await db
+			.select({ requestId: creditLedger.requestId })
+			.from(creditLedger);
+		const adminRows = ledger.filter((r) =>
+			r.requestId?.startsWith("admin_grant:incident-idem:"),
+		);
+		expect(adminRows.length).toBe(5);
 	});
 });
