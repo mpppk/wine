@@ -91,8 +91,10 @@ function AopWinePanel({
 						<div className="min-w-0 flex-1">
 							<p className="truncate text-sm">{entry.name}</p>
 							<div className="flex items-center gap-2 text-xs text-muted-foreground">
-								{entry.drankOn && <span>{entry.drankOn}</span>}
-								{entry.rating !== null && <RatingStars rating={entry.rating} />}
+								{entry.lastDrankOn && <span>{entry.lastDrankOn}</span>}
+								{entry.lastRating !== null && (
+									<RatingStars rating={entry.lastRating} />
+								)}
 							</div>
 						</div>
 						<Button

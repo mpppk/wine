@@ -90,15 +90,19 @@ export const drunkWine = sqliteTable(
 		/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
 		tastingCount: integer("tasting_count").notNull().default(0),
 		/**
-		 * @deprecated 最新の飲用記録の射影。読み取り側の切り替えが済むまで
-		 * 二重書きし、次PRで削除する(expand-and-contract)。
+		 * @deprecated 旧「最新の飲用記録の射影」。**参照も書き込みも既に無い**
+		 * (#205 でアプリ側の読み取りを last_drank_on と wine_tasting の導出へ
+		 * 切り替え、二重書きも外した)。列の DROP は次PRで行う —
+		 * deploy command はマイグレーションをデプロイ直前に流すため、参照を外す
+		 * デプロイと列を消すデプロイを分けないと「新スキーマ×旧コード」の窓で
+		 * 旧コードがこの列を読んで落ちる(docs/architecture.md / CLAUDE.md #24)。
 		 */
 		drankOn: text("drank_on"),
 		/** 静的AOPマスタの Aop.id(任意) */
 		aopId: text("aop_id"),
-		/** @deprecated 最新の飲用記録の射影。1–5。次PRで削除 */
+		/** @deprecated 参照・書き込みとも無い。次PRで DROP する(drankOn 参照) */
 		rating: integer("rating"),
-		/** @deprecated 最新の飲用記録の射影。次PRで削除 */
+		/** @deprecated 参照・書き込みとも無い。次PRで DROP する(drankOn 参照) */
 		memo: text("memo"),
 		/** ヴィンテージ(収穫年) */
 		vintage: integer("vintage"),

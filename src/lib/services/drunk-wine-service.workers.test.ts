@@ -9,6 +9,8 @@ import {
 	deleteDrunkWine,
 	deleteWineTasting,
 	getCellarSummary,
+	getDrunkWine,
+	listDrunkWines,
 	listWineTastings,
 	markWineDrunk,
 	updateLatestWineTasting,
@@ -102,8 +104,8 @@ describe("createDrunkWine の所有状態と飲用記録", () => {
 		});
 		expect(entry.tastingCount).toBe(1);
 		expect(entry.lastDrankOn).toBe("2021-03-03");
-		expect(entry.rating).toBe(5);
-		expect(entry.memo).toBe("好み");
+		expect(entry.lastRating).toBe(5);
+		expect(entry.lastMemo).toBe("好み");
 	});
 });
 
@@ -160,29 +162,39 @@ describe("集計キャッシュの再計算", () => {
 		expect(entry.lastDrankOn).toBeNull();
 	});
 
-	it("旧列は最新1件の射影として二重書きされる", async () => {
+	it("評価・メモは最新1件を読み取り時に導出する(列には持たない)", async () => {
 		await addWineTasting(userId, wineId, {
 			drankOn: "2022-06-01",
 			rating: 2,
 			memo: "古い",
 		});
-		await addWineTasting(userId, wineId, {
+		const entry = await addWineTasting(userId, wineId, {
 			drankOn: "2024-01-01",
 			rating: 5,
 			memo: "新しい",
 		});
-		const row = await wineRow(wineId);
-		expect(row?.drankOn).toBe("2024-01-01");
-		expect(row?.drankOn).toBe(row?.lastDrankOn);
-		expect(row?.rating).toBe(5);
-		expect(row?.memo).toBe("新しい");
+		expect(entry.lastDrankOn).toBe("2024-01-01");
+		expect(entry.lastRating).toBe(5);
+		expect(entry.lastMemo).toBe("新しい");
+
+		// 一覧・単体取得(SELECT 経路)でも同じ値になること。相関サブクエリは
+		// UPDATE と SELECT で描画のされ方が違い、修飾を誤ると静かに null になる。
+		const listed = (await listDrunkWines(userId)).find((e) => e.id === wineId);
+		expect(listed?.lastRating).toBe(5);
+		expect(listed?.lastMemo).toBe("新しい");
+		const fetched = await getDrunkWine(userId, wineId);
+		expect(fetched.lastRating).toBe(5);
+		expect(fetched.lastMemo).toBe("新しい");
 	});
 
 	it("同じ日の2件では created_at の新しい方が最新になる", async () => {
 		await addWineTasting(userId, wineId, { drankOn: "2024-01-01", memo: "先" });
-		await addWineTasting(userId, wineId, { drankOn: "2024-01-01", memo: "後" });
-		const row = await wineRow(wineId);
-		expect(row?.memo).toBe("後");
+		const entry = await addWineTasting(userId, wineId, {
+			drankOn: "2024-01-01",
+			memo: "後",
+		});
+		expect(entry.lastMemo).toBe("後");
+		expect((await getDrunkWine(userId, wineId)).lastMemo).toBe("後");
 	});
 
 	it("飲用記録の更新でも再計算される", async () => {
