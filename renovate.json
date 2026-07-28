@@ -9,6 +9,16 @@
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
       "automerge": true
+    },
+    {
+      "description": "Cloudflare ツールチェーンは足並みを揃えないと壊れる(#103: wrangler 単独更新で旧 vite-plugin が生成する legacy_env を新 CLI が拒否し deploy 失敗)。1つのPRにまとめ、automerge を外して人手のレビューを必須にする。dependencies/devDependencies を跨ぐため matchDepTypes は指定しない。",
+      "matchPackageNames": [
+        "wrangler",
+        "@cloudflare/vite-plugin",
+        "@cloudflare/vitest-pool-workers"
+      ],
+      "groupName": "cloudflare workers toolchain",
+      "automerge": false
     }
   ],
   "lockFileMaintenance": {
