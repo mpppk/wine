@@ -47,6 +47,60 @@ describe("expandScopeAopIds", () => {
 		expect(ids?.size).toBe(6);
 	});
 
+	// Issue #243: 個別クリマは villageAopIds ではなく parentAopId で親畑にぶら下がる。
+	// このエッジを辿らないと、傘AOC・村のどちらを選んでも配下クリマが1問も出ない
+	// (地域全体クイズには出るので、スコープ指定の時だけ出ない非対称になる)。
+	it("傘AOC(畑): 自身と内包する個別クリマを含む", () => {
+		const ids = expandScopeAopIds("chablis-grand-cru");
+		expect(ids).not.toBeNull();
+		expect(ids).toContain("chablis-grand-cru");
+		// aops.json 上のシャブリ・グラン・クリュは7クリマ
+		for (const climat of [
+			"chablis-gc-les-clos",
+			"chablis-gc-vaudesir",
+			"chablis-gc-valmur",
+			"chablis-gc-grenouilles",
+			"chablis-gc-blanchot",
+			"chablis-gc-bougros",
+			"chablis-gc-preuses",
+		]) {
+			expect(ids).toContain(climat);
+		}
+		expect(ids?.size).toBe(8);
+	});
+
+	it("村: 傘AOC経由の2ホップで配下クリマまで含む", () => {
+		const ids = expandScopeAopIds("chablis");
+		expect(ids).not.toBeNull();
+		// 1ホップ(村→畑)
+		expect(ids).toContain("chablis-grand-cru");
+		expect(ids).toContain("chablis-premier-cru");
+		// 2ホップ(畑→クリマ)
+		expect(ids).toContain("chablis-gc-les-clos");
+		// 自身 + 畑2 + グラン・クリュ7 + プルミエ・クリュ17
+		expect(ids?.size).toBe(27);
+	});
+
+	it("複数村にまたがる傘AOC(コルトン)も配下クリマを含み、各村からも辿れる", () => {
+		expect(expandScopeAopIds("corton")?.size).toBe(9);
+		// コルトンは3村(aloxe-corton / ladoix / pernand-vergelesses)にまたがる。
+		// どの村から選んでも傘経由で同じ8クリマが入る。
+		for (const village of ["aloxe-corton", "ladoix", "pernand-vergelesses"]) {
+			const ids = expandScopeAopIds(village);
+			expect(ids).toContain("corton");
+			expect(ids?.size).toBeGreaterThan(
+				// 修正前は村自身 + villageAopIds の畑だけだった
+				(expandScopeAopIds("corton")?.size ?? 0) - 8,
+			);
+		}
+	});
+
+	it("クリマ: 自身のみで親畑は含まない(畑が村を含めないのと同じ向き)", () => {
+		expect(expandScopeAopIds("chablis-gc-les-clos")).toEqual(
+			new Set(["chablis-gc-les-clos"]),
+		);
+	});
+
 	it("階層エッジを持たない村は自身のみ", () => {
 		expect(expandScopeAopIds("morgon")).toEqual(new Set(["morgon"]));
 	});
@@ -137,6 +191,20 @@ describe("listScopedCandidates", () => {
 		);
 		// morgon は beaujolais のAOP
 		expect(listScopedCandidates("bourgogne", ALL_TYPES, "morgon")).toBeNull();
+	});
+	it("傘AOCのスコープにクリマ主語の候補キーが入る(#243)", () => {
+		const scoped = listScopedCandidates(
+			"bourgogne",
+			ALL_TYPES,
+			"chablis-grand-cru",
+		);
+		expect(scoped).not.toBeNull();
+		// 修正前は傘AOC自身のキーしか無く、クリマの設問は1件も含まれなかった。
+		expect(scoped).toContain("colors:chablis-gc-les-clos");
+		const climatKeys = scoped!.filter((key) =>
+			parseKey(key)?.aopId.startsWith("chablis-gc-"),
+		);
+		expect(climatKeys.length).toBeGreaterThan(0);
 	});
 });
 

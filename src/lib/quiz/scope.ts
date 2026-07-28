@@ -4,19 +4,49 @@ import { listCandidates } from "./generators";
 import { parseKey } from "./keys";
 import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
 
-// 地図の「選択中AOPに関連するクイズ」の出題スコープ。villageAopIds エッジを
-// 子方向にのみ辿る: 自身 + 配下の畑/ワイナリー。
-// 畑/ワイナリーは親の村名AOCを含めない(複数の畑が村クイズを共有するのを避け、
-// 畑ごとに固有のクイズだけを出題する)。村/地方AOPは配下があれば含み
-// (例: Haut-Médoc配下のシャトー)、無ければ自身のみ(地域全体クイズとの重複を避ける)。
+// 地図の「選択中AOPに関連するクイズ」の出題スコープ。階層エッジを子方向にのみ辿る:
+// 自身 + 配下の畑/ワイナリー + そこに内包される個別クリマ。
+//
+// 階層は2種類のエッジで表される(aop-schema.ts が相互排他を強制する):
+//  - villageAopIds: 畑/ワイナリー → 所属する村名/地区AOC
+//  - parentAopId  : 個別クリマ → 内包する親畑(シャブリ・グラン・クリュ等の傘AOC)
+// 両方を辿らないと、傘AOC・村のどちらを選んでも配下クリマが1問も出ない(#243)。
+// クリマは地域全体クイズには問題を供給しているので、辿らないとスコープ指定の時
+// だけ出ないという非対称になる。
+//
+// 親方向へは辿らない。畑/ワイナリーは親の村名AOCを含めず、クリマも親畑を含めない
+// (複数の子が親のクイズを共有するのを避け、子ごとに固有のクイズだけを出題する)。
+// 村/地方AOPは配下があれば含み(例: Haut-Médoc配下のシャトー)、無ければ自身のみ
+// (地域全体クイズとの重複を避ける)。
 
 /** 選択AOPを階層近傍のAOP集合へ展開する。不明なslugなら null */
 export function expandScopeAopIds(scopeAopId: string): Set<string> | null {
 	const aop = getAop(scopeAopId);
 	if (!aop) return null;
+	const siblings = listAops({ regionId: aop.region });
 	const ids = new Set<string>([aop.id]);
-	for (const other of listAops({ regionId: aop.region })) {
+	// 1ホップ: この村/地区AOCに属する畑・ワイナリー
+	for (const other of siblings) {
 		if (other.villageAopIds?.includes(aop.id)) ids.add(other.id);
+	}
+	// 内包クリマ。傘AOCを選んだ場合は1ホップ、村を選んだ場合は上で入った傘畑を
+	// 経由して2ホップで入る。クリマの入れ子(親畑もクリマ)もスキーマ上は書けるため、
+	// 新たに増えなくなるまで繰り返して取り切る。
+	const climatsByParent = new Map<string, string[]>();
+	for (const other of siblings) {
+		if (!other.parentAopId) continue;
+		const known = climatsByParent.get(other.parentAopId);
+		if (known) known.push(other.id);
+		else climatsByParent.set(other.parentAopId, [other.id]);
+	}
+	const pending = [...ids];
+	while (pending.length > 0) {
+		const parentId = pending.pop() as string;
+		for (const climatId of climatsByParent.get(parentId) ?? []) {
+			if (ids.has(climatId)) continue;
+			ids.add(climatId);
+			pending.push(climatId);
+		}
 	}
 	return ids;
 }
