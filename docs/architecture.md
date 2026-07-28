@@ -37,7 +37,7 @@ wine/
 │   ├── lib/
 │   │   ├── wine/           # ★静的ドメインデータ層（AOP マスタ・地域・品種・格付け）
 │   │   ├── quiz/           # クイズ純ロジック（ジェネレータ・スケジューラ・キー）
-│   │   ├── billing/ credit/ dashboard/ drunk-wine/ admin/ ads/ ai/ reference-link/
+│   │   ├── billing/ credit/ dashboard/ drunk-wine/ admin/ ads/ ai/ images/ reference-link/
 │   │   │                   # 各ドメインの DB 非依存の純ロジック + zod スキーマ + テスト
 │   │   ├── services/       # サービス層（D1/R2/Stripe/Workers AI への唯一のアクセス点）
 │   │   ├── mcp/            # MCP サーバー（ツール・スキーマ・埋め込み UI）
@@ -195,6 +195,25 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - ツール追加のルール: 入力スキーマは `schemas.ts` に zod の **raw shape**（`z.object()` で包まない）として置きランタイム非依存を保つ / ペイロードのキーは MCP 境界では snake_case（サービス層の camelCase との変換は `tools.ts` が単一情報源）/ ID 参照はサービス呼び出し前に静的マスタで存在検証 / 結果は `ok()` / `err()` ヘルパで統一 / URL は `env.BETTER_AUTH_URL` 起点の絶対 URL。
 - 埋め込み UI（`show_aop_map` / `register_drunk_wine`）は MCP Apps (SEP) と mcp-ui の**二重対応**。プライベートな ID は externalUrl に載せず rawHtml を使う（IDOR 防止）。ブリッジ HTML のセキュリティ規約（postMessage の送信元検証・origin 厳密比較）は `apps.test.ts` で固定されている。
 - **MCP 関連ファイルを変更したら `mcp-inspector-verify` skill による実機確認が必須**（CLAUDE.md 規定）。
+
+### 画像配信（`/api/images/$` と `src/lib/images/`）
+
+R2（`AVATARS` バインディング）に置いた画像は `/api/images/{r2Key}` の 1 経路だけで配信する。配信してよいのは `avatars/`（公開プロフィール画像）と `wines/`（マイセラー写真）の 2 プレフィックスのみで、それ以外・`..`・想定外拡張子は 404（`isAllowedImageKey`）。
+
+**この 2 つは機密性が違うので扱いを分ける**（Issue #149）。
+
+- `avatars/` は公開画像。従来どおり無認証・`Cache-Control: public`・`caches.default`（コロ単位の共有エッジキャッシュ）に載せる。
+- `wines/` は**ユーザ非公開**。以前は「URL（UUID）が推測できないこと」だけが機密性の根拠で、URL が一度漏れれば無認証で恒久的に読めた。現在は `src/lib/images/authorize.ts` が**2 経路のいずれか**を要求する。
+  1. **本人セッション** — Web アプリ内の `<img>` / `fetch` は same-origin なので Cookie が乗る。R2 キーの `wines/{userId}/...` とセッションの userId が一致する場合のみ許可。
+  2. **短命の署名付き URL** — MCP ホストや埋め込みビュー（`/embed/*`）はサンドボックス iframe の不透明オリジンから読むため Cookie が乗らない。`?exp=<UNIX秒>&sig=<base64url>` を検証する。
+- 認可に失敗したら **403 ではなく 404**（存在の有無を漏らさない）。`wines/` は `Cache-Control: private` にし、**共有エッジキャッシュには載せない**（載せると認可済みレスポンスがコロ単位で共有され、署名の期限切れ後も配信されうる）。
+
+署名の規約は `src/lib/images/signed-url.ts` が単一情報源（ランタイム非依存・jsdom のユニットテスト対象）。
+
+- 署名対象は `v1:{r2Key}:{exp}` の HMAC-SHA256。**R2 キーと有効期限を束ねる**ので、自分の写真の署名を他人のキーへ付け替えたり期限だけ書き換えたりはできない。
+- TTL は `SIGNED_IMAGE_URL_TTL_MS`（1 時間）。MCP ホスト（Claude 等）の会話履歴やログに URL が残っても露出が恒久化しない長さにしている。切れたらツールを呼び直せば新しい URL が返る。
+- **署名鍵は R2 の `_internal/image-url-signing-key` に置き、初回アクセス時に乱数で自動生成する**（`src/lib/images/signing-key.ts`）。新しいシークレットを増やすと「本番だけ設定済み・プレビューは未設定」という環境差（`BETTER_AUTH_SECRET` が実際にそうなっている）を作るため、全環境に必ず存在する R2 を使う。このキーは `avatars/`・`wines/` のどちらでもないので `isAllowedImageKey` に弾かれ、配信経路からは読み出せない。
+- MCP ツールが返す `photo_urls` / `photo_url` は `tools.ts` の `toSignedPhotoUrl` が署名する。R2 キーと配信 URL の相互変換は `imagePathForKey` / `imageKeyFromPath` に集約する（サービス層・MCP・フォームで別々に文字列を組まない）。
 
 ## インフラ・デプロイ
 

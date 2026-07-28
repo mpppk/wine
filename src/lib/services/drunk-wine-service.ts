@@ -16,6 +16,7 @@ import type {
 } from "#/lib/drunk-wine/schema";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { imagePathForKey } from "#/lib/images/signed-url";
 import { getAop, getVariety } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
@@ -85,7 +86,7 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		grapeVarietyIds: row.grapeVarietyIds,
 		producer: row.producer,
 		price: row.price,
-		photoUrls: row.photoKeys.map((key) => `/api/images/${key}`),
+		photoUrls: row.photoKeys.map(imagePathForKey),
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};

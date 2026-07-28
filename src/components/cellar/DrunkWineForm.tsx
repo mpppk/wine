@@ -35,6 +35,7 @@ import {
 	MAX_PHOTOS_PER_ENTRY,
 	PHOTO_ACCEPT_ATTR,
 } from "#/lib/drunk-wine/photo";
+import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { createDrunkWine, updateDrunkWine } from "#/server/drunk-wine";
 
@@ -55,11 +56,6 @@ export interface DrunkWineFormProps {
 type PhotoItem =
 	| { localId: string; kind: "existing"; key: string }
 	| { localId: string; kind: "new"; file: File; previewUrl: string };
-
-/** 相対 photoUrl(/api/images/{key})から R2キーを復元する(DTOのURLはクエリを持たない)。 */
-function photoKeyFromUrl(url: string): string {
-	return url.replace(/^\/api\/images\//, "");
-}
 
 /**
  * 現在の写真集合(表示順)を /api/wine-photos へ送り全置換で同期する。
@@ -119,7 +115,7 @@ export function DrunkWineForm({
 		(entry?.photoUrls ?? []).map((url, i) => ({
 			localId: `e${i}`,
 			kind: "existing" as const,
-			key: photoKeyFromUrl(url),
+			key: imageKeyFromPath(url),
 		})),
 	);
 	const [error, setError] = useState("");
@@ -141,7 +137,7 @@ export function DrunkWineForm({
 	const photoSrc = (p: PhotoItem): string =>
 		p.kind === "new"
 			? p.previewUrl
-			: `/api/images/${p.key}?v=${entry?.updatedAt ?? ""}`;
+			: `${imagePathForKey(p.key)}?v=${entry?.updatedAt ?? ""}`;
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(e.target.files ?? []);
