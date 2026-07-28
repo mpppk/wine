@@ -16,3 +16,8 @@
 # バックグラウンド更新にして、地図の再訪・地域切替ごとの再検証リクエストを減らす。
 /data/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+  # /assets/* と同じ理由。MCP Apps ホストの sandbox iframe から開いた /embed/map は
+  # 不透明オリジンになり、自オリジンの GeoJSON の取得すらクロスオリジン扱いになる。
+  # ACAO が無いと fetch が CORS で弾かれ、ベースマップだけが出て AOP ポリゴンが
+  # 1つも描画されない(#194)。公開の静的データなので * でよい。
+  Access-Control-Allow-Origin: *
