@@ -58,6 +58,10 @@ export const quizQuestionStat = sqliteTable(
  * (旧単一列 photo_key の既存データはマイグレーションで配列へ退避しており、
  * フラット形式の旧キーも配列内にそのまま入りうる。)
  *
+ * 飲んだ日・評価・メモの旧列(drank_on / rating / memo)は wine_tasting へ移して
+ * drizzle/0019 で削除済み(Issue #205)。評価・メモは集計ではなく「最新1件の値」
+ * なので非正規化せず、読み取り時に相関サブクエリで導出する。
+ *
  * 所有状態(status)と飲用履歴(wineTasting の 1:N)は**直交する2軸**で持つ(Issue #195)。
  * 「以前飲んだワインをもう一度購入した」= status='owned' かつ 飲用記録あり、のように
  * 組み合わせがそのまま実際の状況に対応する。単一の enum に潰すとこれが表現できない。
@@ -89,21 +93,8 @@ export const drunkWine = sqliteTable(
 		lastDrankOn: text("last_drank_on"),
 		/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
 		tastingCount: integer("tasting_count").notNull().default(0),
-		/**
-		 * @deprecated 旧「最新の飲用記録の射影」。**参照も書き込みも既に無い**
-		 * (#205 でアプリ側の読み取りを last_drank_on と wine_tasting の導出へ
-		 * 切り替え、二重書きも外した)。列の DROP は次PRで行う —
-		 * deploy command はマイグレーションをデプロイ直前に流すため、参照を外す
-		 * デプロイと列を消すデプロイを分けないと「新スキーマ×旧コード」の窓で
-		 * 旧コードがこの列を読んで落ちる(docs/architecture.md / CLAUDE.md #24)。
-		 */
-		drankOn: text("drank_on"),
 		/** 静的AOPマスタの Aop.id(任意) */
 		aopId: text("aop_id"),
-		/** @deprecated 参照・書き込みとも無い。次PRで DROP する(drankOn 参照) */
-		rating: integer("rating"),
-		/** @deprecated 参照・書き込みとも無い。次PRで DROP する(drankOn 参照) */
-		memo: text("memo"),
 		/** ヴィンテージ(収穫年) */
 		vintage: integer("vintage"),
 		/** 静的品種マスタの GrapeVariety.id の配列 */
@@ -175,7 +166,7 @@ export const wineTasting = sqliteTable(
  * 日次の学習活動サマリー(ユーザ×暦日)。quiz_question_stat は問題ごとに最新解答時刻
  * しか持たない(再解答で上書き)ため、日別の学習量・連続学習日数・履歴ヒートマップを
  * 正確に出せない。そこで解答1回ごとにこの表を JST の暦日単位でインクリメントする。
- * day は "YYYY-MM-DD"(JST)。drunk_wine.drankOn と同じく zone を持たない text-date。
+ * day は "YYYY-MM-DD"(JST)。wine_tasting.drankOn と同じく zone を持たない text-date。
  */
 export const dailyActivity = sqliteTable(
 	"daily_activity",
