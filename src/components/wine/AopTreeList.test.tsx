@@ -121,3 +121,98 @@ describe("AopTreeList", () => {
 		expect(scroller.scrollTop).toBe(60);
 	});
 });
+
+// 区分(格付けバッジ)と進捗(正解ピル)は行の別チャンネルを使うため排他にしない。
+// 色分けモードはドットの色だけに効く、という切り分けの回帰テスト。
+
+const BADGE_AOPS: Aop[] = [
+	aop({ id: "gevrey", kind: "village", nameJa: "ジュヴレ" }),
+	// 格付けを持つ通常の畑(AOC)
+	aop({
+		id: "chambertin",
+		kind: "vineyard",
+		nameJa: "シャンベルタン",
+		villageAopIds: ["gevrey"],
+		tags: ["grand-cru"],
+	}),
+	// 格付けを持つが法的に独立AOCではない畑(シャブリ特級クリマ等と同じ形)
+	aop({
+		id: "les-clos",
+		kind: "vineyard",
+		nameJa: "レ・クロ",
+		villageAopIds: ["gevrey"],
+		tags: ["grand-cru"],
+		isAppellation: false,
+	}),
+];
+
+const BADGE_VISIBLE = new Set(BADGE_AOPS.map((a) => a.id));
+
+const BADGE_PROGRESS: Record<string, { solved: number; total: number }> = {
+	chambertin: { solved: 3, total: 12 },
+	"les-clos": { solved: 0, total: 4 },
+};
+
+function renderBadges(props: {
+	colorMode?: "kind" | "progress";
+	isAuthenticated?: boolean;
+}) {
+	render(
+		<AopTreeList
+			aops={BADGE_AOPS}
+			subregions={SUBREGIONS}
+			visibleAopIds={BADGE_VISIBLE}
+			onSelect={() => {}}
+			rowProgressByAopId={BADGE_PROGRESS}
+			{...props}
+		/>,
+	);
+	return {
+		chambertin: screen.getByRole("button", { name: /シャンベルタン/ }),
+	};
+}
+
+describe("AopTreeList のバッジ表示", () => {
+	it("区分モードでも格付けバッジと進捗ピルが同じ行に並ぶ", () => {
+		const { chambertin } = renderBadges({});
+		expect(chambertin.textContent).toContain("特級");
+		expect(chambertin.textContent).toContain("3/12");
+	});
+
+	it("進捗モードでも格付けバッジが消えない", () => {
+		const { chambertin } = renderBadges({ colorMode: "progress" });
+		expect(chambertin.textContent).toContain("特級");
+		expect(chambertin.textContent).toContain("3/12");
+	});
+
+	it("未ログイン時は区分モードでは進捗ピルを出さない", () => {
+		const { chambertin } = renderBadges({ isAuthenticated: false });
+		expect(chambertin.textContent).toContain("特級");
+		expect(chambertin.textContent).not.toContain("クイズ");
+	});
+
+	it("未ログイン時に進捗モードを選ぶと出題数を中立表示する", () => {
+		const { chambertin } = renderBadges({
+			isAuthenticated: false,
+			colorMode: "progress",
+		});
+		expect(chambertin.textContent).toContain("特級");
+		// 正解が記録されないため分数ではなく出題数を出す
+		expect(chambertin.textContent).toContain("クイズ12問");
+		expect(chambertin.textContent).not.toContain("0/12");
+	});
+
+	it("非AOCの畑はテキストピルを持たず、ドットのリングと読み上げラベルで示す", () => {
+		renderBadges({});
+		// 非AOC行(バッジが3つ並ぶのを避けるためテキストピルは出さない)
+		const lesClos = screen.getByRole("button", { name: /レ・クロ/ });
+		expect(lesClos.querySelector("[title='非AOC']")).not.toBeNull();
+		expect(lesClos.textContent).toContain("非AOC"); // sr-only
+		expect(lesClos.textContent).toContain("特級");
+		expect(lesClos.textContent).toContain("0/4");
+		// AOCである畑にはリングもラベルも付かない
+		const chambertin = screen.getByRole("button", { name: /シャンベルタン/ });
+		expect(chambertin.querySelector("[title='非AOC']")).toBeNull();
+		expect(chambertin.textContent).not.toContain("非AOC");
+	});
+});
