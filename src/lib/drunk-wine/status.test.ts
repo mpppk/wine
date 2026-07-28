@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildAopStatusMap,
 	DEFAULT_WINE_STATUS,
+	hasMixedAopStatus,
 	isTasted,
 	pickAopStatus,
 	WINE_STATUS_IDS,
@@ -51,6 +53,80 @@ describe("pickAopStatus", () => {
 	it("順序に依存しない", () => {
 		const all: WineStatus[] = ["finished", "wishlist", "owned"];
 		expect(pickAopStatus(all)).toBe(pickAopStatus([...all].reverse()));
+	});
+});
+
+describe("buildAopStatusMap", () => {
+	it("AOPごとに優先度どおり1状態へ畳む", () => {
+		const m = buildAopStatusMap([
+			{ aopId: "chablis", status: "finished" },
+			{ aopId: "chablis", status: "owned" },
+			{ aopId: "meursault", status: "finished" },
+			{ aopId: "pomerol", status: "wishlist" },
+			{ aopId: "pomerol", status: "finished" },
+		]);
+		// 「今すぐ飲める1本がある」が最優先
+		expect(m.get("chablis")).toBe("owned");
+		expect(m.get("meursault")).toBe("finished");
+		expect(m.get("pomerol")).toBe("wishlist");
+	});
+
+	it("AOP未紐付けのエントリは地図に出せないので落とす", () => {
+		const m = buildAopStatusMap([
+			{ aopId: null, status: "owned" },
+			{ aopId: "chablis", status: "finished" },
+		]);
+		expect(m.size).toBe(1);
+		expect(m.has("chablis")).toBe(true);
+	});
+
+	it("入力順に依存しない", () => {
+		const entries = [
+			{ aopId: "chablis", status: "finished" as WineStatus },
+			{ aopId: "chablis", status: "owned" as WineStatus },
+			{ aopId: "chablis", status: "wishlist" as WineStatus },
+		];
+		expect(buildAopStatusMap(entries).get("chablis")).toBe(
+			buildAopStatusMap([...entries].reverse()).get("chablis"),
+		);
+	});
+
+	it("空入力なら空のMap", () => {
+		expect(buildAopStatusMap([]).size).toBe(0);
+	});
+});
+
+describe("hasMixedAopStatus", () => {
+	it("同じAOPに違う状態があれば true", () => {
+		expect(
+			hasMixedAopStatus([
+				{ aopId: "chablis", status: "owned" },
+				{ aopId: "chablis", status: "finished" },
+			]),
+		).toBe(true);
+	});
+
+	it("AOPごとに状態が1つなら false(別AOPで状態が違っても混在ではない)", () => {
+		expect(
+			hasMixedAopStatus([
+				{ aopId: "chablis", status: "owned" },
+				{ aopId: "beaune", status: "finished" },
+				{ aopId: "chablis", status: "owned" },
+			]),
+		).toBe(false);
+	});
+
+	it("AOP未紐付けは無視する", () => {
+		expect(
+			hasMixedAopStatus([
+				{ aopId: null, status: "owned" },
+				{ aopId: null, status: "finished" },
+			]),
+		).toBe(false);
+	});
+
+	it("空入力なら false", () => {
+		expect(hasMixedAopStatus([])).toBe(false);
 	});
 });
 

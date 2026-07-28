@@ -13,6 +13,11 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // その URL を setWorkerUrl で明示指定する。
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	statusFillColorExpr,
+	statusLineColorExpr,
+} from "#/lib/drunk-wine/map-style";
+import type { WineStatus } from "#/lib/drunk-wine/status";
 import { cn } from "#/lib/utils";
 import {
 	BASEMAP_STYLE_URL,
@@ -67,10 +72,16 @@ export interface AopMapViewProps {
 	visibleKinds?: AopKind[];
 	/** 表示するタグ。空なら絞り込まない(hiddenAopIds 未指定時のみ有効) */
 	visibleTags?: AopTagId[];
-	/** 色分けモード。"kind"=区分別(既定) / "progress"=クイズ学習済み率 */
-	colorMode?: "kind" | "progress";
+	/**
+	 * 色分けモード。"kind"=区分別(既定) / "progress"=クイズ学習済み率 /
+	 * "status"=マイセラーの所有状態。色分け(この軸)と絞り込み(highlightAopIds /
+	 * hiddenAopIds)は直交させる — どちらの変更も相手に影響しない。
+	 */
+	colorMode?: "kind" | "progress" | "status";
 	/** progress モード時のAOP別学習済み率(idApp -> 0〜1)。未収載=データなし */
 	progressByIdApp?: Map<number, number>;
+	/** status モード時のAOP別の代表所有状態。未収載=マイセラーに1本も無い */
+	statusByAopId?: ReadonlyMap<string, WineStatus>;
 	onSelectAop?: (aopId: string | undefined) => void;
 	/**
 	 * 選択エリアへズームする際、地図に重なるUI(モバイルの下部詳細パネル等)が覆う
@@ -86,12 +97,13 @@ export interface AopMapViewProps {
 	className?: string;
 }
 
-// 色分けモードごとの fill-opacity 式。進捗モードは緑バケットを判別しやすいよう
-// 基準の不透明度を上げる(hidden/dimmed/selected/hover の分岐は共通)。
+// 色分けモードごとの fill-opacity 式。進捗・所有状態モードは色そのものが意味を
+// 持つため、バケット/状態を判別しやすいよう基準の不透明度を上げる
+// (hidden/dimmed/selected/hover の分岐は共通)。
 function fillOpacityExpr(
-	colorMode: "kind" | "progress",
+	colorMode: "kind" | "progress" | "status",
 ): ExpressionSpecification {
-	const isProgress = colorMode === "progress";
+	const isProgress = colorMode !== "kind";
 	return [
 		"case",
 		["boolean", ["feature-state", "hidden"], false],
@@ -243,6 +255,7 @@ export function AopMapView({
 	visibleTags,
 	colorMode = "kind",
 	progressByIdApp,
+	statusByAopId,
 	onSelectAop,
 	getFitInset,
 	className,
@@ -267,6 +280,7 @@ export function AopMapView({
 		applySelection: () => {},
 		applyColorMode: () => {},
 		applyProgress: () => {},
+		applyStatus: () => {},
 	});
 
 	const aopsByIdApp = useMemo(() => {
@@ -573,6 +587,7 @@ export function AopMapView({
 				// 初期状態(フィルタ・選択・色分けモード・進捗)を反映。ロード中に
 				// propsが変わっていても最新の値が適用されるようrefに入った関数を呼ぶ。
 				stateRef.current.applyProgress();
+				stateRef.current.applyStatus();
 				stateRef.current.applyColorMode();
 				stateRef.current.applyFeatureStates();
 				stateRef.current.applySelection();
@@ -742,27 +757,30 @@ export function AopMapView({
 	const applyColorMode = () => {
 		const map = mapRef.current;
 		if (!map || !loadedRef.current) return;
-		const isProgress = colorMode === "progress";
-		map.setPaintProperty(
-			FILL_LAYER,
-			"fill-color",
-			isProgress ? progressFillColorExpr() : kindFillColorExpr(),
-		);
+		const fillColor =
+			colorMode === "progress"
+				? progressFillColorExpr()
+				: colorMode === "status"
+					? statusFillColorExpr()
+					: kindFillColorExpr();
+		const lineColor =
+			colorMode === "progress"
+				? progressLineColorExpr()
+				: colorMode === "status"
+					? statusLineColorExpr()
+					: kindLineColorExpr();
+		map.setPaintProperty(FILL_LAYER, "fill-color", fillColor);
 		map.setPaintProperty(
 			FILL_LAYER,
 			"fill-opacity",
 			fillOpacityExpr(colorMode),
 		);
-		map.setPaintProperty(
-			LINE_LAYER,
-			"line-color",
-			isProgress ? progressLineColorExpr() : kindLineColorExpr(),
-		);
-		// シャトー(winery)も点で進捗を表す
+		map.setPaintProperty(LINE_LAYER, "line-color", lineColor);
+		// シャトー(winery)は点なので、fill と同じ色式を circle-color に当てる
 		map.setPaintProperty(
 			WINERY_LAYER,
 			"circle-color",
-			isProgress ? progressFillColorExpr() : KIND_COLORS.winery.fill,
+			colorMode === "kind" ? KIND_COLORS.winery.fill : fillColor,
 		);
 	};
 
@@ -779,10 +797,23 @@ export function AopMapView({
 		}
 	};
 
+	// AOP別の所有状態を feature-state.status に反映(マイセラーに無いAOPは null)
+	const applyStatus = () => {
+		const map = mapRef.current;
+		if (!map || !loadedRef.current) return;
+		for (const aop of stateRef.current.aopsByIdApp.values()) {
+			map.setFeatureState(
+				{ source: SOURCE_ID, id: aop.idApp },
+				{ status: statusByAopId?.get(aop.id) ?? null },
+			);
+		}
+	};
+
 	stateRef.current.applyFeatureStates = applyFeatureStates;
 	stateRef.current.applySelection = applySelection;
 	stateRef.current.applyColorMode = applyColorMode;
 	stateRef.current.applyProgress = applyProgress;
+	stateRef.current.applyStatus = applyStatus;
 
 	useEffect(applyFeatureStates, [
 		grapeVarietyId,
@@ -794,6 +825,7 @@ export function AopMapView({
 	useEffect(applySelection, [selectedAopId]);
 	useEffect(applyColorMode, [colorMode]);
 	useEffect(applyProgress, [progressByIdApp]);
+	useEffect(applyStatus, [statusByAopId]);
 
 	return (
 		<div className={cn("relative", className)}>

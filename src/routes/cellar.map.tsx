@@ -26,6 +26,13 @@ import {
 	DEFAULT_CELLAR_FILTER,
 	matchesCellarFilter,
 } from "#/lib/drunk-wine/filter";
+import { STATUS_COLORS } from "#/lib/drunk-wine/map-style";
+import {
+	buildAopStatusMap,
+	hasMixedAopStatus,
+	WINE_STATUS_LABELS_JA,
+	WINE_STATUSES,
+} from "#/lib/drunk-wine/status";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
@@ -161,6 +168,24 @@ function CellarMapPage() {
 		() => AOP_KINDS.filter((k) => aops.some((a) => a.kind === k)),
 		[aops],
 	);
+	// 表示中の地域のエントリ。色分けと凡例の注記はどちらもここから導く。
+	const regionEntries = useMemo(
+		() => linkedEntries.filter((e) => e.regionId === regionId),
+		[linkedEntries, regionId],
+	);
+	// AOPごとの代表状態(色分けの入力)。混在AOPの畳み方は buildAopStatusMap が
+	// 単一情報源で、優先度は owned > wishlist > finished。
+	const statusByAopId = useMemo(
+		() => buildAopStatusMap(regionEntries),
+		[regionEntries],
+	);
+	// 注記は実データに混在があるときだけ出す(絞り込みチップからは導けない。
+	// "飲んだことがある" は所有状態と直交し、"飲み終わった" のチップは無い)。
+	const mixedStatus = useMemo(
+		() => hasMixedAopStatus(regionEntries),
+		[regionEntries],
+	);
+
 	const highlightAopIds = useMemo(() => {
 		const s = new Set<string>();
 		for (const e of linkedEntries) {
@@ -282,6 +307,8 @@ function CellarMapPage() {
 						selectedAopId={selectedAopId}
 						visibleKinds={presentKinds}
 						highlightAopIds={highlightAopIds}
+						colorMode="status"
+						statusByAopId={statusByAopId}
 						onSelectAop={setSelectedAopId}
 						getFitInset={getInset}
 						className="min-w-0 flex-1"
@@ -296,6 +323,8 @@ function CellarMapPage() {
 						</Button>
 					</div>
 				)}
+
+				{region && <StatusLegend showMixedNote={mixedStatus} />}
 
 				{/* デスクトップ: 右サイドバー / モバイル: 下部オーバーレイ */}
 				{selectedAop && selectedAopEntries.length > 0 && (
@@ -321,6 +350,38 @@ function CellarMapPage() {
 				)}
 			</div>
 		</main>
+	);
+}
+
+/**
+ * 所有状態の凡例。混在AOPは1色に畳んでいるので、その旨を「すべて」表示のときだけ
+ * 注記する(単一状態に絞れば混在自体が起きないため)。
+ */
+function StatusLegend({ showMixedNote }: { showMixedNote: boolean }) {
+	return (
+		<div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[15rem] rounded-md border border-border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
+			<div className="mb-1 font-medium">所有状態</div>
+			<ul className="flex flex-col gap-1">
+				{WINE_STATUSES.map((s) => (
+					<li key={s.id} className="flex items-center gap-1.5">
+						<span
+							className="inline-block size-3.5 shrink-0 rounded-sm border"
+							style={{
+								backgroundColor: STATUS_COLORS[s.id].fill,
+								borderColor: STATUS_COLORS[s.id].line,
+							}}
+						/>
+						<span>{WINE_STATUS_LABELS_JA[s.id]}</span>
+					</li>
+				))}
+			</ul>
+			{showMixedNote && (
+				<p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+					同じAOPに複数の状態があるときは
+					{WINE_STATUS_LABELS_JA.owned}を優先して表示します。
+				</p>
+			)}
+		</div>
 	);
 }
 
