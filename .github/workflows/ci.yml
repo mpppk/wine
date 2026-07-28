@@ -65,12 +65,15 @@ jobs:
       - name: Verify D1 migrations (local)
         run: bun run db:migrate:local
 
-      # PRで追加/変更された drizzle/*.sql に破壊的変更(DROP/RENAME)や冪等性欠如が
+      # 追加/変更された drizzle/*.sql に破壊的変更(DROP/RENAME/NOT NULL 追加)や冪等性欠如が
       # 無いかを機械的に検出する。expand-and-contract(#24)と冪等性(#54)の運用ルールを
       # レビュー任せにせず強制する(#137)。意図的な破壊的変更は SQL 内の
       # `-- allow-destructive-migration` マーカーでオプトアウトできる。
+      #
+      # PR だけでなく main への push でも走らせる(#264)。main へ直接入った SQL が
+      # 無検査になると、この関門を迂回する経路が残るため。push では直前のコミットと比較する。
+      # 差分が取れない場合スクリプトは fail-closed で落ちる(「検査できなかった」が緑にならない)。
       - name: Check migrations (destructive change / idempotency)
-        if: github.event_name == 'pull_request'
         run: bun run check:migrations
         env:
-          BASE_REF: origin/${{ github.base_ref }}
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD^' }}
