@@ -35,11 +35,17 @@ export interface AopTreeListProps {
 	visibleAopIds: ReadonlySet<string>;
 	selectedAopId?: string;
 	onSelect: (aopId: string) => void;
-	/** 色分けモード。"progress" のとき各行・村・地区に正解進捗を表示する */
+	/**
+	 * 色分けモード。地図の塗りと同じく「色」(行のドット)だけに効く。
+	 * 格付けバッジと進捗ピルは行の別チャンネル(バッジ列)なので、このモードに
+	 * 関わらず併記される(進捗ピルの表示条件は isAuthenticated を参照)。
+	 */
 	colorMode?: "kind" | "progress";
 	/**
 	 * ログイン状態。未ログイン時は正解数が記録されず "0/total" が増えないため、
-	 * 進捗ピルを分数ではなく出題数(クイズN問)の中立表示に切り替える。省略時はログイン扱い。
+	 * 進捗ピルを分数ではなく出題数(クイズN問)の中立表示に切り替えたうえで、
+	 * 全行に同じピルが並ぶのを避けて colorMode="progress" のときだけ出す。
+	 * 省略時はログイン扱い。
 	 */
 	isAuthenticated?: boolean;
 	/**
@@ -84,7 +90,13 @@ export function AopTreeList({
 		[aops, subregions],
 	);
 
-	const progressMode = colorMode === "progress";
+	// ドット(と地図の塗り)を正解率で着色するか。色分けモードはこの「色」だけに効く。
+	const progressDot = colorMode === "progress";
+	// 進捗ピルを出すか。区分と進捗は行の別チャンネル(ドット色 / バッジ列)を使うので
+	// 排他にする必要はなく、ログイン済みなら色分けモードに関係なく常に併記する。
+	// 未ログインは正解が記録されず "クイズN問" の中立表示にしかならないため、
+	// 全行に同じピルが並ぶノイズを避けて進捗モードを選んだときだけ出す。
+	const showProgress = isAuthenticated || progressDot;
 	// 未ログイン時は正解が記録されず分数(0/total)が動かないため、出題数だけを示す
 	const countOnly = !isAuthenticated;
 
@@ -215,7 +227,7 @@ export function AopTreeList({
 		<nav aria-label="AOP一覧" className="p-2" ref={navRef}>
 			{visibleSections.map((section) => {
 				// 地区見出しには配下(表示中)AOPを合算した正解進捗を併記する
-				const sectionProgress = progressMode
+				const sectionProgress = showProgress
 					? sumProgress(
 							collectSectionAopIds(section, visibleAopIds),
 							progressByAopId,
@@ -243,7 +255,8 @@ export function AopTreeList({
 											rowKey={`${section.subregion.id}/${aop.id}`}
 											selected={aop.id === selectedAopId}
 											onSelect={handleRowSelect}
-											progressMode={progressMode}
+											progressDot={progressDot}
+											showProgress={showProgress}
 											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
 										/>
@@ -262,7 +275,8 @@ export function AopTreeList({
 										visibleAopIds={visibleAopIds}
 										selectedAopId={selectedAopId}
 										onSelect={handleRowSelect}
-										progressMode={progressMode}
+										progressDot={progressDot}
+										showProgress={showProgress}
 										countOnly={countOnly}
 										rowProgressByAopId={rowProgress}
 									/>
@@ -278,7 +292,8 @@ export function AopTreeList({
 											rowKey={`${section.subregion.id}/${aop.id}`}
 											selected={aop.id === selectedAopId}
 											onSelect={handleRowSelect}
-											progressMode={progressMode}
+											progressDot={progressDot}
+											showProgress={showProgress}
 											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
 										/>
@@ -295,7 +310,8 @@ export function AopTreeList({
 											rowKey={`${section.subregion.id}/${aop.id}`}
 											selected={aop.id === selectedAopId}
 											onSelect={handleRowSelect}
-											progressMode={progressMode}
+											progressDot={progressDot}
+											showProgress={showProgress}
 											countOnly={countOnly}
 											progress={rowProgress?.[aop.id]}
 										/>
@@ -317,7 +333,8 @@ function VillageItem({
 	visibleAopIds,
 	selectedAopId,
 	onSelect,
-	progressMode,
+	progressDot,
+	showProgress,
 	countOnly,
 	rowProgressByAopId,
 }: {
@@ -328,12 +345,13 @@ function VillageItem({
 	visibleAopIds: ReadonlySet<string>;
 	selectedAopId?: string;
 	onSelect: RowSelect;
-	progressMode: boolean;
+	progressDot: boolean;
+	showProgress: boolean;
 	countOnly: boolean;
 	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
 	// 村行は村AOP自身の「自身+近傍」スコープの進捗を出す(詳細パネルの関連クイズ数と一致)
-	const villageProgress = progressMode
+	const villageProgress = showProgress
 		? rowProgressByAopId?.[node.village.id]
 		: undefined;
 	const villageKey = `${pathPrefix}/${node.village.id}`;
@@ -345,7 +363,8 @@ function VillageItem({
 					rowKey={villageKey}
 					selected={node.village.id === selectedAopId}
 					onSelect={onSelect}
-					progressMode={progressMode}
+					progressDot={progressDot}
+					showProgress={showProgress}
 					countOnly={countOnly}
 					progress={villageProgress}
 				/>
@@ -373,7 +392,8 @@ function VillageItem({
 							vineyardVisible={visibleAopIds.has(vn.vineyard.id)}
 							selectedAopId={selectedAopId}
 							onSelect={onSelect}
-							progressMode={progressMode}
+							progressDot={progressDot}
+							showProgress={showProgress}
 							countOnly={countOnly}
 							rowProgressByAopId={rowProgressByAopId}
 						/>
@@ -385,7 +405,8 @@ function VillageItem({
 								rowKey={`${villageKey}/${aop.id}`}
 								selected={aop.id === selectedAopId}
 								onSelect={onSelect}
-								progressMode={progressMode}
+								progressDot={progressDot}
+								showProgress={showProgress}
 								countOnly={countOnly}
 								progress={rowProgressByAopId?.[aop.id]}
 							/>
@@ -404,7 +425,8 @@ function VineyardItem({
 	vineyardVisible,
 	selectedAopId,
 	onSelect,
-	progressMode,
+	progressDot,
+	showProgress,
 	countOnly,
 	rowProgressByAopId,
 }: {
@@ -414,7 +436,8 @@ function VineyardItem({
 	vineyardVisible: boolean;
 	selectedAopId?: string;
 	onSelect: RowSelect;
-	progressMode: boolean;
+	progressDot: boolean;
+	showProgress: boolean;
 	countOnly: boolean;
 	rowProgressByAopId?: Record<string, AopProgress>;
 }) {
@@ -427,7 +450,8 @@ function VineyardItem({
 					rowKey={vineyardKey}
 					selected={node.vineyard.id === selectedAopId}
 					onSelect={onSelect}
-					progressMode={progressMode}
+					progressDot={progressDot}
+					showProgress={showProgress}
 					countOnly={countOnly}
 					progress={rowProgressByAopId?.[node.vineyard.id]}
 				/>
@@ -448,7 +472,8 @@ function VineyardItem({
 								rowKey={`${vineyardKey}/${climat.id}`}
 								selected={climat.id === selectedAopId}
 								onSelect={onSelect}
-								progressMode={progressMode}
+								progressDot={progressDot}
+								showProgress={showProgress}
 								countOnly={countOnly}
 								progress={rowProgressByAopId?.[climat.id]}
 							/>
@@ -465,7 +490,8 @@ function AopRow({
 	rowKey,
 	selected,
 	onSelect,
-	progressMode = false,
+	progressDot = false,
+	showProgress = false,
 	countOnly = false,
 	progress,
 }: {
@@ -477,25 +503,29 @@ function AopRow({
 	rowKey: string;
 	selected: boolean;
 	onSelect: RowSelect;
-	/** 進捗モード時はバッジを進捗インジケータに置換し、ドットを正解率で着色する */
-	progressMode?: boolean;
+	/** ドットを区分色ではなく正解率で着色する(色分けモード) */
+	progressDot?: boolean;
+	/** 格付けバッジに加えて進捗インジケータも出す */
+	showProgress?: boolean;
 	/** 未ログイン時は進捗インジケータを分数でなく出題数(クイズN問)で表示する */
 	countOnly?: boolean;
 	/** この行に表示する正解進捗(そのAOPの「自身+階層近傍」スコープ) */
 	progress?: AopProgress;
 }) {
-	// 格付けバッジ(特級/1級/2級/A 等)。特級もバッジで示し、非AOCバッジと同じ見た目に統一する
+	// 格付けバッジ(特級/1級/2級/A 等)。特級もバッジで示す
 	const badge = classificationBadgeJa(aop);
-	// 畑階層(vineyard)で法的に独立AOCでないもの(個別クリマ・合成総称ノード)には
-	// 「非AOC」ラベルを出し、AOCである畑(グラン・クリュ等)と区別できるようにする
+	// 畑階層(vineyard)で法的に独立AOCでないもの(個別クリマ・合成総称ノード)。
+	// 該当する行(シャブリ特級クリマ等)は例外なく格付けバッジも持つため、テキストピルで
+	// 併記するとバッジが3つ並んで最も幅の狭い階層で名前が潰れる。ドットを中抜きの
+	// リングにして色チャンネル側に逃がし、テキストは支援技術向けの sr-only で残す。
 	const nonAppellation = aop.kind === "vineyard" && !isLegalAppellation(aop);
-	// 進捗モードで全問正解済みの行は淡い緑ティントで区別する(ホバー時は muted 優先)
+	// 全問正解済みの行は淡い緑ティントで区別する(ホバー時は muted 優先)
 	const complete =
-		progressMode &&
+		showProgress &&
 		!!progress &&
 		progress.total > 0 &&
 		progress.solved >= progress.total;
-	const dotColor = progressMode
+	const dotColor = progressDot
 		? progressDotColor(progress)
 		: aop.tags?.includes("grand-cru")
 			? GRAND_CRU_TAG_COLOR.fill
@@ -513,27 +543,23 @@ function AopRow({
 		>
 			<span
 				aria-hidden
-				className="size-2.5 shrink-0 rounded-full"
-				style={{ backgroundColor: dotColor }}
+				title={nonAppellation ? "非AOC" : undefined}
+				className={`size-2.5 shrink-0 rounded-full ${nonAppellation ? "border-2" : ""}`}
+				style={
+					nonAppellation
+						? { borderColor: dotColor }
+						: { backgroundColor: dotColor }
+				}
 			/>
+			{nonAppellation && <span className="sr-only">非AOC</span>}
 			<span className="min-w-0 flex-1 truncate">{aop.nameJa}</span>
-			{progressMode ? (
-				progress && (
-					<ProgressIndicator progress={progress} countOnly={countOnly} />
-				)
-			) : (
-				<>
-					{nonAppellation && (
-						<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
-							非AOC
-						</span>
-					)}
-					{badge && (
-						<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
-							{badge}
-						</span>
-					)}
-				</>
+			{badge && (
+				<span className="shrink-0 rounded border border-border px-1 text-[10px] text-muted-foreground">
+					{badge}
+				</span>
+			)}
+			{showProgress && progress && (
+				<ProgressIndicator progress={progress} countOnly={countOnly} />
 			)}
 		</button>
 	);
@@ -579,6 +605,8 @@ function ProgressIndicator({
 			}
 		>
 			{complete && <CircleCheckIcon className="size-3" aria-hidden />}
+			{/* 格付けバッジと隣り合うため、読み上げで "特級 12/20" が何の数かを示す */}
+			<span className="sr-only">正解</span>
 			{solved}/{total}
 		</span>
 	);
