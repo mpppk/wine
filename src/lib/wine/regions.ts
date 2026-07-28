@@ -90,6 +90,7 @@ export const REGIONS: Region[] = [
 			{ id: "san-gimignano", nameJa: "サン・ジミニャーノ" },
 			{ id: "costa-maremma", nameJa: "トスカーナ海岸 / マレンマ" },
 			{ id: "colline-centrali", nameJa: "中部・北部の丘陵" },
+			{ id: "toscana-regional", nameJa: "州全域(広域)" },
 		],
 		description:
 			"サンジョヴェーゼを主役に、キアンティ・クラッシコ、ブルネッロ・ディ・" +

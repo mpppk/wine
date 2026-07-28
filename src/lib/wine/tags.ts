@@ -40,6 +40,11 @@ export const AOP_TAGS = [
 	// イタリアの格付け(区分ではなく法的等級なのでタグで表現)
 	{ id: "docg", labelJa: "DOCG" },
 	{ id: "doc", labelJa: "DOC" },
+	// IGT は DOC/DOCG の下位に位置する地理的表示(EUのIGP)。DOC(G)の枠外で造られる
+	// スーパートスカーナ等を事実に即した呼称で載せるために持つ(#212)。
+	// **格付けの序列(CLASSIFICATION_TAG_RANK)は持たせない** — docg/doc と同じく
+	// 制度内の上下ではなく法的等級そのものを表すタグで、順位比較には使わない。
+	{ id: "igt", labelJa: "IGT" },
 ] as const;
 
 export type AopTagId = (typeof AOP_TAGS)[number]["id"];

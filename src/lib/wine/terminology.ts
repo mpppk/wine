@@ -37,6 +37,19 @@ export function getAppellationBadgeJa(regionId: string): string {
 }
 
 /**
+ * `isLegalAppellation` が偽のAOPに出すバッジ文言。
+ *
+ * 「AOC/DOC(G)ではない」の中身は一様ではない。IGT は DOC(G) の下位に位置する
+ * **法的な地理的表示**(EUのIGP)であって呼称が無いわけではないため、イタリアの
+ * エントリにフランス語制度の否定形「非AOC」を出すと誤りになる(#212)。
+ * タグから制度名そのものを出す。
+ */
+export function getNonAppellationBadgeJa(aop: Aop): string {
+	if (aop.tags?.includes("igt")) return "IGT";
+	return "非AOC";
+}
+
+/**
  * 畑(vineyard 区分)階層の呼称を地域ごとに出し分ける。ブルゴーニュは「クリマ」、
  * アルザスは「リュー・ディ」、それ以外は総称の「畑名」。クリマ/リュー・ディは
  * 地域固有の呼び名で、いずれも同じ「区画レベルの畑」を指す。

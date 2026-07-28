@@ -11,6 +11,8 @@ import {
 	type ProducerAward,
 } from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
+import { CLASSIFICATION_TAG_RANK, isLegalAppellation } from "./tags";
+import { getNonAppellationBadgeJa } from "./terminology";
 import type { Aop } from "./types";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
@@ -289,12 +291,28 @@ describe("AOPメタデータの整合性", () => {
 		}
 	});
 
-	it("主要品種(principal)が少なくとも1つある", () => {
-		for (const aop of AOPS) {
+	// principal は「その呼称の cahier des charges / disciplinare が主要品種として
+	// 定めているもの」。IGT は州で認可された品種を広く許すだけで主要品種を定めない
+	// ため、**意図的に principal を持たない**(#212)。principal を1つでも置くと
+	// aop-variety / variety クイズが「IGTの主要品種は◯◯」と事実でない断定をする。
+	const NO_PRINCIPAL_AOP_IDS = new Set(["toscana-igt"]);
+
+	it("主要品種(principal)が少なくとも1つある(IGTを除く)", () => {
+		for (const aop of AOPS.filter((a) => !NO_PRINCIPAL_AOP_IDS.has(a.id))) {
 			expect(
 				aop.grapes.some((g) => g.role === "principal"),
 				aop.id,
 			).toBe(true);
+		}
+	});
+
+	it("principal を持たないのはIGTだけ", () => {
+		const without = AOPS.filter(
+			(a) => !a.grapes.some((g) => g.role === "principal"),
+		);
+		expect(without.map((a) => a.id)).toEqual([...NO_PRINCIPAL_AOP_IDS]);
+		for (const aop of without) {
+			expect(aop.tags, aop.id).toContain("igt");
 		}
 	});
 });
@@ -548,11 +566,14 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 		}
 	});
 
-	it("docg / doc タグはイタリア(ピエモンテ / トスカーナ)以外に付かない", () => {
+	it("docg / doc / igt タグはイタリア(ピエモンテ / トスカーナ)以外に付かない", () => {
 		const italianRegions = new Set(["piemonte", "toscana"]);
 		for (const aop of AOPS.filter((a) => !italianRegions.has(a.region))) {
 			const tags = aop.tags ?? [];
-			expect(tags.includes("docg") || tags.includes("doc"), aop.id).toBe(false);
+			expect(
+				tags.includes("docg") || tags.includes("doc") || tags.includes("igt"),
+				aop.id,
+			).toBe(false);
 		}
 	});
 
@@ -566,16 +587,20 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 describe("トスカーナ(イタリア)の整合性", () => {
 	const toscana = AOPS.filter((a) => a.region === "toscana");
 
-	it("件数スナップショット(DOCG11 / DOC17 / 計28)", () => {
-		expect(toscana.length).toBe(28);
+	it("件数スナップショット(DOCG11 / DOC17 / IGT1 / 計29)", () => {
+		expect(toscana.length).toBe(29);
 		expect(toscana.filter((a) => a.tags?.includes("docg")).length).toBe(11);
 		expect(toscana.filter((a) => a.tags?.includes("doc")).length).toBe(17);
+		expect(toscana.filter((a) => a.tags?.includes("igt")).length).toBe(1);
 	});
 
-	it("各レコードは docg / doc のちょうど一方を持つ", () => {
+	it("各レコードは docg / doc / igt のちょうど一つを持つ", () => {
 		for (const aop of toscana) {
 			const tags = aop.tags ?? [];
-			const n = Number(tags.includes("docg")) + Number(tags.includes("doc"));
+			const n =
+				Number(tags.includes("docg")) +
+				Number(tags.includes("doc")) +
+				Number(tags.includes("igt"));
 			expect(n, aop.id).toBe(1);
 		}
 	});
@@ -584,6 +609,52 @@ describe("トスカーナ(イタリア)の整合性", () => {
 		for (const aop of toscana) {
 			expect(["regional", "village"]).toContain(aop.kind);
 		}
+	});
+});
+
+describe("IGT(トスカーナ)の扱い(#212)", () => {
+	const igtAops = AOPS.filter((a) => a.tags?.includes("igt"));
+
+	it("IGTはトスカーナの1件だけ(意図的な線引き)", () => {
+		expect(igtAops.map((a) => a.id)).toEqual(["toscana-igt"]);
+		expect(igtAops[0]?.region).toBe("toscana");
+		expect(igtAops[0]?.kind).toBe("regional");
+	});
+
+	// IGTは州全域に及ぶため独立ポリゴンを描くと全DOCGに重なり、フィーチャ順に
+	// 依存するクリック解決を壊す。ポリゴンを持たない帯に置いて地図から外す。
+	it("IGTはポリゴンを持たない帯にあり geojson を要求しない", () => {
+		for (const aop of igtAops) {
+			expect(aop.idApp, aop.id).toBeGreaterThanOrEqual(POLYGONLESS_IDAPP_MIN);
+		}
+	});
+
+	// IGT は DOC(G) ではないが、呼称が無いわけでもない(EUのIGP)。バッジは
+	// 「非AOC」ではなく制度名そのものを出す。
+	it("IGTは法的アペラシオン(DOC/DOCG)ではなくバッジにIGTと出る", () => {
+		for (const aop of igtAops) {
+			expect(isLegalAppellation(aop), aop.id).toBe(false);
+			expect(getNonAppellationBadgeJa(aop), aop.id).toBe("IGT");
+		}
+	});
+
+	// 格付けの序列に載せると「IGTのほうが上/下」を数値で比較できてしまう。
+	// docg/doc と同じく法的等級そのものを表すタグなので順位を持たせない。
+	it("igt は格付けの序列(CLASSIFICATION_TAG_RANK)を持たない", () => {
+		expect(CLASSIFICATION_TAG_RANK.igt).toBeUndefined();
+	});
+
+	// 広域AOCの受け皿カテゴリなので、所属地区クイズ・仲間外れの subregion 軸には
+	// 出さない(realSubregions が村名/畑名/シャトーの実在する地区だけを採る)。
+	it("IGTの地区は村名/畑名を持たない広域カテゴリ", () => {
+		const sub = igtAops[0]?.subregionId;
+		expect(sub).toBe("toscana-regional");
+		const scoped = AOPS.filter(
+			(a) =>
+				a.subregionId === sub &&
+				(a.kind === "village" || a.kind === "vineyard" || a.kind === "winery"),
+		);
+		expect(scoped).toEqual([]);
 	});
 });
 

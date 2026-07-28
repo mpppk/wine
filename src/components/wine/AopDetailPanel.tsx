@@ -42,6 +42,7 @@ import {
 	COLOR_LABELS_JA,
 	getAppellationBadgeJa,
 	getBoundarySourceNoteJa,
+	getNonAppellationBadgeJa,
 	getVineyardTermJa,
 } from "#/lib/wine/terminology";
 import type { Aop, Region } from "#/lib/wine/types";
@@ -100,7 +101,7 @@ function AppellationBadge({ aop }: { aop: Aop }) {
 	}
 	return (
 		<span className="rounded-full border border-dashed border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-			非AOC
+			{getNonAppellationBadgeJa(aop)}
 		</span>
 	);
 }

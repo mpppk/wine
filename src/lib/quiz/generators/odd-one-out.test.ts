@@ -116,6 +116,22 @@ describe("仲間外れクイズ", () => {
 		}
 	});
 
+	// #212 で igt タグを足した。doc と同じく「IGTでない」の正解が上位の DOC/DOCG に
+	// なって誤誘導するため、タグを増やしても軸には入らないことを名指しで固定する。
+	it("igt軸の仲間外れは列挙されない(#212)", () => {
+		const igtKeys = REGION_IDS.flatMap((regionId) =>
+			enumerateOddOneOutKeys(regionId).filter((key) => {
+				const parsed = parseKey(key);
+				return (
+					parsed?.quizType === "odd-one-out" &&
+					parsed.axis === "tag" &&
+					parsed.axisValue === "igt"
+				);
+			}),
+		);
+		expect(igtKeys).toEqual([]);
+	});
+
 	it("tag軸の設問文・解説に軸の格付け名が入り、誤ったグラン・クリュ定型文に落ちない", () => {
 		const rng = mulberry32(7);
 		for (const regionId of REGION_IDS) {

@@ -17661,5 +17661,52 @@
 		"soil": "キアンティ・ルフィナ東方、標高700mに及ぶ冷涼な高地。フレスコバルディが19世紀からフランス品種を導入。",
 		"producers": [{ "name": "Frescobaldi", "note": "Castello di Pomino" }],
 		"description": "トスカーナでは珍しい高標高・冷涼産地。シャルドネやピノを用いた気品ある白で知られ、フレスコバルディが歴史的に主導してきた小さなDOC。"
+	},
+	{
+		"id": "toscana-igt",
+		"idApp": 931001,
+		"name": "Toscana IGT",
+		"shortName": "Toscana IGT",
+		"nameJa": "トスカーナ IGT",
+		"region": "toscana",
+		"subregionId": "toscana-regional",
+		"kind": "regional",
+		"tags": ["igt"],
+		"isAppellation": false,
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "sangiovese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			}
+		],
+		"soil": "州全域に及ぶため単一の土壌を持たない。内陸のガレストロ質の丘陵から、ボルゲリの海に近い小石混じりの土壌まで、DOC(G)と同じ畑が対象になる。",
+		"producers": [
+			{
+				"name": "Montevertine",
+				"note": "ラッダ・イン・キアンティ。1981年にキアンティ・クラッシコを離脱"
+			},
+			{
+				"name": "Masseto",
+				"note": "カスタニェート・カルドゥッチ。メルロ主体の単一畑"
+			}
+		],
+		"description": "DOC(G)の枠外に置かれた州全域の地理的表示(EUのIGP)。DOC(G)の規定に縛られない品種構成を選んだ造り手の受け皿で、いわゆるスーパートスカーナの多くがこの呼称を名乗る。等級としてはDOC(G)の下位だが、品質と価格は等級に従わない。"
 	}
 ]
