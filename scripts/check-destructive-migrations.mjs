@@ -1,16 +1,19 @@
-#!/usr/bin/env node
-// 破壊的マイグレーション(expand-and-contract 分割漏れ)と冪等性欠如を機械的に検出する(#137)。
+#!/usr/bin/env bun
+// 破壊的マイグレーション(expand-and-contract 分割漏れ)と冪等性欠如を機械的に検出する(#137 / #264)。
 //
 // CLAUDE.md / docs/architecture.md の運用ルール:
-//  - 破壊的なスキーマ変更(DROP TABLE/COLUMN・RENAME 等)は expand-and-contract で2段階に分ける(#24)
+//  - 破壊的なスキーマ変更(DROP TABLE/COLUMN・RENAME・NOT NULL 追加)は expand-and-contract で
+//    2段階に分ける(#24)
 //  - マイグレーションは冪等に書く(CREATE ... IF NOT EXISTS / DROP ... IF EXISTS)(#54)
-// これらは従来ドキュメントとレビューの注意力だけに依存していた。本スクリプトを CI で走らせ、
-// 追加/変更された drizzle/*.sql を対象に違反を検出する。
+//
+// 検査ロジック本体は src/lib/migrations/destructive.ts(純ロジック・単体テストあり)。
+// このスクリプトは「どのファイルを対象にするか」と終了コードだけを担う。
+// TS を直接 import するため node ではなく **bun** で実行する(package.json の check:migrations)。
 //
 // 使い方:
-//   node scripts/check-destructive-migrations.mjs                # git diff (BASE_REF..HEAD) の追加/変更SQLを対象
-//   node scripts/check-destructive-migrations.mjs a.sql b.sql    # 明示ファイルを対象(テスト用)
-//   BASE_REF=origin/main node scripts/check-destructive-migrations.mjs
+//   bun scripts/check-destructive-migrations.mjs                # git diff (BASE_REF...HEAD) の追加/変更SQL
+//   bun scripts/check-destructive-migrations.mjs a.sql b.sql    # 明示ファイル(手元確認用)
+//   BASE_REF=origin/main bun scripts/check-destructive-migrations.mjs
 //
 // オプトアウト: 意図的に破壊的変更を通す場合(参照コード削除を先行デプロイ済み等)は、
 // 対象SQLファイル先頭付近に `-- allow-destructive-migration` マーカーコメントを置く。
@@ -19,74 +22,13 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
+import {
+	checkSql,
+	errorsOf,
+	hasAllowDestructiveMarker,
+} from "../src/lib/migrations/destructive.ts";
 
-/** SQLから行コメント(-- ...)とブロックコメント(/* ... *\/)を除去する。 */
-function stripComments(sql) {
-	return sql
-		.replace(/\/\*[\s\S]*?\*\//g, " ")
-		.replace(/--[^\n]*/g, " ");
-}
-
-/** SQL本文を文単位に分割する(`;` と drizzle の statement-breakpoint 双方に対応)。 */
-function splitStatements(sql) {
-	return stripComments(sql)
-		.split(/;|-->\s*statement-breakpoint/i)
-		.map((s) => s.replace(/\s+/g, " ").trim())
-		.filter((s) => s.length > 0);
-}
-
-/**
- * 1ファイル分のSQLを検査し、違反メッセージ配列を返す。
- * allowDestructive=true なら破壊的判定は抑止し、冪等性チェックのみ行う。
- */
-export function checkSql(content, { allowDestructive = false } = {}) {
-	const violations = [];
-	for (const stmt of splitStatements(content)) {
-		// --- 破壊的ステートメント(expand-and-contract 分割対象) ---
-		if (!allowDestructive) {
-			if (/\bDROP\s+TABLE\b/i.test(stmt)) {
-				violations.push(`DROP TABLE は破壊的です: "${stmt.slice(0, 80)}"`);
-			}
-			if (/\bDROP\s+COLUMN\b/i.test(stmt)) {
-				violations.push(`DROP COLUMN は破壊的です: "${stmt.slice(0, 80)}"`);
-			}
-			// ALTER TABLE ... RENAME [TO|COLUMN]
-			if (/\bALTER\s+TABLE\b[\s\S]*\bRENAME\b/i.test(stmt)) {
-				violations.push(`RENAME は破壊的です: "${stmt.slice(0, 80)}"`);
-			}
-		}
-		// --- 冪等性(IF NOT EXISTS / IF EXISTS)---
-		if (
-			/\bCREATE\s+(?:UNIQUE\s+)?INDEX\b/i.test(stmt) &&
-			!/\bIF\s+NOT\s+EXISTS\b/i.test(stmt)
-		) {
-			violations.push(
-				`CREATE INDEX に IF NOT EXISTS がありません: "${stmt.slice(0, 80)}"`,
-			);
-		}
-		if (
-			/\bCREATE\s+TABLE\b/i.test(stmt) &&
-			!/\bIF\s+NOT\s+EXISTS\b/i.test(stmt)
-		) {
-			violations.push(
-				`CREATE TABLE に IF NOT EXISTS がありません: "${stmt.slice(0, 80)}"`,
-			);
-		}
-		if (/\bDROP\s+TABLE\b/i.test(stmt) && !/\bIF\s+EXISTS\b/i.test(stmt)) {
-			violations.push(
-				`DROP TABLE に IF EXISTS がありません: "${stmt.slice(0, 80)}"`,
-			);
-		}
-		if (/\bDROP\s+INDEX\b/i.test(stmt) && !/\bIF\s+EXISTS\b/i.test(stmt)) {
-			violations.push(
-				`DROP INDEX に IF EXISTS がありません: "${stmt.slice(0, 80)}"`,
-			);
-		}
-	}
-	return violations;
-}
-
-/** git diff で BASE_REF..HEAD の追加/変更 drizzle/*.sql を返す。失敗時は例外。 */
+/** git diff で BASE_REF...HEAD の追加/変更 drizzle/*.sql を返す。失敗時は例外。 */
 function changedMigrationFiles(baseRef) {
 	const out = execFileSync(
 		"git",
@@ -116,12 +58,24 @@ function main() {
 		try {
 			files = changedMigrationFiles(baseRef);
 		} catch (e) {
-			// base ref が取得できない等(浅いクローン)。CIでは checkout の fetch-depth:0 を
-			// 前提にするが、取得失敗で全PRをブロックしないよう明示して fail-open する。
-			console.warn(
-				`[check-destructive-migrations] git diff (${baseRef}...HEAD) に失敗したためスキップ: ${e.message}`,
+			// 対象を決められない = 検査できていない。以前はここで fail-open していたが、
+			// 「チェックが動かなかった」と「違反が無かった」が同じ緑になり、浅いクローンや
+			// base ref の取り違えで検査が黙って無効化される(#264)。既定は fail-closed。
+			// 検査を意図的に飛ばす場合だけ MIGRATION_CHECK_ALLOW_SKIP=1 を明示する。
+			const msg = `git diff (${baseRef}...HEAD) に失敗しました: ${e.message}`;
+			if (process.env.MIGRATION_CHECK_ALLOW_SKIP === "1") {
+				console.warn(
+					`[check-destructive-migrations] ${msg}\n` +
+						"  MIGRATION_CHECK_ALLOW_SKIP=1 のためスキップします。",
+				);
+				return 0;
+			}
+			console.error(
+				`[check-destructive-migrations] ${msg}\n` +
+					"  BASE_REF を指定するか(例: BASE_REF=origin/main)、checkout の fetch-depth を 0 にしてください。\n" +
+					"  意図的にスキップする場合は MIGRATION_CHECK_ALLOW_SKIP=1 を指定してください。",
 			);
-			return 0;
+			return 1;
 		}
 	}
 
@@ -132,7 +86,7 @@ function main() {
 		return 0;
 	}
 
-	let total = 0;
+	let errorCount = 0;
 	for (const file of files) {
 		let content;
 		try {
@@ -141,22 +95,27 @@ function main() {
 			// 変更検出されたが読めない(削除された等)はスキップ
 			continue;
 		}
-		const allowDestructive = /--\s*allow-destructive-migration/i.test(content);
-		const violations = checkSql(content, { allowDestructive });
-		if (violations.length > 0) {
-			total += violations.length;
+		const allowDestructive = hasAllowDestructiveMarker(content);
+		const findings = checkSql(content, { allowDestructive });
+		const errors = errorsOf(findings);
+		const warnings = findings.filter((f) => f.level === "warn");
+		errorCount += errors.length;
+
+		if (errors.length > 0) {
 			console.error(`\n✗ ${file}`);
-			for (const v of violations) console.error(`  - ${v}`);
+			for (const v of errors) console.error(`  - ${v.message}`);
+			for (const v of warnings) console.error(`  ! ${v.message}`);
 		} else {
 			console.log(
 				`✓ ${file}${allowDestructive ? " (allow-destructive-migration)" : ""}`,
 			);
+			for (const v of warnings) console.warn(`  ! ${v.message}`);
 		}
 	}
 
-	if (total > 0) {
+	if (errorCount > 0) {
 		console.error(
-			`\n${total} 件の違反を検出しました。破壊的変更は expand-and-contract で分割し(#24)、` +
+			`\n${errorCount} 件の違反を検出しました。破壊的変更は expand-and-contract で分割し(#24)、` +
 				`マイグレーションは冪等(IF NOT EXISTS / IF EXISTS)に書いてください(#54)。\n` +
 				`意図的に破壊的変更を通す場合は、対象SQLに "-- allow-destructive-migration" を記載してください。`,
 		);
@@ -166,10 +125,7 @@ function main() {
 	return 0;
 }
 
-// スクリプトとして直接実行された時のみ走らせる(import 時は checkSql だけ使える)
-if (
-	process.argv[1] &&
-	import.meta.url === pathToFileURL(process.argv[1]).href
-) {
+// スクリプトとして直接実行された時のみ走らせる
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
 	process.exit(main());
 }
