@@ -30,6 +30,7 @@ import {
 	progressLineColorExpr,
 	REGION_BOUNDARY_STYLE,
 } from "#/lib/wine/map-style";
+import { resolveMaplibreWorkerUrl } from "#/lib/wine/maplibre-worker";
 import { aopAllowsGrape } from "#/lib/wine/service";
 import { type AopTagId, formatAopTagJa } from "#/lib/wine/tags";
 import {
@@ -314,7 +315,12 @@ export function AopMapView({
 
 			// 既定の worker URL は Vite でバンドルされず 404 になるため、
 			// `?worker&url` で出力したワーカーの URL を map 生成前に登録する。
-			maplibregl.setWorkerUrl(maplibreWorkerUrl);
+			// 不透明オリジン(MCP Apps ホストの sandbox iframe)では素の URL から
+			// Worker を作れないので blob URL に置き換える(#194)。
+			maplibregl.setWorkerUrl(
+				await resolveMaplibreWorkerUrl(maplibreWorkerUrl),
+			);
+			if (cancelled || !containerRef.current) return;
 
 			const map = new maplibregl.Map({
 				container,
