@@ -62,6 +62,19 @@ export const auth = betterAuth({
 		enabled: true,
 		storage: "database",
 	},
+	// レートリミットのキーとなるクライアントIPの解決元(Issue #197)。better-auth の既定は
+	// X-Forwarded-For だが、trustedProxies 無しでは「値が単一IPのとき」しか信用しない仕様で、
+	// Cloudflare 経由の XFF はクライアント由来の値にエッジが追記してカンマ連結になりうる。
+	// 解決に失敗すると全リクエストが no-trusted-ip|<path> という「パスごとの単一バケット」に
+	// 集約され、1クライアントが sign-in を10秒に3回叩くだけでその経路が全ユーザに対して閉じる。
+	// CF-Connecting-IP はエッジが必ず設定・上書きする単一値のヘッダで偽装できないため、
+	// これ1つで解決でき trustedProxies は不要。X-Forwarded-For はクライアントが送れてしまう
+	// (=偽装でレートリミットを回避できる)ため信頼しない。
+	advanced: {
+		ipAddress: {
+			ipAddressHeaders: ["cf-connecting-ip"],
+		},
+	},
 	// user テーブルの独自カラム。better-auth に宣言することで getSession /
 	// updateUser / useSession が本フィールドを読み書きできる(物理カラムは
 	// drizzle/0012_user_preferred_ai_model.sql で追加)。
