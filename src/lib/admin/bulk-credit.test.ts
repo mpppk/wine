@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateBulkGrant } from "./bulk-credit";
+import { bulkGrantSubrequestBudget, validateBulkGrant } from "./bulk-credit";
 import { ADMIN_CREDIT_GRANT_MAX, ADMIN_CREDIT_GRANT_MIN } from "./credit-grant";
 
 const base = {
@@ -56,5 +56,25 @@ describe("validateBulkGrant", () => {
 		expect(validateBulkGrant({ ...base, toMs: Number.NaN })).toBe(
 			"range_invalid",
 		);
+	});
+});
+
+describe("bulkGrantSubrequestBudget", () => {
+	// 上限件数は単独では決まらない。「上限件数 × 1ユーザあたりのD1呼び出し回数」が
+	// Workers のサブリクエスト上限(1,000)を下回っている必要がある(#253)。
+	it("直列ループ相当(1ユーザ6回)は上限を超える — これが #253 の状態", () => {
+		const budget = bulkGrantSubrequestBudget(6);
+		expect(budget.total).toBe(1200);
+		expect(budget.withinLimit).toBe(false);
+	});
+
+	it("セットベース化後(1ユーザ1回未満)は上限に収まる", () => {
+		// 実装は読み取りをセットベースにし、書き込みを db.batch(=1サブリクエスト)へ
+		// 畳むため、1ユーザあたりのD1呼び出しは1回を大きく下回る
+		expect(bulkGrantSubrequestBudget(1).withinLimit).toBe(true);
+		expect(bulkGrantSubrequestBudget(4).withinLimit).toBe(true);
+		// 境界: 5回/人だと 1,000 ちょうどで上限を下回らない
+		expect(bulkGrantSubrequestBudget(5).total).toBe(1000);
+		expect(bulkGrantSubrequestBudget(5).withinLimit).toBe(false);
 	});
 });

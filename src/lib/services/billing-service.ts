@@ -21,6 +21,46 @@ import { logError } from "#/lib/logger";
 // 会員区分のユーザ状態を扱うサービス層。判定ロジックは
 // #/lib/billing/entitlements の純関数に置き、ここはD1アクセスとの薄い橋渡しに徹する。
 
+/**
+ * 複数ユーザのプレミアム判定を1クエリで行い、プレミアムなユーザIDの集合を返す。
+ *
+ * isPremiumUser をループで呼ぶと1人あたり1クエリになり、Workers の
+ * サブリクエスト上限(1リクエスト1,000。D1呼び出しも計上される)に当たる(#253)。
+ * 判定そのものは同じ resolvePlan を使うので、単体版と結果は一致する。
+ */
+export async function listPremiumUserIds(
+	userIds: string[],
+): Promise<Set<string>> {
+	if (userIds.length === 0) return new Set();
+	const rows = await db
+		.select({
+			referenceId: subscription.referenceId,
+			status: subscription.status,
+			periodEnd: subscription.periodEnd,
+		})
+		.from(subscription)
+		.where(
+			and(
+				inArray(subscription.referenceId, userIds),
+				inArray(subscription.status, [...ENTITLED_STATUSES]),
+			),
+		);
+	const byUser = new Map<
+		string,
+		{ status: string | null; periodEnd: Date | null }[]
+	>();
+	for (const row of rows) {
+		const list = byUser.get(row.referenceId) ?? [];
+		list.push({ status: row.status, periodEnd: row.periodEnd });
+		byUser.set(row.referenceId, list);
+	}
+	const premium = new Set<string>();
+	for (const [userId, subs] of byUser) {
+		if (resolvePlan(subs) === "premium") premium.add(userId);
+	}
+	return premium;
+}
+
 /** ユーザーが現在プレミアム会員(有効なサブスクリプション保持)か判定する。 */
 export async function isPremiumUser(userId: string): Promise<boolean> {
 	const rows = await db

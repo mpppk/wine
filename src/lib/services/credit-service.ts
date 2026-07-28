@@ -60,6 +60,37 @@ const ORPHAN_RECLAIM_LIMIT = 10;
  */
 const ORPHAN_SCAN_WINDOW_MS = 40 * 24 * 60 * 60 * 1000;
 
+/**
+ * 1つの db.batch に載せる最大ステートメント数。
+ *
+ * db.batch は何本積んでも **1サブリクエスト**なので、上限内で大きく取るほど
+ * サブリクエスト数は減る。一方で1回のリクエストボディが際限なく膨らむのは避けたいので、
+ * 200ユーザ × 2ステートメントを数回に割る程度の値にしている(#253)。
+ */
+const BATCH_STATEMENT_CHUNK = 100;
+
+/**
+ * ステートメント列をチャンクに割って db.batch で流す。
+ *
+ * **チャンク間には原子性が無い**。ここに載せてよいのは「1ユーザぶんの
+ * 残高更新+台帳追記が同一チャンクに収まり、かつ各ユーザが requestId で冪等」な
+ * 書き込みだけ。途中で落ちても、再実行が残りを埋めて最終状態が同じになる形を保つ。
+ * ユーザ単位のペアが分断されないよう、偶数個ずつ切る。
+ */
+type BatchStatements = Parameters<typeof db.batch>[0];
+export type BatchStatement = BatchStatements[number];
+
+export async function runInChunkedBatches(
+	statements: readonly BatchStatement[],
+): Promise<void> {
+	for (let i = 0; i < statements.length; i += BATCH_STATEMENT_CHUNK) {
+		const chunk = statements.slice(i, i + BATCH_STATEMENT_CHUNK);
+		const [first, ...rest] = chunk;
+		if (!first) continue;
+		await db.batch([first, ...rest]);
+	}
+}
+
 export interface CreditBalance {
 	balance: number;
 	periodMonth: string;
@@ -92,6 +123,124 @@ export type ReserveResult =
  *   プレミアム昇格)は差分を追加付与する(#142)。requestId=grant_upgrade:{userId}:{YYYY-MM}
  *   の unique で月1本に絞り、翌JST月初のリセット付与までブロックが継続しないようにする。
  */
+/**
+ * ensureCurrentMonthGranted の複数ユーザ版。**単体版をループで呼ばないための存在**で、
+ * 付与の意味論は単体版と同一に保つ(同じ requestId 規約・同じ setWhere ガード・同じ
+ * grant/grant_upgrade の使い分け)。
+ *
+ * 単体版は1ユーザあたり残高SELECT・プラン判定SELECT・(必要なら)台帳SELECTと db.batch で
+ * 3〜4回の D1 呼び出しになる。一括付与(#116)は最大200ユーザなので、そのままループすると
+ * Workers のサブリクエスト上限(1リクエスト1,000)を超えて途中で落ちる(#253)。
+ * ここでは読み取りを3本のセットベースクエリにまとめ、書き込みは1つの db.batch
+ * (=1サブリクエスト)へ畳む。
+ *
+ * **意味論を単体版と一致させるのは呼び出し側ではなくテストの仕事**にしている
+ * (credit-service.workers.test.ts が同じ入力に対する両者の結果を突き合わせる)。
+ */
+export async function ensureCurrentMonthGrantedMany(
+	userIds: readonly string[],
+): Promise<void> {
+	const targets = [...new Set(userIds)];
+	if (targets.length === 0) return;
+	const month = currentMonthKey();
+
+	// 1) 残高行の付与月(当月へリセット済みか)
+	const balanceRows = await db
+		.select({
+			userId: creditBalance.userId,
+			periodMonth: creditBalance.periodMonth,
+		})
+		.from(creditBalance)
+		.where(inArray(creditBalance.userId, targets));
+	const balanceMonth = new Map(
+		balanceRows.map((r) => [r.userId, r.periodMonth]),
+	);
+
+	// 2) プラン判定(1クエリ)
+	const premium = await billingService.listPremiumUserIds(targets);
+
+	// 3) 当月の累計付与額(grant + grant_upgrade)。昇格の差分付与の判定に使う
+	const grantedRows = await db
+		.select({
+			userId: creditLedger.userId,
+			total: sql<number>`coalesce(sum(${creditLedger.amount}), 0)`,
+		})
+		.from(creditLedger)
+		.where(
+			and(
+				inArray(creditLedger.userId, targets),
+				eq(creditLedger.periodMonth, month),
+				inArray(creditLedger.type, ["grant", "grant_upgrade"]),
+			),
+		)
+		.groupBy(creditLedger.userId);
+	const grantedTotal = new Map(grantedRows.map((r) => [r.userId, r.total]));
+
+	const statements: BatchStatement[] = [];
+	for (const userId of targets) {
+		const target = monthlyGrantForPlan(premium.has(userId));
+		if (balanceMonth.get(userId) === month) {
+			// 当月付与済み。月途中のプラン昇格ぶんだけ差分付与する(単体版の topUpMidMonthUpgrade)
+			const diff = target - (grantedTotal.get(userId) ?? 0);
+			if (diff <= 0) continue;
+			const requestId = `grant_upgrade:${userId}:${month}`;
+			statements.push(
+				db
+					.update(creditBalance)
+					.set({
+						balance: sql`${creditBalance.balance} + ${diff}`,
+						updatedAt: new Date(),
+					})
+					.where(
+						and(
+							eq(creditBalance.userId, userId),
+							sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${requestId})`,
+						),
+					),
+				db
+					.insert(creditLedger)
+					.values({
+						id: crypto.randomUUID(),
+						userId,
+						amount: diff,
+						type: "grant_upgrade",
+						requestId,
+						periodMonth: month,
+						tokenAmount: null,
+					})
+					.onConflictDoNothing({ target: creditLedger.requestId }),
+			);
+			continue;
+		}
+		// 当月未付与(新月 / 残高行なし)。現プランの付与額でリセット付与する
+		const requestId = `grant:${userId}:${month}`;
+		statements.push(
+			db
+				.insert(creditLedger)
+				.values({
+					id: crypto.randomUUID(),
+					userId,
+					amount: target,
+					type: "grant",
+					requestId,
+					periodMonth: month,
+					tokenAmount: null,
+				})
+				.onConflictDoNothing({ target: creditLedger.requestId }),
+			db
+				.insert(creditBalance)
+				.values({ userId, balance: target, periodMonth: month })
+				.onConflictDoUpdate({
+					target: creditBalance.userId,
+					set: { balance: target, periodMonth: month, updatedAt: new Date() },
+					// 別リクエストが既に当月へリセット済みなら上書きしない(消費の巻き戻し防止)
+					setWhere: sql`${creditBalance.periodMonth} <> ${month}`,
+				}),
+		);
+	}
+	await runInChunkedBatches(statements);
+}
+
 export async function ensureCurrentMonthGranted(userId: string): Promise<void> {
 	const month = currentMonthKey();
 	const existing = await db
