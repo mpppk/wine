@@ -37,8 +37,10 @@ import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
 import {
 	ALLOWED_PHOTO_TYPES,
 	MAX_PHOTO_BYTES,
+	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
 	PHOTO_ACCEPT_ATTR,
+	PHOTO_FORMATS_LABEL_JA,
 	PHOTO_THUMB_JPEG_QUALITY,
 	PHOTO_THUMB_MAX_DIMENSION,
 	thumbKeyForPhotoKey,
@@ -189,11 +191,11 @@ export function DrunkWineForm({
 		for (const file of files) {
 			// サーバ側の 400 を待たずに弾く(制約は photo.ts と共通)
 			if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
-				rejectMsg = "対応していない画像形式です(JPEG/PNG/WebP/GIF)";
+				rejectMsg = `対応していない画像形式です(${PHOTO_FORMATS_LABEL_JA})`;
 				continue;
 			}
 			if (file.size > MAX_PHOTO_BYTES) {
-				rejectMsg = "写真は5MB以下にしてください";
+				rejectMsg = `写真は${MAX_PHOTO_SIZE_LABEL}以下にしてください`;
 				continue;
 			}
 			if (remaining <= 0) {
@@ -428,7 +430,8 @@ export function DrunkWineForm({
 					className="max-w-xs"
 				/>
 				<p className="text-xs text-muted-foreground">
-					JPEG・PNG・WebP・GIF、各5MBまで。最大{MAX_PHOTOS_PER_ENTRY}
+					{PHOTO_FORMATS_LABEL_JA}、各{MAX_PHOTO_SIZE_LABEL}まで。最大
+					{MAX_PHOTOS_PER_ENTRY}
 					枚(1枚目が代表・矢印で並べ替え)
 				</p>
 				{photos.length > 0 && (

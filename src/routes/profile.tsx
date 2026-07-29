@@ -19,11 +19,17 @@ import {
 	type RegionQaModelKey,
 } from "#/lib/ai/config";
 import { authClient } from "#/lib/auth-client";
+import { PREMIUM_PRICING } from "#/lib/billing/plans";
 import {
 	BILLING_STATUS_QUERY_KEY,
 	useBillingStatus,
 } from "#/lib/billing/use-billing";
 import { useCreditBalance } from "#/lib/credit/use-credit";
+import {
+	MAX_PHOTO_SIZE_LABEL,
+	PHOTO_ACCEPT_ATTR,
+	PHOTO_FORMATS_LABEL_JA,
+} from "#/lib/drunk-wine/photo";
 import { getSession } from "#/server/auth";
 import { redeemExtensionCode } from "#/server/billing";
 
@@ -168,12 +174,12 @@ function ProfilePage() {
 								<Input
 									ref={fileInputRef}
 									type="file"
-									accept="image/jpeg,image/png,image/webp,image/gif"
+									accept={PHOTO_ACCEPT_ATTR}
 									onChange={handleFileChange}
 									className="max-w-xs"
 								/>
 								<p className="text-xs text-muted-foreground">
-									JPEG・PNG・WebP・GIF、最大5MB
+									{PHOTO_FORMATS_LABEL_JA}、最大{MAX_PHOTO_SIZE_LABEL}
 								</p>
 							</div>
 						</div>
@@ -538,7 +544,10 @@ function PlanCard() {
 							<Link to="/pricing">プレミアムにアップグレード</Link>
 						</Button>
 						<p className="text-xs text-muted-foreground">
-							月額300円(年払いなら3,000円で2ヶ月分お得)。広告非表示などの特典があります。
+							月額{PREMIUM_PRICING.monthlyAmount.toLocaleString("ja-JP")}
+							円(年払いなら
+							{PREMIUM_PRICING.annualAmount.toLocaleString("ja-JP")}
+							円で2ヶ月分お得)。広告非表示などの特典があります。
 						</p>
 					</div>
 				)}

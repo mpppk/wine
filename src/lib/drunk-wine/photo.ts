@@ -3,22 +3,36 @@
 
 import { BadRequestError } from "#/lib/errors";
 
-// 許可MIMEの単一情報源。Set・accept属性はここから導出する
+// 許可MIMEの単一情報源。拡張子・Set・accept属性・画面に出す形式名はすべてここから
+// 導出する。形式を足すときはこの1箇所だけを直せば、入力欄の accept も説明文の
+// 「JPEG・PNG・WebP・GIF」も追随する
 // (src/lib/mcp/schemas.ts の z.enum はリテラルが必要なため手書きだが、
 // 変更時はここと同期すること)。
-export const PHOTO_EXT_MAP: Record<string, string> = {
-	"image/jpeg": "jpg",
-	"image/png": "png",
-	"image/webp": "webp",
-	"image/gif": "gif",
-};
+const PHOTO_FORMATS = {
+	"image/jpeg": { ext: "jpg", label: "JPEG" },
+	"image/png": { ext: "png", label: "PNG" },
+	"image/webp": { ext: "webp", label: "WebP" },
+	"image/gif": { ext: "gif", label: "GIF" },
+} as const;
+
+export const PHOTO_EXT_MAP: Record<string, string> = Object.fromEntries(
+	Object.entries(PHOTO_FORMATS).map(([mime, f]) => [mime, f.ext]),
+);
 
 export const ALLOWED_PHOTO_TYPES = new Set(Object.keys(PHOTO_EXT_MAP));
 
 /** <input type="file" accept=...> 用 */
 export const PHOTO_ACCEPT_ATTR = Object.keys(PHOTO_EXT_MAP).join(",");
 
+/** 説明文に出す許可形式の並び(例: 「JPEG・PNG・WebP・GIF」)。 */
+export const PHOTO_FORMATS_LABEL_JA = Object.values(PHOTO_FORMATS)
+	.map((f) => f.label)
+	.join("・");
+
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+/** 説明文・エラー文言に出す上限サイズ(例: 「5MB」)。 */
+export const MAX_PHOTO_SIZE_LABEL = `${MAX_PHOTO_BYTES / 1024 / 1024}MB`;
 
 /** 1エントリに添付できる写真の最大枚数(AI解析の入力トークン=クレジットの上限も兼ねる)。 */
 export const MAX_PHOTOS_PER_ENTRY = 6;
