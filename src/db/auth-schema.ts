@@ -73,7 +73,11 @@ export const account = sqliteTable(
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
+		// DB 側(drizzle/0002)には DEFAULT があるので、こちらにも同じ式を書いて
+		// 突合できる状態に揃える(#272)。better-auth のアダプタは insert 時に
+		// updatedAt を渡すため実行時の挙動は変わらない。
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
