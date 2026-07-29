@@ -1,3 +1,4 @@
+import { downscaleImage } from "#/components/cellar/photo-resize";
 import type { AnalyzeLabelResult } from "#/lib/services/ai-service";
 
 // エチケット自動入力のクライアント側ヘルパー。現在フォームに添付中の写真(新規ファイル+
@@ -12,39 +13,12 @@ export type AnalysisPhotoSource = File | { url: string };
 const ANALYSIS_MAX_DIMENSION = 1280;
 const ANALYSIS_JPEG_QUALITY = 0.85;
 
-/**
- * 画像を長辺 ANALYSIS_MAX_DIMENSION px 以下のJPEGに縮小する。
- * デコードや変換に失敗した場合は元ファイルのまま返す(サーバ側の5MB制限は
- * フォームで選択時に検証済み)。
- */
-async function downscaleForAnalysis(file: Blob): Promise<Blob> {
-	try {
-		// EXIFの回転をブラウザに解決させてからキャンバスへ描く
-		const bitmap = await createImageBitmap(file, {
-			imageOrientation: "from-image",
-		});
-		try {
-			const scale = Math.min(
-				1,
-				ANALYSIS_MAX_DIMENSION / Math.max(bitmap.width, bitmap.height),
-			);
-			if (scale >= 1 && file.type === "image/jpeg") return file;
-			const canvas = document.createElement("canvas");
-			canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-			canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-			const ctx = canvas.getContext("2d");
-			if (!ctx) return file;
-			ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-			const blob = await new Promise<Blob | null>((resolve) =>
-				canvas.toBlob(resolve, "image/jpeg", ANALYSIS_JPEG_QUALITY),
-			);
-			return blob ?? file;
-		} finally {
-			bitmap.close();
-		}
-	} catch {
-		return file;
-	}
+/** 解析用に縮小する(失敗時は元ファイルのまま送る)。 */
+function downscaleForAnalysis(file: Blob): Promise<Blob> {
+	return downscaleImage(file, {
+		maxDimension: ANALYSIS_MAX_DIMENSION,
+		quality: ANALYSIS_JPEG_QUALITY,
+	});
 }
 
 /** 解析ソースを解析用のBlobに解決する。既存写真(URL)は同一オリジンから取得する。 */
