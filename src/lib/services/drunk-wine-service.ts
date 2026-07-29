@@ -23,6 +23,7 @@ import type {
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
+import { type LogFields, logError } from "#/lib/logger";
 import { getAop, getVariety } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
@@ -528,6 +529,29 @@ export async function updateLatestWineTasting(
 	);
 }
 
+/**
+ * 写真の R2 後始末は **best-effort**。失敗しても呼び出し元へ伝播させず、ログだけ残す(#249)。
+ *
+ * 巻き戻し(補償)経路で `delete` の例外をそのまま投げると、**元の失敗を置き換えてしまう**。
+ * 画像偽装拒否の BadRequestError(400)が R2 の一時障害で 500 に化け、ログにも delete の
+ * 失敗しか残らないため、真因(put 失敗か検証拒否か)が追えなくなる。#158 で
+ * `refundReservationOnFailure` に入れた「補償失敗はログして元例外を通す」形をここにも適用する。
+ *
+ * 置換完了後の孤児掃除も同じ扱いにする。D1 の photo_keys は既に更新済みで、そちらが
+ * 正となる状態のため、R2 に残骸が残ることより「成功した更新を失敗として返す」ほうが害が大きい。
+ */
+async function cleanupPhotoObjects(
+	keys: string[],
+	fields: LogFields & { userId: string; entryId: string; phase: string },
+): Promise<void> {
+	if (keys.length === 0) return;
+	try {
+		await env.AVATARS.delete(keys);
+	} catch (cleanupErr) {
+		logError("photo cleanup failed", { ...fields, keys, err: cleanupErr });
+	}
+}
+
 export async function deleteDrunkWine(
 	userId: string,
 	id: string,
@@ -538,12 +562,13 @@ export async function deleteDrunkWine(
 		.returning({ photoKeys: drunkWine.photoKeys });
 	if (!row) throw new NotFoundError("Entry not found");
 	// R2は複数キー一括削除に対応(存在しないキーは無視される)。サムネイル(#237)も一緒に消す。
-	if (row.photoKeys.length > 0) {
-		await env.AVATARS.delete([
-			...row.photoKeys,
-			...row.photoKeys.map(thumbKeyForPhotoKey),
-		]);
-	}
+	// D1の行は既に消えているので、掃除の失敗で「削除できなかった」と返さない(#249)。
+	await cleanupPhotoObjects(
+		row.photoKeys.length > 0
+			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
+			: [],
+		{ userId, entryId: id, phase: "entry-deleted" },
+	);
 }
 
 export interface ListDrunkWinesOptions {
@@ -814,7 +839,13 @@ export async function syncDrunkWinePhotos(
 			}
 		}
 	} catch (e) {
-		if (putKeys.length > 0) await env.AVATARS.delete(putKeys);
+		// 巻き戻しの成否に関わらず元例外を投げる(掃除の失敗で真因を隠さない)。
+		await cleanupPhotoObjects(putKeys, {
+			userId,
+			entryId: id,
+			phase: "rollback",
+			originalErr: e,
+		});
 		throw e;
 	}
 
@@ -825,7 +856,11 @@ export async function syncDrunkWinePhotos(
 		.returning();
 	// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する
 	if (!row) {
-		if (putKeys.length > 0) await env.AVATARS.delete(putKeys);
+		await cleanupPhotoObjects(putKeys, {
+			userId,
+			entryId: id,
+			phase: "entry-deleted",
+		});
 		throw new NotFoundError("Entry not found");
 	}
 
@@ -833,9 +868,10 @@ export async function syncDrunkWinePhotos(
 	// サムネイルは原寸に追随させる(消し忘れるとR2に孤児が残り続ける)。
 	const nextSet = new Set(nextKeys);
 	const removed = currentKeys.filter((key) => !nextSet.has(key));
-	if (removed.length > 0) {
-		await env.AVATARS.delete([...removed, ...removed.map(thumbKeyForPhotoKey)]);
-	}
+	await cleanupPhotoObjects(
+		removed.length > 0 ? [...removed, ...removed.map(thumbKeyForPhotoKey)] : [],
+		{ userId, entryId: id, phase: "orphan-sweep" },
+	);
 
 	// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
 	// 返却用に読み直す(R2 の後始末が済んでから)。

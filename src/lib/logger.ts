@@ -3,7 +3,7 @@
 // server functions・サービス層・API ルート・MCP の失敗パスから呼ぶ。
 // クライアント(ブラウザ)では使わない — クライアントは従来どおり console.* を使う。
 
-type LogFields = Record<string, unknown>;
+export type LogFields = Record<string, unknown>;
 
 /** Error はメッセージ+名前に畳んで記録する(生スタックは肥大化するため出さない)。 */
 export function errToString(e: unknown): string {
