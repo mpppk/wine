@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "#/lib/auth";
-import {
-	ALLOWED_PHOTO_TYPES,
-	MAX_PHOTO_BYTES,
-	MAX_PHOTOS_PER_ENTRY,
-} from "#/lib/drunk-wine/photo";
+import { MAX_PHOTO_BYTES, MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import { HttpError } from "#/lib/errors";
+import {
+	API_ERROR_MESSAGES,
+	apiJson,
+	apiJsonError,
+	readImageFormData,
+	requireApiSession,
+	validateDeclaredPhotoFiles,
+} from "#/lib/images/form-api";
 import { logError } from "#/lib/logger";
 import {
 	type PhotoLayoutItem,
@@ -23,13 +26,6 @@ import {
 //      { "type": "existing", "key": R2キー } … 既存写真を保持
 //      { "type": "new", "index": number }    … photo[index] を新規追加
 // R2キーの実体はサービス層が採番するため、クライアントは new を index で指す。
-
-function jsonError(message: string, status: number): Response {
-	return new Response(JSON.stringify({ error: message }), {
-		status,
-		headers: { "Content-Type": "application/json" },
-	});
-}
 
 type LayoutEntry =
 	| { type: "existing"; key: string }
@@ -73,33 +69,15 @@ export const Route = createFileRoute("/api/wine-photos")({
 	server: {
 		handlers: {
 			POST: async ({ request }) => {
-				const session = await auth.api.getSession({
-					headers: request.headers,
-				});
-				if (!session) return jsonError("Unauthorized", 401);
+				const session = await requireApiSession(request);
+				if (session instanceof Response) return session;
 
-				// formData() はボディ全体をメモリに載せるため、明らかに大きい
-				// リクエストはパース前に弾く(全枚数ぶん + multipart境界等のオーバーヘッド)
-				const contentLength = Number(
-					request.headers.get("content-length") ?? 0,
-				);
-				if (
-					contentLength >
-					MAX_PHOTO_BYTES * MAX_PHOTOS_PER_ENTRY + 64 * 1024
-				) {
-					return jsonError("Files exceed size limit", 413);
-				}
-
-				let formData: FormData;
-				try {
-					formData = await request.formData();
-				} catch {
-					return jsonError("Invalid form data", 400);
-				}
+				const formData = await readImageFormData(request);
+				if (formData instanceof Response) return formData;
 
 				const entryId = formData.get("entryId");
 				if (typeof entryId !== "string" || entryId.length === 0) {
-					return jsonError("No entryId provided", 400);
+					return apiJsonError("No entryId provided", 400);
 				}
 
 				const files = formData
@@ -110,21 +88,15 @@ export const Route = createFileRoute("/api/wine-photos")({
 				const thumbs = formData
 					.getAll("thumb")
 					.filter((f): f is File => f instanceof File);
-				for (const file of files) {
-					if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
-						return jsonError("Unsupported image type", 400);
-					}
-					if (file.size > MAX_PHOTO_BYTES) {
-						return jsonError("File exceeds 5 MB limit", 400);
-					}
-				}
+				const invalid = validateDeclaredPhotoFiles(files);
+				if (invalid) return invalid;
 
 				const layout = parseLayout(formData.get("layout"), files.length);
 				if (!layout) {
-					return jsonError("Invalid layout", 400);
+					return apiJsonError("Invalid layout", 400);
 				}
 				if (layout.length > MAX_PHOTOS_PER_ENTRY) {
-					return jsonError(`写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`, 400);
+					return apiJsonError(API_ERROR_MESSAGES.tooManyPhotos, 400);
 				}
 
 				// layout(index参照)を実バイト列へ解決してサービス層の PhotoLayoutItem に変換
@@ -135,7 +107,7 @@ export const Route = createFileRoute("/api/wine-photos")({
 						continue;
 					}
 					const file = files[entry.index];
-					if (!file) return jsonError("Invalid layout", 400);
+					if (!file) return apiJsonError("Invalid layout", 400);
 					const thumb = thumbs[entry.index];
 					items.push({
 						kind: "new",
@@ -154,22 +126,19 @@ export const Route = createFileRoute("/api/wine-photos")({
 						entryId,
 						items,
 					);
-					return new Response(JSON.stringify({ entry }), {
-						status: 200,
-						headers: { "Content-Type": "application/json" },
-					});
+					return apiJson({ entry });
 				} catch (e) {
 					// サービス層が投げる HttpError(404/400等)は status とメッセージを透過する。
 					// 文字列一致でstatusを決める従来方式は文言変更で壊れるため廃止(#153)。
 					if (e instanceof HttpError) {
-						return jsonError(e.message, e.status);
+						return apiJsonError(e.message, e.status);
 					}
 					// 想定外の内部失敗は文脈付きで記録し、生メッセージは出さず500で返す(#156)。
 					logError("wine photo sync failed", {
 						userId: session.user.id,
 						err: e,
 					});
-					return jsonError("写真の保存に失敗しました", 500);
+					return apiJsonError("写真の保存に失敗しました", 500);
 				}
 			},
 		},
