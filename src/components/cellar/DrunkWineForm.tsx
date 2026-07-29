@@ -28,6 +28,8 @@ import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCredi
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { LiveRegion } from "#/components/ui/live-region";
+import { TAP_TARGET_44 } from "#/lib/a11y";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import { CREDIT_BALANCE_QUERY_KEY } from "#/lib/credit/use-credit";
 import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
@@ -39,6 +41,7 @@ import {
 } from "#/lib/drunk-wine/photo";
 import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
+import { cn } from "#/lib/utils";
 import { createDrunkWine, updateDrunkWine } from "#/server/drunk-wine";
 
 export interface DrunkWineFormProps {
@@ -344,13 +347,21 @@ export function DrunkWineForm({
 									代表
 								</span>
 							)}
+							{/*
+							  当たり判定は TAP_TARGET_44 で44px確保する(#239)。削除は確認なしで
+							  即実行されるため、並べ替えとは対角(右上 / 左下・右下)に置いて
+							  中心を64px離し、44pxの判定が重ならないようにしている。
+							*/}
 							<button
 								type="button"
 								aria-label={`写真${index + 1}を削除`}
 								onClick={() => removePhoto(p.localId)}
-								className="absolute right-1 top-1 rounded-full bg-foreground/70 p-0.5 text-background transition-colors hover:bg-foreground"
+								className={cn(
+									"absolute right-1 top-1 rounded-full bg-foreground/70 p-1 text-background transition-colors hover:bg-foreground",
+									TAP_TARGET_44,
+								)}
 							>
-								<XIcon className="size-3.5" aria-hidden />
+								<XIcon className="size-4" aria-hidden />
 							</button>
 							<div className="absolute inset-x-1 bottom-1 flex justify-between">
 								<button
@@ -358,18 +369,24 @@ export function DrunkWineForm({
 									aria-label={`写真${index + 1}を前へ`}
 									disabled={index === 0}
 									onClick={() => movePhoto(p.localId, -1)}
-									className="rounded bg-background/80 p-0.5 text-foreground transition-opacity hover:bg-background disabled:opacity-30"
+									className={cn(
+										"rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
+										TAP_TARGET_44,
+									)}
 								>
-									<ArrowLeftIcon className="size-3.5" aria-hidden />
+									<ArrowLeftIcon className="size-4" aria-hidden />
 								</button>
 								<button
 									type="button"
 									aria-label={`写真${index + 1}を後ろへ`}
 									disabled={index === photos.length - 1}
 									onClick={() => movePhoto(p.localId, 1)}
-									className="rounded bg-background/80 p-0.5 text-foreground transition-opacity hover:bg-background disabled:opacity-30"
+									className={cn(
+										"rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
+										TAP_TARGET_44,
+									)}
 								>
-									<ArrowRightIcon className="size-3.5" aria-hidden />
+									<ArrowRightIcon className="size-4" aria-hidden />
 								</button>
 							</div>
 						</li>
@@ -455,7 +472,10 @@ export function DrunkWineForm({
 				}
 			/>
 
-			{error && <p className="text-sm text-destructive">{error}</p>}
+			{/* 送信失敗は対処が要るので assertive。空でもコンテナを残さないと読み上げられない(#239) */}
+			<LiveRegion tone="alert" className="empty:-mt-6">
+				{error && <p className="text-sm text-destructive">{error}</p>}
+			</LiveRegion>
 
 			<Button
 				type="submit"

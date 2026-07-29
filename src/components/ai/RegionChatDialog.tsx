@@ -11,6 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import { LiveRegion } from "#/components/ui/live-region";
 import { Textarea } from "#/components/ui/textarea";
 import type { ChatMessage } from "#/lib/ai/region-qa";
 import {
@@ -80,6 +81,9 @@ export function RegionChatDialog({
 	});
 
 	const trimmed = input.trim();
+	// 直近のAI回答。読み上げ用のライブリージョンに載せる(#239)
+	const last = messages[messages.length - 1];
+	const lastAnswer = last?.role === "assistant" ? last.content : null;
 	const outOfCredits = balance !== null && balance <= 0;
 	const canSend =
 		isAuthenticated &&
@@ -144,14 +148,27 @@ export function RegionChatDialog({
 									/>
 								))}
 								{pendingQuestion && (
-									<>
-										<ChatBubble speaker="user" content={pendingQuestion} />
-										<p className="text-sm text-muted-foreground">考え中…</p>
-									</>
+									<ChatBubble speaker="user" content={pendingQuestion} />
 								)}
+								{/*
+								  送信後の「考え中…」と回答の到着を読み上げる(#239)。会話ログ自体は
+								  ライブリージョンにしない(履歴が変わるたび全部読み上げてしまう)。
+								  クレジットを消費する操作なので、無反応に見えないことが要る。
+								*/}
+								<LiveRegion className="empty:-mt-3">
+									{pendingQuestion ? (
+										<p className="text-sm text-muted-foreground">考え中…</p>
+									) : (
+										// 回答は画面上は吹き出しに出ているので、読み上げ用にだけ複製する
+										lastAnswer && <p className="sr-only">{lastAnswer}</p>
+									)}
+								</LiveRegion>
 							</div>
 
-							{error && <p className="text-sm text-destructive">{error}</p>}
+							{/* エラーは対処が要るので assertive。空でもコンテナは残す */}
+							<LiveRegion tone="alert" className="empty:-mt-3">
+								{error && <p className="text-sm text-destructive">{error}</p>}
+							</LiveRegion>
 							{outOfCredits && (
 								<p className="text-sm text-muted-foreground">
 									今月のAIクレジットを使い切りました。翌月に付与されます。
