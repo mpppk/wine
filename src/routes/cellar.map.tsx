@@ -10,6 +10,7 @@ import {
 import { useMemo, useState } from "react";
 import { z } from "zod";
 import { CellarFilterChips } from "#/components/cellar/CellarFilterChips";
+import { CellarStatusLegend } from "#/components/cellar/CellarStatusLegend";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { AopMapView } from "#/components/wine/AopMapView";
@@ -21,13 +22,7 @@ import {
 	DEFAULT_CELLAR_FILTER,
 	matchesCellarFilter,
 } from "#/lib/drunk-wine/filter";
-import { STATUS_COLORS } from "#/lib/drunk-wine/map-style";
-import {
-	buildAopStatusMap,
-	hasMixedAopStatus,
-	WINE_STATUS_LABELS_JA,
-	WINE_STATUSES,
-} from "#/lib/drunk-wine/status";
+import { buildAopStatusMap, hasMixedAopStatus } from "#/lib/drunk-wine/status";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
@@ -311,7 +306,12 @@ function CellarMapPage() {
 					</div>
 				)}
 
-				{region && <StatusLegend showMixedNote={mixedStatus} />}
+				{region && (
+					<CellarStatusLegend
+						showMixedNote={mixedStatus}
+						className="absolute bottom-3 left-3"
+					/>
+				)}
 
 				{/* デスクトップ: 右サイドバー / モバイル: 下部オーバーレイ */}
 				{selectedAop && selectedAopEntries.length > 0 && (
@@ -337,38 +337,6 @@ function CellarMapPage() {
 				)}
 			</div>
 		</main>
-	);
-}
-
-/**
- * 所有状態の凡例。混在AOPは1色に畳んでいるので、その旨を「すべて」表示のときだけ
- * 注記する(単一状態に絞れば混在自体が起きないため)。
- */
-function StatusLegend({ showMixedNote }: { showMixedNote: boolean }) {
-	return (
-		<div className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[15rem] rounded-md border border-border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
-			<div className="mb-1 font-medium">所有状態</div>
-			<ul className="flex flex-col gap-1">
-				{WINE_STATUSES.map((s) => (
-					<li key={s.id} className="flex items-center gap-1.5">
-						<span
-							className="inline-block size-3.5 shrink-0 rounded-sm border"
-							style={{
-								backgroundColor: STATUS_COLORS[s.id].fill,
-								borderColor: STATUS_COLORS[s.id].line,
-							}}
-						/>
-						<span>{WINE_STATUS_LABELS_JA[s.id]}</span>
-					</li>
-				))}
-			</ul>
-			{showMixedNote && (
-				<p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
-					同じAOPに複数の状態があるときは
-					{WINE_STATUS_LABELS_JA.owned}を優先して表示します。
-				</p>
-			)}
-		</div>
 	);
 }
 
