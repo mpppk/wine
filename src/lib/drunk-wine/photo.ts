@@ -20,6 +20,27 @@ export const PHOTO_ACCEPT_ATTR = Object.keys(PHOTO_EXT_MAP).join(",");
 
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
+/**
+ * UI表示用の上限サイズ(「最大5MB」の "5MB" 部分)。文言に数値を直書きすると
+ * MAX_PHOTO_BYTES を変えたときに画面だけ旧値が残る(#257)。
+ */
+export const MAX_PHOTO_SIZE_LABEL = `${MAX_PHOTO_BYTES / (1024 * 1024)}MB`;
+
+/**
+ * UI表示用の対応形式ラベル(「JPEG・PNG・WebP・GIF」)。accept 属性と同じ集合から
+ * 導出するので、許可MIMEを増減すると画面の文言も追随する。
+ */
+export const PHOTO_FORMATS_LABEL = Object.keys(PHOTO_EXT_MAP)
+	.map((mime) => {
+		const ext = mime.slice("image/".length);
+		return ext === "jpeg"
+			? "JPEG"
+			: ext === "webp"
+				? "WebP"
+				: ext.toUpperCase();
+	})
+	.join("・");
+
 /** 1エントリに添付できる写真の最大枚数(AI解析の入力トークン=クレジットの上限も兼ねる)。 */
 export const MAX_PHOTOS_PER_ENTRY = 6;
 

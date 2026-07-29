@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+	ALLOWED_PHOTO_TYPES,
 	buildWinePhotoKey,
 	decodePhotoBase64,
 	isPhotoThumbKey,
 	MAX_PHOTO_BYTES,
+	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
+	PHOTO_ACCEPT_ATTR,
+	PHOTO_FORMATS_LABEL,
 	photoExtForMime,
 	photoKeyForThumbKey,
 	resolveStoredPhotoMime,
@@ -206,5 +210,24 @@ describe("サムネイルキーの導出 (#237)", () => {
 	it("所有者の判定は原寸キーと同じ経路で通る(セグメント数を変えない)", () => {
 		// wines/{userId}/{entryId}/{photoId}.{ext} の4セグメントを保つ
 		expect(thumbKeyForPhotoKey(photoKey).split("/")).toHaveLength(4);
+	});
+});
+
+describe("UI表示用ラベル (#257)", () => {
+	it("対応形式ラベルは許可MIMEから導出される", () => {
+		// 画面の文言を直書きすると、許可MIMEを増減したときに画面だけ旧いままになる
+		expect(PHOTO_FORMATS_LABEL).toBe("JPEG・PNG・WebP・GIF");
+		expect(PHOTO_FORMATS_LABEL.split("・")).toHaveLength(
+			ALLOWED_PHOTO_TYPES.size,
+		);
+	});
+
+	it("上限サイズラベルは MAX_PHOTO_BYTES から導出される", () => {
+		expect(MAX_PHOTO_SIZE_LABEL).toBe("5MB");
+		expect(MAX_PHOTO_SIZE_LABEL).toBe(`${MAX_PHOTO_BYTES / (1024 * 1024)}MB`);
+	});
+
+	it("accept 属性も同じ集合から導出される", () => {
+		expect(PHOTO_ACCEPT_ATTR.split(",")).toEqual([...ALLOWED_PHOTO_TYPES]);
 	});
 });

@@ -37,8 +37,10 @@ import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
 import {
 	ALLOWED_PHOTO_TYPES,
 	MAX_PHOTO_BYTES,
+	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
 	PHOTO_ACCEPT_ATTR,
+	PHOTO_FORMATS_LABEL,
 	PHOTO_THUMB_JPEG_QUALITY,
 	PHOTO_THUMB_MAX_DIMENSION,
 	thumbKeyForPhotoKey,
@@ -428,7 +430,8 @@ export function DrunkWineForm({
 					className="max-w-xs"
 				/>
 				<p className="text-xs text-muted-foreground">
-					JPEG・PNG・WebP・GIF、各5MBまで。最大{MAX_PHOTOS_PER_ENTRY}
+					{PHOTO_FORMATS_LABEL}、各{MAX_PHOTO_SIZE_LABEL}まで。最大
+					{MAX_PHOTOS_PER_ENTRY}
 					枚(1枚目が代表・矢印で並べ替え)
 				</p>
 				{photos.length > 0 && (

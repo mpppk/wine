@@ -18,6 +18,20 @@ export const PREMIUM_PRICING = {
 	annualAmount: 3000,
 } as const;
 
+/** 表示用に円をカンマ区切りへ(料金の見せ方を画面間で揃える)。 */
+export function formatJpyAmount(amount: number): string {
+	return amount.toLocaleString("ja-JP");
+}
+
+/**
+ * 年払いが月額の何ヶ月ぶんお得かを**金額から導出**する(小数は切り捨て)。
+ * 「2ヶ月分お得」を文言に直書きすると、料金を変えたときに画面だけ嘘になる(#257)。
+ */
+export function premiumAnnualSavedMonths(): number {
+	const { monthlyAmount, annualAmount } = PREMIUM_PRICING;
+	return Math.floor((monthlyAmount * 12 - annualAmount) / monthlyAmount);
+}
+
 // AIクレジットの付与・換算の定数。いずれも暫定値であり、Workers AI の原価が見えた
 // 段階で数値のみ差し替える(docs/ai-credit-system.md の「数値（暫定）」)。
 // クレジットの内部計上はトークン精度で行い、ユーザ表示はここでの換算比で丸めた整数。
