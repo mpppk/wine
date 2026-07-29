@@ -24,11 +24,7 @@ import {
 } from "#/lib/wine/affiliate";
 import type { AopAncestry } from "#/lib/wine/aop-tree";
 import { buildDescriptionSegments } from "#/lib/wine/description-links";
-import {
-	GRAND_CRU_TAG_COLOR,
-	KIND_COLORS,
-	KIND_LABELS_JA,
-} from "#/lib/wine/map-style";
+import { GRAND_CRU_TAG_COLOR, KIND_COLORS } from "#/lib/wine/map-style";
 import {
 	getProducerInfo,
 	type ProducerAward,
@@ -40,9 +36,9 @@ import {
 } from "#/lib/wine/tags";
 import {
 	COLOR_LABELS_JA,
+	getAopKindLabelJa,
 	getAppellationBadgeJa,
 	getBoundarySourceNoteJa,
-	getVineyardTermJa,
 } from "#/lib/wine/terminology";
 import type { Aop, Region } from "#/lib/wine/types";
 import { getVariety } from "#/lib/wine/varieties";
@@ -53,10 +49,7 @@ export function KindBadge({ aop }: { aop: Aop }) {
 		? GRAND_CRU_TAG_COLOR
 		: KIND_COLORS[aop.kind];
 	// 畑(vineyard)区分は地域固有の呼称(ブルゴーニュ=クリマ/アルザス=リュー・ディ)で示す
-	const kindLabel =
-		aop.kind === "vineyard"
-			? getVineyardTermJa(aop.region)
-			: KIND_LABELS_JA[aop.kind];
+	const kindLabel = getAopKindLabelJa(aop.kind, aop.region);
 	return (
 		<span
 			className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs font-medium"
@@ -169,10 +162,7 @@ export function AopDetailPanel({
 }) {
 	// 前後移動・戻るのいずれかが渡されたときだけナビ行を表示する
 	const showNav = onPrev !== undefined || onNext !== undefined;
-	const kindLabel =
-		aop.kind === "vineyard"
-			? getVineyardTermJa(aop.region)
-			: KIND_LABELS_JA[aop.kind];
+	const kindLabel = getAopKindLabelJa(aop.kind, aop.region);
 	return (
 		<div className={compact ? "space-y-2 p-3" : "space-y-3 p-4"}>
 			{onBack && (
