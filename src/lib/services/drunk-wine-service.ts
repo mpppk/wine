@@ -23,6 +23,7 @@ import type {
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
+import { logError } from "#/lib/logger";
 import { getAop, getVariety } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
@@ -742,6 +743,34 @@ export type PhotoLayoutItem =
 	  };
 
 /**
+ * 今回 put した R2 オブジェクトの巻き戻し。**補償の失敗で呼び出し元の結果を置き換えない**。
+ *
+ * 素で `await env.AVATARS.delete(...)` すると、R2 の一時障害時に delete のエラーが伝播して
+ * 元の失敗(画像偽装拒否の BadRequestError など)を上書きし、400 が 500 に化ける。さらに
+ * ログにも delete 失敗しか残らないため、真因(put 失敗か検証拒否か)が消えて調査が詰む。
+ * #158 で refundReservationOnFailure に施したのと同じ「補償は包んでログし、元の結果を必ず
+ * 通す」イディオムを揃える(#249)。
+ */
+async function rollbackPutKeys(
+	keys: readonly string[],
+	ctx: { userId: string; entryId: string; originalErr?: unknown },
+): Promise<void> {
+	if (keys.length === 0) return;
+	try {
+		await env.AVATARS.delete([...keys]);
+	} catch (err) {
+		logError("photo rollback failed", {
+			userId: ctx.userId,
+			entryId: ctx.entryId,
+			keys,
+			err,
+			// 巻き戻しの契機になった元の失敗。これが消えると真因が追えない
+			originalErr: ctx.originalErr,
+		});
+	}
+}
+
+/**
  * エントリの写真集合を layout(最終並び順)へ全置換で同期する。追加・削除・並べ替え・
  * 差し替えを1回で反映する。新規はR2へ保存し、旧配列にあって残らないキーは削除して
  * 残骸を残さない。layout の existing キーは対象エントリの現在の集合に属するもののみ
@@ -814,7 +843,9 @@ export async function syncDrunkWinePhotos(
 			}
 		}
 	} catch (e) {
-		if (putKeys.length > 0) await env.AVATARS.delete(putKeys);
+		// 巻き戻しの失敗で元の例外を置き換えない(#249)。素で await すると、R2 の一時障害時に
+		// delete のエラーが伝播し、画像偽装拒否の BadRequestError(400) が 500 に化ける。
+		await rollbackPutKeys(putKeys, { userId, entryId: id, originalErr: e });
 		throw e;
 	}
 
@@ -823,9 +854,10 @@ export async function syncDrunkWinePhotos(
 		.set({ photoKeys: nextKeys })
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning();
-	// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する
+	// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する。
+	// ここも掃除の失敗で NotFoundError(404) を 500 に化けさせない(#249)。
 	if (!row) {
-		if (putKeys.length > 0) await env.AVATARS.delete(putKeys);
+		await rollbackPutKeys(putKeys, { userId, entryId: id });
 		throw new NotFoundError("Entry not found");
 	}
 

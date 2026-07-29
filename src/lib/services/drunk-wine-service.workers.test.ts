@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { desc, eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { drunkWine, wineTasting } from "#/db/schema";
@@ -11,6 +11,7 @@ import {
 } from "#/lib/drunk-wine/filter";
 import { thumbKeyForPhotoKey } from "#/lib/drunk-wine/photo";
 import type { WineStatus } from "#/lib/drunk-wine/status";
+import { BadRequestError } from "#/lib/errors";
 import { imageKeyFromPath } from "#/lib/images/signed-url";
 import {
 	addWineTasting,
@@ -694,5 +695,74 @@ describe("写真サムネイルの保存と削除", () => {
 		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
 		expect(await objectExists(photoKey)).toBe(true);
 		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
+	});
+});
+
+describe("写真同期の巻き戻し (#249)", () => {
+	const JPEG_1X1 = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+	/** 画像として認識できないバイト列(resolveStoredPhotoMime が弾く) */
+	const NOT_AN_IMAGE = new TextEncoder().encode("<html>not an image</html>");
+
+	/** R2 の delete だけを失敗させる(put/head は素通し) */
+	function breakDelete(): () => void {
+		const bucket = env.AVATARS as unknown as { delete: unknown };
+		const original = bucket.delete;
+		bucket.delete = () => Promise.reject(new Error("R2 unavailable"));
+		return () => {
+			bucket.delete = original;
+		};
+	}
+
+	it("巻き戻しに失敗しても元の 400 が 500 に化けない", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "巻き戻し" });
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		const restore = breakDelete();
+		try {
+			// 1枚目は保存され(=巻き戻し対象ができる)、2枚目の検証で弾かれる
+			await expect(
+				syncDrunkWinePhotos(userId, entry.id, [
+					{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+					{ kind: "new", bytes: NOT_AN_IMAGE, mimeType: "image/jpeg" },
+				]),
+			).rejects.toBeInstanceOf(BadRequestError);
+		} finally {
+			restore();
+		}
+
+		// 補償の失敗は握り潰さずログに残す(真因を追えるよう元例外も添える)
+		// mockRestore は calls も消すので、読み終えてから戻す
+		const line = JSON.parse(String(errors.mock.calls[0]?.[0]));
+		errors.mockRestore();
+		expect(line).toMatchObject({
+			level: "error",
+			msg: "photo rollback failed",
+			userId,
+			entryId: entry.id,
+		});
+		expect(line.err).toContain("R2 unavailable");
+		expect(line.originalErr).toContain("BadRequestError");
+	});
+
+	it("巻き戻しに成功した場合はログを出さない(障害シグナルを薄めない)", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "正常な巻き戻し" });
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			await expect(
+				syncDrunkWinePhotos(userId, entry.id, [
+					{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+					{ kind: "new", bytes: NOT_AN_IMAGE, mimeType: "image/jpeg" },
+				]),
+			).rejects.toBeInstanceOf(BadRequestError);
+			expect(errors).not.toHaveBeenCalled();
+		} finally {
+			errors.mockRestore();
+		}
 	});
 });
