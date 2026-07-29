@@ -17,7 +17,10 @@ interface MyRouterContext {
 	queryClient: QueryClient;
 }
 
-const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode==='auto'){root.removeAttribute('data-theme')}else{root.setAttribute('data-theme',mode)}root.style.colorScheme=resolved;}catch(e){}})();`;
+// 保存値は 'light' | 'dark' の2値のみ(src/lib/theme.ts の ThemeMode が SSOT)。
+// 未保存・不正値は OS の設定に従う。以前は 'auto' という第3の保存値も受け付けていたが、
+// アプリはそれを書き込まないため到達しない分岐だった(#262)。
+const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark')?stored:null;var resolved=mode||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode){root.setAttribute('data-theme',mode)}else{root.removeAttribute('data-theme')}root.style.colorScheme=resolved;}catch(e){}})();`;
 
 // ハイドレーション前に localStorage を見て html の状態を整えるブートストラップ。
 // テーマのFOUCと、閉じたスターターガイドのちらつきを防ぐ。どちらも「描画前に

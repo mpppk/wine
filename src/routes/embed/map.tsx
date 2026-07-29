@@ -12,7 +12,6 @@ import {
 	getAopAncestry,
 	getSameKindSiblings,
 } from "#/lib/wine/aop-tree";
-import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getRegion, getVariety, listAops } from "#/lib/wine/service";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
 import { getAffiliateConfig } from "#/server/affiliate";
@@ -106,7 +105,6 @@ function EmbedMapPage() {
 				aops={aops}
 				selectedAopId={selectedAopId}
 				grapeVarietyId={grapeVariety?.id}
-				visibleKinds={AOP_KINDS}
 				onSelectAop={setSelectedAopId}
 				getFitInset={getInset}
 				className="h-full w-full"
