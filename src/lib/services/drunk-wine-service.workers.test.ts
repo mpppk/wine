@@ -4,7 +4,14 @@ import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { drunkWine, wineTasting } from "#/db/schema";
 import {
+	CELLAR_FILTER_IDS,
+	countCellarFilters as countCellarFiltersPure,
+	matchesCellarFilter,
+} from "#/lib/drunk-wine/filter";
+import type { WineStatus } from "#/lib/drunk-wine/status";
+import {
 	addWineTasting,
+	countCellarFilters,
 	createDrunkWine,
 	deleteDrunkWine,
 	deleteWineTasting,
@@ -179,7 +186,9 @@ describe("集計キャッシュの再計算", () => {
 
 		// 一覧・単体取得(SELECT 経路)でも同じ値になること。相関サブクエリは
 		// UPDATE と SELECT で描画のされ方が違い、修飾を誤ると静かに null になる。
-		const listed = (await listDrunkWines(userId)).find((e) => e.id === wineId);
+		const listed = (await listDrunkWines(userId)).entries.find(
+			(e) => e.id === wineId,
+		);
 		expect(listed?.lastRating).toBe(5);
 		expect(listed?.lastMemo).toBe("新しい");
 		const fetched = await getDrunkWine(userId, wineId);
@@ -427,5 +436,155 @@ describe("集計キャッシュの復旧", () => {
 		expect(row?.tastingCount).toBe(1);
 		expect(row?.lastDrankOn).toBe("2019-09-09");
 		expect(row?.status).toBe("finished");
+	});
+});
+
+// ---- 一覧のページネーションと絞り込み (#254) --------------------------------
+// マイセラーはユーザが単調に増やすデータで上限が無い。全件取得のままだと行スキャン・
+// レスポンスサイズ・MCP のトークン消費が件数に線形で悪化する。ページ境界と、
+// SQL 側の絞り込みが純関数の述語(matchesCellarFilter)と一致することを実データで固定する。
+
+describe("listDrunkWines のページネーション", () => {
+	/** created_at を明示して n 件作る(カーソルの並び順を決定的にする)。 */
+	async function seedEntries(
+		userId: string,
+		specs: { name: string; status?: WineStatus; createdAt: number }[],
+	) {
+		for (const spec of specs) {
+			const entry = await createDrunkWine(userId, {
+				name: spec.name,
+				status: spec.status,
+			});
+			await db
+				.update(drunkWine)
+				.set({ createdAt: new Date(spec.createdAt) })
+				.where(eq(drunkWine.id, entry.id));
+		}
+	}
+
+	it("limit 未指定なら全件返す(地図はページ単位にできない)", async () => {
+		const userId = await freshUser();
+		await seedEntries(userId, [
+			{ name: "a", createdAt: 1000 },
+			{ name: "b", createdAt: 2000 },
+			{ name: "c", createdAt: 3000 },
+		]);
+		const page = await listDrunkWines(userId);
+		expect(page.entries).toHaveLength(3);
+		expect(page.nextCursor).toBeNull();
+	});
+
+	it("カーソルで続きを取ると、重複も取りこぼしもなく全件を辿れる", async () => {
+		const userId = await freshUser();
+		const specs = Array.from({ length: 7 }, (_, i) => ({
+			name: `w${i}`,
+			createdAt: 1000 + i,
+		}));
+		await seedEntries(userId, specs);
+
+		const seen: string[] = [];
+		let cursor: string | null | undefined;
+		for (let i = 0; i < 10; i++) {
+			const page = await listDrunkWines(userId, { limit: 3, cursor });
+			seen.push(...page.entries.map((e) => e.name));
+			cursor = page.nextCursor;
+			if (!cursor) break;
+		}
+		// 新しい順(createdAt 降順)で7件、重複なし
+		expect(seen).toEqual(["w6", "w5", "w4", "w3", "w2", "w1", "w0"]);
+		expect(new Set(seen).size).toBe(7);
+	});
+
+	it("created_at が同一でも行が飛ばない(id をタイブレーカにする)", async () => {
+		const userId = await freshUser();
+		await seedEntries(userId, [
+			{ name: "same-1", createdAt: 5000 },
+			{ name: "same-2", createdAt: 5000 },
+			{ name: "same-3", createdAt: 5000 },
+		]);
+		const first = await listDrunkWines(userId, { limit: 2 });
+		expect(first.entries).toHaveLength(2);
+		const second = await listDrunkWines(userId, {
+			limit: 2,
+			cursor: first.nextCursor,
+		});
+		const names = [...first.entries, ...second.entries].map((e) => e.name);
+		expect(new Set(names).size).toBe(3);
+	});
+
+	it("最終ページでは nextCursor が null になる", async () => {
+		const userId = await freshUser();
+		await seedEntries(userId, [
+			{ name: "a", createdAt: 1000 },
+			{ name: "b", createdAt: 2000 },
+		]);
+		const page = await listDrunkWines(userId, { limit: 2 });
+		expect(page.entries).toHaveLength(2);
+		expect(page.nextCursor).toBeNull();
+	});
+
+	it("limit は上限で頭打ちにする(MCP から巨大な値を渡されても効く)", async () => {
+		const userId = await freshUser();
+		await seedEntries(userId, [{ name: "a", createdAt: 1000 }]);
+		const page = await listDrunkWines(userId, { limit: 10_000 });
+		expect(page.entries).toHaveLength(1);
+	});
+
+	it("他人のエントリは混ざらない", async () => {
+		const mine = await freshUser();
+		const other = await freshUser();
+		await seedEntries(mine, [{ name: "mine", createdAt: 1000 }]);
+		await seedEntries(other, [{ name: "other", createdAt: 2000 }]);
+		const page = await listDrunkWines(mine, { limit: 10 });
+		expect(page.entries.map((e) => e.name)).toEqual(["mine"]);
+	});
+
+	it("SQL側の絞り込みが純関数の述語と一致する", async () => {
+		// 一覧チップの定義(matchesCellarFilter)を SQL に写しているので、両者が
+		// ズレると「チップの件数と中身が食い違う」形で壊れる。実データで突合する。
+		const userId = await freshUser();
+		const specs: { name: string; status: WineStatus; createdAt: number }[] = [
+			{ name: "wishlist-untasted", status: "wishlist", createdAt: 1000 },
+			{ name: "owned-untasted", status: "owned", createdAt: 2000 },
+			{ name: "finished-untasted", status: "finished", createdAt: 3000 },
+			{ name: "owned-tasted", status: "owned", createdAt: 4000 },
+			{ name: "finished-tasted", status: "finished", createdAt: 5000 },
+		];
+		await seedEntries(userId, specs);
+		for (const name of ["owned-tasted", "finished-tasted"]) {
+			const all = await listDrunkWines(userId);
+			const target = all.entries.find((e) => e.name === name);
+			if (target) await addWineTasting(userId, target.id, { rating: 4 });
+		}
+
+		const all = (await listDrunkWines(userId)).entries;
+		for (const filter of CELLAR_FILTER_IDS) {
+			const bySql = (await listDrunkWines(userId, { filter })).entries
+				.map((e) => e.name)
+				.sort();
+			const byPredicate = all
+				.filter((e) => matchesCellarFilter(e, filter))
+				.map((e) => e.name)
+				.sort();
+			expect(bySql, `filter=${filter}`).toEqual(byPredicate);
+		}
+	});
+
+	it("countCellarFilters が純関数の集計と一致する", async () => {
+		const userId = await freshUser();
+		await seedEntries(userId, [
+			{ name: "wishlist", status: "wishlist", createdAt: 1000 },
+			{ name: "owned", status: "owned", createdAt: 2000 },
+			{ name: "finished", status: "finished", createdAt: 3000 },
+		]);
+		const all = (await listDrunkWines(userId)).entries;
+		const target = all.find((e) => e.name === "owned");
+		if (target) await addWineTasting(userId, target.id, { rating: 3 });
+
+		const fromSql = await countCellarFilters(userId);
+		const fromEntries = countCellarFiltersPure(
+			(await listDrunkWines(userId)).entries,
+		);
+		expect(fromSql).toEqual(fromEntries);
 	});
 });

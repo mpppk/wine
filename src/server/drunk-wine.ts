@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { CELLAR_FILTER_IDS } from "#/lib/drunk-wine/filter";
+import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import {
 	createDrunkWineInput,
 	updateDrunkWineInput,
@@ -36,9 +38,28 @@ export const deleteDrunkWine = createServerFn({ method: "POST" })
 		drunkWineService.deleteDrunkWine(context.user.id, data.id),
 	);
 
+// 一覧はページネーション付き(#254)。地図は全ピンが要るので limit を渡さない。
 export const listDrunkWines = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
-	.handler(({ context }) => drunkWineService.listDrunkWines(context.user.id));
+	.inputValidator(
+		z
+			.object({
+				filter: z.enum(CELLAR_FILTER_IDS).optional(),
+				limit: z.number().int().min(1).max(DRUNK_WINE_MAX_PAGE_SIZE).optional(),
+				cursor: z.string().max(200).nullish(),
+			})
+			.optional(),
+	)
+	.handler(({ data, context }) =>
+		drunkWineService.listDrunkWines(context.user.id, data ?? {}),
+	);
+
+/** 一覧チップの件数。ページに載っていない行も数えるので集計だけを引く(#254)。 */
+export const countCellarFilters = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.handler(({ context }) =>
+		drunkWineService.countCellarFilters(context.user.id),
+	);
 
 export const getDrunkWine = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])

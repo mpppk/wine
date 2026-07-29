@@ -7,7 +7,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import { MapIcon, PlusIcon, WineIcon } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { CellarFilterChips } from "#/components/cellar/CellarFilterChips";
 import { RatingStars } from "#/components/cellar/RatingStars";
@@ -15,14 +15,17 @@ import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import {
 	CELLAR_FILTER_IDS,
-	countCellarFilters,
 	DEFAULT_CELLAR_FILTER,
-	matchesCellarFilter,
 } from "#/lib/drunk-wine/filter";
+import { DRUNK_WINE_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { getSession } from "#/server/auth";
-import { listDrunkWines, markWineDrunk } from "#/server/drunk-wine";
+import {
+	countCellarFilters,
+	listDrunkWines,
+	markWineDrunk,
+} from "#/server/drunk-wine";
 
 export const Route = createFileRoute("/cellar/")({
 	// 絞り込みは URL に載せる。地図(/cellar/map)との相互リンクで引き継ぐことが
@@ -41,7 +44,18 @@ export const Route = createFileRoute("/cellar/")({
 			throw redirect({ to: "/login" });
 		}
 	},
-	loader: () => listDrunkWines(),
+	// 絞り込みは SQL 側で適用する。ページに載っていない行も数えるため、チップの
+	// 件数は集計クエリで別に取る(#254)。
+	loaderDeps: ({ search }) => ({ filter: search.filter }),
+	loader: async ({ deps }) => {
+		const [page, counts] = await Promise.all([
+			listDrunkWines({
+				data: { filter: deps.filter, limit: DRUNK_WINE_PAGE_SIZE },
+			}),
+			countCellarFilters(),
+		]);
+		return { page, counts };
+	},
 	component: CellarPage,
 });
 
@@ -125,15 +139,34 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 }
 
 function CellarPage() {
-	const entries = Route.useLoaderData();
+	const { page, counts } = Route.useLoaderData();
 	const { filter } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 
-	const counts = useMemo(() => countCellarFilters(entries), [entries]);
-	const visible = useMemo(
-		() => entries.filter((e) => matchesCellarFilter(e, filter)),
-		[entries, filter],
-	);
+	// 追加読み込みぶんを積む。loader が返す1ページ目が変わったら積み直す
+	// (絞り込みの切り替え・保存後の invalidate)。
+	const [extra, setExtra] = useState<DrunkWineEntry[]>([]);
+	const [cursor, setCursor] = useState<string | null>(page.nextCursor);
+	const [loadingMore, setLoadingMore] = useState(false);
+	useEffect(() => {
+		setExtra([]);
+		setCursor(page.nextCursor);
+	}, [page]);
+
+	const visible = [...page.entries, ...extra];
+	const loadMore = async () => {
+		if (!cursor || loadingMore) return;
+		setLoadingMore(true);
+		try {
+			const next = await listDrunkWines({
+				data: { filter, limit: DRUNK_WINE_PAGE_SIZE, cursor },
+			});
+			setExtra((prev) => [...prev, ...next.entries]);
+			setCursor(next.nextCursor);
+		} finally {
+			setLoadingMore(false);
+		}
+	};
 
 	return (
 		<main className="mx-auto max-w-4xl px-4 py-10">
@@ -155,7 +188,7 @@ function CellarPage() {
 				</div>
 			</div>
 
-			{entries.length > 0 && (
+			{counts.all > 0 && (
 				<div className="mb-4">
 					<CellarFilterChips
 						value={filter}
@@ -167,7 +200,7 @@ function CellarPage() {
 				</div>
 			)}
 
-			{entries.length === 0 ? (
+			{counts.all === 0 ? (
 				<div className="flex flex-col items-center gap-4 rounded-lg border border-dashed border-border py-16">
 					<WineIcon className="size-10 text-muted-foreground/40" aria-hidden />
 					<p className="text-sm text-muted-foreground">
@@ -185,11 +218,25 @@ function CellarPage() {
 					この条件に該当するワインはありません。
 				</p>
 			) : (
-				<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-					{visible.map((entry) => (
-						<EntryCard key={entry.id} entry={entry} />
-					))}
-				</div>
+				<>
+					<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+						{visible.map((entry) => (
+							<EntryCard key={entry.id} entry={entry} />
+						))}
+					</div>
+					{cursor && (
+						<div className="mt-6 flex justify-center">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => void loadMore()}
+								disabled={loadingMore}
+							>
+								{loadingMore ? "読み込み中…" : "続きを読み込む"}
+							</Button>
+						</div>
+					)}
+				</>
 			)}
 		</main>
 	);
