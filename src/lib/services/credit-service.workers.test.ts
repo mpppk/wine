@@ -7,6 +7,7 @@ import { creditBalance, creditLedger } from "#/db/schema";
 import {
 	MONTHLY_CREDITS_FREE,
 	MONTHLY_CREDITS_PREMIUM,
+	TOKENS_PER_CREDIT,
 } from "#/lib/billing/plans";
 import { currentMonthKey } from "#/lib/credit/month";
 import type { CreditLedgerType } from "#/lib/credit/types";
@@ -169,15 +170,50 @@ describe("reserveCredits の原子性・冪等性 (#143)", () => {
 		await ensureCurrentMonthGranted(userId);
 	});
 
-	it("残高不足の予約は残高を引かず consume 台帳も残さない(打ち消し確認)", async () => {
+	it("残高不足の予約は残高を引かず consume 台帳も残さない", async () => {
 		// FREE=50 に対し 60 クレジット(60,000トークン)を要求 → 不足。
 		const requestId = `insufficient-${userId}`;
 		const res = await reserveCredits(userId, 60_000, requestId);
 
 		expect(res.ok).toBe(false);
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
-		// batch 内で入った consume 行が打ち消され、痕跡が残らない。
+		// consume 行はそもそも入らない(残高UPDATEと同じ条件で INSERT を弾く)。
+		// 以前は無条件に入れて batch の外の DELETE で打ち消していたため、その DELETE が
+		// 失敗すると幽霊 consume が恒久的に残った(#247)。
 		expect(await ledgerByRequestId(requestId)).toHaveLength(0);
+	});
+
+	it("残高ちょうどの予約は通り、consume 台帳が1本だけ入る (#247)", async () => {
+		// 境界値。台帳INSERTの条件が「減算後」の残高で評価されると、ここで残高だけ引かれて
+		// 台帳が入らない(=消費の痕跡が消える)ため、文の実行順序の退行をここで検出する。
+		const requestId = `exact-${userId}`;
+		const res = await reserveCredits(
+			userId,
+			MONTHLY_CREDITS_FREE * TOKENS_PER_CREDIT,
+			requestId,
+		);
+
+		expect(res.ok).toBe(true);
+		expect(await readBalance(userId)).toBe(0);
+		const rows = await ledgerByRequestId(requestId);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.amount).toBe(-MONTHLY_CREDITS_FREE);
+	});
+
+	it("ブロックされた予約を挟んでも台帳の合計と残高が一致する (#247)", async () => {
+		// 「台帳=真実」の前提。幽霊 consume が残ると SUM が残高より小さくなり、
+		// 障害補填の対象抽出(findConsumersInRange)が実際には消費していないユーザを拾う。
+		await reserveCredits(userId, 60_000, `blocked-${userId}`);
+		await reserveCredits(userId, 10_000, `ok-${userId}`);
+
+		const all = await db
+			.select({ amount: creditLedger.amount })
+			.from(creditLedger)
+			.where(eq(creditLedger.userId, userId));
+		const sum = all.reduce((acc, r) => acc + r.amount, 0);
+
+		expect(sum).toBe(await readBalance(userId));
+		expect(sum).toBe(MONTHLY_CREDITS_FREE - 10);
 	});
 
 	it("同一 requestId の再予約は二重に引かない(冪等)", async () => {
