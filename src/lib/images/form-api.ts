@@ -1,3 +1,7 @@
+import {
+	IMPERSONATION_READONLY_MESSAGE,
+	isImpersonationWriteBlocked,
+} from "#/lib/admin/impersonation";
 import { auth } from "#/lib/auth";
 import {
 	ALLOWED_PHOTO_TYPES,
@@ -36,6 +40,7 @@ export function apiJsonError(message: string, status: number): Response {
 /** 3ルートで共有するエラー文言。上限値は定数から組み立てる(リテラル再記述を作らない)。 */
 export const API_ERROR_MESSAGES = {
 	unauthorized: "Unauthorized",
+	impersonationReadOnly: IMPERSONATION_READONLY_MESSAGE,
 	invalidFormData: "Invalid form data",
 	unsupportedImageType: "Unsupported image type",
 	fileTooLarge: `File exceeds ${MAX_PHOTO_SIZE_LABEL} limit`,
@@ -51,8 +56,14 @@ export const MAX_FORM_DATA_BYTES =
 	MAX_PHOTO_BYTES * MAX_PHOTOS_PER_ENTRY + 64 * 1024;
 
 /**
- * ログイン中のセッションを返す。未ログインなら 401 の Response を返すので、
- * 呼び出し側は `instanceof Response` でそのまま return する。
+ * ログイン中のセッションを返す。未ログインなら 401、なりすまし(impersonation)中の
+ * 書き込みなら 403 の Response を返すので、呼び出し側は `instanceof Response` で
+ * そのまま return する。
+ *
+ * なりすまし中の書き込み拒否は server function 側(`src/server/middleware.ts`)と
+ * 同じ判定関数を共有する。この3ルートはすべて POST(画像アップロード)なので、
+ * ここを通す限りなりすまし中に対象ユーザの R2 オブジェクトや AI クレジットが
+ * 動くことはない(#116)。
  */
 export async function requireApiSession(
 	request: Request,
@@ -61,6 +72,9 @@ export async function requireApiSession(
 > {
 	const session = await auth.api.getSession({ headers: request.headers });
 	if (!session) return apiJsonError(API_ERROR_MESSAGES.unauthorized, 401);
+	if (isImpersonationWriteBlocked(session, request.method)) {
+		return apiJsonError(API_ERROR_MESSAGES.impersonationReadOnly, 403);
+	}
 	return session;
 }
 

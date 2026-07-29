@@ -1,18 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IMPERSONATION_READONLY_MESSAGE } from "#/lib/admin/impersonation";
 import {
 	MAX_PHOTO_BYTES,
 	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
 } from "#/lib/drunk-wine/photo";
-import {
+
+// requireApiSession の検証だけは better-auth の実セッション(署名済みCookie)が要るため、
+// getSession の戻り値だけを差し替える。form-api.ts が持つ判断(未ログイン/なりすまし)を
+// 素の Request/Response で確かめるのが目的で、better-auth 自体は検証対象ではない。
+const authHooks = vi.hoisted(() => ({ session: null as unknown }));
+vi.mock("#/lib/auth", () => ({
+	auth: { api: { getSession: async () => authHooks.session } },
+}));
+
+const {
 	API_ERROR_MESSAGES,
 	apiJson,
 	apiJsonError,
 	MAX_FORM_DATA_BYTES,
 	readImageFormData,
+	requireApiSession,
 	validateDeclaredPhotoFile,
 	validateDeclaredPhotoFiles,
-} from "./form-api";
+} = await import("./form-api");
 
 // 画像系APIルート3本が通る共通関門の検証(#260)。ここが緩むと3ルート同時に緩む。
 // `#/lib/auth` を引き込むため jsdom では読めず、workers プロジェクトに置く
@@ -30,6 +41,61 @@ function requestWithContentLength(length: number): Request {
 		body: "x",
 	});
 }
+
+beforeEach(() => {
+	authHooks.session = null;
+});
+
+// 画像APIルート3本(アバター/ワイン写真/エチケット解析)はすべて POST で、すべて
+// requireApiSession を通る。なりすまし(impersonation)中にここが素通りすると、管理者の
+// 操作で対象ユーザの R2 オブジェクトが書き換わり AI クレジットが減る(#116)。
+describe("requireApiSession", () => {
+	function postRequest(): Request {
+		return new Request("https://wine.test/api/wine-photos", { method: "POST" });
+	}
+
+	it("未ログインは 401 の Response を返す", async () => {
+		const res = await requireApiSession(postRequest());
+		expect(res).toBeInstanceOf(Response);
+		expect((res as Response).status).toBe(401);
+		expect(await body(res as Response)).toEqual({
+			error: API_ERROR_MESSAGES.unauthorized,
+		});
+	});
+
+	it("通常のログインセッションはそのまま返す", async () => {
+		const session = { user: { id: "u1" }, session: { id: "s1" } };
+		authHooks.session = session;
+
+		await expect(requireApiSession(postRequest())).resolves.toBe(session);
+	});
+
+	it("なりすまし中の POST は 403 で拒否する", async () => {
+		authHooks.session = {
+			user: { id: "u1" },
+			session: { id: "s1", impersonatedBy: "admin1" },
+		};
+
+		const res = await requireApiSession(postRequest());
+
+		expect(res).toBeInstanceOf(Response);
+		expect((res as Response).status).toBe(403);
+		expect(await body(res as Response)).toEqual({
+			error: IMPERSONATION_READONLY_MESSAGE,
+		});
+	});
+
+	it("なりすまし中でも GET は通す(閲覧は許可)", async () => {
+		const session = {
+			user: { id: "u1" },
+			session: { id: "s1", impersonatedBy: "admin1" },
+		};
+		authHooks.session = session;
+		const get = new Request("https://wine.test/api/wine-photos");
+
+		await expect(requireApiSession(get)).resolves.toBe(session);
+	});
+});
 
 describe("apiJson / apiJsonError", () => {
 	it("エラーは { error } 形・JSON Content-Type で返す", async () => {
@@ -55,6 +121,14 @@ describe("エラー文言の導出", () => {
 	it("枚数上限の文言も定数から組み立てる", () => {
 		expect(API_ERROR_MESSAGES.tooManyPhotos).toContain(
 			String(MAX_PHOTOS_PER_ENTRY),
+		);
+	});
+
+	it("なりすまし拒否の文言は server fn 側と同じ定数を使う(#116)", () => {
+		// 画像APIルートと server function は別系統だが、利用者から見れば同じ制約。
+		// ここでリテラルを書き下すと片方だけ文言が古くなる。
+		expect(API_ERROR_MESSAGES.impersonationReadOnly).toBe(
+			IMPERSONATION_READONLY_MESSAGE,
 		);
 	});
 });

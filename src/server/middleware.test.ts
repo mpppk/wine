@@ -1,5 +1,6 @@
 import type { MockInstance } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IMPERSONATION_READONLY_MESSAGE } from "#/lib/admin/impersonation";
 import {
 	BadRequestError,
 	ForbiddenError,
@@ -25,6 +26,8 @@ const hooks = vi.hoisted(() => ({
 	statuses: [] as number[],
 	/** getRequest が返すリクエスト */
 	requestUrl: "https://wine.test/_serverFn/quiz.saveAnswer",
+	/** getRequest が返すリクエストのメソッド(なりすまし時の書き込み判定に使う) */
+	requestMethod: "POST",
 	/** auth.api.getSession の戻り値 */
 	session: null as unknown,
 }));
@@ -35,7 +38,8 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 
 vi.mock("@tanstack/react-start/server", () => ({
-	getRequest: () => new Request(hooks.requestUrl),
+	getRequest: () =>
+		new Request(hooks.requestUrl, { method: hooks.requestMethod }),
 	setResponseStatus: (status: number) => {
 		hooks.statuses.push(status);
 	},
@@ -46,8 +50,12 @@ vi.mock("#/lib/auth", () => ({
 	auth: { api: { getSession: async () => hooks.session } },
 }));
 
-const { adminMiddleware, authMiddleware, optionalAuthMiddleware } =
-	await import("./middleware");
+const {
+	adminMiddleware,
+	authMiddleware,
+	impersonationMiddleware,
+	optionalAuthMiddleware,
+} = await import("./middleware");
 
 /** middleware.ts が受け取る next の最小形 */
 type Next = (opts?: { context?: unknown }) => Promise<unknown>;
@@ -56,6 +64,7 @@ type ServerFn = (args: { next: Next }) => Promise<unknown>;
 const runAuth = authMiddleware as unknown as ServerFn;
 const runAdmin = adminMiddleware as unknown as ServerFn;
 const runOptional = optionalAuthMiddleware as unknown as ServerFn;
+const runImpersonation = impersonationMiddleware as unknown as ServerFn;
 
 function sessionFor(
 	user: { id: string; role?: string | null; banned?: boolean | null } = {
@@ -63,6 +72,16 @@ function sessionFor(
 	},
 ) {
 	return { user, session: { id: `sess_${user.id}` } };
+}
+
+/** なりすまし中(session.impersonatedBy に操作元 admin の id が入る)のセッション */
+function impersonatedSessionFor(
+	user: { id: string; role?: string | null; banned?: boolean | null } = {
+		id: "u1",
+	},
+	impersonatedBy = "admin1",
+) {
+	return { user, session: { id: `sess_${user.id}`, impersonatedBy } };
 }
 
 /** ハンドラが例外を投げる next */
@@ -80,6 +99,7 @@ function loggedLine(spy: MockInstance): Record<string, unknown> {
 beforeEach(() => {
 	hooks.statuses = [];
 	hooks.requestUrl = "https://wine.test/_serverFn/quiz.saveAnswer";
+	hooks.requestMethod = "POST";
 	hooks.session = null;
 	vi.restoreAllMocks();
 });
@@ -240,5 +260,119 @@ describe("optionalAuthMiddleware", () => {
 		const line = loggedLine(error);
 		expect(line).toMatchObject({ level: "error", msg: "server fn failed" });
 		expect(line.userId).toBeUndefined();
+	});
+});
+
+// なりすまし(impersonation)中の書き込み禁止(#116)。
+//
+// なりすまし中の書き込みは対象ユーザ本人の実データ(クイズ成績・セラー・AIクレジット)に
+// 落ち、後から本人の操作と切り分けられない。全 server function がこの3ミドルウェアの
+// どれかを通るため、ここが素通りすると経路単位で漏れる。
+describe("なりすまし中の書き込みガード", () => {
+	const runners: [string, ServerFn][] = [
+		["authMiddleware", runAuth],
+		["adminMiddleware", runAdmin],
+		["optionalAuthMiddleware", runOptional],
+	];
+
+	it.each(runners)("%s は書き込み(POST)を 403 で拒否する", async (_l, run) => {
+		// adminMiddleware も通るよう role=admin にしておく(拒否理由がなりすましだと分かる)
+		hooks.session = impersonatedSessionFor({ id: "u1", role: "admin" });
+		hooks.requestMethod = "POST";
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const next = vi.fn();
+
+		await expect(run({ next })).rejects.toBeInstanceOf(ForbiddenError);
+
+		expect(hooks.statuses).toEqual([403]);
+		expect(next).not.toHaveBeenCalled();
+		// 管理者の誤操作を後から追えること
+		expect(loggedLine(warn)).toMatchObject({
+			level: "warn",
+			msg: "impersonated write blocked",
+			userId: "u1",
+			path: "/_serverFn/quiz.saveAnswer",
+		});
+	});
+
+	it.each(runners)("%s は閲覧(GET)を通す", async (_l, run) => {
+		hooks.session = impersonatedSessionFor({ id: "u1", role: "admin" });
+		hooks.requestMethod = "GET";
+		const next = vi.fn(async () => "ok");
+
+		await expect(run({ next })).resolves.toBe("ok");
+
+		expect(hooks.statuses).toEqual([]);
+		expect(next).toHaveBeenCalledTimes(1);
+	});
+
+	it.each(runners)(
+		"%s は通常セッションの書き込みを通す(ガードの巻き添えが無い)",
+		async (_l, run) => {
+			hooks.session = sessionFor({ id: "u1", role: "admin" });
+			hooks.requestMethod = "POST";
+			const next = vi.fn(async () => "ok");
+
+			await expect(run({ next })).resolves.toBe("ok");
+
+			expect(hooks.statuses).toEqual([]);
+		},
+	);
+
+	it("403 のメッセージは共通定数(UIと同じ文言)を使う", async () => {
+		hooks.session = impersonatedSessionFor();
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		await expect(runAuth({ next: vi.fn() })).rejects.toThrow(
+			IMPERSONATION_READONLY_MESSAGE,
+		);
+	});
+
+	it("未ログインの POST はなりすまし判定に巻き込まれず 401 のまま", async () => {
+		vi.spyOn(console, "warn").mockImplementation(() => {});
+		await expect(runAuth({ next: vi.fn() })).rejects.toBeInstanceOf(
+			UnauthorizedError,
+		);
+		expect(hooks.statuses).toEqual([401]);
+	});
+});
+
+// なりすましの「終了」だけは、なりすまし中(=閲覧専用)のセッションから実行できないと
+// 管理者が戻れなくなる。書き込みガードを通らない唯一の経路なので、逆に「なりすまし中
+// でなければ通さない」ことを固定する。
+describe("impersonationMiddleware", () => {
+	it("なりすまし中なら POST でも通し、context に user/session を注入する", async () => {
+		hooks.session = impersonatedSessionFor({ id: "u1" }, "admin9");
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		const next = vi.fn(async () => "stopped");
+
+		await expect(runImpersonation({ next })).resolves.toBe("stopped");
+
+		expect(next).toHaveBeenCalledWith({
+			context: {
+				user: { id: "u1" },
+				session: { id: "sess_u1", impersonatedBy: "admin9" },
+			},
+		});
+		expect(hooks.statuses).toEqual([]);
+	});
+
+	it("未ログインは 401", async () => {
+		await expect(runImpersonation({ next: vi.fn() })).rejects.toBeInstanceOf(
+			UnauthorizedError,
+		);
+		expect(hooks.statuses).toEqual([401]);
+	});
+
+	it("通常セッション(なりすまし中でない)は 400 で拒否する", async () => {
+		hooks.session = sessionFor({ id: "u1" });
+		const next = vi.fn();
+
+		await expect(runImpersonation({ next })).rejects.toBeInstanceOf(
+			BadRequestError,
+		);
+
+		expect(hooks.statuses).toEqual([400]);
+		expect(next).not.toHaveBeenCalled();
 	});
 });

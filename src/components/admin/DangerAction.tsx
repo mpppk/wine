@@ -27,6 +27,7 @@ export function DangerAction({
 	doneMessage,
 	disabled,
 	disabledNote,
+	onCompleted,
 }: {
 	label: string;
 	confirmTitle: string;
@@ -36,6 +37,12 @@ export function DangerAction({
 	doneMessage: string;
 	disabled?: boolean;
 	disabledNote?: string;
+	/**
+	 * 成功後の処理を差し替える。既定は loader の invalidate だが、なりすましの
+	 * 開始のようにセッションCookie自体が差し替わる操作では SPA の再取得では足りず、
+	 * フル再読込が要る(#116)。
+	 */
+	onCompleted?: () => void;
 }) {
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
@@ -50,6 +57,10 @@ export function DangerAction({
 			setReason("");
 			setError("");
 			setMessage(doneMessage);
+			if (onCompleted) {
+				onCompleted();
+				return;
+			}
 			await router.invalidate();
 		},
 		onError: (err: Error) => setError(err.message || "操作に失敗しました。"),

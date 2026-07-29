@@ -1,9 +1,19 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequest, setResponseStatus } from "@tanstack/react-start/server";
 import { isAdminSession } from "#/lib/admin/guard";
+import {
+	IMPERSONATION_READONLY_MESSAGE,
+	isImpersonatedSession,
+	isImpersonationWriteBlocked,
+} from "#/lib/admin/impersonation";
 import { auth } from "#/lib/auth";
-import { ForbiddenError, HttpError, UnauthorizedError } from "#/lib/errors";
-import { logError, logWarn } from "#/lib/logger";
+import {
+	BadRequestError,
+	ForbiddenError,
+	HttpError,
+	UnauthorizedError,
+} from "#/lib/errors";
+import { logError, logInfo, logWarn } from "#/lib/logger";
 
 // server function が throw すると既定では HTTP 500 になる。認証切れ(正常系)や
 // クライアント入力エラー(4xx相当)まで 5xx に混ざると、Workers のメトリクス上で
@@ -31,6 +41,28 @@ async function runWithHttpStatus<T>(
 	}
 }
 
+/**
+ * なりすまし(impersonation)中の書き込みを拒否する共通ガード(#116)。
+ *
+ * なりすまし中の書き込みは対象ユーザ本人の実データに落ち、後から本人の操作と切り分け
+ * られない。判定自体は `#/lib/admin/impersonation` の純関数に閉じ、server function の
+ * 全経路がこの1箇所を通る(唯一の例外は「なりすましを終了する」操作で、これは
+ * `impersonationMiddleware` という別のミドルウェアを使うことで構成として除外する)。
+ */
+function assertNotImpersonatedWrite(
+	session: Awaited<ReturnType<typeof auth.api.getSession>>,
+	request: Request,
+): void {
+	if (!isImpersonationWriteBlocked(session, request.method)) return;
+	setResponseStatus(403);
+	// 管理者の誤操作・UIの取りこぼしを後から追えるよう痕跡を残す(正常系なので warn)。
+	logWarn("impersonated write blocked", {
+		userId: session?.user.id,
+		path: new URL(request.url).pathname,
+	});
+	throw new ForbiddenError(IMPERSONATION_READONLY_MESSAGE);
+}
+
 export const authMiddleware = createMiddleware({ type: "function" }).server(
 	async ({ next }) => {
 		const request = getRequest();
@@ -45,6 +77,7 @@ export const authMiddleware = createMiddleware({ type: "function" }).server(
 			});
 			throw new UnauthorizedError();
 		}
+		assertNotImpersonatedWrite(session, request);
 		return runWithHttpStatus(
 			() => next({ context: { user: session.user, session: session.session } }),
 			{ userId: session.user.id },
@@ -62,6 +95,10 @@ export const adminMiddleware = createMiddleware({ type: "function" }).server(
 			setResponseStatus(403);
 			throw new ForbiddenError();
 		}
+		// 管理者へのなりすましは better-auth 側が既定で拒否する(allowImpersonatingAdmins
+		// 未設定)ため通常ここは通らないが、管理操作こそ本人の意思で行われるべきなので
+		// 多層防御として明示的に塞ぐ。
+		assertNotImpersonatedWrite(session, request);
 		return runWithHttpStatus(
 			() => next({ context: { user: session.user, session: session.session } }),
 			{ userId: session.user.id },
@@ -75,10 +112,41 @@ export const optionalAuthMiddleware = createMiddleware({
 }).server(async ({ next }) => {
 	const request = getRequest();
 	const session = await auth.api.getSession({ headers: request.headers });
+	// 現状この経路は GET のみだが、後から書き込みが足されたときに素通りしないよう
+	// 他の2つと同じガードを通す(#116)。
+	assertNotImpersonatedWrite(session, request);
 	// 未ログインでも通すが、ハンドラが入力検証で投げる HttpError(400等)は
 	// 適切なステータスへ写す。
 	return runWithHttpStatus(
 		() => next({ context: { user: session?.user ?? null } }),
 		{ userId: session?.user?.id },
+	);
+});
+
+/**
+ * 「なりすまし中のセッション」限定ミドルウェア(#116)。
+ *
+ * なりすましの**終了**だけは、なりすまし中(=閲覧専用)のセッションから実行できなければ
+ * ならない。`authMiddleware` に例外リストを持たせると経路が増えるたびに緩む余地が
+ * できるため、専用のミドルウェアに分けて「書き込みガードを通らない server function は
+ * これ1本だけ」という構成上の保証にする。
+ */
+export const impersonationMiddleware = createMiddleware({
+	type: "function",
+}).server(async ({ next }) => {
+	const request = getRequest();
+	const session = await auth.api.getSession({ headers: request.headers });
+	if (!session) {
+		setResponseStatus(401);
+		throw new UnauthorizedError();
+	}
+	if (!isImpersonatedSession(session)) {
+		setResponseStatus(400);
+		throw new BadRequestError("なりすまし中ではありません。");
+	}
+	logInfo("impersonation session action", { userId: session.user.id });
+	return runWithHttpStatus(
+		() => next({ context: { user: session.user, session: session.session } }),
+		{ userId: session.user.id },
 	);
 });

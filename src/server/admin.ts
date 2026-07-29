@@ -22,9 +22,10 @@ import {
 import { BadRequestError } from "#/lib/errors";
 import * as adminActions from "#/lib/services/admin-actions";
 import * as adminService from "#/lib/services/admin-service";
-import { adminMiddleware } from "./middleware";
+import { adminMiddleware, impersonationMiddleware } from "./middleware";
 
 // 管理画面(ユーザ管理)のRPC。すべて adminMiddleware で role="admin" のみに制限する。
+// 例外は adminStopImpersonating(なりすまし中=非管理者のセッションから呼ぶ必要がある)。
 
 /** ユーザ一覧を検索・ページングして返す。管理者限定。 */
 export const adminListUsers = createServerFn({ method: "GET" })
@@ -178,6 +179,48 @@ export const adminRevokeMcp = createServerFn({ method: "POST" })
 			actorUserId: context.user.id,
 			targetUserId: data.userId,
 			reason: data.reason,
+		}),
+	);
+
+// ── #116: なりすまし(impersonation) ──────────────────────────────────────────
+
+/**
+ * 対象ユーザへのなりすましを開始する(#116)。理由必須。管理者限定。
+ * 成功後はセッションCookieが対象ユーザのものへ差し替わるため、呼び出し側は
+ * ページ全体を再読込してセッションを取り直す。
+ */
+export const adminImpersonateUser = createServerFn({ method: "POST" })
+	.middleware([adminMiddleware])
+	.inputValidator(
+		z.object({
+			userId: z.string().min(1).max(100),
+			reason: z.string().trim().min(1).max(ADMIN_GRANT_REASON_MAX),
+		}),
+	)
+	.handler(({ data, context }) =>
+		adminActions.startImpersonation({
+			actorUserId: context.user.id,
+			targetUserId: data.userId,
+			reason: data.reason,
+			headers: getRequest().headers,
+		}),
+	);
+
+/**
+ * なりすましを終了して管理者セッションへ戻す(#116)。
+ *
+ * なりすまし中のセッション(=非管理者・閲覧専用)から呼ぶため adminMiddleware は使えず、
+ * 「なりすまし中であること」を認可条件にする専用ミドルウェアを通す。書き込みガードを
+ * 通らない server function はこれ1本だけ。
+ */
+export const adminStopImpersonating = createServerFn({ method: "POST" })
+	.middleware([impersonationMiddleware])
+	.handler(({ context }) =>
+		adminActions.stopImpersonation({
+			// impersonationMiddleware が非 null を保証する(なりすまし中のみ通す)。
+			actorUserId: context.session.impersonatedBy as string,
+			targetUserId: context.user.id,
+			headers: getRequest().headers,
 		}),
 	);
 

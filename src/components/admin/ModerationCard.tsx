@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import type { AdminUserDetail } from "#/lib/services/admin-service";
 import { BanControl } from "./BanControl";
+import { ImpersonationControl } from "./ImpersonationControl";
 
 export function ModerationCard({
 	detail,
@@ -19,6 +20,7 @@ export function ModerationCard({
 					アカウント乗っ取り疑い・規約違反への対応。停止・失効は監査ログに記録されます。
 				</p>
 				<BanControl detail={detail} isSelf={isSelf} />
+				<ImpersonationControl detail={detail} isSelf={isSelf} />
 			</CardContent>
 		</Card>
 	);

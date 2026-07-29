@@ -10,6 +10,8 @@ export const ADMIN_AUDIT_ACTIONS = [
 	{ id: "ban", labelJa: "利用停止(BAN)" },
 	{ id: "unban", labelJa: "停止解除" },
 	{ id: "revoke_mcp", labelJa: "MCP連携失効" },
+	{ id: "impersonate_start", labelJa: "なりすまし開始" },
+	{ id: "impersonate_stop", labelJa: "なりすまし終了" },
 ] as const;
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]["id"];
