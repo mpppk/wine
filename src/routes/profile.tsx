@@ -25,6 +25,7 @@ import {
 	useBillingStatus,
 } from "#/lib/billing/use-billing";
 import { useCreditBalance } from "#/lib/credit/use-credit";
+import { formatDateJst } from "#/lib/date/display";
 import {
 	MAX_PHOTO_SIZE_LABEL,
 	PHOTO_ACCEPT_ATTR,
@@ -447,7 +448,7 @@ function PlanCard() {
 
 	const actionPending = openingPortal || canceling || restoring;
 	const periodEndLabel = activeSubscription?.periodEnd
-		? new Date(activeSubscription.periodEnd).toLocaleDateString("ja-JP")
+		? formatDateJst(new Date(activeSubscription.periodEnd))
 		: null;
 
 	return (
@@ -572,7 +573,7 @@ function ExtensionCodeForm() {
 		onSuccess: (result) => {
 			setError("");
 			setCode("");
-			const until = new Date(result.newPeriodEnd).toLocaleDateString("ja-JP");
+			const until = formatDateJst(new Date(result.newPeriodEnd));
 			setMessage(
 				`${result.extendedDays}日間延長しました。${until} まで有効です(反映まで少し時間がかかる場合があります)。`,
 			);
