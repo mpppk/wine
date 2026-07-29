@@ -53,7 +53,8 @@ export const Route = createFileRoute("/cellar/map")({
 			throw redirect({ to: "/login" });
 		}
 	},
-	loader: () => listDrunkWines(),
+	// 地図は全ピンを一度に描くのでページ単位にできない(全件取得のまま)。
+	loader: async () => (await listDrunkWines()).entries,
 	component: CellarMapPage,
 });
 
