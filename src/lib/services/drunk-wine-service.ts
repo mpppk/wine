@@ -12,6 +12,7 @@ import {
 	buildWinePhotoKey,
 	MAX_PHOTOS_PER_ENTRY,
 	resolveStoredPhotoMime,
+	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
 import type {
 	CreateDrunkWineInput,
@@ -55,6 +56,12 @@ export interface DrunkWineEntry {
 	price: number | null;
 	/** 写真の相対URL(/api/images/...)の配列。表示順で先頭=代表。呼び出し側で必要なら絶対化する */
 	photoUrls: string[];
+	/**
+	 * 一覧表示用サムネイルの相対URL(photoUrls と同じ順・同じ長さ)。キーは原寸から
+	 * 導出する(#237)。サムネイルが未保存の写真(MCP経由・本機能より前の写真)でも、
+	 * 配信ルートが原寸へフォールバックするのでそのまま使える。
+	 */
+	thumbUrls: string[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -96,6 +103,9 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		producer: row.producer,
 		price: row.price,
 		photoUrls: row.photoKeys.map(imagePathForKey),
+		thumbUrls: row.photoKeys.map((key) =>
+			imagePathForKey(thumbKeyForPhotoKey(key)),
+		),
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
@@ -527,8 +537,13 @@ export async function deleteDrunkWine(
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning({ photoKeys: drunkWine.photoKeys });
 	if (!row) throw new NotFoundError("Entry not found");
-	// R2は複数キー一括削除に対応(存在しないキーは無視される)
-	if (row.photoKeys.length > 0) await env.AVATARS.delete(row.photoKeys);
+	// R2は複数キー一括削除に対応(存在しないキーは無視される)。サムネイル(#237)も一緒に消す。
+	if (row.photoKeys.length > 0) {
+		await env.AVATARS.delete([
+			...row.photoKeys,
+			...row.photoKeys.map(thumbKeyForPhotoKey),
+		]);
+	}
 }
 
 export interface ListDrunkWinesOptions {
@@ -714,7 +729,17 @@ export async function getDrunkWine(
 /** syncDrunkWinePhotos に渡す最終並び順の1要素。既存キーの保持か、新規バイト列の追加。 */
 export type PhotoLayoutItem =
 	| { kind: "existing"; key: string }
-	| { kind: "new"; bytes: Uint8Array | ArrayBuffer; mimeType: string };
+	| {
+			kind: "new";
+			bytes: Uint8Array | ArrayBuffer;
+			mimeType: string;
+			/**
+			 * 一覧用サムネイル(JPEG)。ブラウザ側で生成して一緒に送る(#237)。
+			 * 省略可(MCP 経由など生成できない経路)。無い場合は配信ルートが原寸へ
+			 * フォールバックするので、機能としては成立する。
+			 */
+			thumbBytes?: Uint8Array | ArrayBuffer;
+	  };
 
 /**
  * エントリの写真集合を layout(最終並び順)へ全置換で同期する。追加・削除・並べ替え・
@@ -771,6 +796,22 @@ export async function syncDrunkWinePhotos(
 			});
 			putKeys.push(key);
 			nextKeys.push(key);
+			// サムネイルは原寸キーから導出したキーに置く。失敗しても原寸で表示できるので
+			// 保存自体は必須にしない(ここで throw すると写真そのものが保存できなくなる)。
+			if (item.thumbBytes) {
+				const thumb =
+					item.thumbBytes instanceof Uint8Array
+						? item.thumbBytes
+						: new Uint8Array(item.thumbBytes);
+				// 送られてきたサムネイルも実バイトで検証する(原寸と同じ #150 の方針)。
+				if (resolveStoredPhotoMime(thumb, "image/jpeg") === "image/jpeg") {
+					const thumbKey = thumbKeyForPhotoKey(key);
+					await env.AVATARS.put(thumbKey, thumb, {
+						httpMetadata: { contentType: "image/jpeg" },
+					});
+					putKeys.push(thumbKey);
+				}
+			}
 		}
 	} catch (e) {
 		if (putKeys.length > 0) await env.AVATARS.delete(putKeys);
@@ -788,10 +829,13 @@ export async function syncDrunkWinePhotos(
 		throw new NotFoundError("Entry not found");
 	}
 
-	// 旧配列にあって新配列に残らないキーを削除(削除・差し替え・並べ替えを一括反映)
+	// 旧配列にあって新配列に残らないキーを削除(削除・差し替え・並べ替えを一括反映)。
+	// サムネイルは原寸に追随させる(消し忘れるとR2に孤児が残り続ける)。
 	const nextSet = new Set(nextKeys);
 	const removed = currentKeys.filter((key) => !nextSet.has(key));
-	if (removed.length > 0) await env.AVATARS.delete(removed);
+	if (removed.length > 0) {
+		await env.AVATARS.delete([...removed, ...removed.map(thumbKeyForPhotoKey)]);
+	}
 
 	// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
 	// 返却用に読み直す(R2 の後始末が済んでから)。

@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
 	buildWinePhotoKey,
 	decodePhotoBase64,
+	isPhotoThumbKey,
 	MAX_PHOTO_BYTES,
 	MAX_PHOTOS_PER_ENTRY,
 	photoExtForMime,
+	photoKeyForThumbKey,
 	resolveStoredPhotoMime,
 	sniffImageMime,
+	thumbKeyForPhotoKey,
 } from "./photo";
 
 const PNG_MAGIC = new Uint8Array([
@@ -177,5 +180,31 @@ describe("sniffImageMime", () => {
 				]),
 			),
 		).toBeUndefined();
+	});
+});
+
+describe("サムネイルキーの導出 (#237)", () => {
+	const photoKey = "wines/u1/e1/p1.jpg";
+
+	it("原寸キーから導出し、往復できる", () => {
+		const thumb = thumbKeyForPhotoKey(photoKey);
+		expect(thumb).toBe("wines/u1/e1/p1.jpg.thumb.jpg");
+		expect(photoKeyForThumbKey(thumb)).toBe(photoKey);
+		expect(isPhotoThumbKey(thumb)).toBe(true);
+		expect(isPhotoThumbKey(photoKey)).toBe(false);
+	});
+
+	it("サムネイルキーでなければ原寸キーを復元しない", () => {
+		expect(photoKeyForThumbKey(photoKey)).toBeNull();
+	});
+
+	it("配信ルートの許可パターン(拡張子)を満たす", () => {
+		// /api/images/$ は拡張子で配信可否を判定する。.thumb.jpg は .jpg で終わるので通る。
+		expect(thumbKeyForPhotoKey("wines/u1/e1/p1.png")).toMatch(/\.jpg$/);
+	});
+
+	it("所有者の判定は原寸キーと同じ経路で通る(セグメント数を変えない)", () => {
+		// wines/{userId}/{entryId}/{photoId}.{ext} の4セグメントを保つ
+		expect(thumbKeyForPhotoKey(photoKey).split("/")).toHaveLength(4);
 	});
 });

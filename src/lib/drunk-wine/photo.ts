@@ -140,6 +140,36 @@ export function decodePhotoBase64(
 	return bytes;
 }
 
+// ---- サムネイル (#237) -----------------------------------------------------
+// 一覧グリッドは150〜200pxで表示するのに原寸(最大5MB)を読んでいた。保存時に
+// 縮小版を並べて置き、一覧はそちらを読む。サムネイルのキーは原寸キーから**導出**する
+// (DBに別カラムを持たない)。導出にしておくと、既存写真のようにサムネイルが無い場合も
+// 配信ルート側で原寸へフォールバックでき、移行のためのバックフィルが要らない。
+
+/** サムネイルのキー接尾辞。常に JPEG で保存する。 */
+export const PHOTO_THUMB_SUFFIX = ".thumb.jpg";
+
+/** サムネイルの長辺(px)。一覧の表示サイズ(最大200px程度)の2倍を上限にする。 */
+export const PHOTO_THUMB_MAX_DIMENSION = 400;
+
+/** サムネイル生成時のJPEG品質。 */
+export const PHOTO_THUMB_JPEG_QUALITY = 0.8;
+
+export function isPhotoThumbKey(key: string): boolean {
+	return key.endsWith(PHOTO_THUMB_SUFFIX);
+}
+
+/** 原寸キー → サムネイルキー。 */
+export function thumbKeyForPhotoKey(photoKey: string): string {
+	return `${photoKey}${PHOTO_THUMB_SUFFIX}`;
+}
+
+/** サムネイルキー → 原寸キー。サムネイルキーでなければ null。 */
+export function photoKeyForThumbKey(thumbKey: string): string | null {
+	if (!isPhotoThumbKey(thumbKey)) return null;
+	return thumbKey.slice(0, -PHOTO_THUMB_SUFFIX.length);
+}
+
 /**
  * 写真1枚ぶんのR2キー。entryId・photoId はいずれもUUIDで、URLの推測不能性は
  * ここに依存する。1エントリに複数枚持てるよう photoId でキーを一意化する。

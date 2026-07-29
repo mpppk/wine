@@ -22,6 +22,7 @@ import {
 	type AnalysisPhotoSource,
 	analyzeLabelPhotos,
 } from "#/components/cellar/label-analysis";
+import { downscaleImage } from "#/components/cellar/photo-resize";
 import { TastingFields } from "#/components/cellar/TastingFields";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
@@ -38,6 +39,9 @@ import {
 	MAX_PHOTO_BYTES,
 	MAX_PHOTOS_PER_ENTRY,
 	PHOTO_ACCEPT_ATTR,
+	PHOTO_THUMB_JPEG_QUALITY,
+	PHOTO_THUMB_MAX_DIMENSION,
+	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
 import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
@@ -77,6 +81,14 @@ async function syncPhotos(
 	for (const p of photos) {
 		if (p.kind === "new") {
 			form.append("photo", p.file);
+			// 一覧用サムネイルをブラウザ側で作って一緒に送る(#237)。生成に失敗しても
+			// 送らないだけで保存は続行できる(配信側が原寸へフォールバックする)。
+			const thumb = await downscaleImage(p.file, {
+				maxDimension: PHOTO_THUMB_MAX_DIMENSION,
+				quality: PHOTO_THUMB_JPEG_QUALITY,
+				forceReencode: true,
+			});
+			form.append("thumb", thumb, `thumb-${i}.jpg`);
 			newIndex.set(p.localId, i);
 			i += 1;
 		}
@@ -158,6 +170,12 @@ export function DrunkWineForm({
 		p.kind === "new"
 			? p.previewUrl
 			: `${imagePathForKey(p.key)}?v=${entry?.updatedAt ?? ""}`;
+
+	// 一覧と同じく、表示用には縮小版を読む(#237)。実体が無ければ配信側が原寸を返す。
+	const photoThumbSrc = (p: PhotoItem): string =>
+		p.kind === "new"
+			? p.previewUrl
+			: `${imagePathForKey(thumbKeyForPhotoKey(p.key))}?v=${entry?.updatedAt ?? ""}`;
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(e.target.files ?? []);
@@ -338,9 +356,13 @@ export function DrunkWineForm({
 							className="relative h-24 w-24 rounded-md border border-border"
 						>
 							<img
-								src={photoSrc(p)}
+								src={photoThumbSrc(p)}
 								alt={index === 0 ? "代表写真" : `写真${index + 1}`}
 								className="h-full w-full rounded-md object-cover"
+								loading="lazy"
+								decoding="async"
+								width={96}
+								height={96}
 							/>
 							{index === 0 && (
 								<span className="absolute left-1 top-1 rounded bg-foreground/80 px-1 py-0.5 text-[10px] font-medium leading-none text-background">

@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { desc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "#/db";
@@ -8,7 +9,9 @@ import {
 	countCellarFilters as countCellarFiltersPure,
 	matchesCellarFilter,
 } from "#/lib/drunk-wine/filter";
+import { thumbKeyForPhotoKey } from "#/lib/drunk-wine/photo";
 import type { WineStatus } from "#/lib/drunk-wine/status";
+import { imageKeyFromPath } from "#/lib/images/signed-url";
 import {
 	addWineTasting,
 	countCellarFilters,
@@ -20,6 +23,7 @@ import {
 	listDrunkWines,
 	listWineTastings,
 	markWineDrunk,
+	syncDrunkWinePhotos,
 	updateLatestWineTasting,
 	updateWineTasting,
 } from "./drunk-wine-service";
@@ -586,5 +590,109 @@ describe("listDrunkWines のページネーション", () => {
 			(await listDrunkWines(userId)).entries,
 		);
 		expect(fromSql).toEqual(fromEntries);
+	});
+});
+
+// ---- 一覧用サムネイル (#237) -----------------------------------------------
+// 一覧グリッドは150〜200px表示なのに原寸(最大5MB)を読んでいた。保存時に縮小版を
+// 並べて置き、キーは原寸から導出する。DBに列を足していないので、「サムネイルが
+// 実在するか」はR2の中身がすべて。put/delete の追随をここで固定する。
+
+describe("写真サムネイルの保存と削除", () => {
+	// 1x1 JPEG(マジックバイト検証を通る最小の実データ)
+	const JPEG_1X1 = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	async function objectExists(key: string): Promise<boolean> {
+		return (await env.AVATARS.head(key)) !== null;
+	}
+
+	it("新規写真と一緒にサムネイルを保存する", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "写真つき" });
+		const saved = await syncDrunkWinePhotos(userId, entry.id, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1,
+				mimeType: "image/jpeg",
+				thumbBytes: JPEG_1X1,
+			},
+		]);
+
+		expect(saved.photoUrls).toHaveLength(1);
+		// 一覧が読むURLは原寸ではなくサムネイル
+		expect(saved.thumbUrls[0]).toBe(`${saved.photoUrls[0]}.thumb.jpg`);
+		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
+		expect(await objectExists(photoKey)).toBe(true);
+		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(true);
+	});
+
+	it("サムネイルを送らなくても保存できる(MCP 経由など)", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "サムネなし" });
+		const saved = await syncDrunkWinePhotos(userId, entry.id, [
+			{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+		]);
+		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
+		expect(await objectExists(photoKey)).toBe(true);
+		// 実体は無いが、URLは常に導出できる(配信ルートが原寸へフォールバックする)
+		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
+		expect(saved.thumbUrls).toHaveLength(1);
+	});
+
+	it("写真を外すとサムネイルも消える(R2に孤児を残さない)", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "差し替え" });
+		const saved = await syncDrunkWinePhotos(userId, entry.id, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1,
+				mimeType: "image/jpeg",
+				thumbBytes: JPEG_1X1,
+			},
+		]);
+		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
+
+		await syncDrunkWinePhotos(userId, entry.id, []);
+		expect(await objectExists(photoKey)).toBe(false);
+		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
+	});
+
+	it("エントリを削除するとサムネイルも消える", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "削除" });
+		const saved = await syncDrunkWinePhotos(userId, entry.id, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1,
+				mimeType: "image/jpeg",
+				thumbBytes: JPEG_1X1,
+			},
+		]);
+		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
+
+		await deleteDrunkWine(userId, entry.id);
+		expect(await objectExists(photoKey)).toBe(false);
+		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
+	});
+
+	it("画像として認識できないサムネイルは保存しない(原寸は保存する)", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "壊れたサムネ" });
+		const saved = await syncDrunkWinePhotos(userId, entry.id, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1,
+				mimeType: "image/jpeg",
+				thumbBytes: new TextEncoder().encode("<html>not an image</html>"),
+			},
+		]);
+		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
+		expect(await objectExists(photoKey)).toBe(true);
+		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
 	});
 });
