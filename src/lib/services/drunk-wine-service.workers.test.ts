@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { desc, eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { drunkWine, wineTasting } from "#/db/schema";
@@ -11,6 +11,7 @@ import {
 } from "#/lib/drunk-wine/filter";
 import { thumbKeyForPhotoKey } from "#/lib/drunk-wine/photo";
 import type { WineStatus } from "#/lib/drunk-wine/status";
+import { BadRequestError } from "#/lib/errors";
 import { imageKeyFromPath } from "#/lib/images/signed-url";
 import {
 	addWineTasting,
@@ -694,5 +695,113 @@ describe("写真サムネイルの保存と削除", () => {
 		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
 		expect(await objectExists(photoKey)).toBe(true);
 		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
+	});
+});
+
+// R2 の後始末(巻き戻し・孤児掃除)が失敗しても、呼び出し元の結果を左右してはいけない(#249)。
+// 巻き戻しの delete をそのまま投げると元例外を置き換えてしまい、画像偽装拒否の
+// BadRequestError(400) が R2 障害で 500 に化けて真因がログからも消える。
+describe("写真のR2後始末が失敗したときの扱い (#249)", () => {
+	// 1x1 JPEG(マジックバイト検証を通る最小の実データ)
+	const JPEG_1X1 = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+	const NOT_AN_IMAGE = new TextEncoder().encode("<html>not an image</html>");
+
+	let logs: string[] = [];
+	beforeEach(() => {
+		logs = [];
+		vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+			logs.push(String(line));
+		});
+	});
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	/** 直近の delete 呼び出しだけを失敗させる */
+	function failNextDelete(): void {
+		vi.spyOn(env.AVATARS, "delete").mockRejectedValueOnce(
+			new Error("R2 unavailable"),
+		);
+	}
+
+	it("巻き戻しが失敗しても元の例外(400)がそのまま伝わる", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "巻き戻し" });
+		failNextDelete();
+
+		// 1枚目は put 成功 → 2枚目が画像偽装で拒否 → 巻き戻し(delete)が失敗する
+		await expect(
+			syncDrunkWinePhotos(userId, entry.id, [
+				{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+				{ kind: "new", bytes: NOT_AN_IMAGE, mimeType: "image/jpeg" },
+			]),
+		).rejects.toThrow(BadRequestError);
+
+		// R2 の "R2 unavailable" ではなく、検証拒否の理由が伝わっていること
+		await expect(
+			syncDrunkWinePhotos(userId, entry.id, [
+				{ kind: "new", bytes: NOT_AN_IMAGE, mimeType: "image/jpeg" },
+			]),
+		).rejects.toThrow(/画像として認識できない/);
+	});
+
+	it("巻き戻しの失敗は構造化ログに残る(真因も一緒に記録する)", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "巻き戻しログ" });
+		failNextDelete();
+
+		await expect(
+			syncDrunkWinePhotos(userId, entry.id, [
+				{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+				{ kind: "new", bytes: NOT_AN_IMAGE, mimeType: "image/jpeg" },
+			]),
+		).rejects.toThrow(BadRequestError);
+
+		const line = logs.find((l) => l.includes("photo cleanup failed"));
+		expect(line).toBeDefined();
+		const parsed = JSON.parse(line as string);
+		expect(parsed.level).toBe("error");
+		expect(parsed.userId).toBe(userId);
+		expect(parsed.entryId).toBe(entry.id);
+		expect(parsed.phase).toBe("rollback");
+		expect(parsed.err).toContain("R2 unavailable");
+		// 掃除失敗のログだけが残って真因が消えると、put 失敗か検証拒否かを追えない
+		expect(parsed.originalErr).toContain("画像として認識できない");
+	});
+
+	it("孤児掃除が失敗しても、確定済みの写真更新は成功として返す", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "孤児掃除" });
+		const saved = await syncDrunkWinePhotos(userId, entry.id, [
+			{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+		]);
+		expect(saved.photoUrls).toHaveLength(1);
+
+		failNextDelete();
+		// D1 は既に更新済み。ここで throw すると「成功した更新が失敗として返る」
+		const cleared = await syncDrunkWinePhotos(userId, entry.id, []);
+		expect(cleared.photoUrls).toHaveLength(0);
+		expect(await getDrunkWine(userId, entry.id)).toMatchObject({
+			photoUrls: [],
+		});
+		expect(logs.some((l) => l.includes("photo cleanup failed"))).toBe(true);
+	});
+
+	it("エントリ削除時のR2掃除が失敗しても削除は成功として返す", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "削除時掃除" });
+		await syncDrunkWinePhotos(userId, entry.id, [
+			{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+		]);
+
+		failNextDelete();
+		await expect(deleteDrunkWine(userId, entry.id)).resolves.toBeUndefined();
+		await expect(getDrunkWine(userId, entry.id)).rejects.toThrow();
+		expect(logs.some((l) => l.includes("photo cleanup failed"))).toBe(true);
 	});
 });
