@@ -106,7 +106,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - **認証ガード**: 認証必須ページは `beforeLoad` で `getSession()` → 未ログインは `/login` へ redirect。`/admin` は非管理者に存在を悟らせず `/` へ黙って redirect する。`beforeLoad` で注入する認証状態は SSR 時点のスナップショットで、リアルタイムには `authClient.useSession` を使う。
 - **データ取得**: 静的ワインデータは loader から直接 import して返す（server fn を介さない）。ユーザ固有データは server fn を loader で await するか、`use-*` フック（useQuery。queryKey は定数 export し invalidate 側でも同じ定数を使う）で取得する。
 - **UI**: shadcn/ui（`src/components/ui/`、追加は `bunx shadcn@latest add <name>`）を土台に、機能別コンポーネントは `src/components/<feature>/` に置く（フックや純ロジックも同居可）。UI 文言は日本語。ナビゲーションは `<Button asChild><Link/></Button>` が定型。
-- **シェル**: `__root.tsx` が `<html>` 全体を描画（PWA meta・FOUC 防止のテーマ初期化スクリプト・Header・AdBanner・コマンドパレット常駐）。`/embed/*` は MCP Apps の iframe 用で「Header 非表示・認証不要・選択状態を URL に載せない」の 3 制約がある。
+- **シェル**: `__root.tsx` が `<html>` 全体を描画（PWA meta・FOUC 防止のテーマ初期化スクリプト・Header・AdBanner・コマンドパレット常駐）。コマンドパレット（ヘッダのボタン / ⌘K）は移動系コマンドを自前で持つほか、表示中のページが `usePaletteCommand`（`components/CommandPaletteContext.tsx`）で「このページ」のコマンドを登録できる。地図の「AIに質問」のように実行へ画面固有の文脈（地域・選択中 AOP・ダイアログの state）が要る操作は、ページにボタンを常設せずここへ寄せる。`/embed/*` は MCP Apps の iframe 用で「Header 非表示・認証不要・選択状態を URL に載せない」の 3 制約がある。
 - **地図の色分けと絞り込みは直交させる**。`AopMapView` の `colorMode`（`kind` = AOP 区分 / `progress` = クイズ学習済み率 / `status` = マイセラーの所有状態）が色軸の唯一の入口で、値は feature-state（`progress` は数値 → `step`、`status` は文字列 → `match`）から paint 式で引く。一方 `highlightAopIds` / `hiddenAopIds` は `dimmed` / `hidden` の二値で絞り込みだけを表す。両者を混ぜないので、色軸を足してもフィルタ側に波及しない。色は区分＝赤系（`lib/wine/map-style.ts`）、進捗＝緑系（同）、所有状態＝青／琥珀／梅（`lib/drunk-wine/map-style.ts`）で、追加・変更時は `dataviz` skill の `validate_palette` を通す。**maplibre の式と feature-state は typecheck / build / test をすべて通り抜けて実行時にだけ壊れるため、色軸に触れたらプレビュー実機で必ず目視する**（#184 と同じ類型）。
 
 ## ドメインモデリングのルール

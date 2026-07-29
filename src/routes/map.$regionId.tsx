@@ -19,6 +19,7 @@ import {
 import { type ComponentProps, useMemo, useState } from "react";
 import { z } from "zod";
 import { RegionChatDialog } from "#/components/ai/RegionChatDialog";
+import { usePaletteCommand } from "#/components/CommandPaletteContext";
 import { MapQuizDialog } from "#/components/quiz/MapQuizDialog";
 import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
@@ -212,6 +213,25 @@ function MapPage() {
 
 	// 地域チャットQ&A(AIクレジット消費)の開閉。会話履歴はダイアログ側で保持する。
 	const [chatOpen, setChatOpen] = useState(false);
+
+	// 起動導線はツールバーの常設ボタンではなくヘッダのコマンドパレット(⌘K)に置く。
+	// 開閉stateと文脈(地域・選択中AOP)はこのページが持つので、パレット側から
+	// 組み立てられない。ページが表示されている間だけコマンドとして登録する。
+	usePaletteCommand({
+		id: "map.ask-ai",
+		label: "AIに質問",
+		keywords: [
+			"ai",
+			"質問",
+			"chat",
+			"チャット",
+			"地域",
+			region.nameJa,
+			region.nameLocal,
+		],
+		icon: SparklesIcon,
+		run: () => setChatOpen(true),
+	});
 
 	// 説明文/所属リンクで別AOPへ掘り下げた履歴。末尾が直前に見ていたAOP。
 	// 地図クリック・ツリー選択・前後移動など「新規閲覧」ではリセットする。
@@ -429,16 +449,6 @@ function MapPage() {
 					>
 						<GraduationCapIcon className="size-4" aria-hidden />
 						クイズ
-					</Button>
-
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onClick={() => setChatOpen(true)}
-					>
-						<SparklesIcon className="size-4" aria-hidden />
-						AIに質問
 					</Button>
 
 					<fieldset

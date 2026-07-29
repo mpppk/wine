@@ -35,7 +35,7 @@ const cmdkClassName =
 	"[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]]:px-2 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5";
 
 export function CommandPalette() {
-	const { open, setOpen } = useCommandPalette();
+	const { open, setOpen, pageCommands } = useCommandPalette();
 	const [search, setSearch] = useState("");
 	const router = useRouter();
 	const { data: session } = authClient.useSession();
@@ -102,6 +102,27 @@ export function CommandPalette() {
 					/>
 					<CommandList>
 						<CommandEmpty>該当するコマンドがありません。</CommandEmpty>
+
+						{/* 表示中のページが登録したコマンド(usePaletteCommand)。画面固有の
+						    文脈が要る操作はここに出す。先頭に置くのは、今見ている画面に
+						    対する操作のほうが移動より近い距離にあるため。 */}
+						{pageCommands.length > 0 && (
+							<CommandGroup heading="このページ">
+								{pageCommands.map((command) => {
+									const Icon = command.icon;
+									return (
+										<CommandItem
+											key={command.id}
+											keywords={command.keywords}
+											onSelect={() => runAndClose(() => command.run())}
+										>
+											{Icon && <Icon />}
+											{command.label}
+										</CommandItem>
+									);
+								})}
+							</CommandGroup>
+						)}
 
 						<CommandGroup heading="移動">
 							<CommandItem
