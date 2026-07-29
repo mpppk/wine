@@ -19,6 +19,7 @@ import {
 	useCreditBalanceValue,
 } from "#/lib/credit/use-credit";
 import { askRegion } from "#/server/ai";
+import { useStickToBottom } from "./use-stick-to-bottom";
 
 // 地図ページ内の地域チャットQ&A。会話履歴はここで保持し、毎ターン server fn に渡す
 // (サーバはステートレス)。回答ごとにAIクレジットを消費し、成功で残高クエリを無効化する。
@@ -47,6 +48,11 @@ export function RegionChatDialog({
 	const [input, setInput] = useState("");
 	const [error, setError] = useState("");
 	const [showInsufficient, setShowInsufficient] = useState(false);
+	// 新着(質問の送信・回答の到着)で会話ログを最下部へ追従させる(#242)。
+	// クレジットを消費する操作なので、送っても画面が変わらない=無反応に見える状態を作らない。
+	const log = useStickToBottom<HTMLDivElement>(
+		`${open}:${messages.length}:${pendingQuestion ? 1 : 0}`,
+	);
 
 	const { mutate, isPending } = useMutation({
 		mutationFn: (vars: { question: string; history: ChatMessage[] }) =>
@@ -133,7 +139,11 @@ export function RegionChatDialog({
 						</div>
 					) : (
 						<>
-							<div className="flex min-h-32 flex-1 flex-col gap-3 overflow-y-auto">
+							<div
+								ref={log.ref}
+								onScroll={log.onScroll}
+								className="flex min-h-32 flex-1 flex-col gap-3 overflow-y-auto"
+							>
 								{messages.length === 0 && !pendingQuestion && (
 									<p className="py-6 text-center text-sm text-muted-foreground">
 										例:「主なブドウ品種は?」「どんな土壌?」など、この地域について質問できます。
