@@ -33,7 +33,10 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const API_BASE = "https://api.cloudflare.com/client/v4";
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = path.resolve(
+	path.dirname(fileURLToPath(import.meta.url)),
+	"..",
+);
 
 const LEVELS = ["debug", "info", "log", "warn", "error"];
 
@@ -110,9 +113,7 @@ export function stripJsonComments(text) {
 export function parseSince(input) {
 	const m = /^(\d+)(s|m|h|d)$/.exec(String(input).trim());
 	if (!m) {
-		throw new Error(
-			`--since の書式が不正です: "${input}" (例: 30m, 2h, 3d)`,
-		);
+		throw new Error(`--since の書式が不正です: "${input}" (例: 30m, 2h, 3d)`);
 	}
 	const n = Number(m[1]);
 	const unit = { s: 1, m: 60, h: 3600, d: 86400 }[m[2]];
@@ -176,7 +177,9 @@ export function parseArgs(argv) {
 		}
 	}
 	if (!["production", "preview"].includes(opts.env)) {
-		throw new Error(`--env は production か preview を指定してください: "${opts.env}"`);
+		throw new Error(
+			`--env は production か preview を指定してください: "${opts.env}"`,
+		);
 	}
 	if (!Number.isFinite(opts.limit) || opts.limit <= 0) {
 		throw new Error(`--limit は正の数を指定してください: "${opts.limit}"`);
@@ -198,7 +201,8 @@ export function workerNameFromConfig(configText, env) {
 	const config = JSON.parse(stripJsonComments(configText));
 	if (env === "preview") {
 		const name = config.env?.preview?.name;
-		if (!name) throw new Error("wrangler.jsonc に env.preview.name がありません");
+		if (!name)
+			throw new Error("wrangler.jsonc に env.preview.name がありません");
 		return name;
 	}
 	const name = config.name;
@@ -213,7 +217,12 @@ export function workerNameFromConfig(configText, env) {
  */
 export function buildParameters({ worker, levels = [], grep, version }) {
 	const filters = [
-		{ key: "$metadata.service", operation: "eq", value: worker, type: "string" },
+		{
+			key: "$metadata.service",
+			operation: "eq",
+			value: worker,
+			type: "string",
+		},
 	];
 	if (levels.length === 1) {
 		filters.push({
@@ -301,7 +310,10 @@ export function formatMessage(message) {
 /** 1イベントを1行(+継続行はインデント)に整形する。 */
 export function formatEvent(event) {
 	const meta = event.$metadata ?? {};
-	const time = new Date(event.timestamp).toISOString().replace("T", " ").slice(0, 23);
+	const time = new Date(event.timestamp)
+		.toISOString()
+		.replace("T", " ")
+		.slice(0, 23);
 	const level = (meta.level ?? "-").toUpperCase().padEnd(5);
 	const trigger = meta.trigger ? ` [${meta.trigger}]` : "";
 	const message = formatMessage(meta.message);
@@ -395,7 +407,10 @@ async function main(argv) {
 }
 
 // スクリプトとして直接実行された時のみ走らせる(import 時は純関数だけ使える)
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+	process.argv[1] &&
+	import.meta.url === pathToFileURL(process.argv[1]).href
+) {
 	main(process.argv.slice(2))
 		.then((code) => process.exit(code))
 		.catch((e) => {

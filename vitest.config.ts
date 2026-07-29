@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
-import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import {
+	cloudflareTest,
+	readD1Migrations,
+} from "@cloudflare/vitest-pool-workers";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 

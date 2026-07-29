@@ -82,7 +82,9 @@ function main() {
 	// (<region>-boundaries.geojson)は aopId を持たないので除外する。
 	const geojsonFiles = fs
 		.readdirSync(GEO_DIR)
-		.filter((f) => f.endsWith(".geojson") && !f.endsWith("-boundaries.geojson"));
+		.filter(
+			(f) => f.endsWith(".geojson") && !f.endsWith("-boundaries.geojson"),
+		);
 	for (const file of geojsonFiles) {
 		const gj = JSON.parse(fs.readFileSync(path.join(GEO_DIR, file), "utf8"));
 		for (const feature of gj.features) {
@@ -91,10 +93,7 @@ function main() {
 				throw new Error(`[${file}] unknown aopId in GeoJSON: ${aopId}`);
 			}
 			const [lng, lat] = geometryCentroid(feature.geometry);
-			centroids[aopId] = [
-				Number(lng.toFixed(5)),
-				Number(lat.toFixed(5)),
-			];
+			centroids[aopId] = [Number(lng.toFixed(5)), Number(lat.toFixed(5))];
 		}
 	}
 
