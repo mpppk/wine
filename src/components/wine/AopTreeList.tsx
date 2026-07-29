@@ -1,5 +1,6 @@
 import { CircleCheckIcon } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
+import type { AopProgress } from "#/lib/services/quiz-service";
 import {
 	buildAopTree,
 	type SubregionSection,
@@ -22,11 +23,6 @@ import type { Aop, Subregion } from "#/lib/wine/types";
 type RowSelect = (aopId: string, rowKey: string) => void;
 
 /** AOP(slug)単位の正解進捗。solved=正解済み問題数 / total=候補問題総数 */
-export interface AopProgress {
-	solved: number;
-	total: number;
-}
-
 export interface AopTreeListProps {
 	/** 地域の全AOP。ツリー構造(村→畑の親子)はフィルタに関係なく全量から組む */
 	aops: Aop[];

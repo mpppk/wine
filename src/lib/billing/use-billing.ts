@@ -17,12 +17,6 @@ export function useBillingStatus() {
 	});
 }
 
-/** プレミアム会員なら true。未ログイン・取得中・取得失敗は false。 */
-export function useIsPremium(): boolean {
-	const { data } = useBillingStatus();
-	return data?.isPremium ?? false;
-}
-
 /**
  * このユーザーに広告を表示すべきなら true(広告UI自体は今後導入予定)。
  * 判定ルールは entitlements.ts の shouldShowAds を参照。

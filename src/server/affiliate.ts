@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
 import type { AffiliateConfig } from "#/lib/wine/affiliate";
 
@@ -7,9 +8,6 @@ import type { AffiliateConfig } from "#/lib/wine/affiliate";
 // UI(map / embed ルートの loader)から呼び、AopDetailPanel に渡す。
 export const getAffiliateConfig = createServerFn({ method: "GET" }).handler(
 	async (): Promise<AffiliateConfig> => {
-		// env はハンドラ内でのみ参照する(クライアントバンドルに cloudflare:workers を
-		// 引き込まないため)。
-		const { env } = await import("cloudflare:workers");
 		return {
 			rakuten: env.RAKUTEN_AFFILIATE_ID ?? "",
 			moshimoAmazon: env.MOSHIMO_AMAZON_A_ID ?? "",

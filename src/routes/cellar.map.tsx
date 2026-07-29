@@ -30,7 +30,6 @@ import {
 } from "#/lib/drunk-wine/status";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
-import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
 import { listDrunkWines } from "#/server/drunk-wine";
 
@@ -156,10 +155,6 @@ function CellarMapPage() {
 	const aops = useMemo(
 		() => (region ? listAops({ regionId: region.id }) : []),
 		[region],
-	);
-	const presentKinds = useMemo(
-		() => AOP_KINDS.filter((k) => aops.some((a) => a.kind === k)),
-		[aops],
 	);
 	// 表示中の地域のエントリ。色分けと凡例の注記はどちらもここから導く。
 	const regionEntries = useMemo(
@@ -298,7 +293,6 @@ function CellarMapPage() {
 						region={region}
 						aops={aops}
 						selectedAopId={selectedAopId}
-						visibleKinds={presentKinds}
 						highlightAopIds={highlightAopIds}
 						colorMode="status"
 						statusByAopId={statusByAopId}

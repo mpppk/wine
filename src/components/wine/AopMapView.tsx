@@ -31,12 +31,12 @@ import {
 } from "#/lib/wine/map-style";
 import { resolveMaplibreWorkerUrl } from "#/lib/wine/maplibre-worker";
 import { aopAllowsGrape } from "#/lib/wine/service";
-import { type AopTagId, formatAopTagJa } from "#/lib/wine/tags";
+import { formatAopTagJa } from "#/lib/wine/tags";
 import {
 	getAopKindLabelJa,
 	getAppellationTermJa,
 } from "#/lib/wine/terminology";
-import type { Aop, AopKind, Region } from "#/lib/wine/types";
+import type { Aop, Region } from "#/lib/wine/types";
 
 const SOURCE_ID = "aops";
 const FILL_LAYER = "aop-fill";
@@ -63,15 +63,8 @@ export interface AopMapViewProps {
 	grapeVarietyId?: string;
 	/** 指定時、含まれないAOPは灰色に沈む(マイセラーの「飲んだAOP」表示用) */
 	highlightAopIds?: ReadonlySet<string>;
-	/**
-	 * 非表示にするAOPのid集合(区分・格付けの絞り込み結果)。指定時はこれを唯一の
-	 * 非表示判定に使う。未指定時は visibleKinds/visibleTags から判定する(旧経路)。
-	 */
+	/** 非表示にするAOPのid集合(区分・格付けの絞り込み結果)。非表示判定の唯一の入口 */
 	hiddenAopIds?: ReadonlySet<string>;
-	/** 表示する区分。含まれない区分のAOPは非表示(hiddenAopIds 未指定時のみ有効) */
-	visibleKinds?: AopKind[];
-	/** 表示するタグ。空なら絞り込まない(hiddenAopIds 未指定時のみ有効) */
-	visibleTags?: AopTagId[];
 	/**
 	 * 色分けモード。"kind"=区分別(既定) / "progress"=クイズ学習済み率 /
 	 * "status"=マイセラーの所有状態。色分け(この軸)と絞り込み(highlightAopIds /
@@ -251,8 +244,6 @@ export function AopMapView({
 	grapeVarietyId,
 	highlightAopIds,
 	hiddenAopIds,
-	visibleKinds,
-	visibleTags,
 	colorMode = "kind",
 	progressByIdApp,
 	statusByAopId,
@@ -679,17 +670,12 @@ export function AopMapView({
 		};
 	}, [region.id, reloadKey]);
 
-	// フィルタ(品種・区分・タグ)を feature-state に反映
+	// フィルタ(品種・非表示集合)を feature-state に反映
 	const applyFeatureStates = () => {
 		const map = mapRef.current;
 		if (!map || !loadedRef.current) return;
-		const tagFilter = visibleTags ?? [];
 		for (const aop of stateRef.current.aopsByIdApp.values()) {
-			const hidden = hiddenAopIds
-				? hiddenAopIds.has(aop.id)
-				: (visibleKinds !== undefined && !visibleKinds.includes(aop.kind)) ||
-					(tagFilter.length > 0 &&
-						!aop.tags?.some((t) => tagFilter.includes(t)));
+			const hidden = hiddenAopIds?.has(aop.id) ?? false;
 			const dimmed =
 				!hidden &&
 				((grapeVarietyId !== undefined &&
@@ -822,8 +808,6 @@ export function AopMapView({
 		grapeVarietyId,
 		highlightAopIds,
 		hiddenAopIds,
-		visibleKinds,
-		visibleTags,
 	]);
 	useEffect(applySelection, [selectedAopId]);
 	useEffect(applyColorMode, [colorMode]);
