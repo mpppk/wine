@@ -259,7 +259,7 @@ R2 の削除範囲は `privateImagePrefixForUser()` / `avatarPrefixForUser()`（
 - **CI**（`.github/workflows/ci.yml`）: typecheck（tsc）→ check（Biome）→ build（Vite）→ test（Vitest）→ `db:migrate:local`。マージ前チェックはローカルで `bun run typecheck` / `check` / `build` / `test`。
 - **Terraform** は Stripe リソースのみ管理（state は R2、preview は自動 apply / production は手動）。Cloudflare リソースは wrangler.jsonc とダッシュボード管理。
 - **公開ドメインを追加・変更したら `src/lib/auth.ts` の `trustedOrigins` に登録する**（プレビューはダッシュ連結ホスト名用のワイルドカード `https://*-wine-preview...` が別途必要）。
-- binding や vars を wrangler.jsonc に追加したら `bun run cf-typegen`、wrangler types が生成しないシークレットは `src/env-secrets.d.ts` に型を足す。
+- binding や vars を wrangler.jsonc に追加したら `bun run cf-typegen`、wrangler types が生成しないシークレットは `src/env-secrets.d.ts` に型を足す。**`cf-typegen` は `--env-file=/dev/null` 付きで実行する**（`wrangler types` は素で実行するとローカルの `.dev.vars` も型に取り込み、生成結果が開発者の手元の設定次第で変わるため。シークレットの型宣言は `env-secrets.d.ts` に一本化する。#261）。
 
 ## 横断規約
 
