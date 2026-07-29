@@ -107,12 +107,12 @@ export const Route = createFileRoute("/map/$regionId")({
 			getAffiliateConfig(),
 			getAopProgress({ data: { regionId: region.id } }),
 		]);
-		return {
-			region,
-			aops: listAops({ regionId: region.id }),
-			affiliate,
-			aopProgress,
-		};
+		// aops は loader で返さない(#240)。静的な aops.json 由来の純データで、
+		// クライアントバンドルにも既に載っている。loader の戻り値は初回SSRで
+		// dehydrate されてHTMLに埋め込まれるため、返すと最大86KB(bordeaux)の
+		// 同じJSONが「バンドル内 + HTML内」に二重で乗り、初回ロードのパース・
+		// hydration を重くする。コンポーネント側で listAops を直接呼ぶ。
+		return { region, affiliate, aopProgress };
 	},
 	component: MapPage,
 });
@@ -155,7 +155,9 @@ function SelectedAopPanel({
 }
 
 function MapPage() {
-	const { region, aops, affiliate, aopProgress } = Route.useLoaderData();
+	const { region, affiliate, aopProgress } = Route.useLoaderData();
+	// 静的データなのでレンダー側で解決する(SSRペイロードに載せない。#240)
+	const aops = useMemo(() => listAops({ regionId: region.id }), [region.id]);
 	const { grape, aop: selectedAopId, hide, view, color } = Route.useSearch();
 	const { isAuthenticated } = Route.useRouteContext();
 	const navigate = useNavigate({ from: Route.fullPath });
