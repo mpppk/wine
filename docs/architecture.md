@@ -269,6 +269,8 @@ R2 の削除範囲は `privateImagePrefixForUser()` / `avatarPrefixForUser()`（
   - `workers`（workerd + 実 D1、`*.workers.test.ts`）: **D1 / `env` に触るコード**。`src/lib/services/*` の各サービス（credit / drunk-wine / quiz / billing / admin-actions / ai / user-deletion）や `src/lib/mcp/tools`・`src/lib/images/authorize`・`src/lib/auth` がここにある。
   - **「サービス層・server fn は書かない」という方針ではない**。金銭の原子性・冪等性のように純関数へ切り出せない不変条件は、実 D1 の上で固定するのが正しい（docs/ai-credit-system.md の予約→確定/返却など）。server fn も、薄い1行委譲なら書かないが `src/server/middleware.ts` のように判断を持つ境界は例外で、`src/server/middleware.test.ts` がフレームワーク境界だけをモックして検証している。
   - `describe`/`it` のタイトルは日本語。vitest.config.ts は vite.config.ts と意図的に分離されている（Cloudflare プラグインが vitest 起動を壊すため）。
+  - **マイグレーション検証の限界**: `workers` プロジェクトは毎回**空のD1へ全履歴を適用**する（`test/apply-migrations.ts`）。CI の `bun run db:migrate:local` も同じく空DB起点なので、**データが載った本番D1でのみ失敗する変更は、どちらでも検出できない**（既存行がある表への `NOT NULL` 追加、重複値がある列への UNIQUE 追加など）。この種の変更は expand-and-contract で分けるか、本番の行数・値分布を確認したうえでレビューする（CLAUDE.md / #24）。
+  - テスト基盤は wrangler の実態に追随させる（#268）。`compatibilityDate` / `compatibility_flags` は `vitest.config.ts` が `wrangler.jsonc` から読むので二重に書かない。`drizzle/` に連番規約（`NNNN_*.sql`）外のSQLがあると設定読み込みで**失敗する** — `wrangler d1 migrations apply` は連番外も適用するため、テスト側だけ黙って除外すると実態と食い違うため。
 - **整形・lint**: Biome（タブインデント・ダブルクォート・organizeImports）。`routeTree.gen.ts` と `styles.css` は対象外。TypeScript は strict + `noUncheckedIndexedAccess` + `verbatimModuleSyntax`（型 import は `import type` 必須）等。
 - **言語**: 識別子・ファイル名は英語、コメントは設計理由（why)を日本語で書く文化。UI 文言・zod の `.describe()`・MCP ツールの description・ドキュメントも日本語。エラーメッセージは英語（"Unauthorized" 等）。
 - **定数の一元管理**: 上限値などの数値定数はドメイン lib に置き、zod スキーマ・サービス層・UI の全員が同じ定数を import する（二重管理禁止）。
