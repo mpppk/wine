@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AI_MAX_QUESTION_CHARS, REGION_QA_MODEL_KEYS } from "#/lib/ai/config";
+import { AI_MAX_QUESTION_CHARS, regionQaModelKeySchema } from "#/lib/ai/config";
 import {
 	DRUNK_WINE_FIELD_DEFS,
 	type DrunkWineSnakeKey,
@@ -82,8 +82,7 @@ export const askRegionInput = {
 		.max(20)
 		.optional()
 		.describe("会話を継続する場合の直前までの履歴(古い順)。省略時は単発質問"),
-	model: z
-		.enum(REGION_QA_MODEL_KEYS)
+	model: regionQaModelKeySchema
 		.optional()
 		.describe(
 			"回答に使うモデルの明示指定 (gemma4 か llama4)。省略時はユーザのプロフィール設定を使う",

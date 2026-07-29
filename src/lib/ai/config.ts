@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 // 地域チャットQ&A(Workers AI)の設定。モデルや上限はここに集約し、原価/品質を見て
 // 数値だけ差し替えられるようにする。クレジット消費の見積上限は plans.ts 側に置く。
 
@@ -57,6 +59,31 @@ export const AI_REGION_QA_MODELS: Record<RegionQaModelKey, RegionQaModel> = {
 
 /** model 省略時の既定モデル。現行挙動(Gemma 4)を維持する。 */
 export const DEFAULT_REGION_QA_MODEL: RegionQaModelKey = "gemma4";
+
+/**
+ * モデルキーの許可リスト検証スキーマ。**書き込み経路と読み取り経路で共有する SSOT**(#256)。
+ *
+ * 読み取り側(resolveModelKey)が許可リストで弾いていても、書き込み側が素通しだと
+ * user 行に任意長の文字列が入る(認証済みユーザによるストレージ肥大・管理画面詳細の
+ * ペイロード膨張)。better-auth の `user.additionalFields.preferredAiModel.validator.input`
+ * と MCP ツール引数、UI 側の復元をこのスキーマ1本に寄せ、許可リストが増減しても
+ * 経路ごとの取りこぼしが出ないようにする。
+ *
+ * エラーメッセージは better-auth が 400 の message にそのまま載せ、プロフィール画面に
+ * 表示されるため日本語にする。
+ */
+export const regionQaModelKeySchema = z.enum(REGION_QA_MODEL_KEYS, {
+	error: "対応していないAIモデルです。",
+});
+
+/**
+ * 任意の値を許可リストと照合し、モデルキーでなければ `null` を返す。
+ * 「不正値は既定にフォールバックする」読み取り側は `?? DEFAULT_REGION_QA_MODEL` で使う。
+ */
+export function toRegionQaModelKey(value: unknown): RegionQaModelKey | null {
+	const parsed = regionQaModelKeySchema.safeParse(value);
+	return parsed.success ? parsed.data : null;
+}
 
 /** 1回の回答で生成する最大トークン(env.AI.run の max_completion_tokens)。予約はこれを含めて見積る。 */
 export const AI_MAX_OUTPUT_TOKENS = 512;
