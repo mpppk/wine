@@ -1,5 +1,6 @@
 import {
 	ArrowLeftIcon,
+	AwardIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	GraduationCapIcon,
@@ -26,9 +27,12 @@ import type { AopAncestry } from "#/lib/wine/aop-tree";
 import { buildDescriptionSegments } from "#/lib/wine/description-links";
 import { GRAND_CRU_TAG_COLOR, KIND_COLORS } from "#/lib/wine/map-style";
 import {
+	getProducerAwardHighlight,
 	getProducerInfo,
 	type ProducerAward,
+	type ProducerAwardHighlight,
 	type ProducerInfo,
+	sortProducersByAward,
 } from "#/lib/wine/producer-info";
 import {
 	classificationPanelBadgeJa,
@@ -411,6 +415,10 @@ const PRODUCERS_COLLAPSE_THRESHOLD = 12;
 // winery(シャトー)の producers は所有者/運営体なのでリンクせず、代わりにシャトー名
 // 自体をリンクにして、シャトーを検索する購入リンクをダイアログで出す。
 //
+// 受賞・格付けを持つ生産者は上位に寄せ(sortProducersByAward)、行に受賞バッジを
+// 出す。ダイアログを開くまで受賞歴が分からないと、折りたたみ(12件)で隠れた側に
+// 受賞者が埋もれるため。
+//
 // 展開状態は AOP をまたいで持ち越さない(呼び出し側で key={aop.id} を渡している)。
 function ProducersSection({
 	aop,
@@ -427,9 +435,10 @@ function ProducersSection({
 	} | null>(null);
 	const [expanded, setExpanded] = useState(false);
 	const wineryLinks = getWineryPurchaseLinks(aop, affiliate);
-	const rows = aop.producers.map((p) => ({
+	const rows = sortProducersByAward(aop.producers).map((p) => ({
 		producer: p,
 		links: wineryLinks ? null : getProducerPurchaseLinks(p, affiliate),
+		award: getProducerAwardHighlight(p.name),
 	}));
 	const collapsible = rows.length > PRODUCERS_COLLAPSE_THRESHOLD;
 	const visibleRows =
@@ -443,7 +452,7 @@ function ProducersSection({
 				主要な生産者
 			</h3>
 			<ul className="list-inside list-disc text-sm leading-relaxed">
-				{visibleRows.map(({ producer, links }) => (
+				{visibleRows.map(({ producer, links, award }) => (
 					<li key={producer.name}>
 						{links ? (
 							<ProducerLinkButton
@@ -459,6 +468,7 @@ function ProducersSection({
 						) : (
 							producer.name
 						)}
+						{award && <ProducerAwardBadge highlight={award} />}
 						{producer.note && (
 							<span className="text-muted-foreground">（{producer.note}）</span>
 						)}
@@ -502,6 +512,30 @@ function ProducersSection({
 				info={selected?.info ?? null}
 			/>
 		</section>
+	);
+}
+
+/**
+ * 受賞・格付けを持つ生産者の行に出すバッジ。ダイアログを開く前に受賞歴の有無が
+ * 分かるようにするのが目的なので、文言は最上位の1件だけ(階級 → 制度の短縮名)。
+ * 賞の完全な表記は title / aria-label に持たせ、全件はダイアログ側で出す。
+ */
+function ProducerAwardBadge({
+	highlight,
+}: {
+	highlight: ProducerAwardHighlight;
+}) {
+	return (
+		<span
+			// 略記のバッジ文言ではなく賞の完全な表記を読み上げさせる
+			role="img"
+			title={highlight.labelJa}
+			aria-label={`受賞・格付け: ${highlight.labelJa}`}
+			className="ml-1 inline-flex items-center gap-0.5 whitespace-nowrap rounded-sm border border-amber-500/40 bg-amber-500/10 px-1 py-px align-middle text-[10px] font-medium text-amber-800 dark:text-amber-300"
+		>
+			<AwardIcon aria-hidden className="size-2.5 shrink-0" />
+			{highlight.badgeJa}
+		</span>
 	);
 }
 
