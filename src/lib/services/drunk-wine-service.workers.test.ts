@@ -22,6 +22,7 @@ import {
 	getCellarSummary,
 	getDrunkWine,
 	listDrunkWines,
+	listDrunkWinesByAop,
 	listWineTastings,
 	markWineDrunk,
 	syncDrunkWinePhotos,
@@ -591,6 +592,88 @@ describe("listDrunkWines のページネーション", () => {
 			(await listDrunkWines(userId)).entries,
 		);
 		expect(fromSql).toEqual(fromEntries);
+	});
+});
+
+// ---- 情報パネルのマイセラー欄 ---------------------------------------------
+// 地図の情報パネルは「表示中のAOPを紐付けた自分の登録」だけを出す。スコープが
+// 「aop_id の完全一致 かつ 自分の行」であることをここで固定する(階層のロールアップ
+// も他ユーザの行の混入もしない)。
+
+describe("listDrunkWinesByAop", () => {
+	it("そのAOPを紐付けた自分の登録だけを新しい順に返す", async () => {
+		const userId = await freshUser();
+		const gevrey = await createDrunkWine(userId, {
+			name: "ジュヴレ 2019",
+			aopId: "gevrey-chambertin",
+		});
+		const gevrey2 = await createDrunkWine(userId, {
+			name: "ジュヴレ 2020",
+			aopId: "gevrey-chambertin",
+		});
+		// 別AOP・AOP未紐付けは対象外
+		await createDrunkWine(userId, { name: "ブルイィ", aopId: "brouilly" });
+		await createDrunkWine(userId, { name: "紐付けなし" });
+		// 並びを決定的にする(createdAt 降順)
+		await db
+			.update(drunkWine)
+			.set({ createdAt: new Date(1000) })
+			.where(eq(drunkWine.id, gevrey.id));
+		await db
+			.update(drunkWine)
+			.set({ createdAt: new Date(2000) })
+			.where(eq(drunkWine.id, gevrey2.id));
+
+		const entries = await listDrunkWinesByAop(userId, "gevrey-chambertin");
+		expect(entries.map((e) => e.name)).toEqual([
+			"ジュヴレ 2020",
+			"ジュヴレ 2019",
+		]);
+	});
+
+	it("畑に紐付けたワインを親の村名AOCには出さない", async () => {
+		const userId = await freshUser();
+		await createDrunkWine(userId, {
+			name: "シャンベルタン",
+			aopId: "chambertin",
+		});
+		expect(await listDrunkWinesByAop(userId, "gevrey-chambertin")).toEqual([]);
+		expect(
+			(await listDrunkWinesByAop(userId, "chambertin")).map((e) => e.name),
+		).toEqual(["シャンベルタン"]);
+	});
+
+	it("他ユーザの登録は見えない", async () => {
+		const mine = await freshUser();
+		const other = await freshUser();
+		await createDrunkWine(other, {
+			name: "他人のワイン",
+			aopId: "gevrey-chambertin",
+		});
+		expect(await listDrunkWinesByAop(mine, "gevrey-chambertin")).toEqual([]);
+	});
+
+	it("最新の飲用記録の評価を載せる(一覧と同じ導出)", async () => {
+		const userId = await freshUser();
+		// owned で作る(finished は飲用記録を自動で1件作るため件数が読みにくい)
+		const entry = await createDrunkWine(userId, {
+			name: "評価あり",
+			status: "owned",
+			aopId: "gevrey-chambertin",
+		});
+		await addWineTasting(userId, entry.id, {
+			drankOn: "2026-01-01",
+			rating: 3,
+		});
+		await addWineTasting(userId, entry.id, {
+			drankOn: "2026-02-01",
+			rating: 5,
+		});
+
+		const [row] = await listDrunkWinesByAop(userId, "gevrey-chambertin");
+		expect(row?.lastRating).toBe(5);
+		expect(row?.lastDrankOn).toBe("2026-02-01");
+		expect(row?.tastingCount).toBe(2);
 	});
 });
 

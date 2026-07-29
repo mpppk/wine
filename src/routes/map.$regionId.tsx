@@ -29,6 +29,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
+import { AopCellarWines } from "#/components/wine/AopCellarWines";
 import { AopDetailPanel } from "#/components/wine/AopDetailPanel";
 import { AopMapView } from "#/components/wine/AopMapView";
 import { AopReferenceLinks } from "#/components/wine/AopReferenceLinks";
@@ -280,6 +281,16 @@ function MapPage() {
 	const startAopQuiz = selectedAop
 		? () => setQuizScope({ kind: "aop", aopId: selectedAop.id })
 		: undefined;
+
+	// マイセラー欄(ユーザ固有・要ログイン)。このAOPを紐付けて登録したワインへの
+	// リンクを並べる。参考リンク欄と同じく両パネルに同じ内容を差し込む。
+	const cellarWinesSlot = selectedAop ? (
+		<AopCellarWines
+			aopId={selectedAop.id}
+			aopNameJa={selectedAop.nameJa}
+			isAuthenticated={isAuthenticated}
+		/>
+	) : undefined;
 
 	// 参考リンク欄(ユーザ固有・要ログイン)。デスクトップ/モバイル両パネルに同じ内容を
 	// 差し込む。未ログイン時はコンポーネント側でログイン導線のみ表示する。
@@ -614,6 +625,7 @@ function MapPage() {
 								onSelectRegion={selectRegion}
 								onBack={goBack}
 								backToName={backToName}
+								cellarWinesSlot={cellarWinesSlot}
 								referenceLinksSlot={referenceLinksSlot}
 								isListView={isListView}
 								onShowMap={() => setSearch({ view: undefined })}
@@ -646,6 +658,7 @@ function MapPage() {
 							onSelectRegion={selectRegion}
 							onBack={goBack}
 							backToName={backToName}
+							cellarWinesSlot={cellarWinesSlot}
 							referenceLinksSlot={referenceLinksSlot}
 							isListView={isListView}
 							onShowMap={() => setSearch({ view: undefined })}

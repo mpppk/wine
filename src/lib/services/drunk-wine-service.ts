@@ -679,6 +679,34 @@ export async function listDrunkWines(
 }
 
 /**
+ * あるAOPに紐付いた、そのユーザのマイセラー登録を新しい順に引く。地図の情報パネル
+ * (AopDetailPanel)の「マイセラー」欄が使う。
+ *
+ * 絞り込みは aop_id の**完全一致**のみで、階層のロールアップはしない(畑を紐付けた
+ * ワインを親の村名AOCのパネルには出さない)。パネルに出る集合が、そのワインの編集
+ * 画面で選んだAOPと常に一対一で対応するほうが「どこに出るのか」を説明しやすく、
+ * 参考リンク欄(aop_reference_link)のスコープとも揃うため。
+ *
+ * (user_id, aop_id) の索引は張らない。既存の drunk_wine_user_created_idx の user_id
+ * 前方一致で当該ユーザの行だけに絞れ、マイセラーは1ユーザあたり高々数百行の規模だから。
+ */
+export async function listDrunkWinesByAop(
+	userId: string,
+	aopId: string,
+): Promise<DrunkWineEntry[]> {
+	const rows = await db
+		.select({
+			...getTableColumns(drunkWine),
+			lastRating: latestTastingValue<number>(wineTasting.rating),
+			lastMemo: latestTastingValue<string>(wineTasting.memo),
+		})
+		.from(drunkWine)
+		.where(and(eq(drunkWine.userId, userId), eq(drunkWine.aopId, aopId)))
+		.orderBy(desc(drunkWine.createdAt), desc(drunkWine.id));
+	return rows.map(toEntry);
+}
+
+/**
  * 一覧チップの件数。ページネーションで手元に無い行も数える必要があるので、
  * 行を持たずに集計だけを1クエリで取る(#254)。
  * 数え方は countCellarFilters(純関数)と一致させる。

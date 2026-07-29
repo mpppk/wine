@@ -71,3 +71,20 @@ describe("AopDetailPanel の生産者リスト", () => {
 		expect(producerRows()[0]).toContain("（モノポール）");
 	});
 });
+
+// ユーザ固有の欄(マイセラー・参考リンク)は、ログイン制御とデータ取得を含むため
+// 呼び出し元が組み立てて差し込む。パネル側は「渡されたら出す・渡されなければ出さない」
+// だけを守る(embed 等の公開ビューは渡さないので何も出てはいけない)。
+describe("AopDetailPanel のユーザ固有スロット", () => {
+	it("cellarWinesSlot を渡すと描画する", () => {
+		render(
+			<AopDetailPanel aop={AOP} cellarWinesSlot={<p>マイセラーの中身</p>} />,
+		);
+		expect(screen.getByText("マイセラーの中身")).toBeTruthy();
+	});
+
+	it("スロット未指定なら何も出さない", () => {
+		render(<AopDetailPanel aop={AOP} />);
+		expect(screen.queryByText("マイセラーの中身")).toBeNull();
+	});
+});

@@ -120,6 +120,7 @@ export function AopDetailPanel({
 	onSelectRegion,
 	onBack,
 	backToName,
+	cellarWinesSlot,
 	referenceLinksSlot,
 }: {
 	aop: Aop;
@@ -157,6 +158,12 @@ export function AopDetailPanel({
 	onBack?: () => void;
 	/** 戻り先AOPの表示名。「戻る」ボタンのラベルに使う */
 	backToName?: string;
+	/**
+	 * マイセラー欄(ユーザ固有・要ログイン)。このAOPを紐付けて登録したワインへの
+	 * リンクを並べる。参考リンク欄と同じくパネル外で組み立てて差し込む。未指定なら
+	 * 表示しない(embed等の公開ビューでは渡さない)。
+	 */
+	cellarWinesSlot?: ReactNode;
 	/**
 	 * 参考リンク欄(ユーザ固有・要ログイン)。ログイン制御・データ取得を含むため
 	 * パネル外(呼び出し元)で組み立てて差し込む。未指定なら参考リンク欄を表示しない
@@ -314,6 +321,8 @@ export function AopDetailPanel({
 
 			{/* key で AOP 切替時に展開状態・開いているダイアログをリセットする */}
 			<ProducersSection key={aop.id} aop={aop} affiliate={affiliate} />
+
+			{cellarWinesSlot}
 
 			{referenceLinksSlot}
 
