@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+	ALLOWED_PHOTO_TYPES,
 	buildWinePhotoKey,
 	decodePhotoBase64,
 	MAX_PHOTO_BYTES,
+	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
+	PHOTO_ACCEPT_ATTR,
+	PHOTO_FORMATS_LABEL_JA,
 	photoExtForMime,
 	resolveStoredPhotoMime,
 	sniffImageMime,
@@ -177,5 +181,27 @@ describe("sniffImageMime", () => {
 				]),
 			),
 		).toBeUndefined();
+	});
+});
+
+// 表示用の定数が許可MIMEの単一情報源から導出されていることを固定する(#257)。
+// 形式や上限を変えたときに、accept属性・説明文・エラー文言のどれかだけが
+// 旧情報のまま残る(=利用者への誤案内になる)のを防ぐ。
+describe("表示用定数の導出", () => {
+	it("accept属性は許可MIMEを全て含む", () => {
+		const accept = PHOTO_ACCEPT_ATTR.split(",");
+		expect(new Set(accept)).toEqual(ALLOWED_PHOTO_TYPES);
+	});
+
+	it("形式の表示名は許可MIMEと同数で、拡張子ではなく表示名を並べる", () => {
+		const labels = PHOTO_FORMATS_LABEL_JA.split("・");
+		expect(labels).toHaveLength(ALLOWED_PHOTO_TYPES.size);
+		// image/jpeg の表示は拡張子(jpg)ではなく JPEG
+		expect(labels).toContain("JPEG");
+		expect(labels).toContain("WebP");
+	});
+
+	it("上限サイズの表示は MAX_PHOTO_BYTES から導出する", () => {
+		expect(MAX_PHOTO_SIZE_LABEL).toBe(`${MAX_PHOTO_BYTES / 1024 / 1024}MB`);
 	});
 });
