@@ -4,6 +4,7 @@ import { CELLAR_FILTER_IDS } from "#/lib/drunk-wine/filter";
 import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import {
 	createDrunkWineInput,
+	drunkWineFields,
 	updateDrunkWineInput,
 	updateWineTastingInput,
 	wineTastingFields,
@@ -52,6 +53,17 @@ export const listDrunkWines = createServerFn({ method: "GET" })
 	)
 	.handler(({ data, context }) =>
 		drunkWineService.listDrunkWines(context.user.id, data ?? {}),
+	);
+
+/**
+ * 地図の情報パネル(AopDetailPanel)の「マイセラー」欄。表示中のAOPを紐付けた
+ * 自分の登録を引く。aopId の完全一致で、件数はAOP単位なのでページングしない。
+ */
+export const listDrunkWinesByAop = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ aopId: drunkWineFields.aopId.unwrap() }))
+	.handler(({ data, context }) =>
+		drunkWineService.listDrunkWinesByAop(context.user.id, data.aopId),
 	);
 
 /** 一覧チップの件数。ページに載っていない行も数えるので集計だけを引く(#254)。 */
