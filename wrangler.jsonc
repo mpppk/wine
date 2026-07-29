@@ -11,7 +11,12 @@
 	],
 	"main": "@tanstack/react-start/server-entry",
 	"vars": {
-		"BETTER_AUTH_URL": "https://wine.niboshi.workers.dev",
+		// 公開URLの単一情報源。MCP ツールが外部に返す geojson_url / map_url /
+		// 署名付き photo_url と、OAuth の issuer・各エンドポイント(RFC 8414/9728 の
+		// .well-known)がこの値から組まれる。カスタムドメインを公開URLにしている以上、
+		// ここも同じホストにしないと discovery の issuer が実際の origin と食い違う(#270)。
+		// 変更したら src/lib/auth.ts の trustedOrigins にも同じホストを登録すること。
+		"BETTER_AUTH_URL": "https://wine.nibo.sh",
 		// アフィリエイトID(公開情報)。実IDに差し替えるか `wrangler secret put` で上書きする。
 		// 空のままでも購入リンクは素の検索URLとして機能する。
 		"RAKUTEN_AFFILIATE_ID": "",

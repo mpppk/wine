@@ -126,6 +126,9 @@ function main() {
 }
 
 // スクリプトとして直接実行された時のみ走らせる
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+	process.argv[1] &&
+	import.meta.url === pathToFileURL(process.argv[1]).href
+) {
 	process.exit(main());
 }

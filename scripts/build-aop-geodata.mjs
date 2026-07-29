@@ -388,7 +388,8 @@ const KIND_RANK = { regional: 0, village: 1, vineyard: 2, winery: 3 };
 
 async function main() {
 	const regionArg = process.argv.indexOf("--region");
-	const regionFilter = regionArg !== -1 ? process.argv[regionArg + 1] : undefined;
+	const regionFilter =
+		regionArg !== -1 ? process.argv[regionArg + 1] : undefined;
 	const sourceArg = process.argv.indexOf("--source");
 
 	// INAO ポリゴンを持たない詳細エントリ(idApp>=930000: ブルゴーニュのクリマ・
