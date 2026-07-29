@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { RotateCcwIcon, SkipForwardIcon, XIcon } from "lucide-react";
+import { useMemo } from "react";
 import { z } from "zod";
 import {
 	AdInterstitialDialog,
@@ -75,7 +76,10 @@ function QuizSession({
 	types: string | undefined;
 	isAuthenticated: boolean;
 }) {
-	const quizTypes = parseQuizTypes(types, regionId);
+	const quizTypes = useMemo(
+		() => parseQuizTypes(types, regionId),
+		[types, regionId],
+	);
 	const {
 		phase,
 		current,

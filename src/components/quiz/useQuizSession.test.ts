@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UNAUTHORIZED_MESSAGE } from "#/lib/errors";
-import type { QuizQuestion } from "#/lib/quiz/types";
+import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
 
 // server function / router は Cloudflare 依存を引き込むためモックする。
 const getNextQuestions = vi.fn();
@@ -304,6 +304,48 @@ describe("useQuizSession の解答記録失敗ハンドリング (#255)", () => 
 
 		expect(recordAnswer).not.toHaveBeenCalled();
 		expect(result.current.saveFailure).toBeNull();
+		await drainAndUnmount(unmount);
+	});
+});
+
+// Issue #241: 呼び出し側が毎レンダー新しい quizTypes 配列を渡しても、内容が同じなら
+// fetchMore の identity を据え置き、補充フェッチを再発火させないことを検証する。
+describe("useQuizSession の quizTypes 参照ゆれ耐性", () => {
+	beforeEach(() => {
+		getNextQuestions.mockReset();
+	});
+
+	it("同一内容の quizTypes を新しい配列で渡し直しても再フェッチしない", async () => {
+		// 補充しても新しい問題が返らず、キューが PREFETCH_THRESHOLD(2)以下に
+		// 張り付く終盤の局面。ここで再レンダーのたびに補充が走るのが #241。
+		getNextQuestions.mockResolvedValue({
+			questions: [],
+			remaining: 2,
+			total: 2,
+		});
+		getNextQuestions.mockResolvedValueOnce({
+			questions: [makeQuestion("k1"), makeQuestion("k2")],
+			remaining: 2,
+			total: 2,
+		});
+
+		const { result, rerender, unmount } = renderHook(
+			({ quizTypes }: { quizTypes: QuizType[] }) =>
+				useQuizSession("bourgogne", quizTypes, false),
+			{ initialProps: { quizTypes: ["colors"] as QuizType[] } },
+		);
+		await waitFor(() => expect(result.current.current?.key).toBe("k1"));
+		// 初回1回 + キューが閾値以下のため走る補充1回(内部で2 attempt)= 3回で落ち着く
+		await waitFor(() => expect(getNextQuestions).toHaveBeenCalledTimes(3));
+
+		const callsBefore = getNextQuestions.mock.calls.length;
+		await act(async () => {
+			// 内容は同じだが参照だけが変わる(parseQuizTypes 相当)
+			rerender({ quizTypes: ["colors"] as QuizType[] });
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		});
+		expect(getNextQuestions).toHaveBeenCalledTimes(callsBefore);
+
 		await drainAndUnmount(unmount);
 	});
 });
