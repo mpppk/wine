@@ -6,6 +6,11 @@ import {
 	WINE_TASTING_FIELDS,
 	type WineTastingSnakeKey,
 } from "#/lib/drunk-wine/fields";
+import { CELLAR_FILTER_IDS } from "#/lib/drunk-wine/filter";
+import {
+	DRUNK_WINE_MAX_PAGE_SIZE,
+	DRUNK_WINE_PAGE_SIZE,
+} from "#/lib/drunk-wine/pagination";
 import { drunkWineFields, wineTastingFields } from "#/lib/drunk-wine/schema";
 import { AOP_TAG_IDS } from "#/lib/wine/tags";
 
@@ -283,4 +288,29 @@ export const addWineTastingInput = {
 		rating: "評価 (1〜5の整数)",
 		memo: "メモ・感想 (2000文字まで)",
 	}),
+};
+
+// マイセラー一覧。件数が増えるとツール結果がそのまま LLM のコンテキスト入力になるため、
+// 既定でページングする(#254)。続きは前回応答の next_cursor を渡して取る。
+export const listDrunkWinesInput = {
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.max(DRUNK_WINE_MAX_PAGE_SIZE)
+		.optional()
+		.describe(
+			`1回で返す件数 (1〜${DRUNK_WINE_MAX_PAGE_SIZE}。既定 ${DRUNK_WINE_PAGE_SIZE})`,
+		),
+	cursor: z
+		.string()
+		.max(200)
+		.optional()
+		.describe("続きを取得するカーソル (前回応答の next_cursor をそのまま渡す)"),
+	filter: z
+		.enum(CELLAR_FILTER_IDS)
+		.optional()
+		.describe(
+			"絞り込み: all=すべて(既定) / tasted=飲んだことがある / owned=セラーにある / wishlist=気になる",
+		),
 };

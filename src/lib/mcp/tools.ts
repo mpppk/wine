@@ -6,6 +6,7 @@ import {
 	toCamelPatch,
 	WINE_TASTING_FIELDS,
 } from "#/lib/drunk-wine/fields";
+import { DRUNK_WINE_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import { decodePhotoBase64 } from "#/lib/drunk-wine/photo";
 import { BadRequestError, HttpError } from "#/lib/errors";
 import {
@@ -48,6 +49,7 @@ import {
 	askRegionInput,
 	getAopInput,
 	listAopsInput,
+	listDrunkWinesInput,
 	registerDrunkWineInput,
 	showAopMapInput,
 	updateDrunkWineInput,
@@ -643,14 +645,21 @@ export function registerWriteTools(server: McpServer, userId: string) {
 				"マイセラーに記録したワインの一覧を新しい順に返す。飲んだワインだけでなく" +
 				"未飲(status=owned)・気になる(status=wishlist)も含む。" +
 				"飲んだことがあるかは tasting_count > 0 で判定する。" +
-				"エントリの編集には update_drunk_wine に entry.id を渡す。",
+				"エントリの編集には update_drunk_wine に entry.id を渡す。" +
+				"件数が多い場合はページングされる: next_cursor が返ったら cursor に渡して続きを取る。",
+			inputSchema: listDrunkWinesInput,
 			annotations: { readOnlyHint: true },
 		},
-		async () => {
+		async ({ limit, cursor, filter }) => {
 			try {
-				const entries = await drunkWineService.listDrunkWines(userId);
+				const { entries, nextCursor } = await drunkWineService.listDrunkWines(
+					userId,
+					{ limit: limit ?? DRUNK_WINE_PAGE_SIZE, cursor, filter },
+				);
 				return ok({
 					count: entries.length,
+					// 未指定でもページングするので、続きの有無を必ず返す
+					next_cursor: nextCursor,
 					entries: await Promise.all(entries.map(toEntryPayload)),
 				});
 			} catch (e) {

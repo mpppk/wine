@@ -4,6 +4,11 @@ import { db } from "#/db";
 import { drunkWine, wineTasting } from "#/db/schema";
 import { jstDayKey } from "#/lib/dashboard/jst";
 import {
+	type CellarFilterId,
+	DEFAULT_CELLAR_FILTER,
+} from "#/lib/drunk-wine/filter";
+import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
+import {
 	buildWinePhotoKey,
 	MAX_PHOTOS_PER_ENTRY,
 	resolveStoredPhotoMime,
@@ -526,19 +531,136 @@ export async function deleteDrunkWine(
 	if (row.photoKeys.length > 0) await env.AVATARS.delete(row.photoKeys);
 }
 
+export interface ListDrunkWinesOptions {
+	/** 絞り込み条件(一覧のチップと同じ定義)。既定は "all"。 */
+	filter?: CellarFilterId;
+	/** 1ページの件数。未指定なら全件返す(地図のように全ピンが要る経路のため)。 */
+	limit?: number;
+	/** 前ページの nextCursor。先頭ページは未指定。 */
+	cursor?: string | null;
+}
+
+export interface ListDrunkWinesPage {
+	entries: DrunkWineEntry[];
+	/** 次ページがあればそのカーソル。無ければ null。 */
+	nextCursor: string | null;
+}
+
+// カーソルは "createdAt(ms):id"。createdAt だけだと同一ミリ秒の登録で行が飛ぶ/重複する
+// ため id をタイブレーカにする(id は主キーなので一意)。並び順も同じ2キーで固定する。
+function encodeCursor(entry: DrunkWineEntry): string {
+	return `${entry.createdAt}:${entry.id}`;
+}
+
+function decodeCursor(
+	cursor: string,
+): { createdAt: number; id: string } | null {
+	const sep = cursor.indexOf(":");
+	if (sep <= 0) return null;
+	const createdAt = Number(cursor.slice(0, sep));
+	const id = cursor.slice(sep + 1);
+	if (!Number.isFinite(createdAt) || !id) return null;
+	return { createdAt, id };
+}
+
+/**
+ * 一覧の絞り込みを SQL 条件に落とす。判定の定義は #/lib/drunk-wine/filter の
+ * matchesCellarFilter が単一情報源で、ここはその SQL 版。
+ * **両者が一致することは drunk-wine-service.workers.test.ts が実データで突合する**
+ * (条件を片方だけ変えると、一覧の件数と中身が食い違う)。
+ */
+function cellarFilterCondition(filter: CellarFilterId) {
+	switch (filter) {
+		case "all":
+			return undefined;
+		case "tasted":
+			return sql`${drunkWine.tastingCount} > 0`;
+		case "owned":
+			return eq(drunkWine.status, "owned");
+		case "wishlist":
+			return eq(drunkWine.status, "wishlist");
+	}
+}
+
+/**
+ * マイセラーの一覧。新しい順(createdAt 降順)。
+ *
+ * limit を渡すとカーソルページネーションになる(#254)。マイセラーはユーザが単調に
+ * 増やすデータで上限が無く、全件取得だと行スキャン・レスポンスサイズ・MCP の
+ * トークン消費が件数に線形で悪化するため。並び順とカーソルは
+ * `drunk_wine_user_created_idx`(user_id, created_at) をそのまま使える形にしてある。
+ *
+ * limit 未指定の全件取得も残している。地図(/cellar/map)は全ピンを一度に描くので
+ * ページ単位では成立しないため。
+ */
 export async function listDrunkWines(
 	userId: string,
-): Promise<DrunkWineEntry[]> {
-	const rows = await db
+	options: ListDrunkWinesOptions = {},
+): Promise<ListDrunkWinesPage> {
+	const filter = options.filter ?? DEFAULT_CELLAR_FILTER;
+	const limit =
+		options.limit == null
+			? null
+			: Math.min(
+					Math.max(1, Math.trunc(options.limit)),
+					DRUNK_WINE_MAX_PAGE_SIZE,
+				);
+	const after = options.cursor ? decodeCursor(options.cursor) : null;
+
+	const conditions = [eq(drunkWine.userId, userId)];
+	const filterCondition = cellarFilterCondition(filter);
+	if (filterCondition) conditions.push(filterCondition);
+	if (after) {
+		// keyset: (created_at, id) の辞書順で「カーソルより古い」行だけを読む
+		conditions.push(
+			sql`(${drunkWine.createdAt} < ${after.createdAt} OR (${drunkWine.createdAt} = ${after.createdAt} AND ${drunkWine.id} < ${after.id}))`,
+		);
+	}
+
+	const query = db
 		.select({
 			...getTableColumns(drunkWine),
 			lastRating: latestTastingValue<number>(wineTasting.rating),
 			lastMemo: latestTastingValue<string>(wineTasting.memo),
 		})
 		.from(drunkWine)
-		.where(eq(drunkWine.userId, userId))
-		.orderBy(desc(drunkWine.createdAt));
-	return rows.map(toEntry);
+		.where(and(...conditions))
+		.orderBy(desc(drunkWine.createdAt), desc(drunkWine.id));
+
+	// +1件多く読んで「次があるか」を判定する(別途 COUNT を撃たない)
+	const rows = await (limit == null ? query : query.limit(limit + 1));
+	const entries = rows.map(toEntry);
+	if (limit == null || entries.length <= limit) {
+		return { entries, nextCursor: null };
+	}
+	const page = entries.slice(0, limit);
+	const last = page[page.length - 1];
+	return { entries: page, nextCursor: last ? encodeCursor(last) : null };
+}
+
+/**
+ * 一覧チップの件数。ページネーションで手元に無い行も数える必要があるので、
+ * 行を持たずに集計だけを1クエリで取る(#254)。
+ * 数え方は countCellarFilters(純関数)と一致させる。
+ */
+export async function countCellarFilters(
+	userId: string,
+): Promise<Record<CellarFilterId, number>> {
+	const [row] = await db
+		.select({
+			all: sql<number>`count(*)`,
+			tasted: sql<number>`sum(case when ${drunkWine.tastingCount} > 0 then 1 else 0 end)`,
+			owned: sql<number>`sum(case when ${drunkWine.status} = 'owned' then 1 else 0 end)`,
+			wishlist: sql<number>`sum(case when ${drunkWine.status} = 'wishlist' then 1 else 0 end)`,
+		})
+		.from(drunkWine)
+		.where(eq(drunkWine.userId, userId));
+	return {
+		all: Number(row?.all ?? 0),
+		tasted: Number(row?.tasted ?? 0),
+		owned: Number(row?.owned ?? 0),
+		wishlist: Number(row?.wishlist ?? 0),
+	};
 }
 
 /**
