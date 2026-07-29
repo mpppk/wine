@@ -34,6 +34,10 @@ import { AopReferenceLinks } from "#/components/wine/AopReferenceLinks";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterMenu } from "#/components/wine/GrapeFilterMenu";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
+import {
+	MapProgressLegend,
+	ProgressLegendScale,
+} from "#/components/wine/ProgressLegend";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import { countScopedQuestions, expandScopeAopIds } from "#/lib/quiz/scope";
@@ -53,12 +57,7 @@ import {
 	getAopAncestry,
 	getSameKindSiblings,
 } from "#/lib/wine/aop-tree";
-import {
-	AOP_KINDS,
-	KIND_COLORS,
-	PROGRESS_BUCKETS,
-	PROGRESS_EMPTY_COLOR,
-} from "#/lib/wine/map-style";
+import { AOP_KINDS, KIND_COLORS } from "#/lib/wine/map-style";
 import { REGIONS } from "#/lib/wine/regions";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
 import {
@@ -543,22 +542,7 @@ function MapPage() {
 							{colorMode === "progress" && (
 								<div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-3 py-2 text-xs">
 									<span className="font-medium">クイズ正解率</span>
-									<span className="flex items-center gap-1.5">
-										<span className="text-muted-foreground">少</span>
-										<span
-											className="inline-block size-3.5 rounded-sm"
-											style={{ backgroundColor: PROGRESS_EMPTY_COLOR.fill }}
-											title="未正解"
-										/>
-										{PROGRESS_BUCKETS.map((b) => (
-											<span
-												key={b.fill}
-												className="inline-block size-3.5 rounded-sm"
-												style={{ backgroundColor: b.fill }}
-											/>
-										))}
-										<span className="text-muted-foreground">多</span>
-									</span>
+									<ProgressLegendScale />
 									{!isAuthenticated && (
 										<span className="ml-auto flex items-center gap-2">
 											<span className="text-muted-foreground">
@@ -595,25 +579,7 @@ function MapPage() {
 				{/* 進捗モードの凡例・未ログイン促し(地図表示時のみ) */}
 				{!isListView && colorMode === "progress" && (
 					<>
-						<div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-md border border-border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
-							<div className="mb-1 font-medium">クイズ正解率</div>
-							<div className="flex items-center gap-1.5">
-								<span className="text-muted-foreground">少</span>
-								<span
-									className="inline-block size-3.5 rounded-sm"
-									style={{ backgroundColor: PROGRESS_EMPTY_COLOR.fill }}
-									title="未正解"
-								/>
-								{PROGRESS_BUCKETS.map((b) => (
-									<span
-										key={b.fill}
-										className="inline-block size-3.5 rounded-sm"
-										style={{ backgroundColor: b.fill }}
-									/>
-								))}
-								<span className="text-muted-foreground">多</span>
-							</div>
-						</div>
+						<MapProgressLegend className="absolute bottom-3 left-3" />
 						{!isAuthenticated && (
 							<div className="absolute inset-x-0 top-3 z-10 flex justify-center px-3">
 								<div className="pointer-events-auto flex items-center gap-2 rounded-md border border-border bg-background/95 px-3 py-2 text-xs shadow-sm backdrop-blur">
