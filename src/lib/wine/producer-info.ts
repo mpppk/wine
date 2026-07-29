@@ -1299,3 +1299,106 @@ export const PRODUCER_INFO: Record<string, ProducerInfo> = {
 export function getProducerInfo(name: string): ProducerInfo | undefined {
 	return PRODUCER_INFO[name];
 }
+
+/**
+ * 受賞・格付けの表示メタデータ。**授与制度(ProducerAward.name)ごと**に、生産者
+ * リストへ出す短縮バッジ名と階級の序列を定義する。
+ *
+ * `tiers` は上位から順に並べる。**同一制度の中でだけ**意味を持つ序列で、制度を
+ * またぐ絶対比較には使わない(1855年の第1級とサンテミリオン第1特別級Aは別制度。
+ * tags.ts の CLASSIFICATION_TAG_RANK と同じ規則)。1つのAOPに複数制度の受賞者が
+ * 混在するのは pessac-leognan(メドック格付け + グラーヴ格付け)のみで、そこでは
+ * 並び順が制度をまたぐ数値比較になるが、表示するバッジは各制度の階級そのもの
+ * なので誤った優劣を主張することにはならない。
+ *
+ * awards に新しい制度を足したらここにも追記する。未登録でも動く(バッジは階級か
+ * 賞の正式名称、序列は「受賞ありの中で最後」にフォールバックする)。
+ */
+const AWARD_DISPLAY: Record<
+	string,
+	{ badgeJa?: string; tiers?: readonly string[] }
+> = {
+	"MICHELIN Grapes": { tiers: ["3グレープ", "2グレープ", "1グレープ", "選出"] },
+	// 階級を持たない賞。正式名称は授与元を含んで長いので短縮名をバッジに出す
+	"Gambero Rosso トレ・ビッキエーリ": { badgeJa: "トレ・ビッキエーリ" },
+	メドック格付け: { tiers: ["第1級", "第2級", "第3級", "第4級", "第5級"] },
+	"ソーテルヌ・バルサック格付け": { tiers: ["特別第1級", "第1級", "第2級"] },
+	サンテミリオン格付け: { tiers: ["第1特別級A", "第1特別級B", "特別級"] },
+	// グラーヴ1959年格付けは上下を分けない単一クラス(tags.ts と同じ扱い)
+	グラーヴ格付け: {},
+};
+
+/**
+ * 階級を持たない賞・AWARD_DISPLAY 未登録の階級の序列。受賞ありの生産者の中では
+ * 最後に並ぶが、受賞なしの生産者(Infinity)よりは前に来る。
+ */
+const UNRANKED_AWARD_TIER = Number.MAX_SAFE_INTEGER;
+
+function awardTierRank(award: ProducerAward): number {
+	const tiers = AWARD_DISPLAY[award.name]?.tiers;
+	if (!tiers || !award.tier) return UNRANKED_AWARD_TIER;
+	const index = tiers.indexOf(award.tier);
+	return index === -1 ? UNRANKED_AWARD_TIER : index;
+}
+
+/** 生産者リストの行に出す受賞の要約(最上位の受賞1件ぶん) */
+export interface ProducerAwardHighlight {
+	/** バッジの文言。階級 → 制度の短縮名 → 賞の正式名称 の順に選ぶ */
+	badgeJa: string;
+	/** 読み上げ・ツールチップ用の完全な表記(例: "MICHELIN Grapes 3グレープ") */
+	labelJa: string;
+	/** 並べ替えの序列。小さいほど上位 */
+	rank: number;
+}
+
+/**
+ * 生産者の受賞・格付けのうち**最上位の1件**を、リスト行のバッジ用に要約する。
+ * 受賞を持たない(辞書に無い / awards が空)生産者は undefined。
+ *
+ * 全件はタップで開くダイアログ(AwardsSection)が出す。行に出すのは「受賞歴が
+ * あること」がタップ前に分かれば足りるため、最上位の1件だけに絞る。
+ */
+export function getProducerAwardHighlight(
+	name: string,
+): ProducerAwardHighlight | undefined {
+	const [first, ...rest] = getProducerInfo(name)?.awards ?? [];
+	if (!first) return undefined;
+	let top = first;
+	let rank = awardTierRank(first);
+	for (const award of rest) {
+		const candidate = awardTierRank(award);
+		if (candidate < rank) {
+			top = award;
+			rank = candidate;
+		}
+	}
+	const display = AWARD_DISPLAY[top.name];
+	return {
+		badgeJa: top.tier ?? display?.badgeJa ?? top.name,
+		labelJa: top.tier ? `${top.name} ${top.tier}` : top.name,
+		rank,
+	};
+}
+
+/**
+ * 受賞・格付けを持つ生産者を先頭へ寄せる(同順位は元の並びを保つ安定ソート)。
+ * 受賞者は制度内の階級順(3グレープ → 2グレープ …)に並ぶ。
+ *
+ * aops.json の producers 自体は並べ替えない(データ整合テストが顔ぶれを配列で
+ * 固定しているのと、辞書の登録状況で正解データの並びが変わるのを避けるため)。
+ * 表示側でこの関数を通す。
+ */
+export function sortProducersByAward<T extends { name: string }>(
+	producers: readonly T[],
+): T[] {
+	return producers
+		.map((producer, index) => ({
+			producer,
+			index,
+			rank:
+				getProducerAwardHighlight(producer.name)?.rank ??
+				Number.POSITIVE_INFINITY,
+		}))
+		.sort((a, b) => a.rank - b.rank || a.index - b.index)
+		.map((entry) => entry.producer);
+}
