@@ -3,6 +3,7 @@ import {
 	isImpersonatedSession,
 	isImpersonationWriteBlocked,
 	isWriteRequest,
+	needsImpersonationCheck,
 } from "./impersonation";
 
 type Session = Parameters<typeof isImpersonatedSession>[0];
@@ -64,5 +65,41 @@ describe("isImpersonationWriteBlocked", () => {
 	it("通常セッションの書き込みは通す", () => {
 		expect(isImpersonationWriteBlocked(session(null), "POST")).toBe(false);
 		expect(isImpersonationWriteBlocked(null, "POST")).toBe(false);
+	});
+});
+
+// better-auth 自身のエンドポイント(`/api/auth/*`)は server function でも API ルートでも
+// ないため、ここを塞がないと authClient.updateUser / subscription.* / delete-user が
+// なりすまし中に素通りする(#116)。
+describe("needsImpersonationCheck", () => {
+	it("書き込み系エンドポイントはセッションを確認する", () => {
+		expect(needsImpersonationCheck("POST", "/update-user")).toBe(true);
+		expect(needsImpersonationCheck("POST", "/delete-user")).toBe(true);
+		expect(needsImpersonationCheck("POST", "/subscription/upgrade")).toBe(true);
+		expect(needsImpersonationCheck("POST", "/subscription/cancel")).toBe(true);
+		expect(needsImpersonationCheck("POST", "/change-password")).toBe(true);
+	});
+
+	it("読み取りは確認不要(セッションを引かない)", () => {
+		expect(needsImpersonationCheck("GET", "/get-session")).toBe(false);
+	});
+
+	it("なりすましの終了は許可する(塞ぐと管理者が戻れない)", () => {
+		expect(needsImpersonationCheck("POST", "/admin/stop-impersonating")).toBe(
+			false,
+		);
+	});
+
+	it("サインアウトは許可する(なりすましセッション自身を捨てるだけ)", () => {
+		expect(needsImpersonationCheck("POST", "/sign-out")).toBe(false);
+	});
+
+	it("なりすましの開始は許可リストに入れない(管理者自身のセッションで通る)", () => {
+		// 開始時の呼び出し元は管理者の通常セッションなので、isImpersonatedSession が
+		// false になって結局通る。許可リストに入れると「なりすまし中の管理者が
+		// さらに別ユーザへ乗り換える」経路まで開くので入れない。
+		expect(needsImpersonationCheck("POST", "/admin/impersonate-user")).toBe(
+			true,
+		);
 	});
 });

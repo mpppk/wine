@@ -14,6 +14,7 @@ export function QuizSaveAlert({
 }) {
 	if (!failure) return null;
 	const unauthorized = failure.kind === "unauthorized";
+	const readOnly = failure.kind === "readOnly";
 	return (
 		<div
 			// 解答直後に動的に現れるため、支援技術にも読み上げさせる。
@@ -29,7 +30,9 @@ export function QuizSaveAlert({
 				<p className="mt-0.5 text-muted-foreground">
 					{unauthorized
 						? "ログインの有効期限が切れました。再ログインするまで、この先の解答も進捗に記録されません。"
-						: "サーバに記録できませんでした。通信環境を確認してください。回復すると自動で記録を再開します。"}
+						: readOnly
+							? "なりすまし中は閲覧のみ可能なため、解答は対象ユーザの進捗に記録されません。"
+							: "サーバに記録できませんでした。通信環境を確認してください。回復すると自動で記録を再開します。"}
 				</p>
 				{unauthorized && (
 					<Button asChild size="sm" variant="outline" className="mt-2">

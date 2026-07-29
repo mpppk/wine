@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { UNAUTHORIZED_MESSAGE, UnauthorizedError } from "#/lib/errors";
+import { IMPERSONATION_READONLY_MESSAGE } from "#/lib/admin/impersonation";
+import {
+	ForbiddenError,
+	UNAUTHORIZED_MESSAGE,
+	UnauthorizedError,
+} from "#/lib/errors";
 import { addSaveFailure, classifyQuizSaveFailure } from "./save-status";
 
 describe("classifyQuizSaveFailure", () => {
@@ -20,6 +25,24 @@ describe("classifyQuizSaveFailure", () => {
 	it("status/statusCode が 401 なら unauthorized と判定する", () => {
 		expect(classifyQuizSaveFailure({ status: 401 })).toBe("unauthorized");
 		expect(classifyQuizSaveFailure({ statusCode: 401 })).toBe("unauthorized");
+	});
+
+	it("なりすまし中の書き込み拒否は readOnly と判定する(#116)", () => {
+		// 仕様どおりの 403 なので「通信環境を確認してください」は誤案内になる。
+		// 送出側(ForbiddenError)と同じ定数を参照して文言の食い違いを防ぐ。
+		expect(
+			classifyQuizSaveFailure(new Error(IMPERSONATION_READONLY_MESSAGE)),
+		).toBe("readOnly");
+		expect(
+			classifyQuizSaveFailure(
+				new ForbiddenError(IMPERSONATION_READONLY_MESSAGE),
+			),
+		).toBe("readOnly");
+	});
+
+	it("なりすまし以外の 403 は unknown のまま(readOnly を広げすぎない)", () => {
+		expect(classifyQuizSaveFailure(new ForbiddenError())).toBe("unknown");
+		expect(classifyQuizSaveFailure({ status: 403 })).toBe("unknown");
 	});
 
 	it("それ以外の失敗は unknown", () => {
