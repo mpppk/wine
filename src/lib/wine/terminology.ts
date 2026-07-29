@@ -1,6 +1,7 @@
 import { AOPS } from "./aops-data";
+import { KIND_LABELS_JA } from "./map-style";
 import { getRegion } from "./regions";
-import type { Aop, WineColor } from "./types";
+import type { Aop, AopKind, WineColor } from "./types";
 
 // ワイン色の日本語表記。地図の詳細パネル(AopDetailPanel)とクイズ(lib/quiz/labels)の
 // 両方で使うドメイン語彙の単一情報源。表記変更(例「泡」→「スパークリング」)を
@@ -60,6 +61,25 @@ export function getVineyardTermJa(regionId: string): string {
 	if (regionId === "bourgogne") return "クリマ";
 	if (regionId === "alsace") return "リュー・ディ";
 	return "畑名";
+}
+
+/**
+ * AOP区分の表示名(日本語UI用)。畑(vineyard)だけは地域固有の呼称
+ * (ブルゴーニュ=クリマ / アルザス=リュー・ディ / それ以外=畑名)になるため、
+ * 「区分 → 表示名」の導出をここへ集約する(#258)。
+ *
+ * 以前は `kind === "vineyard" ? getVineyardTermJa(...) : KIND_LABELS_JA[kind]` という
+ * 同じ三項式が4箇所(詳細パネル×2・地図のポップアップ・区分フィルタ)に複製されており、
+ * 地域固有呼称を持つ区分が増えたときに4箇所を同時に直す必要があった。直し漏れると
+ * ポップアップと詳細パネルで表記が食い違う。
+ *
+ * 引数を Aop ではなく (kind, regionId) にしているのは、区分フィルタのチップが
+ * 「その地域に存在する区分」の一覧を扱っており、対応する Aop を持たないため。
+ */
+export function getAopKindLabelJa(kind: AopKind, regionId: string): string {
+	return kind === "vineyard"
+		? getVineyardTermJa(regionId)
+		: KIND_LABELS_JA[kind];
 }
 
 /**

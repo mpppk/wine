@@ -22,7 +22,6 @@ import { cn } from "#/lib/utils";
 import {
 	BASEMAP_STYLE_URL,
 	KIND_COLORS,
-	KIND_LABELS_JA,
 	KIND_RANK,
 	kindFillColorExpr,
 	kindLineColorExpr,
@@ -34,8 +33,8 @@ import { resolveMaplibreWorkerUrl } from "#/lib/wine/maplibre-worker";
 import { aopAllowsGrape } from "#/lib/wine/service";
 import { type AopTagId, formatAopTagJa } from "#/lib/wine/tags";
 import {
+	getAopKindLabelJa,
 	getAppellationTermJa,
-	getVineyardTermJa,
 } from "#/lib/wine/terminology";
 import type { Aop, AopKind, Region } from "#/lib/wine/types";
 
@@ -647,9 +646,7 @@ export function AopMapView({
 							`<span>${escapeHtml(aop.shortName)}</span>` +
 							`<em>${escapeHtml(
 								[
-									aop.kind === "vineyard"
-										? getVineyardTermJa(aop.region)
-										: KIND_LABELS_JA[aop.kind],
+									getAopKindLabelJa(aop.kind, aop.region),
 									...(aop.tags ?? []).map((t) => formatAopTagJa(aop, t)),
 								].join(" / "),
 							)}</em></div>`,

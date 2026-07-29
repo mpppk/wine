@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
 	cloudflareTest,
 	readD1Migrations,
@@ -22,11 +23,35 @@ import { defineConfig } from "vitest/config";
 
 // D1 マイグレーションは Node 側(設定読み込み時)で読み、テスト用の分離D1へ
 // setup で適用する(workerd 側は fs を持たないため、バインディング経由で渡す)。
-// 連番SQL(NNNN_*.sql)のみを対象にし、本番と同じスキーマ履歴を再現する。
-// 連番外の補助ファイルが drizzle/ に混ざっても拾わないよう防御的にフィルタする。
-const migrations = (await readD1Migrations("./drizzle")).filter((m) =>
-	/^\d+_/.test(m.name),
-);
+//
+// `wrangler d1 migrations apply` は drizzle/ の .sql を**連番規約に関係なく**適用する。
+// ここで連番外を黙って除外すると「テストは緑なのに本番の apply では別のSQLも走る」状態に
+// なるため、除外せず検出して落とす(#268)。連番外SQLの混入は #163 で実際に起きている。
+const allMigrations = await readD1Migrations("./drizzle");
+const nonSequential = allMigrations.filter((m) => !/^\d+_/.test(m.name));
+if (nonSequential.length > 0) {
+	throw new Error(
+		`drizzle/ に連番規約(NNNN_*.sql)外のSQLがあります: ${nonSequential
+			.map((m) => m.name)
+			.join(", ")}\n` +
+			"wrangler は連番外も適用するため、テストだけが実態と食い違います。" +
+			"連番にリネームするか drizzle/ の外へ移動してください(docs/architecture.md)。",
+	);
+}
+const migrations = allMigrations;
+
+// compatibilityDate は wrangler.jsonc から読む。二重に手書きすると wrangler 側だけ
+// 日付を上げたときにテストが旧ランタイム挙動のまま緑になる(#268)。
+// jsonc なのでコメントを落としてから JSON.parse する。
+const wranglerConfig = JSON.parse(
+	readFileSync("./wrangler.jsonc", "utf8")
+		.replace(/^\s*\/\/.*$/gm, "")
+		.replace(/\/\*[\s\S]*?\*\//g, ""),
+) as { compatibility_date: string; compatibility_flags?: string[] };
+const {
+	compatibility_date: compatibilityDate,
+	compatibility_flags: compatibilityFlags = [],
+} = wranglerConfig;
 
 export default defineConfig({
 	test: {
@@ -56,8 +81,9 @@ export default defineConfig({
 						//    テストには不要かつ避けたい。ここでは D1/R2 のみをローカルに用意する。
 						// テスト用D1は実行ごとに分離され、本番/プレビューには一切触れない。
 						miniflare: {
-							compatibilityDate: "2025-09-02",
-							compatibilityFlags: ["nodejs_compat"],
+							// wrangler.jsonc から読む(二重管理しない・#268)
+							compatibilityDate,
+							compatibilityFlags,
 							d1Databases: ["DB"],
 							r2Buckets: ["AVATARS"],
 							bindings: {
