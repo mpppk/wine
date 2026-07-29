@@ -104,7 +104,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - **状態モデル**: 「**URL = 共有可能な状態、ローカル state = エフェメラルな状態**」。共有すべきページ状態（選択 AOP・フィルタ等）は zod の `validateSearch` で型付けして URL に載せ、既定値はパラメータ省略で表現する。クイズの出題キューや地図の掘り下げ履歴などは意図的に URL に載せない。不正値は `.catch()` で黙って捨てる。
 - **認証ガード**: 認証必須ページは `beforeLoad` で `getSession()` → 未ログインは `/login` へ redirect。`/admin` は非管理者に存在を悟らせず `/` へ黙って redirect する。`beforeLoad` で注入する認証状態は SSR 時点のスナップショットで、リアルタイムには `authClient.useSession` を使う。
 - **データ取得**: 静的ワインデータは loader から直接 import して返す（server fn を介さない）。ユーザ固有データは server fn を loader で await するか、`use-*` フック（useQuery。queryKey は定数 export し invalidate 側でも同じ定数を使う）で取得する。
-- **UI**: shadcn/ui（`src/components/ui/`、追加は `pnpm dlx shadcn@latest add <name>`）を土台に、機能別コンポーネントは `src/components/<feature>/` に置く（フックや純ロジックも同居可）。UI 文言は日本語。ナビゲーションは `<Button asChild><Link/></Button>` が定型。
+- **UI**: shadcn/ui（`src/components/ui/`、追加は `bunx shadcn@latest add <name>`）を土台に、機能別コンポーネントは `src/components/<feature>/` に置く（フックや純ロジックも同居可）。UI 文言は日本語。ナビゲーションは `<Button asChild><Link/></Button>` が定型。
 - **シェル**: `__root.tsx` が `<html>` 全体を描画（PWA meta・FOUC 防止のテーマ初期化スクリプト・Header・AdBanner・コマンドパレット常駐）。`/embed/*` は MCP Apps の iframe 用で「Header 非表示・認証不要・選択状態を URL に載せない」の 3 制約がある。
 - **地図の色分けと絞り込みは直交させる**。`AopMapView` の `colorMode`（`kind` = AOP 区分 / `progress` = クイズ学習済み率 / `status` = マイセラーの所有状態）が色軸の唯一の入口で、値は feature-state（`progress` は数値 → `step`、`status` は文字列 → `match`）から paint 式で引く。一方 `highlightAopIds` / `hiddenAopIds` は `dimmed` / `hidden` の二値で絞り込みだけを表す。両者を混ぜないので、色軸を足してもフィルタ側に波及しない。色は区分＝赤系（`lib/wine/map-style.ts`）、進捗＝緑系（同）、所有状態＝青／琥珀／梅（`lib/drunk-wine/map-style.ts`）で、追加・変更時は `dataviz` skill の `validate_palette` を通す。**maplibre の式と feature-state は typecheck / build / test をすべて通り抜けて実行時にだけ壊れるため、色軸に触れたらプレビュー実機で必ず目視する**（#184 と同じ類型）。
 
@@ -263,7 +263,11 @@ R2 の削除範囲は `privateImagePrefixForUser()` / `avatarPrefixForUser()`（
 ## 横断規約
 
 - **import**: エイリアスは `#/*` = `./src/*`（package.json の Node subpath imports）。tsconfig に `@/*` も残っているが使用 0 件のデッドエントリで、新規コードは `#/` を使う。相対 import は同一ドメインディレクトリ内のみ（`../../` 越えは禁止相当。現状 0 件）。
-- **テスト**: Vitest（jsdom）。テストは対象と同ディレクトリの co-located `*.test.ts` で、**原則として `src/lib/<domain>/` の純ロジックに置く**（モックが要らないようロジックを純関数へ分離するのが規約。サービス層・server fn のテストは書かない）。複雑な UI フックは例外的にコンポーネント側でもテストする — `src/components/quiz/useQuizSession.test.ts` が例で、Cloudflare 依存を引き込む server fn とルーターを `vi.mock` し、`@testing-library/react` の `renderHook` で検証する。`describe`/`it` のタイトルは日本語。vitest.config.ts は vite.config.ts と意図的に分離されている（Cloudflare プラグインが vitest 起動を壊すため）。
+- **テスト**: Vitest の2プロジェクト構成（`vitest.config.ts`）。テストは対象と同ディレクトリの co-located で、**まず `src/lib/<domain>/` の純ロジックに寄せる**（モックが要らないようロジックを純関数へ分離するのが規約）。どちらのプロジェクトに置くかは「D1 / `env` に触るか」で決まる。
+  - `unit`（jsdom、`*.test.ts` / `*.test.tsx`）: 純ロジック。複雑な UI フック・コンポーネントも対象で、`src/components/quiz/useQuizSession.test.ts` は Cloudflare 依存を引き込む server fn とルーターを `vi.mock` し `renderHook` で検証する例。
+  - `workers`（workerd + 実 D1、`*.workers.test.ts`）: **D1 / `env` に触るコード**。`src/lib/services/*` の各サービス（credit / drunk-wine / quiz / billing / admin-actions / ai / user-deletion）や `src/lib/mcp/tools`・`src/lib/images/authorize`・`src/lib/auth` がここにある。
+  - **「サービス層・server fn は書かない」という方針ではない**。金銭の原子性・冪等性のように純関数へ切り出せない不変条件は、実 D1 の上で固定するのが正しい（docs/ai-credit-system.md の予約→確定/返却など）。server fn も、薄い1行委譲なら書かないが `src/server/middleware.ts` のように判断を持つ境界は例外で、`src/server/middleware.test.ts` がフレームワーク境界だけをモックして検証している。
+  - `describe`/`it` のタイトルは日本語。vitest.config.ts は vite.config.ts と意図的に分離されている（Cloudflare プラグインが vitest 起動を壊すため）。
 - **整形・lint**: Biome（タブインデント・ダブルクォート・organizeImports）。`routeTree.gen.ts` と `styles.css` は対象外。TypeScript は strict + `noUncheckedIndexedAccess` + `verbatimModuleSyntax`（型 import は `import type` 必須）等。
 - **言語**: 識別子・ファイル名は英語、コメントは設計理由（why)を日本語で書く文化。UI 文言・zod の `.describe()`・MCP ツールの description・ドキュメントも日本語。エラーメッセージは英語（"Unauthorized" 等）。
 - **定数の一元管理**: 上限値などの数値定数はドメイン lib に置き、zod スキーマ・サービス層・UI の全員が同じ定数を import する（二重管理禁止）。

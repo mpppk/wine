@@ -35,6 +35,13 @@ Workers Builds の build / deploy command はダッシュボード（Settings > 
 
 - `db:migrate:remote` = `wrangler d1 migrations apply DB --remote`（`wine-db`）
 - `db:migrate:preview` = `wrangler d1 migrations apply DB --remote --env preview`（`wine-preview-db`）
+- **`wine-preview` の2トリガーは `CLOUDFLARE_ENV=preview` が効いていることが前提**。上表の
+  build / deploy command 自体には現れないので、ダッシュボードのビルド環境変数として設定されている
+  （`wrangler.jsonc` の `env.preview` を選ばせるスイッチで、無いとトップレベル設定＝本番 `wine` を
+  指してしまう）。ローカルで同じことをする `package.json` の `deploy:preview` は
+  `CLOUDFLARE_ENV=preview vite build && CLOUDFLARE_ENV=preview wrangler versions upload` と
+  コマンド内に直接書いており、**表のコマンドだけを手元で再現すると本番 env でビルドされる**点に注意。
+  設定場所（コマンド内 / ビルド環境変数）を変えたときは、この節と `package.json` の両方を更新する。
 - マイグレーションは冪等（適用済みの連番 SQL はスキップ）なので、プレビュー共通 DB に複数トリガーから
   適用されても問題ない。
 
