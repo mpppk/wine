@@ -98,6 +98,13 @@ function QuizSession({
 
 	return (
 		<main className="mx-auto flex min-h-[calc(100dvh-57px)] max-w-lg flex-col px-4 pt-4 pb-32 sm:min-h-[calc(100dvh-65px)]">
+			{/*
+			  ページの h1。設問は h2 になった(#239)ため、見出し階層の起点をここに置く。
+			  画面には終了ボタンと進捗だけを出すデザインなので視覚的には隠す。
+			*/}
+			<h1 className="sr-only">
+				{regionName ? `${regionName}のクイズ` : "クイズ"}
+			</h1>
 			<div className="flex items-center justify-between">
 				<Button asChild variant="ghost" size="sm">
 					<Link to="/quiz/progress">

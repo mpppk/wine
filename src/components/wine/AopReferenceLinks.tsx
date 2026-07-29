@@ -13,7 +13,9 @@ import {
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
+import { TAP_TARGET_44 } from "#/lib/a11y";
 import type { ReferenceLinkEntry } from "#/lib/services/reference-link-service";
+import { cn } from "#/lib/utils";
 import {
 	createReferenceLink,
 	deleteReferenceLink,
@@ -129,7 +131,10 @@ function AuthedReferenceLinks({ aopId }: { aopId: string }) {
 			type="button"
 			variant="ghost"
 			size="icon"
-			className="-my-1 size-6 text-muted-foreground hover:text-foreground"
+			className={cn(
+				"relative -my-1 size-6 text-muted-foreground hover:text-foreground",
+				TAP_TARGET_44,
+			)}
 			aria-label="参考リンクを追加"
 			aria-expanded={addOpen}
 			onClick={() => setAddOpen((o) => !o)}
@@ -224,7 +229,9 @@ function LinkRow({
 	deleting: boolean;
 }) {
 	return (
-		<div className="flex items-center gap-1">
+		// 編集/削除の中心を44px以上離す(size-9=36px + gap-2=8px)。TAP_TARGET_44 の
+		// 当たり判定どうしが重なると、削除を狙って編集を踏む誤爆が起きる(#239)
+		<div className="flex items-center gap-2">
 			<a
 				href={link.url}
 				target="_blank"
@@ -239,22 +246,28 @@ function LinkRow({
 				type="button"
 				variant="ghost"
 				size="icon"
-				className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
+				className={cn(
+					"relative size-9 shrink-0 text-muted-foreground hover:text-foreground",
+					TAP_TARGET_44,
+				)}
 				aria-label="リンクを編集"
 				onClick={onEdit}
 			>
-				<PencilIcon className="size-3.5" />
+				<PencilIcon className="size-4" />
 			</Button>
 			<Button
 				type="button"
 				variant="ghost"
 				size="icon"
-				className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+				className={cn(
+					"relative size-9 shrink-0 text-muted-foreground hover:text-destructive",
+					TAP_TARGET_44,
+				)}
 				aria-label="リンクを削除"
 				onClick={onDelete}
 				disabled={deleting}
 			>
-				<Trash2Icon className="size-3.5" />
+				<Trash2Icon className="size-4" />
 			</Button>
 		</div>
 	);
