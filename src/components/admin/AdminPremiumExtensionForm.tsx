@@ -19,6 +19,7 @@ import {
 	ADMIN_EXTENSION_MAX_DAYS,
 	ADMIN_EXTENSION_MIN_DAYS,
 } from "#/lib/admin/premium-extension";
+import { formatDateJst } from "#/lib/date/display";
 import type { AdminUserDetail } from "#/lib/services/admin-service";
 import { adminExtendPremium } from "#/server/admin";
 
@@ -62,7 +63,7 @@ export function AdminPremiumExtensionForm({
 			setError("");
 			setDays("");
 			setReason("");
-			const until = new Date(result.newPeriodEnd).toLocaleDateString("ja-JP");
+			const until = formatDateJst(new Date(result.newPeriodEnd));
 			setMessage(
 				`${result.extendedDays}日延長しました(次回請求日: ${until}。反映まで少し時間がかかる場合があります)。`,
 			);

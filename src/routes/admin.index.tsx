@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SearchIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
+import { formatDate } from "#/components/admin/format";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
@@ -90,7 +91,7 @@ function UserRow({ row, selfId }: { row: AdminUserListItem; selfId?: string }) {
 				) : null}
 			</td>
 			<td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-				{row.createdAt.toLocaleDateString("ja-JP")}
+				{formatDate(row.createdAt)}
 			</td>
 		</tr>
 	);
