@@ -132,7 +132,7 @@ function AuthedReferenceLinks({ aopId }: { aopId: string }) {
 			variant="ghost"
 			size="icon"
 			className={cn(
-				"-my-1 size-6 text-muted-foreground hover:text-foreground",
+				"relative -my-1 size-6 text-muted-foreground hover:text-foreground",
 				TAP_TARGET_44,
 			)}
 			aria-label="参考リンクを追加"
@@ -247,7 +247,7 @@ function LinkRow({
 				variant="ghost"
 				size="icon"
 				className={cn(
-					"size-9 shrink-0 text-muted-foreground hover:text-foreground",
+					"relative size-9 shrink-0 text-muted-foreground hover:text-foreground",
 					TAP_TARGET_44,
 				)}
 				aria-label="リンクを編集"
@@ -260,7 +260,7 @@ function LinkRow({
 				variant="ghost"
 				size="icon"
 				className={cn(
-					"size-9 shrink-0 text-muted-foreground hover:text-destructive",
+					"relative size-9 shrink-0 text-muted-foreground hover:text-destructive",
 					TAP_TARGET_44,
 				)}
 				aria-label="リンクを削除"

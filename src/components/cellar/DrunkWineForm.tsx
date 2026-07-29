@@ -335,12 +335,12 @@ export function DrunkWineForm({
 					{photos.map((p, index) => (
 						<li
 							key={p.localId}
-							className="relative h-24 w-24 overflow-hidden rounded-md border border-border"
+							className="relative h-24 w-24 rounded-md border border-border"
 						>
 							<img
 								src={photoSrc(p)}
 								alt={index === 0 ? "代表写真" : `写真${index + 1}`}
-								className="h-full w-full object-cover"
+								className="h-full w-full rounded-md object-cover"
 							/>
 							{index === 0 && (
 								<span className="absolute left-1 top-1 rounded bg-foreground/80 px-1 py-0.5 text-[10px] font-medium leading-none text-background">
@@ -370,7 +370,7 @@ export function DrunkWineForm({
 									disabled={index === 0}
 									onClick={() => movePhoto(p.localId, -1)}
 									className={cn(
-										"rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
+										"relative rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
 										TAP_TARGET_44,
 									)}
 								>
@@ -382,7 +382,7 @@ export function DrunkWineForm({
 									disabled={index === photos.length - 1}
 									onClick={() => movePhoto(p.localId, 1)}
 									className={cn(
-										"rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
+										"relative rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
 										TAP_TARGET_44,
 									)}
 								>
