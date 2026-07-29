@@ -88,7 +88,8 @@ const COMMUNES_BY_SUBREGION = {};
 
 async function main() {
 	const regionArg = process.argv.indexOf("--region");
-	const regionFilter = regionArg !== -1 ? process.argv[regionArg + 1] : undefined;
+	const regionFilter =
+		regionArg !== -1 ? process.argv[regionArg + 1] : undefined;
 
 	const aops = JSON.parse(
 		fs.readFileSync(path.join(ROOT, "src/lib/wine/aops.json"), "utf8"),
@@ -130,7 +131,11 @@ async function main() {
 		const regionGeometry = readSingleGeometry(regionOutPath);
 		features.push({
 			type: "Feature",
-			properties: { level: "region", regionId: region.id, nameJa: region.nameJa },
+			properties: {
+				level: "region",
+				regionId: region.id,
+				nameJa: region.nameJa,
+			},
 			geometry: regionGeometry,
 		});
 
@@ -141,7 +146,8 @@ async function main() {
 		if (region.id in DEPARTMENT_SUBREGIONS) {
 			for (const sub of geographic) {
 				const dept = DEPARTMENT_SUBREGIONS[region.id][sub.id];
-				if (!dept) throw new Error(`[${region.id}] no department for ${sub.id}`);
+				if (!dept)
+					throw new Error(`[${region.id}] no department for ${sub.id}`);
 				const geometry = await buildDepartmentSubregion(
 					region.id,
 					sub.id,
@@ -240,7 +246,12 @@ async function buildGroupOutline(name, features, closing) {
 }
 
 /** アルザス特例: 県コミューン輪郭を dissolve し、地方輪郭でクリップして地区にする */
-async function buildDepartmentSubregion(regionId, subregionId, dept, regionOutPath) {
+async function buildDepartmentSubregion(
+	regionId,
+	subregionId,
+	dept,
+	regionOutPath,
+) {
 	const communesPath = await ensureCommuneContours(dept);
 	const deptPath = path.join(CACHE_DIR, `dept-${dept}.outline.geojson`);
 	await mapshaper.runCommands(
@@ -250,7 +261,10 @@ async function buildDepartmentSubregion(regionId, subregionId, dept, regionOutPa
 			`-o ${deptPath} format=geojson force`,
 		].join(" "),
 	);
-	const outPath = path.join(CACHE_DIR, `${regionId}.${subregionId}.outline.geojson`);
+	const outPath = path.join(
+		CACHE_DIR,
+		`${regionId}.${subregionId}.outline.geojson`,
+	);
 	await mapshaper.runCommands(
 		[
 			`-i ${regionOutPath}`,
@@ -304,7 +318,9 @@ function readSingleGeometry(filePath) {
 	let geometry;
 	if (gj.type === "FeatureCollection") {
 		if (gj.features.length !== 1) {
-			throw new Error(`${filePath}: expected 1 feature, got ${gj.features.length}`);
+			throw new Error(
+				`${filePath}: expected 1 feature, got ${gj.features.length}`,
+			);
 		}
 		geometry = gj.features[0].geometry;
 	} else if (gj.type === "GeometryCollection") {

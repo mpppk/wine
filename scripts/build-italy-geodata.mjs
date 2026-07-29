@@ -171,8 +171,7 @@ async function buildRegion(region, allAops, stmt) {
 	const aopIds = new Set(aops.map((a) => a.id));
 	const mapIds = new Set(Object.keys(cfg.pdo));
 	for (const id of aopIds)
-		if (!mapIds.has(id))
-			throw new Error(`${region}: pdo 表に ${id} が無い`);
+		if (!mapIds.has(id)) throw new Error(`${region}: pdo 表に ${id} が無い`);
 	for (const id of mapIds)
 		if (!aopIds.has(id))
 			throw new Error(`${region}: aops.json に ${id} が無い(pdo表に余分)`);
@@ -182,7 +181,7 @@ async function buildRegion(region, allAops, stmt) {
 	for (const aop of aops) {
 		const pdoId = cfg.pdo[aop.id];
 		const row = stmt.get(pdoId);
-		if (!row || !row.Shape)
+		if (!row?.Shape)
 			throw new Error(`gpkg に ${pdoId}(${aop.id}) のジオメトリが無い`);
 		const geom = parseWkb(gpkgToWkb(Buffer.from(row.Shape)));
 		inputFeatures.push({
@@ -219,8 +218,7 @@ async function buildRegion(region, allAops, stmt) {
 		if (!f.geometry)
 			throw new Error(`null geometry: id_app=${f.properties.id_app}`);
 		const meta = metaByIdApp.get(f.properties.id_app);
-		if (!meta)
-			throw new Error(`no metadata for id_app=${f.properties.id_app}`);
+		if (!meta) throw new Error(`no metadata for id_app=${f.properties.id_app}`);
 		f.properties = {
 			idApp: meta.idApp,
 			aopId: meta.id,
@@ -275,7 +273,8 @@ async function ensureGpkg() {
 
 // --- GeoPackage geometry BLOB → WKB(GPヘッダを剥がす) ---
 function gpkgToWkb(buf) {
-	if (buf[0] !== 0x47 || buf[1] !== 0x50) throw new Error("not a GPKG geom blob");
+	if (buf[0] !== 0x47 || buf[1] !== 0x50)
+		throw new Error("not a GPKG geom blob");
 	const flags = buf[3];
 	const envelopeCode = (flags >> 1) & 0x07; // 0=none,1=xy,2=xyz,3=xym,4=xyzm
 	const envBytes = [0, 32, 48, 48, 64][envelopeCode];
