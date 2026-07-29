@@ -11,6 +11,7 @@ import {
 	SETTLE_SUFFIX,
 	settleRequestId,
 } from "#/lib/credit/reservation";
+import type { CreditLedgerType } from "#/lib/credit/types";
 import { logError, logInfo, logWarn } from "#/lib/logger";
 import * as billingService from "#/lib/services/billing-service";
 
@@ -396,7 +397,45 @@ export async function reserveCredits(
 	// これにより台帳 INSERT が D1 一時エラーで失敗しても残高減算ごとロールバックされ、
 	// クレジットが台帳に痕跡なく消失することを防ぐ(#143)。残高が足りる時だけ引く条件付き
 	// UPDATE の RETURNING で充足を判定する。
-	const [debited] = await db.batch([
+	//
+	// **両方を同じ条件(残高 >= required)に付ける**。以前は INSERT を無条件にして、残高不足の
+	// ときだけ batch の外で DELETE して打ち消していたが、その DELETE が D1 の一時エラーで
+	// 失敗すると「残高は引かれていないのに consume 台帳だけ残る」行が恒久的に残った(#247)。
+	// requestId はリクエストごとのUUIDなので後続リトライが回収する機会も無く、台帳SUMと
+	// 残高の突合がずれ、findConsumersInRange(障害補填の対象抽出)が「実際には消費していない
+	// =ブロックされたユーザ」を拾ってしまう。
+	//
+	// INSERT を先に置くのは、D1 の batch が1トランザクション内で**順に**実行され、後続の
+	// 文が前の文の結果を見るため。UPDATE を先にすると減算後の残高で INSERT の条件を評価して
+	// しまい、実質2倍の残高を要求することになる。
+	const [, debited] = await db.batch([
+		// INSERT ... SELECT ... FROM credit_balance WHERE (残高が足りる)。
+		// 条件を満たす残高行があるときだけ1行入り、無ければ0行。
+		db.insert(creditLedger).select(
+			db
+				.select({
+					id: sql<string>`${crypto.randomUUID()}`.as("id"),
+					userId: sql<string>`${userId}`.as("user_id"),
+					amount: sql<number>`${-required}`.as("amount"),
+					type: sql<CreditLedgerType>`'consume'`.as("type"),
+					requestId: sql<string>`${requestId}`.as("request_id"),
+					periodMonth: sql<string>`${currentMonthKey()}`.as("period_month"),
+					tokenAmount: sql<number>`${estimateTokens}`.as("token_amount"),
+					// INSERT ... SELECT はテーブル定義と同じ順序・同じ列数を要求するため、
+					// 既定値に任せられない。schema.ts の default と同じ式を書く。
+					createdAt:
+						sql<number>`(cast(unixepoch('subsecond') * 1000 as integer))`.as(
+							"created_at",
+						),
+				})
+				.from(creditBalance)
+				.where(
+					and(
+						eq(creditBalance.userId, userId),
+						sql`${creditBalance.balance} >= ${required}`,
+					),
+				),
+		),
 		db
 			.update(creditBalance)
 			.set({ balance: sql`${creditBalance.balance} - ${required}` })
@@ -407,28 +446,10 @@ export async function reserveCredits(
 				),
 			)
 			.returning({ balance: creditBalance.balance }),
-		db.insert(creditLedger).values({
-			id: crypto.randomUUID(),
-			userId,
-			amount: -required,
-			type: "consume",
-			requestId,
-			periodMonth: currentMonthKey(),
-			tokenAmount: estimateTokens,
-		}),
 	]);
 	if (!debited[0]) {
-		// 残高不足: 条件付き UPDATE は何も引かなかったが、同一 batch の consume INSERT は
-		// 入る。これを打ち消して台帳に幽霊 consume を残さない(残高は引かれていないため
-		// ユーザ不利は生じない)。
-		await db
-			.delete(creditLedger)
-			.where(
-				and(
-					eq(creditLedger.requestId, requestId),
-					eq(creditLedger.type, "consume"),
-				),
-			);
+		// 残高不足。INSERT も同じ条件で弾かれているので台帳には何も入っておらず、
+		// 打ち消しは不要(ユーザ不利も生じない)。
 		const cur = await getBalance(userId);
 		return {
 			ok: false,
