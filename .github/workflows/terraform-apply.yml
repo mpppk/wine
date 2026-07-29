@@ -41,6 +41,10 @@ jobs:
   apply:
     name: Terraform Apply (${{ github.event.inputs.environment || 'preview' }})
     runs-on: ubuntu-latest
+    # 既定(360分)だと apply の応答待ちで長時間ランナーを占有し、concurrency で
+    # 直列化している後続の apply も詰まる。environment の承認待ちはジョブ開始前
+    # なのでこの上限には含まれない。
+    timeout-minutes: 30
     # GitHub Environment に紐付けることで、production に required reviewers /
     # wait timer などの保護ルールを課せる(#134)。environment secrets も
     # ここで解決される。保護ルールは GitHub の Settings → Environments で設定する
