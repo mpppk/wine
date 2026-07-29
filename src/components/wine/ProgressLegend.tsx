@@ -10,10 +10,10 @@ import {
 const LEGEND_TITLE = "クイズ正解率";
 
 /**
- * 「少 □■■■■ 多」のカラースケール行。地図オーバーレイとリスト表示の凡例で
- * 同じ配色・同じ並びを共有するための SSOT(片方だけバケットが増減するのを防ぐ)。
+ * 「少 □■■■■ 多」のカラースケール行。展開時と折りたたみ時で同じ配色・同じ並びを
+ * 共有する(スウォッチの大きさだけを変える)。
  */
-export function ProgressLegendScale({
+function ProgressLegendScale({
 	swatchClassName = "size-3.5",
 	className,
 }: {

@@ -34,10 +34,7 @@ import { AopReferenceLinks } from "#/components/wine/AopReferenceLinks";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterMenu } from "#/components/wine/GrapeFilterMenu";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
-import {
-	MapProgressLegend,
-	ProgressLegendScale,
-} from "#/components/wine/ProgressLegend";
+import { MapProgressLegend } from "#/components/wine/ProgressLegend";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import { countScopedQuestions, expandScopeAopIds } from "#/lib/quiz/scope";
@@ -388,7 +385,11 @@ function MapPage() {
 			visibleAopIds={visibleAopIds}
 			selectedAopId={selectedAopId}
 			onSelect={selectFresh}
-			colorMode={colorMode}
+			// リスト表示では色分けモードを持たない(区分色に固定)。行は格付けバッジと
+			// 進捗ピルを常に併記するので、ドットを正解率で塗ってもピルの数字と同じ情報を
+			// 二重に出すだけで、代わりに区分(kind)の手がかりが消える。塗りが1チャンネル
+			// しかない地図(サイドバーの一覧は地図表示時のみ出る)では従来どおり切り替える。
+			colorMode={isListView ? "kind" : colorMode}
 			progressByAopId={aopProgress?.byAopId}
 			rowProgressByAopId={scopedProgressByAopId}
 			isAuthenticated={isAuthenticated}
@@ -472,37 +473,41 @@ function MapPage() {
 						</button>
 					</fieldset>
 
-					<fieldset
-						className="flex items-center rounded-md border border-border p-0.5"
-						aria-label="色分けモード"
-					>
-						<button
-							type="button"
-							onClick={() => setSearch({ color: undefined })}
-							aria-pressed={colorMode === "kind"}
-							className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
-								colorMode === "kind"
-									? "bg-muted font-medium"
-									: "text-muted-foreground hover:text-foreground"
-							}`}
+					{/* 色分けモードは地図の塗り(1チャンネル)にしか効かないため地図表示時のみ出す。
+					    リストは区分色ドット + 進捗ピルを常に併記していて切り替える対象がない。 */}
+					{!isListView && (
+						<fieldset
+							className="flex items-center rounded-md border border-border p-0.5"
+							aria-label="色分けモード"
 						>
-							<PaletteIcon className="size-3.5" aria-hidden />
-							区分
-						</button>
-						<button
-							type="button"
-							onClick={() => setSearch({ color: "progress" })}
-							aria-pressed={colorMode === "progress"}
-							className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
-								colorMode === "progress"
-									? "bg-muted font-medium"
-									: "text-muted-foreground hover:text-foreground"
-							}`}
-						>
-							<SproutIcon className="size-3.5" aria-hidden />
-							進捗
-						</button>
-					</fieldset>
+							<button
+								type="button"
+								onClick={() => setSearch({ color: undefined })}
+								aria-pressed={colorMode === "kind"}
+								className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+									colorMode === "kind"
+										? "bg-muted font-medium"
+										: "text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								<PaletteIcon className="size-3.5" aria-hidden />
+								区分
+							</button>
+							<button
+								type="button"
+								onClick={() => setSearch({ color: "progress" })}
+								aria-pressed={colorMode === "progress"}
+								className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs transition-colors ${
+									colorMode === "progress"
+										? "bg-muted font-medium"
+										: "text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								<SproutIcon className="size-3.5" aria-hidden />
+								進捗
+							</button>
+						</fieldset>
+					)}
 
 					<fieldset
 						className="flex items-center gap-1"
@@ -538,28 +543,9 @@ function MapPage() {
 			<div className="relative flex min-h-0 flex-1">
 				{isListView ? (
 					<div className="min-w-0 flex-1 overflow-y-auto">
-						<div className="mx-auto max-w-2xl">
-							{colorMode === "progress" && (
-								<div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-3 py-2 text-xs">
-									<span className="font-medium">クイズ正解率</span>
-									<ProgressLegendScale />
-									{!isAuthenticated && (
-										<span className="ml-auto flex items-center gap-2">
-											<span className="text-muted-foreground">
-												ログインで進捗を記録
-											</span>
-											<Button asChild size="sm" variant="secondary">
-												<Link to="/login">
-													<LogInIcon className="size-3.5" aria-hidden />
-													ログイン
-												</Link>
-											</Button>
-										</span>
-									)}
-								</div>
-							)}
-							{treeList}
-						</div>
+						{/* リストは色分けモードを持たないので正解率の凡例も出さない
+						    (ドットは区分色固定。進捗は各行の "solved/total" ピルが示す) */}
+						<div className="mx-auto max-w-2xl">{treeList}</div>
 					</div>
 				) : (
 					<AopMapView
