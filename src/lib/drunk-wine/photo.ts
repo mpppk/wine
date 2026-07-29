@@ -113,7 +113,11 @@ export function sniffImageMime(bytes: Uint8Array): string | undefined {
  * 申告 mimeType が許可外、実バイトが画像として判定できない、または申告と実フォーマットが
  * 食い違う場合は undefined を返す(呼び出し側で拒否する)。保存する contentType・拡張子は
  * 申告値ではなくここが返す実MIMEを使うことで、中身がHTML/スクリプト等の画像偽装を弾く。
- * アバター経路(api/upload.ts の sniffImageMime)と同じ多層防御をワイン写真経路にも適用する(#150)。
+ *
+ * **画像を保存する全経路がこの1関数を通る**(#150 でワイン写真へ、#260 でアバターへ適用)。
+ * 以前はアバター経路(api/upload.ts)だけが sniff 結果を無条件採用しており、「申告 png・実体
+ * jpeg」がアバターでは通りワイン写真では弾かれるという非対称があった。厳しい側(申告と実体の
+ * 一致を要求)へ揃えてある。検証を強化するときはここだけを直せば全経路に効く。
  */
 export function resolveStoredPhotoMime(
 	bytes: Uint8Array,
