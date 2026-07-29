@@ -43,15 +43,21 @@ export const Route = createFileRoute("/embed/map")({
 		const affiliate = await getAffiliateConfig();
 		const region = getRegion(deps.region);
 		if (!region?.enabled) {
-			return { region: undefined, aops: [], affiliate };
+			return { region: undefined, affiliate };
 		}
-		return { region, aops: listAops({ regionId: region.id }), affiliate };
+		// aops は loader で返さない(#240。map.$regionId.tsx と同じ理由)
+		return { region, affiliate };
 	},
 	component: EmbedMapPage,
 });
 
 function EmbedMapPage() {
-	const { region, aops, affiliate } = Route.useLoaderData();
+	const { region, affiliate } = Route.useLoaderData();
+	// 静的データなのでレンダー側で解決する(SSRペイロードに載せない。#240)
+	const aops = useMemo(
+		() => (region ? listAops({ regionId: region.id }) : []),
+		[region],
+	);
 	const { grape, aop } = Route.useSearch();
 	// embed内での選択はURLに反映せずローカルstateで持つ(ホスト側の履歴を汚さない)
 	const [selectedAopId, setSelectedAopId] = useState<string | undefined>(aop);
