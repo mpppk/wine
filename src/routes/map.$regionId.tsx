@@ -56,15 +56,14 @@ import {
 import {
 	AOP_KINDS,
 	KIND_COLORS,
-	KIND_LABELS_JA,
 	PROGRESS_BUCKETS,
 	PROGRESS_EMPTY_COLOR,
 } from "#/lib/wine/map-style";
 import { REGIONS } from "#/lib/wine/regions";
 import { aopAllowsGrape, getRegion, listAops } from "#/lib/wine/service";
 import {
+	getAopKindLabelJa,
 	getAppellationTermJa,
-	getVineyardTermJa,
 } from "#/lib/wine/terminology";
 import type { Aop, AopKind } from "#/lib/wine/types";
 import { getAffiliateConfig } from "#/server/affiliate";
@@ -515,7 +514,7 @@ function MapPage() {
 								<KindFacetMenu
 									key={kf.kind}
 									kf={kf}
-									label={kindLabelJa(kf.kind, region.id)}
+									label={getAopKindLabelJa(kf.kind, region.id)}
 									hideSet={hideSet}
 									onToggle={toggleToken}
 								/>
@@ -523,7 +522,7 @@ function MapPage() {
 								<KindToggle
 									key={kf.kind}
 									kind={kf.kind}
-									label={kindLabelJa(kf.kind, region.id)}
+									label={getAopKindLabelJa(kf.kind, region.id)}
 									active={!hideSet.has(kindToken(kf.kind))}
 									onToggle={() => toggleToken(kindToken(kf.kind))}
 								/>
@@ -719,14 +718,6 @@ function MapPage() {
 			/>
 		</main>
 	);
-}
-
-// 区分フィルタの表示名。畑(vineyard)は地域固有の呼称(ブルゴーニュ=クリマ /
-// アルザス=リュー・ディ / それ以外=畑名)を使い、他区分は総称ラベルを使う。
-function kindLabelJa(kind: AopKind, regionId: string): string {
-	return kind === "vineyard"
-		? getVineyardTermJa(regionId)
-		: KIND_LABELS_JA[kind];
 }
 
 // 格付けを持たない(または1種のみの)区分の単純トグルチップ。
