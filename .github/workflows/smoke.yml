@@ -27,9 +27,16 @@ jobs:
   smoke:
     name: Smoke test (${{ github.event.inputs.url || 'https://wine.nibo.sh' }})
     runs-on: ubuntu-latest
+    # 既定(360分)のままだと curl のリトライ滞留で長時間ランナーを占有する
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run smoke test
-        run: bash scripts/smoke.sh "${{ github.event.inputs.url || 'https://wine.nibo.sh' }}"
+        # ${{ }} はシェル解釈の前にテキスト置換されるため、run に直接埋め込むと
+        # dispatch 入力から任意コマンドを注入できる。env 経由で渡し、シェルには
+        # 変数として展開させる(値がコードとして解釈されない)。
+        env:
+          SMOKE_URL: ${{ github.event.inputs.url || 'https://wine.nibo.sh' }}
+        run: bash scripts/smoke.sh "$SMOKE_URL"
