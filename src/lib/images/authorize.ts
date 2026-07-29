@@ -39,9 +39,10 @@ export async function isAuthorizedForPrivateImage(
 		} catch (e) {
 			// 鍵が取得できない場合は署名経路を諦め、セッション認可だけで判定する
 			// (fail-closed。ここで true を返さない)。
-			logError("failed to load image signing key", {
-				error: e instanceof Error ? e.message : String(e),
-			});
+			// 例外は必ず `err` フィールドで渡す(logger 側が文字列化する)。他の全経路と
+			// 揃えないと、Workers Logs で err を軸に横断検索したときにここだけ漏れる(#271)。
+			// 対象キーも載せる: R2 障害で非公開写真だけ404になる事象と結び付けられるようにする。
+			logError("failed to load image signing key", { err: e, r2Key });
 		}
 	}
 

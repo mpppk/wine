@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { auth } from "#/lib/auth";
 import { isAuthorizedForPrivateImage } from "#/lib/images/authorize";
 import {
@@ -150,5 +150,39 @@ describe("getImageSigningKey", () => {
 		for (const o of listed.objects) {
 			expect(o.key).not.toMatch(/^(avatars|wines)\//);
 		}
+	});
+});
+
+// 鍵のロード失敗は、R2 障害時に非公開写真だけが 404 になる事象の唯一の手がかり。
+// 他の全経路と同じ `err` フィールドで出さないと、Workers Logs の横断検索から漏れる(#271)。
+describe("署名鍵のロード失敗のログ (#271)", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		resetImageSigningKeyCache();
+	});
+
+	it("err フィールドと対象キーを構造化ログに残し、fail-closed で通さない", async () => {
+		resetImageSigningKeyCache();
+		vi.spyOn(env.AVATARS, "get").mockRejectedValue(new Error("R2 unavailable"));
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		const r2Key = keyOf(owner.id);
+		// 署名付きURLの形にして、鍵ロードの経路へ入らせる(値は検証まで到達しない)
+		const path = `/api/images/${r2Key}?${EXPIRES_PARAM}=${expiresAtFrom(Date.now())}&${SIGNATURE_PARAM}=dummy`;
+		const { request, url } = anonymousRequest(path);
+
+		// 鍵が読めないので署名経路は諦め、セッションも無いので通さない(fail-closed)
+		expect(await isAuthorizedForPrivateImage(request, url, r2Key)).toBe(false);
+
+		const line = errors.mock.calls
+			.map((c) => String(c[0]))
+			.find((l) => l.includes("failed to load image signing key"));
+		expect(line).toBeDefined();
+		const parsed = JSON.parse(line as string);
+		expect(parsed.level).toBe("error");
+		// `error` ではなく `err`(logger が文字列化する)
+		expect(parsed.err).toContain("R2 unavailable");
+		expect(parsed.error).toBeUndefined();
+		expect(parsed.r2Key).toBe(r2Key);
 	});
 });
