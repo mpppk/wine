@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
@@ -31,7 +31,7 @@ import {
 	PHOTO_ACCEPT_ATTR,
 	PHOTO_FORMATS_LABEL_JA,
 } from "#/lib/drunk-wine/photo";
-import { getSession } from "#/server/auth";
+import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import { redeemExtensionCode } from "#/server/billing";
 
 interface ProfileSearch {
@@ -43,12 +43,7 @@ export const Route = createFileRoute("/profile")({
 	validateSearch: (search: Record<string, unknown>): ProfileSearch => ({
 		checkout: search.checkout === "success" ? "success" : undefined,
 	}),
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-	},
+	beforeLoad: requireAuthBeforeLoad,
 	component: ProfilePage,
 });
 
