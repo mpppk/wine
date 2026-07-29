@@ -344,6 +344,68 @@ export async function revokeMcp(params: {
 	return res;
 }
 
+// ── #116: なりすまし(impersonation) ──────────────────────────────────────────
+
+/**
+ * 対象ユーザへのなりすましを開始する(#116)。成功すると better-auth が
+ * 「対象ユーザのセッションCookie」＋「元の管理者セッションを退避した admin_session
+ * Cookie」を発行し、`tanstackStartCookies` がそれをレスポンスへ転送する。
+ *
+ * 管理者を対象にしたなりすましは better-auth 側が拒否する(`allowImpersonatingAdmins`
+ * を有効にしていないため)。自分自身の指定だけは 403 ではなく意味の分かる 400 にしたい
+ * ので、副作用の前にここで弾く(banUser と同じ方針)。
+ *
+ * なりすまし中は書き込みが一切通らない(`src/server/middleware.ts` /
+ * `requireApiSession` の共通ガード)。この関数はセッション発行と証跡だけを担う。
+ */
+export async function startImpersonation(params: {
+	actorUserId: string;
+	targetUserId: string;
+	reason: string;
+	/** 操作した管理者のリクエストヘッダ(better-auth の admin 認可に必要)。 */
+	headers: Headers;
+}): Promise<{ ok: true }> {
+	const { actorUserId, targetUserId, reason, headers } = params;
+	if (targetUserId === actorUserId) {
+		throw new BadRequestError("自分自身になりすますことはできません。");
+	}
+	await auth.api.impersonateUser({ body: { userId: targetUserId }, headers });
+	await recordAfterEffect({
+		actorUserId,
+		targetUserId,
+		action: "impersonate_start",
+		reason,
+	});
+	return { ok: true };
+}
+
+/**
+ * なりすましを終了し、退避してあった管理者セッションへ戻す(#116)。
+ *
+ * 呼び出し元は「なりすまし中のセッション」なので、監査ログの操作者(actor)は
+ * `session.impersonatedBy` に入っている元の管理者になる。理由の入力を求める相手が
+ * (画面上は)なりすまされている側になってしまうため、開始時と違って理由は固定文言。
+ * 開始時の理由が同じ対象ユーザの証跡として残っており、対応関係は追える。
+ */
+export async function stopImpersonation(params: {
+	/** なりすましを開始した管理者の user.id(`session.impersonatedBy`)。 */
+	actorUserId: string;
+	/** なりすまされていたユーザの user.id。 */
+	targetUserId: string;
+	/** なりすまし中セッションのリクエストヘッダ(admin_session Cookie の復元に必要)。 */
+	headers: Headers;
+}): Promise<{ ok: true }> {
+	const { actorUserId, targetUserId, headers } = params;
+	await auth.api.stopImpersonating({ headers });
+	await recordAfterEffect({
+		actorUserId,
+		targetUserId,
+		action: "impersonate_stop",
+		reason: "なりすましを終了した",
+	});
+	return { ok: true };
+}
+
 /**
  * 管理操作の証跡を admin_audit_log に1行記録する。破壊的操作の共通後処理。
  * targetUserId は特定ユーザに紐づかない操作(一括付与など)では null を渡す。

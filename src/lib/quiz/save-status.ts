@@ -1,3 +1,4 @@
+import { IMPERSONATION_READONLY_MESSAGE } from "#/lib/admin/impersonation";
 import { UNAUTHORIZED_MESSAGE } from "#/lib/errors";
 
 // クイズ解答の「サーバ保存に失敗した」状態の分類。UI に出す文言と導線を決めるためだけの
@@ -5,9 +6,10 @@ import { UNAUTHORIZED_MESSAGE } from "#/lib/errors";
 
 /**
  * - `unauthorized`: セッション失効・未ログイン。再ログインしない限り以後も保存されない
+ * - `readOnly`: 管理者のなりすまし(impersonation)中。仕様どおりの拒否で、通信の問題ではない
  * - `unknown`: 通信断・サーバエラーなど。復帰しうるので再試行の余地がある
  */
-export type QuizSaveFailureKind = "unauthorized" | "unknown";
+export type QuizSaveFailureKind = "unauthorized" | "readOnly" | "unknown";
 
 export interface QuizSaveFailure {
 	kind: QuizSaveFailureKind;
@@ -36,6 +38,15 @@ export function classifyQuizSaveFailure(error: unknown): QuizSaveFailureKind {
 	}
 	if (error instanceof Error && error.message === UNAUTHORIZED_MESSAGE) {
 		return "unauthorized";
+	}
+	// なりすまし中の書き込み拒否(#116)。仕様どおりの 403 なので「通信環境を確認して
+	// ください」と案内すると誤りになる。unauthorized と同じくメッセージ一致で拾う
+	// (server function の例外はクライアント到達時に素の Error へ平坦化される)。
+	if (
+		error instanceof Error &&
+		error.message === IMPERSONATION_READONLY_MESSAGE
+	) {
+		return "readOnly";
 	}
 	return "unknown";
 }

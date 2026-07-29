@@ -2,10 +2,20 @@ import { env } from "cloudflare:workers";
 import { stripe } from "@better-auth/stripe";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import {
+	APIError,
+	createAuthMiddleware,
+	getSessionFromCtx,
+} from "better-auth/api";
 import { admin, mcp } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { drizzle } from "drizzle-orm/d1";
 import * as authSchema from "#/db/auth-schema";
+import {
+	IMPERSONATION_READONLY_MESSAGE,
+	isImpersonatedSession,
+	needsImpersonationCheck,
+} from "#/lib/admin/impersonation";
 import { regionQaModelKeySchema } from "#/lib/ai/config";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
@@ -79,6 +89,27 @@ export const auth = betterAuth({
 		ipAddress: {
 			ipAddressHeaders: ["cf-connecting-ip"],
 		},
+	},
+	// なりすまし(impersonation)中は better-auth 自身のエンドポイントも書き込みを通さない(#116)。
+	//
+	// server function と API ルートは各々のミドルウェア/関門で塞いでいるが、
+	// `authClient.updateUser` / `subscription.*` / `/delete-user` はそのどちらも通らず
+	// better-auth のハンドラ直結で動く(`user.additionalFields` のコメント参照。#256 と
+	// 同じ「ハンドラ直結だからアプリ側の検証を通らない」構図)。ここを塞がないと、
+	// なりすまし中の管理者が対象ユーザの名前・アバター・サブスクを書き換えられ、
+	// 退会させることまでできてしまう。
+	hooks: {
+		before: createAuthMiddleware(async (ctx) => {
+			// 判定は #/lib/admin/impersonation に集約(3系統で条件をドリフトさせない)。
+			// 読み取り・許可パス(なりすまし終了/サインアウト)はセッションを引かずに抜ける。
+			if (!needsImpersonationCheck(ctx.method ?? "GET", ctx.path)) return;
+			// サインイン/サインアップ等の未認証 POST では null になり、そのまま通る。
+			const session = await getSessionFromCtx(ctx).catch(() => null);
+			if (!isImpersonatedSession(session)) return;
+			throw new APIError("FORBIDDEN", {
+				message: IMPERSONATION_READONLY_MESSAGE,
+			});
+		}),
 	},
 	// ユーザ削除時に D1 の外(Stripe・R2)へ残るものを後始末する(#252)。
 	//
