@@ -1,5 +1,6 @@
 import { env, waitUntil } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
+import { photoKeyForThumbKey } from "#/lib/drunk-wine/photo";
 import { isAuthorizedForPrivateImage } from "#/lib/images/authorize";
 import { isPrivateImageKey } from "#/lib/images/signed-url";
 
@@ -56,7 +57,15 @@ export const Route = createFileRoute("/api/images/$")({
 				}
 
 				const ifNoneMatch = request.headers.get("If-None-Match");
-				const object = await env.AVATARS.get(r2Key);
+				let object = await env.AVATARS.get(r2Key);
+				if (!object) {
+					// サムネイル(#237)はキーを原寸から導出するだけで、実体が無いことがある
+					// (本機能より前に保存した写真・MCP 経由でサムネイルを作れない経路)。
+					// その場合は原寸を配信する。こうしておくと既存写真のバックフィルが要らず、
+					// 一覧側は常にサムネイルURLだけを見ればよい。
+					const originalKey = photoKeyForThumbKey(r2Key);
+					object = originalKey ? await env.AVATARS.get(originalKey) : null;
+				}
 
 				if (!object) {
 					return new Response("Not found", { status: 404 });

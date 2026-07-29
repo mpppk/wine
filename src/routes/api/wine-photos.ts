@@ -18,6 +18,7 @@ import {
 // FormData:
 //  - entryId=対象エントリID(本人所有のみ。所有権はサービス層で userId と突合)
 //  - photo=File(新規追加ぶん。0個以上。順序は layout の new.index が参照する)
+//  - thumb=File(任意。photo と同じ順の一覧用サムネイル。#237)
 //  - layout=JSON文字列。最終並び順の配列で各要素は
 //      { "type": "existing", "key": R2キー } … 既存写真を保持
 //      { "type": "new", "index": number }    … photo[index] を新規追加
@@ -104,6 +105,11 @@ export const Route = createFileRoute("/api/wine-photos")({
 				const files = formData
 					.getAll("photo")
 					.filter((f): f is File => f instanceof File);
+				// 一覧用サムネイル(#237)。photo と同じ順で並ぶ想定で、生成できなかった
+				// ぶんは欠けうる。無ければ配信ルートが原寸へフォールバックするので必須にしない。
+				const thumbs = formData
+					.getAll("thumb")
+					.filter((f): f is File => f instanceof File);
 				for (const file of files) {
 					if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
 						return jsonError("Unsupported image type", 400);
@@ -130,10 +136,15 @@ export const Route = createFileRoute("/api/wine-photos")({
 					}
 					const file = files[entry.index];
 					if (!file) return jsonError("Invalid layout", 400);
+					const thumb = thumbs[entry.index];
 					items.push({
 						kind: "new",
 						bytes: await file.arrayBuffer(),
 						mimeType: file.type,
+						// サムネイルは原寸より大きくならない前提だが、念のため上限は共有する
+						...(thumb && thumb.size <= MAX_PHOTO_BYTES
+							? { thumbBytes: await thumb.arrayBuffer() }
+							: {}),
 					});
 				}
 

@@ -77,13 +77,19 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 				className="group block h-full"
 			>
 				<Card className="h-full gap-0 overflow-hidden py-0 transition-colors group-hover:border-foreground/30">
-					{entry.photoUrls[0] ? (
+					{entry.thumbUrls[0] ? (
 						<img
 							// 写真差し替え時にR2キーが同じでも再取得させるキャッシュバスタ。
-							// 一覧サムネイルは代表(先頭)の1枚
-							src={`${entry.photoUrls[0]}?v=${entry.updatedAt}`}
+							// 一覧サムネイルは代表(先頭)の1枚。原寸ではなく縮小版を読む(#237)。
+							// サムネイルの実体が無い写真は配信ルートが原寸へフォールバックする。
+							src={`${entry.thumbUrls[0]}?v=${entry.updatedAt}`}
 							alt={`${entry.name}の写真`}
 							className="aspect-square w-full object-cover"
+							// 画面外のカードは読み込まない(グリッドは1ページ24件)
+							loading="lazy"
+							decoding="async"
+							width={400}
+							height={400}
 						/>
 					) : (
 						<div className="flex aspect-square w-full items-center justify-center bg-muted">
