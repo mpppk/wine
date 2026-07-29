@@ -1,5 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addSaveFailure, type QuizSaveFailure } from "#/lib/quiz/save-status";
 import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
 import type { AnswerSnapshot } from "#/lib/services/quiz-service";
@@ -67,6 +67,14 @@ export function useQuizSession(
 	includeSolved = false,
 ) {
 	const router = useRouter();
+	// 呼び出し側が毎レンダー新しい配列を渡しても、内容が同じ限り同一参照を保つ。
+	// これが揺れると fetchMore(deps に quizTypes)の identity が毎レンダー変わり、
+	// キューが PREFETCH_THRESHOLD 以下に張り付く局面(セッション終盤)で、選択や
+	// フェーズ遷移など全ての state 変化のたびに補充 effect が再実行されて
+	// getNextQuestions が再発火する(fetchingRef は並行実行しか防げない)。#241
+	const quizTypesKey = quizTypes.join(",");
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 内容(key)が変わらない限り参照を据え置くのが目的
+	const stableQuizTypes = useMemo(() => quizTypes, [quizTypesKey]);
 	const [queue, setQueue] = useState<QuizQuestion[]>([]);
 	const [phase, setPhase] = useState<QuizPhase>("loading");
 	// 取得失敗時の再試行トリガー。インクリメントで初回ロード/プリフェッチの effect を再実行する
@@ -150,7 +158,7 @@ export function useQuizSession(
 					} = await getNextQuestions({
 						data: {
 							regionId,
-							quizTypes,
+							quizTypes: stableQuizTypes,
 							count: BATCH_SIZE,
 							excludeKeys,
 							scopeAopId,
@@ -202,7 +210,7 @@ export function useQuizSession(
 				fetchingRef.current = false;
 			}
 		},
-		[regionId, quizTypes, scopeAopId, includeSolved, applyRemaining],
+		[regionId, stableQuizTypes, scopeAopId, includeSolved, applyRemaining],
 	);
 
 	// 初回ロードとプリフェッチ。
