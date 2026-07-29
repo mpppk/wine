@@ -5,8 +5,41 @@
 
 export type LogFields = Record<string, unknown>;
 
-/** Error はメッセージ+名前に畳んで記録する(生スタックは肥大化するため出さない)。 */
+/** 辿る cause の最大数(= 1行に載る要素は最大 MAX_CAUSE_LINKS + 1 個)。
+ *  多段ラップでログ行が肥大化しないよう抑える。 */
+const MAX_CAUSE_LINKS = 3;
+
+/**
+ * Error はメッセージ+名前に畳んで記録する(生スタックは肥大化するため出さない)。
+ *
+ * `cause` があれば ` <- ` で連結する(#271)。ラップした例外は外側が「何に失敗したか」、
+ * cause が「なぜ失敗したか」を持つため、cause を落とすと真因が消える。実際
+ * `ai-service` は全滅時の原因追跡のために最後の失敗要因を cause に積んでいるが(#156)、
+ * 受け側が捨てていたので設計意図が無効化されていた。
+ *
+ * 辿るのは MAX_CAUSE_LINKS 段まで。打ち切ったときは末尾に `…` を付けて「まだ続きが
+ * ある」ことを示す。同じ Error を指す循環(`e.cause === e` 等)も訪問済み集合で止める。
+ */
 export function errToString(e: unknown): string {
+	const parts: string[] = [];
+	const seen = new Set<unknown>();
+	let current: unknown = e;
+	while (current != null && !seen.has(current)) {
+		seen.add(current);
+		parts.push(formatOne(current));
+		const next = current instanceof Error ? current.cause : undefined;
+		if (next === undefined) break;
+		if (parts.length > MAX_CAUSE_LINKS) {
+			parts.push("…");
+			break;
+		}
+		current = next;
+	}
+	return parts.join(" <- ");
+}
+
+/** cause を辿らずに1つの値を1行へ畳む。 */
+function formatOne(e: unknown): string {
 	if (e instanceof Error) {
 		return e.name && e.name !== "Error" ? `${e.name}: ${e.message}` : e.message;
 	}
