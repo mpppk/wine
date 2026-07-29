@@ -1,21 +1,11 @@
-import {
-	createFileRoute,
-	Link,
-	redirect,
-	useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 import { DrunkWineForm } from "#/components/cellar/DrunkWineForm";
 import { Button } from "#/components/ui/button";
-import { getSession } from "#/server/auth";
+import { requireAuthBeforeLoad } from "#/lib/route-guard";
 
 export const Route = createFileRoute("/cellar/new")({
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-	},
+	beforeLoad: requireAuthBeforeLoad,
 	component: CellarNewPage,
 });
 

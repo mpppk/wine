@@ -24,7 +24,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog";
-import { getSession } from "#/server/auth";
+import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import {
 	deleteDrunkWine,
 	getDrunkWine,
@@ -34,12 +34,7 @@ import {
 } from "#/server/drunk-wine";
 
 export const Route = createFileRoute("/cellar/$entryId/edit")({
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-	},
+	beforeLoad: requireAuthBeforeLoad,
 	loader: async ({ params }) => {
 		try {
 			const [entry, tastings] = await Promise.all([

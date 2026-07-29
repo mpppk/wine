@@ -2,7 +2,6 @@ import { useMutation } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
-	redirect,
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
@@ -19,8 +18,8 @@ import {
 } from "#/lib/drunk-wine/filter";
 import { DRUNK_WINE_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
+import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
-import { getSession } from "#/server/auth";
 import {
 	countCellarFilters,
 	listDrunkWines,
@@ -38,12 +37,7 @@ export const Route = createFileRoute("/cellar/")({
 			.catch(DEFAULT_CELLAR_FILTER)
 			.default(DEFAULT_CELLAR_FILTER),
 	}),
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-	},
+	beforeLoad: requireAuthBeforeLoad,
 	// 絞り込みは SQL 側で適用する。ページに載っていない行も数えるため、チップの
 	// 件数は集計クエリで別に取る(#254)。
 	loaderDeps: ({ search }) => ({ filter: search.filter }),

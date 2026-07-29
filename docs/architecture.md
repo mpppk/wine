@@ -87,6 +87,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - `src/lib/mcp/tools.ts` — MCP はサーバーエントリポイントなのでサービス層を runtime import する（入力スキーマは `schemas.ts` に分離してランタイム非依存を維持）。
 - `src/lib/credit/use-credit.ts` / `src/lib/billing/use-billing.ts` — `#/server` の server fn を useQuery で包むクライアント側フック。
 - `src/lib/auth.ts` — better-auth 構成で D1 に直結する。
+- `src/lib/route-guard.ts` / `src/lib/admin/route-guard.ts` — ルートの `beforeLoad` 共通処理で `#/server/auth` の `getSession` を呼ぶ（#161 / #259）。判定条件そのものは `src/lib/admin/guard.ts` の純関数に置き、jsdom 単体テストから検証できる形を保つ。
 
 ### サーバーへの入口は 3 系統
 

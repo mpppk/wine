@@ -1,9 +1,4 @@
-import {
-	createFileRoute,
-	Link,
-	redirect,
-	useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeftIcon,
 	ListIcon,
@@ -33,10 +28,10 @@ import {
 	WINE_STATUS_LABELS_JA,
 	WINE_STATUSES,
 } from "#/lib/drunk-wine/status";
+import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { AOP_KINDS } from "#/lib/wine/map-style";
 import { getAop, listAops, listRegions } from "#/lib/wine/service";
-import { getSession } from "#/server/auth";
 import { listDrunkWines } from "#/server/drunk-wine";
 
 export const Route = createFileRoute("/cellar/map")({
@@ -47,12 +42,7 @@ export const Route = createFileRoute("/cellar/map")({
 			.catch(DEFAULT_CELLAR_FILTER)
 			.default(DEFAULT_CELLAR_FILTER),
 	}),
-	beforeLoad: async () => {
-		const session = await getSession();
-		if (!session) {
-			throw redirect({ to: "/login" });
-		}
-	},
+	beforeLoad: requireAuthBeforeLoad,
 	// 地図は全ピンを一度に描くのでページ単位にできない(全件取得のまま)。
 	loader: async () => (await listDrunkWines()).entries,
 	component: CellarMapPage,
