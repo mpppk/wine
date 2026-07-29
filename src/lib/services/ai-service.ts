@@ -5,8 +5,8 @@ import {
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
 	DEFAULT_REGION_QA_MODEL,
-	REGION_QA_MODEL_KEYS,
 	type RegionQaModelKey,
+	toRegionQaModelKey,
 } from "#/lib/ai/config";
 import {
 	buildLabelMessages,
@@ -42,11 +42,9 @@ async function resolveModelKey(
 ): Promise<RegionQaModelKey> {
 	if (explicit) return explicit;
 	const { preferredAiModel } = await userService.getCurrentUser(userId);
-	return (REGION_QA_MODEL_KEYS as readonly string[]).includes(
-		preferredAiModel ?? "",
-	)
-		? (preferredAiModel as RegionQaModelKey)
-		: DEFAULT_REGION_QA_MODEL;
+	// 書き込み側(auth.ts の validator)と同じ許可リストで照合する。書き込みを塞いだ後も
+	// 既存行に残る旧データ・不正値がありうるため、読み取り側のフォールバックは残す。
+	return toRegionQaModelKey(preferredAiModel) ?? DEFAULT_REGION_QA_MODEL;
 }
 
 // 地域チャットQ&Aのサービス層。Web サーバfn と MCP ツールの両方から呼ぶ単一の入口。

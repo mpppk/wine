@@ -15,8 +15,8 @@ import {
 import {
 	AI_REGION_QA_MODELS,
 	DEFAULT_REGION_QA_MODEL,
-	REGION_QA_MODEL_KEYS,
 	type RegionQaModelKey,
+	toRegionQaModelKey,
 } from "#/lib/ai/config";
 import { authClient } from "#/lib/auth-client";
 import { PREMIUM_PRICING } from "#/lib/billing/plans";
@@ -242,10 +242,8 @@ function AiModelCard() {
 	const [successMessage, setSuccessMessage] = useState("");
 
 	useEffect(() => {
-		const pref = session?.user.preferredAiModel;
-		if (pref && (REGION_QA_MODEL_KEYS as readonly string[]).includes(pref)) {
-			setModel(pref as RegionQaModelKey);
-		}
+		const pref = toRegionQaModelKey(session?.user.preferredAiModel);
+		if (pref) setModel(pref);
 	}, [session?.user.preferredAiModel]);
 
 	const { mutate: saveModel, isPending } = useMutation({

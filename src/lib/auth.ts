@@ -6,6 +6,7 @@ import { admin, mcp } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { drizzle } from "drizzle-orm/d1";
 import * as authSchema from "#/db/auth-schema";
+import { regionQaModelKeySchema } from "#/lib/ai/config";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
 import { logError, logInfo, logWarn } from "#/lib/logger";
@@ -106,8 +107,20 @@ export const auth = betterAuth({
 	user: {
 		additionalFields: {
 			// 地域Q&Aチャットのモデル選択(プロフィール画面で変更)。input:true で
-			// クライアントの updateUser から設定可能にする。値の妥当性はサーバ側で検証。
-			preferredAiModel: { type: "string", required: false, input: true },
+			// クライアントの updateUser から設定可能にする。
+			//
+			// validator.input は better-auth の parseInputData が sign-up / update-user の
+			// 両経路で必ず通す関門で、許可リスト外は 400 で弾かれ D1 に届かない(#256)。
+			// これが無いと `authClient.updateUser({ preferredAiModel })` は better-auth の
+			// ハンドラ直結でアプリ側 zod を通らないため、認証済みユーザが自分の user 行へ
+			// 任意長の文字列を保存できてしまう。読み取り側(resolveModelKey)と同じ
+			// スキーマを使い、許可リストを ai/config.ts に一元化する。
+			preferredAiModel: {
+				type: "string",
+				required: false,
+				input: true,
+				validator: { input: regionQaModelKeySchema },
+			},
 		},
 	},
 	plugins: [
