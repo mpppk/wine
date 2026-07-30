@@ -19,3 +19,25 @@ export function validateBanExpiresDays(days: number): BanExpiresError | null {
 	if (days > BAN_EXPIRES_MAX_DAYS) return "too_large";
 	return null;
 }
+
+/** BAN 判定に必要な user 行の最小フィールド。 */
+export interface BanState {
+	banned: boolean | null;
+	banExpires: Date | null;
+}
+
+/**
+ * BAN が「今」有効か(#330)。`banned` フラグに加えて期限切れ(`banExpires` が過去)を
+ * 解除済みとして扱う。
+ *
+ * better-auth は**サインイン時に**期限切れ BAN を自動解除するが、サインインを経ない
+ * 経路(MCP の OAuth トークン)にはその機会が無い。期限を見ずに `banned` だけで弾くと
+ * 期限切れ後も MCP だけ締め出され続けるため、判定側でも期限を評価する。
+ */
+export function isBanActive(user: BanState, now: Date = new Date()): boolean {
+	if (!user.banned) return false;
+	if (user.banExpires && user.banExpires.getTime() <= now.getTime()) {
+		return false;
+	}
+	return true;
+}
