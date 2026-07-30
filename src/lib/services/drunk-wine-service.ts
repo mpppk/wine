@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { and, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { drunkWine, wineTasting } from "#/db/schema";
 import { jstDayKey } from "#/lib/dashboard/jst";
@@ -23,8 +23,13 @@ import type {
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
-import { type LogFields, logError } from "#/lib/logger";
-import { getAop, getVariety } from "#/lib/wine/service";
+import { type LogFields, logError, logWarn } from "#/lib/logger";
+import {
+	getAop,
+	getVariety,
+	legacyAopIdsFor,
+	resolveAopId,
+} from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
 // マイセラーのサービス層。Webのserver fnとMCPツールの共通入口で、
@@ -88,13 +93,22 @@ type WineTastingRow = typeof wineTasting.$inferSelect;
 
 function toEntry(row: DrunkWineRow): DrunkWineEntry {
 	const aop = row.aopId ? getAop(row.aopId) : undefined;
+	if (row.aopId && !aop) {
+		// 静的マスタから消えた ID を参照している行(#333)。ID の削除・改名は
+		// data-integrity.test.ts の台帳チェックが CI で止めるので通常は発生しないが、
+		// すり抜けた場合に「地図から静かに消える」だけで終わらないよう検出可能にする。
+		// `bun run logs --grep "orphan aop_id"` で棚卸しできる。
+		logWarn("orphan aop_id", { drunkWineId: row.id, aopId: row.aopId });
+	}
 	return {
 		id: row.id,
 		name: row.name,
 		status: row.status,
 		lastDrankOn: row.lastDrankOn,
 		tastingCount: row.tastingCount,
-		aopId: row.aopId,
+		// 退役ID(改名前のスラッグ)で保存された行も、現行IDとして返す。地図のハイライトや
+		// AOP ページへのリンクが現行のマスタと突き合わせられるようにするため。
+		aopId: aop?.id ?? row.aopId,
 		aopNameJa: aop?.nameJa ?? null,
 		regionId: aop?.region ?? null,
 		lastRating: row.lastRating,
@@ -265,7 +279,8 @@ export async function createDrunkWine(
 		userId,
 		name: input.name,
 		status,
-		aopId: input.aopId ?? null,
+		// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)
+		aopId: input.aopId ? (resolveAopId(input.aopId) ?? input.aopId) : null,
 		vintage: input.vintage ?? null,
 		grapeVarietyIds: input.grapeVarietyIds ?? [],
 		producer: input.producer ?? null,
@@ -307,7 +322,9 @@ export async function updateDrunkWine(
 				.set({
 					name: patch.name,
 					status: patch.status,
-					aopId: patch.aopId,
+					aopId: patch.aopId
+						? (resolveAopId(patch.aopId) ?? patch.aopId)
+						: patch.aopId,
 					vintage: patch.vintage,
 					grapeVarietyIds: patch.grapeVarietyIds,
 					producer: patch.producer,
@@ -701,7 +718,13 @@ export async function listDrunkWinesByAop(
 			lastMemo: latestTastingValue<string>(wineTasting.memo),
 		})
 		.from(drunkWine)
-		.where(and(eq(drunkWine.userId, userId), eq(drunkWine.aopId, aopId)))
+		.where(
+			and(
+				eq(drunkWine.userId, userId),
+				// 改名前のIDで保存された行も同じ AOP のものとして拾う(#333)
+				inArray(drunkWine.aopId, [aopId, ...legacyAopIdsFor(aopId)]),
+			),
+		)
 		.orderBy(desc(drunkWine.createdAt), desc(drunkWine.id));
 	return rows.map(toEntry);
 }

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PRODUCER_SEARCH_KEYWORDS } from "./affiliate";
+import { KNOWN_AOP_IDS, RETIRED_AOP_IDS } from "./aop-id-registry";
 import { aopArraySchema } from "./aop-schema";
 import rawAops from "./aops.json";
 import { AOPS } from "./aops-data";
@@ -11,6 +12,7 @@ import {
 	type ProducerAward,
 } from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
+import { getAop } from "./service";
 import type { Aop } from "./types";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
@@ -23,6 +25,53 @@ describe("aops.json のスキーマ検証(#32: ランタイムからテストへ
 	it("aops.json 全件が aopArraySchema を満たす", () => {
 		// throw されると詳細なパスが出るよう parse をそのまま実行する
 		expect(() => aopArraySchema.parse(rawAops)).not.toThrow();
+	});
+});
+
+// #333: drunk_wine.aop_id / aop_reference_link.aop_id は aops.json への FK 無し参照で、
+// ID を消す・改名すると登録済みの本番D1行が無警告で孤児化する(表示から AOP 名と地域が
+// 消える / セラー地図から落ちて「未紐付け」に合算される / 参考リンクが到達不能になる)。
+// 件数スナップショットはデータ変更PRで意図的に更新されるため、この事故を捕まえられない。
+// ここでは「出荷済みID台帳」と突き合わせ、削除・改名に RETIRED_AOP_IDS への明記を強制する。
+describe("AOP ID の安定性(#333)", () => {
+	const currentIds = new Set(AOPS.map((a) => a.id));
+	const knownIds = new Set(KNOWN_AOP_IDS);
+
+	it("現在の全IDが出荷済みID台帳に載っている", () => {
+		const missing = [...currentIds].filter((id) => !knownIds.has(id));
+		expect(
+			missing,
+			`台帳に未登録のIDがある。\`bun run sync:aop-ids\` を実行して aop-known-ids.json をコミットする: ${missing.join(", ")}`,
+		).toEqual([]);
+	});
+
+	it("台帳のIDは現存するか、RETIRED_AOP_IDS に退役として明記されている", () => {
+		const orphaned = [...knownIds].filter(
+			(id) => !currentIds.has(id) && !(id in RETIRED_AOP_IDS),
+		);
+		expect(
+			orphaned,
+			`aops.json から消えたIDがある。この ID で登録済みのD1行(マイセラー・参考リンク)が孤児になるため、` +
+				`aop-id-registry.ts の RETIRED_AOP_IDS に後継AOPを明記すること: ${orphaned.join(", ")}`,
+		).toEqual([]);
+	});
+
+	it("RETIRED_AOP_IDS のキーは退役済み(現存しないID)である", () => {
+		for (const id of Object.keys(RETIRED_AOP_IDS)) {
+			expect(currentIds.has(id), `${id} は現存するので退役表に載せない`).toBe(
+				false,
+			);
+			expect(knownIds.has(id), `${id} は出荷済みID台帳に無い`).toBe(true);
+		}
+	});
+
+	it("退役IDは後継が現存AOPへ解決できる(後継無しの明示を除く)", () => {
+		for (const [id, successor] of Object.entries(RETIRED_AOP_IDS)) {
+			if (successor === null) continue;
+			expect(getAop(id)?.id, `${id} の後継 ${successor} が解決できない`).toBe(
+				successor,
+			);
+		}
 	});
 });
 

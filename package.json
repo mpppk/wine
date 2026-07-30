@@ -24,6 +24,7 @@
 		"build:geodata": "node scripts/build-aop-geodata.mjs",
 		"build:geodata:italy": "node scripts/build-italy-geodata.mjs",
 		"build:centroids": "node scripts/build-aop-centroids.mjs",
+		"sync:aop-ids": "node scripts/sync-aop-ids.mjs",
 		"build:boundaries": "bun scripts/build-region-boundaries.mjs",
 		"db:migrate:local": "wrangler d1 migrations apply DB --local",
 		"db:migrate:remote": "wrangler d1 migrations apply DB --remote",

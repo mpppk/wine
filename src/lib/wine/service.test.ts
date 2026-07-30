@@ -4,8 +4,10 @@ import {
 	aopAllowsGrape,
 	getAop,
 	getRegion,
+	legacyAopIdsFor,
 	listAops,
 	listRegions,
+	resolveAopId,
 } from "./service";
 
 describe("listRegions", () => {
@@ -163,5 +165,35 @@ describe("getAop / getRegion", () => {
 	it("未知のIDはundefined", () => {
 		expect(getAop("no-such-aop")).toBeUndefined();
 		expect(getRegion("no-such-region")).toBeUndefined();
+	});
+});
+
+// #333: aops.json から消えた ID は、それ以前に登録されたD1行(FKなし参照)から
+// 参照され続ける。RETIRED_AOP_IDS に後継を書けば、既存行は後継 AOP のものとして
+// 表示・地図・参考リンクのすべてで生き続ける。
+describe("退役AOP IDの解決 (#333)", () => {
+	it("退役IDは後継AOPへ解決される", () => {
+		// 2022年のサンテミリオン格付けから離脱してマスタから消えたシャトー(#216)。
+		// このIDで登録済みのワインは AOC サンテミリオン・グラン・クリュとして扱う。
+		expect(getAop("chateau-la-gaffeliere")?.id).toBe("saint-emilion-grand-cru");
+		expect(resolveAopId("chateau-la-gaffeliere")).toBe(
+			"saint-emilion-grand-cru",
+		);
+	});
+
+	it("現存するIDは自分自身に解決される", () => {
+		expect(resolveAopId("chablis")).toBe("chablis");
+	});
+
+	it("台帳にも無い未知のIDは解決できない", () => {
+		expect(resolveAopId("no-such-aop")).toBeUndefined();
+	});
+
+	it("後継AOPから、それへ解決される退役IDを引ける", () => {
+		expect(legacyAopIdsFor("saint-emilion-grand-cru")).toContain(
+			"chateau-la-gaffeliere",
+		);
+		// 退役IDを持たないAOPでは空
+		expect(legacyAopIdsFor("chablis")).toEqual([]);
 	});
 });

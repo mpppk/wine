@@ -91,6 +91,21 @@ PR本文とテストのコメントに残す**（後から「格付け16件の�
 bunx biome format --write src/lib/wine/aops.json
 ```
 
+### AOP エントリを足したら ID 台帳を同期する / 消すには後継の明記が要る
+
+`aops.json` の `id` は本番 D1 の `drunk_wine.aop_id` / `aop_reference_link.aop_id` から
+FK 無しで参照される公開キー（#333）。追加時は台帳を同期し、差分もコミットする。
+
+```bash
+bun run sync:aop-ids
+```
+
+**ID を消す・スラッグを変える場合**は、`src/lib/wine/aop-id-registry.ts` の
+`RETIRED_AOP_IDS` に「旧ID → 後継AOPのID」を書く（未記載だと `data-integrity.test.ts`
+が落ちる）。書けば、その ID で登録済みのワイン・参考リンクは後継 AOP のものとして
+表示・地図・一覧に出続ける。格付け離脱でシャトーを消す場合の後継は、そのシャトーが
+属する AOC（`villageAopIds` の値）が妥当。
+
 ### winery を足す/消すと geojson と重心も要る
 
 `data-integrity.test.ts` の `features.length === regionAops.length` が効くため、

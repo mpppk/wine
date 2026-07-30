@@ -675,6 +675,44 @@ describe("listDrunkWinesByAop", () => {
 		expect(row?.lastDrankOn).toBe("2026-02-01");
 		expect(row?.tastingCount).toBe(2);
 	});
+
+	// #333: aops.json から ID を消す・改名すると、それ以前に登録された行は FK が無いため
+	// 静かに孤児化する(AOP名と地域が消え、セラー地図からも落ちて「未紐付け」に合算される)。
+	// 退役IDに後継を登録してあれば、既存行は後継AOPのものとして生き続ける。
+	it("退役IDで保存された行も、後継AOPのワインとして扱う", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, {
+			name: "ラ・ガフリエール 2015",
+			aopId: "saint-emilion-grand-cru",
+		});
+		// マスタから消える前(#216 以前)に登録された行を再現する
+		await db
+			.update(drunkWine)
+			.set({ aopId: "chateau-la-gaffeliere" })
+			.where(eq(drunkWine.id, entry.id));
+
+		// 後継AOPのパネルに出る(旧IDのまま完全一致で引くと落ちてしまう)
+		const entries = await listDrunkWinesByAop(
+			userId,
+			"saint-emilion-grand-cru",
+		);
+		expect(entries.map((e) => e.name)).toContain("ラ・ガフリエール 2015");
+
+		// 表示・地図に必要な導出値も埋まる(AOP名・地域が null に落ちない)
+		const found = await getDrunkWine(userId, entry.id);
+		expect(found.aopId).toBe("saint-emilion-grand-cru");
+		expect(found.aopNameJa).not.toBeNull();
+		expect(found.regionId).toBe("bordeaux");
+	});
+
+	it("退役IDで登録しようとしても、保存されるのは後継のID", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, {
+			name: "旧IDで登録",
+			aopId: "chateau-la-gaffeliere",
+		});
+		expect((await wineRow(entry.id))?.aopId).toBe("saint-emilion-grand-cru");
+	});
 });
 
 // ---- 一覧用サムネイル (#237) -----------------------------------------------
