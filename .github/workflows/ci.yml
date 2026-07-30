@@ -37,6 +37,11 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # bun のバージョンは package.json の packageManager が唯一の真実の源(#339)。
+          # 未指定だと毎回 latest が入り、bun 側のリグレッションでリポジトリ無変更のまま
+          # CI とデプロイが同時に壊れうる。Renovate が packageManager の更新PRを出す。
+          bun-version-file: package.json
 
       # bun のパッケージキャッシュ(setup-bun はバイナリのみキャッシュする)。
       # bun.lock が変わらない限りレジストリからの全取得を避ける。
