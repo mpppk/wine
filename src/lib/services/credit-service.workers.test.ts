@@ -1,6 +1,6 @@
 import { env as testEnv } from "cloudflare:test";
 import { and, eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { subscription, user } from "#/db/auth-schema";
 import { creditBalance, creditLedger } from "#/db/schema";
@@ -12,11 +12,13 @@ import {
 import { currentMonthKey } from "#/lib/credit/month";
 import type { CreditLedgerType } from "#/lib/credit/types";
 import {
+	type BatchUnit,
 	ensureCurrentMonthGranted,
 	getBalance,
 	reclaimOrphanReservations,
 	refundReservation,
 	reserveCredits,
+	runInChunkedBatches,
 	settleReservation,
 } from "./credit-service";
 
@@ -577,5 +579,59 @@ describe("drizzle/0020 既存予約の確定マーカー補填 (#246)", () => {
 		await applyOrphanBackfill();
 
 		expect(await ledgerByRequestId(`${refundedId}:settle`)).toHaveLength(0);
+	});
+});
+
+// #334 の回帰。runInChunkedBatches はかつてフラットな文配列を上限100で単純スライスして
+// いたため、1ユニットの文数が100の約数でないと(一括付与は1ユーザ3文)境界のユニットだけが
+// 別 batch に割れ、「残高だけ加算され台帳行が無い」ユーザを作りうる。その状態は台帳を見る
+// 冪等ガードをすり抜けるので、復旧の再実行がそのユーザだけ二重加算になる。
+describe("runInChunkedBatches のチャンク境界 (#334)", () => {
+	/** batch に積めるだけの軽い文を1本作る(内容は問わない)。 */
+	function noopStatement(tag: string) {
+		return db
+			.select({ userId: creditBalance.userId })
+			.from(creditBalance)
+			.where(eq(creditBalance.userId, tag));
+	}
+
+	async function batchSizesOf(units: BatchUnit[]): Promise<number[]> {
+		const batchSpy = vi.spyOn(testEnv.DB, "batch");
+		try {
+			await runInChunkedBatches(units);
+			return batchSpy.mock.calls.map((call) => call[0].length);
+		} finally {
+			batchSpy.mockRestore();
+		}
+	}
+
+	it("1ユニット3文が上限の境界で分断されない", async () => {
+		const unitSize = 3;
+		const units: BatchUnit[] = Array.from({ length: 40 }, (_, i) =>
+			Array.from({ length: unitSize }, (_v, j) =>
+				noopStatement(`chunk-${i}-${j}`),
+			),
+		);
+
+		const sizes = await batchSizesOf(units);
+
+		// 120文なので必ず複数チャンクに割れる(=境界が存在する条件で検証している)
+		expect(sizes.length).toBeGreaterThan(1);
+		for (const size of sizes) {
+			expect(size % unitSize).toBe(0);
+			expect(size).toBeLessThanOrEqual(100);
+		}
+		expect(sizes.reduce((a, b) => a + b, 0)).toBe(unitSize * units.length);
+	});
+
+	it("上限を超えるユニットは、上限より原子性を優先して単独の batch にする", async () => {
+		const big: BatchUnit = Array.from({ length: 120 }, (_v, i) =>
+			noopStatement(`big-${i}`),
+		);
+		const small: BatchUnit = [noopStatement("small")];
+
+		const sizes = await batchSizesOf([big, small]);
+
+		expect(sizes).toEqual([120, 1]);
 	});
 });

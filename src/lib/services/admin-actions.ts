@@ -15,7 +15,7 @@ import { BadRequestError } from "#/lib/errors";
 import { logError, logInfo } from "#/lib/logger";
 import * as billingService from "#/lib/services/billing-service";
 import {
-	type BatchStatement,
+	type BatchUnit,
 	ensureCurrentMonthGranted,
 	ensureCurrentMonthGrantedMany,
 	runInChunkedBatches,
@@ -525,13 +525,15 @@ export async function bulkGrantCredits(params: {
 	const alreadyApplied = userIds.length - pending.length;
 	const granted = pending.length;
 
-	// 付与本体。1ユーザぶんの「条件付き残高加算 + 台帳追記」を単体版と同じ形で積み、
-	// db.batch(=1サブリクエスト)へ畳む。残高加算に NOT EXISTS(request_id) を付ける形も
-	// 単体版と同一で、チャンクが分断されても二重加算しない。
-	const statements: BatchStatement[] = [];
+	// 付与本体。1ユーザぶんの「条件付き残高加算 + 台帳追記 + 監査ログ」を単体版と同じ形で積み、
+	// db.batch(=1サブリクエスト)へ畳む。残高加算に NOT EXISTS(request_id) を付ける形も単体版と
+	// 同一だが、そのガードは台帳行を見るので **残高加算と台帳追記が同一 batch にある**ことが前提。
+	// 分断されると「残高だけ加算」のユーザが生まれ、復旧の再実行で二重加算になる(#334)。
+	// 1ユーザぶんを1ユニットとして渡し、チャンク境界がユニットを割らないようにする。
+	const units: BatchUnit[] = [];
 	for (const targetUserId of pending) {
 		const requestId = requestIdOf(targetUserId);
-		statements.push(
+		units.push([
 			db
 				.update(creditBalance)
 				.set({
@@ -565,9 +567,9 @@ export async function bulkGrantCredits(params: {
 				detail: { amount, requestId, periodMonth: month, incidentId },
 				reason,
 			}),
-		);
+		]);
 	}
-	await runInChunkedBatches(statements);
+	await runInChunkedBatches(units);
 
 	await recordAudit({
 		actorUserId,

@@ -42,6 +42,7 @@ vi.mock("#/lib/services/billing-service", () => ({
 }));
 
 const adminActions = await import("./admin-actions");
+const { ensureCurrentMonthGrantedMany } = await import("./credit-service");
 
 let seq = 0;
 async function freshUser(): Promise<string> {
@@ -563,6 +564,45 @@ describe("bulkGrantCredits のD1呼び出し数", () => {
 			r.requestId?.startsWith("admin_grant:incident-idem:"),
 		);
 		expect(adminRows.length).toBe(5);
+	});
+
+	// #334 の回帰。1ユーザぶんは「残高加算 + 台帳追記 + 監査ログ」の3文で、残高加算の
+	// 冪等ガードは台帳行を見る。この3文がチャンク境界で別 batch に割れると、前半だけ
+	// コミットされたユーザは「残高だけ加算・台帳行なし」になり、同一 incidentId での
+	// 再実行(復旧手段)でガードを素通りして二重加算される。
+	it("チャンク境界でユーザぶんの3文が別 batch に分断されない", async () => {
+		// 上限100文 ÷ 3文 = 33ユーザで境界が来るので、それを跨ぐ人数で検証する
+		const users: string[] = [];
+		for (let i = 0; i < 34; i++) users.push(await freshUser());
+		// 当月付与を先に済ませ、bulkGrantCredits 内の ensureCurrentMonthGrantedMany が
+		// 書き込みを出さない状態にする(batch 呼び出しを付与本体だけに絞るため)
+		await ensureCurrentMonthGrantedMany(users);
+
+		const batchSpy = vi.spyOn(env.DB, "batch");
+		try {
+			await adminActions.bulkGrantCredits({
+				actorUserId: "admin-bulk-actor",
+				incidentId: "incident-chunk",
+				userIds: users,
+				amount: 2,
+				reason: "検証",
+			});
+			const sizes = batchSpy.mock.calls.map((call) => call[0].length);
+			expect(sizes.length).toBeGreaterThan(1); // 102文なので必ず境界を跨ぐ
+			for (const size of sizes) expect(size % 3).toBe(0);
+			expect(sizes.reduce((a, b) => a + b, 0)).toBe(users.length * 3);
+		} finally {
+			batchSpy.mockRestore();
+		}
+
+		// 全員が「残高加算」と「台帳行」の両方を持つ
+		const ledger = await db
+			.select({ requestId: creditLedger.requestId })
+			.from(creditLedger);
+		const applied = new Set(ledger.map((r) => r.requestId));
+		for (const id of users) {
+			expect(applied.has(`admin_grant:incident-chunk:${id}`)).toBe(true);
+		}
 	});
 });
 
