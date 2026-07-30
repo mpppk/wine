@@ -50,6 +50,75 @@ describe("logger", () => {
 	});
 });
 
+// #331: JSON.stringify は Error の message/stack が非 enumerable なので {} に潰す。
+// フィールド直下しか変換していなかった頃は、better-auth のロガーブリッジのように
+// 可変長 args を配列で渡す経路(サインイン / OAuth / MCP OAuth)の真因が丸ごと消えていた。
+describe("ネストした Error の直列化 (#331)", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	function loggedLine(fields: Record<string, unknown>) {
+		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+		logError("boom", fields);
+		return JSON.parse(spy.mock.calls[0]?.[0] as string);
+	}
+
+	it("配列内の Error を文字列化する(better-auth ブリッジの args 形式)", () => {
+		const parsed = loggedLine({ args: [new TypeError("bad input")] });
+		expect(parsed.args).toEqual(["TypeError: bad input"]);
+	});
+
+	it("オブジェクト内・入れ子の Error も文字列化する", () => {
+		const parsed = loggedLine({
+			ctx: { inner: new Error("deep"), list: [{ e: new RangeError("r") }] },
+		});
+		expect(parsed.ctx.inner).toBe("deep");
+		expect(parsed.ctx.list[0].e).toBe("RangeError: r");
+	});
+
+	it("ネストした Error でも cause を連結する", () => {
+		const err = new Error("outer", { cause: new Error("root") });
+		expect(loggedLine({ args: [err] }).args[0]).toBe("outer <- root");
+	});
+
+	it("Date は ISO 文字列のまま(作り直して {} に落とさない)", () => {
+		const parsed = loggedLine({ at: new Date("2026-07-30T00:00:00.000Z") });
+		expect(parsed.at).toBe("2026-07-30T00:00:00.000Z");
+	});
+
+	it("循環参照があってもログ呼び出しは例外にならない", () => {
+		const a: Record<string, unknown> = { name: "a" };
+		a.self = a;
+		const parsed = loggedLine({ ctx: a });
+		expect(parsed.ctx.name).toBe("a");
+		expect(parsed.ctx.self).toBe("[circular]");
+	});
+
+	it("同じオブジェクトが兄弟で現れるのは循環扱いしない", () => {
+		const shared = { id: 1 };
+		const parsed = loggedLine({ ctx: { a: shared, b: shared } });
+		expect(parsed.ctx.a).toEqual({ id: 1 });
+		expect(parsed.ctx.b).toEqual({ id: 1 });
+	});
+
+	it("深すぎる入れ子は打ち切る(上限までは残す)", () => {
+		const parsed = loggedLine({ a: { b: { c: { d: { e: { f: 1 } } } } } });
+		expect(parsed.a.b.c.d).toEqual({ e: "[truncated]" });
+	});
+
+	// ログはリクエスト処理の失敗パスから呼ばれる。ここで throw すると元の失敗を
+	// 覆い隠す新たな例外に化ける。
+	it("直列化できない値でも throw せず、msg は必ず出す", () => {
+		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+		expect(() => logError("boom", { big: 1n })).not.toThrow();
+		const parsed = JSON.parse(spy.mock.calls[0]?.[0] as string);
+		expect(parsed.msg).toBe("boom");
+		expect(parsed.level).toBe("error");
+		expect(typeof parsed.logSerializationError).toBe("string");
+	});
+});
+
 // ラップした例外は外側が「何に失敗したか」、cause が「なぜ失敗したか」を持つ。
 // cause を落とすと真因が消え、ai-service が全滅時の追跡用に積んでいる情報(#156)が
 // ログから消える(#271)。

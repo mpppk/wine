@@ -45,9 +45,13 @@ export const auth = betterAuth({
 	logger: {
 		level: "warn",
 		log: (level, message, ...args) => {
+			// args 内の Error は logger 側(sanitize)が文字列化するので、ここでは畳まない(#331)。
 			const fields = args.length > 0 ? { args } : {};
-			if (level === "error") logError(`better-auth: ${message}`, fields);
-			else logWarn(`better-auth: ${message}`, fields);
+			// OAuth コールバックの失敗は message が空文字で Error だけを args に渡してくる。
+			// そのまま連結すると msg が "better-auth: " になり、どの経路の行か分からなくなる。
+			const label = message.trim() === "" ? "(no message)" : message;
+			if (level === "error") logError(`better-auth: ${label}`, fields);
+			else logWarn(`better-auth: ${label}`, fields);
 		},
 	},
 	trustedOrigins: [

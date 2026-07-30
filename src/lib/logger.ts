@@ -46,18 +46,78 @@ function formatOne(e: unknown): string {
 	return String(e);
 }
 
+/** ネストを辿る深さの上限。これを超えたら畳んで打ち切る(肥大化・病的な入れ子の防止)。 */
+const MAX_FIELD_DEPTH = 4;
+
+/** 素のオブジェクト(リテラル/`Object.create(null)`)か。Date や Map 等は対象外。 */
+function isPlainObject(value: object): boolean {
+	const proto = Object.getPrototypeOf(value);
+	return proto === Object.prototype || proto === null;
+}
+
+/**
+ * フィールド値を直列化可能な形へ畳む。**ネストした Error も文字列化する**のが要点(#331)。
+ *
+ * `JSON.stringify` は Error の `message` / `stack` が非 enumerable なため `{}` に潰す。
+ * フィールド直下しか変換していなかった頃は、better-auth のロガーブリッジのように
+ * 可変長 `args` を配列で渡す経路の真因が丸ごと消えていた
+ * (`{"msg":"better-auth: Error","args":[{}]}`)。変換を呼び出し側ごとに書くと後から
+ * 足した経路で必ず漏れるため、全ログが通るこの1箇所で畳む。
+ *
+ * 再帰するのは配列と素のオブジェクトだけ。Date のように `toJSON` で意味のある文字列に
+ * なる値を作り直すと `{}` に落ちてしまうため、そのまま `JSON.stringify` に渡す。
+ * 循環参照は訪問済み集合で止める(ログ呼び出し自体を例外にしない)。
+ */
+function sanitize(
+	value: unknown,
+	depth: number,
+	seen: WeakSet<object>,
+): unknown {
+	if (value instanceof Error) return errToString(value);
+	if (value === null || typeof value !== "object") return value;
+	const obj = value as object;
+	if (seen.has(obj)) return "[circular]";
+	if (!Array.isArray(value) && !isPlainObject(obj)) return value;
+	if (depth >= MAX_FIELD_DEPTH) return "[truncated]";
+	seen.add(obj);
+	try {
+		if (Array.isArray(value)) {
+			return value.map((v) => sanitize(v, depth + 1, seen));
+		}
+		const out: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(obj)) {
+			out[k] = sanitize(v, depth + 1, seen);
+		}
+		return out;
+	} finally {
+		// 兄弟に同じオブジェクトが現れるのは循環ではないので、抜けるときに外す。
+		seen.delete(obj);
+	}
+}
+
 function emit(
 	level: "error" | "warn" | "info",
 	msg: string,
 	fields: LogFields,
 ) {
-	// フィールド内の Error 値は文字列化してから直列化する(JSON.stringify は Error を
-	// {} に落とすため)。
 	const safe: LogFields = {};
+	const seen = new WeakSet<object>();
 	for (const [key, value] of Object.entries(fields)) {
-		safe[key] = value instanceof Error ? errToString(value) : value;
+		safe[key] = sanitize(value, 0, seen);
 	}
-	const line = JSON.stringify({ level, msg, ...safe });
+	// 直列化不能な値(BigInt・throw する toJSON 等)でログ呼び出し自体を例外にしない。
+	// ログはリクエスト処理の失敗パスから呼ばれるので、ここで throw すると元の失敗を
+	// 覆い隠す新たな例外に化ける(#331)。最低限 msg は必ず出す。
+	let line: string;
+	try {
+		line = JSON.stringify({ level, msg, ...safe });
+	} catch (e) {
+		line = JSON.stringify({
+			level,
+			msg,
+			logSerializationError: errToString(e),
+		});
+	}
 	if (level === "error") {
 		console.error(line);
 	} else if (level === "warn") {
