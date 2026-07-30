@@ -62,34 +62,59 @@ const ORPHAN_RECLAIM_LIMIT = 10;
 const ORPHAN_SCAN_WINDOW_MS = 40 * 24 * 60 * 60 * 1000;
 
 /**
- * 1つの db.batch に載せる最大ステートメント数。
+ * 1つの db.batch に載せる最大ステートメント数(目安)。
  *
  * db.batch は何本積んでも **1サブリクエスト**なので、上限内で大きく取るほど
  * サブリクエスト数は減る。一方で1回のリクエストボディが際限なく膨らむのは避けたいので、
- * 200ユーザ × 2ステートメントを数回に割る程度の値にしている(#253)。
+ * 200ユーザ × 数ステートメントを数回に割る程度の値にしている(#253)。
+ * 原子性の要るまとまり(ユニット)を分断しないため、実際のチャンクはこの値を
+ * わずかに下回る位置で切れる。
  */
 const BATCH_STATEMENT_CHUNK = 100;
 
-/**
- * ステートメント列をチャンクに割って db.batch で流す。
- *
- * **チャンク間には原子性が無い**。ここに載せてよいのは「1ユーザぶんの
- * 残高更新+台帳追記が同一チャンクに収まり、かつ各ユーザが requestId で冪等」な
- * 書き込みだけ。途中で落ちても、再実行が残りを埋めて最終状態が同じになる形を保つ。
- * ユーザ単位のペアが分断されないよう、偶数個ずつ切る。
- */
 type BatchStatements = Parameters<typeof db.batch>[0];
 export type BatchStatement = BatchStatements[number];
 
+/** 同一トランザクションで完結させたいステートメントのまとまり(例: 1ユーザぶんの付与)。 */
+export type BatchUnit = readonly BatchStatement[];
+
+/**
+ * ステートメントを「ユニット」単位でチャンクに割り、db.batch で流す。
+ *
+ * **チャンク間には原子性が無い**。ここに載せてよいのは「1ユニットが同一チャンクに
+ * 収まり、かつ requestId で冪等」な書き込みだけ。途中で落ちても、再実行が残りを
+ * 埋めて最終状態が同じになる形を保つ。
+ *
+ * ユニットを跨いで切ると、その境界のユーザだけ「残高は加算・台帳は未記録」が成立し、
+ * 再実行時の冪等ガード(`NOT EXISTS(request_id)`)が台帳行を見ないため**二重加算**に
+ * なる(#334。フラットな配列を固定長でスライスしていた実装は、1ユニットが上限の
+ * 約数でない限りこれを起こしうる)。そのため呼び出し側は原子性の要るまとまりを
+ * ユニットとして渡し、この関数はユニット境界でだけ切る。
+ *
+ * 1ユニット単体が上限を超える場合はそのユニットだけで1バッチにする(サイズの目安より
+ * 原子性を優先する)。
+ */
 export async function runInChunkedBatches(
-	statements: readonly BatchStatement[],
+	units: readonly BatchUnit[],
 ): Promise<void> {
-	for (let i = 0; i < statements.length; i += BATCH_STATEMENT_CHUNK) {
-		const chunk = statements.slice(i, i + BATCH_STATEMENT_CHUNK);
+	const flush = async (chunk: BatchStatement[]) => {
 		const [first, ...rest] = chunk;
-		if (!first) continue;
+		if (!first) return;
 		await db.batch([first, ...rest]);
+	};
+	let chunk: BatchStatement[] = [];
+	for (const unit of units) {
+		if (unit.length === 0) continue;
+		if (
+			chunk.length > 0 &&
+			chunk.length + unit.length > BATCH_STATEMENT_CHUNK
+		) {
+			await flush(chunk);
+			chunk = [];
+		}
+		chunk.push(...unit);
 	}
+	await flush(chunk);
 }
 
 export interface CreditBalance {
@@ -177,7 +202,9 @@ export async function ensureCurrentMonthGrantedMany(
 		.groupBy(creditLedger.userId);
 	const grantedTotal = new Map(grantedRows.map((r) => [r.userId, r.total]));
 
-	const statements: BatchStatement[] = [];
+	// 1ユーザぶんを1ユニットとして積む(残高更新と台帳追記が別バッチに割れると
+	// 冪等リトライで二重加算になる。#334)
+	const units: BatchUnit[] = [];
 	for (const userId of targets) {
 		const target = monthlyGrantForPlan(premium.has(userId));
 		if (balanceMonth.get(userId) === month) {
@@ -185,7 +212,7 @@ export async function ensureCurrentMonthGrantedMany(
 			const diff = target - (grantedTotal.get(userId) ?? 0);
 			if (diff <= 0) continue;
 			const requestId = `grant_upgrade:${userId}:${month}`;
-			statements.push(
+			units.push([
 				db
 					.update(creditBalance)
 					.set({
@@ -210,12 +237,12 @@ export async function ensureCurrentMonthGrantedMany(
 						tokenAmount: null,
 					})
 					.onConflictDoNothing({ target: creditLedger.requestId }),
-			);
+			]);
 			continue;
 		}
 		// 当月未付与(新月 / 残高行なし)。現プランの付与額でリセット付与する
 		const requestId = `grant:${userId}:${month}`;
-		statements.push(
+		units.push([
 			db
 				.insert(creditLedger)
 				.values({
@@ -237,9 +264,9 @@ export async function ensureCurrentMonthGrantedMany(
 					// 別リクエストが既に当月へリセット済みなら上書きしない(消費の巻き戻し防止)
 					setWhere: sql`${creditBalance.periodMonth} <> ${month}`,
 				}),
-		);
+		]);
 	}
-	await runInChunkedBatches(statements);
+	await runInChunkedBatches(units);
 }
 
 export async function ensureCurrentMonthGranted(userId: string): Promise<void> {
