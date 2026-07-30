@@ -177,6 +177,9 @@ describe("authMiddleware", () => {
 			// 呼び出し側に手を入れず追跡できることが要件(#156)
 			userId: "u42",
 			err: "TypeError: undefined is not a function",
+			// path が無いと、複数機能が同時に落ちたとき同一文言の行が並ぶだけになり
+			// `bun run logs --level error` から障害箇所を切り分けられない(#332)
+			path: "/_serverFn/quiz.saveAnswer",
 		});
 	});
 });
@@ -260,7 +263,67 @@ describe("optionalAuthMiddleware", () => {
 		const line = loggedLine(error);
 		expect(line).toMatchObject({ level: "error", msg: "server fn failed" });
 		expect(line.userId).toBeUndefined();
+		// 未ログインでも「どの機能が落ちたか」は残す(#332)
+		expect(line.path).toBe("/_serverFn/quiz.saveAnswer");
 	});
+});
+
+// #332: 「server fn failed」は文言が同一なので、path が無いと D1 障害などで複数機能が
+// 同時に落ちたときに `bun run logs --level error` から障害箇所を切り分けられない。
+// 4つのミドルウェア全部に付いていることを固定する(1つ足し忘れるとその経路だけ盲点になる)。
+describe("失敗ログの path (#332)", () => {
+	const cases: [string, ServerFn, () => void][] = [
+		[
+			"authMiddleware",
+			runAuth,
+			() => {
+				hooks.session = sessionFor({ id: "u1" });
+			},
+		],
+		[
+			"adminMiddleware",
+			runAdmin,
+			() => {
+				hooks.session = sessionFor({
+					id: "admin1",
+					role: "admin",
+					banned: false,
+				});
+			},
+		],
+		[
+			"optionalAuthMiddleware",
+			runOptional,
+			() => {
+				hooks.session = sessionFor({ id: "u1" });
+			},
+		],
+		[
+			"impersonationMiddleware",
+			runImpersonation,
+			() => {
+				hooks.session = impersonatedSessionFor({ id: "u1" });
+			},
+		],
+	];
+
+	it.each(cases)(
+		"%s の想定外例外は path 付きで記録する",
+		async (_label, run, setup) => {
+			setup();
+			hooks.requestUrl = "https://wine.test/_serverFn/cellar.updateEntry";
+			hooks.requestMethod = "GET"; // なりすましの書き込みガードに引っ掛けない
+			const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+			const boom = new Error("kaboom");
+			await expect(run({ next: throwingNext(boom) })).rejects.toBe(boom);
+
+			expect(loggedLine(error)).toMatchObject({
+				msg: "server fn failed",
+				path: "/_serverFn/cellar.updateEntry",
+			});
+		},
+	);
 });
 
 // なりすまし(impersonation)中の書き込み禁止(#116)。

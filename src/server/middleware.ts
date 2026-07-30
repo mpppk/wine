@@ -26,7 +26,7 @@ import { logError, logInfo, logWarn } from "#/lib/logger";
 // 呼び出し側に手を入れず userId 付きで Workers Logs から追跡できる(#156)。
 async function runWithHttpStatus<T>(
 	next: () => Promise<T> | T,
-	ctx?: { userId?: string },
+	ctx?: { userId?: string; path?: string },
 ): Promise<T> {
 	try {
 		return await next();
@@ -35,10 +35,23 @@ async function runWithHttpStatus<T>(
 			// 想定内の 4xx。ステータスだけ写してログは出さない(障害シグナルを薄めない)。
 			setResponseStatus(e.status);
 		} else {
-			logError("server fn failed", { userId: ctx?.userId, err: e });
+			// path が無いと、D1 障害などで複数機能が同時に落ちたときに同一文言の行が
+			// 並ぶだけになり、`bun run logs --level error` から障害箇所を切り分けられない
+			// (#332)。同ファイルの未認証ログ・書き込みブロックログは既に path を残して
+			// いたので、失敗ログだけドリフトしていた。
+			logError("server fn failed", {
+				userId: ctx?.userId,
+				path: ctx?.path,
+				err: e,
+			});
 		}
 		throw e;
 	}
+}
+
+/** ログに載せる server function の識別子。同種のログ(未認証・書き込みブロック)と揃える。 */
+function pathOf(request: Request): string {
+	return new URL(request.url).pathname;
 }
 
 /**
@@ -58,7 +71,7 @@ function assertNotImpersonatedWrite(
 	// 管理者の誤操作・UIの取りこぼしを後から追えるよう痕跡を残す(正常系なので warn)。
 	logWarn("impersonated write blocked", {
 		userId: session?.user.id,
-		path: new URL(request.url).pathname,
+		path: pathOf(request),
 	});
 	throw new ForbiddenError(IMPERSONATION_READONLY_MESSAGE);
 }
@@ -72,15 +85,13 @@ export const authMiddleware = createMiddleware({ type: "function" }).server(
 			// 認証切れは正常系だが、痕跡が皆無だと「クイズの進捗が保存されていない」等の
 			// 問い合わせを裏取りする手段が無くなる(#255)。error ではなく warn で残し、
 			// 障害シグナル(logError)を薄めずに追跡だけ可能にする。
-			logWarn("server fn unauthorized", {
-				path: new URL(request.url).pathname,
-			});
+			logWarn("server fn unauthorized", { path: pathOf(request) });
 			throw new UnauthorizedError();
 		}
 		assertNotImpersonatedWrite(session, request);
 		return runWithHttpStatus(
 			() => next({ context: { user: session.user, session: session.session } }),
-			{ userId: session.user.id },
+			{ userId: session.user.id, path: pathOf(request) },
 		);
 	},
 );
@@ -101,7 +112,7 @@ export const adminMiddleware = createMiddleware({ type: "function" }).server(
 		assertNotImpersonatedWrite(session, request);
 		return runWithHttpStatus(
 			() => next({ context: { user: session.user, session: session.session } }),
-			{ userId: session.user.id },
+			{ userId: session.user.id, path: pathOf(request) },
 		);
 	},
 );
@@ -119,7 +130,7 @@ export const optionalAuthMiddleware = createMiddleware({
 	// 適切なステータスへ写す。
 	return runWithHttpStatus(
 		() => next({ context: { user: session?.user ?? null } }),
-		{ userId: session?.user?.id },
+		{ userId: session?.user?.id, path: pathOf(request) },
 	);
 });
 
@@ -144,9 +155,12 @@ export const impersonationMiddleware = createMiddleware({
 		setResponseStatus(400);
 		throw new BadRequestError("なりすまし中ではありません。");
 	}
-	logInfo("impersonation session action", { userId: session.user.id });
+	logInfo("impersonation session action", {
+		userId: session.user.id,
+		path: pathOf(request),
+	});
 	return runWithHttpStatus(
 		() => next({ context: { user: session.user, session: session.session } }),
-		{ userId: session.user.id },
+		{ userId: session.user.id, path: pathOf(request) },
 	);
 });
