@@ -99,6 +99,8 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 
 3 系統とも最終的に同じサービス層を呼ぶ。server fn の middleware と API ルートの認証は**別系統**なので混同しない。
 
+**BAN(利用停止)は 3 系統すべてに効かせる**（#330）。better-auth の `banUser` が止めるのは Web セッション（削除）とサインインだけで、MCP の OAuth アクセストークンには触れない。そのため `banUser`（`admin-actions.ts`）が失効（`revokeMcpConnections`）まで連動させ、`/api/mcp` の入口でも `isUserBanned` で確認する二段構えにしてある。認証手段が増えたら「BAN が届くか」を必ず確認する。
+
 ## フロントエンド
 
 - **ルーティング**: フラットルート + ドット区切りで `src/routes/` 直下に置く（`cellar.$entryId.edit.tsx` → `/cellar/:entryId/edit`）。動的セグメントは `$param`、スプラットは `$.ts`、特殊文字は `[.]well-known` のようにエスケープ。`routeTree.gen.ts` は自動生成・手編集禁止。

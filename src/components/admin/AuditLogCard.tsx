@@ -16,9 +16,18 @@ function formatAuditDetail(
 		return `${detail.days}日延長`;
 	}
 	if (action === "ban") {
-		return typeof detail.banExpiresInDays === "number"
-			? `${detail.banExpiresInDays}日間`
-			: "無期限";
+		const period =
+			typeof detail.banExpiresInDays === "number"
+				? `${detail.banExpiresInDays}日間`
+				: "無期限";
+		// BAN は MCP 連携の失効も伴う(#330)。失効できなかった場合は管理者が
+		// MCPカードから手動で失効できるよう明示する(#330 より前の行にはこの
+		// フィールドが無いので、その場合は期間だけを出す)。
+		if (detail.mcpRevoked === false) return `${period} / MCP連携の失効に失敗`;
+		if (typeof detail.mcpTokensDeleted === "number") {
+			return `${period} / MCPトークン${detail.mcpTokensDeleted}件失効`;
+		}
+		return period;
 	}
 	if (action === "revoke_mcp") {
 		return `トークン${detail.tokensDeleted ?? 0}件 / 同意${detail.consentsDeleted ?? 0}件 削除`;

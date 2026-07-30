@@ -114,7 +114,8 @@ export function BanControl({
 						<DialogTitle>利用停止(BAN)の確認</DialogTitle>
 						<DialogDescription>
 							{u.name}{" "}
-							を利用停止します。停止中はログインが拒否され、既存セッションも失効します。この操作は監査ログに記録されます。
+							を利用停止します。停止中はログインが拒否され、既存セッションと MCP
+							連携も失効します。この操作は監査ログに記録されます。
 						</DialogDescription>
 					</DialogHeader>
 					<div className="flex flex-col gap-1.5">
