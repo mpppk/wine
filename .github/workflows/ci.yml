@@ -52,6 +52,19 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
 
+      # setup-bun は bun-version-file の解決に失敗しても既定(latest)へ**黙って**フォールバックする。
+      # 固定が効かなくなったことに気づけるよう、実際に動いている bun を突き合わせる(#339)。
+      - name: Verify pinned bun version
+        run: |
+          bun -e '
+            const want = (await Bun.file("package.json").json()).packageManager.replace("bun@", "");
+            if (Bun.version !== want) {
+              console.error(`bun version mismatch: packageManager=${want} running=${Bun.version}`);
+              process.exit(1);
+            }
+            console.log(`bun ${Bun.version} (pinned via packageManager)`);
+          '
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
