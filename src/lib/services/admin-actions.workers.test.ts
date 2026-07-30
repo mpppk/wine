@@ -3,7 +3,12 @@ import { eq } from "drizzle-orm";
 import type { MockInstance } from "vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
-import { user } from "#/db/auth-schema";
+import {
+	oauthAccessToken,
+	oauthApplication,
+	oauthConsent,
+	user,
+} from "#/db/auth-schema";
 import {
 	adminAuditLog,
 	couponRedemption,
@@ -49,6 +54,57 @@ async function freshUser(): Promise<string> {
 		emailVerified: false,
 	});
 	return id;
+}
+
+/**
+ * MCP(OAuth)連携済みのユーザを作る。BAN 連動失効(#330)の検証に使う。
+ * oauth_access_token / oauth_consent は client_id で oauth_application を参照する。
+ */
+async function withMcpConnection(userId: string): Promise<void> {
+	const clientId = `client-${userId}`;
+	const now = new Date();
+	await db.insert(oauthApplication).values({
+		id: `app-${userId}`,
+		name: "test mcp client",
+		clientId,
+		redirectUrls: "https://example.com/callback",
+		type: "web",
+		createdAt: now,
+		updatedAt: now,
+	});
+	await db.insert(oauthAccessToken).values({
+		id: `token-${userId}`,
+		accessToken: `at-${userId}`,
+		refreshToken: `rt-${userId}`,
+		accessTokenExpiresAt: new Date(now.getTime() + 3_600_000),
+		refreshTokenExpiresAt: new Date(now.getTime() + 604_800_000),
+		clientId,
+		userId,
+		scopes: "openid profile",
+		createdAt: now,
+		updatedAt: now,
+	});
+	await db.insert(oauthConsent).values({
+		id: `consent-${userId}`,
+		clientId,
+		userId,
+		scopes: "openid profile",
+		consentGiven: true,
+		createdAt: now,
+		updatedAt: now,
+	});
+}
+
+async function mcpRowCounts(userId: string) {
+	const tokens = await db
+		.select({ id: oauthAccessToken.id })
+		.from(oauthAccessToken)
+		.where(eq(oauthAccessToken.userId, userId));
+	const consents = await db
+		.select({ id: oauthConsent.id })
+		.from(oauthConsent)
+		.where(eq(oauthConsent.userId, userId));
+	return { tokens: tokens.length, consents: consents.length };
 }
 
 async function auditRows(targetUserId: string) {
@@ -122,7 +178,70 @@ describe("banUser", () => {
 		expect(rows[0]?.action).toBe("ban");
 		expect(rows[0]?.actorUserId).toBe(actor);
 		expect(rows[0]?.reason).toBe("規約違反");
-		expect(rows[0]?.detail).toEqual({ banExpiresInDays: 3 });
+		expect(rows[0]?.detail).toEqual({
+			banExpiresInDays: 3,
+			mcpRevoked: true,
+			mcpTokensDeleted: 0,
+			mcpConsentsDeleted: 0,
+		});
+	});
+
+	// #330: BAN は Web セッションだけでなく MCP(OAuth)連携も断つ。ここが抜けると
+	// 停止したユーザが MCP 経由で書き込みと AI クレジット消費を続けられる。
+	it("revokes the target's MCP tokens and consents", async () => {
+		const actor = await freshUser();
+		const target = await freshUser();
+		const bystander = await freshUser();
+		await withMcpConnection(target);
+		await withMcpConnection(bystander);
+
+		await adminActions.banUser({
+			actorUserId: actor,
+			targetUserId: target,
+			reason: "MCP経由の濫用",
+			headers: new Headers(),
+		});
+
+		expect(await mcpRowCounts(target)).toEqual({ tokens: 0, consents: 0 });
+		// 他ユーザの連携は巻き込まない
+		expect(await mcpRowCounts(bystander)).toEqual({ tokens: 1, consents: 1 });
+		expect((await auditRows(target))[0]?.detail).toEqual({
+			banExpiresInDays: null,
+			mcpRevoked: true,
+			mcpTokensDeleted: 1,
+			mcpConsentsDeleted: 1,
+		});
+	});
+
+	it("still records the ban when revoking MCP connections fails", async () => {
+		// 失効が落ちても BAN は適用済み。ここで throw すると「BAN 適用済み・監査ログ無し」
+		// になるため、失効できなかったことを証跡に残して処理を続ける
+		// (アクセス自体は /api/mcp の入口ガードが拒否する)。
+		const actor = await freshUser();
+		const target = await freshUser();
+		vi.spyOn(db, "batch").mockImplementationOnce(() => {
+			throw new Error("D1_ERROR: network");
+		});
+
+		await adminActions.banUser({
+			actorUserId: actor,
+			targetUserId: target,
+			reason: "規約違反",
+			headers: new Headers(),
+		});
+
+		expect((await auditRows(target))[0]?.detail).toEqual({
+			banExpiresInDays: null,
+			mcpRevoked: false,
+			mcpTokensDeleted: null,
+			mcpConsentsDeleted: null,
+		});
+		const lines = loggedLines(
+			errorSpy,
+			"ban applied but revoking mcp connections failed",
+		);
+		expect(lines).toHaveLength(1);
+		expect(String(lines[0]?.err)).toContain("D1_ERROR");
 	});
 
 	it("rejects self-ban before touching better-auth", async () => {
@@ -156,7 +275,7 @@ describe("banUser", () => {
 			targetUserId: target,
 			action: "ban",
 			reason: "規約違反",
-			detail: { banExpiresInDays: null },
+			detail: { banExpiresInDays: null, mcpRevoked: true },
 		});
 	});
 
@@ -190,7 +309,7 @@ describe("banUser", () => {
 			targetUserId: target,
 			action: "ban",
 			reason: "規約違反",
-			detail: { banExpiresInDays: 7 },
+			detail: { banExpiresInDays: 7, mcpRevoked: true },
 		});
 		// 原因(D1のエラー)も同じ行に残す。
 		expect(String(lines[0]?.err)).toContain("D1_ERROR");

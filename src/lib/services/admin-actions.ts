@@ -298,12 +298,36 @@ export async function banUser(params: {
 		},
 		headers,
 	});
+	// better-auth の banUser は Web セッションしか削除せず、MCP(OAuth)トークンには
+	// 触れない。BAN の目的は濫用の停止なので、書き込みと AI クレジット消費が続く
+	// 3系統目の入口をここで塞ぐ(#330)。行削除で refresh token も同時に失効し、
+	// BAN 中はサインイン不可なので再認可もできない。
+	//
+	// 失効に失敗しても BAN 自体は適用済みで、`/api/mcp` の入口ガードが停止中の
+	// アクセスを拒否する。ここで throw すると「BAN 適用済み・監査ログ無し」を
+	// 作ってしまうため、証跡を残して記録まで進める(失効できなかったことは
+	// mcpRevoked=false として監査ログにも残す)。
+	let revoked: { tokensDeleted: number; consentsDeleted: number } | null = null;
+	try {
+		revoked = await revokeMcpConnections(targetUserId);
+	} catch (e) {
+		logError("ban applied but revoking mcp connections failed", {
+			actorUserId,
+			targetUserId,
+			err: e,
+		});
+	}
 	await recordAfterEffect({
 		actorUserId,
 		targetUserId,
 		action: "ban",
 		reason,
-		detail: { banExpiresInDays: expiresInDays ?? null },
+		detail: {
+			banExpiresInDays: expiresInDays ?? null,
+			mcpRevoked: revoked !== null,
+			mcpTokensDeleted: revoked?.tokensDeleted ?? null,
+			mcpConsentsDeleted: revoked?.consentsDeleted ?? null,
+		},
 	});
 	return { ok: true };
 }
