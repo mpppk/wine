@@ -50,6 +50,11 @@ jobs:
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: "1.13.4"
+          # **wrapper を無効にする**。有効だと terraform コマンドがラッパー経由になり、
+          # ラッパーは -detailed-exitcode の exit 2 を「成功」として **0 に握り潰す**
+          # (wrapper/terraform.js: `if (exitCode === 0 || exitCode === 2)`)。下の Plan が
+          # 差分ありを検知できなくなる(#338 の初回実装がこれで空振りした)。
+          terraform_wrapper: false
 
       - name: Format check
         if: matrix.env == 'preview' # リポジトリ全体に1回で足りる
@@ -112,8 +117,14 @@ jobs:
             exit 1
           fi
           if [ "$code" -eq 0 ]; then
-            echo "::notice title=Terraform plan (${{ matrix.env }})::差分なし(state と実リソースが一致)。"
-            exit 0
+            # 終了コードと出力の突き合わせ。ラッパー等が exit 2 を握り潰すと「差分あり」を
+            # 「差分なし」と報告してしまい、この仕組み自体が黙って無効になる(#338)。
+            if grep -q "^No changes\." plan.txt; then
+              echo "::notice title=Terraform plan (${{ matrix.env }})::差分なし(state と実リソースが一致)。"
+              exit 0
+            fi
+            echo "::error title=plan の終了コードと出力が矛盾::exit 0 だが出力に 'No changes.' がありません。-detailed-exitcode が握り潰されていないか(setup-terraform の terraform_wrapper 等)確認してください。"
+            exit 1
           fi
 
           # 差分あり(exit 2)。job summary には**件数と対象リソースのアドレスだけ**を出す。
