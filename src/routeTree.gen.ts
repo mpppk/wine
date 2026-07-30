@@ -20,6 +20,7 @@ import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminUserIdRouteImport } from './routes/admin.$userId'
 import { Route as AdminBulkCreditRouteImport } from './routes/admin.bulk-credit'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
@@ -93,6 +94,11 @@ const AdminUserIdRoute = AdminUserIdRouteImport.update({
 const AdminBulkCreditRoute = AdminBulkCreditRouteImport.update({
   id: '/admin/bulk-credit',
   path: '/admin/bulk-credit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLabelAnalysisRoute = ApiLabelAnalysisRouteImport.update({
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
   '/admin/bulk-credit': typeof AdminBulkCreditRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
   '/admin/bulk-credit': typeof AdminBulkCreditRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
   '/admin/bulk-credit': typeof AdminBulkCreditRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
     | '/admin/bulk-credit'
+    | '/api/health'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
     | '/admin/bulk-credit'
+    | '/api/health'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -345,6 +356,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
     | '/admin/bulk-credit'
+    | '/api/health'
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
@@ -376,6 +388,7 @@ export interface RootRouteChildren {
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   AdminUserIdRoute: typeof AdminUserIdRoute
   AdminBulkCreditRoute: typeof AdminBulkCreditRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiLabelAnalysisRoute: typeof ApiLabelAnalysisRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
@@ -473,6 +486,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/bulk-credit'
       fullPath: '/admin/bulk-credit'
       preLoaderRoute: typeof AdminBulkCreditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/label-analysis': {
@@ -610,6 +630,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthProtectedResourceRoute,
   AdminUserIdRoute: AdminUserIdRoute,
   AdminBulkCreditRoute: AdminBulkCreditRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiLabelAnalysisRoute: ApiLabelAnalysisRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,

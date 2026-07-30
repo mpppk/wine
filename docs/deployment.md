@@ -22,6 +22,13 @@
 > deploy command 側に置くのは失敗時の安全性のため。build command 側に置くと、マイグレーション適用後に
 > ビルドが失敗した場合、DB だけ進んでデプロイされない状態になり得る。
 
+それでも「適用 → 新 Worker 反映」の間には短い窓が残り、ここでデプロイが失敗すると
+**新スキーマ×旧コード**のまま固定化する。この状態は `/` も OAuth メタデータも DB を引かずに 200 を
+返すため外形からは分からないので、`/api/health` が**適用済みの最新マイグレーションとコード側が期待する
+世代（`src/db/migrations.ts` の `EXPECTED_LATEST_MIGRATION`）を突き合わせて**返す。ズレ・D1 到達不能は
+どちらも 503 + `"ok":false` になり、6時間ごとのスモーク（`.github/workflows/smoke.yml`）が検出する（#336）。
+**`drizzle/` に連番SQLを足したら `EXPECTED_LATEST_MIGRATION` も更新する**（テストが強制する）。
+
 ### トリガー設定
 
 Workers Builds の build / deploy command はダッシュボード（Settings > Build）にのみ保存され、

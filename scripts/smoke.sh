@@ -106,6 +106,13 @@ echo
 # --- HTML (SSR) ---
 check_status GET / 200 "home page"
 
+# --- D1 (DB接続 + マイグレーション適用状態) ---
+# 唯一「未認証で D1 に SELECT が走る」チェック(#336)。ここが無いと、マイグレーションだけ
+# 当たって新 Worker が反映されていない状態や D1 バインディングの設定ミスを、他のどの
+# チェックも検出できない(ホームも OAuth メタデータも DB を引かずに 200 を返すため)。
+# ズレ・接続失敗はどちらも 503 + "ok":false になる。
+check_body   GET /api/health 200 '"ok":true'
+
 # --- better-auth ---
 # /api/auth/ok は better-auth 組込みのヘルスチェック相当 (未認証で 200 {"ok":true})。
 check_body   GET /api/auth/ok 200 '"ok":true'
