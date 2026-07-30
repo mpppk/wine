@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { AI_MAX_QUESTION_CHARS, regionQaModelKeySchema } from "#/lib/ai/config";
+import {
+	AI_MAX_QUESTION_CHARS,
+	chatHistorySchema,
+	regionQaModelKeySchema,
+} from "#/lib/ai/config";
 import {
 	DRUNK_WINE_FIELD_DEFS,
 	type DrunkWineSnakeKey,
@@ -72,14 +76,8 @@ export const askRegionInput = {
 		.min(1)
 		.max(AI_MAX_QUESTION_CHARS)
 		.describe("地域・AOPについての質問(日本語)"),
-	history: z
-		.array(
-			z.object({
-				role: z.enum(["user", "assistant"]),
-				content: z.string().min(1).max(4000),
-			}),
-		)
-		.max(20)
+	// 境界の定義は Web の server fn と共有する(#340)
+	history: chatHistorySchema
 		.optional()
 		.describe("会話を継続する場合の直前までの履歴(古い順)。省略時は単発質問"),
 	model: regionQaModelKeySchema

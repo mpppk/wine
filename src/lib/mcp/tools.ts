@@ -24,10 +24,10 @@ import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import * as userService from "#/lib/services/user-service";
 import {
-	type AffiliateConfig,
 	getProducerPurchaseLinks,
 	getWineryPurchaseLinks,
 } from "#/lib/wine/affiliate";
+import { buildAffiliateConfig } from "#/lib/wine/affiliate-env";
 import {
 	getAop,
 	getRegion,
@@ -61,16 +61,6 @@ function ok(payload: unknown): CallToolResult {
 	return {
 		content: [{ type: "text", text: JSON.stringify(payload) }],
 		structuredContent: payload as Record<string, unknown>,
-	};
-}
-
-// アフィリエイトIDは Workers のランタイム環境変数から供給する(未設定なら素の検索URL)。
-// env を読むのは registerReadTools 呼び出し時に遅延させる(モジュール import 時点で
-// `cloudflare:workers` の env を評価するとテスト等での import 自体が困難になるため)。
-function buildAffiliateConfig(): AffiliateConfig {
-	return {
-		rakuten: env.RAKUTEN_AFFILIATE_ID ?? "",
-		moshimoAmazon: env.MOSHIMO_AMAZON_A_ID ?? "",
 	};
 }
 

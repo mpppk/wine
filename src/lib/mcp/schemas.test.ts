@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+	AI_HISTORY_CONTENT_MAX_CHARS,
+	AI_HISTORY_INPUT_MAX_MESSAGES,
+} from "#/lib/ai/config";
+import {
 	DRUNK_WINE_FIELD_DEFS,
 	WINE_TASTING_FIELDS,
 } from "#/lib/drunk-wine/fields";
 import {
 	addWineTastingInput,
+	askRegionInput,
 	registerDrunkWineInput,
 	updateDrunkWineInput,
 } from "./schemas";
@@ -148,5 +153,46 @@ describe("registerDrunkWineInput", () => {
 
 	it("base バリデーションは維持される(vintage 1700 は不可)", () => {
 		expect(() => registerSchema.parse({ name: "X", vintage: 1700 })).toThrow();
+	});
+});
+
+// #340: 会話履歴の境界は Web の server fn(server/ai.ts)と同じ chatHistorySchema を使う。
+// ここが層ごとの手書きに戻ると、Web と MCP で受け付ける入力が食い違う。
+describe("askRegionInput の会話履歴の境界", () => {
+	const askRegionSchema = z.object(askRegionInput);
+	const base = { region_id: "bourgogne", question: "主要品種は?" };
+	const history = (count: number) =>
+		Array.from({ length: count }, (_v, i) => ({
+			role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
+			content: "こんにちは",
+		}));
+
+	it("共有スキーマと同じ件数上限で受理/拒否する", () => {
+		expect(
+			askRegionSchema.safeParse({
+				...base,
+				history: history(AI_HISTORY_INPUT_MAX_MESSAGES),
+			}).success,
+		).toBe(true);
+		expect(
+			askRegionSchema.safeParse({
+				...base,
+				history: history(AI_HISTORY_INPUT_MAX_MESSAGES + 1),
+			}).success,
+		).toBe(false);
+	});
+
+	it("共有スキーマと同じ文字数上限で受理/拒否する", () => {
+		const long = "あ".repeat(AI_HISTORY_CONTENT_MAX_CHARS + 1);
+		expect(
+			askRegionSchema.safeParse({
+				...base,
+				history: [{ role: "user", content: long }],
+			}).success,
+		).toBe(false);
+	});
+
+	it("履歴なし(単発質問)でも通る", () => {
+		expect(askRegionSchema.safeParse(base).success).toBe(true);
 	});
 });

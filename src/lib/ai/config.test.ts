@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	AI_HISTORY_CONTENT_MAX_CHARS,
+	AI_HISTORY_INPUT_MAX_MESSAGES,
+	AI_MAX_HISTORY_MESSAGES,
 	AI_REGION_QA_MODELS,
+	chatHistorySchema,
 	DEFAULT_REGION_QA_MODEL,
 	REGION_QA_MODEL_KEYS,
 	regionQaModelKeySchema,
@@ -71,5 +75,51 @@ describe("regionQaModelKeySchema / toRegionQaModelKey", () => {
 				"対応していないAIモデルです。",
 			);
 		}
+	});
+});
+
+// #340: 会話履歴の境界は Web の server fn と MCP ツールが同じ定義を import する。
+// 層ごとにリテラルで書くと、片方だけ直したときに受け付ける入力が食い違い、
+// ドメイン側の上限(AI_MAX_HISTORY_MESSAGES)とも非連動になる。
+describe("chatHistorySchema (会話履歴の入力境界)", () => {
+	function history(count: number, content = "こんにちは") {
+		return Array.from({ length: count }, (_v, i) => ({
+			role: i % 2 === 0 ? ("user" as const) : ("assistant" as const),
+			content,
+		}));
+	}
+
+	it("境界の上限はドメインの履歴上限を下回らない", () => {
+		// 下回ると AI_MAX_HISTORY_MESSAGES を緩めても境界が先に 400 を返し、
+		// 設定変更が黙って効かなくなる。
+		expect(AI_HISTORY_INPUT_MAX_MESSAGES).toBeGreaterThanOrEqual(
+			AI_MAX_HISTORY_MESSAGES,
+		);
+	});
+
+	it("上限件数までは受け付け、超えると弾く", () => {
+		expect(
+			chatHistorySchema.safeParse(history(AI_HISTORY_INPUT_MAX_MESSAGES))
+				.success,
+		).toBe(true);
+		expect(
+			chatHistorySchema.safeParse(history(AI_HISTORY_INPUT_MAX_MESSAGES + 1))
+				.success,
+		).toBe(false);
+	});
+
+	it("1件あたりの文字数上限を超えると弾く", () => {
+		const max = "あ".repeat(AI_HISTORY_CONTENT_MAX_CHARS);
+		expect(chatHistorySchema.safeParse(history(2, max)).success).toBe(true);
+		expect(chatHistorySchema.safeParse(history(2, `${max}あ`)).success).toBe(
+			false,
+		);
+	});
+
+	it("空文字・未知の role は弾く", () => {
+		expect(chatHistorySchema.safeParse(history(1, "")).success).toBe(false);
+		expect(
+			chatHistorySchema.safeParse([{ role: "system", content: "x" }]).success,
+		).toBe(false);
 	});
 });
