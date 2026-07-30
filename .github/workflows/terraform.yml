@@ -84,6 +84,16 @@ jobs:
       # provider 差し替えや external data source の追加で live Stripe キー / R2(state)認証情報を
       # 持つプロセスで任意コードが動きうる(#134)。plan は push:main と workflow_dispatch に限定し、
       # PR では fmt / validate(資格情報不要)のみ実行する。
+      #
+      # **差分ありは緑にしない**(#338)。production の apply は手動 dispatch のみという設計
+      # (terraform/README.md: ライブモードの課金リソースを自動 apply しない)は、
+      # 「apply 忘れに気づける」ことが前提になっている。素の plan は差分があっても exit 0 で、
+      # 結果はログの中にしか残らないため、terraform/ の変更をマージしたあと dispatch を忘れると
+      # main と本番 Stripe リソースが恒久的に乖離したまま誰にも通知されない。
+      # -detailed-exitcode の exit 2(差分あり)を production では失敗として扱う。
+      #
+      # preview は push で自動 apply が続けて走るので、差分は通常そのまま解消される。
+      # 落とすとノイズになるだけなので warning に留める。
       - name: Plan
         if: github.event_name != 'pull_request' && steps.creds.outputs.available == 'true'
         env:
@@ -92,7 +102,40 @@ jobs:
           STRIPE_API_KEY: ${{ secrets[matrix.stripe_key_secret] }}
         run: |
           terraform init -reconfigure -input=false
-          terraform plan -input=false -no-color
+          set +e
+          terraform plan -input=false -no-color -detailed-exitcode | tee plan.txt
+          code=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$code" -eq 1 ]; then
+            echo "::error title=Terraform plan (${{ matrix.env }}) が失敗::plan の実行自体が失敗しました。ログを確認してください。"
+            exit 1
+          fi
+          if [ "$code" -eq 0 ]; then
+            echo "::notice title=Terraform plan (${{ matrix.env }})::差分なし(state と実リソースが一致)。"
+            exit 0
+          fi
+
+          # 差分あり(exit 2)。job summary には**件数と対象リソースのアドレスだけ**を出す。
+          # plan の本文には属性値が含まれ、この provider は webhook シークレット等を
+          # sensitive として扱わない(terraform/README.md)。公開リポジトリの run summary へ
+          # そのまま貼ると漏洩しうるため、値は載せない。
+          {
+            echo "### Terraform plan (${{ matrix.env }}): 未適用の差分あり"
+            echo
+            grep -E "^(Plan|No changes)" plan.txt || true
+            echo
+            echo "変更対象:"
+            echo '```'
+            grep -E "^  # " plan.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ matrix.env }}" = "production" ]; then
+            echo "::error title=production に未適用の差分::main と本番 Stripe リソースが乖離しています。Terraform Apply ワークフローを workflow_dispatch で実行してください(terraform/README.md)。"
+            exit 1
+          fi
+          echo "::warning title=preview に未適用の差分::push トリガーの自動 apply が続けて走るため、通常は直後に解消されます。解消しない場合は Terraform Apply の run を確認してください。"
 
       - name: Plan skipped notice (secrets 未設定)
         if: github.event_name != 'pull_request' && steps.creds.outputs.available != 'true'

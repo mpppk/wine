@@ -131,6 +131,12 @@ apply も GitHub Actions で実行できる。plan(`terraform.yml`)とは別ワ�
   ライブモードの課金リソースを変更するため自動 apply はしない。apply ジョブは GitHub Environment
   (`preview` / `production`)に紐付いており、**`production` に required reviewers を設定すると apply 前に
   承認待ちになる**(下記「GitHub Environments の設定」参照)
+- **apply 忘れは plan 側が検知する**(#338)。`terraform.yml` の production plan は `-detailed-exitcode` で
+  差分あり(exit 2)を**失敗として扱う**ので、`terraform/**` をマージしたあと dispatch を忘れると main の
+  Terraform ワークフローが赤くなる。手動 apply を実行すれば次の run で緑に戻る。job summary には
+  件数と変更対象のリソースアドレスだけを出す(plan 本文には属性値が含まれ、この provider は
+  webhook シークレット等を sensitive として扱わないため)。preview は自動 apply が続けて走るので
+  差分は warning に留める
 - apply 後、`webhook_secret` と Stripe APIキー(`STRIPE_SECRET_KEY`、apply に使ったキーを流用)を
   Workers に**自動投入**する(preview は versions デプロイ運用のため
   `wrangler versions secret put --env preview`、production は `wrangler secret put`)。price ID は
