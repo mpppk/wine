@@ -107,6 +107,60 @@ async function mcpRowCounts(userId: string) {
 	return { tokens: tokens.length, consents: consents.length };
 }
 
+/** 一括付与の検証用: userId → 残高。 */
+async function balanceByUser(userIds: string[]): Promise<Map<string, number>> {
+	const rows = await db
+		.select({ userId: creditBalance.userId, balance: creditBalance.balance })
+		.from(creditBalance);
+	const set = new Set(userIds);
+	return new Map(
+		rows.filter((r) => set.has(r.userId)).map((r) => [r.userId, r.balance]),
+	);
+}
+
+/**
+ * 一括付与の検証用: 月次付与ぶん(admin_grant を除く台帳の合計)。
+ * 「残高が動いたか」を admin_grant の有無と独立に判定するための基準値。
+ */
+async function grantedBaseline(
+	userIds: string[],
+): Promise<Map<string, number>> {
+	const rows = await db
+		.select({
+			userId: creditLedger.userId,
+			amount: creditLedger.amount,
+			type: creditLedger.type,
+		})
+		.from(creditLedger);
+	const set = new Set(userIds);
+	const out = new Map<string, number>();
+	for (const r of rows) {
+		if (!set.has(r.userId) || r.type === "admin_grant") continue;
+		out.set(r.userId, (out.get(r.userId) ?? 0) + r.amount);
+	}
+	return out;
+}
+
+/** 一括付与の検証用: incidentId の admin_grant 台帳の userId → 合計額。 */
+async function adminGrantAmounts(
+	incidentId: string,
+): Promise<Map<string, number>> {
+	const rows = await db
+		.select({
+			userId: creditLedger.userId,
+			amount: creditLedger.amount,
+			requestId: creditLedger.requestId,
+		})
+		.from(creditLedger);
+	const prefix = `admin_grant:${incidentId}:`;
+	const out = new Map<string, number>();
+	for (const r of rows) {
+		if (!r.requestId?.startsWith(prefix)) continue;
+		out.set(r.userId, (out.get(r.userId) ?? 0) + r.amount);
+	}
+	return out;
+}
+
 async function auditRows(targetUserId: string) {
 	return db
 		.select()
@@ -563,6 +617,74 @@ describe("bulkGrantCredits のD1呼び出し数", () => {
 			r.requestId?.startsWith("admin_grant:incident-idem:"),
 		);
 		expect(adminRows.length).toBe(5);
+	});
+
+	// #334: 1ユーザ3文をフラットに 100 文で切っていたため、チャンク境界のユーザ
+	// (34人目)だけ「残高加算」と「台帳追記」が別トランザクションに割れていた。後段の
+	// チャンクが落ちると残高だけ増えて台帳行が無い状態になり、同一 incidentId の
+	// 冪等リトライ(復旧手段)がそのユーザを pending に含めて二重加算する。
+	it("途中のチャンクが失敗しても、残高だけ動いて台帳行が無いユーザを作らない", async () => {
+		// チャンク境界(34人目)を跨ぐ人数
+		const users: string[] = [];
+		for (let i = 0; i < 40; i++) users.push(await freshUser());
+		const incidentId = "incident-chunk-boundary";
+		const amount = 11;
+
+		// 付与本体の2つ目のバッチだけ失敗させる(1つ目は ensureCurrentMonthGrantedMany)。
+		const realBatch = db.batch.bind(db);
+		let batchCalls = 0;
+		const batchSpy = vi
+			.spyOn(db, "batch")
+			.mockImplementation((...args: Parameters<typeof db.batch>) => {
+				batchCalls += 1;
+				if (batchCalls === 3) throw new Error("D1_ERROR: chunk failed");
+				return realBatch(...args);
+			});
+
+		await expect(
+			adminActions.bulkGrantCredits({
+				actorUserId: "admin-bulk-actor",
+				incidentId,
+				userIds: users,
+				amount,
+				reason: "障害補填",
+			}),
+		).rejects.toThrow(/D1_ERROR/);
+		batchSpy.mockRestore();
+		// 前提: 付与が複数バッチに割れていること(1バッチなら境界を検証できていない)
+		expect(batchCalls).toBeGreaterThanOrEqual(3);
+
+		const monthlyGrant = await grantedBaseline(users);
+		const ledgerFor = await adminGrantAmounts(incidentId);
+		const balances = await balanceByUser(users);
+
+		// 不変条件: 残高が動いたユーザには必ず台帳行がある
+		const inconsistent = users.filter(
+			(u) =>
+				(balances.get(u) ?? 0) - (monthlyGrant.get(u) ?? 0) !== 0 &&
+				!ledgerFor.has(u),
+		);
+		expect(inconsistent).toEqual([]);
+
+		// 復旧: 同一 incidentId で再実行すると、未付与のユーザだけが1回付与される
+		const retry = await adminActions.bulkGrantCredits({
+			actorUserId: "admin-bulk-actor",
+			incidentId,
+			userIds: users,
+			amount,
+			reason: "障害補填(再実行)",
+		});
+		expect(retry.granted + retry.alreadyApplied).toBe(users.length);
+
+		const afterBalances = await balanceByUser(users);
+		const afterLedger = await adminGrantAmounts(incidentId);
+		for (const u of users) {
+			// 全員ちょうど1回ぶん(二重加算していない)
+			expect(afterLedger.get(u)).toBe(amount);
+			expect((afterBalances.get(u) ?? 0) - (monthlyGrant.get(u) ?? 0)).toBe(
+				amount,
+			);
+		}
 	});
 });
 
