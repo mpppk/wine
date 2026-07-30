@@ -37,6 +37,11 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # bun のバージョンは package.json の packageManager が唯一の真実の源(#339)。
+          # 未指定だと毎回 latest が入り、bun 側のリグレッションでリポジトリ無変更のまま
+          # CI とデプロイが同時に壊れうる。Renovate が packageManager の更新PRを出す。
+          bun-version-file: package.json
 
       # bun のパッケージキャッシュ(setup-bun はバイナリのみキャッシュする)。
       # bun.lock が変わらない限りレジストリからの全取得を避ける。
@@ -46,6 +51,19 @@ jobs:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
+
+      # setup-bun は bun-version-file の解決に失敗しても既定(latest)へ**黙って**フォールバックする。
+      # 固定が効かなくなったことに気づけるよう、実際に動いている bun を突き合わせる(#339)。
+      - name: Verify pinned bun version
+        run: |
+          bun -e '
+            const want = (await Bun.file("package.json").json()).packageManager.replace("bun@", "");
+            if (Bun.version !== want) {
+              console.error(`bun version mismatch: packageManager=${want} running=${Bun.version}`);
+              process.exit(1);
+            }
+            console.log(`bun ${Bun.version} (pinned via packageManager)`);
+          '
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

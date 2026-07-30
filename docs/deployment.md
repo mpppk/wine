@@ -42,6 +42,13 @@ Workers Builds の build / deploy command はダッシュボード（Settings > 
 
 - `db:migrate:remote` = `wrangler d1 migrations apply DB --remote`（`wine-db`）
 - `db:migrate:preview` = `wrangler d1 migrations apply DB --remote --env preview`（`wine-preview-db`）
+- **bun のバージョンは `package.json` の `packageManager` が真実の源**（#339）。CI（`setup-bun` の
+  `bun-version-file: package.json`）とローカル（`bun` 本体が読む）はこれで揃うが、**Workers Builds の
+  ビルドイメージはこのフィールドを見ない**。ビルド環境変数 `BUN_VERSION` を同じ値に設定して揃える
+  （未設定だとイメージ既定の bun が使われ、更新時に予告なく変わる。
+  [build image の既定値と上書き](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/#overriding-default-versions)）。
+  設定は下記の Workers Builds API か、ダッシュボードの Settings > Build > Build variables から行う。
+  **`packageManager` を上げたら `BUN_VERSION` も同じ値に上げる**（Renovate は前者しか更新しない）。
 - **`wine-preview` の2トリガーは `CLOUDFLARE_ENV=preview` が効いていることが前提**。上表の
   build / deploy command 自体には現れないので、ダッシュボードのビルド環境変数として設定されている
   （`wrangler.jsonc` の `env.preview` を選ばせるスイッチで、無いとトップレベル設定＝本番 `wine` を
@@ -161,6 +168,14 @@ curl -sS "$API/accounts/$ACC/builds/workers/<script_tag>/triggers" -H "$AUTH" | 
 curl -sS -X PATCH "$API/accounts/$ACC/builds/triggers/<trigger_uuid>" -H "$AUTH" \
   -H "Content-Type: application/json" \
   --data '{"deploy_command":"bun run db:migrate:remote && npx wrangler deploy"}'
+
+# ビルド環境変数に bun のバージョンを固定する(#339。package.json の packageManager と同じ値にする)
+curl -sS -X PATCH "$API/accounts/$ACC/builds/triggers/<trigger_uuid>" -H "$AUTH" \
+  -H "Content-Type: application/json" \
+  --data '{"build_variables":{"BUN_VERSION":"1.3.11"}}'
 ```
+
+> `build_variables` は**丸ごと置き換わる**。既存の変数（`wine-preview` の `CLOUDFLARE_ENV=preview` など）が
+> あるトリガーでは、先に GET した内容へ追記した完全な集合を送る。
 
 > 設定変更は「次回以降のビルド」に適用される。既存の実行中ビルドには影響しない。
