@@ -1,6 +1,6 @@
 import { env as testEnv } from "cloudflare:test";
 import { and, eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { subscription, user } from "#/db/auth-schema";
 import { creditBalance, creditLedger } from "#/db/schema";
@@ -577,5 +577,71 @@ describe("drizzle/0020 既存予約の確定マーカー補填 (#246)", () => {
 		await applyOrphanBackfill();
 
 		expect(await ledgerByRequestId(`${refundedId}:settle`)).toHaveLength(0);
+	});
+});
+
+// #335 の回帰。settle と refund の相互排他は「先に記録された方が勝つ」(docs/ai-credit-system.md)
+// だが、その判定がバッチ**外**の事前 SELECT だけだと、確認〜コミットの間に相手側が
+// コミットする窓が残る。10分超ハングしたリクエストの settle と、別リクエスト入口の
+// 孤児回収(reclaim)の refund が、まさにこの窓で競合しうる。
+//
+// 窓は db.batch を1回だけ差し替えて再現する: 事前 SELECT を通過した後・バッチ実行の直前に
+// 相手側の処理をコミットさせる。
+describe("settle と refund の相互排他 (#335)", () => {
+	let userId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+		await ensureCurrentMonthGranted(userId);
+	});
+
+	/** 次の db.batch 実行の直前に競合処理を1度だけ割り込ませる。 */
+	function commitBefore(competing: () => Promise<void>) {
+		const realBatch = db.batch.bind(db);
+		return vi.spyOn(db, "batch").mockImplementationOnce((async (
+			statements: never,
+		) => {
+			await competing();
+			return realBatch(statements);
+			// biome-ignore lint/suspicious/noExplicitAny: spy の可変長シグネチャに合わせる
+		}) as any);
+	}
+
+	it("事前SELECT通過後に返却がコミットしても、確定は残高を動かさない", async () => {
+		const requestId = `race-settle-${userId}`;
+		await reserveCredits(userId, 30_000, requestId); // 50 → 20
+
+		// settle のバッチ直前に、孤児回収が予約全額(30)を返却してコミットする
+		const spy = commitBefore(() => refundReservation(userId, requestId, 30));
+		try {
+			await settleReservation(userId, requestId, 30, 10_000);
+		} finally {
+			spy.mockRestore();
+		}
+
+		// 全額返却された状態のまま。差分(20)が上乗せされて消費がネットプラスにならない
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(1);
+		// 負けた側は台帳にも何も書かない(残高と台帳の合計が食い違わない)
+		expect(await ledgerByRequestId(`${requestId}:settle`)).toHaveLength(0);
+	});
+
+	it("事前SELECT通過後に確定がコミットしても、返却は残高を動かさない", async () => {
+		const requestId = `race-refund-${userId}`;
+		await reserveCredits(userId, 30_000, requestId); // 50 → 20
+
+		// refund のバッチ直前に、生き延びていたリクエストが確定してコミットする(差分 20 返却)
+		const spy = commitBefore(() =>
+			settleReservation(userId, requestId, 30, 10_000),
+		);
+		try {
+			await refundReservation(userId, requestId, 30);
+		} finally {
+			spy.mockRestore();
+		}
+
+		// 確定の差分だけが反映された状態のまま(予約全額の追加返却が起きない)
+		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30 + 20);
+		expect(await ledgerByRequestId(`${requestId}:settle`)).toHaveLength(1);
+		expect(await ledgerByRequestId(`${requestId}:refund`)).toHaveLength(0);
 	});
 });

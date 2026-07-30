@@ -496,6 +496,68 @@ export async function reserveCredits(
 }
 
 /**
+ * 予約のマーカー(`:settle` / `:refund`)を、**相手側マーカーがまだ無いときだけ**書く INSERT。
+ *
+ * settle と refund は相互排他で、「先に記録された方が勝つ・どちらも残高を二重に動かさない」
+ * が不変条件(docs/ai-credit-system.md)。しかし呼び出し前の事前 SELECT だけでは、確認から
+ * コミットまでの間に相手側(孤児回収の refund / 生き延びたリクエストの settle)がコミットする
+ * 窓が残る(#335)。そこで予約の consume 行を1行だけ引く `INSERT ... SELECT` にして、相手側の
+ * 不存在を**この文の中で**評価する。負けた側は台帳にも残高にも何も書かない。
+ *
+ * 残高 UPDATE 側にも同じ相手側ガードを置く(下記)。両方を db.batch(=暗黙トランザクション)に
+ * 載せることで、相互排他がバッチの外の状態に依存しなくなる。
+ */
+function reservationMarkerInsert(params: {
+	userId: string;
+	/** 予約の requestId(consume 行のキー)。 */
+	requestId: string;
+	/** 書き込むマーカーの requestId。 */
+	markerId: string;
+	/** 相手側マーカーの requestId。これが既にあれば1行も書かない。 */
+	counterpartId: string;
+	amount: number;
+	tokenAmount: number | null;
+}) {
+	const { userId, requestId, markerId, counterpartId, amount, tokenAmount } =
+		params;
+	const month = currentMonthKey();
+	return db
+		.insert(creditLedger)
+		.select((qb) =>
+			qb
+				.select({
+					id: sql<string>`${crypto.randomUUID()}`.as("id"),
+					userId: sql<string>`${userId}`.as("user_id"),
+					amount: sql<number>`${amount}`.as("amount"),
+					// settle も refund も台帳種別は "refund"(残高を戻す向き)。
+					type: sql<CreditLedgerType>`${"refund" satisfies CreditLedgerType}`.as(
+						"type",
+					),
+					requestId: sql<string>`${markerId}`.as("request_id"),
+					periodMonth: sql<string>`${month}`.as("period_month"),
+					tokenAmount: sql<number | null>`${tokenAmount}`.as("token_amount"),
+					// INSERT ... SELECT では列の既定値が効かないため、スキーマと同じ式を置く。
+					// (drizzle は「テーブル定義と同じ並びの全列」を要求する)
+					createdAt:
+						sql<Date>`(cast(unixepoch('subsecond') * 1000 as integer))`.as(
+							"created_at",
+						),
+				})
+				// 「その予約の consume 行が在り、かつ相手側マーカーが無い」ときだけ1行になる。
+				.from(creditLedger)
+				.where(
+					and(
+						eq(creditLedger.requestId, requestId),
+						eq(creditLedger.type, "consume"),
+						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${counterpartId})`,
+					),
+				)
+				.limit(1),
+		)
+		.onConflictDoNothing({ target: creditLedger.requestId });
+}
+
+/**
  * 確定: 実測トークンで予約との差分を refund として戻す。
  *
  * 差分が0でも `:settle` 台帳を amount=0 で必ず記録する。この行は「この予約は確定済み」の
@@ -530,18 +592,14 @@ export async function settleReservation(
 		return;
 	}
 
-	const marker = db
-		.insert(creditLedger)
-		.values({
-			id: crypto.randomUUID(),
-			userId,
-			amount: back,
-			type: "refund",
-			requestId: settleId,
-			periodMonth: currentMonthKey(),
-			tokenAmount: actualTokens,
-		})
-		.onConflictDoNothing({ target: creditLedger.requestId });
+	const marker = reservationMarkerInsert({
+		userId,
+		requestId,
+		markerId: settleId,
+		counterpartId: refundId,
+		amount: back,
+		tokenAmount: actualTokens,
+	});
 
 	// 戻す差分が無い場合は残高を触らず証跡だけ残す(balance + 0 の無駄な書き込みを避ける)。
 	if (back <= 0) {
@@ -561,6 +619,9 @@ export async function settleReservation(
 						eq(creditBalance.userId, userId),
 						// 二重加算防止: 既に settle 台帳がある(=加算済み)なら加算しない(#146)。
 						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${settleId})`,
+						// 相互排他: 返却済みなら差分を足さない(#335)。事前 SELECT と同じ判定を
+						// バッチ内でも行い、確認〜コミットの間に孤児回収の refund が割り込む窓を塞ぐ。
+						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${refundId})`,
 						// 月境界: 予約(consume)の月と現残高の月が一致する時だけ加算する。月替わり後は
 						// 台帳のみ記録し、リセット後の残高に差分が混入する/超過することを防ぐ(#147)。
 						sql`${creditBalance.periodMonth} = (SELECT period_month FROM credit_ledger WHERE request_id = ${requestId} AND type = 'consume')`,
@@ -635,22 +696,21 @@ export async function refundReservation(
 						eq(creditBalance.userId, userId),
 						// 二重加算防止: 既に refund 台帳がある(=返却済み)なら加算しない(#146)。
 						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${refundId})`,
+						// 相互排他: 確定済みなら全額返却しない(#335)。事前 SELECT と同じ判定を
+						// バッチ内でも行い、確認〜コミットの間に settle が割り込む窓を塞ぐ。
+						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${settleId})`,
 						// 月境界: 予約(consume)の月と現残高の月が一致する時だけ加算する(#147)。
 						sql`${creditBalance.periodMonth} = (SELECT period_month FROM credit_ledger WHERE request_id = ${requestId} AND type = 'consume')`,
 					),
 				),
-			db
-				.insert(creditLedger)
-				.values({
-					id: crypto.randomUUID(),
-					userId,
-					amount: reservedCredits,
-					type: "refund",
-					requestId: refundId,
-					periodMonth: currentMonthKey(),
-					tokenAmount: null,
-				})
-				.onConflictDoNothing({ target: creditLedger.requestId }),
+			reservationMarkerInsert({
+				userId,
+				requestId,
+				markerId: refundId,
+				counterpartId: settleId,
+				amount: reservedCredits,
+				tokenAmount: null,
+			}),
 		]),
 	);
 }
