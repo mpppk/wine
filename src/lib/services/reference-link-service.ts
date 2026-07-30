@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { aopReferenceLink } from "#/db/schema";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
@@ -7,11 +7,12 @@ import type {
 	CreateReferenceLinkInput,
 	UpdateReferenceLinkInput,
 } from "#/lib/reference-link/schema";
-import { getAop } from "#/lib/wine/service";
+import { getAop, legacyAopIdsFor, resolveAopId } from "#/lib/wine/service";
 
 // 参考リンク(村・畑・地方・シャトーごと・非公開)のサービス層。全関数が userId で
 // スコープし、他ユーザのリンクは読めない/触れない。AOPは静的マスタ参照(FKなし)の
-// ため、ここで getAop() 存在検証する。
+// ため、ここで getAop() 存在検証する。getAop() は退役ID(改名・削除された旧スラッグ)を
+// 後継 AOP へ解決するので、旧IDで保存済みのリンクも後継 AOP の画面から扱える(#333)。
 
 export interface ReferenceLinkEntry {
 	id: string;
@@ -64,7 +65,9 @@ export async function listReferenceLinks(
 		.where(
 			and(
 				eq(aopReferenceLink.userId, userId),
-				eq(aopReferenceLink.aopId, aopId),
+				// 改名前のIDで保存されたリンクも同じ AOP のものとして拾う。これが無いと
+				// 旧IDのリンクは閲覧も削除もできない到達不能データになる(#333)。
+				inArray(aopReferenceLink.aopId, [aopId, ...legacyAopIdsFor(aopId)]),
 			),
 		)
 		.orderBy(asc(aopReferenceLink.createdAt));
@@ -83,7 +86,8 @@ export async function createReferenceLink(
 		.values({
 			id,
 			userId,
-			aopId: input.aopId,
+			// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)
+			aopId: resolveAopId(input.aopId) ?? input.aopId,
 			url: input.url,
 			title,
 		})
