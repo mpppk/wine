@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { AI_MAX_QUESTION_CHARS } from "#/lib/ai/config";
+import { AI_MAX_QUESTION_CHARS, chatHistorySchema } from "#/lib/ai/config";
 import * as aiService from "#/lib/services/ai-service";
 import { authMiddleware } from "./middleware";
 
@@ -15,15 +15,8 @@ export const askRegion = createServerFn({ method: "POST" })
 			regionId: z.string().min(1),
 			aopId: z.string().min(1).optional(),
 			question: z.string().trim().min(1).max(AI_MAX_QUESTION_CHARS),
-			history: z
-				.array(
-					z.object({
-						role: z.enum(["user", "assistant"]),
-						content: z.string().min(1).max(4000),
-					}),
-				)
-				.max(20)
-				.optional(),
+			// 境界の定義はドメイン lib と共有する(MCP 層と食い違わせない。#340)
+			history: chatHistorySchema.optional(),
 		}),
 	)
 	.handler(({ data, context }) =>

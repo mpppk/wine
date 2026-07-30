@@ -117,5 +117,39 @@ export const AI_MAX_QUESTION_CHARS = 300;
  */
 export const AI_MAX_HISTORY_MESSAGES = 8;
 
+/** 会話履歴1件あたりの最大文字数(入力バリデーション)。 */
+export const AI_HISTORY_CONTENT_MAX_CHARS = 4000;
+
+/**
+ * 入力境界で受け付ける会話履歴の最大件数。
+ *
+ * サーバは clampHistory(region-qa.ts)で直近 AI_MAX_HISTORY_MESSAGES 件へ切り詰めるので、
+ * **境界がそれを下回ってはならない**。下回ると履歴ポリシーを緩めた(例: 8 → 30)ときに
+ * 境界が先に 400 を返し、設定変更が黙って効かなくなる(#340)。
+ *
+ * 一方でクライアントが多めに送ってきても弾かず穏当に切り詰めたいので、20 を下限の余裕
+ * として持たせる(従来の境界値)。
+ */
+export const AI_HISTORY_INPUT_MAX_MESSAGES = Math.max(
+	20,
+	AI_MAX_HISTORY_MESSAGES,
+);
+
+/**
+ * 会話履歴の入力スキーマ。**Web の server fn と MCP ツールの双方がこれを import する。**
+ *
+ * 層ごとに境界をリテラルで手書きすると、片方だけ直したときに受け付ける入力が食い違い、
+ * ドメイン側の上限とも非連動になる(docs/architecture.md「上限値などの数値定数はドメイン
+ * lib に置き、zod スキーマ・サービス層・UI の全員が同じ定数を import する」。#340)。
+ */
+export const chatHistorySchema = z
+	.array(
+		z.object({
+			role: z.enum(["user", "assistant"]),
+			content: z.string().min(1).max(AI_HISTORY_CONTENT_MAX_CHARS),
+		}),
+	)
+	.max(AI_HISTORY_INPUT_MAX_MESSAGES);
+
 /** 日本語混在テキストの粗いトークン見積で使う「1トークンあたりの文字数」。保守的に小さめ。 */
 export const CHARS_PER_TOKEN_ESTIMATE = 2;
