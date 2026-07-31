@@ -3,6 +3,7 @@ import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
 import {
 	buildLabelMessages,
 	buildLabelSuggestions,
+	buildWebLabelPrompt,
 	estimateLabelReserveTokens,
 	LABEL_PROMPT,
 	type LabelExtraction,
@@ -11,6 +12,7 @@ import {
 	matchRegionId,
 	mergeExtractions,
 	normalizeLabelText,
+	parseImageDataUrl,
 	parseLabelResponse,
 } from "./label-extraction";
 
@@ -342,5 +344,46 @@ describe("estimateLabelReserveTokens", () => {
 
 	it("0枚でも下限として1枚ぶんの見積を返す", () => {
 		expect(estimateLabelReserveTokens(0)).toBe(estimateLabelReserveTokens(1));
+	});
+});
+
+// 高精度経路(Claude / GPT)が共有する指示文と data URI の検証。経路ごとに書き分けると
+// 「片方だけ裏取りの規範が古い」状態が生まれるため、ここが SSOT。
+
+describe("parseImageDataUrl", () => {
+	it("data URI を media type と base64 データに分解する", () => {
+		expect(parseImageDataUrl("data:image/jpeg;base64,AAAA")).toEqual({
+			mediaType: "image/jpeg",
+			data: "AAAA",
+		});
+		expect(parseImageDataUrl("data:image/webp;base64,x+/=")).toEqual({
+			mediaType: "image/webp",
+			data: "x+/=",
+		});
+	});
+
+	it("base64 の data URI 以外は受け付けない", () => {
+		expect(() => parseImageDataUrl("https://example.com/a.jpg")).toThrow();
+		expect(() => parseImageDataUrl("data:image/jpeg,notbase64")).toThrow();
+		expect(() => parseImageDataUrl("data:image/jpeg;base64,")).toThrow();
+	});
+});
+
+describe("buildWebLabelPrompt", () => {
+	it("web検索での裏取りとJSON出力を指示する", () => {
+		const prompt = buildWebLabelPrompt();
+		expect(prompt).toContain("web検索");
+		expect(prompt).toContain("wine_name");
+		expect(prompt).toContain("grape_varieties");
+	});
+
+	it("マスタの呼称・品種名の一覧を同梱する(照合ヒット率のグラウンディング)", () => {
+		const prompt = buildWebLabelPrompt();
+		// AOPマスタの正式名(aops.json 由来)
+		expect(prompt).toContain("Brouilly");
+		expect(prompt).toContain("Chablis");
+		// 品種マスタの現地語名(varieties.ts 由来)
+		expect(prompt).toContain("Pinot noir");
+		expect(prompt).toContain("Chardonnay");
 	});
 });

@@ -72,9 +72,76 @@ function anthropicMessage(
 	});
 }
 
+/**
+ * OPENAI_API_KEY を差し替え、OpenAI API への outbound fetch をスタブする。
+ * stubAnthropic と同じ流儀(SDK が掴む globalThis.fetch を差し替える)。両方を
+ * スタブしたい場合は stubProviders を使う。
+ */
+function stubOpenAi(respond: () => Promise<Response>): void {
+	(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+	vi.stubGlobal("fetch", respond);
+}
+
+/**
+ * 両プロバイダのキーを立てた上で、リクエストURLで応答を振り分ける。
+ * 「キーは両方あるが、走ってよいのは片方だけ」を検証するために要る
+ * (vi.stubGlobal は後勝ちなので、stubAnthropic と stubOpenAi は併用できない)。
+ */
+function stubProviders(handlers: {
+	openai: () => Promise<Response>;
+	anthropic: () => Promise<Response>;
+}): void {
+	(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+	(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
+		"sk-ant-test";
+	vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+		const url = typeof input === "string" ? input : input.toString();
+		return url.includes("openai.com")
+			? await handlers.openai()
+			: await handlers.anthropic();
+	});
+}
+
+/**
+ * OpenAI Responses API の成功レスポンス(JSONテキスト + usage)を組み立てる。
+ * SDK は output[].content[] の output_text ブロックから response.output_text を
+ * 組み立てるので、message アイテムの形で返す必要がある。
+ */
+function openaiResponse(
+	fields: Record<string, unknown>,
+	usage: { total_tokens: number },
+): Response {
+	return Response.json({
+		id: "resp_test",
+		object: "response",
+		created_at: 0,
+		model: "gpt-5.6-luna",
+		status: "completed",
+		error: null,
+		incomplete_details: null,
+		output: [
+			{
+				type: "message",
+				id: "msg_test",
+				role: "assistant",
+				status: "completed",
+				content: [
+					{
+						type: "output_text",
+						text: JSON.stringify(fields),
+						annotations: [],
+					},
+				],
+			},
+		],
+		usage,
+	});
+}
+
 afterEach(() => {
 	delete (env as unknown as { AI?: unknown }).AI;
 	delete (env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY;
+	delete (env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY;
 	vi.unstubAllGlobals();
 });
 
@@ -305,5 +372,198 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 
 		// 予約前に落ちるので台帳は空(月次付与すら走らない)
 		expect(await ledgerRowsOf(userId)).toHaveLength(0);
+	});
+});
+
+// GPT-5.6 Luna 経路。既定エンジンなので「キーがあれば黙って走る」ことと、
+// 「キーが無いときに何へ降格するか」の両方を固定する。
+describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
+	it("OPENAI_API_KEY 設定時はGPT経路で解析し、usage.total_tokens で確定する", async () => {
+		const userId = await seedUser();
+		stubOpenAi(async () =>
+			openaiResponse(
+				{
+					wine_name: "Chablis Les Clos",
+					producer: "Vincent Dauvissat",
+					vintage: 2020,
+					appellation: "Chablis Grand Cru",
+					region: "Bourgogne",
+					grape_varieties: ["Chardonnay"],
+				},
+				{ total_tokens: 1500 },
+			),
+		);
+		// GPT経路が成功する限り Workers AI には触れない(触れたら失敗として検出される)
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await analyzeWineLabel(userId, {
+			imageDataUrls: [PHOTO, PHOTO],
+		});
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 1500 });
+		if (result.blocked) throw new Error("unreachable");
+		expect(result.suggestions).toMatchObject({
+			name: "Chablis Les Clos",
+			producer: "Vincent Dauvissat",
+			vintage: 2020,
+			regionId: "bourgogne",
+			grapeVarietyIds: ["chardonnay"],
+		});
+		// 実測(1500)ぶんだけ消費し、予約との差分は返る
+		expect(await balanceOf(userId)).toBe(
+			MONTHLY_CREDITS_FREE - tokensToCredits(1500),
+		);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
+	});
+
+	it("GPT経路が失敗したら Workers AI へフォールバックして完了する", async () => {
+		const userId = await seedUser();
+		// 400 はSDKがリトライしない失敗。経路ごと諦めてフォールバックさせる
+		stubOpenAi(async () =>
+			Response.json(
+				{ error: { type: "invalid_request_error", message: "bad request" } },
+				{ status: 400 },
+			),
+		);
+		stubAiRun(async () => ({
+			response: JSON.stringify({
+				wine_name: "Chablis",
+				producer: null,
+				vintage: null,
+				appellation: "Chablis",
+				region: null,
+				grape_varieties: [],
+			}),
+			usage: { total_tokens: 55 },
+		}));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
+		if (result.blocked) throw new Error("unreachable");
+		expect(result.suggestions.name).toBe("Chablis");
+		expect(await balanceOf(userId)).toBe(
+			MONTHLY_CREDITS_FREE - tokensToCredits(55),
+		);
+	});
+
+	it("途中で打ち切られた応答(incomplete)は成功扱いせずフォールバックする", async () => {
+		const userId = await seedUser();
+		// web検索と reasoning が出力枠を使い切ると、JSONが途中で切れたまま 200 で返る。
+		// これを成功として扱うと「形式が不正」という無関係な例外で解析全体が落ちる。
+		stubOpenAi(async () =>
+			Response.json({
+				id: "resp_test",
+				object: "response",
+				created_at: 0,
+				model: "gpt-5.6-luna",
+				status: "incomplete",
+				error: null,
+				incomplete_details: { reason: "max_output_tokens" },
+				output: [],
+				usage: { total_tokens: 16000 },
+			}),
+		);
+		stubAiRun(async () => ({
+			response: JSON.stringify({
+				wine_name: "Chablis",
+				producer: null,
+				vintage: null,
+				appellation: "Chablis",
+				region: null,
+				grape_varieties: [],
+			}),
+			usage: { total_tokens: 55 },
+		}));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
+	});
+
+	it("OPENAI_API_KEY 未設定なら、既定のままでも Claude経路へ引き継ぐ", async () => {
+		// 既定を gpt-luna に変えたことで、ANTHROPIC_API_KEY だけ設定された環境
+		// (#354 時点の本番)が黙って Workers AI へ降格しないことの回帰テスト。
+		const userId = await seedUser();
+		stubAnthropic(async () =>
+			anthropicMessage(
+				{
+					wine_name: "Chablis",
+					producer: null,
+					vintage: null,
+					appellation: "Chablis",
+					region: null,
+					grape_varieties: [],
+				},
+				{ input_tokens: 800, output_tokens: 100 },
+			),
+		);
+		// Workers AI へ落ちたらここで失敗する
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 900 });
+	});
+
+	it("両キー設定時にユーザがClaudeを選んでいればGPT経路を使わない", async () => {
+		const userId = await seedUser();
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		// 経路の証明は実測トークン: GPT経路に入ってしまえば 9999 で確定する
+		stubProviders({
+			openai: async () =>
+				openaiResponse({ wine_name: "wrong path" }, { total_tokens: 9999 }),
+			anthropic: async () =>
+				anthropicMessage(
+					{
+						wine_name: "Chablis",
+						producer: null,
+						vintage: null,
+						appellation: "Chablis",
+						region: null,
+						grape_varieties: [],
+					},
+					{ input_tokens: 700, output_tokens: 70 },
+				),
+		});
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 770 });
+	});
+
+	it("両キー設定時の既定(未選択)ではGPT経路を使う", async () => {
+		const userId = await seedUser();
+		stubProviders({
+			openai: async () =>
+				openaiResponse(
+					{
+						wine_name: "Chablis",
+						producer: null,
+						vintage: null,
+						appellation: "Chablis",
+						region: null,
+						grape_varieties: [],
+					},
+					{ total_tokens: 1234 },
+				),
+			anthropic: async () =>
+				anthropicMessage(
+					{ wine_name: "wrong path" },
+					{ input_tokens: 9000, output_tokens: 999 },
+				),
+		});
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 1234 });
 	});
 });

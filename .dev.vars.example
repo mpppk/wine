@@ -20,11 +20,14 @@ STRIPE_WEBHOOK_SECRET=
 STRIPE_PRICE_ID_MONTHLY=
 STRIPE_PRICE_ID_ANNUAL=
 
-# エチケット解析の高精度経路(任意)。Anthropic APIキーを設定すると、マイセラーの
-# 画像解析が Claude + web検索(生産者サイト・ワインDBでの裏取り)で実行される。
+# エチケット解析の高精度経路(任意)。APIキーを設定すると、マイセラーの画像解析が
+# LLM + web検索(生産者サイト・ワインDBでの裏取り)で実行される。どちらのキーも
 # 未設定なら従来どおり Workers AI で解析される。
-# 本番/プレビューは `wrangler secret put ANTHROPIC_API_KEY`(プレビューは --env preview)。
+# 既定は OPENAI_API_KEY 側(GPT-5.6 Luna)で、ユーザはプロフィール画面で切り替えられる。
+# 選んだ側のキーが無ければもう一方の高精度経路が使われる。
+# 本番/プレビューは `wrangler secret put <NAME>`(プレビューは --env preview)。
 ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
 
 # 既存プレミアム会員の「期間延長」キャンペーンコード(任意)。"CODE=延長日数" を
 # カンマ区切りで指定する。会員が profile ページで入力すると契約期間が延長される。
