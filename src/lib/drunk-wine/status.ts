@@ -21,6 +21,14 @@ export const WINE_STATUSES = [
 		labelJa: "飲み終わった",
 		descriptionJa: "手元にない。飲み切った・譲った",
 	},
+	// 店で見かけただけのワイン(Issue #358)。写真からの一括登録では、写っている
+	// ワインのほとんどが「飲んでも所有もしていない」ため、既存3値のどれも合わない。
+	// 「どこで見かけたか」は目撃記録(wine_sighting)側が持つ。
+	{
+		id: "spotted",
+		labelJa: "見かけた",
+		descriptionJa: "店で見かけただけ。買っても飲んでもいない",
+	},
 ] as const;
 
 export type WineStatus = (typeof WINE_STATUSES)[number]["id"];
@@ -47,12 +55,17 @@ const STATUS_PRIORITY: Record<WineStatus, number> = {
 	owned: 0,
 	wishlist: 1,
 	finished: 2,
+	spotted: 3,
 };
 
 /**
  * 1つのAOPに状態の異なる複数エントリがあるとき、地図のマーカーに使う代表の状態を
  * 1つに畳む。「今すぐ飲めるボトルがある」が最も行動に直結するため owned を優先し、
- * 次に wishlist、最後に過去の実績(finished)。エントリが無ければ null。
+ * 次に wishlist、次に過去の実績(finished)、最後に spotted。エントリが無ければ null。
+ *
+ * spotted を最下位に置くのは、「店で見かけた」がユーザとそのワインの関係として
+ * 最も弱いため。飲んだ実績のあるAOPが、後から同じAOPの別銘柄を1本見かけただけで
+ * 「見かけた」色に塗り替わると、地図から読み取れる情報が後退する。
  */
 export function pickAopStatus(
 	statuses: Iterable<WineStatus>,

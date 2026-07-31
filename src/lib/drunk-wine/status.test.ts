@@ -12,10 +12,11 @@ import {
 } from "./status";
 
 describe("WINE_STATUSES", () => {
-	it("id 集合は wishlist / owned / finished の3値", () => {
+	it("id 集合は wishlist / owned / finished / spotted の4値", () => {
 		expect([...WINE_STATUS_IDS].sort()).toEqual([
 			"finished",
 			"owned",
+			"spotted",
 			"wishlist",
 		]);
 	});
@@ -43,15 +44,23 @@ describe("pickAopStatus", () => {
 		}
 	});
 
-	it("owned > wishlist > finished の優先度で1つに畳む", () => {
+	it("owned > wishlist > finished > spotted の優先度で1つに畳む", () => {
 		expect(pickAopStatus(["finished", "owned"])).toBe("owned");
 		expect(pickAopStatus(["finished", "wishlist"])).toBe("wishlist");
 		expect(pickAopStatus(["wishlist", "owned"])).toBe("owned");
 		expect(pickAopStatus(["finished", "wishlist", "owned"])).toBe("owned");
 	});
 
+	it("spotted は最下位(見かけただけは飲んだ実績より弱い関係)", () => {
+		expect(pickAopStatus(["spotted", "finished"])).toBe("finished");
+		expect(pickAopStatus(["spotted", "wishlist"])).toBe("wishlist");
+		expect(pickAopStatus(["spotted", "owned"])).toBe("owned");
+		// spotted しか無ければ spotted のまま
+		expect(pickAopStatus(["spotted"])).toBe("spotted");
+	});
+
 	it("順序に依存しない", () => {
-		const all: WineStatus[] = ["finished", "wishlist", "owned"];
+		const all: WineStatus[] = ["finished", "wishlist", "owned", "spotted"];
 		expect(pickAopStatus(all)).toBe(pickAopStatus([...all].reverse()));
 	});
 });
