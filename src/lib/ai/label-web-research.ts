@@ -1,10 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
-import { GRAPE_VARIETIES, listAops } from "#/lib/wine/service";
 import {
 	AI_LABEL_WEB_BASE_TOKEN_ESTIMATE,
 	AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE,
 } from "./config";
+import { buildKnownListsSection } from "./label-extraction";
 
 // エチケット解析の高精度経路(Anthropic Claude + web検索)の純ロジック。
 // プロンプト・メッセージ組み立て・見積を DB/env 非依存で切り出し、単体テスト可能にする
@@ -29,23 +29,6 @@ export function parseImageDataUrl(dataUrl: string): {
 		throw new Error("画像のdata URIを解釈できませんでした");
 	}
 	return { mediaType, data };
-}
-
-/**
- * マスタ名の一覧をプロンプト用に整形する。呼称は正式名(name)を使う
- * (matchAop は name / shortName / nameJa のいずれでも一致するが、
- * ラベル・検索結果の表記に最も近いのは正式名)。
- */
-function buildKnownListsSection(): string {
-	const aopNames = listAops().map((a) => a.name);
-	const grapeNames = GRAPE_VARIETIES.map((v) => v.nameLocal);
-	return [
-		"## 既知の原産地呼称リスト(該当があればこの表記を一字一句そのまま使う)",
-		aopNames.join(" / "),
-		"",
-		"## 既知の品種リスト(該当があればこの表記を使う)",
-		grapeNames.join(" / "),
-	].join("\n");
 }
 
 /**

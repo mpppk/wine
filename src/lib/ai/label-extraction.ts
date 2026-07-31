@@ -63,13 +63,38 @@ export const LABEL_JSON_SCHEMA = {
 	additionalProperties: false,
 } as const;
 
-/** モデルへの指示文。出力形式は guided_json が強制するため、内容の規範だけ書く。 */
+/**
+ * マスタ名の一覧をプロンプト用に整形する(呼称は正式名 name、品種は現地語名)。
+ * モデルの出力表記をマスタへ寄せ、matchAop / matchGrapeVarietyIds のヒット率を
+ * 上げるグラウンディング。Workers AI 経路(LABEL_PROMPT)と Claude + web検索経路
+ * (label-web-research.ts)の両方がこれを同梱する(SSOT)。
+ */
+export function buildKnownListsSection(): string {
+	const aopNames = listAops().map((a) => a.name);
+	const grapeNames = GRAPE_VARIETIES.map((v) => v.nameLocal);
+	return [
+		"## 既知の原産地呼称リスト(該当があればこの表記を一字一句そのまま使う)",
+		aopNames.join(" / "),
+		"",
+		"## 既知の品種リスト(該当があればこの表記を使う)",
+		grapeNames.join(" / "),
+	].join("\n");
+}
+
+/**
+ * モデルへの指示文。出力形式は guided_json が強制するため、内容の規範だけ書く。
+ * 末尾にマスタ名の一覧を同梱する(読み取った綴りをマスタ表記へ正規化させる。
+ * ラベルに無い項目を一覧から創作しないよう、読み取れた場合のみのルールは維持)。
+ * マスタは静的データなのでモジュール初期化時に一度だけ組み立てる。
+ */
 export const LABEL_PROMPT = [
 	"これはワインのボトル/エチケット(ラベル)の写真です。写真に写っている情報を読み取り、JSONで出力してください。",
 	"- 写真から読み取れない項目は null にする。推測で創作しない。",
 	"- vintage は西暦の整数(例: 2020)。",
-	"- appellation はラベル記載の原産地呼称(AOC/AOP/DOC/DOCG など)を原語のまま。",
-	"- grape_varieties はラベルに明記されている場合のみ。",
+	"- appellation はラベル記載の原産地呼称(AOC/AOP/DOC/DOCG など)を原語のまま。下の既知リストに該当があればその表記を一字一句そのまま使う。",
+	"- grape_varieties はラベルに明記されている場合のみ。下の既知リストに該当があればその表記を使う。",
+	"",
+	buildKnownListsSection(),
 ].join("\n");
 
 /** Workers AI(マルチモーダル)に渡すメッセージのcontent要素。 */

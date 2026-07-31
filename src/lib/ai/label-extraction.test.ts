@@ -72,6 +72,19 @@ describe("mergeExtractions", () => {
 	});
 });
 
+describe("LABEL_PROMPT", () => {
+	it("マスタの呼称・品種名の一覧を同梱する(照合ヒット率のグラウンディング)", () => {
+		// AOPマスタの正式名(aops.json 由来)
+		expect(LABEL_PROMPT).toContain("Brouilly");
+		expect(LABEL_PROMPT).toContain("Chablis");
+		// 品種マスタの現地語名(varieties.ts 由来)
+		expect(LABEL_PROMPT).toContain("Pinot noir");
+		expect(LABEL_PROMPT).toContain("Chardonnay");
+		// ラベルに無い項目の創作を許すルール変更ではない
+		expect(LABEL_PROMPT).toContain("ラベルに明記されている場合のみ");
+	});
+});
+
 describe("parseLabelResponse", () => {
 	it("パース済みオブジェクトの応答も受け付ける(guided_json時のWorkers AIの実挙動)", () => {
 		// Workers AI は guided_json 指定時に response をJSON文字列ではなく
