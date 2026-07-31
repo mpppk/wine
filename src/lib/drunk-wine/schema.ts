@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+	CALENDAR_DATE_PATTERN,
+	calendarDateSchema,
+} from "#/lib/date/calendar-date";
 import { WINE_STATUS_IDS } from "./status";
 
 // マイセラーの入力バリデーション。Webのserver fnと MCPツールの両方から使うため、
@@ -9,7 +13,12 @@ import { WINE_STATUS_IDS } from "./status";
 // メモは「同じワインを複数回飲む」を扱うため飲用記録側に属する(Issue #195)。
 // 暦日検証と評価・メモの上限を共有するため同じファイルに置く。
 
-export const DRANK_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * 飲んだ日の形式。zone を持たない暦日の規約は #/lib/date/calendar-date が
+ * 単一情報源で、ここは飲用記録ドメインからの別名。目撃記録(wine_sighting.seenOn)も
+ * 同じ規約を使う(検証がドリフトしないよう実装は共有する)。
+ */
+export const DRANK_ON_PATTERN = CALENDAR_DATE_PATTERN;
 
 // フィールドの数値・文字数の上限下限。zod と UI(Web の DrunkWineForm /
 // MCP App の編集フォーム)で同じ値を使うため、ここを単一情報源にする
@@ -23,22 +32,6 @@ export const PRICE_MAX = 10_000_000;
 export const NAME_MAX = 200;
 export const MEMO_MAX = 2000;
 export const PRODUCER_MAX = 200;
-
-// 形式だけでなく暦として実在する日付か(2026-02-31等を弾く)。
-// Web はブラウザの date input が守るが、MCP経由は素の文字列が来る。
-// 年は1900-2100に制限(飲んだ日の現実的な範囲。Date.UTCの0-99年→1900年代
-// マッピングの罠も同時に回避する)。
-function isCalendarDate(s: string): boolean {
-	const [y, m, d] = s.split("-").map(Number);
-	if (y === undefined || m === undefined || d === undefined) return false;
-	if (y < 1900 || y > 2100) return false;
-	const dt = new Date(Date.UTC(y, m - 1, d));
-	return (
-		dt.getUTCFullYear() === y &&
-		dt.getUTCMonth() === m - 1 &&
-		dt.getUTCDate() === d
-	);
-}
 
 /** 銘柄(ボトル)の属性。飲用ごとに変わらないものだけを置く */
 export const drunkWineFields = {
@@ -58,11 +51,7 @@ export const drunkWineFields = {
 
 /** 飲用記録(1銘柄に複数持てる) */
 export const wineTastingFields = {
-	drankOn: z
-		.string()
-		.regex(DRANK_ON_PATTERN)
-		.refine(isCalendarDate, "invalid calendar date")
-		.optional(),
+	drankOn: calendarDateSchema.optional(),
 	rating: z.number().int().min(RATING_MIN).max(RATING_MAX).optional(),
 	memo: z.string().max(MEMO_MAX).optional(),
 };
