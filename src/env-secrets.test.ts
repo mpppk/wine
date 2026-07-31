@@ -20,6 +20,7 @@ const SECRET_KEYS = [
 	"STRIPE_SECRET_KEY",
 	"STRIPE_WEBHOOK_SECRET",
 	"CAMPAIGN_EXTENSION_CODES",
+	"ANTHROPIC_API_KEY",
 ] as const;
 
 /** リポジトリルート起点で読む(vitest はルートで起動する) */

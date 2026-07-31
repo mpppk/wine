@@ -108,6 +108,44 @@ export const AI_LABEL_MAX_OUTPUT_TOKENS = 512;
  */
 export const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
 
+// ---- エチケット解析の高精度経路(Anthropic Claude + web検索) ----
+// ANTHROPIC_API_KEY が設定されている場合のみ使う。未設定・失敗時は Workers AI
+// (AI_LABEL_MODEL)へフォールバックするため、ここの定数は任意機能の調整値。
+
+/**
+ * 高精度エチケット解析に使う Claude のモデルID。マルチモーダル + サーバーサイド
+ * web検索ツール(web_search_20260209)を1リクエストで使える世代であること。
+ * 原価を下げたい場合は "claude-sonnet-5" 等へ数値だけ差し替える。
+ */
+export const AI_LABEL_WEB_MODEL = "claude-opus-5";
+
+/**
+ * 1レスポンスの最大出力トークン。claude-opus-5 は thinking が既定で有効で、
+ * max_tokens は thinking + 本文の合計上限のため、JSONだけの出力でも余裕を持たせる
+ * (小さすぎると thinking で枠を使い切り本文が途切れる)。
+ */
+export const AI_LABEL_WEB_MAX_OUTPUT_TOKENS = 16_000;
+
+/** 1回の解析で許可する web 検索回数の上限(tools の max_uses)。原価の上限化。 */
+export const AI_LABEL_WEB_MAX_SEARCHES = 8;
+
+/**
+ * pause_turn(サーバー側ツールループの一時停止)からの再開回数の上限。
+ * 再開ごとに入力を再送するためトークンを消費する。上限到達時はその時点の
+ * 応答で打ち切る(通常は末尾にJSONが出力済み)。
+ */
+export const AI_LABEL_WEB_MAX_CONTINUATIONS = 4;
+
+/**
+ * Claude経路の予約見積の基礎トークン(プロンプト + 呼称/品種マスタのリスト +
+ * web検索結果 + thinking/出力ぶんの保守的な見積)。検索結果の量は事前に読めない
+ * ため大きめに取り、settle の実測確定で差分を返す。
+ */
+export const AI_LABEL_WEB_BASE_TOKEN_ESTIMATE = 30_000;
+
+/** Claude経路の画像1枚あたりの入力トークン見積(長辺1280px前提 + ループ再送ぶん)。 */
+export const AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE = 3_000;
+
 /** 質問文の最大文字数(入力バリデーション)。 */
 export const AI_MAX_QUESTION_CHARS = 300;
 

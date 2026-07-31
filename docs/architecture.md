@@ -11,7 +11,7 @@
 | データ取得 | TanStack Query（SSR 統合: `@tanstack/react-router-ssr-query`） |
 | DB | Cloudflare D1（SQLite）+ Drizzle ORM |
 | ストレージ | Cloudflare R2（binding: `AVATARS`。アバターとワイン写真を共用） |
-| AI | Cloudflare Workers AI（binding: `AI`。地域 Q&A・エチケット解析） |
+| AI | Cloudflare Workers AI（binding: `AI`。地域 Q&A・エチケット解析）。エチケット解析はシークレット `ANTHROPIC_API_KEY` 設定時のみ Anthropic Claude + web検索の高精度経路を優先し、未設定・失敗時は Workers AI へフォールバック |
 | 認証 | better-auth（email+password、stripe / mcp / admin プラグイン） |
 | 課金 | Stripe（`@better-auth/stripe`。リソースは terraform/ で IaC 管理） |
 | MCP | `@modelcontextprotocol/sdk` + `@mcp-ui/server`（`/api/mcp`、OAuth 2.1） |

@@ -22,5 +22,8 @@ declare namespace Cloudflare {
 		// 既存プレミアム会員の期間延長キャンペーンコード。"CODE=days" をカンマ区切り。
 		// 推測による悪用を防ぐためシークレット扱い(wrangler secret put で投入)。
 		CAMPAIGN_EXTENSION_CODES?: string;
+		// エチケット解析の高精度経路(Claude + web検索)を有効にする Anthropic APIキー。
+		// 未設定でもアプリは動作し、従来の Workers AI 経路で解析される。
+		ANTHROPIC_API_KEY?: string;
 	}
 }

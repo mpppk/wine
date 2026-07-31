@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { creditLedger } from "#/db/schema";
@@ -44,8 +44,38 @@ function stubAiRun(run: () => Promise<unknown>): void {
 	(env as unknown as { AI: { run: () => Promise<unknown> } }).AI = { run };
 }
 
+/**
+ * ANTHROPIC_API_KEY を差し替え、Anthropic API への outbound fetch をスタブする。
+ * SDK はクライアント構築時に globalThis.fetch を掴むため、呼び出し前の stubGlobal で
+ * 差し替われば実ネットワークには出ない。
+ */
+function stubAnthropic(respond: () => Promise<Response>): void {
+	(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
+		"sk-ant-test";
+	vi.stubGlobal("fetch", respond);
+}
+
+/** Anthropic Messages API の成功レスポンス(JSONテキスト + usage)を組み立てる。 */
+function anthropicMessage(
+	fields: Record<string, unknown>,
+	usage: { input_tokens: number; output_tokens: number },
+): Response {
+	return Response.json({
+		id: "msg_test",
+		type: "message",
+		role: "assistant",
+		model: "claude-opus-5",
+		stop_reason: "end_turn",
+		stop_sequence: null,
+		content: [{ type: "text", text: JSON.stringify(fields) }],
+		usage,
+	});
+}
+
 afterEach(() => {
 	delete (env as unknown as { AI?: unknown }).AI;
+	delete (env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY;
+	vi.unstubAllGlobals();
 });
 
 /** data URI 1枚ぶんのダミー(中身はスタブが解析しないので任意) */
@@ -155,6 +185,81 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 		const rows = await ledgerRowsOf(userId);
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
+	});
+
+	it("ANTHROPIC_API_KEY 設定時はClaude経路で解析し、usage合算で確定する", async () => {
+		const userId = await seedUser();
+		stubAnthropic(async () =>
+			anthropicMessage(
+				{
+					wine_name: "Chablis Les Clos",
+					producer: "Vincent Dauvissat",
+					vintage: 2020,
+					appellation: "Chablis Grand Cru",
+					region: "Bourgogne",
+					grape_varieties: ["Chardonnay"],
+				},
+				{ input_tokens: 1000, output_tokens: 200 },
+			),
+		);
+		// Claude経路が成功する限り Workers AI には触れない(触れたら失敗として検出される)
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await analyzeWineLabel(userId, {
+			imageDataUrls: [PHOTO, PHOTO],
+		});
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 1200 });
+		if (result.blocked) throw new Error("unreachable");
+		expect(result.suggestions).toMatchObject({
+			name: "Chablis Les Clos",
+			producer: "Vincent Dauvissat",
+			vintage: 2020,
+			regionId: "bourgogne",
+			grapeVarietyIds: ["chardonnay"],
+		});
+		// 実測(1200)ぶんだけ消費し、予約との差分は返る
+		expect(await balanceOf(userId)).toBe(
+			MONTHLY_CREDITS_FREE - tokensToCredits(1200),
+		);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
+	});
+
+	it("Claude経路が失敗したら Workers AI へフォールバックして完了する", async () => {
+		const userId = await seedUser();
+		// 400 はSDKがリトライしない失敗。経路ごと諦めてフォールバックさせる
+		stubAnthropic(async () =>
+			Response.json(
+				{
+					type: "error",
+					error: { type: "invalid_request_error", message: "bad request" },
+				},
+				{ status: 400 },
+			),
+		);
+		stubAiRun(async () => ({
+			response: JSON.stringify({
+				wine_name: "Chablis",
+				producer: null,
+				vintage: null,
+				appellation: "Chablis",
+				region: null,
+				grape_varieties: [],
+			}),
+			usage: { total_tokens: 55 },
+		}));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
+		if (result.blocked) throw new Error("unreachable");
+		expect(result.suggestions.name).toBe("Chablis");
+		// フォールバック後も settle で確定し、予約が焼き付かない
+		expect(await balanceOf(userId)).toBe(
+			MONTHLY_CREDITS_FREE - tokensToCredits(55),
+		);
 	});
 
 	it("画像が空なら予約せずに 400 で弾く", async () => {

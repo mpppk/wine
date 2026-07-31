@@ -1,7 +1,12 @@
 import { env } from "cloudflare:workers";
+import Anthropic from "@anthropic-ai/sdk";
 import {
 	AI_LABEL_MAX_OUTPUT_TOKENS,
 	AI_LABEL_MODEL,
+	AI_LABEL_WEB_MAX_CONTINUATIONS,
+	AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
+	AI_LABEL_WEB_MAX_SEARCHES,
+	AI_LABEL_WEB_MODEL,
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
 	DEFAULT_REGION_QA_MODEL,
@@ -18,6 +23,12 @@ import {
 	mergeExtractions,
 	parseLabelResponse,
 } from "#/lib/ai/label-extraction";
+import {
+	buildWebLabelMessages,
+	estimateWebLabelReserveTokens,
+	joinResponseText,
+	sumAnthropicUsage,
+} from "#/lib/ai/label-web-research";
 import {
 	buildRegionChatMessages,
 	type ChatMessage,
@@ -201,7 +212,54 @@ export type AnalyzeLabelResult =
 	  };
 
 /**
- * エチケット画像を Workers AI(マルチモーダル)で解析し、マイセラーの自動入力候補を返す。
+ * 高精度経路: Claude(マルチモーダル + サーバーサイドweb検索)で全写真を1リクエスト
+ * 解析し、生産者公式サイト・ワインDBでの裏取り込みの抽出結果を返す。
+ * env 非依存(apiKey を注入)で、失敗は throw する(フォールバック判断は呼び出し側)。
+ */
+async function analyzeLabelWithWebResearch(
+	apiKey: string,
+	imageDataUrls: string[],
+): Promise<{ extraction: LabelExtraction; totalTokens: number }> {
+	const client = new Anthropic({ apiKey });
+	const request = {
+		model: AI_LABEL_WEB_MODEL,
+		max_tokens: AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
+		tools: [
+			{
+				type: "web_search_20260209",
+				name: "web_search",
+				max_uses: AI_LABEL_WEB_MAX_SEARCHES,
+			},
+		],
+	} satisfies Partial<Anthropic.MessageCreateParamsNonStreaming>;
+	const messages = buildWebLabelMessages(imageDataUrls);
+
+	let response = await client.messages.create({ ...request, messages });
+	let totalTokens = sumAnthropicUsage(response.usage);
+	// サーバー側ツールループ(web検索)が上限に達すると pause_turn で返る。assistant 応答を
+	// 積んで再送すると続きから再開する(継続回数は原価ガードとして上限で打ち切る)。
+	for (
+		let i = 0;
+		i < AI_LABEL_WEB_MAX_CONTINUATIONS && response.stop_reason === "pause_turn";
+		i++
+	) {
+		messages.push({ role: "assistant", content: response.content });
+		response = await client.messages.create({ ...request, messages });
+		totalTokens += sumAnthropicUsage(response.usage);
+	}
+	// claude-opus-5 はセーフティ分類器が HTTP 200 + stop_reason: "refusal" で応答を
+	// 拒否しうる。content が空/不完全なので通常の失敗として扱う(Workers AI へフォールバック)。
+	if (response.stop_reason === "refusal") {
+		throw new Error("Claudeがエチケット解析の応答を拒否しました");
+	}
+	const extraction = parseLabelResponse(joinResponseText(response.content));
+	return { extraction, totalTokens };
+}
+
+/**
+ * エチケット画像を解析し、マイセラーの自動入力候補を返す。
+ * ANTHROPIC_API_KEY 設定時は Claude + web検索の高精度経路(裏取り込みの総合解析)を
+ * 使い、未設定・失敗時は Workers AI(マルチモーダル)へフォールバックする。
  * クレジットの予約→実測確定/失敗時返却は answerRegionQuestion と同じ骨格。
  * 応答のパース失敗も「推論失敗」として予約を全額返却する。
  */
@@ -212,7 +270,13 @@ export async function analyzeWineLabel(
 	if (input.imageDataUrls.length === 0) {
 		throw new BadRequestError("画像が指定されていません");
 	}
-	const estimate = estimateLabelReserveTokens(input.imageDataUrls.length);
+	// 高精度経路(Claude + web検索)はシークレット設定時のみ有効。env の解決は予約より
+	// 前に済ませ、「予約したら必ず try で囲まれている」形を保つ(#245 と同じ理由)。
+	// 見積は経路で異なる(web検索の結果取り込みぶん、Claude経路のほうが大きい)。
+	const anthropicApiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
+	const estimate = anthropicApiKey
+		? estimateWebLabelReserveTokens(input.imageDataUrls.length)
+		: estimateLabelReserveTokens(input.imageDataUrls.length);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
@@ -223,47 +287,69 @@ export async function analyzeWineLabel(
 	let suggestions: LabelSuggestions;
 	let actualTokens: number;
 	try {
-		// 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側で行う)。
-		// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
-		// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
-		// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
 		let totalTokens = 0;
-		let anyCallOk = false;
-		let lastPhotoErr: unknown;
 		const extractions: LabelExtraction[] = [];
-		for (const [photoIndex, imageDataUrl] of input.imageDataUrls.entries()) {
+
+		// 高精度経路: Claude + web検索で全写真を1リクエスト総合解析する。失敗しても
+		// 全体を落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
+		if (anthropicApiKey) {
 			try {
-				const raw = await env.AI.run(AI_LABEL_MODEL, {
-					messages: buildLabelMessages(imageDataUrl),
-					// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
-					guided_json: LABEL_JSON_SCHEMA,
-					max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
-				});
-				const out = raw as {
-					response?: string;
-					usage?: { total_tokens?: number };
-				};
-				extractions.push(parseLabelResponse(out.response ?? ""));
-				totalTokens += out.usage?.total_tokens ?? 0;
-				anyCallOk = true;
-			} catch (photoErr) {
-				// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
-				// モデルエラーとJSONパース失敗を後から切り分けられるよう記録は残す(#156)。
-				lastPhotoErr = photoErr;
-				logWarn("label photo analysis failed", {
+				const web = await analyzeLabelWithWebResearch(
+					anthropicApiKey,
+					input.imageDataUrls,
+				);
+				extractions.push(web.extraction);
+				totalTokens += web.totalTokens;
+			} catch (webErr) {
+				logWarn("label web research failed; falling back to Workers AI", {
 					userId,
 					requestId,
-					photoIndex,
-					err: photoErr,
+					err: webErr,
 				});
 			}
 		}
-		// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)。
-		// 最後の失敗要因を cause に持たせ、全滅時の原因追跡を可能にする(#156)。
-		if (!anyCallOk) {
-			throw new Error("すべての写真の解析に失敗しました", {
-				cause: lastPhotoErr,
-			});
+
+		if (extractions.length === 0) {
+			// Workers AI 経路: 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側)。
+			// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
+			// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
+			// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
+			let anyCallOk = false;
+			let lastPhotoErr: unknown;
+			for (const [photoIndex, imageDataUrl] of input.imageDataUrls.entries()) {
+				try {
+					const raw = await env.AI.run(AI_LABEL_MODEL, {
+						messages: buildLabelMessages(imageDataUrl),
+						// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
+						guided_json: LABEL_JSON_SCHEMA,
+						max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+					});
+					const out = raw as {
+						response?: string;
+						usage?: { total_tokens?: number };
+					};
+					extractions.push(parseLabelResponse(out.response ?? ""));
+					totalTokens += out.usage?.total_tokens ?? 0;
+					anyCallOk = true;
+				} catch (photoErr) {
+					// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
+					// モデルエラーとJSONパース失敗を後から切り分けられるよう記録は残す(#156)。
+					lastPhotoErr = photoErr;
+					logWarn("label photo analysis failed", {
+						userId,
+						requestId,
+						photoIndex,
+						err: photoErr,
+					});
+				}
+			}
+			// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)。
+			// 最後の失敗要因を cause に持たせ、全滅時の原因追跡を可能にする(#156)。
+			if (!anyCallOk) {
+				throw new Error("すべての写真の解析に失敗しました", {
+					cause: lastPhotoErr,
+				});
+			}
 		}
 		suggestions = buildLabelSuggestions(mergeExtractions(extractions));
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
