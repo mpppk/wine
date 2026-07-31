@@ -162,19 +162,28 @@ function cleanText(value: string | null | undefined): string | undefined {
 /**
  * モデルの生出力をパースする。guided_json で JSON が強制される想定だが、
  * コードフェンスや前後の文が混ざるケースに備えて最初の { 〜 最後の } を取り出す。
- * 解釈できない場合は throw(呼び出し側でクレジット返却の上エラー応答にする)。
+ * Workers AI は guided_json 時に response を**パース済みオブジェクト**で返すことが
+ * あるため(文字列前提だと TypeError で解析が全滅する)、オブジェクトはそのまま
+ * スキーマ検証に回す。解釈できない場合は throw(呼び出し側でクレジット返却の上
+ * エラー応答にする)。
  */
-export function parseLabelResponse(raw: string): LabelExtraction {
-	const start = raw.indexOf("{");
-	const end = raw.lastIndexOf("}");
-	if (start === -1 || end <= start) {
-		throw new Error("AIの応答にJSONが含まれていません");
-	}
+export function parseLabelResponse(raw: unknown): LabelExtraction {
 	let parsed: unknown;
-	try {
-		parsed = JSON.parse(raw.slice(start, end + 1));
-	} catch {
-		throw new Error("AIの応答を解釈できませんでした");
+	if (typeof raw === "string") {
+		const start = raw.indexOf("{");
+		const end = raw.lastIndexOf("}");
+		if (start === -1 || end <= start) {
+			throw new Error("AIの応答にJSONが含まれていません");
+		}
+		try {
+			parsed = JSON.parse(raw.slice(start, end + 1));
+		} catch {
+			throw new Error("AIの応答を解釈できませんでした");
+		}
+	} else if (raw !== null && typeof raw === "object") {
+		parsed = raw;
+	} else {
+		throw new Error("AIの応答にJSONが含まれていません");
 	}
 	const result = labelResponseSchema.safeParse(parsed);
 	if (!result.success) {

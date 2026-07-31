@@ -324,8 +324,10 @@ export async function analyzeWineLabel(
 						guided_json: LABEL_JSON_SCHEMA,
 						max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
 					});
+					// guided_json 時の response は文字列とパース済みオブジェクトの両方がありうる
+					// (parseLabelResponse が両対応する)
 					const out = raw as {
-						response?: string;
+						response?: unknown;
 						usage?: { total_tokens?: number };
 					};
 					extractions.push(parseLabelResponse(out.response ?? ""));

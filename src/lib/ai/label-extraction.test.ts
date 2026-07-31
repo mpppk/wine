@@ -73,6 +73,27 @@ describe("mergeExtractions", () => {
 });
 
 describe("parseLabelResponse", () => {
+	it("パース済みオブジェクトの応答も受け付ける(guided_json時のWorkers AIの実挙動)", () => {
+		// Workers AI は guided_json 指定時に response をJSON文字列ではなく
+		// オブジェクトで返すことがある。文字列前提だと TypeError で解析が全滅する。
+		const parsed = parseLabelResponse({
+			wine_name: "Chablis",
+			producer: null,
+			vintage: 2020,
+			appellation: "Chablis",
+			region: "Bourgogne",
+			grape_varieties: ["Chardonnay"],
+		});
+		expect(parsed.wineName).toBe("Chablis");
+		expect(parsed.vintage).toBe(2020);
+	});
+
+	it("文字列でもオブジェクトでもない応答は弾く", () => {
+		expect(() => parseLabelResponse(undefined)).toThrow();
+		expect(() => parseLabelResponse(42)).toThrow();
+		expect(() => parseLabelResponse(null)).toThrow();
+	});
+
 	it("素のJSONをパースする", () => {
 		const parsed = parseLabelResponse(
 			JSON.stringify({
