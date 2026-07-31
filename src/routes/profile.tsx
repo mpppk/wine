@@ -13,9 +13,13 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import {
+	AI_LABEL_ENGINES,
 	AI_REGION_QA_MODELS,
+	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
+	type LabelEngineKey,
 	type RegionQaModelKey,
+	toLabelEngineKey,
 	toRegionQaModelKey,
 } from "#/lib/ai/config";
 import { authClient } from "#/lib/auth-client";
@@ -221,6 +225,7 @@ function ProfilePage() {
 			</Card>
 
 			<AiModelCard />
+			<LabelEngineCard />
 			<PlanCard />
 			<CreditCard />
 		</main>
@@ -301,6 +306,93 @@ function AiModelCard() {
 					className="self-start"
 				>
 					{isPending ? "保存中..." : "モデルを保存"}
+				</Button>
+			</CardContent>
+		</Card>
+	);
+}
+
+/**
+ * エチケット解析(マイセラーの自動入力)エンジンの選択。ユーザ設定として
+ * user.preferredLabelEngine に保存し、解析側(analyzeWineLabel)はこの設定を使う。
+ * 高精度(Claude + web検索)はサーバに ANTHROPIC_API_KEY が設定されている場合のみ
+ * 実際に使われ、使えない環境では選択に関わらず標準で解析される(サーバ側フォールバック)。
+ */
+function LabelEngineCard() {
+	const { data: session, refetch: refetchSession } = authClient.useSession();
+	const [engine, setEngine] = useState<LabelEngineKey>(DEFAULT_LABEL_ENGINE);
+	const [error, setError] = useState("");
+	const [successMessage, setSuccessMessage] = useState("");
+
+	useEffect(() => {
+		const pref = toLabelEngineKey(session?.user.preferredLabelEngine);
+		if (pref) setEngine(pref);
+	}, [session?.user.preferredLabelEngine]);
+
+	const { mutate: saveEngine, isPending } = useMutation({
+		mutationFn: async () => {
+			const result = await authClient.updateUser({
+				preferredLabelEngine: engine,
+			});
+			if (result.error)
+				throw new Error(result.error.message ?? "Update failed");
+		},
+		onSuccess: async () => {
+			await refetchSession();
+			setSuccessMessage("エチケット解析の設定を更新しました。");
+			setError("");
+		},
+		onError: (err: Error) => {
+			setError(err.message);
+			setSuccessMessage("");
+		},
+	});
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle>エチケット解析</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				<p className="text-sm text-muted-foreground">
+					マイセラーの「エチケットから自動入力」で使うAIを選べます。
+				</p>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="label-engine">解析エンジン</Label>
+					<Select
+						value={engine}
+						onValueChange={(v) => setEngine(v as LabelEngineKey)}
+					>
+						<SelectTrigger id="label-engine" className="max-w-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{Object.entries(AI_LABEL_ENGINES).map(([key, e]) => (
+								<SelectItem key={key} value={key}>
+									{e.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-xs text-muted-foreground">
+						{AI_LABEL_ENGINES[engine].description}
+					</p>
+				</div>
+
+				{error && <p className="text-sm text-destructive">{error}</p>}
+				{successMessage && (
+					<p className="text-sm text-green-600 dark:text-green-400">
+						{successMessage}
+					</p>
+				)}
+
+				<Button
+					type="button"
+					disabled={isPending}
+					onClick={() => saveEngine()}
+					className="self-start"
+				>
+					{isPending ? "保存中..." : "設定を保存"}
 				</Button>
 			</CardContent>
 		</Card>

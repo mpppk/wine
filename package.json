@@ -33,6 +33,7 @@
 		"cf-typegen": "wrangler types --env-file=/dev/null --strict-vars=false"
 	},
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.115.0",
 		"@better-auth/stripe": "^1.6.23",
 		"@cloudflare/vite-plugin": "^1.45.0",
 		"@mcp-ui/server": "^6.1.0",

@@ -9,7 +9,10 @@ export const authClient = createAuthClient({
 		// user テーブルの独自カラム(auth.ts の additionalFields と一致させる)を
 		// session.user / updateUser に型付けする。
 		inferAdditionalFields({
-			user: { preferredAiModel: { type: "string", required: false } },
+			user: {
+				preferredAiModel: { type: "string", required: false },
+				preferredLabelEngine: { type: "string", required: false },
+			},
 		}),
 		// session.user.role / banned の型付けと、将来の authClient.admin.* 用。
 		adminClient(),

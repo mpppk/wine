@@ -63,13 +63,38 @@ export const LABEL_JSON_SCHEMA = {
 	additionalProperties: false,
 } as const;
 
-/** モデルへの指示文。出力形式は guided_json が強制するため、内容の規範だけ書く。 */
+/**
+ * マスタ名の一覧をプロンプト用に整形する(呼称は正式名 name、品種は現地語名)。
+ * モデルの出力表記をマスタへ寄せ、matchAop / matchGrapeVarietyIds のヒット率を
+ * 上げるグラウンディング。Workers AI 経路(LABEL_PROMPT)と Claude + web検索経路
+ * (label-web-research.ts)の両方がこれを同梱する(SSOT)。
+ */
+export function buildKnownListsSection(): string {
+	const aopNames = listAops().map((a) => a.name);
+	const grapeNames = GRAPE_VARIETIES.map((v) => v.nameLocal);
+	return [
+		"## 既知の原産地呼称リスト(該当があればこの表記を一字一句そのまま使う)",
+		aopNames.join(" / "),
+		"",
+		"## 既知の品種リスト(該当があればこの表記を使う)",
+		grapeNames.join(" / "),
+	].join("\n");
+}
+
+/**
+ * モデルへの指示文。出力形式は guided_json が強制するため、内容の規範だけ書く。
+ * 末尾にマスタ名の一覧を同梱する(読み取った綴りをマスタ表記へ正規化させる。
+ * ラベルに無い項目を一覧から創作しないよう、読み取れた場合のみのルールは維持)。
+ * マスタは静的データなのでモジュール初期化時に一度だけ組み立てる。
+ */
 export const LABEL_PROMPT = [
 	"これはワインのボトル/エチケット(ラベル)の写真です。写真に写っている情報を読み取り、JSONで出力してください。",
 	"- 写真から読み取れない項目は null にする。推測で創作しない。",
 	"- vintage は西暦の整数(例: 2020)。",
-	"- appellation はラベル記載の原産地呼称(AOC/AOP/DOC/DOCG など)を原語のまま。",
-	"- grape_varieties はラベルに明記されている場合のみ。",
+	"- appellation はラベル記載の原産地呼称(AOC/AOP/DOC/DOCG など)を原語のまま。下の既知リストに該当があればその表記を一字一句そのまま使う。",
+	"- grape_varieties はラベルに明記されている場合のみ。下の既知リストに該当があればその表記を使う。",
+	"",
+	buildKnownListsSection(),
 ].join("\n");
 
 /** Workers AI(マルチモーダル)に渡すメッセージのcontent要素。 */
@@ -162,19 +187,28 @@ function cleanText(value: string | null | undefined): string | undefined {
 /**
  * モデルの生出力をパースする。guided_json で JSON が強制される想定だが、
  * コードフェンスや前後の文が混ざるケースに備えて最初の { 〜 最後の } を取り出す。
- * 解釈できない場合は throw(呼び出し側でクレジット返却の上エラー応答にする)。
+ * Workers AI は guided_json 時に response を**パース済みオブジェクト**で返すことが
+ * あるため(文字列前提だと TypeError で解析が全滅する)、オブジェクトはそのまま
+ * スキーマ検証に回す。解釈できない場合は throw(呼び出し側でクレジット返却の上
+ * エラー応答にする)。
  */
-export function parseLabelResponse(raw: string): LabelExtraction {
-	const start = raw.indexOf("{");
-	const end = raw.lastIndexOf("}");
-	if (start === -1 || end <= start) {
-		throw new Error("AIの応答にJSONが含まれていません");
-	}
+export function parseLabelResponse(raw: unknown): LabelExtraction {
 	let parsed: unknown;
-	try {
-		parsed = JSON.parse(raw.slice(start, end + 1));
-	} catch {
-		throw new Error("AIの応答を解釈できませんでした");
+	if (typeof raw === "string") {
+		const start = raw.indexOf("{");
+		const end = raw.lastIndexOf("}");
+		if (start === -1 || end <= start) {
+			throw new Error("AIの応答にJSONが含まれていません");
+		}
+		try {
+			parsed = JSON.parse(raw.slice(start, end + 1));
+		} catch {
+			throw new Error("AIの応答を解釈できませんでした");
+		}
+	} else if (raw !== null && typeof raw === "object") {
+		parsed = raw;
+	} else {
+		throw new Error("AIの応答にJSONが含まれていません");
 	}
 	const result = labelResponseSchema.safeParse(parsed);
 	if (!result.success) {
