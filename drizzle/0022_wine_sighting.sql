@@ -1,3 +1,13 @@
+-- allow-destructive-migration
+--
+-- ↑ の理由: 唯一の該当箇所は末尾の
+-- `ADD COLUMN sighting_count integer DEFAULT 0 NOT NULL` で、これは
+-- **新規列 + 定数 DEFAULT** なので expand-and-contract の対象ではない。
+--   - 既存行: SQLite が DEFAULT で埋める(既存列を NOT NULL 化するのとは別物)
+--   - デプロイ窓(新スキーマ×旧コード)の旧 INSERT: 列を省いても DEFAULT が入るので落ちない
+-- そもそも SQLite は DEFAULT の無い `ADD COLUMN ... NOT NULL` を実行時に拒否するため、
+-- 適用可能な形は必ずこの安全な形になる。0018 が status を足したときと同じ形。
+--
 -- 写真からのワイン一括登録に向けて、「目撃記録」を第3の 1:N 軸として足す(Issue #358)。
 --
 -- 所有状態(drunk_wine.status) ⊥ 飲用履歴(wine_tasting) の直交2軸(#195)に、
