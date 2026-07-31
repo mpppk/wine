@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
 	AI_HISTORY_CONTENT_MAX_CHARS,
 	AI_HISTORY_INPUT_MAX_MESSAGES,
+	AI_LABEL_ENGINES,
 	AI_MAX_HISTORY_MESSAGES,
 	AI_REGION_QA_MODELS,
 	chatHistorySchema,
+	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
+	LABEL_ENGINE_KEYS,
+	labelEngineKeySchema,
 	REGION_QA_MODEL_KEYS,
 	regionQaModelKeySchema,
+	toLabelEngineKey,
 	toRegionQaModelKey,
 } from "./config";
 
@@ -73,6 +78,42 @@ describe("regionQaModelKeySchema / toRegionQaModelKey", () => {
 		if (!result.success) {
 			expect(result.error.issues[0]?.message).toBe(
 				"対応していないAIモデルです。",
+			);
+		}
+	});
+});
+
+// エチケット解析エンジンの許可リスト(書き込み: auth.ts の validator / 読み取り:
+// analyzeWineLabel / UI: プロフィール画面 が共有する。preferredAiModel と同じ形 #256)。
+describe("labelEngineKeySchema / toLabelEngineKey", () => {
+	it("LABEL_ENGINE_KEYS の全キーに表示定義があり、既定キーが含まれる", () => {
+		for (const key of LABEL_ENGINE_KEYS) {
+			expect(AI_LABEL_ENGINES[key]?.label.length).toBeGreaterThan(0);
+			expect(labelEngineKeySchema.safeParse(key).success).toBe(true);
+			expect(toLabelEngineKey(key)).toBe(key);
+		}
+		expect(LABEL_ENGINE_KEYS).toContain(DEFAULT_LABEL_ENGINE);
+	});
+
+	it("許可リスト外・文字列以外・巨大な文字列を拒否する", () => {
+		for (const value of [
+			"claude-opus-5",
+			"",
+			null,
+			undefined,
+			1,
+			"a".repeat(300_000),
+		]) {
+			expect(toLabelEngineKey(value)).toBeNull();
+		}
+	});
+
+	it("拒否時のメッセージは利用者向けの日本語(better-auth が 400 の message に載せる)", () => {
+		const result = labelEngineKeySchema.safeParse("gpt-4");
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe(
+				"対応していない解析エンジンです。",
 			);
 		}
 	});

@@ -12,6 +12,9 @@ export const user = sqliteTable("user", {
 	stripeCustomerId: text("stripe_customer_id"),
 	// 地域Q&Aチャットで使うモデルのユーザ設定(プロフィール画面で変更)。null は既定モデル。
 	preferredAiModel: text("preferred_ai_model"),
+	// エチケット解析エンジンのユーザ設定(drizzle/0021)。null は既定
+	// (ANTHROPIC_API_KEY 設定時は高精度)。許可リストは ai/config.ts の LABEL_ENGINE_KEYS。
+	preferredLabelEngine: text("preferred_label_engine"),
 	// better-auth admin プラグインのカラム(drizzle/0014_admin_role.sql)。
 	// role: "admin" のユーザのみ管理画面を利用可能。null は一般ユーザ扱い。
 	role: text("role"),

@@ -16,7 +16,7 @@ import {
 	isImpersonatedSession,
 	needsImpersonationCheck,
 } from "#/lib/admin/impersonation";
-import { regionQaModelKeySchema } from "#/lib/ai/config";
+import { labelEngineKeySchema, regionQaModelKeySchema } from "#/lib/ai/config";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
 import { logError, logInfo, logWarn } from "#/lib/logger";
@@ -155,6 +155,14 @@ export const auth = betterAuth({
 				required: false,
 				input: true,
 				validator: { input: regionQaModelKeySchema },
+			},
+			// エチケット解析エンジンの選択(プロフィール画面で変更)。preferredAiModel と
+			// 同じ理由で validator.input を必ず付ける(#256。許可リストは ai/config.ts に一元化)。
+			preferredLabelEngine: {
+				type: "string",
+				required: false,
+				input: true,
+				validator: { input: labelEngineKeySchema },
 			},
 		},
 	},

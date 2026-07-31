@@ -136,3 +136,32 @@ describe("preferredAiModel の書き込みは許可リストで検証される (
 		expect(row?.name).toBe("renamed");
 	});
 });
+
+// preferredLabelEngine(エチケット解析エンジン)も同じ関門を通ることを確認する。
+// スキーマ自体の正しさは config.test.ts、ここでは auth.options への配線を見る。
+describe("preferredLabelEngine の書き込みは許可リストで検証される", () => {
+	it("許可リストのキーは D1 に保存される", async () => {
+		const res = await updateUser({ preferredLabelEngine: "workers-ai" });
+		expect(res.status).toBe(200);
+		const row = await env.DB.prepare(
+			"SELECT preferred_label_engine AS e FROM user WHERE id = ?",
+		)
+			.bind(userId)
+			.first<{ e: string | null }>();
+		expect(row?.e).toBe("workers-ai");
+	});
+
+	it("許可リスト外・巨大な文字列は 400 で弾かれる", () => {
+		for (const value of ["claude-opus-5", "a".repeat(300_000)]) {
+			const result = parseUpdate({ preferredLabelEngine: value });
+			expect(result.status).toBe(400);
+			expect(result.parsed).toBeUndefined();
+		}
+	});
+
+	it("拒否時のメッセージは利用者向けの日本語(プロフィール画面にそのまま出る)", () => {
+		expect(parseUpdate({ preferredLabelEngine: "gpt-4" }).message).toBe(
+			"対応していない解析エンジンです。",
+		);
+	});
+});

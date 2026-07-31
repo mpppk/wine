@@ -227,6 +227,40 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
 	});
 
+	it("ユーザが標準(workers-ai)を選択していればキー設定時でもClaude経路を使わない", async () => {
+		const userId = await seedUser();
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'workers-ai' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		// Claude経路に入ってしまった場合はこちらの usage(9999)で確定してしまうため、
+		// 最終的な actualTokens が Workers AI の実測(60)であることが経路選択の証明になる
+		// (fetch を失敗させる方式だとフォールバックと区別が付かない)
+		stubAnthropic(async () =>
+			anthropicMessage(
+				{ wine_name: "wrong path" },
+				{ input_tokens: 9000, output_tokens: 999 },
+			),
+		);
+		stubAiRun(async () => ({
+			response: JSON.stringify({
+				wine_name: "Chablis",
+				producer: null,
+				vintage: null,
+				appellation: null,
+				region: null,
+				grape_varieties: [],
+			}),
+			usage: { total_tokens: 60 },
+		}));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		// Workers AI 経路の実測(60)で確定 = Claude経路のトークンが混ざっていない
+		expect(result).toMatchObject({ blocked: false, actualTokens: 60 });
+	});
+
 	it("Claude経路が失敗したら Workers AI へフォールバックして完了する", async () => {
 		const userId = await seedUser();
 		// 400 はSDKがリトライしない失敗。経路ごと諦めてフォールバックさせる

@@ -9,8 +9,10 @@ import {
 	AI_LABEL_WEB_MODEL,
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
+	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
 	type RegionQaModelKey,
+	toLabelEngineKey,
 	toRegionQaModelKey,
 } from "#/lib/ai/config";
 import {
@@ -260,6 +262,7 @@ async function analyzeLabelWithWebResearch(
  * エチケット画像を解析し、マイセラーの自動入力候補を返す。
  * ANTHROPIC_API_KEY 設定時は Claude + web検索の高精度経路(裏取り込みの総合解析)を
  * 使い、未設定・失敗時は Workers AI(マルチモーダル)へフォールバックする。
+ * ユーザがプロフィールで標準(workers-ai)を選んでいる場合はキー設定時でも高精度を使わない。
  * クレジットの予約→実測確定/失敗時返却は answerRegionQuestion と同じ骨格。
  * 応答のパース失敗も「推論失敗」として予約を全額返却する。
  */
@@ -270,11 +273,17 @@ export async function analyzeWineLabel(
 	if (input.imageDataUrls.length === 0) {
 		throw new BadRequestError("画像が指定されていません");
 	}
-	// 高精度経路(Claude + web検索)はシークレット設定時のみ有効。env の解決は予約より
-	// 前に済ませ、「予約したら必ず try で囲まれている」形を保つ(#245 と同じ理由)。
+	// 高精度経路(Claude + web検索)は「シークレット設定あり かつ ユーザが標準を明示
+	// 選択していない」場合のみ有効。env・ユーザ設定(D1読み)の解決は**予約より前**に
+	// 済ませ、「予約したら必ず try で囲まれている」形を保つ(#245 と同じ理由)。
 	// 見積は経路で異なる(web検索の結果取り込みぶん、Claude経路のほうが大きい)。
 	const anthropicApiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
-	const estimate = anthropicApiKey
+	const { preferredLabelEngine } = await userService.getCurrentUser(userId);
+	// 書き込み側(auth.ts の validator)と同じ許可リストで照合する。旧データ・不正値は
+	// 既定(高精度)へフォールバックする(resolveModelKey と同じ流儀)。
+	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
+	const useWebResearch = !!anthropicApiKey && engine === "web-research";
+	const estimate = useWebResearch
 		? estimateWebLabelReserveTokens(input.imageDataUrls.length)
 		: estimateLabelReserveTokens(input.imageDataUrls.length);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
@@ -292,7 +301,7 @@ export async function analyzeWineLabel(
 
 		// 高精度経路: Claude + web検索で全写真を1リクエスト総合解析する。失敗しても
 		// 全体を落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
-		if (anthropicApiKey) {
+		if (useWebResearch && anthropicApiKey) {
 			try {
 				const web = await analyzeLabelWithWebResearch(
 					anthropicApiKey,

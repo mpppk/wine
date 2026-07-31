@@ -113,6 +113,54 @@ export const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
 // (AI_LABEL_MODEL)へフォールバックするため、ここの定数は任意機能の調整値。
 
 /**
+ * エチケット解析エンジンの許可リスト。ユーザがプロフィール画面で選択できる。
+ * クライアントにはキーだけを送らせ、サーバ側で経路に解決する(地域Q&Aの
+ * REGION_QA_MODEL_KEYS と同じ流儀)。
+ *  - web-research: Claude + web検索の高精度経路(ANTHROPIC_API_KEY 必須。
+ *    未設定・失敗時は workers-ai へフォールバック)。クレジット消費が大きい。
+ *  - workers-ai: 従来の Workers AI 経路。消費が小さい。
+ */
+export const LABEL_ENGINE_KEYS = ["web-research", "workers-ai"] as const;
+
+/** ユーザが選択できるエチケット解析エンジンのキー。ワイヤ上の値(クライアント⇄サーバ)。 */
+export type LabelEngineKey = (typeof LABEL_ENGINE_KEYS)[number];
+
+/** 選択可能なエンジンの表示定義。UI(プロフィール画面)が参照する。 */
+export const AI_LABEL_ENGINES: Record<
+	LabelEngineKey,
+	{ label: string; description: string }
+> = {
+	"web-research": {
+		label: "高精度(Claude + web検索)",
+		description:
+			"AIがweb検索で生産者・呼称・品種を裏取りします。クレジット消費が大きめです。利用できない環境では自動的に標準で解析されます。",
+	},
+	"workers-ai": {
+		label: "標準(Workers AI)",
+		description: "写真の読み取りのみで解析します。クレジット消費が小さめです。",
+	},
+};
+
+/** 未設定・不正値のときの既定エンジン。現行挙動(キー設定時は高精度)を維持する。 */
+export const DEFAULT_LABEL_ENGINE: LabelEngineKey = "web-research";
+
+/**
+ * エンジンキーの許可リスト検証スキーマ。**書き込み経路(better-auth の
+ * additionalFields validator)と読み取り経路(analyzeWineLabel)で共有する SSOT**
+ * (#256 の preferredAiModel と同じ理由・同じ形)。エラーメッセージは better-auth が
+ * 400 の message にそのまま載せ、プロフィール画面に表示されるため日本語にする。
+ */
+export const labelEngineKeySchema = z.enum(LABEL_ENGINE_KEYS, {
+	error: "対応していない解析エンジンです。",
+});
+
+/** 任意の値を許可リストと照合し、エンジンキーでなければ `null` を返す。 */
+export function toLabelEngineKey(value: unknown): LabelEngineKey | null {
+	const parsed = labelEngineKeySchema.safeParse(value);
+	return parsed.success ? parsed.data : null;
+}
+
+/**
  * 高精度エチケット解析に使う Claude のモデルID。マルチモーダル + サーバーサイド
  * web検索ツール(web_search_20260209)を1リクエストで使える世代であること。
  * 原価を下げたい場合は "claude-sonnet-5" 等へ数値だけ差し替える。
