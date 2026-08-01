@@ -123,6 +123,8 @@ const STATUS_DESCRIBE =
 	"spotted=見かけた(店で見かけただけ。買っても飲んでもいない)。" +
 	"省略時は finished(飲み終えた記録として登録される)";
 
+// 産地(aop_id / region_id / country_id)は「最も細かい1つだけを保存」の排他。
+// いずれかを指定すると他の2つはサーバ側で自動クリアされる。
 const REGISTER_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	name: "ワイン名(ラベル表記。必須)",
 	status: STATUS_DESCRIBE,
@@ -130,6 +132,12 @@ const REGISTER_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	price: "価格 (円)",
 	producer: "生産者名 (200文字まで)",
 	aop_id: "紐付けるAOPのID (list_aopsのid。任意)",
+	region_id:
+		"AOPまで特定できない場合に紐付ける地域ID (list_wine_regionsのid。任意。" +
+		"aop_idと同時指定不可: 最も細かい1つだけが保存される)",
+	country_id:
+		"地域も特定できない場合に紐付ける国ID (france / italy。任意。" +
+		"aop_id / region_idと同時指定不可: 最も細かい1つだけが保存される)",
 	grape_variety_ids: "ぶどう品種ID (list_grape_varietiesのid。最大20件)",
 };
 
@@ -143,7 +151,13 @@ const UPDATE_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	vintage: "ヴィンテージ (1800〜2100の年)。nullでクリア",
 	price: "価格 (円)。nullでクリア",
 	producer: "生産者名 (200文字まで)。nullでクリア",
-	aop_id: "紐付けるAOPのID (list_aopsのid)。nullでクリア",
+	aop_id:
+		"紐付けるAOPのID (list_aopsのid)。指定すると地域・国の紐付けは自動クリア。nullでクリア",
+	region_id:
+		"紐付ける地域ID (list_wine_regionsのid)。指定するとAOP・国の紐付けは自動クリア" +
+		"(最も細かい1つだけが保存される)。nullでクリア",
+	country_id:
+		"紐付ける国ID (france / italy)。指定するとAOP・地域の紐付けは自動クリア。nullでクリア",
 	grape_variety_ids:
 		"ぶどう品種ID (list_grape_varietiesのid。最大20件)。[]でクリア",
 };

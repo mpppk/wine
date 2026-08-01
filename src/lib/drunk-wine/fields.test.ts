@@ -5,6 +5,7 @@ import {
 	DRUNK_WINE_FIELD_DEFS,
 	type DrunkWineFieldDef,
 	hasDrunkWinePatch,
+	stripDerivedProvenance,
 	toCamelPatch,
 	toCamelTastingPatch,
 	toSnakeEntry,
@@ -31,15 +32,17 @@ describe("DRUNK_WINE_FIELD_DEFS", () => {
 		expect(camelKeys).toEqual(schemaKeys);
 	});
 
-	it("snakeKey 集合が期待の7件と一致する(飲んだ日/評価/メモは飲用記録へ移動済み)", () => {
+	it("snakeKey 集合が期待の9件と一致する(飲んだ日/評価/メモは飲用記録へ移動済み)", () => {
 		const snakeKeys = DRUNK_WINE_FIELD_DEFS.map((d) => d.snakeKey).sort();
 		expect(snakeKeys).toEqual(
 			[
 				"aop_id",
+				"country_id",
 				"grape_variety_ids",
 				"name",
 				"price",
 				"producer",
+				"region_id",
 				"status",
 				"vintage",
 			].sort(),
@@ -269,6 +272,9 @@ describe("toSnakeEntry", () => {
 			price: 3000,
 			producer: "Dauvissat",
 			aop_id: "chablis",
+			// entry の regionId は導出値(AOPの地域)、countryId は定義に写した undefined
+			region_id: "bourgogne",
+			country_id: undefined,
 			grape_variety_ids: ["chardonnay"],
 		});
 	});
@@ -293,6 +299,39 @@ describe("toSnakeEntry", () => {
 			grape_variety_ids: [],
 		};
 		expect(collectDrunkWinePatch(toSnakeEntry(cleared), values)).toEqual({});
+	});
+});
+
+describe("stripDerivedProvenance", () => {
+	it("aop_id があれば導出値の region_id / country_id を落とす", () => {
+		expect(
+			stripDerivedProvenance({
+				aop_id: "chablis",
+				region_id: "bourgogne",
+				country_id: "france",
+			}),
+		).toEqual({
+			aop_id: "chablis",
+			region_id: undefined,
+			country_id: undefined,
+		});
+	});
+
+	it("region_id だけなら country_id(導出)を落とす", () => {
+		expect(
+			stripDerivedProvenance({
+				aop_id: null,
+				region_id: "bourgogne",
+				country_id: "france",
+			}),
+		).toEqual({ aop_id: null, region_id: "bourgogne", country_id: undefined });
+	});
+
+	it("国のみ・未紐付けはそのまま", () => {
+		expect(
+			stripDerivedProvenance({ aop_id: null, country_id: "france" }),
+		).toEqual({ aop_id: null, country_id: "france" });
+		expect(stripDerivedProvenance({ name: "x" })).toEqual({ name: "x" });
 	});
 });
 

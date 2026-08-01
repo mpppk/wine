@@ -114,13 +114,24 @@ function CellarMapPage() {
 		[allEntries, filter],
 	);
 
-	// AOP紐付けありのエントリを地域別に集計(regionId は AOP紐付け時のみ非null)。
+	// AOP紐付けありのエントリを地域別に集計(AOP紐付け行は regionId が導出で非null)。
 	// 絞り込み後の集合から作るので、highlightAopIds も件数バッジもフィルタに追従する。
 	const linkedEntries = useMemo(
 		() => entries.filter((e) => e.aopId !== null && e.regionId !== null),
 		[entries],
 	);
-	const unlinkedCount = entries.length - linkedEntries.length;
+	// 地域・国単位の粗い紐付け。AOPを特定していないので地図には出せないが、
+	// 「未紐付け」とは区別して案内する(編集でAOPまで絞れば地図に載る)。
+	const coarseLinkedCount = useMemo(
+		() =>
+			entries.filter(
+				(e) =>
+					e.aopId === null && (e.regionId !== null || e.countryId !== null),
+			).length,
+		[entries],
+	);
+	const unlinkedCount =
+		entries.length - linkedEntries.length - coarseLinkedCount;
 	const countsByRegion = useMemo(() => {
 		const m = new Map<string, number>();
 		for (const e of linkedEntries) {
@@ -264,10 +275,16 @@ function CellarMapPage() {
 				</div>
 			</div>
 
-			{unlinkedCount > 0 && (
+			{(unlinkedCount > 0 || coarseLinkedCount > 0) && (
 				<p className="border-b border-border bg-muted/40 px-4 py-1.5 text-xs text-muted-foreground">
-					AOP未紐付けのワインが {unlinkedCount}{" "}
-					件あります(地図には表示されません)。{" "}
+					{[
+						unlinkedCount > 0 && `産地未紐付けのワインが ${unlinkedCount} 件`,
+						coarseLinkedCount > 0 &&
+							`地域・国まで紐付けたワインが ${coarseLinkedCount} 件`,
+					]
+						.filter(Boolean)
+						.join("、")}
+					あります(AOPを紐付けたワインだけが地図に表示されます)。{" "}
 					<Link
 						to="/cellar"
 						search={{ filter }}

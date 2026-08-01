@@ -237,8 +237,8 @@ export function DrunkWineForm({
 	};
 
 	// エチケット解析の候補を「未入力の項目だけ」に反映する(ユーザ入力は上書きしない)。
-	// AOPはフォームの地域絞り込みと整合するよう、地域が未選択なら候補の地域も併せて
-	// 設定し、別の地域が選択済みなら適用しない。
+	// 産地は最も細かい1つだけを保持する不変条件があるため、いずれかの単位が選択済み
+	// なら適用せず、未選択なら候補の最も細かい単位(AOP > 地域 > 国)を1つだけ入れる。
 	const applySuggestions = (s: LabelSuggestions): string[] => {
 		const filled: string[] = [];
 		const patch: Partial<DrunkWineFieldsValue> = {};
@@ -254,17 +254,17 @@ export function DrunkWineForm({
 			patch.vintage = String(s.vintage);
 			filled.push("ヴィンテージ");
 		}
-		if (s.regionId && !values.regionId) {
-			patch.regionId = s.regionId;
-			filled.push("地域");
-		}
-		if (
-			s.aopId &&
-			!values.aopId &&
-			(!values.regionId || values.regionId === s.regionId)
-		) {
-			patch.aopId = s.aopId;
-			filled.push("AOP");
+		if (!values.aopId && !values.regionId && !values.countryId) {
+			if (s.aopId) {
+				patch.aopId = s.aopId;
+				filled.push("AOP");
+			} else if (s.regionId) {
+				patch.regionId = s.regionId;
+				filled.push("産地(地域)");
+			} else if (s.countryId) {
+				patch.countryId = s.countryId;
+				filled.push("産地(国)");
+			}
 		}
 		if (s.grapeVarietyIds?.length && values.grapeVarietyIds.length === 0) {
 			patch.grapeVarietyIds = s.grapeVarietyIds;
