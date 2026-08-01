@@ -114,6 +114,40 @@ bun run logs --json                      # 生JSON(jq で加工する場合)
   後から追う用途には `bun run logs` を使う。
 - 保持期間は最大7日（それ以前を追う必要が出たら Logpush で R2 へ転送する）。
 
+### AI 推論の実行記録
+
+AI 経路（エチケット解析・地域 Q&A・写真からの一括抽出）は、**成功・残高不足・失敗の
+すべてで実行記録を 1 行出す**。実装は `src/lib/ai/inference-log.ts`（`logAiInference`）で、
+`msg` は全経路共通の `ai inference`。
+
+```bash
+bun run logs --grep "ai inference" --since 1d          # 全AI経路の実行履歴
+bun run logs --grep "ai inference" --level warn        # 失敗のみ
+```
+
+| フィールド | 意味 |
+|---|---|
+| `feature` | `label_analysis` / `region_qa` / `wine_list_analysis` |
+| `outcome` | `ok`（確定）/ `blocked`（残高不足で推論せず）/ `failed`（返却済み） |
+| `selected` | ユーザ選択（または既定）のエンジン・モデルキー |
+| `route` | シークレットの設定状況を加味して**意図した**経路 |
+| `executedBy` | **実際に結果を出した**経路。`route` と食い違えばフォールバック |
+| `fellBack` | 上記 2 つから導出。`true` なら高精度経路が落ちて拾われた |
+| `model` | 実際に呼んだモデル ID（`gpt-5.6-luna` 等） |
+| `actualTokens` / `reservedTokens` | 実測と予約。見積の妥当性の評価に使う |
+| `requestId` | `credit_ledger.request_id` と同値。台帳と突き合わせられる |
+
+> [!NOTE]
+> **「警告が出ていないこと」を成功の証拠にしない。** 成功経路が無言だった頃は、
+> 警告の不在が「正常に動いた」と「そもそも誰も使っていない」のどちらなのか区別できず、
+> GPT-5.6 Luna 導入時（#357）の本番確認ではクレジット台帳の `:settle` 行と見積式を
+> 突き合わせる間接的な推論に頼るしかなかった。`outcome: "ok"` の行を直接見ること。
+
+記録するのは実行メタデータのみで、写真・質問文・抽出されたワイン名などのユーザ
+入力/出力は載せない（ログから利用者のワイン履歴を復元できないようにするため）。
+フィールドを増やすときは `inference-log.test.ts` のキー全列挙テストが落ちるので、
+そこで privacy の是非を再確認する。
+
 > [!IMPORTANT]
 > **PRごとのプレビューURL（`https://<branch>-wine-preview.niboshi.workers.dev` /
 > `https://<commit>-wine-preview.niboshi.workers.dev`）へのアクセスはログに残らない。**

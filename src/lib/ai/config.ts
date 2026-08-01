@@ -263,6 +263,17 @@ export const AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE = 3_000;
  */
 export type LabelRoute = LabelEngineKey;
 
+/**
+ * 経路 → 実際に呼ぶモデルID。**実行記録のログが「どのモデルで解析したか」を
+ * 書くために参照する**。ログ側でモデル名をリテラル指定すると、モデルを差し替えた
+ * ときにログだけ古い名前を出し続け、観測が静かに嘘になるため導出可能にしておく。
+ */
+export const AI_LABEL_ROUTE_MODELS: Record<LabelRoute, string> = {
+	"gpt-luna": AI_LABEL_GPT_MODEL,
+	"web-research": AI_LABEL_WEB_MODEL,
+	"workers-ai": AI_LABEL_MODEL,
+};
+
 /** 高精度経路の利用可否(= 対応するシークレットが設定されているか)。 */
 export interface LabelProviderAvailability {
 	/** OPENAI_API_KEY が設定されている。 */

@@ -8,6 +8,7 @@ import {
 	AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
 	AI_LABEL_MAX_OUTPUT_TOKENS,
 	AI_LABEL_MODEL,
+	AI_LABEL_ROUTE_MODELS,
 	AI_LABEL_WEB_MAX_CONTINUATIONS,
 	AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
 	AI_LABEL_WEB_MAX_SEARCHES,
@@ -18,11 +19,13 @@ import {
 	AI_WINE_LIST_MODEL,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
+	type LabelRoute,
 	type RegionQaModelKey,
 	resolveLabelRoute,
 	toLabelEngineKey,
 	toRegionQaModelKey,
 } from "#/lib/ai/config";
+import { logAiInference } from "#/lib/ai/inference-log";
 import {
 	buildLabelMessages,
 	buildLabelSuggestions,
@@ -168,10 +171,27 @@ export async function answerRegionQuestion(
 	// NotFoundError で throw しうる。予約の後・try の外でこれを await すると、その throw が
 	// 下の catch(refundReservationOnFailure)に届かず、予約が返却も記録もされずに消える。
 	// モデル解決は予約と独立なので、先に済ませて「予約したら必ず try で囲まれている」形にする。
-	const model = AI_REGION_QA_MODELS[await resolveModelKey(userId, input.model)];
+	const startedAt = Date.now();
+	const modelKey = await resolveModelKey(userId, input.model);
+	const model = AI_REGION_QA_MODELS[modelKey];
+	// 実行記録の共通部分。経路ごとに組み立て直すとフィールドがドリフトするため1つ持つ。
+	const logBase = {
+		feature: "region_qa",
+		userId,
+		requestId,
+		selected: modelKey,
+		// 地域Q&Aはフォールバック経路が無いので、意図した経路＝実行経路。
+		route: modelKey,
+		model: model.id,
+	} as const;
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
 	if (!res.ok) {
+		logAiInference({
+			...logBase,
+			outcome: "blocked",
+			durationMs: Date.now() - startedAt,
+		});
 		return { blocked: true, balance: res.balance, required: res.required };
 	}
 
@@ -214,8 +234,23 @@ export async function answerRegionQuestion(
 			requestId,
 			res.reservedCredits,
 		);
+		logAiInference({
+			...logBase,
+			outcome: "failed",
+			durationMs: Date.now() - startedAt,
+			reservedTokens: res.reservedTokens,
+			err: e,
+		});
 		throw e;
 	}
+	logAiInference({
+		...logBase,
+		outcome: "ok",
+		executedBy: modelKey,
+		durationMs: Date.now() - startedAt,
+		actualTokens,
+		reservedTokens: res.reservedTokens,
+	});
 	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
 	// ネットプラスになるため、残高参照は try の外で行う(#144)。
 	const after = await creditService.getBalance(userId);
@@ -356,14 +391,32 @@ export async function analyzeWineLabel(
 				? estimateWebLabelReserveTokens(input.imageDataUrls.length)
 				: estimateLabelReserveTokens(input.imageDataUrls.length);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
+	const startedAt = Date.now();
+	const logBase = {
+		feature: "label_analysis",
+		userId,
+		requestId,
+		selected: engine,
+		route,
+		photoCount: input.imageDataUrls.length,
+	} as const;
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
 	if (!res.ok) {
+		logAiInference({
+			...logBase,
+			outcome: "blocked",
+			durationMs: Date.now() - startedAt,
+		});
 		return { blocked: true, balance: res.balance, required: res.required };
 	}
 
 	let suggestions: LabelSuggestions;
 	let actualTokens: number;
+	// 実際に結果を出した経路。高精度経路が失敗すると route と食い違う(=フォールバック)。
+	// route だけを記録すると「GPTで成功」と「GPTが落ちてWorkers AIが拾った」を
+	// 区別できないため、別に持って実行記録に載せる。
+	let executedBy: LabelRoute | undefined;
 	try {
 		let totalTokens = 0;
 		const extractions: LabelExtraction[] = [];
@@ -381,6 +434,7 @@ export async function analyzeWineLabel(
 				);
 				extractions.push(gpt.extraction);
 				totalTokens += gpt.totalTokens;
+				executedBy = "gpt-luna";
 			} catch (gptErr) {
 				logWarn("label gpt research failed; falling back to Workers AI", {
 					userId,
@@ -396,6 +450,7 @@ export async function analyzeWineLabel(
 				);
 				extractions.push(web.extraction);
 				totalTokens += web.totalTokens;
+				executedBy = "web-research";
 			} catch (webErr) {
 				logWarn("label web research failed; falling back to Workers AI", {
 					userId,
@@ -448,6 +503,7 @@ export async function analyzeWineLabel(
 					cause: lastPhotoErr,
 				});
 			}
+			executedBy = "workers-ai";
 		}
 		suggestions = buildLabelSuggestions(mergeExtractions(extractions));
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
@@ -465,8 +521,26 @@ export async function analyzeWineLabel(
 			requestId,
 			res.reservedCredits,
 		);
+		logAiInference({
+			...logBase,
+			outcome: "failed",
+			executedBy,
+			model: executedBy && AI_LABEL_ROUTE_MODELS[executedBy],
+			durationMs: Date.now() - startedAt,
+			reservedTokens: res.reservedTokens,
+			err: e,
+		});
 		throw e;
 	}
+	logAiInference({
+		...logBase,
+		outcome: "ok",
+		executedBy,
+		model: executedBy && AI_LABEL_ROUTE_MODELS[executedBy],
+		durationMs: Date.now() - startedAt,
+		actualTokens,
+		reservedTokens: res.reservedTokens,
+	});
 	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
 	// ネットプラスになるため、残高参照は try の外で行う(#144)。
 	const after = await creditService.getBalance(userId);
@@ -592,9 +666,25 @@ export async function analyzeWineList(
 	const { entries } = await drunkWineService.listDrunkWines(userId);
 	const estimate = estimateWineListReserveTokens(input.imageDataUrls.length);
 	const requestId = `scan_list:${crypto.randomUUID()}`;
+	const startedAt = Date.now();
+	const logBase = {
+		feature: "wine_list_analysis",
+		userId,
+		requestId,
+		// 一括抽出は Claude 単経路(キーが無ければ上で 503)。フォールバックは無い。
+		selected: "web-research",
+		route: "web-research",
+		model: AI_WINE_LIST_MODEL,
+		photoCount: input.imageDataUrls.length,
+	} as const;
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
 	if (!res.ok) {
+		logAiInference({
+			...logBase,
+			outcome: "blocked",
+			durationMs: Date.now() - startedAt,
+		});
 		return { blocked: true, balance: res.balance, required: res.required };
 	}
 
@@ -632,8 +722,23 @@ export async function analyzeWineList(
 			requestId,
 			res.reservedCredits,
 		);
+		logAiInference({
+			...logBase,
+			outcome: "failed",
+			durationMs: Date.now() - startedAt,
+			reservedTokens: res.reservedTokens,
+			err: e,
+		});
 		throw e;
 	}
+	logAiInference({
+		...logBase,
+		outcome: "ok",
+		executedBy: "web-research",
+		durationMs: Date.now() - startedAt,
+		actualTokens,
+		reservedTokens: res.reservedTokens,
+	});
 	// settle 成功後は消費確定済み(#144)。
 	const after = await creditService.getBalance(userId);
 	return {

@@ -781,3 +781,131 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		expect(await ledgerRowsOf(userId)).toHaveLength(0);
 	});
 });
+
+// 実行記録(#357 の振り返り)。GPT-5.6 Luna 導入時の本番確認では成功ログが無く、
+// 「警告が出ていない」という失敗の不在からしか成否を判断できなかった。
+// ここでは「成功時に1行出ること」と「フォールバックが成功ログ上で判別できること」を固定する。
+describe("analyzeWineLabel の実行記録ログ", () => {
+	/** console.info の JSON 行から ai inference の実行記録だけを拾う。 */
+	function captureInferenceLogs(spy: {
+		mock: { calls: unknown[][] };
+	}): Array<Record<string, unknown>> {
+		const lines: Array<Record<string, unknown>> = [];
+		for (const call of spy.mock.calls) {
+			try {
+				const parsed = JSON.parse(String(call[0])) as Record<string, unknown>;
+				if (parsed.msg === "ai inference") lines.push(parsed);
+			} catch {
+				// 実行記録以外の出力(素の console.info)は無視する
+			}
+		}
+		return lines;
+	}
+
+	it("GPT経路の成功を1行残す(誰が・どのモデルで・成功したか)", async () => {
+		const userId = await seedUser();
+		stubOpenAi(async () =>
+			openaiResponse(
+				{
+					wine_name: "Chablis",
+					producer: null,
+					vintage: null,
+					appellation: "Chablis",
+					region: null,
+					grape_varieties: [],
+				},
+				{ total_tokens: 1234 },
+			),
+		);
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+
+		try {
+			await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+			const logs = captureInferenceLogs(spy);
+			expect(logs).toHaveLength(1);
+			expect(logs[0]).toMatchObject({
+				feature: "label_analysis",
+				userId,
+				outcome: "ok",
+				route: "gpt-luna",
+				executedBy: "gpt-luna",
+				model: "gpt-5.6-luna",
+				fellBack: false,
+				actualTokens: 1234,
+				photoCount: 1,
+			});
+			// 台帳と突き合わせられるよう request_id が載る
+			expect(String(logs[0]?.requestId)).toMatch(/^analyze_label:/);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("フォールバックは成功ログ上で route と executedBy の食い違いとして見える", async () => {
+		const userId = await seedUser();
+		// GPT を 400 で落とし、Workers AI に拾わせる
+		stubOpenAi(async () =>
+			Response.json({ error: { message: "bad request" } }, { status: 400 }),
+		);
+		stubAiRun(async () => ({
+			response: JSON.stringify({
+				wine_name: "Chablis",
+				producer: null,
+				vintage: null,
+				appellation: "Chablis",
+				region: null,
+				grape_varieties: [],
+			}),
+			usage: { total_tokens: 55 },
+		}));
+		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+
+		try {
+			await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+			const logs = captureInferenceLogs(spy);
+			expect(logs).toHaveLength(1);
+			// route(意図)は gpt-luna のまま、executedBy(実際)が workers-ai になる。
+			// executedBy を持たない実装だと、この2つが同じに見えて成功ログから
+			// フォールバックを検出できない。
+			expect(logs[0]).toMatchObject({
+				outcome: "ok",
+				route: "gpt-luna",
+				executedBy: "workers-ai",
+				model: "@cf/meta/llama-4-scout-17b-16e-instruct",
+				fellBack: true,
+				actualTokens: 55,
+			});
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("残高不足(blocked)でも記録を残す(推論しなかったことが分かる)", async () => {
+		const userId = await seedUser();
+		// 残高を直接0にしても reserveCredits 冒頭の月次付与で上書きされるため、
+		// **見積が月次付与を超える枚数**を渡して予約を弾かせる。
+		// GPT経路の見積 = 30,000 + 3,000×枚数 トークン。8枚 = 54,000 → 54クレジットで
+		// 無料会員の月次付与(50)を超える。
+		const photos = Array.from({ length: 8 }, () => PHOTO);
+		stubOpenAi(async () => openaiResponse({}, { total_tokens: 1 }));
+		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+
+		try {
+			const result = await analyzeWineLabel(userId, { imageDataUrls: photos });
+			expect(result.blocked).toBe(true);
+			const logs = captureInferenceLogs(spy);
+			expect(logs).toHaveLength(1);
+			expect(logs[0]).toMatchObject({
+				feature: "label_analysis",
+				outcome: "blocked",
+				route: "gpt-luna",
+				photoCount: photos.length,
+			});
+			// 推論に到達していないので実行経路は載らない
+			expect(logs[0]).not.toHaveProperty("executedBy");
+		} finally {
+			spy.mockRestore();
+		}
+	});
+});
