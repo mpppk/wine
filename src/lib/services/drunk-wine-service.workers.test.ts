@@ -13,9 +13,11 @@ import { thumbKeyForPhotoKey } from "#/lib/drunk-wine/photo";
 import type { WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError } from "#/lib/errors";
 import { imageKeyFromPath } from "#/lib/images/signed-url";
+import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import {
 	addWineSighting,
 	addWineTasting,
+	bulkRegisterFromScan,
 	countCellarFilters,
 	createDrunkWine,
 	deleteDrunkWine,
@@ -28,12 +30,13 @@ import {
 	listWineSightings,
 	listWineTastings,
 	markWineDrunk,
+	saveImportBatchPhotos,
 	syncDrunkWinePhotos,
 	updateLatestWineTasting,
 	updateWineSighting,
 	updateWineTasting,
 } from "./drunk-wine-service";
-import { createPlace, deletePlace } from "./place-service";
+import { createPlace, deletePlace, listPlaces } from "./place-service";
 
 // D1(実SQLite)上で、所有状態(status)と飲用記録(wine_tasting)の2軸モデルを検証する。
 // 集計キャッシュ(tasting_count / last_drank_on)は相関サブクエリによる全再計算で
@@ -1176,5 +1179,248 @@ describe("目撃記録の所有権", () => {
 			.from(wineSighting)
 			.where(eq(wineSighting.drunkWineId, id));
 		expect(rows).toHaveLength(0);
+	});
+});
+
+// 写真からの一括登録(Issue #358)。1回の db.batch で場所・バッチ・銘柄・目撃記録・
+// 飲用記録・集計キャッシュを作る経路なので、見るのは「全部できているか」と
+// 「失敗したときに中途半端な状態が残らないか」。
+describe("bulkRegisterFromScan", () => {
+	const item = (
+		partial: Partial<BulkRegisterFromScanInput["items"][number]> = {},
+	): BulkRegisterFromScanInput["items"][number] => ({
+		wine: { name: "Chablis" },
+		...partial,
+	});
+
+	it("銘柄・目撃記録・バッチをまとめて作り、集計キャッシュを更新する", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			seenOn: "2026-08-01",
+			photoCount: 2,
+			items: [
+				item({
+					wine: { name: "Chablis Les Clos", vintage: 2020 },
+					sighting: { photoIndex: 0, price: 24000 },
+				}),
+				item({ wine: { name: "Barolo Brunate" }, sighting: { photoIndex: 1 } }),
+			],
+		});
+
+		expect(result).toMatchObject({
+			createdCount: 2,
+			matchedCount: 0,
+			sightingCount: 2,
+			tastingCount: 0,
+			placeId: null,
+		});
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries).toHaveLength(2);
+		for (const entry of entries) {
+			// 見かけただけなので「飲んだ」記録は作られない(status も spotted)
+			expect(entry.status).toBe("spotted");
+			expect(entry.tastingCount).toBe(0);
+			// 集計キャッシュが同じ batch で更新されている
+			expect(entry.sightingCount).toBe(1);
+			expect(entry.lastSeenOn).toBe("2026-08-01");
+		}
+
+		const sightings = await listWineSightings(
+			userId,
+			entries.find((e) => e.name === "Chablis Les Clos")?.id ?? "",
+		);
+		expect(sightings[0]).toMatchObject({
+			batchId: result.batchId,
+			photoIndex: 0,
+			price: 24000,
+			seenOn: "2026-08-01",
+		});
+	});
+
+	it("既存エントリには銘柄を作らず目撃記録だけを足す", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, {
+			name: "以前飲んだシャブリ",
+			status: "finished",
+		});
+
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [item({ wine: undefined, existingId: existing.id })],
+		});
+
+		expect(result).toMatchObject({ createdCount: 0, matchedCount: 1 });
+		const { entries } = await listDrunkWines(userId);
+		expect(entries).toHaveLength(1);
+		// 既存の状態(飲み終わった)は書き換えない。目撃記録が増えるだけ
+		expect(entries[0]).toMatchObject({
+			id: existing.id,
+			status: "finished",
+			sightingCount: 1,
+			tastingCount: 1,
+		});
+	});
+
+	it("「飲んだ」指定があれば飲用記録も同じ batch で作る", async () => {
+		const userId = await freshUser();
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				item({
+					wine: { name: "飲んだワイン", status: "finished" },
+					tasting: { drankOn: "2026-07-31", rating: 4 },
+				}),
+			],
+		});
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]).toMatchObject({
+			status: "finished",
+			tastingCount: 1,
+			lastDrankOn: "2026-07-31",
+			lastRating: 4,
+			sightingCount: 1,
+		});
+	});
+
+	it("新規で場所を作ると、全ての目撃記録がその場所を指す", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			newPlace: { name: "ビストロ・クロード" },
+			photoCount: 0,
+			items: [item({ wine: { name: "A" } }), item({ wine: { name: "B" } })],
+		});
+
+		expect(result.placeId).not.toBeNull();
+		const places = await listPlaces(userId);
+		expect(places).toHaveLength(1);
+		const { entries } = await listDrunkWines(userId);
+		for (const entry of entries) {
+			const [sighting] = await listWineSightings(userId, entry.id);
+			expect(sighting?.placeId).toBe(result.placeId);
+			expect(sighting?.placeName).toBe("ビストロ・クロード");
+		}
+	});
+
+	it("他ユーザのエントリを指定した登録は丸ごと失敗する(部分適用しない)", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		const theirs = await createDrunkWine(stranger, { name: "他人のワイン" });
+
+		await expect(
+			bulkRegisterFromScan(owner, {
+				photoCount: 0,
+				items: [
+					item({ wine: { name: "巻き添えになってはいけない" } }),
+					item({ wine: undefined, existingId: theirs.id }),
+				],
+			}),
+		).rejects.toThrow("Entry not found");
+
+		// 1件目も作られていない = 検証は全件そろってから
+		expect((await listDrunkWines(owner)).entries).toHaveLength(0);
+	});
+
+	it("他ユーザの場所を指した登録は失敗する(FKは所有者を見ないため)", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		const theirPlace = await createPlace(stranger, { name: "他人の行きつけ" });
+
+		await expect(
+			bulkRegisterFromScan(owner, {
+				placeId: theirPlace.id,
+				photoCount: 0,
+				items: [item()],
+			}),
+		).rejects.toThrow("Place not found");
+		expect((await listDrunkWines(owner)).entries).toHaveLength(0);
+	});
+
+	it("未知のAOPを含む登録は丸ごと失敗する", async () => {
+		const userId = await freshUser();
+		await expect(
+			bulkRegisterFromScan(userId, {
+				photoCount: 0,
+				items: [
+					item({ wine: { name: "正しい" } }),
+					item({ wine: { name: "壊れている", aopId: "no-such-aop" } }),
+				],
+			}),
+		).rejects.toBeInstanceOf(BadRequestError);
+		expect((await listDrunkWines(userId)).entries).toHaveLength(0);
+	});
+});
+
+describe("saveImportBatchPhotos", () => {
+	const JPEG_1X1_BYTES = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	async function seedBatch(userId: string): Promise<string> {
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{ wine: { name: "写真つきの一括登録" }, sighting: { photoIndex: 0 } },
+			],
+		});
+		return result.batchId;
+	}
+
+	it("バッチに1回だけ写真を置き、目撃記録の photoIndex が指す配列を確定する", async () => {
+		const userId = await freshUser();
+		const batchId = await seedBatch(userId);
+
+		const batch = await saveImportBatchPhotos(userId, batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+
+		expect(batch.photoUrls).toHaveLength(1);
+		const key = imageKeyFromPath(batch.photoUrls[0] as string);
+		// 認可・署名URL・退会時削除が前提にしている wines/{userId}/{中間ID}/ のレイアウト
+		expect(key.startsWith(`wines/${userId}/${batchId}/`)).toBe(true);
+		expect(await env.AVATARS.head(key)).not.toBeNull();
+	});
+
+	it("画像として認識できないファイルは保存しない(申告MIMEを信用しない #150)", async () => {
+		const userId = await freshUser();
+		const batchId = await seedBatch(userId);
+
+		await expect(
+			saveImportBatchPhotos(userId, batchId, [
+				{
+					bytes: new TextEncoder().encode("<html>not an image</html>"),
+					mimeType: "image/jpeg",
+				},
+			]),
+		).rejects.toBeInstanceOf(BadRequestError);
+	});
+
+	it("保存済みのバッチへの再アップロードは拒否する(photoIndex がずれるため)", async () => {
+		const userId = await freshUser();
+		const batchId = await seedBatch(userId);
+		await saveImportBatchPhotos(userId, batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+
+		await expect(
+			saveImportBatchPhotos(userId, batchId, [
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			]),
+		).rejects.toThrow("保存済み");
+	});
+
+	it("他ユーザのバッチには保存できない", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		const batchId = await seedBatch(owner);
+
+		await expect(
+			saveImportBatchPhotos(stranger, batchId, [
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			]),
+		).rejects.toThrow("Import batch not found");
 	});
 });

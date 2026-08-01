@@ -80,7 +80,18 @@ export const bulkRegisterFromScanInput = z
 	})
 	.refine((v) => !(v.placeId && v.newPlace), {
 		error: "場所は既存の選択か新規作成のどちらか一方にしてください",
-	});
+	})
+	// 目撃記録が「存在しない写真」を指したまま残らないよう、枚数との整合をここで見る。
+	// wineSightingFields.photoIndex 単体では上限(10枚)しか見られない。
+	.refine(
+		(v) =>
+			v.items.every(
+				(i) =>
+					i.sighting?.photoIndex == null ||
+					i.sighting.photoIndex < v.photoCount,
+			),
+		{ error: "写真の番号が、送信する写真の枚数を超えています" },
+	);
 
 export type ImportItemInput = z.infer<typeof importItemInput>;
 export type BulkRegisterFromScanInput = z.infer<

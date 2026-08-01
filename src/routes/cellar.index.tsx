@@ -5,7 +5,7 @@ import {
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
-import { MapIcon, PlusIcon, WineIcon } from "lucide-react";
+import { ImagesIcon, MapIcon, PlusIcon, WineIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { CellarFilterChips } from "#/components/cellar/CellarFilterChips";
@@ -20,6 +20,7 @@ import { DRUNK_WINE_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
+import { getWineListAnalysisAvailability } from "#/server/ai";
 import {
 	countCellarFilters,
 	listDrunkWines,
@@ -42,13 +43,16 @@ export const Route = createFileRoute("/cellar/")({
 	// 件数は集計クエリで別に取る(#254)。
 	loaderDeps: ({ search }) => ({ filter: search.filter }),
 	loader: async ({ deps }) => {
-		const [page, counts] = await Promise.all([
+		// 一括登録は Claude 専用の経路で、キーが無い環境では使えない。導線ごと
+		// 隠すため、判定を一覧のロードで一緒に取る(サーバ側の 503 と同じ判定)。
+		const [page, counts, wineListAnalysis] = await Promise.all([
 			listDrunkWines({
 				data: { filter: deps.filter, limit: DRUNK_WINE_PAGE_SIZE },
 			}),
 			countCellarFilters(),
+			getWineListAnalysisAvailability(),
 		]);
-		return { page, counts };
+		return { page, counts, wineListAnalysis };
 	},
 	component: CellarPage,
 });
@@ -139,7 +143,7 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 }
 
 function CellarPage() {
-	const { page, counts } = Route.useLoaderData();
+	const { page, counts, wineListAnalysis } = Route.useLoaderData();
 	const { filter } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 
@@ -172,13 +176,21 @@ function CellarPage() {
 		<main className="mx-auto max-w-4xl px-4 py-10">
 			<div className="mb-6 flex flex-wrap items-center gap-2">
 				<h1 className="text-2xl font-bold">マイセラー</h1>
-				<div className="ml-auto flex gap-2">
+				<div className="ml-auto flex flex-wrap gap-2">
 					<Button asChild variant="outline" size="sm">
 						<Link to="/cellar/map" search={{ filter }}>
 							<MapIcon className="size-4" aria-hidden />
 							地図で見る
 						</Link>
 					</Button>
+					{wineListAnalysis.available && (
+						<Button asChild variant="outline" size="sm">
+							<Link to="/cellar/import">
+								<ImagesIcon className="size-4" aria-hidden />
+								写真からまとめて登録
+							</Link>
+						</Button>
+					)}
 					<Button asChild size="sm">
 						<Link to="/cellar/new">
 							<PlusIcon className="size-4" aria-hidden />

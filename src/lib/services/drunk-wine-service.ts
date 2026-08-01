@@ -27,12 +27,15 @@ import type {
 	UpdateWineTastingInput,
 } from "#/lib/drunk-wine/schema";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
-import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
+import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import { type LogFields, logError, logWarn } from "#/lib/logger";
-import type {
-	CreateWineSightingInput,
-	UpdateWineSightingInput,
+import { DEFAULT_PLACE_KIND } from "#/lib/place/place";
+import {
+	type CreateWineSightingInput,
+	MAX_PHOTOS_PER_IMPORT_BATCH,
+	type UpdateWineSightingInput,
 } from "#/lib/place/schema";
 import {
 	getAop,
@@ -1165,4 +1168,317 @@ export async function syncDrunkWinePhotos(
 	// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
 	// 返却用に読み直す(R2 の後始末が済んでから)。
 	return getDrunkWine(userId, id);
+}
+
+// ---- 一括登録(写真からのスキャン。Issue #358) -----------------------------
+// レストランのワインリスト・ショップの棚を撮った写真から抽出した複数銘柄を、
+// 1回の確定でまとめて登録する経路。場所(新規なら)・バッチ・銘柄・目撃記録・
+// 飲用記録・集計キャッシュを**すべて同一の db.batch で原子的に**作る。
+//
+// ここに置くのは目撃記録・写真と同じ理由で、recomputeDrunkWineAggregates /
+// buildSightingValues / buildTastingValues / cleanupPhotoObjects といった
+// モジュール私有のヘルパと同じ batch に積む必要があるため。
+//
+// 写真の実体だけは2段階目(saveImportBatchPhotos)になる。R2キーが batchId 依存で、
+// バッチ行が確定するまでキーを採番できないため(エントリ写真と同じ制約)。
+
+export interface BulkRegisterFromScanResult {
+	/** 作成した一括登録バッチのID。写真アップロード(2段階目)がこれを使う */
+	batchId: string;
+	/** 紐付けた場所のID。場所を指定しなかった場合は null */
+	placeId: string | null;
+	/** 新規作成した銘柄の件数 */
+	createdCount: number;
+	/** 既存エントリに目撃記録だけを足した件数 */
+	matchedCount: number;
+	/** 作成した目撃記録の件数(= items の件数) */
+	sightingCount: number;
+	/** 作成した飲用記録の件数 */
+	tastingCount: number;
+}
+
+/**
+ * 集計キャッシュの一括再計算。**1文で全対象を更新する**が、id を分割して積むのは
+ * D1 の「1クエリあたりのバインド変数」上限に触れないため(1回の一括登録は最大
+ * MAX_ITEMS_PER_IMPORT 件 = 80件になりうる)。式は単体経路と同じものを使う。
+ */
+const RECOMPUTE_CHUNK_SIZE = 50;
+
+/**
+ * db.batch に積める文の型。db.batch は「1件以上」をタプルで要求するので、
+ * 件数が実行時に決まるこの経路では配列で組み立ててから最後にタプルへ寄せる。
+ */
+type BatchStatement = Parameters<typeof db.batch>[0][number];
+
+function recomputeDrunkWineAggregatesBulk(
+	userId: string,
+	ids: string[],
+): BatchStatement[] {
+	const statements: BatchStatement[] = [];
+	for (let i = 0; i < ids.length; i += RECOMPUTE_CHUNK_SIZE) {
+		const chunk = ids.slice(i, i + RECOMPUTE_CHUNK_SIZE);
+		statements.push(
+			db
+				.update(drunkWine)
+				.set({
+					tastingCount: TASTING_COUNT_EXPR,
+					lastDrankOn: MAX_DRANK_ON_EXPR,
+					sightingCount: SIGHTING_COUNT_EXPR,
+					lastSeenOn: MAX_SEEN_ON_EXPR,
+				})
+				.where(and(eq(drunkWine.userId, userId), inArray(drunkWine.id, chunk))),
+		);
+	}
+	return statements;
+}
+
+/**
+ * 写真から抽出した銘柄群をまとめて登録する。
+ *
+ * - `existingId` の項目は銘柄を作らず、その既存エントリに目撃記録だけを足す
+ *   (同じワインを別の店でも見かけた、を1エントリ + 目撃N件で表す設計)
+ * - 目撃記録の場所・見かけた日・バッチIDはバッチ共通の値をここで埋める
+ * - `status` 未指定の新規銘柄は "spotted"(見かけた)。createDrunkWine の既定
+ *   (finished)をそのまま使うと、見かけただけのワインが飲み終わり扱いになり、
+ *   日付なしの飲用記録まで作られてしまう
+ *
+ * **全成功か全失敗**なので、ネットワーク都合で再送されても部分的な重複は残らない
+ * (同じ入力をユーザが2回確定すれば2バッチできるが、それは意図した操作)。
+ */
+export async function bulkRegisterFromScan(
+	userId: string,
+	input: BulkRegisterFromScanInput,
+): Promise<BulkRegisterFromScanResult> {
+	// 静的マスタ(AOP・品種)の検証は新規銘柄ぶんだけ。1件でも不正なら登録全体を
+	// 断る(部分適用にすると、どれが入ってどれが入らなかったかを画面が説明できない)
+	for (const item of input.items) {
+		if (item.wine) assertValidRefs(item.wine);
+	}
+
+	// 既存エントリの所有権をまとめて確認する。1件ずつ SELECT すると件数ぶん
+	// ラウンドトリップが増えるので、id の集合で1回引いて差分を見る。
+	const existingIds = [
+		...new Set(
+			input.items
+				.map((i) => i.existingId)
+				.filter((id): id is string => id != null),
+		),
+	];
+	if (existingIds.length > 0) {
+		const rows = await db
+			.select({ id: drunkWine.id })
+			.from(drunkWine)
+			.where(
+				and(eq(drunkWine.userId, userId), inArray(drunkWine.id, existingIds)),
+			);
+		if (rows.length !== existingIds.length) {
+			// 存在しない/他ユーザ所有は区別しない(存在の探索を防ぐ規約)
+			throw new NotFoundError("Entry not found");
+		}
+	}
+
+	// 場所: 既存の指定は所有権を確認し、新規は同じ batch で作る
+	if (input.placeId) {
+		await assertOwnsSightingRefs(userId, { placeId: input.placeId });
+	}
+	const newPlaceId = input.newPlace ? crypto.randomUUID() : null;
+	const placeId = input.placeId ?? newPlaceId;
+
+	const batchId = crypto.randomUUID();
+	const statements: BatchStatement[] = [];
+
+	if (input.newPlace) {
+		statements.push(
+			db.insert(place).values({
+				id: newPlaceId as string,
+				userId,
+				name: input.newPlace.name,
+				kind: input.newPlace.kind ?? DEFAULT_PLACE_KIND,
+				memo: input.newPlace.memo ?? null,
+			}),
+		);
+	}
+
+	statements.push(
+		db.insert(importBatch).values({
+			id: batchId,
+			userId,
+			placeId,
+			seenOn: input.seenOn ?? null,
+			// 写真の実体は2段階目(saveImportBatchPhotos)で入る
+			photoKeys: [],
+		}),
+	);
+
+	const affectedIds: string[] = [];
+	let createdCount = 0;
+	let tastingCount = 0;
+	for (const item of input.items) {
+		let drunkWineId: string;
+		if (item.wine) {
+			drunkWineId = crypto.randomUUID();
+			createdCount += 1;
+			statements.push(
+				db.insert(drunkWine).values({
+					id: drunkWineId,
+					userId,
+					name: item.wine.name,
+					// 見かけただけ、が既定。飲んだかどうかは tasting の有無で表す
+					status: item.wine.status ?? "spotted",
+					aopId: item.wine.aopId
+						? (resolveAopId(item.wine.aopId) ?? item.wine.aopId)
+						: null,
+					vintage: item.wine.vintage ?? null,
+					grapeVarietyIds: item.wine.grapeVarietyIds ?? [],
+					producer: item.wine.producer ?? null,
+					price: item.wine.price ?? null,
+				}),
+			);
+		} else {
+			// refine 済みなので existingId は必ずある
+			drunkWineId = item.existingId as string;
+		}
+		affectedIds.push(drunkWineId);
+
+		statements.push(
+			db.insert(wineSighting).values(
+				buildSightingValues(userId, drunkWineId, {
+					...item.sighting,
+					placeId: placeId ?? undefined,
+					batchId,
+					seenOn: input.seenOn,
+				}),
+			),
+		);
+
+		if (item.tasting) {
+			tastingCount += 1;
+			statements.push(
+				db
+					.insert(wineTasting)
+					.values(buildTastingValues(userId, drunkWineId, item.tasting)),
+			);
+		}
+	}
+
+	// 集計キャッシュは INSERT 群の後に積む(D1 の batch は順次実行なので、この
+	// UPDATE は同じ batch の INSERT の結果を見る)。新規銘柄も既存銘柄も対象。
+	statements.push(...recomputeDrunkWineAggregatesBulk(userId, affectedIds));
+
+	// items は1件以上(zod)なので statements も必ず1件以上になる
+	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
+
+	return {
+		batchId,
+		placeId,
+		createdCount,
+		matchedCount: input.items.length - createdCount,
+		sightingCount: input.items.length,
+		tastingCount,
+	};
+}
+
+/** 一括登録バッチ1件(写真アップロードの応答)。 */
+export interface ImportBatchEntry {
+	id: string;
+	placeId: string | null;
+	seenOn: string | null;
+	/** 写真の相対URL(/api/images/...)。撮影順 = 目撃記録の photoIndex が指す順 */
+	photoUrls: string[];
+	createdAt: number;
+}
+
+function toImportBatchEntry(
+	row: typeof importBatch.$inferSelect,
+): ImportBatchEntry {
+	return {
+		id: row.id,
+		placeId: row.placeId,
+		seenOn: row.seenOn,
+		photoUrls: row.photoKeys.map(imagePathForKey),
+		createdAt: row.createdAt.getTime(),
+	};
+}
+
+/**
+ * 一括登録バッチの写真をR2へ保存し、キー配列を確定する(2段階目)。
+ *
+ * リスト/棚の写真は**バッチに1回だけ置き、銘柄ごとに複製しない**。目撃記録は
+ * photoIndex でこの配列を指す。したがって**順番と枚数が登録時の申告
+ * (photoCount)と一致していること**が意味の前提になり、ここでずれると
+ * 「別の写真で見かけたことになる」ため、枚数が合わなければ拒否する。
+ *
+ * R2キーは `wines/{userId}/{batchId}/{photoId}.{ext}`。エントリ写真と同じ
+ * `wines/` 接頭辞に載せる理由は db/schema.ts の importBatch の JSDoc を参照
+ * (認可・署名URL・退会時削除がこのレイアウトと一対の契約になっている)。
+ *
+ * 既に写真が入っているバッチへの再アップロードは受け付けない(冪等性のためでは
+ * なく、目撃記録の photoIndex が既に確定した配列を指しているため。差し替えたい
+ * ケースは現状の導線に無い)。
+ */
+export async function saveImportBatchPhotos(
+	userId: string,
+	batchId: string,
+	photos: Array<{ bytes: ArrayBuffer | Uint8Array; mimeType: string }>,
+): Promise<ImportBatchEntry> {
+	if (photos.length > MAX_PHOTOS_PER_IMPORT_BATCH) {
+		throw new BadRequestError(
+			`写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです`,
+		);
+	}
+	const [existing] = await db
+		.select()
+		.from(importBatch)
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+	if (!existing) throw new NotFoundError("Import batch not found");
+	if (existing.photoKeys.length > 0) {
+		throw new ConflictError("このバッチの写真は保存済みです");
+	}
+
+	const putKeys: string[] = [];
+	try {
+		for (const photo of photos) {
+			// 保存する Content-Type は申告値ではなく実バイトから確定する(#150)。
+			// 新しい入力経路を足すときに必ずこの関門を通す(#174)。
+			const bytes =
+				photo.bytes instanceof Uint8Array
+					? photo.bytes
+					: new Uint8Array(photo.bytes);
+			const mime = resolveStoredPhotoMime(bytes, photo.mimeType);
+			if (!mime) {
+				throw new BadRequestError(
+					"画像として認識できないか、形式が申告値と一致しないファイルが含まれています",
+				);
+			}
+			const key = buildWinePhotoKey(userId, batchId, crypto.randomUUID(), mime);
+			await env.AVATARS.put(key, bytes, {
+				httpMetadata: { contentType: mime },
+			});
+			putKeys.push(key);
+		}
+	} catch (e) {
+		// 巻き戻しの成否に関わらず元例外を投げる(掃除の失敗で真因を隠さない)
+		await cleanupPhotoObjects(putKeys, {
+			userId,
+			entryId: batchId,
+			phase: "import-batch-rollback",
+			originalErr: e,
+		});
+		throw e;
+	}
+
+	const [row] = await db
+		.update(importBatch)
+		.set({ photoKeys: putKeys })
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)))
+		.returning();
+	if (!row) {
+		await cleanupPhotoObjects(putKeys, {
+			userId,
+			entryId: batchId,
+			phase: "import-batch-deleted",
+		});
+		throw new NotFoundError("Import batch not found");
+	}
+	return toImportBatchEntry(row);
 }
