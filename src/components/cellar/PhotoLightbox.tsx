@@ -1,8 +1,9 @@
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogTitle,
@@ -54,6 +55,9 @@ export function PhotoLightbox({
 				// 画像を主役にするので枠と余白は最小限にし、縦横とも画面内に収める。
 				// sm:max-w-lg(既定)だと拡大にならないので打ち消す。
 				className="max-w-[calc(100%-1rem)] gap-2 p-2 sm:max-w-3xl"
+				// 既定の閉じるボタンは画像に重なると同系色で見えなくなるため、
+				// 背景付きの自前のボタンに差し替える
+				showCloseButton={false}
 				// 左右キーで送れるようにする(Esc での閉じは Radix が面倒を見る)
 				onKeyDown={(e) => {
 					if (!multiple) return;
@@ -73,6 +77,13 @@ export function PhotoLightbox({
 					{multiple && "左右のボタンかキーで写真を切り替えられます。"}
 					Escキーで閉じます。
 				</DialogDescription>
+
+				<DialogClose
+					aria-label="閉じる"
+					className="absolute right-4 top-4 z-10 rounded-full bg-background/80 p-2 text-foreground shadow-sm transition-colors hover:bg-background focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none"
+				>
+					<XIcon className="size-4" aria-hidden />
+				</DialogClose>
 
 				{current && (
 					<img
