@@ -208,15 +208,22 @@ const grapesField = z
 	.nullish()
 	.catch([]);
 
-/** モデル出力(JSON)の受け取り側スキーマ。型の揺れに寛容な正規化つき。 */
-const labelResponseSchema = z.object({
+/**
+ * モデル出力(JSON)の受け取り側スキーマの構成要素。**一括抽出
+ * (wine-list-extraction.ts)が銘柄1件ぶんの形としてこれを展開する**ので、
+ * 揺れの吸収ルールが経路ごとにドリフトしないよう z.object ではなく shape で公開する。
+ */
+export const labelExtractionShape = {
 	wine_name: textField,
 	producer: textField,
 	vintage: vintageField,
 	appellation: textField,
 	region: textField,
 	grape_varieties: grapesField,
-});
+} as const;
+
+/** モデル出力(JSON)の受け取り側スキーマ。型の揺れに寛容な正規化つき。 */
+const labelResponseSchema = z.object(labelExtractionShape);
 
 /** モデル出力を正規化した抽出結果。未読取は undefined。 */
 export interface LabelExtraction {
@@ -237,15 +244,16 @@ function cleanText(value: string | null | undefined): string | undefined {
 }
 
 /**
- * モデルの生出力をパースする。guided_json で JSON が強制される想定だが、
- * コードフェンスや前後の文が混ざるケースに備えて最初の { 〜 最後の } を取り出す。
- * Workers AI は guided_json 時に response を**パース済みオブジェクト**で返すことが
- * あるため(文字列前提だと TypeError で解析が全滅する)、オブジェクトはそのまま
- * スキーマ検証に回す。解釈できない場合は throw(呼び出し側でクレジット返却の上
- * エラー応答にする)。
+ * モデルの生出力からJSONオブジェクトを取り出す。guided_json / structured outputs で
+ * JSON が強制される想定だが、コードフェンスや前後の文が混ざるケースに備えて
+ * 最初の { 〜 最後の } を取り出す。Workers AI は guided_json 時に response を
+ * **パース済みオブジェクト**で返すことがあるため(文字列前提だと TypeError で解析が
+ * 全滅する)、オブジェクトはそのまま返す。解釈できない場合は throw(呼び出し側で
+ * クレジット返却の上エラー応答にする)。
+ *
+ * 一括抽出(wine-list-extraction.ts)も同じ取り出しをするので共有する。
  */
-export function parseLabelResponse(raw: unknown): LabelExtraction {
-	let parsed: unknown;
+export function extractJsonPayload(raw: unknown): unknown {
 	if (typeof raw === "string") {
 		const start = raw.indexOf("{");
 		const end = raw.lastIndexOf("}");
@@ -253,20 +261,24 @@ export function parseLabelResponse(raw: unknown): LabelExtraction {
 			throw new Error("AIの応答にJSONが含まれていません");
 		}
 		try {
-			parsed = JSON.parse(raw.slice(start, end + 1));
+			return JSON.parse(raw.slice(start, end + 1));
 		} catch {
 			throw new Error("AIの応答を解釈できませんでした");
 		}
-	} else if (raw !== null && typeof raw === "object") {
-		parsed = raw;
-	} else {
-		throw new Error("AIの応答にJSONが含まれていません");
 	}
-	const result = labelResponseSchema.safeParse(parsed);
-	if (!result.success) {
-		throw new Error("AIの応答の形式が不正です");
-	}
-	const d = result.data;
+	if (raw !== null && typeof raw === "object") return raw;
+	throw new Error("AIの応答にJSONが含まれていません");
+}
+
+/** labelExtractionShape で検証済みの値を、アプリ側の表現(未読取は undefined)へ写す。 */
+export function toLabelExtraction(d: {
+	wine_name?: string | null;
+	producer?: string | null;
+	vintage?: number | null;
+	appellation?: string | null;
+	region?: string | null;
+	grape_varieties?: string[] | null;
+}): LabelExtraction {
 	return {
 		wineName: cleanText(d.wine_name),
 		producer: cleanText(d.producer),
@@ -277,6 +289,15 @@ export function parseLabelResponse(raw: unknown): LabelExtraction {
 			.map((g) => g.trim())
 			.filter((g) => g.length > 0),
 	};
+}
+
+/** モデルの生出力を1本ぶんの抽出結果にパースする。解釈できない場合は throw。 */
+export function parseLabelResponse(raw: unknown): LabelExtraction {
+	const result = labelResponseSchema.safeParse(extractJsonPayload(raw));
+	if (!result.success) {
+		throw new Error("AIの応答の形式が不正です");
+	}
+	return toLabelExtraction(result.data);
 }
 
 /**

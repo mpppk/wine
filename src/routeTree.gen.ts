@@ -24,6 +24,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
+import { Route as ApiWineListAnalysisRouteImport } from './routes/api/wine-list-analysis'
 import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
 import { Route as CellarIndexRouteImport } from './routes/cellar.index'
 import { Route as CellarMapRouteImport } from './routes/cellar.map'
@@ -116,6 +117,11 @@ const ApiUploadRoute = ApiUploadRouteImport.update({
   path: '/api/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWineListAnalysisRoute = ApiWineListAnalysisRouteImport.update({
+  id: '/api/wine-list-analysis',
+  path: '/api/wine-list-analysis',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWinePhotosRoute = ApiWinePhotosRouteImport.update({
   id: '/api/wine-photos',
   path: '/api/wine-photos',
@@ -202,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/map': typeof CellarMapRoute
   '/cellar/new': typeof CellarNewRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/map': typeof CellarMapRoute
   '/cellar/new': typeof CellarNewRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/map': typeof CellarMapRoute
   '/cellar/new': typeof CellarNewRoute
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
+    | '/api/wine-list-analysis'
     | '/api/wine-photos'
     | '/cellar/map'
     | '/cellar/new'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
+    | '/api/wine-list-analysis'
     | '/api/wine-photos'
     | '/cellar/map'
     | '/cellar/new'
@@ -360,6 +371,7 @@ export interface FileRouteTypes {
     | '/api/label-analysis'
     | '/api/mcp'
     | '/api/upload'
+    | '/api/wine-list-analysis'
     | '/api/wine-photos'
     | '/cellar/map'
     | '/cellar/new'
@@ -392,6 +404,7 @@ export interface RootRouteChildren {
   ApiLabelAnalysisRoute: typeof ApiLabelAnalysisRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
+  ApiWineListAnalysisRoute: typeof ApiWineListAnalysisRoute
   ApiWinePhotosRoute: typeof ApiWinePhotosRoute
   CellarMapRoute: typeof CellarMapRoute
   CellarNewRoute: typeof CellarNewRoute
@@ -516,6 +529,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/wine-list-analysis': {
+      id: '/api/wine-list-analysis'
+      path: '/api/wine-list-analysis'
+      fullPath: '/api/wine-list-analysis'
+      preLoaderRoute: typeof ApiWineListAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/wine-photos': {
       id: '/api/wine-photos'
       path: '/api/wine-photos'
@@ -634,6 +654,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLabelAnalysisRoute: ApiLabelAnalysisRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,
+  ApiWineListAnalysisRoute: ApiWineListAnalysisRoute,
   ApiWinePhotosRoute: ApiWinePhotosRoute,
   CellarMapRoute: CellarMapRoute,
   CellarNewRoute: CellarNewRoute,
