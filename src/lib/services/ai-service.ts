@@ -1,6 +1,11 @@
 import { env } from "cloudflare:workers";
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import {
+	AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
+	AI_LABEL_GPT_MODEL,
+	AI_LABEL_GPT_REASONING_EFFORT,
+	AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
 	AI_LABEL_MAX_OUTPUT_TOKENS,
 	AI_LABEL_MODEL,
 	AI_LABEL_WEB_MAX_CONTINUATIONS,
@@ -12,6 +17,7 @@ import {
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
 	type RegionQaModelKey,
+	resolveLabelRoute,
 	toLabelEngineKey,
 	toRegionQaModelKey,
 } from "#/lib/ai/config";
@@ -25,6 +31,12 @@ import {
 	mergeExtractions,
 	parseLabelResponse,
 } from "#/lib/ai/label-extraction";
+import {
+	buildGptLabelInput,
+	buildGptLabelTextFormat,
+	estimateGptLabelReserveTokens,
+	extractGptLabelText,
+} from "#/lib/ai/label-gpt-research";
 import {
 	buildWebLabelMessages,
 	estimateWebLabelReserveTokens,
@@ -259,9 +271,45 @@ async function analyzeLabelWithWebResearch(
 }
 
 /**
+ * 高精度経路: OpenAI GPT-5.6 Luna(マルチモーダル + サーバーサイドweb検索)で全写真を
+ * 1リクエスト解析する。Claude経路と同じ契約(env 非依存・失敗は throw してフォールバックは
+ * 呼び出し側)で、返す形も揃える。
+ *
+ * Claude経路と違い pause_turn の継続ループが要らない: Responses API は web検索の
+ * ツールループをサーバー側で完走させてから1つの応答を返す。打ち切りは
+ * status="incomplete" として表面化するので、extractGptLabelText がそれを throw に変える。
+ */
+async function analyzeLabelWithGptResearch(
+	apiKey: string,
+	imageDataUrls: string[],
+): Promise<{ extraction: LabelExtraction; totalTokens: number }> {
+	const client = new OpenAI({ apiKey });
+	const response = await client.responses.create({
+		model: AI_LABEL_GPT_MODEL,
+		input: buildGptLabelInput(imageDataUrls),
+		max_output_tokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
+		reasoning: { effort: AI_LABEL_GPT_REASONING_EFFORT },
+		tools: [
+			{
+				type: "web_search",
+				search_context_size: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
+			},
+		],
+		text: buildGptLabelTextFormat(),
+	});
+	// total_tokens は入力(キャッシュ含む)+ 出力(reasoning 含む)の総和で、サーバー側
+	// ツールループのぶんも合算済み。取れなければ 0 を返し、呼び出し側が予約全量を
+	// 実測とみなす(返却0=安全側)。
+	const totalTokens = response.usage?.total_tokens ?? 0;
+	const extraction = parseLabelResponse(extractGptLabelText(response));
+	return { extraction, totalTokens };
+}
+
+/**
  * エチケット画像を解析し、マイセラーの自動入力候補を返す。
- * ANTHROPIC_API_KEY 設定時は Claude + web検索の高精度経路(裏取り込みの総合解析)を
- * 使い、未設定・失敗時は Workers AI(マルチモーダル)へフォールバックする。
+ * OPENAI_API_KEY / ANTHROPIC_API_KEY 設定時は LLM + web検索の高精度経路(裏取り込みの
+ * 総合解析)を使い、キー未設定・実行失敗時は Workers AI(マルチモーダル)へ
+ * フォールバックする。どの経路を走らせるかの判断は resolveLabelRoute が SSOT。
  * ユーザがプロフィールで標準(workers-ai)を選んでいる場合はキー設定時でも高精度を使わない。
  * クレジットの予約→実測確定/失敗時返却は answerRegionQuestion と同じ骨格。
  * 応答のパース失敗も「推論失敗」として予約を全額返却する。
@@ -273,19 +321,26 @@ export async function analyzeWineLabel(
 	if (input.imageDataUrls.length === 0) {
 		throw new BadRequestError("画像が指定されていません");
 	}
-	// 高精度経路(Claude + web検索)は「シークレット設定あり かつ ユーザが標準を明示
-	// 選択していない」場合のみ有効。env・ユーザ設定(D1読み)の解決は**予約より前**に
-	// 済ませ、「予約したら必ず try で囲まれている」形を保つ(#245 と同じ理由)。
-	// 見積は経路で異なる(web検索の結果取り込みぶん、Claude経路のほうが大きい)。
+	// 高精度経路は「対応するシークレット設定あり かつ ユーザが標準を明示選択していない」
+	// 場合のみ有効。env・ユーザ設定(D1読み)の解決は**予約より前**に済ませ、「予約したら
+	// 必ず try で囲まれている」形を保つ(#245 と同じ理由)。
+	// 見積は経路で異なる(web検索の結果取り込みぶん、高精度経路のほうが大きい)。
+	const openaiApiKey = env.OPENAI_API_KEY?.trim() || undefined;
 	const anthropicApiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
 	const { preferredLabelEngine } = await userService.getCurrentUser(userId);
 	// 書き込み側(auth.ts の validator)と同じ許可リストで照合する。旧データ・不正値は
 	// 既定(高精度)へフォールバックする(resolveModelKey と同じ流儀)。
 	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
-	const useWebResearch = !!anthropicApiKey && engine === "web-research";
-	const estimate = useWebResearch
-		? estimateWebLabelReserveTokens(input.imageDataUrls.length)
-		: estimateLabelReserveTokens(input.imageDataUrls.length);
+	const route = resolveLabelRoute(engine, {
+		openai: !!openaiApiKey,
+		anthropic: !!anthropicApiKey,
+	});
+	const estimate =
+		route === "gpt-luna"
+			? estimateGptLabelReserveTokens(input.imageDataUrls.length)
+			: route === "web-research"
+				? estimateWebLabelReserveTokens(input.imageDataUrls.length)
+				: estimateLabelReserveTokens(input.imageDataUrls.length);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
@@ -299,9 +354,27 @@ export async function analyzeWineLabel(
 		let totalTokens = 0;
 		const extractions: LabelExtraction[] = [];
 
-		// 高精度経路: Claude + web検索で全写真を1リクエスト総合解析する。失敗しても
-		// 全体を落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
-		if (useWebResearch && anthropicApiKey) {
+		// 高精度経路: LLM + web検索で全写真を1リクエスト総合解析する。失敗しても全体を
+		// 落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
+		// **失敗時にもう一方の高精度プロバイダは試さない**: 予約は選んだ経路の見積で
+		// 取ってあり、2つ目の課金と待ち時間を積み増すより確実に応答を返す方を採る
+		// (キー未設定による降格は予約前の resolveLabelRoute が済ませている)。
+		if (route === "gpt-luna" && openaiApiKey) {
+			try {
+				const gpt = await analyzeLabelWithGptResearch(
+					openaiApiKey,
+					input.imageDataUrls,
+				);
+				extractions.push(gpt.extraction);
+				totalTokens += gpt.totalTokens;
+			} catch (gptErr) {
+				logWarn("label gpt research failed; falling back to Workers AI", {
+					userId,
+					requestId,
+					err: gptErr,
+				});
+			}
+		} else if (route === "web-research" && anthropicApiKey) {
 			try {
 				const web = await analyzeLabelWithWebResearch(
 					anthropicApiKey,

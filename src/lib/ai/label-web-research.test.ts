@@ -3,50 +3,13 @@ import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
 import { parseLabelResponse } from "./label-extraction";
 import {
 	buildWebLabelMessages,
-	buildWebLabelPrompt,
 	estimateWebLabelReserveTokens,
 	joinResponseText,
-	parseImageDataUrl,
 	sumAnthropicUsage,
 } from "./label-web-research";
 
-describe("parseImageDataUrl", () => {
-	it("data URI を media type と base64 データに分解する", () => {
-		expect(parseImageDataUrl("data:image/jpeg;base64,AAAA")).toEqual({
-			mediaType: "image/jpeg",
-			data: "AAAA",
-		});
-		expect(parseImageDataUrl("data:image/webp;base64,x+/=")).toEqual({
-			mediaType: "image/webp",
-			data: "x+/=",
-		});
-	});
-
-	it("base64 の data URI 以外は受け付けない", () => {
-		expect(() => parseImageDataUrl("https://example.com/a.jpg")).toThrow();
-		expect(() => parseImageDataUrl("data:image/jpeg,notbase64")).toThrow();
-		expect(() => parseImageDataUrl("data:image/jpeg;base64,")).toThrow();
-	});
-});
-
-describe("buildWebLabelPrompt", () => {
-	it("web検索での裏取りとJSON出力を指示する", () => {
-		const prompt = buildWebLabelPrompt();
-		expect(prompt).toContain("web検索");
-		expect(prompt).toContain("wine_name");
-		expect(prompt).toContain("grape_varieties");
-	});
-
-	it("マスタの呼称・品種名の一覧を同梱する(照合ヒット率のグラウンディング)", () => {
-		const prompt = buildWebLabelPrompt();
-		// AOPマスタの正式名(aops.json 由来)
-		expect(prompt).toContain("Brouilly");
-		expect(prompt).toContain("Chablis");
-		// 品種マスタの現地語名(varieties.ts 由来)
-		expect(prompt).toContain("Pinot noir");
-		expect(prompt).toContain("Chardonnay");
-	});
-});
+// buildWebLabelPrompt / parseImageDataUrl は GPT経路と共有するため label-extraction.ts に
+// あり、そちらのテストで検証する。
 
 describe("buildWebLabelMessages", () => {
 	it("指示文と全画像を1つのuserメッセージに載せる", () => {

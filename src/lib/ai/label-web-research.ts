@@ -4,11 +4,13 @@ import {
 	AI_LABEL_WEB_BASE_TOKEN_ESTIMATE,
 	AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE,
 } from "./config";
-import { buildKnownListsSection } from "./label-extraction";
+import { buildWebLabelPrompt, parseImageDataUrl } from "./label-extraction";
 
 // エチケット解析の高精度経路(Anthropic Claude + web検索)の純ロジック。
-// プロンプト・メッセージ組み立て・見積を DB/env 非依存で切り出し、単体テスト可能にする
-// (Anthropic API の実行とクレジット処理・フォールバックは ai-service 側)。
+// メッセージ組み立て・応答の取り出し・見積を DB/env 非依存で切り出し、単体テスト可能に
+// する(Anthropic API の実行とクレジット処理・フォールバックは ai-service 側)。
+// 指示文と data URI の検証は provider 非依存なので label-extraction.ts に置き、
+// GPT経路(label-gpt-research.ts)と共有する。
 //
 // Workers AI 経路(label-extraction.ts)との違い:
 //  - 全写真を1リクエストに載せ、表・裏ラベルを突き合わせて総合判断させる
@@ -16,49 +18,6 @@ import { buildKnownListsSection } from "./label-extraction";
 //    ラベル未記載のセパージュの補完まで行わせる
 //  - 出力の呼称・品種はアプリのマスタ表記に寄せさせ、matchAop / matchGrapeVarietyIds
 //    のヒット率を上げる(マスタ名の一覧をプロンプトに同梱する)
-
-/** data URI を Anthropic の image ブロック入力(base64 + media type)に分解する。 */
-export function parseImageDataUrl(dataUrl: string): {
-	mediaType: string;
-	data: string;
-} {
-	const match = /^data:([a-z0-9.+/-]+);base64,(.+)$/i.exec(dataUrl);
-	const mediaType = match?.[1];
-	const data = match?.[2];
-	if (!mediaType || !data) {
-		throw new Error("画像のdata URIを解釈できませんでした");
-	}
-	return { mediaType, data };
-}
-
-/**
- * Claude への指示文。読み取り→web検索での裏取り→JSON出力の手順を規定する。
- * 出力フィールドは Workers AI 経路(LABEL_JSON_SCHEMA)と同じキーにし、
- * 応答パースを parseLabelResponse で共通化する。
- */
-export function buildWebLabelPrompt(): string {
-	return [
-		"これはワインのボトル/エチケット(ラベル)の写真です(同一ボトルの表・裏ラベルなど複数枚のことがあります)。",
-		"以下の手順でこのワインの情報を特定し、最後にJSONオブジェクトだけを出力してください。",
-		"",
-		"1. 全ての写真からワイン名・生産者・ヴィンテージ・原産地呼称・地域・品種を読み取る。",
-		"2. web検索で裏取りする。生産者の公式サイト、Wine-Searcher・Vivino等のワインデータベース、輸入元の商品ページ、原産地呼称の公式情報を優先して参照する。",
-		"   - 生産者名・ワイン名の綴りを正式表記に正す(写真の読み取り誤りを修正する)。",
-		"   - 原産地呼称はラベルに明記されていなくても、このワインの正式なAOC/AOP/DOC/DOCG等を特定する。",
-		"   - 品種はラベルに無記載でも、生産者情報・ワインデータベースで確認できたセパージュを列挙する(推測は不可。検索で確認できた場合のみ)。",
-		"   - ヴィンテージは写真から読めた値を最優先する。写真から読めない場合は null にする(検索結果から創作しない)。",
-		"3. 出力するJSONのフィールド:",
-		'   - "wine_name": キュヴェ名等を含む正式なワイン名(原語)。無ければ null',
-		'   - "producer": 生産者/ドメーヌ/シャトー名(原語の正式表記)。無ければ null',
-		'   - "vintage": 西暦の整数(例: 2020)。不明なら null',
-		'   - "appellation": 正式な原産地呼称(原語)。不明なら null',
-		'   - "region": 地域名(例: Bourgogne, Bordeaux, Toscana)。不明なら null',
-		'   - "grape_varieties": 品種名(原語)の文字列配列。確認できなければ空配列',
-		"4. 検索しても確認できない項目は null にする。JSONの前後に説明文・コードフェンスを書かない。",
-		"",
-		buildKnownListsSection(),
-	].join("\n");
-}
 
 /**
  * 指示文 + 全エチケット画像を1つのユーザーメッセージに組み立てる。

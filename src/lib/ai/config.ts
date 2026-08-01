@@ -108,19 +108,27 @@ export const AI_LABEL_MAX_OUTPUT_TOKENS = 512;
  */
 export const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
 
-// ---- エチケット解析の高精度経路(Anthropic Claude + web検索) ----
-// ANTHROPIC_API_KEY が設定されている場合のみ使う。未設定・失敗時は Workers AI
+// ---- エチケット解析の高精度経路(LLM + web検索) ----
+// 対応するプロバイダのAPIキーが設定されている場合のみ使う。未設定・失敗時は Workers AI
 // (AI_LABEL_MODEL)へフォールバックするため、ここの定数は任意機能の調整値。
 
 /**
  * エチケット解析エンジンの許可リスト。ユーザがプロフィール画面で選択できる。
  * クライアントにはキーだけを送らせ、サーバ側で経路に解決する(地域Q&Aの
  * REGION_QA_MODEL_KEYS と同じ流儀)。
- *  - web-research: Claude + web検索の高精度経路(ANTHROPIC_API_KEY 必須。
- *    未設定・失敗時は workers-ai へフォールバック)。クレジット消費が大きい。
+ *  - gpt-luna: OpenAI GPT-5.6 Luna + web検索の高精度経路(OPENAI_API_KEY 必須)。
+ *  - web-research: Anthropic Claude + web検索の高精度経路(ANTHROPIC_API_KEY 必須)。
  *  - workers-ai: 従来の Workers AI 経路。消費が小さい。
+ *
+ * 高精度2経路はいずれもキー未設定・実行失敗時にフォールバックする(resolveLabelRoute)。
+ * **キーは値のまま D1 の user 行に残る**ため、許可リストからキーを消しても読み取り側の
+ * フォールバック(toLabelEngineKey → 既定)が効くようにしてある。
  */
-export const LABEL_ENGINE_KEYS = ["web-research", "workers-ai"] as const;
+export const LABEL_ENGINE_KEYS = [
+	"gpt-luna",
+	"web-research",
+	"workers-ai",
+] as const;
 
 /** ユーザが選択できるエチケット解析エンジンのキー。ワイヤ上の値(クライアント⇄サーバ)。 */
 export type LabelEngineKey = (typeof LABEL_ENGINE_KEYS)[number];
@@ -130,10 +138,15 @@ export const AI_LABEL_ENGINES: Record<
 	LabelEngineKey,
 	{ label: string; description: string }
 > = {
+	"gpt-luna": {
+		label: "高精度(GPT-5.6 Luna + web検索)",
+		description:
+			"AIがweb検索で生産者・呼称・品種を裏取りします。クレジット消費が大きめです。利用できない環境では自動的に他の経路で解析されます。",
+	},
 	"web-research": {
 		label: "高精度(Claude + web検索)",
 		description:
-			"AIがweb検索で生産者・呼称・品種を裏取りします。クレジット消費が大きめです。利用できない環境では自動的に標準で解析されます。",
+			"AIがweb検索で生産者・呼称・品種を裏取りします。クレジット消費が大きめです。利用できない環境では自動的に他の経路で解析されます。",
 	},
 	"workers-ai": {
 		label: "標準(Workers AI)",
@@ -141,8 +154,13 @@ export const AI_LABEL_ENGINES: Record<
 	},
 };
 
-/** 未設定・不正値のときの既定エンジン。現行挙動(キー設定時は高精度)を維持する。 */
-export const DEFAULT_LABEL_ENGINE: LabelEngineKey = "web-research";
+/**
+ * 未設定・不正値のときの既定エンジン。高精度経路を既定にする方針は #354 から変えず、
+ * 担い手を GPT-5.6 Luna にする(同等の裏取り精度をより低い原価で得るため)。
+ * OPENAI_API_KEY 未設定の環境では resolveLabelRoute が Claude → Workers AI の順に
+ * 引き継ぐので、既定を変えても「キーがある経路が使われる」性質は保たれる。
+ */
+export const DEFAULT_LABEL_ENGINE: LabelEngineKey = "gpt-luna";
 
 /**
  * エンジンキーの許可リスト検証スキーマ。**書き込み経路(better-auth の
@@ -193,6 +211,93 @@ export const AI_LABEL_WEB_BASE_TOKEN_ESTIMATE = 30_000;
 
 /** Claude経路の画像1枚あたりの入力トークン見積(長辺1280px前提 + ループ再送ぶん)。 */
 export const AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE = 3_000;
+
+/**
+ * 高精度エチケット解析に使う OpenAI のモデルID。マルチモーダル + サーバーサイドweb検索
+ * (Responses API の web_search ツール)+ structured outputs を1リクエストで使える世代で
+ * あること。上位が必要なら "gpt-5.6-terra" / "gpt-5.6-sol" へ数値だけ差し替える
+ * (**"gpt-5.6" のエイリアスは Sol に解決されるため Luna 指定には使えない**)。
+ * @see https://developers.openai.com/api/docs/models/gpt-5.6-luna
+ */
+export const AI_LABEL_GPT_MODEL = "gpt-5.6-luna";
+
+/**
+ * 1レスポンスの最大出力トークン(Responses API の max_output_tokens)。
+ * **reasoning トークンもこの枠から出る**ため、JSONだけの出力でも余裕を持たせる。
+ * 小さすぎると web検索と推論で枠を使い切り、status="incomplete" で本文JSONが
+ * 出ないまま返る(Claude経路の AI_LABEL_WEB_MAX_OUTPUT_TOKENS と同じ理由)。
+ */
+export const AI_LABEL_GPT_MAX_OUTPUT_TOKENS = 16_000;
+
+/**
+ * 推論の深さ(Responses API の reasoning.effort)。この経路の精度は「web検索で裏を取る」
+ * ことから来ており、長い内省ではない。effort を上げると reasoning が出力枠を食って
+ * 本文JSONが途切れる(incomplete)リスクとトークン消費が増えるため低めに固定する。
+ */
+export const AI_LABEL_GPT_REASONING_EFFORT = "low";
+
+/**
+ * web検索結果をどれだけコンテキストに載せるか(web_search ツールの search_context_size)。
+ * Claude経路の max_uses と違い OpenAI は検索回数を直接は縛れないので、原価の上限化は
+ * この値と max_output_tokens で行う。medium は既定値。
+ */
+export const AI_LABEL_GPT_SEARCH_CONTEXT_SIZE = "medium";
+
+/**
+ * GPT経路の予約見積の基礎トークン(プロンプト + 呼称/品種マスタのリスト + web検索結果 +
+ * reasoning/出力ぶんの保守的な見積)。Claude経路と同水準に置く: 検索結果の量は事前に
+ * 読めないため大きめに取り、settle の実測(usage.total_tokens)で差分を返す。
+ *
+ * なお **Luna の実原価はトークン単価で Claude Opus 5 より大幅に低い**が、現行のクレジット
+ * 計上はプロバイダ非依存のトークン従量なので見積も同水準にしてある。単価を反映した
+ * コスト基準の計上は Issue #355 で別途扱う。
+ */
+export const AI_LABEL_GPT_BASE_TOKEN_ESTIMATE = 30_000;
+
+/** GPT経路の画像1枚あたりの入力トークン見積(長辺1280px前提)。 */
+export const AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE = 3_000;
+
+/**
+ * エンジンキーの解決先(実際に走る経路)。ユーザ選択(LabelEngineKey)と1対1ではなく、
+ * **プロバイダキーの設定状況で降格しうる**ため別の型にする。
+ */
+export type LabelRoute = LabelEngineKey;
+
+/** 高精度経路の利用可否(= 対応するシークレットが設定されているか)。 */
+export interface LabelProviderAvailability {
+	/** OPENAI_API_KEY が設定されている。 */
+	openai: boolean;
+	/** ANTHROPIC_API_KEY が設定されている。 */
+	anthropic: boolean;
+}
+
+/**
+ * ユーザ選択のエンジンキーを、実際に走らせる経路へ解決する。**選択と実行の対応づけは
+ * ここだけに置く**(ai-service が `!!key && engine === "..."` を経路ごとに書くと、
+ * 経路が増えるたびに条件がドリフトし、片方のキーだけ設定された環境で黙って標準へ
+ * 落ちる。#354 の `useWebResearch` を一般化したもの)。
+ *
+ * 高精度が選ばれてキーが無い場合は、**標準へ落とす前にもう一方の高精度経路を試す**。
+ * ユーザの意思表示は「web検索で裏取りしてほしい」であって特定ベンダーではないため、
+ * 既定を gpt-luna に変えても ANTHROPIC_API_KEY だけの環境(#354 時点の本番)が
+ * Workers AI へ降格しない。
+ */
+export function resolveLabelRoute(
+	engine: LabelEngineKey,
+	availability: LabelProviderAvailability,
+): LabelRoute {
+	if (engine === "workers-ai") return "workers-ai";
+	// 高精度の希望順: 選択されたプロバイダ → もう一方 → 標準
+	const preferred: LabelRoute[] =
+		engine === "gpt-luna"
+			? ["gpt-luna", "web-research"]
+			: ["web-research", "gpt-luna"];
+	for (const route of preferred) {
+		if (route === "gpt-luna" && availability.openai) return route;
+		if (route === "web-research" && availability.anthropic) return route;
+	}
+	return "workers-ai";
+}
 
 /** 質問文の最大文字数(入力バリデーション)。 */
 export const AI_MAX_QUESTION_CHARS = 300;

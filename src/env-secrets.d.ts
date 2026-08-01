@@ -23,7 +23,10 @@ declare namespace Cloudflare {
 		// 推測による悪用を防ぐためシークレット扱い(wrangler secret put で投入)。
 		CAMPAIGN_EXTENSION_CODES?: string;
 		// エチケット解析の高精度経路(Claude + web検索)を有効にする Anthropic APIキー。
-		// 未設定でもアプリは動作し、従来の Workers AI 経路で解析される。
+		// 未設定でもアプリは動作し、GPT経路→従来の Workers AI 経路の順に引き継がれる。
 		ANTHROPIC_API_KEY?: string;
+		// エチケット解析の高精度経路(GPT-5.6 Luna + web検索)を有効にする OpenAI APIキー。
+		// 未設定でもアプリは動作し、Claude経路→従来の Workers AI 経路の順に引き継がれる。
+		OPENAI_API_KEY?: string;
 	}
 }

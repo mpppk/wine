@@ -97,6 +97,58 @@ export const LABEL_PROMPT = [
 	buildKnownListsSection(),
 ].join("\n");
 
+/**
+ * 高精度経路(LLM + web検索)への指示文。読み取り→web検索での裏取り→JSON出力の
+ * 手順を規定する。**Claude経路(label-web-research.ts)と GPT経路(label-gpt-research.ts)が
+ * これを共有する**: 指示の内容はプロバイダ非依存で、経路ごとに書き分けると
+ * 「片方だけ裏取りの規範が古い」状態が生まれるため(SSOT)。
+ *
+ * 出力フィールドは Workers AI 経路(LABEL_JSON_SCHEMA)と同じキーにし、応答パースを
+ * parseLabelResponse で共通化する。GPT経路は同じ形を structured outputs でも強制する。
+ */
+export function buildWebLabelPrompt(): string {
+	return [
+		"これはワインのボトル/エチケット(ラベル)の写真です(同一ボトルの表・裏ラベルなど複数枚のことがあります)。",
+		"以下の手順でこのワインの情報を特定し、最後にJSONオブジェクトだけを出力してください。",
+		"",
+		"1. 全ての写真からワイン名・生産者・ヴィンテージ・原産地呼称・地域・品種を読み取る。",
+		"2. web検索で裏取りする。生産者の公式サイト、Wine-Searcher・Vivino等のワインデータベース、輸入元の商品ページ、原産地呼称の公式情報を優先して参照する。",
+		"   - 生産者名・ワイン名の綴りを正式表記に正す(写真の読み取り誤りを修正する)。",
+		"   - 原産地呼称はラベルに明記されていなくても、このワインの正式なAOC/AOP/DOC/DOCG等を特定する。",
+		"   - 品種はラベルに無記載でも、生産者情報・ワインデータベースで確認できたセパージュを列挙する(推測は不可。検索で確認できた場合のみ)。",
+		"   - ヴィンテージは写真から読めた値を最優先する。写真から読めない場合は null にする(検索結果から創作しない)。",
+		"3. 出力するJSONのフィールド:",
+		'   - "wine_name": キュヴェ名等を含む正式なワイン名(原語)。無ければ null',
+		'   - "producer": 生産者/ドメーヌ/シャトー名(原語の正式表記)。無ければ null',
+		'   - "vintage": 西暦の整数(例: 2020)。不明なら null',
+		'   - "appellation": 正式な原産地呼称(原語)。不明なら null',
+		'   - "region": 地域名(例: Bourgogne, Bordeaux, Toscana)。不明なら null',
+		'   - "grape_varieties": 品種名(原語)の文字列配列。確認できなければ空配列',
+		"4. 検索しても確認できない項目は null にする。JSONの前後に説明文・コードフェンスを書かない。",
+		"",
+		buildKnownListsSection(),
+	].join("\n");
+}
+
+/**
+ * data URI を media type と base64 データに分解する。**HTTP URL を弾く境界も兼ねる**:
+ * 高精度経路はどちらのプロバイダも外部URLを取得できてしまうため、クライアントが
+ * 送れるのは自前で検証済みの data URI だけ、という前提をここで強制する
+ * (Claude は base64 に分解して渡し、GPT は data URI のまま渡すが、検証は共通)。
+ */
+export function parseImageDataUrl(dataUrl: string): {
+	mediaType: string;
+	data: string;
+} {
+	const match = /^data:([a-z0-9.+/-]+);base64,(.+)$/i.exec(dataUrl);
+	const mediaType = match?.[1];
+	const data = match?.[2];
+	if (!mediaType || !data) {
+		throw new Error("画像のdata URIを解釈できませんでした");
+	}
+	return { mediaType, data };
+}
+
 /** Workers AI(マルチモーダル)に渡すメッセージのcontent要素。 */
 export interface LabelContentPart {
 	type: "text" | "image_url";
