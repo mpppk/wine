@@ -105,6 +105,11 @@ export interface WineSightingEntry {
 	placeName: string | null;
 	batchId: string | null;
 	photoIndex: number | null;
+	/**
+	 * 見かけたときの写真(一括登録のバッチ写真)の相対URL。手で足した目撃記録や、
+	 * 写真の保存に失敗したバッチでは null。
+	 */
+	photoUrl: string | null;
 	seenOn: string | null;
 	price: number | null;
 	memo: string | null;
@@ -121,9 +126,14 @@ type DrunkWineRow = typeof drunkWine.$inferSelect & {
 	lastMemo: string | null;
 };
 type WineTastingRow = typeof wineTasting.$inferSelect;
-/** 目撃記録の行に、表示用の場所名(LEFT JOIN で引く)を足したもの */
+/**
+ * 目撃記録の行に、表示用の場所名と由来バッチの写真キー配列(いずれも LEFT JOIN で
+ * 引く)を足したもの。写真は「バッチの photoKeys の photoIndex 番目」なので、
+ * 行だけでは URL を組み立てられない。
+ */
 type WineSightingRow = typeof wineSighting.$inferSelect & {
 	placeName: string | null;
+	batchPhotoKeys: string[] | null;
 };
 
 function toEntry(row: DrunkWineRow): DrunkWineEntry {
@@ -175,12 +185,18 @@ function toTastingEntry(row: WineTastingRow): WineTastingEntry {
 }
 
 function toSightingEntry(row: WineSightingRow): WineSightingEntry {
+	// 由来写真は「バッチの photoKeys の photoIndex 番目」。バッチが無い(手で足した
+	// 目撃記録)・写真をまだ保存していない・番号が範囲外のいずれでも null にする
+	// (存在しないキーの URL を作るとリンク切れの画像が並ぶ)。
+	const photoKey =
+		row.photoIndex != null ? row.batchPhotoKeys?.[row.photoIndex] : undefined;
 	return {
 		id: row.id,
 		placeId: row.placeId,
 		placeName: row.placeName,
 		batchId: row.batchId,
 		photoIndex: row.photoIndex,
+		photoUrl: photoKey ? imagePathForKey(photoKey) : null,
 		seenOn: row.seenOn,
 		price: row.price,
 		memo: row.memo,
@@ -591,9 +607,11 @@ export async function listWineSightings(
 		.select({
 			...getTableColumns(wineSighting),
 			placeName: place.name,
+			batchPhotoKeys: importBatch.photoKeys,
 		})
 		.from(wineSighting)
 		.leftJoin(place, eq(place.id, wineSighting.placeId))
+		.leftJoin(importBatch, eq(importBatch.id, wineSighting.batchId))
 		.where(
 			and(
 				eq(wineSighting.drunkWineId, drunkWineId),
@@ -828,6 +846,12 @@ export async function deleteDrunkWine(
 export interface ListDrunkWinesOptions {
 	/** 絞り込み条件(一覧のチップと同じ定義)。既定は "all"。 */
 	filter?: CellarFilterId;
+	/**
+	 * 場所での絞り込み(その場所で見かけた銘柄だけ)。チップ(所有状態)とは
+	 * **直交する別の軸**なので、CellarFilterId には混ぜない——「セラーにある」かつ
+	 * 「この店で見かけた」のような組み合わせが成立するため。
+	 */
+	placeId?: string;
 	/** 1ページの件数。未指定なら全件返す(地図のように全ピンが要る経路のため)。 */
 	limit?: number;
 	/** 前ページの nextCursor。先頭ページは未指定。 */
@@ -879,6 +903,17 @@ function cellarFilterCondition(filter: CellarFilterId) {
 }
 
 /**
+ * 「その場所で見かけた銘柄」の条件。目撃記録は 1:N なので EXISTS で畳む
+ * (JOIN すると同じ場所で複数回見かけた銘柄が重複行になり、ページングの件数が狂う)。
+ *
+ * pure 版の対応物は置かない。所有状態のチップ(filter.ts)と違い、この軸は
+ * wine_sighting を読まないと判定できず、クライアント側に同じ述語を置く用途が無い。
+ */
+function placeCondition(placeId: string) {
+	return sql`exists (select 1 from ${wineSighting} where ${wineSighting.drunkWineId} = ${drunkWine.id} and ${wineSighting.placeId} = ${placeId})`;
+}
+
+/**
  * マイセラーの一覧。新しい順(createdAt 降順)。
  *
  * limit を渡すとカーソルページネーションになる(#254)。マイセラーはユーザが単調に
@@ -906,6 +941,7 @@ export async function listDrunkWines(
 	const conditions = [eq(drunkWine.userId, userId)];
 	const filterCondition = cellarFilterCondition(filter);
 	if (filterCondition) conditions.push(filterCondition);
+	if (options.placeId) conditions.push(placeCondition(options.placeId));
 	if (after) {
 		// keyset: (created_at, id) の辞書順で「カーソルより古い」行だけを読む
 		conditions.push(
@@ -975,7 +1011,12 @@ export async function listDrunkWinesByAop(
  */
 export async function countCellarFilters(
 	userId: string,
+	options: { placeId?: string } = {},
 ): Promise<Record<CellarFilterId, number>> {
+	// 場所で絞り込んでいるときはチップの件数も同じ母集合で数える。ここを全件のまま
+	// にすると、チップの数字と実際に並ぶ件数が食い違う。
+	const conditions = [eq(drunkWine.userId, userId)];
+	if (options.placeId) conditions.push(placeCondition(options.placeId));
 	const [row] = await db
 		.select({
 			all: sql<number>`count(*)`,
@@ -985,7 +1026,7 @@ export async function countCellarFilters(
 			spotted: sql<number>`sum(case when ${drunkWine.status} = 'spotted' then 1 else 0 end)`,
 		})
 		.from(drunkWine)
-		.where(eq(drunkWine.userId, userId));
+		.where(and(...conditions));
 	return {
 		all: Number(row?.all ?? 0),
 		tasted: Number(row?.tasted ?? 0),
