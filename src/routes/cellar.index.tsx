@@ -87,12 +87,12 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 	});
 
 	return (
-		// カード全体がリンクなので、「飲んだ」ボタンをリンクの中には入れられない
+		// カード全体は閲覧画面へのリンク。「飲んだ」ボタンをリンクの中には入れられない
 		// (<a> 内の interactive nesting になり、クリックもリンクへ吸われる)。
 		// 兄弟として絶対配置する。
 		<div className="relative h-full">
 			<Link
-				to="/cellar/$entryId/edit"
+				to="/cellar/$entryId"
 				params={{ entryId: entry.id }}
 				className="group block h-full"
 			>

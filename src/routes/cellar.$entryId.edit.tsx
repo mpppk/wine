@@ -93,13 +93,15 @@ function CellarEditPage() {
 	return (
 		<main className="mx-auto max-w-2xl px-4 py-10">
 			<div className="mb-6 flex items-center gap-2">
+				{/* 戻り先は閲覧画面。編集はそこの「編集」ボタンから来る導線なので、
+				    一覧まで飛ばすと1段飛ばしになる */}
 				<Button
 					asChild
 					variant="ghost"
 					size="icon"
-					aria-label="マイセラーへ戻る"
+					aria-label="ワインの詳細へ戻る"
 				>
-					<Link to="/cellar">
+					<Link to="/cellar/$entryId" params={{ entryId: entry.id }}>
 						<ArrowLeftIcon className="size-4" />
 					</Link>
 				</Button>
@@ -148,8 +150,12 @@ function CellarEditPage() {
 
 			<DrunkWineForm
 				entry={entry}
+				// 保存後は閲覧画面へ。保存した内容がその場で確認できる
 				onSaved={() => {
-					void navigate({ to: "/cellar" });
+					void navigate({
+						to: "/cellar/$entryId",
+						params: { entryId: entry.id },
+					});
 				}}
 				tastingSlot={
 					<>

@@ -40,6 +40,7 @@ import { Route as QuizPlayRouteImport } from './routes/quiz.play'
 import { Route as QuizProgressRouteImport } from './routes/quiz.progress'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiImagesSplatRouteImport } from './routes/api/images/$'
+import { Route as CellarEntryIdIndexRouteImport } from './routes/cellar.$entryId.index'
 import { Route as CellarEntryIdEditRouteImport } from './routes/cellar.$entryId.edit'
 
 const IndexRoute = IndexRouteImport.update({
@@ -199,6 +200,11 @@ const ApiImagesSplatRoute = ApiImagesSplatRouteImport.update({
   path: '/api/images/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CellarEntryIdIndexRoute = CellarEntryIdIndexRouteImport.update({
+  id: '/cellar/$entryId/',
+  path: '/cellar/$entryId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CellarEntryIdEditRoute = CellarEntryIdEditRouteImport.update({
   id: '/cellar/$entryId/edit',
   path: '/cellar/$entryId/edit',
@@ -238,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
+  '/cellar/$entryId/': typeof CellarEntryIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -272,6 +279,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
+  '/cellar/$entryId': typeof CellarEntryIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -307,6 +315,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/images/$': typeof ApiImagesSplatRoute
   '/cellar/$entryId/edit': typeof CellarEntryIdEditRoute
+  '/cellar/$entryId/': typeof CellarEntryIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -343,6 +352,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/images/$'
     | '/cellar/$entryId/edit'
+    | '/cellar/$entryId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -377,6 +387,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/images/$'
     | '/cellar/$entryId/edit'
+    | '/cellar/$entryId'
   id:
     | '__root__'
     | '/'
@@ -411,6 +422,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/images/$'
     | '/cellar/$entryId/edit'
+    | '/cellar/$entryId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -446,6 +458,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiImagesSplatRoute: typeof ApiImagesSplatRoute
   CellarEntryIdEditRoute: typeof CellarEntryIdEditRoute
+  CellarEntryIdIndexRoute: typeof CellarEntryIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -667,6 +680,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImagesSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cellar/$entryId/': {
+      id: '/cellar/$entryId/'
+      path: '/cellar/$entryId'
+      fullPath: '/cellar/$entryId/'
+      preLoaderRoute: typeof CellarEntryIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cellar/$entryId/edit': {
       id: '/cellar/$entryId/edit'
       path: '/cellar/$entryId/edit'
@@ -712,6 +732,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiImagesSplatRoute: ApiImagesSplatRoute,
   CellarEntryIdEditRoute: CellarEntryIdEditRoute,
+  CellarEntryIdIndexRoute: CellarEntryIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

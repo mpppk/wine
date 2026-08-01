@@ -9,7 +9,7 @@ import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { listDrunkWinesByAop } from "#/server/drunk-wine";
 
 // 情報パネル(AopDetailPanel)内の「マイセラー」セクション。表示中のAOPを紐付けた
-// 自分の登録ワインを並べ、各行から編集画面へ遷移できるようにする。地図で産地を眺め
+// 自分の登録ワインを並べ、各行から閲覧画面へ遷移できるようにする。地図で産地を眺め
 // ながら「ここのワインは飲んだことがある」を思い出せるようにするのが目的。
 //
 // 参考リンク欄(AopReferenceLinks)と同じ構え: データ取得はこのコンポーネントに
@@ -149,7 +149,7 @@ function AuthedCellarWines({
 }
 
 /**
- * 1件ぶんの行。行全体を編集画面へのリンクにする(マイセラー一覧のカードと同じ導線)。
+ * 1件ぶんの行。行全体を閲覧画面へのリンクにする(マイセラー一覧のカードと同じ導線)。
  * 写真の alt は空にする — 直後に銘柄名が並ぶので、読み上げると名前が二重になる。
  */
 function CellarWineRow({ entry }: { entry: DrunkWineEntry }) {
@@ -163,7 +163,7 @@ function CellarWineRow({ entry }: { entry: DrunkWineEntry }) {
 
 	return (
 		<Link
-			to="/cellar/$entryId/edit"
+			to="/cellar/$entryId"
 			params={{ entryId: entry.id }}
 			className="flex items-center gap-2 rounded-md py-1.5 hover:bg-muted/60"
 		>
