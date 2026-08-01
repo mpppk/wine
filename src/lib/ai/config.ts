@@ -319,8 +319,15 @@ export const AI_WINE_LIST_MODEL = "claude-opus-5";
  * 決定的な違いで、枠が足りないとリストの末尾が丸ごと落ちる。thinking も同じ枠から
  * 出る(AI_LABEL_WEB_MAX_OUTPUT_TOKENS と同じ事情)ため大きめに取る。
  * 打ち切りは truncated フラグとしてUIに出し、「写真を分けて再解析」を案内する。
+ *
+ * **これ以上大きくするならストリーミングへの切り替えが要る**。Anthropic SDK は
+ * 非ストリーミングの `messages.create` に対し max_tokens から推定所要時間を計算し、
+ * 10分を超える見積(= おおよそ 21,000 トークン超)をリクエスト送信前に throw する
+ * ("Streaming is required for operations that may take longer than 10 minutes")。
+ * 銘柄1件あたりの出力は 100 トークン弱で、件数上限(AI_WINE_LIST_MAX_WINES)ぶんでも
+ * 1万トークンに届かないため、現状はこの枠で足りる。
  */
-export const AI_WINE_LIST_MAX_OUTPUT_TOKENS = 32_000;
+export const AI_WINE_LIST_MAX_OUTPUT_TOKENS = 20_000;
 
 /**
  * 1回の抽出で受け取る銘柄数の上限。モデルがこれを超えて列挙してきた場合は切り捨て、
@@ -330,18 +337,23 @@ export const AI_WINE_LIST_MAX_OUTPUT_TOKENS = 32_000;
 export const AI_WINE_LIST_MAX_WINES = 80;
 
 /**
- * 一括抽出の予約見積の基礎トークン(指示文 + 呼称/品種マスタのリスト + 出力上限ぶんの
- * 保守的な見積)。出力が銘柄数に比例するぶん、エチケット解析の高精度経路より大きい。
- * settle の実測で差分を返すのは他経路と同じ。
+ * 一括抽出の予約見積の基礎トークン(指示文 + 呼称/品種マスタのリスト + thinking/出力ぶん)。
+ *
+ * **他経路のように「上限いっぱいを保守的に予約する」ことはしない**。予約は残高不足の
+ * 判定に直結し(reserveCredits が足りなければ推論せず blocked)、10枚 × 上限見積を
+ * 積むと無料枠(月50クレジット = 50,000トークン)では常に弾かれて機能自体が使えなく
+ * なる。実測の中心値(写真数枚・数十銘柄で 15〜30k)を見て置き、上振れぶんは
+ * 取りこぼす(settle は予約を超えて課金しない = 過小請求側に倒れる)。
+ * web検索を使わないぶん、Claude のエチケット解析経路(30,000)より小さくできる。
  */
-export const AI_WINE_LIST_BASE_TOKEN_ESTIMATE = 45_000;
+export const AI_WINE_LIST_BASE_TOKEN_ESTIMATE = 24_000;
 
 /**
  * 画像1枚あたりの入力トークン見積。リストの小さい文字を読ませるためクライアントは
  * 長辺 1600px へ縮小して送る(エチケットの 1280px より大きい)ので、その前提で
  * エチケット経路(3,000)より大きめに取る。
  */
-export const AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE = 5_000;
+export const AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE = 4_000;
 
 /** 質問文の最大文字数(入力バリデーション)。 */
 export const AI_MAX_QUESTION_CHARS = 300;

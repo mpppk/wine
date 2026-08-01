@@ -1,0 +1,387 @@
+import type Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
+import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
+import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
+import type { WineStatus } from "#/lib/drunk-wine/status";
+import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
+import {
+	AI_WINE_LIST_BASE_TOKEN_ESTIMATE,
+	AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE,
+	AI_WINE_LIST_MAX_WINES,
+} from "./config";
+import {
+	buildKnownListsSection,
+	buildLabelSuggestions,
+	extractJsonPayload,
+	type LabelExtraction,
+	type LabelSuggestions,
+	labelExtractionShape,
+	normalizeLabelText,
+	parseImageDataUrl,
+	toLabelExtraction,
+} from "./label-extraction";
+
+// レストランのワインリスト・ショップの陳列など「複数銘柄が写った複数の写真」から
+// 銘柄の配列を抽出する純ロジック(Issue #358)。指示文・応答パース・重複統合・
+// 既存セラーとの突合・見積を DB/env 非依存で切り出し、単体テスト可能にする
+// (Anthropic API の実行とクレジット処理は ai-service 側)。
+//
+// エチケット解析(label-extraction.ts)との違い:
+//  - 1解析 = N銘柄。出力は配列で、写真をまたいだ同一銘柄の統合(distinct)が要る
+//  - 銘柄ごとの由来(どの写真に写っていたか)を photo_indexes として保持する
+//  - リストの売値(price)を読む。銘柄マスタ側ではなく「その店での売値」なので、
+//    保存先は目撃記録(wine_sighting.price)になる
+//  - web検索での裏取りはしない(銘柄数 × 検索でコストが発散する。裏取りしたい銘柄は
+//    登録後に既存の単体エチケット解析を使う住み分け)
+//
+// 銘柄1件ぶんのフィールドの形と揺れの吸収は label-extraction.ts と共有する
+// (labelExtractionShape / toLabelExtraction)。ここで書き直すと、片方の経路だけ
+// 「vintage が文字列で返ってきたら捨てる」といった差が生まれる。
+
+/** モデルが返す銘柄1件の形(labelExtractionShape + 一括抽出に固有の2項目)。 */
+const wineListItemSchema = z.object({
+	...labelExtractionShape,
+	/** リスト記載の価格。数値化できなければ null。 */
+	price: z
+		.union([z.number(), z.string()])
+		.transform((v) => {
+			// "3,800円" / "¥3800" のような表記も拾う(桁区切り・通貨記号を落とす)
+			const n =
+				typeof v === "number"
+					? v
+					: Number.parseInt(v.replace(/[^0-9]/g, ""), 10);
+			return Number.isFinite(n) ? Math.trunc(n) : null;
+		})
+		.nullish()
+		.catch(null),
+	/** この銘柄が写っていた写真の番号(0始まり)。範囲外・重複はパース時に落とす。 */
+	photo_indexes: z
+		.union([z.array(z.union([z.number(), z.string()])), z.number(), z.string()])
+		.transform((v) => (Array.isArray(v) ? v : [v]))
+		.nullish()
+		.catch([]),
+});
+
+/** モデル出力(全体)の受け取り側スキーマ。銘柄配列と打ち切りフラグ。 */
+const wineListResponseSchema = z.object({
+	wines: z.array(wineListItemSchema).nullish().catch([]),
+	/** 出力上限などで列挙しきれなかった銘柄があるか。真偽値以外は false に寄せる。 */
+	truncated: z.boolean().nullish().catch(false),
+});
+
+/** 抽出された銘柄1件。エチケット解析の抽出結果 + 一括抽出に固有の由来情報。 */
+export interface WineListItem extends LabelExtraction {
+	/** リスト記載の売値(円)。範囲外・未記載は undefined。 */
+	price?: number;
+	/** この銘柄が写っていた写真の番号(0始まり・昇順・重複なし)。 */
+	photoIndexes: number[];
+}
+
+export interface WineListParseResult {
+	wines: WineListItem[];
+	/**
+	 * 列挙しきれなかった銘柄があるか。モデルの自己申告(truncated)と、こちらの
+	 * 件数上限による切り捨ての**論理和**。UI は「写真を分けて再解析」を案内する。
+	 */
+	truncated: boolean;
+}
+
+/**
+ * モデルへの指示文。出力形式を強制する仕組み(guided_json / structured outputs)が
+ * 使えない Claude 経路なので、形はここで規範として書く。末尾にマスタ名の一覧を
+ * 同梱するのはエチケット解析と同じグラウンディング(SSOT: buildKnownListsSection)。
+ *
+ * 写真番号は buildWineListMessages が画像の直前に "写真 N" のテキストブロックを
+ * 挟むことで対応づける。
+ */
+export function buildWineListPrompt(photoCount: number): string {
+	return [
+		"これは飲食店のワインリスト、またはワインショップの陳列・棚・ポップを撮影した写真です",
+		`(全${photoCount}枚。各写真の直前に「写真 N」と番号を記載しています)。`,
+		"写真に写っているワインの銘柄をすべて列挙し、最後にJSONオブジェクトだけを出力してください。",
+		"",
+		"1. すべての写真を読み、記載されているワインを1銘柄ずつ拾う。ヘッダー・グラスワインの区分見出し・店名などワインの銘柄でないものは拾わない。",
+		"2. **同じ銘柄が複数の写真に写っている場合は1件に統合する**。生産者・ワイン名・ヴィンテージがすべて一致するものを同一銘柄とみなし、photo_indexes に写っていた写真番号をすべて入れる。ヴィンテージが違うものは別の銘柄として分ける。",
+		"3. 写真から読み取れない項目は null にする。推測で創作しない。知識で補完しない(裏取りはこの解析では行わない)。",
+		"4. 出力するJSONは次の形にする:",
+		'   - "wines": 銘柄の配列。各要素は',
+		'     - "wine_name": ワイン名(キュヴェ名等を含む。原語のまま)。読めなければ null',
+		'     - "producer": 生産者/ドメーヌ/シャトー名。読めなければ null',
+		'     - "vintage": 西暦の整数(例: 2020)。記載が無い/NV(ノンヴィンテージ)なら null',
+		'     - "appellation": 原産地呼称(AOC/AOP/DOC/DOCG など)。下の既知リストに該当があればその表記を一字一句そのまま使う。読めなければ null',
+		'     - "region": 地域名(例: Bourgogne, Toscana)。読めなければ null',
+		'     - "grape_varieties": 品種名の文字列配列。記載が無ければ空配列。下の既知リストに該当があればその表記を使う',
+		'     - "price": リスト記載の価格を整数(日本円)で。グラスとボトルが併記されていればボトルの価格。記載が無ければ null',
+		'     - "photo_indexes": この銘柄が写っていた写真番号(0始まり)の配列',
+		'   - "truncated": 列挙しきれなかった銘柄が残っている場合は true、すべて列挙できたなら false',
+		"5. 銘柄数が多くても省略・要約しない。どうしても出力が長くなりすぎる場合のみ途中で打ち切り、その場合は truncated を true にする。",
+		"6. JSONの前後に説明文・コードフェンスを書かない。",
+		"",
+		buildKnownListsSection(),
+	].join("\n");
+}
+
+/**
+ * 指示文 + 全写真を1つのユーザーメッセージに組み立てる。**写真ごとに直前へ
+ * 「写真 N」のテキストブロックを挟む**のが要点で、これが無いとモデルは
+ * photo_indexes を当て推量で埋める(どの写真で見かけたか = 目撃記録の由来が壊れる)。
+ *
+ * data URI であることの強制は parseImageDataUrl が兼ねる(HTTP URL を渡させない
+ * 境界。エチケット解析の高精度経路と同じ)。
+ */
+export function buildWineListMessages(
+	imageDataUrls: string[],
+): Anthropic.MessageParam[] {
+	const content: Anthropic.ContentBlockParam[] = [
+		{ type: "text", text: buildWineListPrompt(imageDataUrls.length) },
+	];
+	for (const [index, dataUrl] of imageDataUrls.entries()) {
+		const { mediaType, data } = parseImageDataUrl(dataUrl);
+		content.push({ type: "text", text: `写真 ${index}` });
+		content.push({
+			type: "image",
+			source: {
+				type: "base64",
+				// クライアントは jpeg/png/webp 等に限定して送る(validateDeclaredPhotoFiles)
+				media_type: mediaType as "image/jpeg",
+				data,
+			},
+		});
+	}
+	return [{ role: "user", content }];
+}
+
+/**
+ * 写真番号の配列を正規化する。0..photoCount-1 の整数だけを残し、重複を潰して昇順に
+ * 並べる。**モデルは範囲外の番号(1始まりで数える等)を返しうる**ので、ここで落として
+ * おかないと wine_sighting.photoIndex の検証(0..MAX_PHOTOS_PER_IMPORT_BATCH-1)を
+ * すり抜けた値が保存経路へ流れる。
+ */
+function normalizePhotoIndexes(
+	values: Array<number | string>,
+	photoCount: number,
+): number[] {
+	const out = new Set<number>();
+	for (const raw of values) {
+		const n = typeof raw === "number" ? raw : Number.parseInt(raw, 10);
+		if (!Number.isFinite(n)) continue;
+		const index = Math.trunc(n);
+		if (index < 0 || index >= photoCount) continue;
+		out.add(index);
+	}
+	return [...out].sort((a, b) => a - b);
+}
+
+/**
+ * モデルの生出力を銘柄配列にパースする。件数上限(AI_WINE_LIST_MAX_WINES)を超えた
+ * ぶんは切り捨てて truncated を立てる。解釈できない場合は throw(呼び出し側で
+ * クレジット返却の上エラー応答にする)。
+ *
+ * @param photoCount 渡した写真の枚数。photo_indexes の範囲検証に使う。
+ */
+export function parseWineListResponse(
+	raw: unknown,
+	photoCount: number,
+): WineListParseResult {
+	const result = wineListResponseSchema.safeParse(extractJsonPayload(raw));
+	if (!result.success) {
+		throw new Error("AIの応答の形式が不正です");
+	}
+	const rawWines = result.data.wines ?? [];
+	const wines: WineListItem[] = rawWines
+		.slice(0, AI_WINE_LIST_MAX_WINES)
+		.map((w) => ({
+			...toLabelExtraction(w),
+			price:
+				w.price != null && w.price >= PRICE_MIN && w.price <= PRICE_MAX
+					? w.price
+					: undefined,
+			photoIndexes: normalizePhotoIndexes(w.photo_indexes ?? [], photoCount),
+		}))
+		// 名前も生産者も呼称も読めなかった行は、レビュー画面で編集する取っ掛かりが
+		// 無く、そのまま登録すると名無しのエントリになる。落とす。
+		.filter((w) => !!(w.wineName || w.producer || w.appellation));
+	return {
+		wines,
+		truncated:
+			result.data.truncated === true ||
+			rawWines.length > AI_WINE_LIST_MAX_WINES,
+	};
+}
+
+/**
+ * 銘柄の同一性キー(正規化済み)。「生産者 + ワイン名」の正規化形とヴィンテージで
+ * 同一銘柄を判定する。**バッチ内の統合と既存セラーとの突合が同じキーを使う**ことが
+ * 重要で、別々に書くと「バッチ内では別物、既存とは同一」のような矛盾した扱いになる。
+ *
+ * ヴィンテージ違いを別銘柄にするのは、リストでは同じ銘柄の別年が並ぶことがあり、
+ * 統合すると片方の情報が消えるため(Issue #358 の決定)。
+ *
+ * 名前も生産者も無い場合は空文字を返す。呼び出し側は空キーを「統合しない」印として
+ * 扱う(空キー同士が全部1件に潰れると、読み取れなかった銘柄が消える)。
+ */
+export function wineIdentityKey(wine: {
+	name?: string | null;
+	producer?: string | null;
+	vintage?: number | null;
+}): string {
+	const label = normalizeLabelText(
+		[wine.producer ?? "", wine.name ?? ""].join(" "),
+	);
+	if (!label) return "";
+	return `${label}|${wine.vintage ?? ""}`;
+}
+
+/** 抽出結果からキーを作る(wineName がフォーム上の name に対応する)。 */
+function itemIdentityKey(item: WineListItem): string {
+	return wineIdentityKey({
+		name: item.wineName,
+		producer: item.producer,
+		vintage: item.vintage,
+	});
+}
+
+export interface DedupeResult {
+	items: WineListItem[];
+	/** 統合によって減った件数(= 重複として畳まれた件数)。サマリ表示に使う。 */
+	mergedCount: number;
+}
+
+/**
+ * バッチ内の重複を統合する(distinct の第1段)。**モデル側にも統合を指示している
+ * が、その取りこぼしの保険**として同じ規則をアプリ側でも掛ける。写真をまたいだ
+ * 同一銘柄は photo_indexes の和集合を持つ1件になる。
+ *
+ * スカラ項目は先に出てきた値を優先し、欠けているところだけ後続で埋める
+ * (mergeExtractions と同じ流儀)。品種は和集合。
+ */
+export function dedupeWineListItems(items: WineListItem[]): DedupeResult {
+	const byKey = new Map<string, WineListItem>();
+	const out: WineListItem[] = [];
+	for (const item of items) {
+		const key = itemIdentityKey(item);
+		const existing = key ? byKey.get(key) : undefined;
+		if (!existing) {
+			const copy: WineListItem = {
+				...item,
+				grapeVarieties: [...item.grapeVarieties],
+				photoIndexes: [...item.photoIndexes],
+			};
+			if (key) byKey.set(key, copy);
+			out.push(copy);
+			continue;
+		}
+		existing.wineName ??= item.wineName;
+		existing.producer ??= item.producer;
+		existing.vintage ??= item.vintage;
+		existing.appellation ??= item.appellation;
+		existing.region ??= item.region;
+		existing.price ??= item.price;
+		for (const g of item.grapeVarieties) {
+			if (!existing.grapeVarieties.includes(g)) existing.grapeVarieties.push(g);
+		}
+		for (const i of item.photoIndexes) {
+			if (!existing.photoIndexes.includes(i)) existing.photoIndexes.push(i);
+		}
+		existing.photoIndexes.sort((a, b) => a - b);
+	}
+	return { items: out, mergedCount: items.length - out.length };
+}
+
+/** 既存セラーとの突合に使う最小の形(DrunkWineEntry が構造的に適合する)。 */
+export interface ExistingWineIdentity {
+	id: string;
+	name: string;
+	producer?: string | null;
+	vintage?: number | null;
+	status: WineStatus;
+}
+
+/** レビュー画面に出す銘柄候補1件。 */
+export interface WineListCandidate {
+	/** フォームへ流し込める自動入力候補(エチケット解析と同じ形・同じ導出)。 */
+	suggestions: LabelSuggestions;
+	/** その店での売値(円)。目撃記録側に保存する。 */
+	price?: number;
+	/** この銘柄が写っていた写真の番号(0始まり)。 */
+	photoIndexes: number[];
+	/**
+	 * 既存セラーの同一銘柄。**ある場合は新規作成せず、この銘柄に目撃記録を追加する**
+	 * 候補として提示する(distinct の第2段)。
+	 */
+	existing?: {
+		id: string;
+		name: string;
+		vintage: number | null;
+		status: WineStatus;
+	};
+}
+
+/**
+ * 抽出結果を、マスタ突合済みのレビュー候補に変換する(銘柄ごとに
+ * buildLabelSuggestions を再利用 = 呼称/地域/品種の解決規則を単体解析と共有する)。
+ */
+export function buildWineListCandidates(
+	items: WineListItem[],
+): WineListCandidate[] {
+	return items.map((item) => ({
+		suggestions: buildLabelSuggestions(item),
+		price: item.price,
+		photoIndexes: item.photoIndexes,
+	}));
+}
+
+/**
+ * 候補を既存セラーと突合し、一致したものに existing を付ける(distinct の第2段)。
+ * キーは wineIdentityKey で第1段と共有する。
+ *
+ * 比較対象は **buildLabelSuggestions 後の値**にする。名前が読めなかった銘柄は
+ * 呼称の日本語名で補われるため、補完前の生の抽出値で突き合わせると「保存したら
+ * 同名になるのに新規作成される」ズレが出る。
+ *
+ * 同じキーの既存エントリが複数ある場合は最初の1件を採る(entries は新しい順で
+ * 渡ってくるため、直近に登録したものが選ばれる)。
+ */
+export function matchExistingEntries(
+	candidates: WineListCandidate[],
+	entries: readonly ExistingWineIdentity[],
+): WineListCandidate[] {
+	const byKey = new Map<string, ExistingWineIdentity>();
+	for (const entry of entries) {
+		const key = wineIdentityKey(entry);
+		if (!key || byKey.has(key)) continue;
+		byKey.set(key, entry);
+	}
+	return candidates.map((candidate) => {
+		const key = wineIdentityKey({
+			name: candidate.suggestions.name,
+			producer: candidate.suggestions.producer,
+			vintage: candidate.suggestions.vintage,
+		});
+		const hit = key ? byKey.get(key) : undefined;
+		if (!hit) return candidate;
+		return {
+			...candidate,
+			existing: {
+				id: hit.id,
+				name: hit.name,
+				vintage: hit.vintage ?? null,
+				status: hit.status,
+			},
+		};
+	});
+}
+
+/**
+ * 一括抽出の予約トークン見積。写真枚数に比例させ、上限で必ずクランプする
+ * (他のAI経路と同じ流儀)。基礎値を実測の中心値に置く理由は config.ts の
+ * AI_WINE_LIST_BASE_TOKEN_ESTIMATE を参照。
+ */
+export function estimateWineListReserveTokens(imageCount: number): number {
+	return Math.min(
+		AI_MAX_ESTIMATE_TOKENS,
+		AI_WINE_LIST_BASE_TOKEN_ESTIMATE +
+			AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE *
+				Math.min(Math.max(1, imageCount), MAX_PHOTOS_PER_IMPORT_BATCH),
+	);
+}

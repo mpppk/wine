@@ -14,6 +14,8 @@ import {
 	AI_LABEL_WEB_MODEL,
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+	AI_WINE_LIST_MODEL,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
 	type RegionQaModelKey,
@@ -50,9 +52,21 @@ import {
 	type RegionContextInput,
 	stripReasoning,
 } from "#/lib/ai/region-qa";
-import { BadRequestError } from "#/lib/errors";
+import {
+	buildWineListCandidates,
+	buildWineListMessages,
+	dedupeWineListItems,
+	estimateWineListReserveTokens,
+	matchExistingEntries,
+	parseWineListResponse,
+	type WineListCandidate,
+	type WineListParseResult,
+} from "#/lib/ai/wine-list-extraction";
+import { BadRequestError, HttpError } from "#/lib/errors";
 import { logWarn } from "#/lib/logger";
+import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import * as creditService from "#/lib/services/credit-service";
+import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import * as userService from "#/lib/services/user-service";
 import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
 
@@ -459,6 +473,173 @@ export async function analyzeWineLabel(
 	return {
 		blocked: false,
 		suggestions,
+		actualTokens,
+		balance: after.balance,
+	};
+}
+
+export interface AnalyzeWineListInput {
+	/**
+	 * ワインリスト/棚の写真の data URI(data:image/...;base64,...)の配列。HTTP URL は不可。
+	 * 最低1枚・最大 MAX_PHOTOS_PER_IMPORT_BATCH 枚。
+	 */
+	imageDataUrls: string[];
+}
+
+/** レビュー画面のサマリ(「23銘柄を検出(重複3件を統合・既存と2件一致)」)の材料。 */
+export interface WineListAnalysisSummary {
+	/** 統合後の銘柄数(= candidates.length)。 */
+	detected: number;
+	/** バッチ内の重複統合で畳まれた件数。 */
+	mergedDuplicates: number;
+	/** 既存セラーの銘柄と一致した件数(新規作成せず目撃記録を足す候補)。 */
+	matchedExisting: number;
+	/** 列挙しきれなかった銘柄が残っているか。UI は写真を分けての再解析を案内する。 */
+	truncated: boolean;
+}
+
+export type AnalyzeWineListResult =
+	| { blocked: true; balance: number; required: number }
+	| {
+			blocked: false;
+			candidates: WineListCandidate[];
+			summary: WineListAnalysisSummary;
+			actualTokens: number;
+			balance: number;
+	  };
+
+/**
+ * 一括抽出が使える環境か(= ANTHROPIC_API_KEY が設定されているか)。
+ *
+ * **この経路は Claude 専用でフォールバックを持たない**(Issue #358 の決定)ため、
+ * キーが無い環境では機能そのものを出さない。UI の出し分けとサーバ側の拒否が
+ * 同じ判定を見るよう、ここを単一の判定口にする。
+ */
+export function isWineListAnalysisAvailable(): boolean {
+	return !!env.ANTHROPIC_API_KEY?.trim();
+}
+
+/**
+ * Claude で全写真を1リクエスト解析し、銘柄配列を取り出す。env 非依存(apiKey を注入)で
+ * 失敗は throw する(エチケット解析の高精度経路と同じ契約)。
+ *
+ * web検索ツールは付けない: 銘柄数 × 検索でコストが発散するため裏取りはしない
+ * (裏取りしたい銘柄は登録後に単体のエチケット解析を使う住み分け)。サーバー側
+ * ツールループが無いので pause_turn の継続ループも要らない。
+ */
+async function extractWineListWithClaude(
+	apiKey: string,
+	imageDataUrls: string[],
+): Promise<{ parsed: WineListParseResult; totalTokens: number }> {
+	const client = new Anthropic({ apiKey });
+	const response = await client.messages.create({
+		model: AI_WINE_LIST_MODEL,
+		max_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+		messages: buildWineListMessages(imageDataUrls),
+	});
+	const totalTokens = sumAnthropicUsage(response.usage);
+	if (response.stop_reason === "refusal") {
+		throw new Error("Claudeがワインリストの解析の応答を拒否しました");
+	}
+	// 出力上限で打ち切られた応答は JSON が途中で切れており、パースに回すと
+	// 「形式が不正」という無関係な例外になる。銘柄が多すぎることが原因だと
+	// ユーザが分かる形で返す(escape hatch: 写真を分けて再解析)。
+	if (response.stop_reason === "max_tokens") {
+		throw new BadRequestError(
+			"写真に写っているワインが多すぎて、解析結果を最後まで受け取れませんでした。写真を分けて解析してください。",
+		);
+	}
+	const parsed = parseWineListResponse(
+		joinResponseText(response.content),
+		imageDataUrls.length,
+	);
+	return { parsed, totalTokens };
+}
+
+/**
+ * 複数写真からワインの銘柄を一括抽出し、レビュー画面に出す候補を返す(Issue #358)。
+ *
+ * distinct は2段階:
+ *  1. バッチ内の重複統合(モデルにも指示しているが、その取りこぼしの保険)
+ *  2. 既存セラーとの突合(一致したものは新規作成ではなく目撃記録の追加候補にする)
+ *
+ * クレジットは他のAI経路と同じ 予約 → 実測確定 / 失敗時返却 の骨格。既存セラーの
+ * 読み出しは**予約より前**に済ませ、「予約したら必ず try で囲まれている」形を保つ(#245)。
+ */
+export async function analyzeWineList(
+	userId: string,
+	input: AnalyzeWineListInput,
+): Promise<AnalyzeWineListResult> {
+	if (input.imageDataUrls.length === 0) {
+		throw new BadRequestError("画像が指定されていません");
+	}
+	if (input.imageDataUrls.length > MAX_PHOTOS_PER_IMPORT_BATCH) {
+		throw new BadRequestError(
+			`写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです`,
+		);
+	}
+	const apiKey = env.ANTHROPIC_API_KEY?.trim();
+	if (!apiKey) {
+		// UI 側は isWineListAnalysisAvailable で導線ごと隠すので、ここに来るのは
+		// 直接APIを叩かれた場合。機能が無効な環境であることを 503 で明示する。
+		throw new HttpError(
+			503,
+			"この環境では写真からの一括登録を利用できません。管理者にお問い合わせください。",
+		);
+	}
+
+	// 既存セラーとの突合材料。D1 読みなので予約より前に済ませる(#245)。
+	const { entries } = await drunkWineService.listDrunkWines(userId);
+	const estimate = estimateWineListReserveTokens(input.imageDataUrls.length);
+	const requestId = `scan_list:${crypto.randomUUID()}`;
+
+	const res = await creditService.reserveCredits(userId, estimate, requestId);
+	if (!res.ok) {
+		return { blocked: true, balance: res.balance, required: res.required };
+	}
+
+	let candidates: WineListCandidate[];
+	let summary: WineListAnalysisSummary;
+	let actualTokens: number;
+	try {
+		const { parsed, totalTokens } = await extractWineListWithClaude(
+			apiKey,
+			input.imageDataUrls,
+		);
+		const deduped = dedupeWineListItems(parsed.wines);
+		candidates = matchExistingEntries(
+			buildWineListCandidates(deduped.items),
+			entries,
+		);
+		summary = {
+			detected: candidates.length,
+			mergedDuplicates: deduped.mergedCount,
+			matchedExisting: candidates.filter((c) => !!c.existing).length,
+			truncated: parsed.truncated,
+		};
+		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
+		actualTokens = totalTokens || res.reservedTokens;
+		await creditService.settleReservation(
+			userId,
+			requestId,
+			res.reservedCredits,
+			actualTokens,
+		);
+	} catch (e) {
+		// 返却を試み成否をログに残す。返却失敗でも元の例外 e を伝播する(#158)。
+		await creditService.refundReservationOnFailure(
+			userId,
+			requestId,
+			res.reservedCredits,
+		);
+		throw e;
+	}
+	// settle 成功後は消費確定済み(#144)。
+	const after = await creditService.getBalance(userId);
+	return {
+		blocked: false,
+		candidates,
+		summary,
 		actualTokens,
 		balance: after.balance,
 	};
