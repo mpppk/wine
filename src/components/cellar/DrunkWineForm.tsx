@@ -18,10 +18,15 @@ import {
 	toFormState,
 	type WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
+import { LabelSuggestionDiffDialog } from "#/components/cellar/LabelSuggestionDiffDialog";
 import {
 	type AnalysisPhotoSource,
 	analyzeLabelPhotos,
 } from "#/components/cellar/label-analysis";
+import {
+	buildLabelDiffs,
+	type LabelDiffItem,
+} from "#/components/cellar/label-suggestion-diff";
 import { downscaleImage } from "#/components/cellar/photo-resize";
 import { TastingFields } from "#/components/cellar/TastingFields";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
@@ -31,7 +36,6 @@ import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { LiveRegion } from "#/components/ui/live-region";
 import { TAP_TARGET_44 } from "#/lib/a11y";
-import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import { CREDIT_BALANCE_QUERY_KEY } from "#/lib/credit/use-credit";
 import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
 import {
@@ -236,43 +240,8 @@ export function DrunkWineForm({
 		});
 	};
 
-	// エチケット解析の候補を「未入力の項目だけ」に反映する(ユーザ入力は上書きしない)。
-	// AOPはフォームの地域絞り込みと整合するよう、地域が未選択なら候補の地域も併せて
-	// 設定し、別の地域が選択済みなら適用しない。
-	const applySuggestions = (s: LabelSuggestions): string[] => {
-		const filled: string[] = [];
-		const patch: Partial<DrunkWineFieldsValue> = {};
-		if (s.name && !values.name.trim()) {
-			patch.name = s.name;
-			filled.push("名前");
-		}
-		if (s.producer && !values.producer.trim()) {
-			patch.producer = s.producer;
-			filled.push("生産者");
-		}
-		if (s.vintage != null && values.vintage === "") {
-			patch.vintage = String(s.vintage);
-			filled.push("ヴィンテージ");
-		}
-		if (s.regionId && !values.regionId) {
-			patch.regionId = s.regionId;
-			filled.push("地域");
-		}
-		if (
-			s.aopId &&
-			!values.aopId &&
-			(!values.regionId || values.regionId === s.regionId)
-		) {
-			patch.aopId = s.aopId;
-			filled.push("AOP");
-		}
-		if (s.grapeVarietyIds?.length && values.grapeVarietyIds.length === 0) {
-			patch.grapeVarietyIds = s.grapeVarietyIds;
-			filled.push("ぶどう品種");
-		}
-		if (filled.length > 0) update(patch);
-		return filled;
-	};
+	// エチケット解析の候補と現在値の差分。ダイアログで選ばせている間だけ値を持つ。
+	const [labelDiffs, setLabelDiffs] = useState<LabelDiffItem[]>([]);
 
 	const { mutate: analyzeLabel, isPending: isAnalyzing } = useMutation({
 		mutationFn: async () => {
@@ -292,16 +261,36 @@ export function DrunkWineForm({
 				setShowInsufficient(true);
 				return;
 			}
-			const filled = applySuggestions(result.suggestions);
-			setAnalyzeNotice(
-				filled.length > 0
-					? `エチケットから自動入力しました: ${filled.join("、")}`
-					: "エチケットから入力できる新しい項目はありませんでした(入力済みの項目は上書きしません)",
-			);
+			// 「未入力の項目にしか反映しない」自動適用だと、写真追加やエンジン切替での
+			// 再解析結果が一切伝わらずクレジットだけ消費される(#362)。差分がある項目を
+			// ダイアログで提示し、反映するかどうかをユーザに選ばせる。
+			const diffs = buildLabelDiffs(values, result.suggestions);
+			if (diffs.length === 0) {
+				setAnalyzeNotice(
+					"今回の解析結果と現在の入力に差分はありませんでした(クレジットは消費されています)",
+				);
+				return;
+			}
+			setLabelDiffs(diffs);
 		},
 		onError: (e: Error) =>
 			setError(e.message || "エチケットの解析に失敗しました"),
 	});
+
+	// ダイアログで選ばれた項目だけをマージして反映する
+	const applySelectedLabelDiffs = (selected: LabelDiffItem[]) => {
+		const patch = selected.reduce<Partial<DrunkWineFieldsValue>>(
+			(acc, d) => Object.assign(acc, d.patch),
+			{},
+		);
+		update(patch);
+		setLabelDiffs([]);
+		setAnalyzeNotice(
+			selected.length > 0
+				? `エチケットから入力しました: ${selected.map((d) => d.label).join("、")}`
+				: "",
+		);
+	};
 
 	const { mutate: save, isPending } = useMutation({
 		mutationFn: async () => {
@@ -513,6 +502,15 @@ export function DrunkWineForm({
 			<InsufficientCreditsDialog
 				open={showInsufficient}
 				onOpenChange={setShowInsufficient}
+			/>
+
+			<LabelSuggestionDiffDialog
+				open={labelDiffs.length > 0}
+				diffs={labelDiffs}
+				onApply={applySelectedLabelDiffs}
+				onOpenChange={(open) => {
+					if (!open) setLabelDiffs([]);
+				}}
 			/>
 
 			{/* 未保存のまま離脱しようとしたら警告する(保存直後の遷移は除く) */}
