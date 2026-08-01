@@ -10,6 +10,7 @@ import {
 import type { AdminAuditAction } from "#/lib/admin/audit";
 import type { CreditLedgerType } from "#/lib/credit/types";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
+import { DEFAULT_PLACE_KIND, type PlaceKind } from "#/lib/place/place";
 import { user } from "./auth-schema";
 
 // ワイン学習アプリのドメインスキーマ。AOP等のコンテンツデータは静的ファイル
@@ -66,11 +67,16 @@ export const quizQuestionStat = sqliteTable(
  * 「以前飲んだワインをもう一度購入した」= status='owned' かつ 飲用記録あり、のように
  * 組み合わせがそのまま実際の状況に対応する。単一の enum に潰すとこれが表現できない。
  *
- * lastDrankOn / tastingCount は wineTasting の集計キャッシュ。一覧・地図・
- * ダッシュボードがいずれも drunk_wine の単表クエリで、JOIN + GROUP BY にすると
- * 3経路すべてに波及するため非正規化する(dailyActivity と同じ理由付け)。更新は
- * recomputeDrunkWineAggregates(drunk-wine-service.ts)が全再計算で行い、飲用記録の
- * 書き換えと同一の db.batch に必ず含める。
+ * 目撃記録(wineSighting)は**第3の軸**(Issue #358)。「店で見かけた」は所有でも
+ * 飲用でもないため既存2軸のどちらにも畳めない。同じワインを複数の店で見かけたら
+ * 1エントリ + 目撃記録 × N になり、一括登録の distinct(重複統合)要件の受け皿になる。
+ *
+ * lastDrankOn / tastingCount(飲用)と lastSeenOn / sightingCount(目撃)は
+ * それぞれの 1:N の集計キャッシュ。一覧・地図・ダッシュボードがいずれも
+ * drunk_wine の単表クエリで、JOIN + GROUP BY にすると3経路すべてに波及するため
+ * 非正規化する(dailyActivity と同じ理由付け)。更新は
+ * recomputeDrunkWineAggregates(drunk-wine-service.ts)が4列まとめて全再計算で行い、
+ * 飲用記録・目撃記録の書き換えと同一の db.batch に必ず含める。
  */
 export const drunkWine = sqliteTable(
 	"drunk_wine",
@@ -93,6 +99,13 @@ export const drunkWine = sqliteTable(
 		lastDrankOn: text("last_drank_on"),
 		/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
 		tastingCount: integer("tasting_count").notNull().default(0),
+		/**
+		 * 最新の目撃記録の見かけた日 = max(wine_sighting.seen_on)。目撃記録が無い、
+		 * または全件が日付未入力なら null。
+		 */
+		lastSeenOn: text("last_seen_on"),
+		/** 目撃記録の件数。0 なら「どこでも見かけていない」 */
+		sightingCount: integer("sighting_count").notNull().default(0),
 		/** 静的AOPマスタの Aop.id(任意) */
 		aopId: text("aop_id"),
 		/** ヴィンテージ(収穫年) */
@@ -159,6 +172,141 @@ export const wineTasting = sqliteTable(
 	(table) => [
 		index("wine_tasting_entry_drank_idx").on(table.drunkWineId, table.drankOn),
 		index("wine_tasting_user_drank_idx").on(table.userId, table.drankOn),
+	],
+);
+
+/**
+ * 場所(ユーザ単位のマスタ)。「どの店でそのワインを見かけたか」を持つ(Issue #358)。
+ *
+ * **unique 制約を張らない**。同名の別店舗(チェーンの支店)は実在するし、
+ * 「渋谷のあの店」のような曖昧な名前も許したい。表記ゆれの抑制は DB の制約ではなく
+ * UI 側(既存 place をサジェストするコンボボックス)の仕事にする。制約で弾くと
+ * 「登録できない」というエラーをユーザに見せることになり、記録の敷居が上がる。
+ *
+ * 静的マスタ(AOP・品種)と違い、これはユーザが自分で増やすデータなので D1 に置く
+ * (docs/architecture.md「静的マスタと D1 ユーザ状態の分離」の後者)。
+ */
+export const place = sqliteTable(
+	"place",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		/** 区分。値のSSOTは src/lib/place/place.ts */
+		kind: text("kind").notNull().$type<PlaceKind>().default(DEFAULT_PLACE_KIND),
+		memo: text("memo"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	// 一覧・サジェストが「自分の場所を名前順」で引くので、その形の複合index
+	(table) => [index("place_user_name_idx").on(table.userId, table.name)],
+);
+
+/**
+ * 一括登録1回ぶんの写真の保管単位(Issue #358)。レストランのワインリストや
+ * ショップの棚を撮った写真は**1枚に数十銘柄が写る**ため、エントリごとに複製添付
+ * するのは不適切。バッチに1回だけ置き、目撃記録(wineSighting)から photoIndex で
+ * 参照する。drunk_wine.photoKeys はボトル写真用として独立のまま。
+ *
+ * **写真のR2キーは `wines/{userId}/{batchId}/{photoId}.{ext}`**。エントリ写真と
+ * 同じ `wines/` 接頭辞に載せるのは、非公開画像の認可・署名URL・退会時の一括削除が
+ * すべてこのレイアウトを前提に書かれているため(images/signed-url.ts の
+ * ownerOfPrivateImageKey / privateImagePrefixForUser、routes/api/images/$.ts の
+ * isAllowedImageKey、user-deletion-service の R2 掃除)。専用接頭辞を新設すると
+ * この4箇所を同時に広げる必要があり、1つでも漏らすと
+ * docs/architecture.md が警告する「所有者判定と削除範囲のズレで、消したはずの
+ * 個人データがR2に残る」に直行する。batchId も drunkWine.id も
+ * crypto.randomUUID() なので、中間セグメントの名前空間は衝突しない。
+ */
+export const importBatch = sqliteTable(
+	"import_batch",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 撮影した場所。任意(場所を入力せずに一括登録できる) */
+		placeId: text("place_id").references(() => place.id, {
+			onDelete: "set null",
+		}),
+		/** 見かけた日 "YYYY-MM-DD"。バッチ内の目撃記録の既定値になる */
+		seenOn: text("seen_on"),
+		/** R2キーの配列。撮影順(photoIndex がこの配列の添字) */
+		photoKeys: text("photo_keys", { mode: "json" })
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'`),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		index("import_batch_user_created_idx").on(table.userId, table.createdAt),
+	],
+);
+
+/**
+ * 目撃記録。1つの銘柄(drunkWine)を複数の場所で見かけた履歴を持つ(1:N)。
+ * wineTasting と同じ流儀で、所有状態・飲用履歴と直交する第3の軸(Issue #358)。
+ *
+ * - レストランAで見かけて飲んだ → エントリ + 目撃記録(A) + 飲用記録
+ * - ショップB・Cで見かけた同一ワイン → 1エントリ + 目撃記録(B) + 目撃記録(C)
+ * - 以前飲んだワインを店で見かけた → 既存エントリに目撃記録が増えるだけ
+ *
+ * seenOn は nullable。wineTasting.drankOn と同じく「見かけたが日付を覚えていない」
+ * 記録を取りこぼすと集計から消えるため。
+ *
+ * price は銘柄側(drunk_wine.price)とは別物で「その店での売値」。店ごとに違うのが
+ * 当たり前なのでここに属する(評価・メモが飲用記録に属するのと同じ理由)。
+ *
+ * userId は drunkWine 経由で辿れるが、所有権チェックを JOIN 無しの
+ * `WHERE id AND userId` で行う規約(docs/architecture.md)のため冗長に持つ。
+ */
+export const wineSighting = sqliteTable(
+	"wine_sighting",
+	{
+		id: text("id").primaryKey(),
+		drunkWineId: text("drunk_wine_id")
+			.notNull()
+			.references(() => drunkWine.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 見かけた場所。任意。場所を消しても目撃した事実は残すので set null */
+		placeId: text("place_id").references(() => place.id, {
+			onDelete: "set null",
+		}),
+		/** 由来の一括登録バッチ。手動で足した目撃記録では null */
+		batchId: text("batch_id").references(() => importBatch.id, {
+			onDelete: "set null",
+		}),
+		/** バッチの photoKeys の添字(0始まり)。どの写真に写っていたか */
+		photoIndex: integer("photo_index"),
+		/** 見かけた日 "YYYY-MM-DD"。覚えていない場合は null */
+		seenOn: text("seen_on"),
+		/** その店での売値(円) */
+		price: integer("price"),
+		memo: text("memo"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("wine_sighting_entry_seen_idx").on(table.drunkWineId, table.seenOn),
+		index("wine_sighting_user_seen_idx").on(table.userId, table.seenOn),
+		// 「この店で見かけたワイン一覧」(PR4)用。所有権の user_id を先頭に置く
+		index("wine_sighting_user_place_idx").on(table.userId, table.placeId),
 	],
 );
 

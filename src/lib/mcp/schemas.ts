@@ -116,8 +116,11 @@ const photoMimeType = z
 	.optional()
 	.describe("写真のMIMEタイプ (photo_base64 指定時は必須)");
 
+// 値の enum は drunkWineFields.status(= WINE_STATUS_IDS)から自動で追随するが、
+// この日本語 describe は手書きなので、状態を足したら必ずここも直す。
 const STATUS_DESCRIBE =
-	"所有状態。wishlist=気になる(未購入) / owned=手元にある / finished=飲み終えた。" +
+	"所有状態。wishlist=気になる(未購入) / owned=手元にある / finished=飲み終えた / " +
+	"spotted=見かけた(店で見かけただけ。買っても飲んでもいない)。" +
 	"省略時は finished(飲み終えた記録として登録される)";
 
 const REGISTER_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
@@ -135,7 +138,8 @@ const REGISTER_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 const UPDATE_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	name: "ワイン名(ラベル表記)",
 	status:
-		"所有状態。wishlist=気になる(未購入) / owned=手元にある / finished=飲み終えた",
+		"所有状態。wishlist=気になる(未購入) / owned=手元にある / finished=飲み終えた / " +
+		"spotted=見かけた(店で見かけただけ)",
 	vintage: "ヴィンテージ (1800〜2100の年)。nullでクリア",
 	price: "価格 (円)。nullでクリア",
 	producer: "生産者名 (200文字まで)。nullでクリア",
@@ -308,6 +312,7 @@ export const listDrunkWinesInput = {
 		.enum(CELLAR_FILTER_IDS)
 		.optional()
 		.describe(
-			"絞り込み: all=すべて(既定) / tasted=飲んだことがある / owned=セラーにある / wishlist=気になる",
+			"絞り込み: all=すべて(既定) / tasted=飲んだことがある / owned=セラーにある / " +
+				"wishlist=気になる / spotted=見かけた",
 		),
 };

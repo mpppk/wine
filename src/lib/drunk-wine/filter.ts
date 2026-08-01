@@ -10,6 +10,7 @@ export const CELLAR_FILTERS = [
 	{ id: "tasted", labelJa: "飲んだことがある" },
 	{ id: "owned", labelJa: "セラーにある" },
 	{ id: "wishlist", labelJa: "気になる" },
+	{ id: "spotted", labelJa: "見かけた" },
 ] as const;
 
 export type CellarFilterId = (typeof CELLAR_FILTERS)[number]["id"];
@@ -40,6 +41,8 @@ export function matchesCellarFilter(
 			return entry.status === "owned";
 		case "wishlist":
 			return entry.status === "wishlist";
+		case "spotted":
+			return entry.status === "spotted";
 	}
 }
 
