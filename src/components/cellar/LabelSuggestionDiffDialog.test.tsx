@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LabelDiffItem } from "#/components/cellar/label-suggestion-diff";
 import { LabelSuggestionDiffDialog } from "./LabelSuggestionDiffDialog";
 
+// DrunkWineForm はこのダイアログをアンマウントせず開閉するだけなので(#362)、
+// マウント後に diffs が新しく差し替わるケースを固定する(rerenderで再現)。
+
 afterEach(() => cleanup());
 
 const DIFFS: LabelDiffItem[] = [
@@ -79,5 +82,36 @@ describe("LabelSuggestionDiffDialog", () => {
 		fireEvent.click(screen.getByRole("button", { name: "そのままにする" }));
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 		expect(onApply).not.toHaveBeenCalled();
+	});
+
+	it("マウント後に新しい差分が来ても、全チェック状態に戻り反映ボタンが使える", () => {
+		// DrunkWineForm はダイアログを常時マウントしたまま open/diffs だけ更新する
+		// (Dialogがopen=falseの間もアンマウントされない)。1回目の解析結果を
+		// 全解除した後、2回目の解析(新しいdiffs配列)がまた全チェックで来ることを固定する。
+		const onApply = vi.fn();
+		const onOpenChange = vi.fn();
+		const { rerender } = render(
+			<LabelSuggestionDiffDialog
+				open={false}
+				diffs={[]}
+				onApply={onApply}
+				onOpenChange={onOpenChange}
+			/>,
+		);
+		rerender(
+			<LabelSuggestionDiffDialog
+				open={true}
+				diffs={DIFFS}
+				onApply={onApply}
+				onOpenChange={onOpenChange}
+			/>,
+		);
+		const applyButton = () =>
+			screen.getByRole("button", {
+				name: "選んだ項目を反映",
+			}) as HTMLButtonElement;
+		expect(applyButton().disabled).toBe(false);
+		fireEvent.click(applyButton());
+		expect(onApply).toHaveBeenCalledWith(DIFFS);
 	});
 });

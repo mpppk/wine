@@ -32,10 +32,18 @@ export function LabelSuggestionDiffDialog({
 	onOpenChange,
 }: LabelSuggestionDiffDialogProps) {
 	// key は "region" 等の固定文字列なので Set<LabelDiffItem["key"]> で足りる。
-	// diffs が変わるたびに全選択へ戻すのは onOpenChange 側(呼び出し元)の責務にする。
+	// diffs は open=false のまま維持される(Dialogがアンマウントされない)ため、
+	// useState の初期化関数は初回の1回しか走らない。再解析で新しい diffs が来る
+	// たびに全選択へ戻すには、レンダー中に diffs の参照変化を検知して同期する
+	// (https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)。
+	const [prevDiffs, setPrevDiffs] = useState(diffs);
 	const [selected, setSelected] = useState<Set<LabelDiffItem["key"]>>(
 		() => new Set(diffs.map((d) => d.key)),
 	);
+	if (diffs !== prevDiffs) {
+		setPrevDiffs(diffs);
+		setSelected(new Set(diffs.map((d) => d.key)));
+	}
 	const toggle = (key: LabelDiffItem["key"]) => {
 		setSelected((prev) => {
 			const next = new Set(prev);
@@ -46,13 +54,7 @@ export function LabelSuggestionDiffDialog({
 	};
 
 	return (
-		<Dialog
-			open={open}
-			onOpenChange={(next) => {
-				if (!next) setSelected(new Set(diffs.map((d) => d.key)));
-				onOpenChange(next);
-			}}
-		>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>今回の解析結果と現在の入力に差分があります</DialogTitle>
