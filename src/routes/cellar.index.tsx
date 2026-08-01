@@ -12,6 +12,14 @@ import { CellarFilterChips } from "#/components/cellar/CellarFilterChips";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
+import { Label } from "#/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/ui/select";
 import {
 	CELLAR_FILTER_IDS,
 	DEFAULT_CELLAR_FILTER,
@@ -26,6 +34,10 @@ import {
 	listDrunkWines,
 	markWineDrunk,
 } from "#/server/drunk-wine";
+import { listPlaces } from "#/server/place";
+
+/** 「すべての場所」の選択値。Select は空文字を未選択と解釈するため別の値にする。 */
+const ALL_PLACES = "__all__";
 
 export const Route = createFileRoute("/cellar/")({
 	// 絞り込みは URL に載せる。地図(/cellar/map)との相互リンクで引き継ぐことが
@@ -37,22 +49,32 @@ export const Route = createFileRoute("/cellar/")({
 			.enum(CELLAR_FILTER_IDS)
 			.catch(DEFAULT_CELLAR_FILTER)
 			.default(DEFAULT_CELLAR_FILTER),
+		// 場所での絞り込み(その店で見かけた銘柄だけ)。所有状態のチップとは直交する
+		// 軸なので別のパラメータで持つ。既に消した場所のIDが URL に残っていても
+		// 一覧が0件になるだけなので、既定へ倒さずそのまま通す。
+		place: z.string().max(80).optional().catch(undefined),
 	}),
 	beforeLoad: requireAuthBeforeLoad,
 	// 絞り込みは SQL 側で適用する。ページに載っていない行も数えるため、チップの
 	// 件数は集計クエリで別に取る(#254)。
-	loaderDeps: ({ search }) => ({ filter: search.filter }),
+	loaderDeps: ({ search }) => ({ filter: search.filter, place: search.place }),
 	loader: async ({ deps }) => {
 		// 一括登録は Claude 専用の経路で、キーが無い環境では使えない。導線ごと
 		// 隠すため、判定を一覧のロードで一緒に取る(サーバ側の 503 と同じ判定)。
-		const [page, counts, wineListAnalysis] = await Promise.all([
+		const [page, counts, wineListAnalysis, places] = await Promise.all([
 			listDrunkWines({
-				data: { filter: deps.filter, limit: DRUNK_WINE_PAGE_SIZE },
+				data: {
+					filter: deps.filter,
+					...(deps.place ? { placeId: deps.place } : {}),
+					limit: DRUNK_WINE_PAGE_SIZE,
+				},
 			}),
-			countCellarFilters(),
+			// チップの件数も場所で絞った母集合で数える(数字と一覧の食い違いを防ぐ)
+			countCellarFilters({ data: deps.place ? { placeId: deps.place } : {} }),
 			getWineListAnalysisAvailability(),
+			listPlaces(),
 		]);
-		return { page, counts, wineListAnalysis };
+		return { page, counts, wineListAnalysis, places };
 	},
 	component: CellarPage,
 });
@@ -143,8 +165,8 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 }
 
 function CellarPage() {
-	const { page, counts, wineListAnalysis } = Route.useLoaderData();
-	const { filter } = Route.useSearch();
+	const { page, counts, wineListAnalysis, places } = Route.useLoaderData();
+	const { filter, place } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 
 	// 追加読み込みぶんを積む。loader が返す1ページ目が変わったら積み直す
@@ -163,7 +185,12 @@ function CellarPage() {
 		setLoadingMore(true);
 		try {
 			const next = await listDrunkWines({
-				data: { filter, limit: DRUNK_WINE_PAGE_SIZE, cursor },
+				data: {
+					filter,
+					...(place ? { placeId: place } : {}),
+					limit: DRUNK_WINE_PAGE_SIZE,
+					cursor,
+				},
 			});
 			setExtra((prev) => [...prev, ...next.entries]);
 			setCursor(next.nextCursor);
@@ -206,13 +233,56 @@ function CellarPage() {
 						value={filter}
 						counts={counts}
 						onChange={(next) =>
-							navigate({ search: { filter: next }, replace: true })
+							navigate({
+								search: (prev) => ({ ...prev, filter: next }),
+								replace: true,
+							})
 						}
 					/>
 				</div>
 			)}
 
-			{counts.all === 0 ? (
+			{/*
+			  場所の絞り込みは場所を1つ以上持っているときだけ出す。一括登録で店を
+			  記録していないユーザには意味が無く、常設すると空のセレクタが並ぶ。
+			*/}
+			{places.length > 0 && (
+				<div className="mb-4 flex items-center gap-2">
+					<Label htmlFor="cellar-place" className="text-sm shrink-0">
+						場所
+					</Label>
+					<Select
+						value={place ?? ALL_PLACES}
+						onValueChange={(next) =>
+							navigate({
+								search: (prev) => ({
+									...prev,
+									place: next === ALL_PLACES ? undefined : next,
+								}),
+								replace: true,
+							})
+						}
+					>
+						<SelectTrigger id="cellar-place" className="w-full max-w-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={ALL_PLACES}>すべての場所</SelectItem>
+							{places.map((p) => (
+								<SelectItem key={p.id} value={p.id}>
+									{p.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+
+			{/*
+			  「1本も無い」の初回案内は、場所で絞っていないときだけ出す。場所を選んだ
+			  結果0件なのに「まだ記録がありません」と出すと、記録が消えたように読める。
+			*/}
+			{counts.all === 0 && !place ? (
 				<div className="flex flex-col items-center gap-4 rounded-lg border border-dashed border-border py-16">
 					<WineIcon className="size-10 text-muted-foreground/40" aria-hidden />
 					<p className="text-sm text-muted-foreground">
