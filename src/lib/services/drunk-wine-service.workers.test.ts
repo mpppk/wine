@@ -1424,3 +1424,127 @@ describe("saveImportBatchPhotos", () => {
 		).rejects.toThrow("Import batch not found");
 	});
 });
+
+// 閲覧側(Issue #358 PR4)。目撃記録の由来写真の解決と、場所での絞り込みを実D1で見る。
+describe("目撃記録の由来写真", () => {
+	const JPEG_1X1 = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	it("バッチの photoIndex 番目の写真URLを返す", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 2,
+			items: [
+				{ wine: { name: "2枚目に写っていた" }, sighting: { photoIndex: 1 } },
+			],
+		});
+		const batch = await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1, mimeType: "image/jpeg" },
+			{ bytes: JPEG_1X1, mimeType: "image/jpeg" },
+		]);
+
+		const { entries } = await listDrunkWines(userId);
+		const [sighting] = await listWineSightings(userId, entries[0]?.id ?? "");
+		// 1枚目ではなく2枚目(photoIndex=1)を指す
+		expect(sighting?.photoUrl).toBe(batch.photoUrls[1]);
+	});
+
+	it("写真がまだ保存されていないバッチでは null(壊れた画像URLを作らない)", async () => {
+		const userId = await freshUser();
+		await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [{ wine: { name: "写真未保存" }, sighting: { photoIndex: 0 } }],
+		});
+		const { entries } = await listDrunkWines(userId);
+		const [sighting] = await listWineSightings(userId, entries[0]?.id ?? "");
+		expect(sighting?.batchId).not.toBeNull();
+		expect(sighting?.photoUrl).toBeNull();
+	});
+
+	it("手で足した目撃記録(バッチ無し)は null", async () => {
+		const userId = await freshUser();
+		const { id } = await createDrunkWine(userId, { name: "手入力" });
+		await addWineSighting(userId, id, { seenOn: "2026-08-01" });
+		const [sighting] = await listWineSightings(userId, id);
+		expect(sighting?.photoUrl).toBeNull();
+	});
+});
+
+describe("場所での絞り込み", () => {
+	it("その場所で見かけた銘柄だけを返し、チップの件数も同じ母集合で数える", async () => {
+		const userId = await freshUser();
+		const shop = await createPlace(userId, { name: "ワインショップA" });
+		const other = await createPlace(userId, { name: "レストランB" });
+
+		await bulkRegisterFromScan(userId, {
+			placeId: shop.id,
+			photoCount: 0,
+			items: [
+				{ wine: { name: "Aで見かけた1" } },
+				{ wine: { name: "Aで見かけた2", status: "owned" } },
+			],
+		});
+		await bulkRegisterFromScan(userId, {
+			placeId: other.id,
+			photoCount: 0,
+			items: [{ wine: { name: "Bで見かけた" } }],
+		});
+		// どの場所でも見かけていない銘柄(絞り込みから外れる)
+		await createDrunkWine(userId, { name: "見かけていない" });
+
+		const all = await listDrunkWines(userId);
+		expect(all.entries).toHaveLength(4);
+
+		const atShop = await listDrunkWines(userId, { placeId: shop.id });
+		expect(atShop.entries.map((e) => e.name).sort()).toEqual([
+			"Aで見かけた1",
+			"Aで見かけた2",
+		]);
+
+		// チップの件数も場所で絞る(一覧と数字が食い違わない)
+		const counts = await countCellarFilters(userId, { placeId: shop.id });
+		expect(counts).toMatchObject({ all: 2, owned: 1, spotted: 1 });
+		expect(await countCellarFilters(userId)).toMatchObject({ all: 4 });
+	});
+
+	it("場所と所有状態は直交する(両方で絞れる)", async () => {
+		const userId = await freshUser();
+		const shop = await createPlace(userId, { name: "ショップ" });
+		await bulkRegisterFromScan(userId, {
+			placeId: shop.id,
+			photoCount: 0,
+			items: [
+				{ wine: { name: "見かけただけ" } },
+				{ wine: { name: "見かけて買った", status: "owned" } },
+			],
+		});
+
+		const owned = await listDrunkWines(userId, {
+			placeId: shop.id,
+			filter: "owned",
+		});
+		expect(owned.entries.map((e) => e.name)).toEqual(["見かけて買った"]);
+	});
+
+	it("同じ場所で複数回見かけた銘柄が重複して出ない(EXISTS で畳む)", async () => {
+		const userId = await freshUser();
+		const shop = await createPlace(userId, { name: "常連の店" });
+		const { id } = await createDrunkWine(userId, { name: "何度も見かけた" });
+		await addWineSighting(userId, id, {
+			placeId: shop.id,
+			seenOn: "2026-07-01",
+		});
+		await addWineSighting(userId, id, {
+			placeId: shop.id,
+			seenOn: "2026-08-01",
+		});
+
+		const page = await listDrunkWines(userId, { placeId: shop.id });
+		expect(page.entries).toHaveLength(1);
+		expect(page.entries[0]?.sightingCount).toBe(2);
+	});
+});
