@@ -89,6 +89,11 @@ function CellarImportPage() {
 	const [summary, setSummary] = useState<WineListAnalysisSummary | null>(null);
 	const [error, setError] = useState("");
 	const [showInsufficient, setShowInsufficient] = useState(false);
+	// 登録(server fn)が通った後の結果。写真アップロードだけ失敗したときの
+	// 再試行で二重登録しないための印でもある
+	const [registered, setRegistered] = useState<Awaited<
+		ReturnType<typeof bulkRegisterFromScan>
+	> | null>(null);
 	const newIdRef = useRef(0);
 	const doneRef = useRef(false);
 
@@ -162,33 +167,50 @@ function CellarImportPage() {
 		onError: (e: Error) => setError(e.message || "写真の解析に失敗しました"),
 	});
 
+	const goToCellar = async () => {
+		for (const p of photos) URL.revokeObjectURL(p.previewUrl);
+		doneRef.current = true;
+		await navigate({ to: "/cellar", search: { filter: "spotted" } });
+	};
+
 	const { mutate: register, isPending: isRegistering } = useMutation({
 		mutationFn: async () => {
 			if (!cards) throw new Error("解析結果がありません");
-			const result = await bulkRegisterFromScan({
-				data: buildBulkRegisterInput(cards, {
-					...(placeChoice !== NO_PLACE && placeChoice !== NEW_PLACE
-						? { placeId: placeChoice }
-						: {}),
-					...(placeChoice === NEW_PLACE ? { newPlaceName } : {}),
-					...(seenOn ? { seenOn } : {}),
-					photoCount: photos.length,
-				}),
-			});
-			// 写真の実体は登録確定後(R2キーが batchId 依存)。ここで失敗しても登録済みの
-			// 記録は残るので、写真だけが無い状態として扱い、エラーは伝えるだけにする。
-			await uploadImportBatchPhotos(
-				result.batchId,
-				photos.map((p) => p.file),
-			);
+			// **既に登録が通っていれば再登録しない**。この経路は「登録(server fn)→
+			// 写真アップロード」の2段階で、後半だけ失敗しうる(実機確認で踏んだ)。
+			// そのまま再送するとバッチと目撃記録がもう一組できて二重登録になるため、
+			// 確定済みの batchId を持ち回して写真の保存だけをやり直す。
+			const result =
+				registered ??
+				(await bulkRegisterFromScan({
+					data: buildBulkRegisterInput(cards, {
+						...(placeChoice !== NO_PLACE && placeChoice !== NEW_PLACE
+							? { placeId: placeChoice }
+							: {}),
+						...(placeChoice === NEW_PLACE ? { newPlaceName } : {}),
+						...(seenOn ? { seenOn } : {}),
+						photoCount: photos.length,
+					}),
+				}));
+			setRegistered(result);
+			// 写真の実体は登録確定後(R2キーが batchId 依存)。ここで失敗しても記録は
+			// 残っているので、**そのことが伝わる文言に置き換えてから** throw する
+			// (onError 側で判定すると、この実行で setRegistered した結果がまだ
+			// クロージャに反映されておらず、初回の失敗を「登録に失敗」と誤って出す)。
+			try {
+				await uploadImportBatchPhotos(
+					result.batchId,
+					photos.map((p) => p.file),
+				);
+			} catch (e) {
+				const detail = e instanceof Error ? e.message : String(e);
+				throw new Error(
+					`記録の登録は完了しましたが、写真の保存に失敗しました(${detail})。もう一度試すか、写真なしで完了できます。`,
+				);
+			}
 			return result;
 		},
-		onSuccess: async (result) => {
-			for (const p of photos) URL.revokeObjectURL(p.previewUrl);
-			doneRef.current = true;
-			await navigate({ to: "/cellar", search: { filter: "spotted" } });
-			void result;
-		},
+		onSuccess: goToCellar,
 		onError: (e: Error) => setError(e.message || "登録に失敗しました"),
 	});
 
@@ -401,20 +423,36 @@ function CellarImportPage() {
 									register();
 								}}
 							>
-								{isRegistering ? "登録中…" : "マイセラーに登録する"}
+								{isRegistering
+									? "登録中…"
+									: registered
+										? "写真の保存を再試行"
+										: "マイセラーに登録する"}
 							</Button>
-							<Button
-								type="button"
-								variant="ghost"
-								disabled={isRegistering}
-								onClick={() => {
-									setCards(null);
-									setSummary(null);
-									setError("");
-								}}
-							>
-								写真の選択に戻る
-							</Button>
+							{registered ? (
+								// 記録は登録済みなので、写真を諦めて先に進む逃げ道を必ず残す
+								<Button
+									type="button"
+									variant="ghost"
+									disabled={isRegistering}
+									onClick={() => void goToCellar()}
+								>
+									写真なしで完了する
+								</Button>
+							) : (
+								<Button
+									type="button"
+									variant="ghost"
+									disabled={isRegistering}
+									onClick={() => {
+										setCards(null);
+										setSummary(null);
+										setError("");
+									}}
+								>
+									写真の選択に戻る
+								</Button>
+							)}
 						</div>
 						{validation && (
 							<p className="text-xs text-destructive">{validation}</p>
