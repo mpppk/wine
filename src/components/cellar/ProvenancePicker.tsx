@@ -80,12 +80,15 @@ function OptionRow({
 	showBreadcrumb = false,
 	onSelect,
 	className,
+	indent = 0,
 }: {
 	option: ProvenanceOption;
 	selected: boolean;
 	showBreadcrumb?: boolean;
 	onSelect: (option: ProvenanceOption) => void;
 	className?: string;
+	/** 階層ブラウズのインデント段数(村=0、畑/シャトー=1、クリマ=2)。 */
+	indent?: number;
 }) {
 	const suffix = KIND_SUFFIX[option.kind];
 	return (
@@ -93,6 +96,8 @@ function OptionRow({
 			value={`${option.kind}:${option.id}`}
 			onSelect={() => onSelect(option)}
 			className={className}
+			// CommandDialog ラッパーの [&_[cmdk-item]]:px-2 に負けないよう inline style
+			style={indent > 0 ? { paddingLeft: `${0.5 + indent}rem` } : undefined}
 		>
 			<CheckIcon
 				className={cn("size-4", selected ? "opacity-100" : "opacity-0")}
@@ -388,7 +393,7 @@ function AopLevel({
 					option={option}
 					selected={isSelected(option)}
 					onSelect={onSelect}
-					className={cn(depth === 1 && "pl-6", depth === 2 && "pl-10")}
+					indent={depth}
 				/>
 			))}
 		</>
