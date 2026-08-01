@@ -22,3 +22,13 @@ export const askRegion = createServerFn({ method: "POST" })
 	.handler(({ data, context }) =>
 		aiService.answerRegionQuestion(context.user.id, data),
 	);
+
+/**
+ * 写真からの一括登録(Issue #358)が使える環境か。この経路は Claude 専用で
+ * フォールバックを持たないため、`ANTHROPIC_API_KEY` が無い環境では**導線ごと隠す**。
+ * 判定の実体は ai-service 側と同じ関数で、UI の出し分けとサーバの 503 が
+ * 食い違わないようにする。
+ */
+export const getWineListAnalysisAvailability = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.handler(() => ({ available: aiService.isWineListAnalysisAvailable() }));

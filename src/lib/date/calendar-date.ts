@@ -34,6 +34,19 @@ export function isCalendarDate(s: string): boolean {
 }
 
 /**
+ * ローカル時刻での今日("YYYY-MM-DD")。日付入力(`<input type="date">`)の
+ * 既定値に使う。
+ *
+ * `toISOString().slice(0, 10)` は UTC に変換するため、JST の朝9時より前は
+ * 前日になる。ユーザが「見かけた日」の既定として期待するのは手元の日付なので、
+ * ローカルの年月日をそのまま組み立てる。
+ */
+export function todayCalendarDate(now: Date = new Date()): string {
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
  * 暦日の zod パーツ。日付を受ける入力スキーマはこれを `.optional()` 等で
  * 包んで使い、regex と refine を各自書き直さない。
  */

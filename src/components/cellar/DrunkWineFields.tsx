@@ -43,6 +43,14 @@ export interface DrunkWineFieldsProps {
 	 * レガシー引数なので、自前で TastingFields を描画する。
 	 */
 	tastingSlot?: React.ReactNode;
+	/**
+	 * 入力欄の DOM id の接頭辞(既定 "wine")。**同じ画面にこのフォームを複数置く
+	 * 場合は必ずカードごとに変える**。一括登録のレビュー画面(/cellar/import)は
+	 * 銘柄の数だけこのフォームを描画するため、固定 id のままだと label の
+	 * htmlFor が全部先頭のカードを指し、2枚目以降のラベルを押しても別のカードの
+	 * 入力欄にフォーカスが飛ぶ。TastingFields の idPrefix と同じ流儀。
+	 */
+	idPrefix?: string;
 }
 
 /**
@@ -66,6 +74,7 @@ export function DrunkWineFields({
 	onChange,
 	photoSlot,
 	tastingSlot,
+	idPrefix = "wine",
 }: DrunkWineFieldsProps) {
 	const [aopPickerOpen, setAopPickerOpen] = useState(false);
 	const regions = useMemo(() => listRegions().filter((r) => r.enabled), []);
@@ -78,11 +87,11 @@ export function DrunkWineFields({
 	return (
 		<>
 			<div className="flex flex-col gap-1.5">
-				<Label htmlFor="wine-name">
+				<Label htmlFor={`${idPrefix}-name`}>
 					名前 <span className="text-destructive">*</span>
 				</Label>
 				<Input
-					id="wine-name"
+					id={`${idPrefix}-name`}
 					type="text"
 					value={value.name}
 					onChange={(e) => onChange({ name: e.target.value })}
@@ -93,12 +102,12 @@ export function DrunkWineFields({
 			</div>
 
 			<div className="flex flex-col gap-1.5">
-				<Label htmlFor="wine-status">状態</Label>
+				<Label htmlFor={`${idPrefix}-status`}>状態</Label>
 				<Select
 					value={value.status}
 					onValueChange={(v) => onChange({ status: v as WineStatus })}
 				>
-					<SelectTrigger id="wine-status" className="w-full">
+					<SelectTrigger id={`${idPrefix}-status`} className="w-full">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
@@ -116,9 +125,9 @@ export function DrunkWineFields({
 
 			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
 				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="wine-vintage">ヴィンテージ</Label>
+					<Label htmlFor={`${idPrefix}-vintage`}>ヴィンテージ</Label>
 					<Input
-						id="wine-vintage"
+						id={`${idPrefix}-vintage`}
 						type="number"
 						min={1800}
 						max={2100}
@@ -129,9 +138,9 @@ export function DrunkWineFields({
 				</div>
 
 				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="wine-producer">生産者</Label>
+					<Label htmlFor={`${idPrefix}-producer`}>生産者</Label>
 					<Input
-						id="wine-producer"
+						id={`${idPrefix}-producer`}
 						type="text"
 						value={value.producer}
 						onChange={(e) => onChange({ producer: e.target.value })}
@@ -147,9 +156,9 @@ export function DrunkWineFields({
 				 */}
 				{value.status !== "wishlist" && (
 					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="wine-price">価格(円)</Label>
+						<Label htmlFor={`${idPrefix}-price`}>価格(円)</Label>
 						<Input
-							id="wine-price"
+							id={`${idPrefix}-price`}
 							type="number"
 							min={0}
 							max={10_000_000}
