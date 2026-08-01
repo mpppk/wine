@@ -193,18 +193,32 @@ describe("listScopedCandidates", () => {
 		expect(listScopedCandidates("bourgogne", ALL_TYPES, "morgon")).toBeNull();
 	});
 	it("傘AOCのスコープにクリマ主語の候補キーが入る(#243)", () => {
+		// クリマ主語の候補が存在する傘AOCで、parentAopId エッジを辿ることを固定する。
+		// コルトンのクリマは色・品種が親と異なるため固有の候補キーを持つ。
+		const scoped = listScopedCandidates("bourgogne", ALL_TYPES, "corton");
+		expect(scoped).not.toBeNull();
+		// 修正前は傘AOC自身のキーしか無く、クリマの設問は1件も含まれなかった。
+		expect(scoped).toContain("colors:corton-les-bressandes");
+		const climatKeys = scoped!.filter((key) =>
+			parseKey(key)?.aopId.startsWith("corton-"),
+		);
+		expect(climatKeys.length).toBeGreaterThan(0);
+	});
+
+	it("親畑と同一内容になるクリマの設問は傘AOC側の1問に集約される", () => {
+		// シャブリ・グラン・クリュの7クリマは色・品種・地区が全て親と同じで、
+		// クリマごとに出すと名前だけ違う同一内容のクイズが7回並ぶ。
+		// クリマ主語のキーは列挙されず、傘AOC自身の設問だけがスコープに残る。
 		const scoped = listScopedCandidates(
 			"bourgogne",
 			ALL_TYPES,
 			"chablis-grand-cru",
 		);
 		expect(scoped).not.toBeNull();
-		// 修正前は傘AOC自身のキーしか無く、クリマの設問は1件も含まれなかった。
-		expect(scoped).toContain("colors:chablis-gc-les-clos");
-		const climatKeys = scoped!.filter((key) =>
-			parseKey(key)?.aopId.startsWith("chablis-gc-"),
-		);
-		expect(climatKeys.length).toBeGreaterThan(0);
+		expect(scoped).toContain("colors:chablis-grand-cru");
+		expect(
+			scoped!.filter((key) => parseKey(key)?.aopId.startsWith("chablis-gc-")),
+		).toEqual([]);
 	});
 });
 
@@ -232,5 +246,10 @@ describe("countScopedQuestions", () => {
 
 	it("不明なslugは 0", () => {
 		expect(countScopedQuestions("bourgogne", "no-such-aop")).toBe(0);
+	});
+
+	it("親畑に集約されたクリマは 0(詳細パネルにクイズボタンが出ない)", () => {
+		expect(countScopedQuestions("bourgogne", "chablis-gc-les-clos")).toBe(0);
+		expect(countScopedQuestions("bourgogne", "chablis-1er-fourchaume")).toBe(0);
 	});
 });
