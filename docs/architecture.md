@@ -195,7 +195,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - D1 に**トランザクションはない**。複数書き込みの原子性は `db.batch([...])` で確保し、冪等性は unique 制約付き `requestId` + 条件付き UPDATE で担保する。この不変条件を崩す書き込みパス（batch 外での残高更新等）を追加しない。
 - 所有権チェックは常に `WHERE id AND userId` の複合条件で行い、「存在しない」と「他ユーザ所有」を同一エラー（"Entry not found"）にして存在探索を防ぐ。
 - 更新入力は「**undefined = 変更しない / null = クリア**」の規約（drizzle が undefined キーを無視する性質を利用。`drunk-wine/schema.ts` が単一情報源）。
-- **非正規化してよいのは集計だけ**。`drunk_wine.tasting_count`（COUNT）と `last_drank_on`（MAX）は、削除や日付変更で「次に大きい値」へ戻す必要があり加減算では表現できないため列に持ち、書き込み経路が必ず同じ `db.batch` で全再計算する。一方「最新1件の値」（評価・メモ）は列に持たず**読み取り時に相関サブクエリで導出する** — 列にすると射影を書き戻す経路が増え、二重管理に戻る（#205 で `drank_on` / `rating` / `memo` を削除した経緯）。
+- **非正規化してよいのは集計だけ**。`drunk_wine` の `tasting_count` / `sighting_count`（COUNT）と `last_drank_on` / `last_seen_on`（MAX）は、削除や日付変更で「次に大きい値」へ戻す必要があり加減算では表現できないため列に持ち、書き込み経路が必ず同じ `db.batch` で全再計算する。飲用（`wine_tasting`）と目撃（`wine_sighting`）の 2 つの 1:N があるが、**再計算は 4 列を 1 つの UPDATE で必ずまとめて行う**（`recomputeDrunkWineAggregates`）。片方だけ更新する変種を作ると「どの経路がどの列を保証するか」を呼び出し側が覚えることになり、経路が増えるたびに漏れる。全再計算は冪等なので、関係ない列は同じ値で書き戻されるだけで害がない。一方「最新1件の値」（評価・メモ）は列に持たず**読み取り時に相関サブクエリで導出する** — 列にすると射影を書き戻す経路が増え、二重管理に戻る（#205 で `drank_on` / `rating` / `memo` を削除した経緯）。
 - **相関サブクエリはテーブル修飾を自分で書く**。drizzle は SELECT の `sql` テンプレート内で列参照をテーブル名なしに描画するため、内側と外側で同名列（`id` 等）があると内側スコープに解決され、**エラーにならず静かに null が返る**。UPDATE の SET 内では逆に完全修飾されるので、同じ式でも文脈で意味が変わる。エイリアスを付けて明示すること。
 
 ### クレジット・課金ドメイン
@@ -223,7 +223,7 @@ R2（`AVATARS` バインディング）に置いた画像は `/api/images/{r2Key
 **この 2 つは機密性が違うので扱いを分ける**（Issue #149）。
 
 - `avatars/` は公開画像。従来どおり無認証・`Cache-Control: public`・`caches.default`（コロ単位の共有エッジキャッシュ）に載せる。
-- `wines/` は**ユーザ非公開**。以前は「URL（UUID）が推測できないこと」だけが機密性の根拠で、URL が一度漏れれば無認証で恒久的に読めた。現在は `src/lib/images/authorize.ts` が**2 経路のいずれか**を要求する。
+- `wines/` は**ユーザ非公開**。マイセラーのボトル写真（`wines/{userId}/{entryId}/…`）に加え、一括登録のバッチ写真（`wines/{userId}/{batchId}/…`。Issue #358）も同じ接頭辞に載せる。**キーのレイアウトは `ownerOfPrivateImageKey` / `privateImagePrefixForUser` / `isAllowedImageKey` / 退会時の R2 掃除の 4 箇所と一対の契約**なので、用途ごとに接頭辞を増やさない（1 箇所でも広げ忘れると「所有者は判定できるが削除で拾えない」ズレになる）。以前は「URL（UUID）が推測できないこと」だけが機密性の根拠で、URL が一度漏れれば無認証で恒久的に読めた。現在は `src/lib/images/authorize.ts` が**2 経路のいずれか**を要求する。
   1. **本人セッション** — Web アプリ内の `<img>` / `fetch` は same-origin なので Cookie が乗る。R2 キーの `wines/{userId}/...` とセッションの userId が一致する場合のみ許可。
   2. **短命の署名付き URL** — MCP ホストや埋め込みビュー（`/embed/*`）はサンドボックス iframe の不透明オリジンから読むため Cookie が乗らない。`?exp=<UNIX秒>&sig=<base64url>` を検証する。
 - 認可に失敗したら **403 ではなく 404**（存在の有無を漏らさない）。`wines/` は `Cache-Control: private` にし、**共有エッジキャッシュには載せない**（載せると認可済みレスポンスがコロ単位で共有され、署名の期限切れ後も配信されうる）。

@@ -1,7 +1,13 @@
 import { env } from "cloudflare:workers";
 import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { drunkWine, wineTasting } from "#/db/schema";
+import {
+	drunkWine,
+	importBatch,
+	place,
+	wineSighting,
+	wineTasting,
+} from "#/db/schema";
 import { jstDayKey } from "#/lib/dashboard/jst";
 import {
 	type CellarFilterId,
@@ -24,6 +30,10 @@ import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
 import { type LogFields, logError, logWarn } from "#/lib/logger";
+import type {
+	CreateWineSightingInput,
+	UpdateWineSightingInput,
+} from "#/lib/place/schema";
 import {
 	getAop,
 	getVariety,
@@ -48,6 +58,10 @@ export interface DrunkWineEntry {
 	lastDrankOn: string | null;
 	/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
 	tastingCount: number;
+	/** 最新の目撃記録の見かけた日。目撃記録が無い/全件日付未入力なら null */
+	lastSeenOn: string | null;
+	/** 目撃記録の件数。0 なら「どこでも見かけていない」 */
+	sightingCount: number;
 	aopId: string | null;
 	/** AOP紐付け時のみ。静的マスタから導出 */
 	aopNameJa: string | null;
@@ -81,6 +95,20 @@ export interface WineTastingEntry {
 	updatedAt: number;
 }
 
+export interface WineSightingEntry {
+	id: string;
+	placeId: string | null;
+	/** 場所の表示名。placeId が無い/場所が消された場合は null */
+	placeName: string | null;
+	batchId: string | null;
+	photoIndex: number | null;
+	seenOn: string | null;
+	price: number | null;
+	memo: string | null;
+	createdAt: number;
+	updatedAt: number;
+}
+
 /**
  * エントリ1件を組み立てるのに必要な行。drunk_wine の列に、最新の飲用記録から
  * 導出した評価・メモを足したもの(列としては持たない。selectEntry 参照)。
@@ -90,6 +118,10 @@ type DrunkWineRow = typeof drunkWine.$inferSelect & {
 	lastMemo: string | null;
 };
 type WineTastingRow = typeof wineTasting.$inferSelect;
+/** 目撃記録の行に、表示用の場所名(LEFT JOIN で引く)を足したもの */
+type WineSightingRow = typeof wineSighting.$inferSelect & {
+	placeName: string | null;
+};
 
 function toEntry(row: DrunkWineRow): DrunkWineEntry {
 	const aop = row.aopId ? getAop(row.aopId) : undefined;
@@ -106,6 +138,8 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		status: row.status,
 		lastDrankOn: row.lastDrankOn,
 		tastingCount: row.tastingCount,
+		lastSeenOn: row.lastSeenOn,
+		sightingCount: row.sightingCount,
 		// 退役ID(改名前のスラッグ)で保存された行も、現行IDとして返す。地図のハイライトや
 		// AOP ページへのリンクが現行のマスタと突き合わせられるようにするため。
 		aopId: aop?.id ?? row.aopId,
@@ -131,6 +165,21 @@ function toTastingEntry(row: WineTastingRow): WineTastingEntry {
 		id: row.id,
 		drankOn: row.drankOn,
 		rating: row.rating,
+		memo: row.memo,
+		createdAt: row.createdAt.getTime(),
+		updatedAt: row.updatedAt.getTime(),
+	};
+}
+
+function toSightingEntry(row: WineSightingRow): WineSightingEntry {
+	return {
+		id: row.id,
+		placeId: row.placeId,
+		placeName: row.placeName,
+		batchId: row.batchId,
+		photoIndex: row.photoIndex,
+		seenOn: row.seenOn,
+		price: row.price,
 		memo: row.memo,
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
@@ -171,14 +220,21 @@ function latestTastingValue<T extends number | string>(
 
 const TASTING_COUNT_EXPR = sql`(select count(*) from ${wineTasting} where ${wineTasting.drunkWineId} = ${drunkWine.id})`;
 const MAX_DRANK_ON_EXPR = sql`(select max(${wineTasting.drankOn}) from ${wineTasting} where ${wineTasting.drunkWineId} = ${drunkWine.id})`;
+const SIGHTING_COUNT_EXPR = sql`(select count(*) from ${wineSighting} where ${wineSighting.drunkWineId} = ${drunkWine.id})`;
+const MAX_SEEN_ON_EXPR = sql`(select max(${wineSighting.seenOn}) from ${wineSighting} where ${wineSighting.drunkWineId} = ${drunkWine.id})`;
 
 /**
- * 飲用記録から集計キャッシュを再計算する UPDATE を組み立てる(実行はしない。
+ * 飲用記録・目撃記録から集計キャッシュを再計算する UPDATE を組み立てる(実行はしない。
  * 呼び出し側が db.batch に積む)。
  *
- * 非正規化して持つのは last_drank_on(MAX)と tasting_count(COUNT)だけ。評価・メモは
- * 「最新1件の値」なので集計ではなく、読み取り時に selectEntry の相関サブクエリで
- * 導出する(#205)。旧 drank_on/rating/memo への二重書きはここから外した。
+ * 非正規化して持つのは MAX と COUNT だけ(last_drank_on / tasting_count と
+ * last_seen_on / sighting_count)。評価・メモは「最新1件の値」なので集計ではなく、
+ * 読み取り時に selectEntry の相関サブクエリで導出する(#205)。
+ *
+ * **飲用側だけ・目撃側だけを触る経路でも4列すべてを再計算する**。片方だけ更新する
+ * 変種を作ると「どの経路がどの列を保証するか」を呼び出し側が覚える必要が生まれ、
+ * 経路が増えるたびに漏れる(#177 / #185 と同じ類型)。全再計算は冪等なので、
+ * 関係ない列は同じ値で書き戻されるだけで害がない。
  *
  * extra で status も同時に変えられる(markWineDrunk が使う)。
  */
@@ -192,6 +248,8 @@ function recomputeDrunkWineAggregates(
 		.set({
 			tastingCount: TASTING_COUNT_EXPR,
 			lastDrankOn: MAX_DRANK_ON_EXPR,
+			sightingCount: SIGHTING_COUNT_EXPR,
+			lastSeenOn: MAX_SEEN_ON_EXPR,
 			...(extra?.status ? { status: extra.status } : {}),
 		})
 		.where(and(eq(drunkWine.id, drunkWineId), eq(drunkWine.userId, userId)));
@@ -464,6 +522,182 @@ export async function deleteWineTasting(
 	);
 }
 
+// ---- 目撃記録 -------------------------------------------------------------
+// 飲用記録と同じ形(所有権確認 → 変更文 + 集計再計算 + 読み直しを1つの db.batch)。
+// 別ファイルに切らずここに置くのは、recomputeDrunkWineAggregates / selectEntry /
+// entryFromBatch といったモジュール私有のヘルパと同じ batch に積む必要があるため。
+
+/**
+ * placeId / batchId は FK があるだけでは他ユーザの行も指せてしまう(FK は所有者を
+ * 見ない)。他人の place を指した目撃記録を作れると、一覧の placeName に他人の
+ * 店名が出て情報が漏れる。参照する前に必ず所有権を確認する。
+ *
+ * 存在しない/他ユーザは区別せず同一エラー(存在の探索を防ぐ規約)。
+ */
+async function assertOwnsSightingRefs(
+	userId: string,
+	refs: { placeId?: string | null; batchId?: string | null },
+): Promise<void> {
+	if (refs.placeId) {
+		const [row] = await db
+			.select({ id: place.id })
+			.from(place)
+			.where(and(eq(place.id, refs.placeId), eq(place.userId, userId)));
+		if (!row) throw new NotFoundError("Place not found");
+	}
+	if (refs.batchId) {
+		const [row] = await db
+			.select({ id: importBatch.id })
+			.from(importBatch)
+			.where(
+				and(eq(importBatch.id, refs.batchId), eq(importBatch.userId, userId)),
+			);
+		if (!row) throw new NotFoundError("Import batch not found");
+	}
+}
+
+function buildSightingValues(
+	userId: string,
+	drunkWineId: string,
+	input: CreateWineSightingInput,
+) {
+	return {
+		id: crypto.randomUUID(),
+		drunkWineId,
+		userId,
+		placeId: input.placeId ?? null,
+		batchId: input.batchId ?? null,
+		photoIndex: input.photoIndex ?? null,
+		seenOn: input.seenOn ?? null,
+		price: input.price ?? null,
+		memo: input.memo ?? null,
+	};
+}
+
+/**
+ * 目撃記録の一覧。見かけた日の新しい順で、日付未入力は末尾(飲用記録の並びと同じ規約)。
+ * 場所名は LEFT JOIN で引く — place が消えていても目撃した事実は残るので、
+ * INNER JOIN にすると記録が一覧から消える。
+ */
+export async function listWineSightings(
+	userId: string,
+	drunkWineId: string,
+): Promise<WineSightingEntry[]> {
+	await assertOwnsDrunkWine(userId, drunkWineId);
+	const rows = await db
+		.select({
+			...getTableColumns(wineSighting),
+			placeName: place.name,
+		})
+		.from(wineSighting)
+		.leftJoin(place, eq(place.id, wineSighting.placeId))
+		.where(
+			and(
+				eq(wineSighting.drunkWineId, drunkWineId),
+				eq(wineSighting.userId, userId),
+			),
+		)
+		.orderBy(
+			sql`${wineSighting.seenOn} is null`,
+			desc(wineSighting.seenOn),
+			desc(wineSighting.createdAt),
+		);
+	return rows.map(toSightingEntry);
+}
+
+export async function addWineSighting(
+	userId: string,
+	drunkWineId: string,
+	input: CreateWineSightingInput,
+): Promise<DrunkWineEntry> {
+	await assertOwnsDrunkWine(userId, drunkWineId);
+	await assertOwnsSightingRefs(userId, input);
+	return entryFromBatch(
+		await db.batch([
+			db
+				.insert(wineSighting)
+				.values(buildSightingValues(userId, drunkWineId, input)),
+			recomputeDrunkWineAggregates(userId, drunkWineId),
+			selectEntry(userId, drunkWineId),
+		]),
+	);
+}
+
+/** 所有する目撃記録を引く。存在しない/他ユーザは同一エラー。 */
+async function findOwnedSighting(userId: string, sightingId: string) {
+	const [row] = await db
+		.select({
+			id: wineSighting.id,
+			drunkWineId: wineSighting.drunkWineId,
+		})
+		.from(wineSighting)
+		.where(
+			and(eq(wineSighting.id, sightingId), eq(wineSighting.userId, userId)),
+		);
+	if (!row) throw new NotFoundError("Entry not found");
+	return row;
+}
+
+/**
+ * 目撃記録1件を更新する文を組み立てる。全キーが未指定なら null を返す
+ * (drizzle は空の SET を "No values to set" で拒否するため)。集計の再計算だけは
+ * 呼び出し側が常に実行する — 冪等なので、整合が崩れたときの復旧手段になる。
+ */
+function buildSightingUpdate(
+	userId: string,
+	sightingId: string,
+	patch: Omit<UpdateWineSightingInput, "id">,
+) {
+	// undefined = 変更しない / null = クリア。undefinedキーはdrizzleが無視する
+	if (Object.values(patch).every((v) => v === undefined)) return null;
+	return db
+		.update(wineSighting)
+		.set({
+			placeId: patch.placeId,
+			batchId: patch.batchId,
+			photoIndex: patch.photoIndex,
+			seenOn: patch.seenOn,
+			price: patch.price,
+			memo: patch.memo,
+		})
+		.where(
+			and(eq(wineSighting.id, sightingId), eq(wineSighting.userId, userId)),
+		);
+}
+
+export async function updateWineSighting(
+	userId: string,
+	input: UpdateWineSightingInput,
+): Promise<DrunkWineEntry> {
+	const { id, ...patch } = input;
+	const target = await findOwnedSighting(userId, id);
+	await assertOwnsSightingRefs(userId, patch);
+	const update = buildSightingUpdate(userId, id, patch);
+	const recompute = recomputeDrunkWineAggregates(userId, target.drunkWineId);
+	const read = selectEntry(userId, target.drunkWineId);
+	return entryFromBatch(
+		await db.batch(update ? [update, recompute, read] : [recompute, read]),
+	);
+}
+
+export async function deleteWineSighting(
+	userId: string,
+	sightingId: string,
+): Promise<DrunkWineEntry> {
+	const target = await findOwnedSighting(userId, sightingId);
+	return entryFromBatch(
+		await db.batch([
+			db
+				.delete(wineSighting)
+				.where(
+					and(eq(wineSighting.id, sightingId), eq(wineSighting.userId, userId)),
+				),
+			recomputeDrunkWineAggregates(userId, target.drunkWineId),
+			selectEntry(userId, target.drunkWineId),
+		]),
+	);
+}
+
 /**
  * 「飲んだ」操作。飲用記録の追加と status='finished' を1操作で行う。
  * 本数を管理しない以上これが既定として自然で、ストックが残っている場合は
@@ -636,6 +870,8 @@ function cellarFilterCondition(filter: CellarFilterId) {
 			return eq(drunkWine.status, "owned");
 		case "wishlist":
 			return eq(drunkWine.status, "wishlist");
+		case "spotted":
+			return eq(drunkWine.status, "spotted");
 	}
 }
 
@@ -743,6 +979,7 @@ export async function countCellarFilters(
 			tasted: sql<number>`sum(case when ${drunkWine.tastingCount} > 0 then 1 else 0 end)`,
 			owned: sql<number>`sum(case when ${drunkWine.status} = 'owned' then 1 else 0 end)`,
 			wishlist: sql<number>`sum(case when ${drunkWine.status} = 'wishlist' then 1 else 0 end)`,
+			spotted: sql<number>`sum(case when ${drunkWine.status} = 'spotted' then 1 else 0 end)`,
 		})
 		.from(drunkWine)
 		.where(eq(drunkWine.userId, userId));
@@ -751,6 +988,7 @@ export async function countCellarFilters(
 		tasted: Number(row?.tasted ?? 0),
 		owned: Number(row?.owned ?? 0),
 		wishlist: Number(row?.wishlist ?? 0),
+		spotted: Number(row?.spotted ?? 0),
 	};
 }
 
