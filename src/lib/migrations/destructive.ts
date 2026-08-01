@@ -44,6 +44,15 @@ export function splitStatements(sql: string): string[] {
 const ALTER_DROP = /\bALTER\s+TABLE\b[\s\S]*?\bDROP\b/i;
 /** ALTER TABLE ... ADD [COLUMN] ... NOT NULL(既存行を壊しうる+旧コードの INSERT が落ちる)。 */
 const ADD_NOT_NULL = /\bALTER\s+TABLE\b[\s\S]*?\bADD\b[\s\S]*?\bNOT\s+NULL\b/i;
+/**
+ * ALTER TABLE ... ADD ... DEFAULT <定数リテラル>。
+ * SQLite は ADD COLUMN に非定数 DEFAULT を許さない(`Cannot add a column with
+ * non-constant default`)ため、ADD COLUMN の NOT NULL がそもそも適用できる形は
+ * 「定数 DEFAULT 付き」に限られる。この形は既存行が DEFAULT で埋まり、新列を省略した
+ * 旧コードの INSERT も通るため破壊的ではない(#360)。
+ */
+const ADD_WITH_CONSTANT_DEFAULT =
+	/\bALTER\s+TABLE\b[\s\S]*?\bADD\b[\s\S]*?\bDEFAULT\s+(?:'(?:[^']|'')*'|-?\b\d+(?:\.\d+)?\b|\bTRUE\b|\bFALSE\b|\bNULL\b)/i;
 /** ALTER TABLE ... ADD [COLUMN]。SQLite では IF NOT EXISTS を書けない=本質的に非冪等。 */
 const ALTER_ADD_COLUMN = /\bALTER\s+TABLE\b[\s\S]*?\bADD\b/i;
 
@@ -74,7 +83,7 @@ export function checkSql(
 			if (/\bALTER\s+TABLE\b[\s\S]*\bRENAME\b/i.test(stmt)) {
 				err(`RENAME は破壊的です: ${head(stmt)}`);
 			}
-			if (ADD_NOT_NULL.test(stmt)) {
+			if (ADD_NOT_NULL.test(stmt) && !ADD_WITH_CONSTANT_DEFAULT.test(stmt)) {
 				err(
 					`NOT NULL の追加は破壊的です(旧コードの INSERT が落ちます): ${head(stmt)}`,
 				);

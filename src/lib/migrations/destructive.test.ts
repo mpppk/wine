@@ -78,13 +78,37 @@ describe("破壊的な変更の検出", () => {
 		).toEqual([expect.stringContaining("RENAME は破壊的です")]);
 	});
 
-	it("NOT NULL の追加を検出する", () => {
-		// 旧コードの INSERT が落ちるため expand-and-contract の対象(CLAUDE.md)。
+	it("DEFAULT の無い NOT NULL 追加を検出する", () => {
+		// SQLite は ADD COLUMN に DEFAULT の無い NOT NULL を実行時に拒否するが、
+		// 検査は静的解析なのでこの形も expand-and-contract の対象として拾う(#360)。
+		expect(
+			errorMessages("ALTER TABLE wine ADD COLUMN status text NOT NULL;"),
+		).toEqual([expect.stringContaining("NOT NULL の追加は破壊的です")]);
+	});
+
+	it("非定数DEFAULT付きの NOT NULL 追加を検出する", () => {
+		// SQLite は非定数DEFAULT自体を拒否するので実際には適用できないが、
+		// 定数DEFAULTのときと違って安全性を保証できないため検出対象のままにする(#360)。
+		expect(
+			errorMessages(
+				"ALTER TABLE wine ADD COLUMN created_at text NOT NULL DEFAULT CURRENT_TIMESTAMP;",
+			),
+		).toEqual([expect.stringContaining("NOT NULL の追加は破壊的です")]);
+	});
+
+	it("定数DEFAULT付きの NOT NULL 追加は破壊的ではない(#360)", () => {
+		// SQLite が既存行を DEFAULT で埋め、新列を省略した旧コードの INSERT も通るため安全。
+		// DEFAULT と NOT NULL の順序はどちらでも成り立つ。
 		expect(
 			errorMessages(
 				"ALTER TABLE wine ADD COLUMN status text NOT NULL DEFAULT 'owned';",
 			),
-		).toEqual([expect.stringContaining("NOT NULL の追加は破壊的です")]);
+		).toEqual([]);
+		expect(
+			errorMessages(
+				"ALTER TABLE wine ADD COLUMN sighting_count integer DEFAULT 0 NOT NULL;",
+			),
+		).toEqual([]);
 	});
 
 	it("NULL 許容のカラム追加は破壊的ではない", () => {
