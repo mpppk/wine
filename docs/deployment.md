@@ -202,6 +202,37 @@ Workers Logs は **サーバに届いたリクエストしか記録できない*
 環境名（`production` / `preview` / `local`）はドメインから導出するので、プレビューごとに変数を
 設定する必要はない。
 
+### 初回セットアップ（手作業）
+
+1. Sentry で組織とプロジェクト（platform: `javascript-react`）を作り、**DSN** を控える
+   （Settings > Projects > *project* > Client Keys (DSN)）
+2. ソースマップ用の **Organization Auth Token** を発行する（Settings > Auth Tokens）。
+   必要なスコープは `project:releases` と `org:read`
+3. Workers Builds のビルド環境変数に設定する。ダッシュボード（*Worker* > Settings > Build >
+   Build variables and secrets）か、下記「設定の確認・変更（Workers Builds API）」の
+   `build_variables` を PATCH する。**本番 `wine` とプレビュー `wine-preview` の両トリガーに要る**
+   - `VITE_SENTRY_DSN` / `SENTRY_ORG` / `SENTRY_PROJECT`（変数）
+   - `VITE_SENTRY_RELEASE` = `$WORKERS_CI_COMMIT_SHA`
+   - `SENTRY_AUTH_TOKEN`（**シークレットとして**登録する）
+4. 空コミット等で再ビルドし、ブラウザの Network タブで `ingest.sentry.io` への送信が出ることを確認する
+
+> `build_variables` は**丸ごと置き換わる**。既存の `BUN_VERSION` / `CLOUDFLARE_ENV` を含めた
+> 完全な集合を送ること（詳細は下記 API の節）。
+
+### Terraform 管理にしない理由
+
+Stripe リソースは Terraform 管理だが、**Sentry は当面ダッシュボードでの手作業とする**。理由:
+
+- Terraform 管理下に入るのは実質「プロジェクト1個 + Client Key 1個」で、Stripe（Product /
+  Price×2 / Coupon / PromotionCode / Webhook / Portal）のようにドリフトが痛むほどの量がない
+- **Cloudflare 側は Terraform で閉じない**。Cloudflare プロバイダに Workers Builds の
+  トリガー設定（build command / deploy command / `build_variables`）を扱うリソースが無いため、
+  Terraform を足しても設定手順が2系統に増えるだけになる
+- Sentry 側を Terraform 化する場合は [`jianyuan/sentry`](https://registry.terraform.io/providers/jianyuan/sentry/latest)
+  （Sentry 公式スポンサー）が使え、`sentry_key` から DSN を output できる。**アラートルールや
+  ノイズフィルタ（`sentry_issue_alert` / `sentry_project_inbound_data_filter`）を育て始めたら**
+  移行を検討する。そこは経緯が残らないと痛む種類の設定なので Terraform 向き
+
 ## シークレットの投入
 
 過去のCI整備（PR #59/#63〜#67）で繰り返し踏んだ非対称性のまとめ。
