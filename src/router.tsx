@@ -6,17 +6,29 @@ import {
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 import { useEffect } from "react";
 import { getContext } from "./integrations/tanstack-query/root-provider";
+import {
+	initClientErrorReporting,
+	reportClientError,
+} from "./lib/observability/client-error";
 import { routeTree } from "./routeTree.gen";
+
+// クライアントのエラー収集を開始する(Issue #381)。`import.meta.env.SSR` はビルド時に
+// 定数畳み込みされるので、**SSR(workerd)バンドルにはこの行ごと残らない**。
+// ブラウザ専用SDKが Worker 側へ混ざると起動ごと壊れるため、この形は必須。
+if (!import.meta.env.SSR) void initClientErrorReporting();
 
 const homeButtonClass =
 	"rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90";
 
 // ルート全体の既定エラー画面。loader/コンポーネントの例外(D1障害・500化した
 // 認証エラー等)で、フレームワーク素の開発者向け表示ではなくスタイル付きの案内 +
-// 再試行/トップ導線を出す。将来のクライアント側エラー収集の受け口として記録も残す。
+// 再試行/トップ導線を出す。クライアント側エラー収集の受け口でもある(#381)。
 function DefaultErrorComponent({ error, reset }: ErrorComponentProps) {
 	useEffect(() => {
-		console.error("route error", error);
+		reportClientError(error, {
+			kind: "route",
+			pathname: window.location.pathname,
+		});
 	}, [error]);
 	return (
 		<main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center gap-4 px-4 text-center">

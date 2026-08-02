@@ -1,3 +1,5 @@
+import { reportClientError } from "#/lib/observability/client-error";
+
 // 画像をブラウザ側で縮小する共通ヘルパー。用途は2つあり、どちらも「送る前に小さくする」:
 //  - エチケット解析(AI入力トークン=クレジットと転送量の削減)
 //  - 一覧用サムネイルの生成(#237。表示150〜200pxに原寸5MBを読ませない)
@@ -91,7 +93,16 @@ export async function downscaleForAnalysis(
 		forceReencode: true,
 	});
 	if (blob === file && blob.size > ANALYSIS_UNRESIZED_MAX_BYTES) {
-		throw new Error(unresizablePhotoMessage(photoNumber));
+		// 端末側の限界(解像度・メモリ・ブラウザ差異)なので再現条件が手元に無い。
+		// どの環境で起きているかは収集先でしか分からない(#381)
+		const error = new Error(unresizablePhotoMessage(photoNumber));
+		reportClientError(error, {
+			kind: "photo_downscale_failed",
+			bytes: file.size,
+			mimeType: file.type,
+			maxDimension,
+		});
+		throw error;
 	}
 	return blob;
 }
