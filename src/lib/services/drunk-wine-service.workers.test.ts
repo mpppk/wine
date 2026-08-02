@@ -32,6 +32,7 @@ import {
 	markWineDrunk,
 	saveImportBatchPhotos,
 	syncDrunkWinePhotos,
+	updateDrunkWine,
 	updateLatestWineTasting,
 	updateWineSighting,
 	updateWineTasting,
@@ -720,6 +721,128 @@ describe("listDrunkWinesByAop", () => {
 			aopId: "chateau-la-gaffeliere",
 		});
 		expect((await wineRow(entry.id))?.aopId).toBe("saint-emilion-grand-cru");
+	});
+});
+
+// ---- 産地の粗い紐付け(地域・国) --------------------------------------------
+// 「最も細かい1つだけを保存する」排他と、読み取り時の細→粗の導出を実D1で固定する。
+
+describe("産地の粗い紐付け(region_id / country_id)", () => {
+	let userId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+	});
+
+	it("地域単位で保存でき、国は導出される", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "村不明のブルゴーニュ",
+			regionId: "bourgogne",
+		});
+		expect(entry.aopId).toBeNull();
+		expect(entry.regionId).toBe("bourgogne");
+		expect(entry.countryId).toBe("france");
+		const row = await wineRow(entry.id);
+		expect(row?.regionId).toBe("bourgogne");
+		expect(row?.countryId).toBeNull(); // 導出できる粗い列は保存しない
+	});
+
+	it("国単位で保存できる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "地域不明のイタリア",
+			countryId: "italy",
+		});
+		expect(entry.regionId).toBeNull();
+		expect(entry.countryId).toBe("italy");
+		expect((await wineRow(entry.id))?.countryId).toBe("italy");
+	});
+
+	it("AOP指定時は地域・国を渡しても保存されない(最も細かい1つだけ)", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "シャブリ",
+			aopId: "chablis",
+			regionId: "bordeaux", // 矛盾した入力はAOP優先で無視される
+			countryId: "italy",
+		});
+		expect(entry.regionId).toBe("bourgogne"); // AOPから導出
+		expect(entry.countryId).toBe("france");
+		const row = await wineRow(entry.id);
+		expect(row?.aopId).toBe("chablis");
+		expect(row?.regionId).toBeNull();
+		expect(row?.countryId).toBeNull();
+	});
+
+	it("更新でAOP→地域へ粒度を切り替えると aop_id がクリアされる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "紐付け直し",
+			aopId: "chablis",
+		});
+		const updated = await updateDrunkWine(userId, {
+			id: entry.id,
+			regionId: "bourgogne",
+		});
+		expect(updated.aopId).toBeNull();
+		expect(updated.regionId).toBe("bourgogne");
+		const row = await wineRow(entry.id);
+		expect(row?.aopId).toBeNull();
+		expect(row?.regionId).toBe("bourgogne");
+	});
+
+	it("更新で地域→AOPへ粒度を切り替えると region_id がクリアされる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "特定できた",
+			regionId: "bourgogne",
+		});
+		const updated = await updateDrunkWine(userId, {
+			id: entry.id,
+			aopId: "gevrey-chambertin",
+		});
+		expect(updated.aopId).toBe("gevrey-chambertin");
+		const row = await wineRow(entry.id);
+		expect(row?.aopId).toBe("gevrey-chambertin");
+		expect(row?.regionId).toBeNull();
+	});
+
+	it("更新で国→地域へ、地域のクリアだけも送れる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "国から地域へ",
+			countryId: "france",
+		});
+		const regionLinked = await updateDrunkWine(userId, {
+			id: entry.id,
+			regionId: "loire",
+		});
+		expect(regionLinked.regionId).toBe("loire");
+		expect((await wineRow(entry.id))?.countryId).toBeNull();
+
+		// 紐付け解除(null クリア)
+		const cleared = await updateDrunkWine(userId, {
+			id: entry.id,
+			regionId: null,
+		});
+		expect(cleared.regionId).toBeNull();
+		expect(cleared.countryId).toBeNull();
+	});
+
+	it("未知の地域・国は BadRequest", async () => {
+		await expect(
+			createDrunkWine(userId, { name: "x", regionId: "no-such-region" }),
+		).rejects.toBeInstanceOf(BadRequestError);
+		await expect(
+			createDrunkWine(userId, { name: "x", countryId: "spain" }),
+		).rejects.toBeInstanceOf(BadRequestError);
+	});
+
+	it("一括登録でも地域単位の紐付けが保存される", async () => {
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ wine: { name: "地域だけ判明", regionId: "toscana" } }],
+		} as BulkRegisterFromScanInput);
+		expect(result.createdCount).toBe(1);
+		const { entries } = await listDrunkWines(userId);
+		const found = entries.find((e) => e.name === "地域だけ判明");
+		expect(found?.regionId).toBe("toscana");
+		expect(found?.countryId).toBe("italy");
+		expect(found?.aopId).toBeNull();
 	});
 });
 

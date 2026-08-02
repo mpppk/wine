@@ -5,6 +5,7 @@ import {
 	type DrunkWineFormValues,
 	type DrunkWinePatch,
 	type DrunkWineSnakeKey,
+	stripDerivedProvenance,
 	toCamelCreateFields,
 	toCamelPatch,
 	toSnakeEntry,
@@ -36,8 +37,8 @@ import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 
 /**
  * DrunkWineForm の useState 群のうち送信対象のものだけを写した形。
- * regionId は AOP 候補の絞り込みに使う UI 専用 state なので含めない
- * (地域はサーバ側で AOP から導出される)。
+ * 産地紐付け(aopId / regionId / countryId)は「最も細かい1つだけ」を保持する
+ * (産地ピッカーが選択時に他の2つを undefined にする)。
  */
 export interface DrunkWineFormState {
 	name: string;
@@ -46,6 +47,8 @@ export interface DrunkWineFormState {
 	producer: string;
 	price: string;
 	aopId: string | undefined;
+	regionId: string | undefined;
+	countryId: string | undefined;
 	grapeVarietyIds: string[];
 }
 
@@ -61,20 +64,20 @@ export function toFormValues(s: DrunkWineFormState): DrunkWineFormValues {
 		vintage: s.vintage,
 		price: s.price,
 		producer: s.producer,
-		// AOP ピッカーは未選択を undefined で持つが、規約側の「空欄」は ""
+		// 産地ピッカーは未選択を undefined で持つが、規約側の「空欄」は ""
 		aop_id: s.aopId ?? "",
+		region_id: s.regionId ?? "",
+		country_id: s.countryId ?? "",
 		grape_variety_ids: s.grapeVarietyIds,
 	} satisfies Record<DrunkWineSnakeKey, string | string[]>;
 }
 
 /**
- * DrunkWineFields が扱う値。送信対象(DrunkWineFormState)に、AOP候補の絞り込み用の
- * regionId を足したもの。Web版フォームと MCP App(/embed/drunk-wine)の両方が
- * この形で state を持つ。
+ * DrunkWineFields が扱う値。Web版フォームと MCP App(/embed/drunk-wine)の両方が
+ * この形で state を持つ。以前は AOP候補絞り込み用の regionId(UI専用)を上乗せして
+ * いたが、regionId 自体が保存対象(地域単位の紐付け)になったため送信対象と同形。
  */
-export interface DrunkWineFieldsValue extends DrunkWineFormState {
-	regionId: string | undefined;
-}
+export type DrunkWineFieldsValue = DrunkWineFormState;
 
 /**
  * 飲用記録1件のフォーム値。銘柄と違い 1:N なので DRUNK_WINE_FIELD_DEFS には
@@ -96,7 +99,7 @@ export const EMPTY_TASTING_DRAFT: WineTastingDraft = {
 // satisfies を持っていた頃は、ここへの足し忘れが静かに落ちていた。
 type FieldsValueShape = Record<keyof DrunkWineFieldsValue, unknown>;
 
-/** 送信対象のフィールドだけを取り出す(regionId は AOP から導出されるので送らない)。 */
+/** 送信対象のフィールドだけを取り出す(現在は DrunkWineFieldsValue と同形の写し)。 */
 export function toFormState(value: DrunkWineFieldsValue): DrunkWineFormState {
 	return {
 		name: value.name,
@@ -105,8 +108,30 @@ export function toFormState(value: DrunkWineFieldsValue): DrunkWineFormState {
 		producer: value.producer,
 		price: value.price,
 		aopId: value.aopId,
+		regionId: value.regionId,
+		countryId: value.countryId,
 		grapeVarietyIds: value.grapeVarietyIds,
 	} satisfies Record<keyof DrunkWineFormState, unknown>;
+}
+
+/**
+ * サーバのエントリ表現(地域・国は細→粗へ導出済み)から、フォームが持つ
+ * 「最も細かい1つだけ」の産地紐付けへ写す。AOP紐付きのエントリは regionId /
+ * countryId が導出値で非nullだが、それをフォームに持たせると「地域も選択済み」に
+ * 見えてしまうため、ここで落とす。
+ */
+function provenanceFromDerived(link: {
+	aopId: string | undefined;
+	regionId: string | undefined;
+	countryId: string | undefined;
+}): Pick<DrunkWineFormState, "aopId" | "regionId" | "countryId"> {
+	if (link.aopId) {
+		return { aopId: link.aopId, regionId: undefined, countryId: undefined };
+	}
+	if (link.regionId) {
+		return { aopId: undefined, regionId: link.regionId, countryId: undefined };
+	}
+	return { aopId: undefined, regionId: undefined, countryId: link.countryId };
 }
 
 /** Web版フォームの初期値。entry 未指定なら新規作成の空フォーム。 */
@@ -120,8 +145,11 @@ export function fieldsValueFromEntry(
 		vintage: entry?.vintage != null ? String(entry.vintage) : "",
 		producer: entry?.producer ?? "",
 		price: entry?.price != null ? String(entry.price) : "",
-		aopId: entry?.aopId ?? undefined,
-		regionId: entry?.regionId ?? undefined,
+		...provenanceFromDerived({
+			aopId: entry?.aopId ?? undefined,
+			regionId: entry?.regionId ?? undefined,
+			countryId: entry?.countryId ?? undefined,
+		}),
 		grapeVarietyIds: entry?.grapeVarietyIds ?? [],
 	} satisfies FieldsValueShape;
 }
@@ -142,8 +170,11 @@ export function fieldsValueFromMcpEntry(
 		vintage: numText(entry.vintage),
 		producer: text(entry.producer),
 		price: numText(entry.price),
-		aopId: text(entry.aop_id) || undefined,
-		regionId: text(entry.region_id) || undefined,
+		...provenanceFromDerived({
+			aopId: text(entry.aop_id) || undefined,
+			regionId: text(entry.region_id) || undefined,
+			countryId: text(entry.country_id) || undefined,
+		}),
 		grapeVarietyIds: Array.isArray(entry.grape_variety_ids)
 			? entry.grape_variety_ids.filter((id) => typeof id === "string")
 			: [],
@@ -217,10 +248,12 @@ export function buildMcpUpdatePatch(
 	// 差分の基準は、フォームの初期値と同じ正規化を通した形にする。ホストが status を
 	// 落として送ってきたとき、素の entry を基準にすると「未編集なのに既定値
 	// (finished)を送る」= 手元にあるワインを黙って飲み終わり扱いにしてしまう。
-	const base = {
+	// 産地の粗い2列は導出値が入っているため、基準からは落とす(排他の不変条件に
+	// 合わせないと「未変更なのに region_id: null を送る」差分が毎回できる)。
+	const base = stripDerivedProvenance({
 		...(entry as Record<string, unknown>),
 		status: isWineStatus(entry.status) ? entry.status : DEFAULT_WINE_STATUS,
-	};
+	});
 	return collectDrunkWinePatch(base, toFormValues(toFormState(value)));
 }
 
@@ -253,8 +286,12 @@ export function buildUpdatePatch(
 	entry: DrunkWineCamelEntry,
 	s: DrunkWineFormState,
 ): Omit<UpdateDrunkWineInput, "id"> {
+	// 基準の粗い産地2列は導出値なので落とす(buildMcpUpdatePatch と同じ理由)
 	return toCamelPatch(
-		collectDrunkWinePatch(toSnakeEntry(entry), toFormValues(s)),
+		collectDrunkWinePatch(
+			stripDerivedProvenance(toSnakeEntry(entry)),
+			toFormValues(s),
+		),
 	);
 }
 
@@ -275,8 +312,10 @@ function normalizeFormState(s: DrunkWineFormState) {
 		vintage: s.vintage.trim(),
 		producer: s.producer.trim(),
 		price: s.price.trim(),
-		// AOP 未選択は undefined と "" のどちらもありうる
+		// 産地未選択は undefined と "" のどちらもありうる
 		aopId: s.aopId ?? "",
+		regionId: s.regionId ?? "",
+		countryId: s.countryId ?? "",
 		// 並び順は送信内容に影響しないので集合として比較する
 		grapeVarietyIds: [...s.grapeVarietyIds].sort().join(","),
 	} satisfies Record<keyof DrunkWineFormState, string>;

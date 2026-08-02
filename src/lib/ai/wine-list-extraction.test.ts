@@ -281,7 +281,8 @@ describe("buildWineListCandidates", () => {
 			}),
 		]);
 		expect(candidate?.suggestions.aopId).toBe("chablis-premier-cru");
-		expect(candidate?.suggestions.regionId).toBe("bourgogne");
+		// AOPが解決できたら地域は候補に含めない(産地は最も細かい1つだけ)
+		expect(candidate?.suggestions.regionId).toBeUndefined();
 		// 呼称が品種を規定するケースは主要品種が候補になる(エチケット解析と同じ規則)
 		expect(candidate?.suggestions.grapeVarietyIds).toEqual(["chardonnay"]);
 		expect(candidate?.price).toBe(12000);

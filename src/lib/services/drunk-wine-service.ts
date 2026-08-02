@@ -37,8 +37,10 @@ import {
 	MAX_PHOTOS_PER_IMPORT_BATCH,
 	type UpdateWineSightingInput,
 } from "#/lib/place/schema";
+import { countryForRegion, getCountry } from "#/lib/wine/countries";
 import {
 	getAop,
+	getRegion,
 	getVariety,
 	legacyAopIdsFor,
 	resolveAopId,
@@ -68,7 +70,16 @@ export interface DrunkWineEntry {
 	aopId: string | null;
 	/** AOP紐付け時のみ。静的マスタから導出 */
 	aopNameJa: string | null;
+	/**
+	 * 表示用の地域。AOP紐付けなら静的マスタから導出、地域紐付けなら保存値。
+	 * どちらも無ければ null(国紐付けのみ・未紐付け)。
+	 */
 	regionId: RegionId | null;
+	/**
+	 * 表示用の国。AOP/地域から導出、国紐付けなら保存値。無ければ null。
+	 * 保存上は「最も細かい1つだけ」の排他(aopId ⊃ regionId ⊃ countryId)。
+	 */
+	countryId: string | null;
 	/** 最新の飲用記録の評価。飲用記録が無い/未入力なら null */
 	lastRating: number | null;
 	/** 最新の飲用記録のメモ。飲用記録が無い/未入力なら null */
@@ -145,6 +156,26 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		// `bun run logs --grep "orphan aop_id"` で棚卸しできる。
 		logWarn("orphan aop_id", { drunkWineId: row.id, aopId: row.aopId });
 	}
+	// 地域・国は細→粗へ導出する(AOPがあればその地域、地域があればその国)。
+	// 保存値が静的マスタから消えた場合も aop_id と同様に検出可能にする(#333 と同型)。
+	const storedRegion =
+		!aop && row.regionId ? getRegion(row.regionId) : undefined;
+	if (!aop && row.regionId && !storedRegion) {
+		logWarn("orphan region_id", {
+			drunkWineId: row.id,
+			regionId: row.regionId,
+		});
+	}
+	const region = aop ? getRegion(aop.region) : storedRegion;
+	const derivedCountry = region ? countryForRegion(region) : undefined;
+	const storedCountry =
+		!region && row.countryId ? getCountry(row.countryId) : undefined;
+	if (!region && row.countryId && !storedCountry) {
+		logWarn("orphan country_id", {
+			drunkWineId: row.id,
+			countryId: row.countryId,
+		});
+	}
 	return {
 		id: row.id,
 		name: row.name,
@@ -157,7 +188,8 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		// AOP ページへのリンクが現行のマスタと突き合わせられるようにするため。
 		aopId: aop?.id ?? row.aopId,
 		aopNameJa: aop?.nameJa ?? null,
-		regionId: aop?.region ?? null,
+		regionId: aop?.region ?? storedRegion?.id ?? null,
+		countryId: derivedCountry?.id ?? storedCountry?.id ?? null,
 		lastRating: row.lastRating,
 		lastMemo: row.lastMemo,
 		vintage: row.vintage,
@@ -317,16 +349,93 @@ async function assertOwnsDrunkWine(
 
 function assertValidRefs(input: {
 	aopId?: string | null;
+	regionId?: string | null;
+	countryId?: string | null;
 	grapeVarietyIds?: string[];
 }) {
 	if (input.aopId && !getAop(input.aopId)) {
 		throw new BadRequestError(`Unknown AOP: ${input.aopId}`);
+	}
+	if (input.regionId && !getRegion(input.regionId)) {
+		throw new BadRequestError(`Unknown region: ${input.regionId}`);
+	}
+	if (input.countryId && !getCountry(input.countryId)) {
+		throw new BadRequestError(`Unknown country: ${input.countryId}`);
 	}
 	for (const id of input.grapeVarietyIds ?? []) {
 		if (!getVariety(id)) {
 			throw new BadRequestError(`Unknown grape variety: ${id}`);
 		}
 	}
+}
+
+/**
+ * 産地紐付けの排他(「最も細かい1つだけを保存する」)の正規化。
+ *
+ * 3列(aop_id / region_id / country_id)を独立に持たせると「AOPはシャブリなのに
+ * 地域はボルドー」のような矛盾を表現できてしまうため、書き込み時にここで畳む。
+ * 読み取り(toEntry)は細→粗へ導出するので、粗い列に重複して保存する必要はない。
+ */
+
+/** 作成用: 入力の最も細かい単位だけを残した3列を返す。 */
+function provenanceInsertValues(input: {
+	aopId?: string | null;
+	regionId?: string | null;
+	countryId?: string | null;
+}): {
+	aopId: string | null;
+	regionId: string | null;
+	countryId: string | null;
+} {
+	if (input.aopId) {
+		// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)
+		return {
+			aopId: resolveAopId(input.aopId) ?? input.aopId,
+			regionId: null,
+			countryId: null,
+		};
+	}
+	if (input.regionId) {
+		return { aopId: null, regionId: input.regionId, countryId: null };
+	}
+	if (input.countryId) {
+		return { aopId: null, regionId: null, countryId: input.countryId };
+	}
+	return { aopId: null, regionId: null, countryId: null };
+}
+
+/**
+ * 更新用: いずれかの単位が文字列で指定されたら「その粒度を選んだ」とみなし、
+ * 他の2列をクリアする。全て未指定(undefined)なら3列とも変更しない。
+ * null(クリア)だけの指定はそのまま通す(フォームは紐付け解除時に該当列へ null を送る)。
+ */
+function provenanceUpdateValues(patch: {
+	aopId?: string | null;
+	regionId?: string | null;
+	countryId?: string | null;
+}): {
+	aopId?: string | null;
+	regionId?: string | null;
+	countryId?: string | null;
+} {
+	if (typeof patch.aopId === "string") {
+		return {
+			aopId: resolveAopId(patch.aopId) ?? patch.aopId,
+			regionId: null,
+			countryId: null,
+		};
+	}
+	if (typeof patch.regionId === "string") {
+		return { aopId: null, regionId: patch.regionId, countryId: null };
+	}
+	if (typeof patch.countryId === "string") {
+		return { aopId: null, regionId: null, countryId: patch.countryId };
+	}
+	return {
+		aopId: patch.aopId,
+		regionId: patch.regionId,
+		countryId: patch.countryId,
+	};
 }
 
 // 作成入力。Web(zodのCreateDrunkWineInput)に加え、MCPツールが共通の
@@ -356,8 +465,7 @@ export async function createDrunkWine(
 		userId,
 		name: input.name,
 		status,
-		// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)
-		aopId: input.aopId ? (resolveAopId(input.aopId) ?? input.aopId) : null,
+		...provenanceInsertValues(input),
 		vintage: input.vintage ?? null,
 		grapeVarietyIds: input.grapeVarietyIds ?? [],
 		producer: input.producer ?? null,
@@ -399,9 +507,7 @@ export async function updateDrunkWine(
 				.set({
 					name: patch.name,
 					status: patch.status,
-					aopId: patch.aopId
-						? (resolveAopId(patch.aopId) ?? patch.aopId)
-						: patch.aopId,
+					...provenanceUpdateValues(patch),
 					vintage: patch.vintage,
 					grapeVarietyIds: patch.grapeVarietyIds,
 					producer: patch.producer,
@@ -1366,9 +1472,7 @@ export async function bulkRegisterFromScan(
 					name: item.wine.name,
 					// 見かけただけ、が既定。飲んだかどうかは tasting の有無で表す
 					status: item.wine.status ?? "spotted",
-					aopId: item.wine.aopId
-						? (resolveAopId(item.wine.aopId) ?? item.wine.aopId)
-						: null,
+					...provenanceInsertValues(item.wine),
 					vintage: item.wine.vintage ?? null,
 					grapeVarietyIds: item.wine.grapeVarietyIds ?? [],
 					producer: item.wine.producer ?? null,
