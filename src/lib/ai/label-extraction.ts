@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
+import { WINE_COUNTRIES } from "#/lib/wine/countries";
 import {
 	GRAPE_VARIETIES,
 	getRegion,
 	listAops,
 	listRegions,
 } from "#/lib/wine/service";
+import { normalizeLabelText } from "#/lib/wine/text-normalize";
 import type { Aop } from "#/lib/wine/types";
 import {
 	AI_LABEL_IMAGE_TOKEN_ESTIMATE,
@@ -46,6 +48,10 @@ export const LABEL_JSON_SCHEMA = {
 			type: ["string", "null"],
 			description: "Wine region if identifiable, e.g. 'Bourgogne'",
 		},
+		country: {
+			type: ["string", "null"],
+			description: "Country of origin if identifiable, e.g. 'France'",
+		},
 		grape_varieties: {
 			type: "array",
 			items: { type: "string" },
@@ -58,6 +64,7 @@ export const LABEL_JSON_SCHEMA = {
 		"vintage",
 		"appellation",
 		"region",
+		"country",
 		"grape_varieties",
 	],
 	additionalProperties: false,
@@ -123,6 +130,7 @@ export function buildWebLabelPrompt(): string {
 		'   - "vintage": 西暦の整数(例: 2020)。不明なら null',
 		'   - "appellation": 正式な原産地呼称(原語)。不明なら null',
 		'   - "region": 地域名(例: Bourgogne, Bordeaux, Toscana)。不明なら null',
+		'   - "country": 生産国(例: France, Italy)。不明なら null',
 		'   - "grape_varieties": 品種名(原語)の文字列配列。確認できなければ空配列',
 		"4. 検索しても確認できない項目は null にする。JSONの前後に説明文・コードフェンスを書かない。",
 		"",
@@ -219,6 +227,7 @@ export const labelExtractionShape = {
 	vintage: vintageField,
 	appellation: textField,
 	region: textField,
+	country: textField,
 	grape_varieties: grapesField,
 } as const;
 
@@ -232,6 +241,7 @@ export interface LabelExtraction {
 	vintage?: number;
 	appellation?: string;
 	region?: string;
+	country?: string;
 	grapeVarieties: string[];
 }
 
@@ -277,6 +287,7 @@ export function toLabelExtraction(d: {
 	vintage?: number | null;
 	appellation?: string | null;
 	region?: string | null;
+	country?: string | null;
 	grape_varieties?: string[] | null;
 }): LabelExtraction {
 	return {
@@ -285,6 +296,7 @@ export function toLabelExtraction(d: {
 		vintage: d.vintage ?? undefined,
 		appellation: cleanText(d.appellation),
 		region: cleanText(d.region),
+		country: cleanText(d.country),
 		grapeVarieties: (d.grape_varieties ?? [])
 			.map((g) => g.trim())
 			.filter((g) => g.length > 0),
@@ -315,6 +327,7 @@ export function mergeExtractions(
 		merged.vintage ??= e.vintage;
 		merged.appellation ??= e.appellation;
 		merged.region ??= e.region;
+		merged.country ??= e.country;
 		for (const g of e.grapeVarieties) {
 			if (!merged.grapeVarieties.includes(g)) merged.grapeVarieties.push(g);
 		}
@@ -322,25 +335,9 @@ export function mergeExtractions(
 	return merged;
 }
 
-/**
- * マスタ照合用の正規化。アクセント記号を落とし(é→e)、小文字化し、記号・中点等を
- * スペースに畳む。日本語(かな・カナ・漢字)はそのまま残すので nameJa とも比較できる。
- */
-export function normalizeLabelText(text: string): string {
-	return (
-		text
-			.normalize("NFKD")
-			.replace(/[̀-ͯ]/g, "")
-			.toLowerCase()
-			// 中点(U+30FB)はカタカナブロック内にあり下の許可クラスに残るため、先に区切り化する
-			.replace(/・/g, " ")
-			.replace(/[^a-z0-9぀-ヿ一-鿿]+/gu, " ")
-			.trim()
-			.replace(/\s+/g, " ")
-			// NFKDで分解されたままの濁点・半濁点(U+3099/309A)を合成形に戻す
-			.normalize("NFC")
-	);
-}
+// マスタ照合用の正規化。実装は産地ピッカーの検索と共有するため
+// lib/wine/text-normalize へ移した(既存の import 先はここのまま)。
+export { normalizeLabelText };
 
 /** 誤爆を避けるための最小一致長(正規化後)。"Ay" のような極短名の含有一致を禁止する。 */
 const AOP_MATCH_MIN_CHARS = 4;
@@ -395,6 +392,35 @@ export function matchRegionId(texts: string[]): string | undefined {
 	return undefined;
 }
 
+/** 国マスタの表記(id/現地語/日本語/英語)に無い別名の対応表(正規化形)。 */
+const COUNTRY_ALIASES: Record<string, string> = {
+	francia: "france",
+	italie: "italy",
+	仏: "france",
+	伊: "italy",
+};
+
+/** 国テキスト群から国マスタの id を解決する。 */
+export function matchCountryId(texts: string[]): string | undefined {
+	for (const rawText of texts) {
+		const text = normalizeLabelText(rawText);
+		if (!text) continue;
+		const aliased = COUNTRY_ALIASES[text] ?? text;
+		for (const country of WINE_COUNTRIES) {
+			const labels = [
+				country.id,
+				country.nameLocal,
+				country.nameJa,
+				country.countryNameEn,
+			];
+			if (labels.some((l) => normalizeLabelText(l) === aliased)) {
+				return country.id;
+			}
+		}
+	}
+	return undefined;
+}
+
 /** 品種名テキスト群を品種マスタの id へ解決する(一致しないものは落とす)。 */
 export function matchGrapeVarietyIds(names: string[]): string[] {
 	const ids: string[] = [];
@@ -409,14 +435,20 @@ export function matchGrapeVarietyIds(names: string[]): string[] {
 	return ids;
 }
 
-/** フォームへ流し込める形の自動入力候補。キーは drunkWineFields と揃える。 */
+/**
+ * フォームへ流し込める形の自動入力候補。キーは drunkWineFields と揃える。
+ * 産地(aopId / regionId / countryId)は「最も細かい1つだけ」の排他で、フォームの
+ * 産地紐付けの不変条件と同じ形にして返す(AOPが解決できたら地域・国は返さない)。
+ */
 export interface LabelSuggestions {
 	name?: string;
 	producer?: string;
 	vintage?: number;
-	/** フォームのAOP絞り込み用(AOPが解決できた場合はその地域)。 */
-	regionId?: string;
 	aopId?: string;
+	/** AOPまで特定できなかった場合の、地域単位の紐付け候補。 */
+	regionId?: string;
+	/** 地域も特定できなかった場合の、国単位の紐付け候補。 */
+	countryId?: string;
 	grapeVarietyIds?: string[];
 }
 
@@ -444,19 +476,28 @@ export function buildLabelSuggestions(
 		suggestions.vintage = extraction.vintage;
 	}
 
+	// 産地は最も細かい1つに解決する: AOP → 地域 → 国。AOPが解決できたら地域・国は
+	// 返さない(保存の排他と同じ形。地域はサーバ側でAOPから導出される)。
 	const aopTexts = [extraction.appellation, extraction.wineName].filter(
 		(t): t is string => !!t,
 	);
 	const aop = matchAop(aopTexts);
 	if (aop && getRegion(aop.region)?.enabled) {
 		suggestions.aopId = aop.id;
-		suggestions.regionId = aop.region;
 	} else {
 		const regionTexts = [extraction.region, extraction.appellation].filter(
 			(t): t is string => !!t,
 		);
 		const regionId = matchRegionId(regionTexts);
-		if (regionId) suggestions.regionId = regionId;
+		if (regionId) {
+			suggestions.regionId = regionId;
+		} else {
+			// 地域まで特定できなければ国単位で拾う(国マスタに無い国は未紐付けのまま)
+			const countryId = matchCountryId(
+				[extraction.country, extraction.region].filter((t): t is string => !!t),
+			);
+			if (countryId) suggestions.countryId = countryId;
+		}
 	}
 
 	// キュヴェ名等が無いラベルでは wine_name が null になりやすい。名前は唯一の必須

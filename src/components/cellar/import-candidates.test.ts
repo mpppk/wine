@@ -35,7 +35,6 @@ describe("buildImportCards", () => {
 					producer: "Vincent Dauvissat",
 					vintage: 2020,
 					aopId: "chablis-grand-cru",
-					regionId: "bourgogne",
 					grapeVarietyIds: ["chardonnay"],
 				},
 				price: 24000,
@@ -54,9 +53,34 @@ describe("buildImportCards", () => {
 			vintage: "2020",
 			status: "spotted",
 			aopId: "chablis-grand-cru",
-			regionId: "bourgogne",
+			regionId: undefined,
+			countryId: undefined,
 			grapeVarietyIds: ["chardonnay"],
 		});
+	});
+
+	it("産地は最も細かい1つだけを初期値にする(AOPがあれば地域・国は落とす)", () => {
+		const [withAop] = buildImportCards([
+			candidate({
+				suggestions: { aopId: "chablis", regionId: "bourgogne" },
+			}),
+		]);
+		expect(withAop?.values.aopId).toBe("chablis");
+		expect(withAop?.values.regionId).toBeUndefined();
+
+		const [regionOnly] = buildImportCards([
+			candidate({
+				suggestions: { regionId: "bourgogne", countryId: "france" },
+			}),
+		]);
+		expect(regionOnly?.values.aopId).toBeUndefined();
+		expect(regionOnly?.values.regionId).toBe("bourgogne");
+		expect(regionOnly?.values.countryId).toBeUndefined();
+
+		const [countryOnly] = buildImportCards([
+			candidate({ suggestions: { countryId: "france" } }),
+		]);
+		expect(countryOnly?.values.countryId).toBe("france");
 	});
 
 	it("リスト記載の価格は銘柄ではなく目撃記録側に入れる(店ごとに違うため)", () => {
@@ -146,7 +170,8 @@ describe("buildBulkRegisterInput", () => {
 						producer: "Giuseppe Rinaldi",
 						price: "",
 						aopId: "barolo",
-						regionId: "piemonte",
+						regionId: undefined,
+						countryId: undefined,
 						grapeVarietyIds: ["nebbiolo"],
 					},
 					sightingPrice: "28000",

@@ -66,8 +66,16 @@ export function buildImportCards(
 			producer: candidate.suggestions.producer ?? "",
 			// 銘柄の価格は空のまま。リスト記載の価格は目撃記録側(sightingPrice)へ
 			price: "",
+			// 産地は「最も細かい1つだけ」。suggestions 側も排他だが、ここでも精度順に
+			// 畳んでおく(フォームの不変条件をAIの出力形に依存させない)
 			aopId: candidate.suggestions.aopId,
-			regionId: candidate.suggestions.regionId,
+			regionId: candidate.suggestions.aopId
+				? undefined
+				: candidate.suggestions.regionId,
+			countryId:
+				candidate.suggestions.aopId || candidate.suggestions.regionId
+					? undefined
+					: candidate.suggestions.countryId,
 			grapeVarietyIds: candidate.suggestions.grapeVarietyIds ?? [],
 		},
 		drunk: false,

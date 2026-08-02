@@ -28,6 +28,7 @@ import { DRUNK_WINE_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
+import { provenanceNameJa } from "#/lib/wine/provenance";
 import { getWineListAnalysisAvailability } from "#/server/ai";
 import {
 	countCellarFilters,
@@ -80,6 +81,8 @@ export const Route = createFileRoute("/cellar/")({
 });
 
 function EntryCard({ entry }: { entry: DrunkWineEntry }) {
+	// AOP名 > 地域名 > 国名(粗い紐付けのエントリも産地が見えるようにする)
+	const provenance = provenanceNameJa(entry);
 	const router = useRouter();
 	const drink = useMutation({
 		mutationFn: () => markWineDrunk({ data: { id: entry.id } }),
@@ -129,7 +132,7 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 							{entry.tastingCount > 1 && (
 								<span>{entry.tastingCount}回飲んだ</span>
 							)}
-							{entry.aopNameJa && <span>{entry.aopNameJa}</span>}
+							{provenance && <span>{provenance}</span>}
 							<span>
 								{[
 									entry.vintage !== null ? `${entry.vintage}年` : undefined,

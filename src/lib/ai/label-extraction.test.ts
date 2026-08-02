@@ -261,7 +261,7 @@ describe("matchGrapeVarietyIds", () => {
 });
 
 describe("buildLabelSuggestions", () => {
-	it("呼称からAOP・地域を解決し、テキスト項目をそのまま候補にする", () => {
+	it("呼称からAOPを解決し、テキスト項目をそのまま候補にする(産地は最も細かい1つだけ)", () => {
 		const s = buildLabelSuggestions(
 			extraction({
 				wineName: "Chablis Premier Cru Fourchaume",
@@ -276,7 +276,9 @@ describe("buildLabelSuggestions", () => {
 		expect(s.producer).toBe("Domaine Testut");
 		expect(s.vintage).toBe(2020);
 		expect(s.aopId).toBe("chablis-premier-cru");
-		expect(s.regionId).toBe("bourgogne");
+		// AOPが解決できたら地域・国は候補に含めない(保存の排他と同じ形)
+		expect(s.regionId).toBeUndefined();
+		expect(s.countryId).toBeUndefined();
 		expect(s.grapeVarietyIds).toEqual(["chardonnay"]);
 	});
 
@@ -286,6 +288,25 @@ describe("buildLabelSuggestions", () => {
 		);
 		expect(s.aopId).toBeUndefined();
 		expect(s.regionId).toBe("bourgogne");
+		expect(s.countryId).toBeUndefined();
+	});
+
+	it("地域も解決できないときは国を候補にする", () => {
+		const s = buildLabelSuggestions(
+			extraction({ wineName: "Some Wine", region: "Jura", country: "France" }),
+		);
+		expect(s.aopId).toBeUndefined();
+		expect(s.regionId).toBeUndefined();
+		expect(s.countryId).toBe("france");
+	});
+
+	it("国が対応外なら産地は候補に含めない", () => {
+		const s = buildLabelSuggestions(
+			extraction({ wineName: "Rioja Reserva", country: "Spain" }),
+		);
+		expect(s.aopId).toBeUndefined();
+		expect(s.regionId).toBeUndefined();
+		expect(s.countryId).toBeUndefined();
 	});
 
 	it("品種が無記載でもAOPの主要品種が1種ならそれを候補にする", () => {

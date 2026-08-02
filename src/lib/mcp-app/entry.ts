@@ -20,7 +20,10 @@ export interface McpDrunkWineEntry {
 	drank_on: string | null;
 	aop_id: string | null;
 	aop_name_ja: string | null;
+	/** 表示用の地域(AOPからの導出込み)。地域単位の紐付けなら保存値 */
 	region_id: string | null;
+	/** 表示用の国(AOP/地域からの導出込み)。国単位の紐付けなら保存値 */
+	country_id: string | null;
 	/** 最新の飲用記録の評価。既存クライアント互換で残す */
 	rating: number | null;
 	/** 最新の飲用記録のメモ。既存クライアント互換で残す */

@@ -110,6 +110,7 @@ export function buildWineListPrompt(photoCount: number): string {
 		'     - "vintage": 西暦の整数(例: 2020)。記載が無い/NV(ノンヴィンテージ)なら null',
 		'     - "appellation": 原産地呼称(AOC/AOP/DOC/DOCG など)。下の既知リストに該当があればその表記を一字一句そのまま使う。読めなければ null',
 		'     - "region": 地域名(例: Bourgogne, Toscana)。読めなければ null',
+		'     - "country": 生産国(例: France, Italy)。読めなければ null',
 		'     - "grape_varieties": 品種名の文字列配列。記載が無ければ空配列。下の既知リストに該当があればその表記を使う',
 		'     - "price": リスト記載の価格を整数(日本円)で。グラスとボトルが併記されていればボトルの価格。記載が無ければ null',
 		'     - "photo_indexes": この銘柄が写っていた写真番号(0始まり)の配列',
@@ -276,6 +277,7 @@ export function dedupeWineListItems(items: WineListItem[]): DedupeResult {
 		existing.vintage ??= item.vintage;
 		existing.appellation ??= item.appellation;
 		existing.region ??= item.region;
+		existing.country ??= item.country;
 		existing.price ??= item.price;
 		for (const g of item.grapeVarieties) {
 			if (!existing.grapeVarieties.includes(g)) existing.grapeVarieties.push(g);

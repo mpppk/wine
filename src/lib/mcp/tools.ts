@@ -435,6 +435,7 @@ async function toEntryPayload(
 		aop_id: entry.aopId,
 		aop_name_ja: entry.aopNameJa,
 		region_id: entry.regionId,
+		country_id: entry.countryId,
 		rating: entry.lastRating,
 		memo: entry.lastMemo,
 		vintage: entry.vintage,

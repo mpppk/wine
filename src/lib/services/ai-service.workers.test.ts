@@ -289,7 +289,8 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 			name: "Chablis Les Clos",
 			producer: "Vincent Dauvissat",
 			vintage: 2020,
-			regionId: "bourgogne",
+			// AOPが解決できたら地域は候補に含めない(産地は最も細かい1つだけ)
+			aopId: "chablis-grand-cru",
 			grapeVarietyIds: ["chardonnay"],
 		});
 		// 実測(1200)ぶんだけ消費し、予約との差分は返る
@@ -413,7 +414,8 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 			name: "Chablis Les Clos",
 			producer: "Vincent Dauvissat",
 			vintage: 2020,
-			regionId: "bourgogne",
+			// AOPが解決できたら地域は候補に含めない(産地は最も細かい1つだけ)
+			aopId: "chablis-grand-cru",
 			grapeVarietyIds: ["chardonnay"],
 		});
 		// 実測(1500)ぶんだけ消費し、予約との差分は返る
@@ -642,8 +644,8 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 			name: "Chablis Les Clos",
 			producer: "Vincent Dauvissat",
 			vintage: 2020,
+			// AOPが解決できたら地域は候補に含めない(産地は最も細かい1つだけ)
 			aopId: "chablis-grand-cru",
-			regionId: "bourgogne",
 		});
 		expect(await balanceOf(userId)).toBe(
 			MONTHLY_CREDITS_FREE - tokensToCredits(3500),
