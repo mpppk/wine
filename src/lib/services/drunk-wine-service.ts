@@ -918,15 +918,27 @@ export async function updateLatestWineTasting(
  * 置換完了後の孤児掃除も同じ扱いにする。D1 の photo_keys は既に更新済みで、そちらが
  * 正となる状態のため、R2 に残骸が残ることより「成功した更新を失敗として返す」ほうが害が大きい。
  */
+// R2 delete は1回あたり最大1000キー。まとめて渡すとAPI呼び出しが失敗するため、
+// 一括削除(deleteDrunkWines)で複数エントリぶんの写真+サムネイルを渡すケースに備えて
+// ここでチャンク分割する(単体削除は常に1チャンクで収まるため挙動は変わらない)。
+const R2_DELETE_CHUNK_SIZE = 1000;
+
 async function cleanupPhotoObjects(
 	keys: string[],
 	fields: LogFields & { userId: string; entryId: string; phase: string },
 ): Promise<void> {
 	if (keys.length === 0) return;
-	try {
-		await env.AVATARS.delete(keys);
-	} catch (cleanupErr) {
-		logError("photo cleanup failed", { ...fields, keys, err: cleanupErr });
+	for (let i = 0; i < keys.length; i += R2_DELETE_CHUNK_SIZE) {
+		const chunk = keys.slice(i, i + R2_DELETE_CHUNK_SIZE);
+		try {
+			await env.AVATARS.delete(chunk);
+		} catch (cleanupErr) {
+			logError("photo cleanup failed", {
+				...fields,
+				keys: chunk,
+				err: cleanupErr,
+			});
+		}
 	}
 }
 
@@ -947,6 +959,38 @@ export async function deleteDrunkWine(
 			: [],
 		{ userId, entryId: id, phase: "entry-deleted" },
 	);
+}
+
+/**
+ * 複数エントリのまとめ削除(Issue #363 案B: /cellar 一覧のチェックボックス選択)。
+ * 所有権を持たない/存在しない id は黙って無視し(単体削除の Entry not found とは違い、
+ * 選択リストに他ユーザの id が混ざることは無いため、部分一致でも呼び出し側のミスとは
+ * 見なさない)、実際に消えた件数を返す。
+ *
+ * D1書き込みは `drunk_wine` 1テーブルへの delete のみで、`wine_tasting` /
+ * `wine_sighting` は ON DELETE CASCADE(schema.ts)で連動して消える。写真は
+ * エントリ横断でまとめて1回(チャンク分割込み)のR2一括削除にする。
+ */
+export async function deleteDrunkWines(
+	userId: string,
+	ids: string[],
+): Promise<{ deletedCount: number }> {
+	if (ids.length === 0) return { deletedCount: 0 };
+	const rows = await db
+		.delete(drunkWine)
+		.where(and(inArray(drunkWine.id, ids), eq(drunkWine.userId, userId)))
+		.returning({ photoKeys: drunkWine.photoKeys });
+	const keys = rows.flatMap((row) =>
+		row.photoKeys.length > 0
+			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
+			: [],
+	);
+	await cleanupPhotoObjects(keys, {
+		userId,
+		entryId: ids.join(","),
+		phase: "entries-deleted",
+	});
+	return { deletedCount: rows.length };
 }
 
 export interface ListDrunkWinesOptions {
