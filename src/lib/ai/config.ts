@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
+import {
+	type AiUsage,
+	type CreditCharge,
+	toEstimateCharge,
+} from "#/lib/billing/ai-pricing";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 
 // 地域チャットQ&A(Workers AI)の設定。モデルや上限はここに集約し、原価/品質を見て
@@ -110,6 +114,18 @@ export const AI_LABEL_MAX_OUTPUT_TOKENS = 512;
  */
 export const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
 
+/**
+ * Workers AI 経路の指示文(LABEL_PROMPT)の入力トークン見積。
+ *
+ * **`LABEL_PROMPT` の実長から計算せずに定数で持つ**。見積は解析前の必要クレジット表示
+ * のためにクライアントも読むが、`label-extraction.ts` は AOP/品種の全マスタを推移的に
+ * 読み込むためクライアントバンドルに入れたくない(一括抽出の見積を
+ * ここへ置いたのと同じ理由)。実長(2026-08 時点で約5,600)がこの値を超えていない
+ * ことは `label-extraction.test.ts` が検証する。マスタ名一覧を同梱しているので、
+ * AOP/品種を増やすと伸びる。
+ */
+export const AI_LABEL_PROMPT_TOKEN_ESTIMATE = 6_500;
+
 // ---- エチケット解析の高精度経路(LLM + web検索) ----
 // 対応するプロバイダのAPIキーが設定されている場合のみ使う。未設定・失敗時は Workers AI
 // (AI_LABEL_MODEL)へフォールバックするため、ここの定数は任意機能の調整値。
@@ -205,14 +221,28 @@ export const AI_LABEL_WEB_MAX_SEARCHES = 8;
 export const AI_LABEL_WEB_MAX_CONTINUATIONS = 4;
 
 /**
- * Claude経路の予約見積の基礎トークン(プロンプト + 呼称/品種マスタのリスト +
- * web検索結果 + thinking/出力ぶんの保守的な見積)。検索結果の量は事前に読めない
- * ため大きめに取り、settle の実測確定で差分を返す。
+ * Claude経路の予約見積の基礎入力トークン(プロンプト + 呼称/品種マスタのリスト +
+ * web検索結果 + ループ再送ぶん)。検索結果の量は事前に読めないため実測の中心値に置き、
+ * 上振れは settle で取りこぼす(過小請求側)。
  */
 export const AI_LABEL_WEB_BASE_TOKEN_ESTIMATE = 30_000;
 
 /** Claude経路の画像1枚あたりの入力トークン見積(長辺1280px前提 + ループ再送ぶん)。 */
 export const AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE = 3_000;
+
+/**
+ * Claude経路の出力トークン見積(thinking + JSON)。**入力と分けて持つ**のは
+ * 出力単価が入力の5倍あり、合計トークンでは原価が出せないため。上限
+ * (`AI_LABEL_WEB_MAX_OUTPUT_TOKENS` = 16k)ではなく実測の中心値を置く。
+ */
+export const AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE = 2_000;
+
+/**
+ * Claude経路の web検索回数の見積。**上限(`AI_LABEL_WEB_MAX_SEARCHES` = 8)ではなく
+ * 中心値**を置く。web検索は $10/1000回 の回数課金で、上限で予約すると1回の予約が
+ * 付与枠を不必要に押さえてしまう。
+ */
+export const AI_LABEL_WEB_SEARCH_ESTIMATE = 6;
 
 /**
  * 高精度エチケット解析に使う OpenAI のモデルID。マルチモーダル + サーバーサイドweb検索
@@ -246,18 +276,26 @@ export const AI_LABEL_GPT_REASONING_EFFORT = "low";
 export const AI_LABEL_GPT_SEARCH_CONTEXT_SIZE = "medium";
 
 /**
- * GPT経路の予約見積の基礎トークン(プロンプト + 呼称/品種マスタのリスト + web検索結果 +
- * reasoning/出力ぶんの保守的な見積)。Claude経路と同水準に置く: 検索結果の量は事前に
- * 読めないため大きめに取り、settle の実測(usage.total_tokens)で差分を返す。
- *
- * なお **Luna の実原価はトークン単価で Claude Opus 5 より大幅に低い**が、現行のクレジット
- * 計上はプロバイダ非依存のトークン従量なので見積も同水準にしてある。単価を反映した
- * コスト基準の計上は Issue #355 で別途扱う。
+ * GPT経路の予約見積の基礎入力トークン(プロンプト + 呼称/品種マスタのリスト +
+ * web検索結果)。トークン数の見込みは Claude経路と同水準だが、**原価は単価表で
+ * 決まる**ので消費クレジットは大きく違う(Luna の入力単価は Opus 5 の 1/25)。
  */
 export const AI_LABEL_GPT_BASE_TOKEN_ESTIMATE = 30_000;
 
 /** GPT経路の画像1枚あたりの入力トークン見積(長辺1280px前提)。 */
 export const AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE = 3_000;
+
+/** GPT経路の出力トークン見積(reasoning + JSON)。上限ではなく実測の中心値。 */
+export const AI_LABEL_GPT_OUTPUT_TOKEN_ESTIMATE = 2_000;
+
+/**
+ * GPT経路の web検索回数の見積。
+ *
+ * **この経路は検索回数に上限を掛けられない**(Responses API に Anthropic の
+ * `max_uses` に相当する指定が無い)。Luna は原価の8割が web検索の回数課金なので、
+ * 上振れした回は予約を超えたぶんを取りこぼす(過小請求)。回数の上限化は別Issueで扱う。
+ */
+export const AI_LABEL_GPT_SEARCH_ESTIMATE = 3;
 
 /**
  * エンジンキーの解決先(実際に走る経路)。ユーザ選択(LabelEngineKey)と1対1ではなく、
@@ -324,8 +362,14 @@ export function resolveLabelRoute(
  * Llama 4 Scout は配列の guided_json が安定せず、小さな文字が並ぶリスト写真の読み取り
  * 品質も低いため、降格すると「大量の欠落・でたらめな銘柄」が出て、レビュー画面での
  * 修正コストがユーザの手入力を上回る。落とすなら黙って質を下げるより失敗させる。
+ *
+ * **Opus 5 ではなく Sonnet 5 を使う(#355)**。コスト基準の計上に切り替えると、Opus 5
+ * ($5/$25 per MTok)では写真1枚の解析が無料会員の月次付与(150クレジット = $0.15)を
+ * 超え、無料会員がこの機能を一度も使えなくなる。Sonnet 5($3/$15)なら1枚あたり
+ * 約126クレジットで付与内に収まる。web検索を使わない素直な読み取りタスクなので、
+ * Llama 4 Scout で問題になった「配列の構造化出力の安定性」は Sonnet 5 でも満たせる。
  */
-export const AI_WINE_LIST_MODEL = "claude-opus-5";
+export const AI_WINE_LIST_MODEL = "claude-sonnet-5";
 
 /**
  * 1レスポンスの最大出力トークン。**銘柄数に比例して伸びる**のがエチケット解析との
@@ -350,40 +394,134 @@ export const AI_WINE_LIST_MAX_OUTPUT_TOKENS = 20_000;
 export const AI_WINE_LIST_MAX_WINES = 80;
 
 /**
- * 一括抽出の予約見積の基礎トークン(指示文 + 呼称/品種マスタのリスト + thinking/出力ぶん)。
+ * 一括抽出の予約見積の基礎入力トークン(指示文 + 呼称/品種マスタのリスト)。
  *
  * **他経路のように「上限いっぱいを保守的に予約する」ことはしない**。予約は残高不足の
  * 判定に直結し(reserveCredits が足りなければ推論せず blocked)、10枚 × 上限見積を
- * 積むと無料枠(月50クレジット = 50,000トークン)では常に弾かれて機能自体が使えなく
- * なる。実測の中心値(写真数枚・数十銘柄で 15〜30k)を見て置き、上振れぶんは
- * 取りこぼす(settle は予約を超えて課金しない = 過小請求側に倒れる)。
- * web検索を使わないぶん、Claude のエチケット解析経路(30,000)より小さくできる。
+ * 積むと無料枠では常に弾かれて機能自体が使えなくなる。実測の中心値(写真数枚・
+ * 数十銘柄で 15〜30k)を見て置き、上振れぶんは取りこぼす(settle は予約を超えて
+ * 課金しない = 過小請求側に倒れる)。**この「中心値で予約する」方針は #355 で
+ * 全経路の既定になった**(コスト基準では最悪値予約が付与額を超えるため)。
  */
-export const AI_WINE_LIST_BASE_TOKEN_ESTIMATE = 24_000;
+export const AI_WINE_LIST_BASE_TOKEN_ESTIMATE = 21_000;
 
 /**
  * 画像1枚あたりの入力トークン見積。リストの小さい文字を読ませるためクライアントは
  * 長辺 1600px へ縮小して送る(エチケットの 1280px より大きい)ので、その前提で
  * エチケット経路(3,000)より大きめに取る。
  */
-export const AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE = 4_000;
+export const AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE = 3_500;
 
 /**
- * 一括抽出の予約トークン見積。写真枚数に比例させ、上限で必ずクランプする
- * (他のAI経路と同じ流儀)。基礎値を実測の中心値に置く理由は上の
- * AI_WINE_LIST_BASE_TOKEN_ESTIMATE を参照。
- *
- * **抽出ロジック(wine-list-extraction.ts)ではなくここに置く**。解析前に必要クレジットを
- * 表示する UI(/cellar/import)がこの式を参照するが、wine-list-extraction.ts は静的マスタ
- * (AOP/品種の全リスト)を推移的に読み込むため、クライアントバンドルに入れたくない。
- * 見積の定数と式が同じファイルに並ぶので、原価を見て数値を差し替えるときの追随漏れも減る。
+ * 一括抽出の基礎出力トークン見積(thinking + JSON の骨格)。入力と分けて持つのは
+ * 出力単価が入力の5倍あるため。
  */
-export function estimateWineListReserveTokens(imageCount: number): number {
-	return Math.min(
-		AI_MAX_ESTIMATE_TOKENS,
-		AI_WINE_LIST_BASE_TOKEN_ESTIMATE +
-			AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE *
-				Math.min(Math.max(1, imageCount), MAX_PHOTOS_PER_IMPORT_BATCH),
+export const AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE = 3_000;
+
+/**
+ * 画像1枚あたりの追加出力トークン見積。**この経路だけ出力が銘柄数に比例して伸びる**
+ * (エチケット解析は1枚でも複数枚でも出力は1件ぶん)ので、枚数に連動させる。
+ */
+export const AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE = 500;
+
+// ---- 予約見積(コスト単位) ----
+// 各経路の「中心値の使用量」を AiUsage として組み立て、単価表(ai-pricing.ts)で µUSD へ
+// 換算する。**見積と実測が同じ型・同じ換算関数を通る**ので、単価を改定したときに
+// 見積だけ古いまま残ることがない。
+//
+// **抽出ロジック(label-extraction.ts / wine-list-extraction.ts)ではなくここに置く**。
+// 解析前に必要クレジットを表示する UI がこの式を参照するが、それらのモジュールは静的
+// マスタ(AOP/品種の全リスト)を推移的に読み込むため、クライアントバンドルに入れたく
+// ない。見積の定数と式が同じファイルに並ぶので、原価を見て数値を差し替えるときの
+// 追随漏れも減る。
+
+/** 一括抽出の中心値使用量。写真枚数に比例させ、上限枚数でクランプする。 */
+export function estimateWineListReserveUsage(imageCount: number): AiUsage {
+	const photos = Math.min(Math.max(1, imageCount), MAX_PHOTOS_PER_IMPORT_BATCH);
+	return {
+		inputTokens:
+			AI_WINE_LIST_BASE_TOKEN_ESTIMATE +
+			AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE * photos,
+		outputTokens:
+			AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE +
+			AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE * photos,
+	};
+}
+
+/** 一括抽出の予約計上量。上限で必ずクランプする。 */
+export function estimateWineListReserveCharge(
+	imageCount: number,
+): CreditCharge {
+	return toEstimateCharge(
+		AI_WINE_LIST_MODEL,
+		estimateWineListReserveUsage(imageCount),
+	);
+}
+
+/**
+ * エチケット解析の中心値使用量。**経路ごとに形が違う**ので経路で分ける: 高精度2経路は
+ * 全写真を1リクエストにまとめて web検索で裏を取り、Workers AI 経路は1枚ずつ解析して
+ * マージする(指示文も枚数ぶん送られる)。
+ */
+export function estimateLabelReserveUsage(
+	route: LabelRoute,
+	imageCount: number,
+): AiUsage {
+	const photos = Math.max(1, imageCount);
+	switch (route) {
+		case "gpt-luna":
+			return {
+				inputTokens:
+					AI_LABEL_GPT_BASE_TOKEN_ESTIMATE +
+					AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE * photos,
+				outputTokens: AI_LABEL_GPT_OUTPUT_TOKEN_ESTIMATE,
+				webSearches: AI_LABEL_GPT_SEARCH_ESTIMATE,
+			};
+		case "web-research":
+			return {
+				inputTokens:
+					AI_LABEL_WEB_BASE_TOKEN_ESTIMATE +
+					AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE * photos,
+				outputTokens: AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE,
+				webSearches: AI_LABEL_WEB_SEARCH_ESTIMATE,
+			};
+		case "workers-ai":
+			return {
+				inputTokens:
+					(AI_LABEL_PROMPT_TOKEN_ESTIMATE + AI_LABEL_IMAGE_TOKEN_ESTIMATE) *
+					photos,
+				outputTokens: AI_LABEL_MAX_OUTPUT_TOKENS * photos,
+			};
+	}
+}
+
+/** エチケット解析の予約計上量。上限で必ずクランプする。 */
+export function estimateLabelReserveCharge(
+	route: LabelRoute,
+	imageCount: number,
+): CreditCharge {
+	return toEstimateCharge(
+		AI_LABEL_ROUTE_MODELS[route],
+		estimateLabelReserveUsage(route, imageCount),
+	);
+}
+
+/**
+ * 地域Q&Aの中心値使用量。入力は会話履歴の実長から見積り、出力は上限を置く
+ * (1回の回答は短く、上限に張り付きやすいため中心値 ≒ 上限)。
+ */
+export function estimateRegionQaReserveUsage(promptTokens: number): AiUsage {
+	return { inputTokens: promptTokens, outputTokens: AI_MAX_OUTPUT_TOKENS };
+}
+
+/** 地域Q&Aの予約計上量。モデルはユーザ選択で変わるので呼び出し側が渡す。 */
+export function estimateRegionQaReserveCharge(
+	modelKey: RegionQaModelKey,
+	promptTokens: number,
+): CreditCharge {
+	return toEstimateCharge(
+		AI_REGION_QA_MODELS[modelKey].id,
+		estimateRegionQaReserveUsage(promptTokens),
 	);
 }
 

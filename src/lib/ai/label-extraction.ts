@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
 import { WINE_COUNTRIES } from "#/lib/wine/countries";
 import {
 	GRAPE_VARIETIES,
@@ -9,11 +8,7 @@ import {
 } from "#/lib/wine/service";
 import { normalizeLabelText } from "#/lib/wine/text-normalize";
 import type { Aop } from "#/lib/wine/types";
-import {
-	AI_LABEL_IMAGE_TOKEN_ESTIMATE,
-	AI_LABEL_MAX_OUTPUT_TOKENS,
-	CHARS_PER_TOKEN_ESTIMATE,
-} from "./config";
+import { CHARS_PER_TOKEN_ESTIMATE } from "./config";
 
 // エチケット(ラベル)画像からのマイセラー項目抽出。プロンプト・出力スキーマ・応答パース・
 // 静的マスタ(AOP/地域/品種)へのマッチングを DB/env 非依存の純ロジックとして切り出し、
@@ -524,18 +519,13 @@ export function buildLabelSuggestions(
 }
 
 /**
- * 予約すべきトークン数の見積。画像の見積が支配的なので枚数に比例させ、指示文の推定 +
- * 出力上限を足し、上限で必ずクランプする(予約が実測を上回るよう保守的に)。
- * imageCount は1以上を想定(0でも下限は指示文+出力ぶんになる)。
+ * `LABEL_PROMPT` の入力トークン推定。
+ *
+ * 予約見積そのものは `config.ts` の `estimateLabelReserveUsage` が
+ * `AI_LABEL_PROMPT_TOKEN_ESTIMATE`(定数)を使って行う。このモジュールは AOP/品種の
+ * 全マスタを推移的に読み込むため、解析前の必要クレジットを表示するクライアントから
+ * 参照させたくないため。実長が定数を超えていないことは単体テストが検証する。
  */
-export function estimateLabelReserveTokens(imageCount: number): number {
-	const promptTokens = Math.ceil(
-		LABEL_PROMPT.length / CHARS_PER_TOKEN_ESTIMATE,
-	);
-	return Math.min(
-		AI_MAX_ESTIMATE_TOKENS,
-		AI_LABEL_IMAGE_TOKEN_ESTIMATE * Math.max(1, imageCount) +
-			promptTokens +
-			AI_LABEL_MAX_OUTPUT_TOKENS,
-	);
+export function estimateLabelPromptTokens(): number {
+	return Math.ceil(LABEL_PROMPT.length / CHARS_PER_TOKEN_ESTIMATE);
 }

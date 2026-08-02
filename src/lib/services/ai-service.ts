@@ -19,7 +19,9 @@ import {
 	AI_WINE_LIST_MODEL,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
-	estimateWineListReserveTokens,
+	estimateLabelReserveCharge,
+	estimateRegionQaReserveCharge,
+	estimateWineListReserveCharge,
 	type LabelRoute,
 	type RegionQaModelKey,
 	resolveLabelRoute,
@@ -30,7 +32,6 @@ import { logAiInference } from "#/lib/ai/inference-log";
 import {
 	buildLabelMessages,
 	buildLabelSuggestions,
-	estimateLabelReserveTokens,
 	LABEL_JSON_SCHEMA,
 	type LabelExtraction,
 	type LabelSuggestions,
@@ -40,19 +41,19 @@ import {
 import {
 	buildGptLabelInput,
 	buildGptLabelTextFormat,
-	estimateGptLabelReserveTokens,
+	countGptWebSearches,
 	extractGptLabelText,
+	toGptUsage,
 } from "#/lib/ai/label-gpt-research";
 import {
 	buildWebLabelMessages,
-	estimateWebLabelReserveTokens,
 	joinResponseText,
-	sumAnthropicUsage,
+	toAnthropicUsage,
 } from "#/lib/ai/label-web-research";
 import {
 	buildRegionChatMessages,
 	type ChatMessage,
-	estimateReserveTokens,
+	estimateInputTokens,
 	type RegionContextInput,
 	stripReasoning,
 } from "#/lib/ai/region-qa";
@@ -65,6 +66,13 @@ import {
 	type WineListCandidate,
 	type WineListParseResult,
 } from "#/lib/ai/wine-list-extraction";
+import {
+	type AiUsage,
+	addUsage,
+	type CreditCharge,
+	getModelPricing,
+	toCharge,
+} from "#/lib/billing/ai-pricing";
 import { BadRequestError, HttpError } from "#/lib/errors";
 import { logWarn } from "#/lib/logger";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
@@ -72,6 +80,32 @@ import * as creditService from "#/lib/services/credit-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import * as userService from "#/lib/services/user-service";
 import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
+
+/**
+ * 実測 usage を計上量へ畳む**唯一の関門**(#355)。
+ *
+ * `model` は「意図した経路」ではなく**実際に推論したモデル**を渡すこと。エチケット解析は
+ * 高精度経路が失敗すると Workers AI へフォールバックするので、意図した経路のモデルで
+ * 換算すると Opus の単価で Llama の推論を課金してしまう。
+ *
+ * 単価未登録のモデルはここで警告を出す(換算自体はフォールバック単価で続行する。理由は
+ * ai-pricing.ts の FALLBACK_PRICING を参照)。**経路ごとに書かず1箇所に寄せる**ので、
+ * 経路が増えても警告の付け忘れが起きない。
+ */
+function chargeFor(model: string, usage: AiUsage): CreditCharge {
+	if (getModelPricing(model) === null) {
+		logWarn("ai pricing missing; charging at fallback rate", { model });
+	}
+	return toCharge(model, usage);
+}
+
+/**
+ * 実測が取れなかったときの確定値。予約全量を実測とみなす(返却0=安全側)。
+ * トークンは観測できていないので 0 のままにし、**推定値を実測として台帳に残さない**。
+ */
+function fallbackCharge(reservedMicroUsd: number): CreditCharge {
+	return { microUsd: reservedMicroUsd, tokens: 0 };
+}
 
 /**
  * このターンで使うモデルキーを解決する。明示指定(MCP 等の override)を最優先し、
@@ -163,7 +197,7 @@ export async function answerRegionQuestion(
 		history: input.history ?? [],
 		question: input.question,
 	});
-	const estimate = estimateReserveTokens(messages);
+	const promptTokens = estimateInputTokens(messages);
 	const requestId = `ask_region:${crypto.randomUUID()}`;
 
 	// プロフィール設定(または明示指定)→ 実モデルID＋固有オプションに解決。
@@ -174,6 +208,9 @@ export async function answerRegionQuestion(
 	const startedAt = Date.now();
 	const modelKey = await resolveModelKey(userId, input.model);
 	const model = AI_REGION_QA_MODELS[modelKey];
+	// 見積はモデルが決まってから作る。gemma4 と llama4 で単価が3倍違うため、
+	// モデル解決より前に見積ると経路と原価が食い違う。
+	const estimate = estimateRegionQaReserveCharge(modelKey, promptTokens);
 	// 実行記録の共通部分。経路ごとに組み立て直すとフィールドがドリフトするため1つ持つ。
 	const logBase = {
 		feature: "region_qa",
@@ -196,7 +233,7 @@ export async function answerRegionQuestion(
 	}
 
 	let answer: string;
-	let actualTokens: number;
+	let charge: CreditCharge;
 	try {
 		const raw = await env.AI.run(model.id, {
 			messages,
@@ -218,13 +255,19 @@ export async function answerRegionQuestion(
 		const rawText = out.choices?.[0]?.message?.content ?? out.response ?? "";
 		// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
 		answer = stripReasoning(rawText).trim();
-		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		actualTokens = out.usage?.total_tokens ?? res.reservedTokens;
+		// Workers AI は入出力の内訳を返さないので、全量を出力単価で換算する(保守的=
+		// 過大請求側)。この経路は原価がほぼゼロなので実害は無い。実測が取れなければ
+		// 予約全量を実測とみなす(返却0=安全側)。
+		const total = out.usage?.total_tokens;
+		charge =
+			total === undefined
+				? fallbackCharge(res.reservedMicroUsd)
+				: chargeFor(model.id, { outputTokens: total });
 		await creditService.settleReservation(
 			userId,
 			requestId,
 			res.reservedCredits,
-			actualTokens,
+			charge,
 		);
 	} catch (e) {
 		// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
@@ -238,7 +281,7 @@ export async function answerRegionQuestion(
 			...logBase,
 			outcome: "failed",
 			durationMs: Date.now() - startedAt,
-			reservedTokens: res.reservedTokens,
+			reservedMicroUsd: res.reservedMicroUsd,
 			err: e,
 		});
 		throw e;
@@ -248,13 +291,19 @@ export async function answerRegionQuestion(
 		outcome: "ok",
 		executedBy: modelKey,
 		durationMs: Date.now() - startedAt,
-		actualTokens,
-		reservedTokens: res.reservedTokens,
+		actualTokens: charge.tokens,
+		costMicroUsd: charge.microUsd,
+		reservedMicroUsd: res.reservedMicroUsd,
 	});
 	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
 	// ネットプラスになるため、残高参照は try の外で行う(#144)。
 	const after = await creditService.getBalance(userId);
-	return { blocked: false, answer, actualTokens, balance: after.balance };
+	return {
+		blocked: false,
+		answer,
+		actualTokens: charge.tokens,
+		balance: after.balance,
+	};
 }
 
 export interface AnalyzeLabelInput {
@@ -282,7 +331,7 @@ export type AnalyzeLabelResult =
 async function analyzeLabelWithWebResearch(
 	apiKey: string,
 	imageDataUrls: string[],
-): Promise<{ extraction: LabelExtraction; totalTokens: number }> {
+): Promise<{ extraction: LabelExtraction; usage: AiUsage }> {
 	const client = new Anthropic({ apiKey });
 	const request = {
 		model: AI_LABEL_WEB_MODEL,
@@ -298,7 +347,9 @@ async function analyzeLabelWithWebResearch(
 	const messages = buildWebLabelMessages(imageDataUrls);
 
 	let response = await client.messages.create({ ...request, messages });
-	let totalTokens = sumAnthropicUsage(response.usage);
+	// 継続のたびに入力を再送するので、**内訳ごとに**加算する(合算スカラーだと
+	// 入力・出力・web検索回数が混ざって原価を復元できない)。
+	let usage = toAnthropicUsage(response.usage);
 	// サーバー側ツールループ(web検索)が上限に達すると pause_turn で返る。assistant 応答を
 	// 積んで再送すると続きから再開する(継続回数は原価ガードとして上限で打ち切る)。
 	for (
@@ -308,7 +359,7 @@ async function analyzeLabelWithWebResearch(
 	) {
 		messages.push({ role: "assistant", content: response.content });
 		response = await client.messages.create({ ...request, messages });
-		totalTokens += sumAnthropicUsage(response.usage);
+		usage = addUsage(usage, toAnthropicUsage(response.usage));
 	}
 	// claude-opus-5 はセーフティ分類器が HTTP 200 + stop_reason: "refusal" で応答を
 	// 拒否しうる。content が空/不完全なので通常の失敗として扱う(Workers AI へフォールバック)。
@@ -316,7 +367,7 @@ async function analyzeLabelWithWebResearch(
 		throw new Error("Claudeがエチケット解析の応答を拒否しました");
 	}
 	const extraction = parseLabelResponse(joinResponseText(response.content));
-	return { extraction, totalTokens };
+	return { extraction, usage };
 }
 
 /**
@@ -331,7 +382,7 @@ async function analyzeLabelWithWebResearch(
 async function analyzeLabelWithGptResearch(
 	apiKey: string,
 	imageDataUrls: string[],
-): Promise<{ extraction: LabelExtraction; totalTokens: number }> {
+): Promise<{ extraction: LabelExtraction; usage: AiUsage }> {
 	const client = new OpenAI({ apiKey });
 	const response = await client.responses.create({
 		model: AI_LABEL_GPT_MODEL,
@@ -346,12 +397,14 @@ async function analyzeLabelWithGptResearch(
 		],
 		text: buildGptLabelTextFormat(),
 	});
-	// total_tokens は入力(キャッシュ含む)+ 出力(reasoning 含む)の総和で、サーバー側
-	// ツールループのぶんも合算済み。取れなければ 0 を返し、呼び出し側が予約全量を
-	// 実測とみなす(返却0=安全側)。
-	const totalTokens = response.usage?.total_tokens ?? 0;
+	// usage はサーバー側ツールループのぶんも合算済み。**web検索の回数だけは usage に
+	// 出ない**ので output から数える($10/1000回 の回数課金で、Luna の原価の8割を占める)。
+	const usage = toGptUsage(
+		response.usage,
+		countGptWebSearches(response.output),
+	);
 	const extraction = parseLabelResponse(extractGptLabelText(response));
-	return { extraction, totalTokens };
+	return { extraction, usage };
 }
 
 /**
@@ -384,12 +437,13 @@ export async function analyzeWineLabel(
 		openai: !!openaiApiKey,
 		anthropic: !!anthropicApiKey,
 	});
-	const estimate =
-		route === "gpt-luna"
-			? estimateGptLabelReserveTokens(input.imageDataUrls.length)
-			: route === "web-research"
-				? estimateWebLabelReserveTokens(input.imageDataUrls.length)
-				: estimateLabelReserveTokens(input.imageDataUrls.length);
+	// 見積は経路で大きく違う(実費で標準 約3 / Luna 約39 / Claude 約275 クレジット)。
+	// 経路 → 見積の対応は config.ts に寄せてあり、クライアントの必要クレジット表示も
+	// 同じ関数を通る。
+	const estimate = estimateLabelReserveCharge(
+		route,
+		input.imageDataUrls.length,
+	);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
 	const startedAt = Date.now();
 	const logBase = {
@@ -412,13 +466,13 @@ export async function analyzeWineLabel(
 	}
 
 	let suggestions: LabelSuggestions;
-	let actualTokens: number;
+	let charge: CreditCharge;
 	// 実際に結果を出した経路。高精度経路が失敗すると route と食い違う(=フォールバック)。
 	// route だけを記録すると「GPTで成功」と「GPTが落ちてWorkers AIが拾った」を
 	// 区別できないため、別に持って実行記録に載せる。
 	let executedBy: LabelRoute | undefined;
 	try {
-		let totalTokens = 0;
+		let usage: AiUsage = {};
 		const extractions: LabelExtraction[] = [];
 
 		// 高精度経路: LLM + web検索で全写真を1リクエスト総合解析する。失敗しても全体を
@@ -433,7 +487,7 @@ export async function analyzeWineLabel(
 					input.imageDataUrls,
 				);
 				extractions.push(gpt.extraction);
-				totalTokens += gpt.totalTokens;
+				usage = addUsage(usage, gpt.usage);
 				executedBy = "gpt-luna";
 			} catch (gptErr) {
 				logWarn("label gpt research failed; falling back to Workers AI", {
@@ -449,7 +503,7 @@ export async function analyzeWineLabel(
 					input.imageDataUrls,
 				);
 				extractions.push(web.extraction);
-				totalTokens += web.totalTokens;
+				usage = addUsage(usage, web.usage);
 				executedBy = "web-research";
 			} catch (webErr) {
 				logWarn("label web research failed; falling back to Workers AI", {
@@ -467,6 +521,11 @@ export async function analyzeWineLabel(
 			// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
 			let anyCallOk = false;
 			let lastPhotoErr: unknown;
+			// 高精度経路が失敗して降格した場合、そこまでの usage は**破棄する**。
+			// 課金は実行したモデル1つの単価で行う(chargeFor に渡せるモデルは1つ)。
+			// 失敗した高精度呼び出しのぶんは原価としては発生しているが、ユーザには
+			// 「失敗した推論の料金」を負担させない(過小請求側=ユーザ有利に倒す)。
+			usage = {};
 			for (const [photoIndex, imageDataUrl] of input.imageDataUrls.entries()) {
 				try {
 					const raw = await env.AI.run(AI_LABEL_MODEL, {
@@ -482,7 +541,10 @@ export async function analyzeWineLabel(
 						usage?: { total_tokens?: number };
 					};
 					extractions.push(parseLabelResponse(out.response ?? ""));
-					totalTokens += out.usage?.total_tokens ?? 0;
+					// Workers AI は内訳を返さないので全量を出力単価で換算する(保守的)。
+					usage = addUsage(usage, {
+						outputTokens: out.usage?.total_tokens ?? 0,
+					});
 					anyCallOk = true;
 				} catch (photoErr) {
 					// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
@@ -506,13 +568,18 @@ export async function analyzeWineLabel(
 			executedBy = "workers-ai";
 		}
 		suggestions = buildLabelSuggestions(mergeExtractions(extractions));
+		// **実際に結果を出した経路のモデル単価で課金する**。意図した経路(route)で換算すると、
+		// Claude が落ちて Workers AI が拾った回に Opus の単価で Llama の推論を課金してしまう。
+		const executedModel = AI_LABEL_ROUTE_MODELS[executedBy ?? route];
+		const measured = chargeFor(executedModel, usage);
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		actualTokens = totalTokens || res.reservedTokens;
+		charge =
+			measured.microUsd > 0 ? measured : fallbackCharge(res.reservedMicroUsd);
 		await creditService.settleReservation(
 			userId,
 			requestId,
 			res.reservedCredits,
-			actualTokens,
+			charge,
 		);
 	} catch (e) {
 		// 返却を試み成否をログに残す。返却失敗でも元の例外 e を伝播する(#158)。
@@ -527,7 +594,7 @@ export async function analyzeWineLabel(
 			executedBy,
 			model: executedBy && AI_LABEL_ROUTE_MODELS[executedBy],
 			durationMs: Date.now() - startedAt,
-			reservedTokens: res.reservedTokens,
+			reservedMicroUsd: res.reservedMicroUsd,
 			err: e,
 		});
 		throw e;
@@ -538,8 +605,9 @@ export async function analyzeWineLabel(
 		executedBy,
 		model: executedBy && AI_LABEL_ROUTE_MODELS[executedBy],
 		durationMs: Date.now() - startedAt,
-		actualTokens,
-		reservedTokens: res.reservedTokens,
+		actualTokens: charge.tokens,
+		costMicroUsd: charge.microUsd,
+		reservedMicroUsd: res.reservedMicroUsd,
 	});
 	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
 	// ネットプラスになるため、残高参照は try の外で行う(#144)。
@@ -547,7 +615,7 @@ export async function analyzeWineLabel(
 	return {
 		blocked: false,
 		suggestions,
-		actualTokens,
+		actualTokens: charge.tokens,
 		balance: after.balance,
 	};
 }
@@ -604,14 +672,14 @@ export function isWineListAnalysisAvailable(): boolean {
 async function extractWineListWithClaude(
 	apiKey: string,
 	imageDataUrls: string[],
-): Promise<{ parsed: WineListParseResult; totalTokens: number }> {
+): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new Anthropic({ apiKey });
 	const response = await client.messages.create({
 		model: AI_WINE_LIST_MODEL,
 		max_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 		messages: buildWineListMessages(imageDataUrls),
 	});
-	const totalTokens = sumAnthropicUsage(response.usage);
+	const usage = toAnthropicUsage(response.usage);
 	if (response.stop_reason === "refusal") {
 		throw new Error("Claudeがワインリストの解析の応答を拒否しました");
 	}
@@ -627,7 +695,7 @@ async function extractWineListWithClaude(
 		joinResponseText(response.content),
 		imageDataUrls.length,
 	);
-	return { parsed, totalTokens };
+	return { parsed, usage };
 }
 
 /**
@@ -664,7 +732,7 @@ export async function analyzeWineList(
 
 	// 既存セラーとの突合材料。D1 読みなので予約より前に済ませる(#245)。
 	const { entries } = await drunkWineService.listDrunkWines(userId);
-	const estimate = estimateWineListReserveTokens(input.imageDataUrls.length);
+	const estimate = estimateWineListReserveCharge(input.imageDataUrls.length);
 	const requestId = `scan_list:${crypto.randomUUID()}`;
 	const startedAt = Date.now();
 	const logBase = {
@@ -690,9 +758,9 @@ export async function analyzeWineList(
 
 	let candidates: WineListCandidate[];
 	let summary: WineListAnalysisSummary;
-	let actualTokens: number;
+	let charge: CreditCharge;
 	try {
-		const { parsed, totalTokens } = await extractWineListWithClaude(
+		const { parsed, usage } = await extractWineListWithClaude(
 			apiKey,
 			input.imageDataUrls,
 		);
@@ -708,12 +776,14 @@ export async function analyzeWineList(
 			truncated: parsed.truncated,
 		};
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		actualTokens = totalTokens || res.reservedTokens;
+		const measured = chargeFor(AI_WINE_LIST_MODEL, usage);
+		charge =
+			measured.microUsd > 0 ? measured : fallbackCharge(res.reservedMicroUsd);
 		await creditService.settleReservation(
 			userId,
 			requestId,
 			res.reservedCredits,
-			actualTokens,
+			charge,
 		);
 	} catch (e) {
 		// 返却を試み成否をログに残す。返却失敗でも元の例外 e を伝播する(#158)。
@@ -726,7 +796,7 @@ export async function analyzeWineList(
 			...logBase,
 			outcome: "failed",
 			durationMs: Date.now() - startedAt,
-			reservedTokens: res.reservedTokens,
+			reservedMicroUsd: res.reservedMicroUsd,
 			err: e,
 		});
 		throw e;
@@ -736,8 +806,9 @@ export async function analyzeWineList(
 		outcome: "ok",
 		executedBy: "web-research",
 		durationMs: Date.now() - startedAt,
-		actualTokens,
-		reservedTokens: res.reservedTokens,
+		actualTokens: charge.tokens,
+		costMicroUsd: charge.microUsd,
+		reservedMicroUsd: res.reservedMicroUsd,
 	});
 	// settle 成功後は消費確定済み(#144)。
 	const after = await creditService.getBalance(userId);
@@ -745,7 +816,7 @@ export async function analyzeWineList(
 		blocked: false,
 		candidates,
 		summary,
-		actualTokens,
+		actualTokens: charge.tokens,
 		balance: after.balance,
 	};
 }

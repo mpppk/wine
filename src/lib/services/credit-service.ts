@@ -2,7 +2,8 @@ import { waitUntil } from "cloudflare:workers";
 import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { creditBalance, creditLedger } from "#/db/schema";
-import { refundCredits, tokensToCredits } from "#/lib/credit/credit-math";
+import type { CreditCharge } from "#/lib/billing/ai-pricing";
+import { costToCredits, refundCredits } from "#/lib/credit/credit-math";
 import { monthlyGrantForPlan } from "#/lib/credit/grants";
 import { currentMonthKey } from "#/lib/credit/month";
 import {
@@ -128,7 +129,8 @@ export type ReserveResult =
 			requestId: string;
 			/** 予約した(=残高から引いた)クレジット */
 			reservedCredits: number;
-			reservedTokens: number;
+			/** 予約時に見積ったコスト。実測が取れなかったときの確定値に使う。 */
+			reservedMicroUsd: number;
 			balanceAfter: number;
 	  }
 	| {
@@ -397,12 +399,12 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
  */
 export async function reserveCredits(
 	userId: string,
-	estimateTokens: number,
+	estimate: CreditCharge,
 	requestId: string,
 ): Promise<ReserveResult> {
 	await ensureCurrentMonthGranted(userId);
 	await reclaimOrphanReservations(userId);
-	const required = tokensToCredits(estimateTokens);
+	const required = costToCredits(estimate.microUsd);
 
 	const dup = await db
 		.select({ amount: creditLedger.amount })
@@ -415,7 +417,7 @@ export async function reserveCredits(
 			ok: true,
 			requestId,
 			reservedCredits: -dup[0].amount,
-			reservedTokens: estimateTokens,
+			reservedMicroUsd: estimate.microUsd,
 			balanceAfter: cur.balance,
 		};
 	}
@@ -447,7 +449,7 @@ export async function reserveCredits(
 					type: sql<CreditLedgerType>`'consume'`.as("type"),
 					requestId: sql<string>`${requestId}`.as("request_id"),
 					periodMonth: sql<string>`${currentMonthKey()}`.as("period_month"),
-					tokenAmount: sql<number>`${estimateTokens}`.as("token_amount"),
+					tokenAmount: sql<number>`${estimate.tokens}`.as("token_amount"),
 					// INSERT ... SELECT はテーブル定義と同じ順序・同じ列数を要求するため、
 					// 既定値に任せられない。schema.ts の default と同じ式を書く。
 					createdAt:
@@ -490,7 +492,7 @@ export async function reserveCredits(
 		ok: true,
 		requestId,
 		reservedCredits: required,
-		reservedTokens: estimateTokens,
+		reservedMicroUsd: estimate.microUsd,
 		balanceAfter: debited[0].balance,
 	};
 }
@@ -571,9 +573,9 @@ export async function settleReservation(
 	userId: string,
 	requestId: string,
 	reservedCredits: number,
-	actualTokens: number,
+	actual: CreditCharge,
 ): Promise<void> {
-	const back = refundCredits(reservedCredits, actualTokens);
+	const back = refundCredits(reservedCredits, actual.microUsd);
 	const settleId = settleRequestId(requestId);
 	const refundId = refundRequestId(requestId);
 
@@ -598,7 +600,7 @@ export async function settleReservation(
 		markerId: settleId,
 		counterpartId: refundId,
 		amount: back,
-		tokenAmount: actualTokens,
+		tokenAmount: actual.tokens,
 	});
 
 	// 戻す差分が無い場合は残高を触らず証跡だけ残す(balance + 0 の無駄な書き込みを避ける)。

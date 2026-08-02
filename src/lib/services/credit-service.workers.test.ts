@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { subscription, user } from "#/db/auth-schema";
 import { creditBalance, creditLedger } from "#/db/schema";
+import { MICRO_USD_PER_CREDIT } from "#/lib/billing/ai-pricing";
 import {
 	MONTHLY_CREDITS_FREE,
 	MONTHLY_CREDITS_PREMIUM,
-	TOKENS_PER_CREDIT,
 } from "#/lib/billing/plans";
 import { currentMonthKey } from "#/lib/credit/month";
 import type { CreditLedgerType } from "#/lib/credit/types";
@@ -22,6 +22,16 @@ import {
 
 // D1(実SQLite)上で credit-service の付与ロジックを検証する。特に月途中のプレミアム
 // 昇格で当月クレジットを差分付与する挙動(#142)を、実際にクエリを走らせて確認する。
+
+/**
+ * 計上量の組み立て。クレジットを決めるのは `microUsd` だけで、`tokens` は台帳に残る
+ * 観測値(#355)。このテストは残高の増減が関心なので、両方に同じ値を入れて
+ * 「µUSD が N ならクレジットは ceil(N / MICRO_USD_PER_CREDIT)」だけを見る。
+ */
+const charge = (microUsd: number) => ({ microUsd, tokens: microUsd });
+
+/** 無料会員の月次付与を必ず超えるコスト(残高不足を作るための値)。 */
+const OVER_GRANT = (MONTHLY_CREDITS_FREE + 10) * MICRO_USD_PER_CREDIT;
 
 let seq = 0;
 async function freshUser(): Promise<string> {
@@ -127,7 +137,11 @@ describe("ensureCurrentMonthGranted", () => {
 	it("昇格前に消費していても、消費分を巻き戻さずに差分だけ加算する", async () => {
 		await ensureCurrentMonthGranted(userId);
 		// FREE(50) のうち 30 クレジット分(30,000 トークン)を消費予約する。
-		const reserved = await reserveCredits(userId, 30_000, `req-${userId}`);
+		const reserved = await reserveCredits(
+			userId,
+			charge(30_000),
+			`req-${userId}`,
+		);
 		expect(reserved.ok).toBe(true);
 		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE - 30);
 
@@ -171,9 +185,10 @@ describe("reserveCredits の原子性・冪等性 (#143)", () => {
 	});
 
 	it("残高不足の予約は残高を引かず consume 台帳も残さない", async () => {
-		// FREE=50 に対し 60 クレジット(60,000トークン)を要求 → 不足。
+		// 付与額を必ず超える要求。**定数から導く**ことで、付与額を変えたときに
+		// 「不足のはずが足りてしまい、テストが何も検証しなくなる」ことを防ぐ。
 		const requestId = `insufficient-${userId}`;
-		const res = await reserveCredits(userId, 60_000, requestId);
+		const res = await reserveCredits(userId, charge(OVER_GRANT), requestId);
 
 		expect(res.ok).toBe(false);
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
@@ -189,7 +204,7 @@ describe("reserveCredits の原子性・冪等性 (#143)", () => {
 		const requestId = `exact-${userId}`;
 		const res = await reserveCredits(
 			userId,
-			MONTHLY_CREDITS_FREE * TOKENS_PER_CREDIT,
+			charge(MONTHLY_CREDITS_FREE * MICRO_USD_PER_CREDIT),
 			requestId,
 		);
 
@@ -203,8 +218,8 @@ describe("reserveCredits の原子性・冪等性 (#143)", () => {
 	it("ブロックされた予約を挟んでも台帳の合計と残高が一致する (#247)", async () => {
 		// 「台帳=真実」の前提。幽霊 consume が残ると SUM が残高より小さくなり、
 		// 障害補填の対象抽出(findConsumersInRange)が実際には消費していないユーザを拾う。
-		await reserveCredits(userId, 60_000, `blocked-${userId}`);
-		await reserveCredits(userId, 10_000, `ok-${userId}`);
+		await reserveCredits(userId, charge(OVER_GRANT), `blocked-${userId}`);
+		await reserveCredits(userId, charge(10_000), `ok-${userId}`);
 
 		const all = await db
 			.select({ amount: creditLedger.amount })
@@ -218,11 +233,11 @@ describe("reserveCredits の原子性・冪等性 (#143)", () => {
 
 	it("同一 requestId の再予約は二重に引かない(冪等)", async () => {
 		const requestId = `dup-${userId}`;
-		await reserveCredits(userId, 30_000, requestId);
+		await reserveCredits(userId, charge(30_000), requestId);
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30);
 
 		// 同じ requestId でもう一度呼んでも残高は変わらず、consume 台帳も1本のまま。
-		const again = await reserveCredits(userId, 30_000, requestId);
+		const again = await reserveCredits(userId, charge(30_000), requestId);
 		expect(again.ok).toBe(true);
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30);
 		expect(await ledgerByRequestId(requestId)).toHaveLength(1);
@@ -239,12 +254,12 @@ describe("settleReservation のガード (#146/#147)", () => {
 	it("確定の差分返却は一度だけ反映し、二重呼び出しで二重加算しない(#146)", async () => {
 		const requestId = `settle-${userId}`;
 		// 30 クレジット予約(残高 50→20)。実測 10 クレジット → 差分 20 を返却。
-		await reserveCredits(userId, 30_000, requestId);
-		await settleReservation(userId, requestId, 30, 10_000);
+		await reserveCredits(userId, charge(30_000), requestId);
+		await settleReservation(userId, requestId, 30, charge(10_000));
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30 + 20);
 
 		// 同一 requestId の再確定は残高を動かさない。
-		await settleReservation(userId, requestId, 30, 10_000);
+		await settleReservation(userId, requestId, 30, charge(10_000));
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30 + 20);
 		expect(await ledgerByRequestId(`${requestId}:settle`)).toHaveLength(1);
 	});
@@ -264,7 +279,7 @@ describe("settleReservation のガード (#146/#147)", () => {
 			tokenAmount: 30_000,
 		});
 
-		await settleReservation(userId, requestId, 30, 10_000);
+		await settleReservation(userId, requestId, 30, charge(10_000));
 
 		// 残高は据え置き(リセット後残高への差分混入・超過を防ぐ)。台帳の :settle は記録される。
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
@@ -281,8 +296,8 @@ describe("refundReservation のガード (#144/#146)", () => {
 
 	it("settle 済みの予約は返却をスキップする(消費のネットプラス防止・#144)", async () => {
 		const requestId = `refund-settled-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50→20
-		await settleReservation(userId, requestId, 30, 10_000); // +20 → 40
+		await reserveCredits(userId, charge(30_000), requestId); // 50→20
+		await settleReservation(userId, requestId, 30, charge(10_000)); // +20 → 40
 
 		// settle 後に返却が呼ばれても全額返却しない。
 		await refundReservation(userId, requestId, 30);
@@ -292,7 +307,7 @@ describe("refundReservation のガード (#144/#146)", () => {
 
 	it("通常の返却は反映し、二重返却で二重加算しない(#146)", async () => {
 		const requestId = `refund-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await reserveCredits(userId, charge(30_000), requestId); // 50→20
 		await refundReservation(userId, requestId, 30); // +30 → 50
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
 
@@ -333,7 +348,7 @@ describe("reclaimOrphanReservations (#246)", () => {
 
 	it("猶予を過ぎても確定も返却もされていない予約を返却する", async () => {
 		const requestId = `orphan-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await reserveCredits(userId, charge(30_000), requestId); // 50→20
 		await ageReservation(requestId, PAST_GRACE_MS);
 
 		await reclaimOrphanReservations(userId);
@@ -344,7 +359,7 @@ describe("reclaimOrphanReservations (#246)", () => {
 
 	it("猶予内の予約は回収しない(実行中のリクエストを奪わない)", async () => {
 		const requestId = `inflight-${userId}`;
-		await reserveCredits(userId, 30_000, requestId);
+		await reserveCredits(userId, charge(30_000), requestId);
 		// created_at は現在時刻のまま(=まだ実行中とみなす)。
 
 		await reclaimOrphanReservations(userId);
@@ -355,8 +370,8 @@ describe("reclaimOrphanReservations (#246)", () => {
 
 	it("確定済み(差分返却あり)の予約は回収しない", async () => {
 		const requestId = `settled-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50→20
-		await settleReservation(userId, requestId, 30, 10_000); // +20 → 40
+		await reserveCredits(userId, charge(30_000), requestId); // 50→20
+		await settleReservation(userId, requestId, 30, charge(10_000)); // +20 → 40
 		await ageReservation(requestId, PAST_GRACE_MS);
 
 		await reclaimOrphanReservations(userId);
@@ -370,8 +385,8 @@ describe("reclaimOrphanReservations (#246)", () => {
 		// この場合も :settle の証跡が残らないと、正常な消費を孤児と誤判定して二重取りに
 		// なる。settleReservation が amount=0 の行を残すことがこのケースの防波堤。
 		const requestId = `settled-zero-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50→20
-		await settleReservation(userId, requestId, 30, 30_000); // 差分0
+		await reserveCredits(userId, charge(30_000), requestId); // 50→20
+		await settleReservation(userId, requestId, 30, charge(30_000)); // 差分0
 		await ageReservation(requestId, PAST_GRACE_MS);
 
 		const settleRows = await ledgerByRequestId(`${requestId}:settle`);
@@ -388,7 +403,7 @@ describe("reclaimOrphanReservations (#246)", () => {
 
 	it("既に返却済みの予約を二重に返却しない", async () => {
 		const requestId = `already-refunded-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await reserveCredits(userId, charge(30_000), requestId); // 50→20
 		await refundReservation(userId, requestId, 30); // +30 → 50
 		await ageReservation(requestId, PAST_GRACE_MS);
 
@@ -427,7 +442,7 @@ describe("reclaimOrphanReservations (#246)", () => {
 			(_, i) => `orphan-many-${userId}-${i}`,
 		);
 		for (const requestId of requestIds) {
-			await reserveCredits(userId, 1_000, requestId); // 1クレジットずつ
+			await reserveCredits(userId, charge(1_000), requestId); // 1クレジットずつ
 		}
 		for (const requestId of requestIds) {
 			await ageReservation(requestId, PAST_GRACE_MS);
@@ -446,11 +461,11 @@ describe("reclaimOrphanReservations (#246)", () => {
 		// FREE=50 のうち 40 を孤児として失った状態。次の 30 クレジットの予約は、
 		// 回収が無ければ残高10で不足ブロックになる。
 		const orphanId = `orphan-blocking-${userId}`;
-		await reserveCredits(userId, 40_000, orphanId);
+		await reserveCredits(userId, charge(40_000), orphanId);
 		await ageReservation(orphanId, PAST_GRACE_MS);
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 40);
 
-		const res = await reserveCredits(userId, 30_000, `next-${userId}`);
+		const res = await reserveCredits(userId, charge(30_000), `next-${userId}`);
 
 		expect(res.ok).toBe(true);
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE - 30);
@@ -468,10 +483,10 @@ describe("settleReservation の返却済みガード (#246)", () => {
 	it("返却済みの予約は確定しない(消費のネットプラス防止)", async () => {
 		// 回収が予約全額を返却した後に、生き延びていたリクエストが確定を試みる競合。
 		const requestId = `settle-after-refund-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50→20
+		await reserveCredits(userId, charge(30_000), requestId); // 50→20
 		await refundReservation(userId, requestId, 30); // +30 → 50
 
-		await settleReservation(userId, requestId, 30, 10_000);
+		await settleReservation(userId, requestId, 30, charge(10_000));
 
 		// 差分20が上乗せされず、返却後の残高のまま。
 		expect(await readBalance(userId)).toBe(MONTHLY_CREDITS_FREE);
@@ -608,12 +623,12 @@ describe("settle と refund の相互排他 (#335)", () => {
 
 	it("事前SELECT通過後に返却がコミットしても、確定は残高を動かさない", async () => {
 		const requestId = `race-settle-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50 → 20
+		await reserveCredits(userId, charge(30_000), requestId); // 50 → 20
 
 		// settle のバッチ直前に、孤児回収が予約全額(30)を返却してコミットする
 		const spy = commitBefore(() => refundReservation(userId, requestId, 30));
 		try {
-			await settleReservation(userId, requestId, 30, 10_000);
+			await settleReservation(userId, requestId, 30, charge(10_000));
 		} finally {
 			spy.mockRestore();
 		}
@@ -627,11 +642,11 @@ describe("settle と refund の相互排他 (#335)", () => {
 
 	it("事前SELECT通過後に確定がコミットしても、返却は残高を動かさない", async () => {
 		const requestId = `race-refund-${userId}`;
-		await reserveCredits(userId, 30_000, requestId); // 50 → 20
+		await reserveCredits(userId, charge(30_000), requestId); // 50 → 20
 
 		// refund のバッチ直前に、生き延びていたリクエストが確定してコミットする(差分 20 返却)
 		const spy = commitBefore(() =>
-			settleReservation(userId, requestId, 30, 10_000),
+			settleReservation(userId, requestId, 30, charge(10_000)),
 		);
 		try {
 			await refundReservation(userId, requestId, 30);

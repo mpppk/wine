@@ -195,3 +195,36 @@ export function usageToMicroUsd(model: string, usage: AiUsage): number {
 export function clampEstimateMicroUsd(microUsd: number): number {
 	return Math.min(AI_MAX_ESTIMATE_MICRO_USD, microUsd);
 }
+
+/**
+ * 推論1回ぶんの計上量。**クレジットの根拠は `microUsd`(実原価)**で、`tokens` は
+ * 台帳と観測ログに残す参考値にすぎない。モデル/プロバイダで実費が1000倍違うので、
+ * トークン数からクレジットは決められない(#355)。
+ */
+export interface CreditCharge {
+	/** 実原価(µUSD)。この値だけがクレジットの増減を決める。 */
+	microUsd: number;
+	/** 消費トークン(観測用)。 */
+	tokens: number;
+}
+
+/** 実測の使用量を計上量へ畳む(確定=settle 用。クランプしない)。 */
+export function toCharge(model: string, usage: AiUsage): CreditCharge {
+	return {
+		microUsd: usageToMicroUsd(model, usage),
+		tokens: totalTokens(usage),
+	};
+}
+
+/**
+ * 中心値の使用量を予約の計上量へ畳む(予約=reserve 用。上限でクランプする)。
+ *
+ * **サーバの予約とクライアントの「必要クレジット」表示が同じ関数を通る**ので、
+ * 見積を変えても表示だけ古くなることがない。
+ */
+export function toEstimateCharge(model: string, usage: AiUsage): CreditCharge {
+	return {
+		microUsd: clampEstimateMicroUsd(usageToMicroUsd(model, usage)),
+		tokens: totalTokens(usage),
+	};
+}

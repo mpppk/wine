@@ -1,9 +1,4 @@
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
-import {
-	AI_MAX_HISTORY_MESSAGES,
-	AI_MAX_OUTPUT_TOKENS,
-	CHARS_PER_TOKEN_ESTIMATE,
-} from "./config";
+import { AI_MAX_HISTORY_MESSAGES, CHARS_PER_TOKEN_ESTIMATE } from "./config";
 
 // 地域チャットQ&Aのプロンプト生成・履歴クランプ・トークン見積。DB/env/データ非依存の
 // 純ロジックとして切り出し、単体テスト可能にする(グラウンディング材料は ai-service が解決して渡す)。
@@ -154,13 +149,10 @@ export function estimatePromptTokens(text: string): number {
 }
 
 /**
- * 予約すべきトークン数の見積。全メッセージの推定トークン + 出力上限。上限で必ずクランプする
- * (予約が実測を必ず上回るよう保守的に見積る)。
+ * 全メッセージの推定入力トークン。**出力ぶんは足さない** — 予約コストの算出は
+ * `config.ts` の `estimateRegionQaReserveMicroUsd` が行い、出力は出力単価で別に
+ * 換算する必要があるため(出力単価は入力の3倍)。
  */
-export function estimateReserveTokens(messages: AiMessage[]): number {
-	const promptTokens = messages.reduce(
-		(sum, m) => sum + estimatePromptTokens(m.content),
-		0,
-	);
-	return Math.min(AI_MAX_ESTIMATE_TOKENS, promptTokens + AI_MAX_OUTPUT_TOKENS);
+export function estimateInputTokens(messages: AiMessage[]): number {
+	return messages.reduce((sum, m) => sum + estimatePromptTokens(m.content), 0);
 }
