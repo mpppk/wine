@@ -18,6 +18,7 @@ const BASE: DrunkWineEntry = {
 	aopId: null,
 	aopNameJa: null,
 	regionId: null,
+	countryId: null,
 	lastRating: null,
 	lastMemo: null,
 	vintage: null,
