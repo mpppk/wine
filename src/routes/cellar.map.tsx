@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeftIcon,
+	ChevronRightIcon,
 	ListIcon,
-	PencilIcon,
 	PlusIcon,
 	WineIcon,
 	XIcon,
@@ -89,11 +89,11 @@ function AopWinePanel({
 							className="size-7 shrink-0"
 						>
 							<Link
-								to="/cellar/$entryId/edit"
+								to="/cellar/$entryId"
 								params={{ entryId: entry.id }}
-								aria-label={`${entry.name}を編集`}
+								aria-label={`${entry.name}の詳細`}
 							>
-								<PencilIcon className="size-4" />
+								<ChevronRightIcon className="size-4" />
 							</Link>
 						</Button>
 					</li>
