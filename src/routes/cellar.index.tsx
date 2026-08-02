@@ -5,13 +5,30 @@ import {
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
-import { ImagesIcon, MapIcon, PlusIcon, WineIcon } from "lucide-react";
+import {
+	ImagesIcon,
+	ListChecksIcon,
+	MapIcon,
+	PlusIcon,
+	Trash2Icon,
+	WineIcon,
+	XIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { CellarFilterChips } from "#/components/cellar/CellarFilterChips";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
+import { Checkbox } from "#/components/ui/checkbox";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/ui/dialog";
 import { Label } from "#/components/ui/label";
 import {
 	Select,
@@ -32,6 +49,7 @@ import { provenanceNameJa } from "#/lib/wine/provenance";
 import { getWineListAnalysisAvailability } from "#/server/ai";
 import {
 	countCellarFilters,
+	deleteDrunkWines,
 	listDrunkWines,
 	markWineDrunk,
 } from "#/server/drunk-wine";
@@ -80,7 +98,17 @@ export const Route = createFileRoute("/cellar/")({
 	component: CellarPage,
 });
 
-function EntryCard({ entry }: { entry: DrunkWineEntry }) {
+function EntryCard({
+	entry,
+	selectMode,
+	selected,
+	onToggleSelect,
+}: {
+	entry: DrunkWineEntry;
+	selectMode: boolean;
+	selected: boolean;
+	onToggleSelect: (id: string) => void;
+}) {
 	// AOP名 > 地域名 > 国名(粗い紐付けのエントリも産地が見えるようにする)
 	const provenance = provenanceNameJa(entry);
 	const router = useRouter();
@@ -92,12 +120,18 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 	return (
 		// カード全体は閲覧画面へのリンク。「飲んだ」ボタンをリンクの中には入れられない
 		// (<a> 内の interactive nesting になり、クリックもリンクへ吸われる)。
-		// 兄弟として絶対配置する。
+		// 兄弟として絶対配置する。選択モード中はカード全体がチェック切り替えに変わる
+		// (Issue #363 案B)ので、Link のクリックを奪って遷移させない。
 		<div className="relative h-full">
 			<Link
 				to="/cellar/$entryId"
 				params={{ entryId: entry.id }}
 				className="group block h-full"
+				onClick={(e) => {
+					if (!selectMode) return;
+					e.preventDefault();
+					onToggleSelect(entry.id);
+				}}
 			>
 				<Card className="h-full gap-0 overflow-hidden py-0 transition-colors group-hover:border-foreground/30">
 					{entry.thumbUrls[0] ? (
@@ -152,16 +186,25 @@ function EntryCard({ entry }: { entry: DrunkWineEntry }) {
 				{WINE_STATUS_LABELS_JA[entry.status]}
 			</span>
 
-			{entry.status === "owned" && (
-				<Button
-					type="button"
-					size="sm"
-					className="absolute bottom-2 right-2 h-7 px-2 text-xs"
-					disabled={drink.isPending}
-					onClick={() => drink.mutate()}
-				>
-					{drink.isPending ? "記録中…" : "飲んだ"}
-				</Button>
+			{selectMode ? (
+				<Checkbox
+					checked={selected}
+					onCheckedChange={() => onToggleSelect(entry.id)}
+					aria-label={`${entry.name}を選択`}
+					className="absolute right-2 top-2 size-5 border-foreground/40 bg-background"
+				/>
+			) : (
+				entry.status === "owned" && (
+					<Button
+						type="button"
+						size="sm"
+						className="absolute bottom-2 right-2 h-7 px-2 text-xs"
+						disabled={drink.isPending}
+						onClick={() => drink.mutate()}
+					>
+						{drink.isPending ? "記録中…" : "飲んだ"}
+					</Button>
+				)
 			)}
 		</div>
 	);
@@ -171,15 +214,24 @@ function CellarPage() {
 	const { page, counts, wineListAnalysis, places } = Route.useLoaderData();
 	const { filter, place } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
+	const router = useRouter();
 
 	// 追加読み込みぶんを積む。loader が返す1ページ目が変わったら積み直す
-	// (絞り込みの切り替え・保存後の invalidate)。
+	// (絞り込みの切り替え・保存後の invalidate)。複数選択削除(Issue #363 案B)の
+	// 選択状態も同じタイミングで破棄する(見えていないエントリを選択済み扱いの
+	// まま残さない)。
 	const [extra, setExtra] = useState<DrunkWineEntry[]>([]);
 	const [cursor, setCursor] = useState<string | null>(page.nextCursor);
 	const [loadingMore, setLoadingMore] = useState(false);
+	const [selectMode, setSelectMode] = useState(false);
+	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [confirmOpen, setConfirmOpen] = useState(false);
+	const [deleteError, setDeleteError] = useState("");
 	useEffect(() => {
 		setExtra([]);
 		setCursor(page.nextCursor);
+		setSelectMode(false);
+		setSelected(new Set());
 	}, [page]);
 
 	const visible = [...page.entries, ...extra];
@@ -202,11 +254,56 @@ function CellarPage() {
 		}
 	};
 
+	const toggleSelect = (id: string) =>
+		setSelected((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+
+	const bulkDelete = useMutation({
+		mutationFn: () => deleteDrunkWines({ data: { ids: [...selected] } }),
+		onSuccess: () => {
+			setConfirmOpen(false);
+			setSelectMode(false);
+			setSelected(new Set());
+			router.invalidate();
+		},
+		onError: (err: Error) => setDeleteError(err.message),
+	});
+
 	return (
 		<main className="mx-auto max-w-4xl px-4 py-10">
 			<div className="mb-6 flex flex-wrap items-center gap-2">
 				<h1 className="text-2xl font-bold">マイセラー</h1>
 				<div className="ml-auto flex flex-wrap gap-2">
+					{selectMode ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								setSelectMode(false);
+								setSelected(new Set());
+							}}
+						>
+							<XIcon className="size-4" aria-hidden />
+							キャンセル
+						</Button>
+					) : (
+						visible.length > 0 && (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => setSelectMode(true)}
+							>
+								<ListChecksIcon className="size-4" aria-hidden />
+								選択
+							</Button>
+						)
+					)}
 					<Button asChild variant="outline" size="sm">
 						<Link to="/cellar/map" search={{ filter }}>
 							<MapIcon className="size-4" aria-hidden />
@@ -229,6 +326,42 @@ function CellarPage() {
 					</Button>
 				</div>
 			</div>
+
+			{selectMode && (
+				<div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
+					<span className="text-sm text-muted-foreground">
+						{selected.size}件選択中
+					</span>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						onClick={() =>
+							setSelected((prev) =>
+								prev.size === visible.length
+									? new Set()
+									: new Set(visible.map((e) => e.id)),
+							)
+						}
+					>
+						{selected.size === visible.length ? "選択解除" : "すべて選択"}
+					</Button>
+					<Button
+						type="button"
+						variant="destructive"
+						size="sm"
+						className="ml-auto"
+						disabled={selected.size === 0}
+						onClick={() => {
+							setDeleteError("");
+							setConfirmOpen(true);
+						}}
+					>
+						<Trash2Icon className="size-4" aria-hidden />
+						削除
+					</Button>
+				</div>
+			)}
 
 			{counts.all > 0 && (
 				<div className="mb-4">
@@ -306,7 +439,13 @@ function CellarPage() {
 				<>
 					<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
 						{visible.map((entry) => (
-							<EntryCard key={entry.id} entry={entry} />
+							<EntryCard
+								key={entry.id}
+								entry={entry}
+								selectMode={selectMode}
+								selected={selected.has(entry.id)}
+								onToggleSelect={toggleSelect}
+							/>
 						))}
 					</div>
 					{cursor && (
@@ -323,6 +462,39 @@ function CellarPage() {
 					)}
 				</>
 			)}
+
+			<Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{selected.size}件を削除しますか?</DialogTitle>
+						<DialogDescription>
+							選択した{selected.size}
+							件の記録と写真を削除します。この操作は取り消せません。
+						</DialogDescription>
+					</DialogHeader>
+					{deleteError && (
+						<p className="text-sm text-destructive">{deleteError}</p>
+					)}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={bulkDelete.isPending}
+							onClick={() => setConfirmOpen(false)}
+						>
+							キャンセル
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							disabled={bulkDelete.isPending}
+							onClick={() => bulkDelete.mutate()}
+						>
+							{bulkDelete.isPending ? "削除中..." : "削除する"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</main>
 	);
 }
