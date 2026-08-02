@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
+import {
+	AI_MAX_ESTIMATE_TOKENS,
+	MONTHLY_CREDITS_FREE,
+} from "#/lib/billing/plans";
+import { tokensToCredits } from "#/lib/credit/credit-math";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
-import { AI_WINE_LIST_MAX_WINES } from "./config";
+import {
+	AI_WINE_LIST_MAX_WINES,
+	estimateWineListReserveTokens,
+} from "./config";
 import {
 	buildWineListCandidates,
 	buildWineListMessages,
 	buildWineListPrompt,
 	dedupeWineListItems,
 	type ExistingWineIdentity,
-	estimateWineListReserveTokens,
 	matchExistingEntries,
 	parseWineListResponse,
 	type WineListItem,
@@ -371,5 +377,14 @@ describe("estimateWineListReserveTokens", () => {
 		expect(estimateWineListReserveTokens(0)).toBe(
 			estimateWineListReserveTokens(1),
 		);
+	});
+
+	it("写真1枚の解析は無料会員の月次付与内に収まる", () => {
+		// 1枚でも月次付与を超えると、無料会員はこの機能を一度も使えないまま
+		// 残高不足で弾かれ続ける。見積の基礎値(AI_WINE_LIST_BASE_TOKEN_ESTIMATE)を
+		// 上げるときに気付けるよう、境界をここで固定する。
+		expect(
+			tokensToCredits(estimateWineListReserveTokens(1)),
+		).toBeLessThanOrEqual(MONTHLY_CREDITS_FREE);
 	});
 });

@@ -35,6 +35,7 @@ import {
 	PHOTO_ACCEPT_ATTR,
 	PHOTO_FORMATS_LABEL_JA,
 } from "#/lib/drunk-wine/photo";
+import { postImageForm } from "#/lib/images/form-client";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import { redeemExtensionCode } from "#/server/billing";
 
@@ -87,32 +88,17 @@ function ProfilePage() {
 			if (!selectedFile) return;
 			const form = new FormData();
 			form.append("avatar", selectedFile);
-			const res = await fetch("/api/upload", { method: "POST", body: form });
-			// レスポンスがJSONとは限らない(フレームワークの汎用500など)。パース失敗を
-			// そのままユーザに見せると「Unexpected token …」になるため安全にフォールバックする。
-			const parseJson = async (): Promise<Record<string, unknown> | null> => {
-				try {
-					return (await res.json()) as Record<string, unknown>;
-				} catch {
-					return null;
-				}
-			};
-			if (!res.ok) {
-				const body = await parseJson();
-				const message =
-					typeof body?.error === "string"
-						? body.error
-						: "アップロードに失敗しました。時間をおいて再度お試しください。";
-				throw new Error(message);
-			}
-			const body = await parseJson();
-			const imageUrl =
-				typeof body?.imageUrl === "string" ? body.imageUrl : null;
-			if (!imageUrl) {
-				throw new Error(
-					"アップロードに失敗しました。時間をおいて再度お試しください。",
-				);
-			}
+			// 非JSON応答・通信そのものの失敗(レスポンスが返らない)の扱いは
+			// postImageForm が引き受ける(images/form-client.ts)
+			const uploadFailedMessage =
+				"アップロードに失敗しました。時間をおいて再度お試しください。";
+			const body = await postImageForm<Record<string, unknown>>(
+				"/api/upload",
+				form,
+				{ fallbackMessage: uploadFailedMessage, maxPhotos: 1 },
+			);
+			const imageUrl = typeof body.imageUrl === "string" ? body.imageUrl : null;
+			if (!imageUrl) throw new Error(uploadFailedMessage);
 			const result = await authClient.updateUser({ image: imageUrl });
 			if (result.error)
 				throw new Error(result.error.message ?? "Profile update failed");
