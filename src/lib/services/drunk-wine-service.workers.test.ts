@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
-import { drunkWine, wineSighting, wineTasting } from "#/db/schema";
+import { drunkWine, importBatch, wineSighting, wineTasting } from "#/db/schema";
 import {
 	CELLAR_FILTER_IDS,
 	countCellarFilters as countCellarFiltersPure,
@@ -11,7 +11,7 @@ import {
 } from "#/lib/drunk-wine/filter";
 import { thumbKeyForPhotoKey } from "#/lib/drunk-wine/photo";
 import type { WineStatus } from "#/lib/drunk-wine/status";
-import { BadRequestError } from "#/lib/errors";
+import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { imageKeyFromPath } from "#/lib/images/signed-url";
 import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import {
@@ -33,6 +33,7 @@ import {
 	markWineDrunk,
 	saveImportBatchPhotos,
 	syncDrunkWinePhotos,
+	undoImportBatch,
 	updateDrunkWine,
 	updateLatestWineTasting,
 	updateWineSighting,
@@ -1543,6 +1544,131 @@ describe("bulkRegisterFromScan", () => {
 			}),
 		).rejects.toBeInstanceOf(BadRequestError);
 		expect((await listDrunkWines(userId)).entries).toHaveLength(0);
+	});
+});
+
+// ---- undoImportBatch(バッチ単位の取り消し, Issue #363 案A) -----------------
+
+describe("undoImportBatch", () => {
+	const JPEG_1X1_BYTES = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	async function batchRow(id: string) {
+		const [row] = await db
+			.select()
+			.from(importBatch)
+			.where(eq(importBatch.id, id));
+		return row;
+	}
+
+	it("新規作成したエントリだけを削除し、既存エントリは目撃記録だけ取り消して集計を再計算する", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, {
+			name: "以前飲んだシャブリ",
+			status: "finished",
+			tasting: { drankOn: "2020-01-01" },
+		});
+
+		const result = await bulkRegisterFromScan(userId, {
+			seenOn: "2026-08-01",
+			photoCount: 0,
+			items: [
+				{ wine: { name: "新規のワイン" } },
+				{ wine: undefined, existingId: existing.id },
+			],
+		});
+		expect((await listDrunkWines(userId)).entries).toHaveLength(2);
+
+		const undone = await undoImportBatch(userId, result.batchId);
+		expect(undone.deletedCount).toBe(1);
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries).toHaveLength(1);
+		// 既存エントリは消えず、目撃記録だけ取り消されて集計が元に戻る
+		expect(entries[0]).toMatchObject({
+			id: existing.id,
+			status: "finished",
+			sightingCount: 0,
+			lastSeenOn: null,
+			// 飲用記録(バッチと無関係)はそのまま残る
+			tastingCount: 1,
+			lastDrankOn: "2020-01-01",
+		});
+		expect(await listWineSightings(userId, existing.id)).toHaveLength(0);
+		expect(await batchRow(result.batchId)).toBeUndefined();
+	});
+
+	it("バッチが作った場所は削除しない", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			newPlace: { name: "取り消しても残る店" },
+			photoCount: 0,
+			items: [{ wine: { name: "取り消されるワイン" } }],
+		});
+
+		await undoImportBatch(userId, result.batchId);
+
+		const places = await listPlaces(userId);
+		expect(places.map((p) => p.name)).toContain("取り消しても残る店");
+	});
+
+	it("バッチ写真とエントリ写真をR2から削除する", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [{ wine: { name: "写真つき" }, sighting: { photoIndex: 0 } }],
+		});
+		const batch = await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+		const batchPhotoKey = imageKeyFromPath(batch.photoUrls[0] as string);
+
+		const { entries } = await listDrunkWines(userId);
+		const entryId = entries[0]?.id as string;
+		const savedEntryPhoto = await syncDrunkWinePhotos(userId, entryId, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1_BYTES,
+				mimeType: "image/jpeg",
+				thumbBytes: JPEG_1X1_BYTES,
+			},
+		]);
+		const entryPhotoKey = imageKeyFromPath(
+			savedEntryPhoto.photoUrls[0] as string,
+		);
+
+		await undoImportBatch(userId, result.batchId);
+
+		expect(await env.AVATARS.head(batchPhotoKey)).toBeNull();
+		expect(await env.AVATARS.head(entryPhotoKey)).toBeNull();
+		expect(
+			await env.AVATARS.head(thumbKeyForPhotoKey(entryPhotoKey)),
+		).toBeNull();
+	});
+
+	it("他ユーザのバッチは取り消せない", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		const result = await bulkRegisterFromScan(owner, {
+			photoCount: 0,
+			items: [{ wine: { name: "他人のバッチ" } }],
+		});
+
+		await expect(
+			undoImportBatch(stranger, result.batchId),
+		).rejects.toBeInstanceOf(NotFoundError);
+		expect((await listDrunkWines(owner)).entries).toHaveLength(1);
+	});
+
+	it("存在しないバッチIDは NotFoundError", async () => {
+		const userId = await freshUser();
+		await expect(
+			undoImportBatch(userId, "no-such-batch"),
+		).rejects.toBeInstanceOf(NotFoundError);
 	});
 });
 

@@ -19,6 +19,14 @@ import {
 } from "#/components/cellar/wine-list-analysis";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/ui/dialog";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { LiveRegion } from "#/components/ui/live-region";
@@ -44,7 +52,11 @@ import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { WineListAnalysisSummary } from "#/lib/services/ai-service";
 import { cn } from "#/lib/utils";
 import { getWineListAnalysisAvailability } from "#/server/ai";
-import { bulkRegisterFromScan, listPlaces } from "#/server/place";
+import {
+	bulkRegisterFromScan,
+	listPlaces,
+	undoImportBatch,
+} from "#/server/place";
 
 // 写真からのワイン一括登録ウィザード(Issue #358)。3ステップ:
 //  1. 撮影/選択 — 写真(≤10枚)+ 場所 + 見かけた日 → 解析(AIクレジットを消費)
@@ -94,6 +106,10 @@ function CellarImportPage() {
 	const [registered, setRegistered] = useState<Awaited<
 		ReturnType<typeof bulkRegisterFromScan>
 	> | null>(null);
+	// 記録+写真まで含めて完了したら true。完了画面(取り消し導線あり)を出す。
+	const [completed, setCompleted] = useState(false);
+	const [undoOpen, setUndoOpen] = useState(false);
+	const [undoError, setUndoError] = useState("");
 	const newIdRef = useRef(0);
 	const doneRef = useRef(false);
 
@@ -210,8 +226,22 @@ function CellarImportPage() {
 			}
 			return result;
 		},
-		onSuccess: goToCellar,
+		onSuccess: () => {
+			// 記録+写真まで保存済みなので、以降の離脱でクレジット消費が無駄になる
+			// リスクはもう無い(離脱ガードの対象から外す)。完了画面(取り消し導線)を出す。
+			doneRef.current = true;
+			setCompleted(true);
+		},
 		onError: (e: Error) => setError(e.message || "登録に失敗しました"),
+	});
+
+	const { mutate: undoBatch, isPending: isUndoing } = useMutation({
+		mutationFn: () => {
+			if (!registered) throw new Error("取り消す登録がありません");
+			return undoImportBatch({ data: { batchId: registered.batchId } });
+		},
+		onSuccess: () => void goToCellar(),
+		onError: (e: Error) => setUndoError(e.message || "取り消しに失敗しました"),
 	});
 
 	if (!availability.available) {
@@ -232,7 +262,13 @@ function CellarImportPage() {
 		<main className="mx-auto max-w-2xl px-4 py-10">
 			<PageHeader />
 
-			{cards === null ? (
+			{completed && registered ? (
+				<ImportCompletionScreen
+					registered={registered}
+					onUndo={() => setUndoOpen(true)}
+					onProceed={() => void goToCellar()}
+				/>
+			) : cards === null ? (
 				<div className="flex flex-col gap-6">
 					<div className="flex flex-col gap-3">
 						<Label htmlFor="import-photo">
@@ -430,15 +466,26 @@ function CellarImportPage() {
 										: "マイセラーに登録する"}
 							</Button>
 							{registered ? (
-								// 記録は登録済みなので、写真を諦めて先に進む逃げ道を必ず残す
-								<Button
-									type="button"
-									variant="ghost"
-									disabled={isRegistering}
-									onClick={() => void goToCellar()}
-								>
-									写真なしで完了する
-								</Button>
+								<>
+									{/* 記録は登録済みなので、写真を諦めて先に進む逃げ道を必ず残す */}
+									<Button
+										type="button"
+										variant="ghost"
+										disabled={isRegistering}
+										onClick={() => void goToCellar()}
+									>
+										写真なしで完了する
+									</Button>
+									{/* 記録(銘柄・目撃記録)は既にできているので、写真の成否に関わらずここから取り消せる */}
+									<Button
+										type="button"
+										variant="ghost"
+										disabled={isRegistering}
+										onClick={() => setUndoOpen(true)}
+									>
+										この登録を取り消す
+									</Button>
+								</>
 							) : (
 								<Button
 									type="button"
@@ -466,6 +513,38 @@ function CellarImportPage() {
 				onOpenChange={setShowInsufficient}
 			/>
 
+			<Dialog open={undoOpen} onOpenChange={setUndoOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>この登録を取り消しますか?</DialogTitle>
+						<DialogDescription>
+							{registered
+								? `今回新規作成した${registered.createdCount}件の銘柄と、既存の銘柄に追加した目撃記録を取り消します。写真も削除されます。この操作は取り消せません。`
+								: "この操作は取り消せません。"}
+						</DialogDescription>
+					</DialogHeader>
+					{undoError && <p className="text-sm text-destructive">{undoError}</p>}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={isUndoing}
+							onClick={() => setUndoOpen(false)}
+						>
+							キャンセル
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							disabled={isUndoing}
+							onClick={() => undoBatch()}
+						>
+							{isUndoing ? "取り消し中…" : "取り消す"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
 			{/* 解析はクレジットを消費しているので、レビュー中の離脱は必ず警告する(#238) */}
 			<UnsavedChangesGuard
 				shouldBlock={() => !doneRef.current && cards !== null}
@@ -483,6 +562,45 @@ function PageHeader() {
 				</Link>
 			</Button>
 			<h1 className="text-2xl font-bold">写真からまとめて登録</h1>
+		</div>
+	);
+}
+
+/**
+ * 登録完了画面(Issue #363 案A)。記録+写真の保存まで終わった直後だけ出す。
+ * 「間違った写真をアップロードしてしまった」に対応するため、マイセラーへ進む前に
+ * その場で取り消せる導線をここに置く(バッチ一覧・エントリ詳細からの恒常的な
+ * 取り消し導線は設けない。実装プランのスコープ決定を参照)。
+ */
+function ImportCompletionScreen({
+	registered,
+	onUndo,
+	onProceed,
+}: {
+	registered: Awaited<ReturnType<typeof bulkRegisterFromScan>>;
+	onUndo: () => void;
+	onProceed: () => void;
+}) {
+	return (
+		<div className="flex flex-col gap-6">
+			<div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+				<p>登録が完了しました。</p>
+				<p className="mt-1 text-muted-foreground">
+					新規{registered.createdCount}件・既存へ追加{registered.matchedCount}
+					件(目撃記録{registered.sightingCount}件
+					{registered.tastingCount > 0 &&
+						`・飲んだ記録${registered.tastingCount}件`}
+					)
+				</p>
+			</div>
+			<div className="flex gap-2">
+				<Button type="button" onClick={onProceed}>
+					マイセラーへ
+				</Button>
+				<Button type="button" variant="ghost" onClick={onUndo}>
+					この登録を取り消す
+				</Button>
+			</div>
 		</div>
 	);
 }
