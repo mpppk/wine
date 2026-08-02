@@ -131,6 +131,16 @@ export const drunkWine = sqliteTable(
 			.$type<string[]>()
 			.notNull()
 			.default(sql`'[]'`),
+		/**
+		 * 由来の一括登録バッチ(Issue #363 案A)。手動登録・単体登録では null。
+		 * バッチ経由でも「既存エントリに目撃記録を足しただけ」(wine の指定が無い
+		 * 一致項目)は null のまま——このエントリ自体は当該バッチで新規作成されて
+		 * いないため。バッチ単位の取り消しは、この列を持つエントリだけを削除対象にする
+		 * ことで、無関係な過去のデータ(目撃記録が増えただけの既存エントリ)を守る。
+		 */
+		batchId: text("batch_id").references(() => importBatch.id, {
+			onDelete: "set null",
+		}),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
