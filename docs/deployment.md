@@ -171,6 +171,68 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 | `https://wine.nibo.sh/api/auth/ok?probe=...` | ✅ 約30秒後にログ取得 |
 | `https://claude-...-wine-preview.niboshi.workers.dev/api/auth/ok?probe=...` | ❌ 0件（5分待っても出ず） |
 
+## クライアント側のエラー収集（Sentry）
+
+Workers Logs は **サーバに届いたリクエストしか記録できない**。fetch がレスポンスを受け取る前に
+失敗する類（圏外・回線断・大きすぎるアップロード）や、ブラウザ固有のAPI差異による失敗は
+1件も残らない（#379 では `/api/wine-list-analysis` が7日間0件だった）。この穴を埋めるのが
+クライアント側の収集で、実装は `src/lib/observability/client-error.ts`（唯一の入口）と
+`sentry-client.ts`（Sentry の設定）。
+
+- **DSN が未設定なら収集は丸ごと無効**。SDK のチャンク（約30KB gz）も読み込まれない。
+  ローカルとCIでは設定しないこと。
+- 有効化は **Workers Builds のビルド環境変数**で行う（`.env.example` に一覧がある）。
+
+| 変数 | 種別 | 役割 |
+|---|---|---|
+| `VITE_SENTRY_DSN` | ビルド変数（公開値） | 収集先。未設定なら収集を無効化する |
+| `VITE_SENTRY_RELEASE` | ビルド変数 | リリース識別子。`WORKERS_CI_COMMIT_SHA` を渡す |
+| `SENTRY_AUTH_TOKEN` | ビルドシークレット | ソースマップのアップロード用 |
+| `SENTRY_ORG` / `SENTRY_PROJECT` | ビルド変数 | アップロード先 |
+
+- **`SENTRY_AUTH_TOKEN` がある環境でだけ**ソースマップの生成・アップロードが走る。トークンの
+  有無でビルドの成否は変わらない（CI は未設定のまま `bun run build` / `check:deploy` が通る）。
+- アップロードが失敗しても**ビルドは成功する**（Sentry 側の障害でデプロイを止めない）。その場合は
+  そのリリースだけスタックが復元できない状態になる。
+- ソースマップは**アップロード後に dist から削除する**。残すと静的アセットとして公開配信され、
+  誰でもクライアントの原文を読めてしまう。アップロード失敗時も削除される（公開されるより安全な側）。
+- `@sentry/cli`（アップロード用バイナリ）は `package.json` の `trustedDependencies` に入れてある。
+  bun は既定でライフサイクルスクリプトを実行しないため、外すとアップロードだけが静かに失敗する。
+
+環境名（`production` / `preview` / `local`）はドメインから導出するので、プレビューごとに変数を
+設定する必要はない。
+
+### 初回セットアップ（手作業）
+
+1. Sentry で組織とプロジェクト（platform: `javascript-react`）を作り、**DSN** を控える
+   （Settings > Projects > *project* > Client Keys (DSN)）
+2. ソースマップ用の **Organization Auth Token** を発行する（Settings > Auth Tokens）。
+   必要なスコープは `project:releases` と `org:read`
+3. Workers Builds のビルド環境変数に設定する。ダッシュボード（*Worker* > Settings > Build >
+   Build variables and secrets）か、下記「設定の確認・変更（Workers Builds API）」の
+   `build_variables` を PATCH する。**本番 `wine` とプレビュー `wine-preview` の両トリガーに要る**
+   - `VITE_SENTRY_DSN` / `SENTRY_ORG` / `SENTRY_PROJECT`（変数）
+   - `VITE_SENTRY_RELEASE` = `$WORKERS_CI_COMMIT_SHA`
+   - `SENTRY_AUTH_TOKEN`（**シークレットとして**登録する）
+4. 空コミット等で再ビルドし、ブラウザの Network タブで `ingest.sentry.io` への送信が出ることを確認する
+
+> `build_variables` は**丸ごと置き換わる**。既存の `BUN_VERSION` / `CLOUDFLARE_ENV` を含めた
+> 完全な集合を送ること（詳細は下記 API の節）。
+
+### Terraform 管理にしない理由
+
+Stripe リソースは Terraform 管理だが、**Sentry は当面ダッシュボードでの手作業とする**。理由:
+
+- Terraform 管理下に入るのは実質「プロジェクト1個 + Client Key 1個」で、Stripe（Product /
+  Price×2 / Coupon / PromotionCode / Webhook / Portal）のようにドリフトが痛むほどの量がない
+- **Cloudflare 側は Terraform で閉じない**。Cloudflare プロバイダに Workers Builds の
+  トリガー設定（build command / deploy command / `build_variables`）を扱うリソースが無いため、
+  Terraform を足しても設定手順が2系統に増えるだけになる
+- Sentry 側を Terraform 化する場合は [`jianyuan/sentry`](https://registry.terraform.io/providers/jianyuan/sentry/latest)
+  （Sentry 公式スポンサー）が使え、`sentry_key` から DSN を output できる。**アラートルールや
+  ノイズフィルタ（`sentry_issue_alert` / `sentry_project_inbound_data_filter`）を育て始めたら**
+  移行を検討する。そこは経緯が残らないと痛む種類の設定なので Terraform 向き
+
 ## シークレットの投入
 
 過去のCI整備（PR #59/#63〜#67）で繰り返し踏んだ非対称性のまとめ。

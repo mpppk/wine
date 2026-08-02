@@ -3,6 +3,7 @@ import {
 	MAX_PHOTOS_PER_ENTRY,
 	maxFormDataBytes,
 } from "#/lib/drunk-wine/photo";
+import { reportClientError } from "#/lib/observability/client-error";
 
 // 画像を FormData で POST するクライアント側の共通関門。サーバ側の関門
 // (images/form-api.ts)と対になる存在で、**ブラウザから画像APIを叩く経路は
@@ -63,8 +64,15 @@ export async function postImageForm<T>(
 	try {
 		res = await fetch(path, { method: "POST", body: form });
 	} catch (e) {
-		// 原因の切り分けはブラウザのコンソールに残す(画面に出す文言は行動可能なものに寄せる)
-		console.error(`POST ${path} failed before receiving a response`, e);
+		// **サーバには何も残らない失敗**(レスポンスが返らないのでログも出ない)。
+		// ここで拾わないと再発時に再び原因不明になるので、収集先へ送る(#381)。
+		// 画面に出す文言は行動可能なものに寄せ、原因はコンソールと収集先に残す。
+		reportClientError(e, {
+			kind: "image_upload_network",
+			path,
+			bytes: formDataBytes(form),
+			photos: form.getAll("photo").length,
+		});
 		throw new Error(NETWORK_ERROR_MESSAGE);
 	}
 
