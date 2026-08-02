@@ -306,6 +306,36 @@ export async function answerRegionQuestion(
 	};
 }
 
+/**
+ * このユーザのエチケット解析で**実際に走る経路**を返す。
+ *
+ * 解析前に必要クレジットを出すために UI が要る情報だが、経路はシークレットの設定状況
+ * (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY`)に依存するのでクライアントでは決められない。
+ * 判定は analyzeWineLabel と**同じ resolveLabelRoute** を通すので、表示とサーバの
+ * 予約が食い違わない(経路ごとに条件を書き分けるとドリフトする。#354 の教訓)。
+ */
+export async function resolveLabelRouteForUser(
+	userId: string,
+): Promise<LabelRoute> {
+	const { preferredLabelEngine } = await userService.getCurrentUser(userId);
+	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
+	return resolveLabelRoute(engine, {
+		openai: !!env.OPENAI_API_KEY?.trim(),
+		anthropic: !!env.ANTHROPIC_API_KEY?.trim(),
+	});
+}
+
+/** 高精度経路が使える環境か(プロフィールの選択カードに目安消費を出すために使う)。 */
+export function labelProviderAvailability(): {
+	openai: boolean;
+	anthropic: boolean;
+} {
+	return {
+		openai: !!env.OPENAI_API_KEY?.trim(),
+		anthropic: !!env.ANTHROPIC_API_KEY?.trim(),
+	};
+}
+
 export interface AnalyzeLabelInput {
 	/**
 	 * エチケット画像の data URI(data:image/...;base64,...)の配列。HTTP URLは不可。

@@ -17,17 +17,23 @@ import {
 	AI_REGION_QA_MODELS,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
+	estimateLabelReserveCharge,
 	type LabelEngineKey,
 	type RegionQaModelKey,
 	toLabelEngineKey,
 	toRegionQaModelKey,
 } from "#/lib/ai/config";
 import { authClient } from "#/lib/auth-client";
-import { PREMIUM_PRICING } from "#/lib/billing/plans";
+import {
+	MONTHLY_CREDITS_FREE,
+	MONTHLY_CREDITS_PREMIUM,
+	PREMIUM_PRICING,
+} from "#/lib/billing/plans";
 import {
 	BILLING_STATUS_QUERY_KEY,
 	useBillingStatus,
 } from "#/lib/billing/use-billing";
+import { costToCredits } from "#/lib/credit/credit-math";
 import { useCreditBalance } from "#/lib/credit/use-credit";
 import { formatDateJst } from "#/lib/date/display";
 import {
@@ -304,6 +310,14 @@ function AiModelCard() {
  * 高精度(Claude + web検索)はサーバに ANTHROPIC_API_KEY が設定されている場合のみ
  * 実際に使われ、使えない環境では選択に関わらず標準で解析される(サーバ側フォールバック)。
  */
+/**
+ * エンジンごとの目安消費(写真1枚)。**サーバの予約見積と同じ関数から算出する**ので、
+ * 単価改定・モデル差し替えで表示だけ古くなることがない(#355)。
+ */
+function creditsPerPhoto(engine: LabelEngineKey): number {
+	return costToCredits(estimateLabelReserveCharge(engine, 1).microUsd);
+}
+
 function LabelEngineCard() {
 	const { data: session, refetch: refetchSession } = authClient.useSession();
 	const [engine, setEngine] = useState<LabelEngineKey>(DEFAULT_LABEL_ENGINE);
@@ -355,13 +369,24 @@ function LabelEngineCard() {
 						<SelectContent>
 							{Object.entries(AI_LABEL_ENGINES).map(([key, e]) => (
 								<SelectItem key={key} value={key}>
-									{e.label}
+									{e.label}(写真1枚あたり約
+									{creditsPerPhoto(key as LabelEngineKey).toLocaleString(
+										"ja-JP",
+									)}
+									クレジット)
 								</SelectItem>
 							))}
 						</SelectContent>
 					</Select>
 					<p className="text-xs text-muted-foreground">
 						{AI_LABEL_ENGINES[engine].description}
+					</p>
+					<p className="text-xs text-muted-foreground">
+						写真1枚あたり約
+						{creditsPerPhoto(engine).toLocaleString("ja-JP")}
+						クレジットを消費します(月次付与は無料{MONTHLY_CREDITS_FREE}／
+						プレミアム{MONTHLY_CREDITS_PREMIUM}
+						)。消費はAIの実費に比例するため、経路によって大きく変わります。
 					</p>
 				</div>
 

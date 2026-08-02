@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowLeftIcon,
 	ArrowRightIcon,
@@ -31,8 +31,13 @@ import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { LiveRegion } from "#/components/ui/live-region";
 import { TAP_TARGET_44 } from "#/lib/a11y";
+import { estimateLabelReserveCharge } from "#/lib/ai/config";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
-import { CREDIT_BALANCE_QUERY_KEY } from "#/lib/credit/use-credit";
+import { costToCredits } from "#/lib/credit/credit-math";
+import {
+	CREDIT_BALANCE_QUERY_KEY,
+	useCreditBalanceValue,
+} from "#/lib/credit/use-credit";
 import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
 import {
 	ALLOWED_PHOTO_TYPES,
@@ -49,6 +54,7 @@ import { postImageForm } from "#/lib/images/form-client";
 import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { cn } from "#/lib/utils";
+import { getLabelAnalysisPlan } from "#/server/ai";
 import { createDrunkWine, updateDrunkWine } from "#/server/drunk-wine";
 
 export interface DrunkWineFormProps {
@@ -277,6 +283,26 @@ export function DrunkWineForm({
 		return filled;
 	};
 
+	// 解析前に「この写真枚数でいくら要るか」を出す。コスト基準の計上では経路によって
+	// 消費が 3 / 39 / 275 クレジットと2桁変わるので、押してから残高不足で弾かれると
+	// 「なぜ足りないのか」がユーザに分からない(#355)。経路はシークレットの設定状況に
+	// 依存しクライアントでは決められないため、サーバから取る。
+	const { data: labelPlan } = useQuery({
+		queryKey: ["label-analysis-plan"],
+		queryFn: () => getLabelAnalysisPlan(),
+		staleTime: 5 * 60 * 1000,
+	});
+	// 経路が分かるまでは金額を出さない(取得中に誤った数字を見せない)
+	const requiredCredits = labelPlan
+		? costToCredits(
+				estimateLabelReserveCharge(labelPlan.route, photos.length).microUsd,
+			)
+		: null;
+	// null = 未ログイン・取得中・取得失敗。残高0と区別できないので不足判定には使わない
+	const balance = useCreditBalanceValue();
+	const insufficientCredits =
+		balance !== null && requiredCredits !== null && balance < requiredCredits;
+
 	const { mutate: analyzeLabel, isPending: isAnalyzing } = useMutation({
 		mutationFn: async () => {
 			if (photos.length === 0) throw new Error("写真を選択してください");
@@ -455,8 +481,19 @@ export function DrunkWineForm({
 							{isAnalyzing ? "解析中..." : "エチケットから自動入力"}
 						</Button>
 						<p className="text-xs text-muted-foreground">
-							AIが全ての写真を総合して読み取り、未入力の項目を自動で埋めます(AIクレジットを消費)
+							AIが全ての写真を総合して読み取り、未入力の項目を自動で埋めます
+							{requiredCredits === null
+								? "(AIクレジットを消費)"
+								: `(約${requiredCredits.toLocaleString("ja-JP")}クレジットを消費)`}
 						</p>
+						{insufficientCredits && (
+							<p className="text-xs text-destructive">
+								クレジットが不足しています(残高
+								{balance?.toLocaleString("ja-JP")}
+								)。プロフィールで解析エンジンを 「標準(Workers
+								AI)」に変えると消費を抑えられます。
+							</p>
+						)}
 					</div>
 				)}
 				{analyzeNotice && (
