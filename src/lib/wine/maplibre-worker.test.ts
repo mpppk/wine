@@ -53,18 +53,32 @@ describe("resolveMaplibreWorkerUrl", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("不透明オリジンではスクリプトを取得して blob URL に差し替える", async () => {
+	it("不透明オリジンではスクリプトを取得して data: URL(.cjs終端)に差し替える", async () => {
+		// #368: maplibre-gl 自身の workerFactory() は isCrossOrigin() の判定に
+		// location.origin(不透明化されない)を使うため、不透明オリジンで解決した
+		// URL は常に「クロスオリジン」と誤判定される。さらに URL が `.cjs` で
+		// 終わっていないと「モジュールワーカー」経路(`import "<url>"` で包んで
+		// 生成直後に revoke)を取り、不透明オリジン下で worker がエラーも出さず
+		// 生成直後に閉じてしまう。`.cjs` で終わる data: URL を返すことで
+		// classic worker 経路(fetch して単純に blob 化)に倒す。
 		stubOrigin("null");
-		vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:null/worker");
+		const workerScript = "self.onmessage=()=>{}";
 		vi.stubGlobal(
 			"fetch",
 			vi.fn().mockResolvedValue({
 				ok: true,
 				status: 200,
-				text: async () => "self.onmessage=()=>{}",
+				text: async () => workerScript,
 			}),
 		);
-		expect(await resolveMaplibreWorkerUrl(WORKER_URL)).toBe("blob:null/worker");
+		const resolved = await resolveMaplibreWorkerUrl(WORKER_URL);
+		expect(resolved.endsWith("#maplibre-gl-worker.cjs")).toBe(true);
+		expect(resolved.startsWith("data:text/javascript;base64,")).toBe(true);
+		const base64 = resolved.slice(
+			"data:text/javascript;base64,".length,
+			resolved.indexOf("#"),
+		);
+		expect(decodeURIComponent(escape(atob(base64)))).toBe(workerScript);
 		vi.unstubAllGlobals();
 	});
 
