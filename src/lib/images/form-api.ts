@@ -8,7 +8,12 @@ import {
 	MAX_PHOTO_BYTES,
 	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
+	maxFormDataBytes,
 } from "#/lib/drunk-wine/photo";
+
+// formData() はボディ全体をメモリに載せるため、明らかに大きいリクエストはパース前に弾く。
+// 上限の式はクライアント側の送信前ガードと共有する(photo.ts の maxFormDataBytes)。
+export { maxFormDataBytes };
 
 // FormData で画像を受け取る API ルート(アバター / ワイン写真 / エチケット解析)の共通関門(#260)。
 //
@@ -57,14 +62,6 @@ export const API_ERROR_MESSAGES = {
 	tooManyPhotos: tooManyPhotosMessage(MAX_PHOTOS_PER_ENTRY),
 	noPhoto: "No photo file provided",
 } as const;
-
-/**
- * formData() はボディ全体をメモリに載せるため、明らかに大きいリクエストはパース前に弾く。
- * 全枚数ぶん + multipart 境界等のオーバーヘッドを見込む。
- */
-export function maxFormDataBytes(maxPhotos: number): number {
-	return MAX_PHOTO_BYTES * maxPhotos + 64 * 1024;
-}
 
 /** エントリ写真の枚数(既定)を前提とした上限。 */
 export const MAX_FORM_DATA_BYTES = maxFormDataBytes(MAX_PHOTOS_PER_ENTRY);

@@ -1,14 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
 import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
 import type { WineStatus } from "#/lib/drunk-wine/status";
-import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
-import {
-	AI_WINE_LIST_BASE_TOKEN_ESTIMATE,
-	AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE,
-	AI_WINE_LIST_MAX_WINES,
-} from "./config";
+import { AI_WINE_LIST_MAX_WINES } from "./config";
 import {
 	buildKnownListsSection,
 	buildLabelSuggestions,
@@ -374,16 +368,6 @@ export function matchExistingEntries(
 	});
 }
 
-/**
- * 一括抽出の予約トークン見積。写真枚数に比例させ、上限で必ずクランプする
- * (他のAI経路と同じ流儀)。基礎値を実測の中心値に置く理由は config.ts の
- * AI_WINE_LIST_BASE_TOKEN_ESTIMATE を参照。
- */
-export function estimateWineListReserveTokens(imageCount: number): number {
-	return Math.min(
-		AI_MAX_ESTIMATE_TOKENS,
-		AI_WINE_LIST_BASE_TOKEN_ESTIMATE +
-			AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE *
-				Math.min(Math.max(1, imageCount), MAX_PHOTOS_PER_IMPORT_BATCH),
-	);
-}
+// 予約トークンの見積(estimateWineListReserveTokens)は config.ts に置いてある。
+// 解析前に必要クレジットを出す UI から import するため、静的マスタを読み込む
+// このファイルには置けない(理由は config.ts の同関数のコメント)。

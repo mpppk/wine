@@ -45,6 +45,7 @@ import {
 	PHOTO_THUMB_MAX_DIMENSION,
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
+import { postImageForm } from "#/lib/images/form-client";
 import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { cn } from "#/lib/utils";
@@ -101,11 +102,13 @@ async function syncPhotos(
 			: { type: "new", index: newIndex.get(p.localId) },
 	);
 	form.append("layout", JSON.stringify(layout));
-	const res = await fetch("/api/wine-photos", { method: "POST", body: form });
-	const body = (await res.json()) as { error?: string; entry?: DrunkWineEntry };
-	if (!res.ok || !body.entry) {
-		throw new Error(body.error ?? "写真のアップロードに失敗しました");
-	}
+	const fallbackMessage = "写真のアップロードに失敗しました";
+	const body = await postImageForm<{ entry?: DrunkWineEntry }>(
+		"/api/wine-photos",
+		form,
+		{ fallbackMessage },
+	);
+	if (!body.entry) throw new Error(fallbackMessage);
 	return body.entry;
 }
 

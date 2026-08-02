@@ -1,4 +1,6 @@
-import { downscaleImage } from "#/components/cellar/photo-resize";
+import { downscaleForAnalysis } from "#/components/cellar/photo-resize";
+import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
+import { postImageForm } from "#/lib/images/form-client";
 import type { AnalyzeLabelResult } from "#/lib/services/ai-service";
 
 // エチケット自動入力のクライアント側ヘルパー。現在フォームに添付中の写真(新規ファイル+
@@ -13,19 +15,11 @@ export type AnalysisPhotoSource = File | { url: string };
 const ANALYSIS_MAX_DIMENSION = 1280;
 const ANALYSIS_JPEG_QUALITY = 0.85;
 
-/** 解析用に縮小する(失敗時は元ファイルのまま送る)。 */
-function downscaleForAnalysis(file: Blob): Promise<Blob> {
-	return downscaleImage(file, {
-		maxDimension: ANALYSIS_MAX_DIMENSION,
-		quality: ANALYSIS_JPEG_QUALITY,
-	});
-}
-
 /** 解析ソースを解析用のBlobに解決する。既存写真(URL)は同一オリジンから取得する。 */
 async function toAnalysisBlob(source: AnalysisPhotoSource): Promise<Blob> {
 	if (source instanceof File) return source;
-	const res = await fetch(source.url);
-	if (!res.ok) throw new Error("既存写真の取得に失敗しました");
+	const res = await fetch(source.url).catch(() => null);
+	if (!res?.ok) throw new Error("既存写真の取得に失敗しました");
 	return res.blob();
 }
 
@@ -38,8 +32,12 @@ export async function analyzeLabelPhotos(
 ): Promise<AnalyzeLabelResult> {
 	if (sources.length === 0) throw new Error("写真を選択してください");
 	const form = new FormData();
-	for (const source of sources) {
-		const blob = await downscaleForAnalysis(await toAnalysisBlob(source));
+	for (const [index, source] of sources.entries()) {
+		const blob = await downscaleForAnalysis(await toAnalysisBlob(source), {
+			maxDimension: ANALYSIS_MAX_DIMENSION,
+			quality: ANALYSIS_JPEG_QUALITY,
+			photoNumber: index + 1,
+		});
 		form.append(
 			"photo",
 			blob instanceof File
@@ -47,13 +45,8 @@ export async function analyzeLabelPhotos(
 				: new File([blob], "label.jpg", { type: blob.type }),
 		);
 	}
-	const res = await fetch("/api/label-analysis", {
-		method: "POST",
-		body: form,
+	return postImageForm<AnalyzeLabelResult>("/api/label-analysis", form, {
+		fallbackMessage: "エチケットの解析に失敗しました",
+		maxPhotos: MAX_PHOTOS_PER_ENTRY,
 	});
-	const body = (await res.json()) as AnalyzeLabelResult & { error?: string };
-	if (!res.ok) {
-		throw new Error(body.error ?? "エチケットの解析に失敗しました");
-	}
-	return body;
 }

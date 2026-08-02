@@ -30,7 +30,12 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import { TAP_TARGET_44 } from "#/lib/a11y";
-import { CREDIT_BALANCE_QUERY_KEY } from "#/lib/credit/use-credit";
+import { estimateWineListReserveTokens } from "#/lib/ai/config";
+import { tokensToCredits } from "#/lib/credit/credit-math";
+import {
+	CREDIT_BALANCE_QUERY_KEY,
+	useCreditBalanceValue,
+} from "#/lib/credit/use-credit";
 import { todayCalendarDate } from "#/lib/date/calendar-date";
 import {
 	ALLOWED_PHOTO_TYPES,
@@ -56,6 +61,11 @@ import { bulkRegisterFromScan, listPlaces } from "#/server/place";
 
 const NEW_PLACE = "__new__";
 const NO_PLACE = "__none__";
+
+/** 写真N枚を解析するのに要るクレジット(サーバ側の予約見積と同じ式)。0枚は1枚と同じ。 */
+function creditsForPhotos(count: number): number {
+	return tokensToCredits(estimateWineListReserveTokens(count));
+}
 
 export const Route = createFileRoute("/cellar/import")({
 	beforeLoad: requireAuthBeforeLoad,
@@ -96,6 +106,17 @@ function CellarImportPage() {
 	> | null>(null);
 	const newIdRef = useRef(0);
 	const doneRef = useRef(false);
+
+	// 解析を押す前に「この枚数でいくら要るか」を出す。押してから残高不足で弾かれると、
+	// 写真を選び直す手間だけが無駄になる(サーバ側の予約 estimateWineListReserveTokens と
+	// 同じ式を共有するので、見積を変えても表示だけ古くなることはない)。
+	const requiredCredits = creditsForPhotos(photos.length);
+	// null = 未ログイン・取得中・取得失敗。残高0と区別できないので不足判定には使わない
+	const balance = useCreditBalanceValue();
+	const insufficientCredits = balance !== null && balance < requiredCredits;
+	// 枚数を減らせば足りるのか、最小構成でも足りないのかで案内が変わる
+	const canFixByFewerPhotos =
+		balance !== null && balance >= creditsForPhotos(1);
 
 	const updateCard = (localId: string, patch: Partial<ImportCardState>) => {
 		setCards(
@@ -336,6 +357,7 @@ function CellarImportPage() {
 							disabled={
 								photos.length === 0 ||
 								isAnalyzing ||
+								insufficientCredits ||
 								(placeChoice === NEW_PLACE && !newPlaceName.trim())
 							}
 							onClick={() => {
@@ -347,8 +369,30 @@ function CellarImportPage() {
 							{isAnalyzing ? "解析中…" : "写真を解析する"}
 						</Button>
 						<p className="text-xs text-muted-foreground">
-							AIが写真からワインを読み取ります(AIクレジットを消費)。枚数が多いほど消費が増えます。
+							AIが写真からワインを読み取ります。
+							{photos.length > 0
+								? `この${photos.length}枚の解析で最大${requiredCredits}クレジット`
+								: `写真1枚で最大${creditsForPhotos(1)}クレジット、以降1枚ごとに+${
+										creditsForPhotos(2) - creditsForPhotos(1)
+									}クレジット`}
+							を消費します
+							{balance !== null && `(残高 ${balance})`}。
 						</p>
+						{insufficientCredits ? (
+							<p className="text-xs text-destructive">
+								クレジットが足りません。
+								{canFixByFewerPhotos
+									? "写真の枚数を減らすと解析できます。"
+									: `この機能には最低${creditsForPhotos(1)}クレジットが必要です。翌月の付与をお待ちいただくか、プレミアムプランをご検討ください。`}
+								<Link to="/pricing" className="ml-1 underline">
+									プレミアムプランを見る
+								</Link>
+							</p>
+						) : (
+							<p className="text-xs text-muted-foreground">
+								解析には最大で数分かかります。完了するまで画面を閉じないでください。
+							</p>
+						)}
 					</div>
 				</div>
 			) : (

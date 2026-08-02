@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
+import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 
 // 地域チャットQ&A(Workers AI)の設定。モデルや上限はここに集約し、原価/品質を見て
 // 数値だけ差し替えられるようにする。クレジット消費の見積上限は plans.ts 側に置く。
@@ -365,6 +367,25 @@ export const AI_WINE_LIST_BASE_TOKEN_ESTIMATE = 24_000;
  * エチケット経路(3,000)より大きめに取る。
  */
 export const AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE = 4_000;
+
+/**
+ * 一括抽出の予約トークン見積。写真枚数に比例させ、上限で必ずクランプする
+ * (他のAI経路と同じ流儀)。基礎値を実測の中心値に置く理由は上の
+ * AI_WINE_LIST_BASE_TOKEN_ESTIMATE を参照。
+ *
+ * **抽出ロジック(wine-list-extraction.ts)ではなくここに置く**。解析前に必要クレジットを
+ * 表示する UI(/cellar/import)がこの式を参照するが、wine-list-extraction.ts は静的マスタ
+ * (AOP/品種の全リスト)を推移的に読み込むため、クライアントバンドルに入れたくない。
+ * 見積の定数と式が同じファイルに並ぶので、原価を見て数値を差し替えるときの追随漏れも減る。
+ */
+export function estimateWineListReserveTokens(imageCount: number): number {
+	return Math.min(
+		AI_MAX_ESTIMATE_TOKENS,
+		AI_WINE_LIST_BASE_TOKEN_ESTIMATE +
+			AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE *
+				Math.min(Math.max(1, imageCount), MAX_PHOTOS_PER_IMPORT_BATCH),
+	);
+}
 
 /** 質問文の最大文字数(入力バリデーション)。 */
 export const AI_MAX_QUESTION_CHARS = 300;
