@@ -21,6 +21,7 @@ import {
 	countCellarFilters,
 	createDrunkWine,
 	deleteDrunkWine,
+	deleteDrunkWines,
 	deleteWineSighting,
 	deleteWineTasting,
 	getCellarSummary,
@@ -380,6 +381,47 @@ describe("所有権とカスケード", () => {
 
 		await deleteDrunkWine(userId, entry.id);
 		expect(await tastingRows(entry.id)).toHaveLength(0);
+	});
+});
+
+// ---- deleteDrunkWines(まとめ削除, Issue #363 案B) --------------------------
+
+describe("deleteDrunkWines", () => {
+	it("選んだ複数エントリをまとめて削除し、子テーブルもcascadeで消える", async () => {
+		const userId = await freshUser();
+		const a = await createDrunkWine(userId, {
+			name: "A",
+			tasting: { drankOn: "2020-01-01" },
+		});
+		const b = await createDrunkWine(userId, { name: "B" });
+		const keep = await createDrunkWine(userId, { name: "残す" });
+
+		const result = await deleteDrunkWines(userId, [a.id, b.id]);
+		expect(result.deletedCount).toBe(2);
+		expect(await wineRow(a.id)).toBeUndefined();
+		expect(await wineRow(b.id)).toBeUndefined();
+		expect(await wineRow(keep.id)).toBeDefined();
+		expect(await tastingRows(a.id)).toHaveLength(0);
+	});
+
+	it("他ユーザのidが混ざっていても自分のエントリだけ消え、件数もそれに一致する", async () => {
+		const owner = await freshUser();
+		const other = await freshUser();
+		const mine = await createDrunkWine(owner, { name: "自分の" });
+		const theirs = await createDrunkWine(other, { name: "他人の" });
+
+		const result = await deleteDrunkWines(owner, [mine.id, theirs.id]);
+		expect(result.deletedCount).toBe(1);
+		expect(await wineRow(mine.id)).toBeUndefined();
+		expect(await wineRow(theirs.id)).toBeDefined();
+	});
+
+	it("空配列を渡すと何も削除せず0件を返す", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "無傷" });
+		const result = await deleteDrunkWines(userId, []);
+		expect(result.deletedCount).toBe(0);
+		expect(await wineRow(entry.id)).toBeDefined();
 	});
 });
 
@@ -931,6 +973,36 @@ describe("写真サムネイルの保存と削除", () => {
 		await deleteDrunkWine(userId, entry.id);
 		expect(await objectExists(photoKey)).toBe(false);
 		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
+	});
+
+	it("まとめ削除(deleteDrunkWines)でも複数エントリの写真とサムネイルが全て消える", async () => {
+		const userId = await freshUser();
+		const a = await createDrunkWine(userId, { name: "まとめ削除A" });
+		const b = await createDrunkWine(userId, { name: "まとめ削除B" });
+		const savedA = await syncDrunkWinePhotos(userId, a.id, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1,
+				mimeType: "image/jpeg",
+				thumbBytes: JPEG_1X1,
+			},
+		]);
+		const savedB = await syncDrunkWinePhotos(userId, b.id, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1,
+				mimeType: "image/jpeg",
+				thumbBytes: JPEG_1X1,
+			},
+		]);
+		const keyA = imageKeyFromPath(savedA.photoUrls[0] as string);
+		const keyB = imageKeyFromPath(savedB.photoUrls[0] as string);
+
+		await deleteDrunkWines(userId, [a.id, b.id]);
+		for (const key of [keyA, keyB]) {
+			expect(await objectExists(key)).toBe(false);
+			expect(await objectExists(thumbKeyForPhotoKey(key))).toBe(false);
+		}
 	});
 
 	it("画像として認識できないサムネイルは保存しない(原寸は保存する)", async () => {

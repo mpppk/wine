@@ -43,6 +43,19 @@ export const deleteDrunkWine = createServerFn({ method: "POST" })
 		drunkWineService.deleteDrunkWine(context.user.id, data.id),
 	);
 
+// 一覧のチェックボックス選択からのまとめ削除(Issue #363 案B)。上限は一覧の
+// 1回の取得上限(DRUNK_WINE_MAX_PAGE_SIZE)に合わせる(それ以上選ばせるUIが無い)。
+export const deleteDrunkWines = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(
+		z.object({
+			ids: z.array(entryId).min(1).max(DRUNK_WINE_MAX_PAGE_SIZE),
+		}),
+	)
+	.handler(({ data, context }) =>
+		drunkWineService.deleteDrunkWines(context.user.id, data.ids),
+	);
+
 // 一覧はページネーション付き(#254)。地図は全ピンが要るので limit を渡さない。
 export const listDrunkWines = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
