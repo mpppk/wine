@@ -1,0 +1,15 @@
+-- allow-destructive-migration
+--
+-- ↑ の理由: 唯一の該当箇所は `ADD COLUMN batch_id text REFERENCES ...`。
+-- nullable + デフォルト無しの列追加(既存行は NULL で埋まる)なので
+-- expand-and-contract の対象ではない(0022 で wine_sighting.batch_id を
+-- 足したときと同じ形)。既存列の NOT NULL 化・DROP・RENAME は無い。
+--
+-- Issue #363 案A: 一括登録バッチ単位の取り消し。
+--
+-- wine_sighting.batch_id で「目撃記録 → バッチ」は辿れるが、
+-- 「エントリ(drunk_wine) → バッチ」を辿る手段が無く、バッチ単位の取り消しで
+-- 「このバッチで新規作成されたエントリ」と「既存エントリに目撃記録が
+-- 増えただけのもの」を区別できなかった。この列で新規作成されたエントリだけを
+-- 判別できるようにする(既存エントリに目撃記録を足しただけの場合は NULL のまま)。
+ALTER TABLE `drunk_wine` ADD COLUMN `batch_id` text REFERENCES `import_batch`(`id`) ON UPDATE no action ON DELETE set null;

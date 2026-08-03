@@ -1521,6 +1521,9 @@ export async function bulkRegisterFromScan(
 					grapeVarietyIds: item.wine.grapeVarietyIds ?? [],
 					producer: item.wine.producer ?? null,
 					price: item.wine.price ?? null,
+					// このバッチで新規作成したエントリだけに付ける(Issue #363 案A)。
+					// 既存一致(item.existingId)は目撃記録が増えるだけなので付けない。
+					batchId,
 				}),
 			);
 		} else {
@@ -1565,6 +1568,91 @@ export async function bulkRegisterFromScan(
 		sightingCount: input.items.length,
 		tastingCount,
 	};
+}
+
+/**
+ * 一括登録バッチの取り消し(Issue #363 案A)。登録直後の完了導線からのみ
+ * 呼ばれる想定(バッチ一覧やエントリ詳細からの恒常的な導線は無い)。この前提
+ * により「登録後にユーザが編集した銘柄をどう扱うか」という論点を実質的に
+ * 回避している——取り消しが呼ばれる時点でまだ他の操作が挟まっていないため。
+ *
+ * 削除対象は **このバッチで新規作成されたエントリ**(drunk_wine.batch_id が
+ * このバッチのもの)のみ。「既存エントリに目撃記録が増えただけ」のものは
+ * エントリを消さず、目撃記録だけを取り消して集計を再計算する(バッチと
+ * 無関係な過去のデータを失わないため、issue本文の案Aの要点)。
+ *
+ * バッチが作った place は消さない(参照が無くなっても場所マスタとして残す。
+ * 不要ならユーザが deletePlace で個別に消せる)。バッチ写真
+ * (import_batch.photo_keys)はエントリ写真とは別物でどの削除経路も掃除しない
+ * ため、ここで明示的に消す(サムネイルは保存していないので thumb 分は不要)。
+ */
+export async function undoImportBatch(
+	userId: string,
+	batchId: string,
+): Promise<{ deletedCount: number }> {
+	const [batch] = await db
+		.select({ photoKeys: importBatch.photoKeys })
+		.from(importBatch)
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+	if (!batch) throw new NotFoundError("Batch not found");
+
+	const createdRows = await db
+		.select({ id: drunkWine.id, photoKeys: drunkWine.photoKeys })
+		.from(drunkWine)
+		.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)));
+	const createdIds = new Set(createdRows.map((row) => row.id));
+
+	const sightingRows = await db
+		.select({ drunkWineId: wineSighting.drunkWineId })
+		.from(wineSighting)
+		.where(
+			and(eq(wineSighting.batchId, batchId), eq(wineSighting.userId, userId)),
+		);
+	// 新規作成エントリ以外(=既存エントリに目撃記録が増えただけ)は、目撃記録の
+	// 削除後に集計(sightingCount/lastSeenOn)を再計算する対象として拾っておく。
+	const touchedExistingIds = [
+		...new Set(
+			sightingRows
+				.map((row) => row.drunkWineId)
+				.filter((id) => !createdIds.has(id)),
+		),
+	];
+
+	const statements: BatchStatement[] = [
+		db
+			.delete(wineSighting)
+			.where(
+				and(eq(wineSighting.batchId, batchId), eq(wineSighting.userId, userId)),
+			),
+		db
+			.delete(drunkWine)
+			.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId))),
+	];
+	if (touchedExistingIds.length > 0) {
+		statements.push(
+			...recomputeDrunkWineAggregatesBulk(userId, touchedExistingIds),
+		);
+	}
+	statements.push(
+		db
+			.delete(importBatch)
+			.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId))),
+	);
+	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
+
+	// D1の書き込みは既に確定しているので、R2掃除の失敗で「取り消せなかった」とは返さない(#249と同じ扱い)。
+	const entryPhotoKeys = createdRows.flatMap((row) =>
+		row.photoKeys.length > 0
+			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
+			: [],
+	);
+	await cleanupPhotoObjects([...batch.photoKeys, ...entryPhotoKeys], {
+		userId,
+		entryId: batchId,
+		phase: "import-batch-undone",
+	});
+
+	return { deletedCount: createdRows.length };
 }
 
 /** 一括登録バッチ1件(写真アップロードの応答)。 */
