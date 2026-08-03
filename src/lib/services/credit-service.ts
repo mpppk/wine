@@ -4,7 +4,11 @@ import { db } from "#/db";
 import { creditBalance, creditLedger } from "#/db/schema";
 import type { CreditCharge } from "#/lib/billing/ai-pricing";
 import { costToCredits, refundCredits } from "#/lib/credit/credit-math";
-import { monthlyGrantForPlan } from "#/lib/credit/grants";
+import {
+	grantRequestId,
+	grantUpgradeRequestId,
+	monthlyGrantForPlan,
+} from "#/lib/credit/grants";
 import { currentMonthKey } from "#/lib/credit/month";
 import {
 	REFUND_SUFFIX,
@@ -148,8 +152,10 @@ export type ReserveResult =
  *   残高は新月のみ付与額へリセット(setWhere で当月への二重リセットを防ぎ、消費との
  *   競合で残高を巻き戻さない)。
  * - 当月付与済みでも、現プランの付与額が当月の累計付与額を上回る場合(=月途中の
- *   プレミアム昇格)は差分を追加付与する(#142)。requestId=grant_upgrade:{userId}:{YYYY-MM}
- *   の unique で月1本に絞り、翌JST月初のリセット付与までブロックが継続しないようにする。
+ *   プレミアム昇格、または付与額そのものの引き上げ)は差分を追加付与する(#142)。
+ *   requestId=grant_upgrade:{userId}:{YYYY-MM}:{target} の unique で
+ *   「同じ付与目標額への引き上げは月1本」に絞る(#387。target を含めない固定キーは
+ *   月1回しか差分付与を通さず、増額と昇格が同月に重なると後者が無言で消えた)。
  */
 /**
  * ensureCurrentMonthGranted の複数ユーザ版。**単体版をループで呼ばないための存在**で、
@@ -213,7 +219,7 @@ export async function ensureCurrentMonthGrantedMany(
 			// 当月付与済み。月途中のプラン昇格ぶんだけ差分付与する(単体版の topUpMidMonthUpgrade)
 			const diff = target - (grantedTotal.get(userId) ?? 0);
 			if (diff <= 0) continue;
-			const requestId = `grant_upgrade:${userId}:${month}`;
+			const requestId = grantUpgradeRequestId(userId, month, target);
 			units.push([
 				db
 					.update(creditBalance)
@@ -243,7 +249,7 @@ export async function ensureCurrentMonthGrantedMany(
 			continue;
 		}
 		// 当月未付与(新月 / 残高行なし)。現プランの付与額でリセット付与する
-		const requestId = `grant:${userId}:${month}`;
+		const requestId = grantRequestId(userId, month);
 		units.push([
 			db
 				.insert(creditLedger)
@@ -288,7 +294,7 @@ export async function ensureCurrentMonthGranted(userId: string): Promise<void> {
 		return;
 	}
 
-	const requestId = `grant:${userId}:${month}`;
+	const requestId = grantRequestId(userId, month);
 	await db.batch([
 		db
 			.insert(creditLedger)
@@ -319,10 +325,19 @@ export async function ensureCurrentMonthGranted(userId: string): Promise<void> {
  * (残高行が当月)であることを前提に呼ぶ。当月の累計付与額(grant + grant_upgrade)が
  * 現プランの付与目標に満たなければ、その差分を残高へ加算し grant_upgrade 台帳に記録する。
  *
- * 冪等性は grant_upgrade:{userId}:{month} の unique 制約で担保する。残高加算は「まだ台帳に
- * この requestId が無い時だけ」に条件付け(台帳 INSERT より前に評価)し、再実行しても二重
- * 加算しない(admin-actions.grantCredits と同じパターン)。無料↔プレミアムの2値なので
- * 昇格の差分付与は月1回で足りる。降格時は差分が0以下となり何もしない(返却はしない)。
+ * 冪等性は grant_upgrade:{userId}:{month}:{target} の unique 制約で担保する。残高加算は
+ * 「まだ台帳にこの requestId が無い時だけ」に条件付け(台帳 INSERT より前に評価)し、再実行
+ * しても二重加算しない(admin-actions.grantCredits と同じパターン)。
+ *
+ * **キーに target を含めるのが要点**(#387)。以前の `grant_upgrade:{userId}:{month}` 固定は
+ * 「無料↔プレミアムの2値なので昇格の差分付与は月1回で足りる」という前提に依っていたが、
+ * 月次付与額の引き上げ(#383)自体がこの経路を通るため、増額で枠を使い切った後の昇格が
+ * ガードに弾かれて無言で消えた。target 別のキーなら「同じ目標額への引き上げは1回だけ」に
+ * なり、増額と昇格が同月に重なっても互いを潰さない。差分は常に
+ * `target - 当月の累計付与額` なので、同じ target での再実行は diff<=0 で早期 return する。
+ *
+ * 降格時は差分が0以下となり何もしない(返却はしない)。降格後に再昇格しても累計付与額が
+ * 既に target に達しているため二重付与にはならない。
  */
 async function topUpMidMonthUpgrade(
 	userId: string,
@@ -345,7 +360,7 @@ async function topUpMidMonthUpgrade(
 	const diff = target - alreadyGranted;
 	if (diff <= 0) return;
 
-	const requestId = `grant_upgrade:${userId}:${month}`;
+	const requestId = grantUpgradeRequestId(userId, month, target);
 	await db.batch([
 		db
 			.update(creditBalance)
