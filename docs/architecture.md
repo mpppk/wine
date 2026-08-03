@@ -99,6 +99,10 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 
 3 系統とも最終的に同じサービス層を呼ぶ。server fn の middleware と API ルートの認証は**別系統**なので混同しない。
 
+**書き込みのスロットルも共通のチョークポイントで掛ける**（#397）。server fn は `middleware.ts` の `authMiddleware`、API ルートは `form-api.ts` の `requireApiSession` が、それぞれ **userId をキー**に Cloudflare Workers の Rate Limiting バインディング（`src/lib/rate-limit.ts`）で判定する。**読み取りは絞らない**（1 画面が複数の server fn を並行に呼ぶため、読み取りまで数えると通常利用が先に上限へ当たる）。上限値は `wrangler.jsonc` の `ratelimits` が正で、**env ごとに再掲が必要**（トップレベル設定を継承しない）。
+
+> **これはクォータではない**。Rate Limiting のカウンタは colo ごと・「正確な会計ではない」設計なので、「1 ユーザあたりのエントリ数・写真総バイト数」のような累積上限には使えない。累積上限が要るなら D1 で数える（#397 の残作業）。
+
 **BAN(利用停止)は 3 系統すべてに効かせる**（#330）。better-auth の `banUser` が止めるのは Web セッション（削除）とサインインだけで、MCP の OAuth アクセストークンには触れない。そのため `banUser`（`admin-actions.ts`）が失効（`revokeMcpConnections`）まで連動させ、`/api/mcp` の入口でも `isUserBanned` で確認する二段構えにしてある。認証手段が増えたら「BAN が届くか」を必ず確認する。
 
 ## フロントエンド

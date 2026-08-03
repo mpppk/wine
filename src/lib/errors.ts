@@ -61,3 +61,15 @@ export class ConflictError extends HttpError {
 		this.name = "ConflictError";
 	}
 }
+
+/** レートリミット超過(429)。文言はそのままUIに出るので日本語で持つ。 */
+export const TOO_MANY_REQUESTS_MESSAGE =
+	"操作が多すぎます。しばらく待ってからもう一度お試しください。";
+
+/** 短時間の操作が多すぎる(429)。 */
+export class TooManyRequestsError extends HttpError {
+	constructor(message = TOO_MANY_REQUESTS_MESSAGE) {
+		super(429, message);
+		this.name = "TooManyRequestsError";
+	}
+}

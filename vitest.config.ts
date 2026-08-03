@@ -86,6 +86,27 @@ export default defineConfig({
 							compatibilityFlags,
 							d1Databases: ["DB"],
 							r2Buckets: ["AVATARS"],
+							// スロットル(#397)。**本番の上限値はあえて再現しない**。
+							// 上限そのものは wrangler.jsonc の設定値であって、テストで
+							// 数値を書き写しても設定を二重管理するだけになる。ここで
+							// 検証したいのは「上限に達したら false を返し、経路がそれを
+							// 拒否に写すか」なので、少ない回数で使い切れる値にする。
+							// miniflare 側はバインディング名をキーにしたレコードで受ける
+							// (wrangler.jsonc の配列形式とは形が違う)。
+							ratelimits: {
+								RATE_LIMIT_WRITE: {
+									namespace_id: "9001",
+									simple: { limit: 3, period: 10 },
+								},
+								RATE_LIMIT_UPLOAD: {
+									namespace_id: "9002",
+									simple: { limit: 3, period: 10 },
+								},
+								RATE_LIMIT_FETCH_TITLE: {
+									namespace_id: "9003",
+									simple: { limit: 3, period: 10 },
+								},
+							},
 							bindings: {
 								// setup(test/apply-migrations.ts)で適用するマイグレーション本体
 								TEST_MIGRATIONS: migrations,

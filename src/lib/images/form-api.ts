@@ -1,6 +1,7 @@
 import {
 	IMPERSONATION_READONLY_MESSAGE,
 	isImpersonationWriteBlocked,
+	isWriteRequest,
 } from "#/lib/admin/impersonation";
 import { auth } from "#/lib/auth";
 import {
@@ -10,6 +11,8 @@ import {
 	MAX_PHOTOS_PER_ENTRY,
 	maxFormDataBytes,
 } from "#/lib/drunk-wine/photo";
+import { TOO_MANY_REQUESTS_MESSAGE } from "#/lib/errors";
+import { withinRateLimit } from "#/lib/rate-limit";
 
 // formData() はボディ全体をメモリに載せるため、明らかに大きいリクエストはパース前に弾く。
 // 上限の式はクライアント側の送信前ガードと共有する(photo.ts の maxFormDataBytes)。
@@ -85,6 +88,18 @@ export async function requireApiSession(
 	if (!session) return apiJsonError(API_ERROR_MESSAGES.unauthorized, 401);
 	if (isImpersonationWriteBlocked(session, request.method)) {
 		return apiJsonError(API_ERROR_MESSAGES.impersonationReadOnly, 403);
+	}
+	// 書き込み(=このルート群では画像アップロード)のスロットル(#397)。R2 への書き込みは
+	// オーナー負担の従量コストなので、server function 側とは別枠・別上限で絞る。
+	// server function 側(src/server/middleware.ts)と同じく userId をキーにする。
+	if (
+		isWriteRequest(request.method) &&
+		!(await withinRateLimit("upload", session.user.id, {
+			userId: session.user.id,
+			path: new URL(request.url).pathname,
+		}))
+	) {
+		return apiJsonError(TOO_MANY_REQUESTS_MESSAGE, 429);
 	}
 	return session;
 }

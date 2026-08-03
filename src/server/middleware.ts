@@ -5,15 +5,18 @@ import {
 	IMPERSONATION_READONLY_MESSAGE,
 	isImpersonatedSession,
 	isImpersonationWriteBlocked,
+	isWriteRequest,
 } from "#/lib/admin/impersonation";
 import { auth } from "#/lib/auth";
 import {
 	BadRequestError,
 	ForbiddenError,
 	HttpError,
+	TooManyRequestsError,
 	UnauthorizedError,
 } from "#/lib/errors";
 import { logError, logInfo, logWarn } from "#/lib/logger";
+import { withinRateLimit } from "#/lib/rate-limit";
 
 // server function が throw すると既定では HTTP 500 になる。認証切れ(正常系)や
 // クライアント入力エラー(4xx相当)まで 5xx に混ざると、Workers のメトリクス上で
@@ -76,6 +79,38 @@ function assertNotImpersonatedWrite(
 	throw new ForbiddenError(IMPERSONATION_READONLY_MESSAGE);
 }
 
+/**
+ * 書き込みリクエストのスロットル(#397)。
+ *
+ * **読み取りは絞らない**。1画面が複数の server function を並行に呼ぶため、読み取りまで
+ * 数えると通常利用が先に上限へ当たる。#397 の脅威(エントリ・写真・外部fetchの積み上げ)は
+ * すべて書き込み側にあるので、書き込みの定義は `isWriteRequest`(なりすましガードと
+ * 共有する SSOT)に委ねる。
+ *
+ * server function の入口はここ1箇所なので、後から足す機能も自動的に通る。
+ *
+ * **管理ルート(`adminMiddleware`)には掛けない**。一括クレジット補填のような運用操作は
+ * 短時間に多くの書き込みを出す正当な用途で、絞ると障害対応の手を縛る。管理者は
+ * `isAdminSession` で絞り込まれた信頼済みの主体なので、#397 の脅威モデル
+ * (「サインアップは開放されているので1アカウント作れば」)の外にある。
+ *
+ * `optionalAuthMiddleware` にも掛けていない。現状 GET のみで、未ログインには
+ * ユーザ単位のキーが無いため(未認証経路の保護は better-auth 側の
+ * `/api/auth/*` レートリミットが担う)。**ここに書き込みを足すときはキーの設計から
+ * 考え直すこと**。
+ */
+async function assertWriteRateLimit(
+	userId: string,
+	request: Request,
+): Promise<void> {
+	if (!isWriteRequest(request.method)) return;
+	const path = pathOf(request);
+	if (await withinRateLimit("write", userId, { userId, path })) return;
+	// 拒否のログは withinRateLimit 側で出している(ここで二重に出さない)。
+	setResponseStatus(429);
+	throw new TooManyRequestsError();
+}
+
 export const authMiddleware = createMiddleware({ type: "function" }).server(
 	async ({ next }) => {
 		const request = getRequest();
@@ -89,6 +124,7 @@ export const authMiddleware = createMiddleware({ type: "function" }).server(
 			throw new UnauthorizedError();
 		}
 		assertNotImpersonatedWrite(session, request);
+		await assertWriteRateLimit(session.user.id, request);
 		return runWithHttpStatus(
 			() => next({ context: { user: session.user, session: session.session } }),
 			{ userId: session.user.id, path: pathOf(request) },
