@@ -68,7 +68,7 @@ describe("buildAiInferenceFields", () => {
 		});
 	});
 
-	it("実行メタデータのみを載せ、ユーザの入力・抽出結果は持てない形にする", () => {
+	it("載せられるフィールドを全列挙で固定する", () => {
 		const fields = buildAiInferenceFields({
 			...base,
 			outcome: "ok",
@@ -79,10 +79,16 @@ describe("buildAiInferenceFields", () => {
 			actualTokens: 14324,
 			costMicroUsd: 38400,
 			reservedMicroUsd: 39000,
+			webResearch: { steps: [], stepCount: 0, hosts: [] },
+			fieldSources: { vintage: { origin: "photo" } },
 		});
-		// 出るキーを全列挙で固定する。写真・質問文・抽出されたワイン名を載せる口が
-		// 無いこと(=ログから利用者のワイン履歴が復元できないこと)がこのテストの主眼で、
-		// フィールドを足すときはここが必ず落ちて privacy の再確認を強制する。
+		// 出るキーを全列挙で固定する。**フィールドを足すとここが必ず落ち、privacy の
+		// 再確認を強制する**のがこのテストの主眼。
+		//
+		// 抽出されたワイン名・質問文・写真を載せる口は無い。一方 webResearch /
+		// fieldSources は検索クエリと参照URLを持ち、**そこからは解析した銘柄が復元できる**
+		// (inference-log.ts 冒頭に転換の理由と緩和策を書いてある)。この2つ以外に
+		// ユーザ由来の値が入る口を増やすときは、同じ判断をやり直すこと。
 		expect(Object.keys(fields).sort()).toEqual([
 			"actualTokens",
 			"costMicroUsd",
@@ -90,6 +96,7 @@ describe("buildAiInferenceFields", () => {
 			"executedBy",
 			"feature",
 			"fellBack",
+			"fieldSources",
 			"model",
 			"outcome",
 			"photoCount",
@@ -97,7 +104,60 @@ describe("buildAiInferenceFields", () => {
 			"reservedMicroUsd",
 			"route",
 			"userId",
+			"webResearch",
 		]);
+	});
+
+	it("裏取りの観測情報は、載せない経路では1行に現れない", () => {
+		// 地域Q&A・一括抽出は web検索をしないので、フィールドごと出ないのが正しい
+		// (空の軌跡を出すと「検索したが何も見つからなかった」と誤読される)
+		const fields = buildAiInferenceFields({
+			...base,
+			feature: "region_qa",
+			outcome: "ok",
+		});
+		expect(fields).not.toHaveProperty("webResearch");
+		expect(fields).not.toHaveProperty("fieldSources");
+	});
+
+	it("検索の軌跡と根拠を1行に載せる(経路をまたいで同じ形)", () => {
+		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+		try {
+			logAiInference({
+				...base,
+				outcome: "ok",
+				route: "gpt-luna",
+				executedBy: "gpt-luna",
+				webResearch: {
+					steps: [
+						{
+							action: "search",
+							query: "Trimbach Clos Sainte Hune 2017",
+							urls: ["https://www.trimbach.fr/vins/clos-sainte-hune"],
+							urlCount: 1,
+						},
+					],
+					stepCount: 1,
+					hosts: ["www.trimbach.fr"],
+				},
+				fieldSources: {
+					vintage: { origin: "photo" },
+					grape_varieties: {
+						origin: "web",
+						url: "https://www.trimbach.fr/vins/clos-sainte-hune",
+					},
+				},
+			});
+			const line = JSON.parse(spy.mock.calls[0]?.[0] as string);
+			// logger の sanitize が配列・入れ子を潰さずJSONに載せること(深さ上限4)
+			expect(line.webResearch.steps[0].urls).toEqual([
+				"https://www.trimbach.fr/vins/clos-sainte-hune",
+			]);
+			expect(line.webResearch.hosts).toEqual(["www.trimbach.fr"]);
+			expect(line.fieldSources.grape_varieties.origin).toBe("web");
+		} finally {
+			spy.mockRestore();
+		}
 	});
 
 	it("err はそのまま渡す(logger 側が cause まで畳んで文字列化する)", () => {

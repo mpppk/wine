@@ -32,11 +32,14 @@ import { logAiInference } from "#/lib/ai/inference-log";
 import {
 	buildLabelMessages,
 	buildLabelSuggestions,
+	extractJsonPayload,
 	LABEL_JSON_SCHEMA,
 	type LabelExtraction,
+	type LabelFieldSources,
 	type LabelSuggestions,
 	mergeExtractions,
 	parseLabelResponse,
+	parseLabelSources,
 } from "#/lib/ai/label-extraction";
 import {
 	buildGptLabelInput,
@@ -57,6 +60,11 @@ import {
 	type RegionContextInput,
 	stripReasoning,
 } from "#/lib/ai/region-qa";
+import {
+	extractAnthropicTrace,
+	extractGptTrace,
+	type WebResearchTrace,
+} from "#/lib/ai/web-research-trace";
 import {
 	buildWineListCandidates,
 	buildWineListMessages,
@@ -353,6 +361,21 @@ export type AnalyzeLabelResult =
 			balance: number;
 	  };
 
+/** 高精度経路が返す、抽出結果と観測情報。 */
+interface LabelResearchResult {
+	extraction: LabelExtraction;
+	usage: AiUsage;
+	/** モデルが自己申告したフィールドごとの根拠。書かれていなければ undefined。 */
+	fieldSources?: LabelFieldSources;
+}
+
+/**
+ * 検索の軌跡の受け取り口。**戻り値ではなくコールバックで渡す**のは、応答のパースに
+ * 失敗した回(= フォールバックする回)こそ「何を検索したか」を知りたいため。
+ * 実装は応答を受け取り次第、パースより先にこれを呼ぶ。
+ */
+type WebResearchTraceSink = (trace: WebResearchTrace) => void;
+
 /**
  * 高精度経路: Claude(マルチモーダル + サーバーサイドweb検索)で全写真を1リクエスト
  * 解析し、生産者公式サイト・ワインDBでの裏取り込みの抽出結果を返す。
@@ -361,7 +384,8 @@ export type AnalyzeLabelResult =
 async function analyzeLabelWithWebResearch(
 	apiKey: string,
 	imageDataUrls: string[],
-): Promise<{ extraction: LabelExtraction; usage: AiUsage }> {
+	onTrace: WebResearchTraceSink,
+): Promise<LabelResearchResult> {
 	const client = new Anthropic({ apiKey });
 	const request = {
 		model: AI_LABEL_WEB_MODEL,
@@ -380,6 +404,10 @@ async function analyzeLabelWithWebResearch(
 	// 継続のたびに入力を再送するので、**内訳ごとに**加算する(合算スカラーだと
 	// 入力・出力・web検索回数が混ざって原価を復元できない)。
 	let usage = toAnthropicUsage(response.usage);
+	// 検索の軌跡は継続をまたいで積む。各レスポンスは新しいブロックだけを含むので、
+	// 全レスポンスぶんを連結すれば重複せず実行順のまま並ぶ。
+	const blocks: unknown[] = [...response.content];
+	onTrace(extractAnthropicTrace(blocks));
 	// サーバー側ツールループ(web検索)が上限に達すると pause_turn で返る。assistant 応答を
 	// 積んで再送すると続きから再開する(継続回数は原価ガードとして上限で打ち切る)。
 	for (
@@ -390,14 +418,25 @@ async function analyzeLabelWithWebResearch(
 		messages.push({ role: "assistant", content: response.content });
 		response = await client.messages.create({ ...request, messages });
 		usage = addUsage(usage, toAnthropicUsage(response.usage));
+		blocks.push(...response.content);
+		onTrace(extractAnthropicTrace(blocks));
 	}
 	// claude-opus-5 はセーフティ分類器が HTTP 200 + stop_reason: "refusal" で応答を
 	// 拒否しうる。content が空/不完全なので通常の失敗として扱う(Workers AI へフォールバック)。
 	if (response.stop_reason === "refusal") {
 		throw new Error("Claudeがエチケット解析の応答を拒否しました");
 	}
-	const extraction = parseLabelResponse(joinResponseText(response.content));
-	return { extraction, usage };
+	// 本文JSONは最終レスポンスに出る(pause_turn はツール実行中の中断で、その時点では
+	// まだ本文を書き始めていない)。**軌跡と違い連結しない**: 継続前のテキストを混ぜると
+	// extractJsonPayload の「最初の { 〜 最後の }」が別の断片を拾いうる。
+	const payload = extractJsonPayload(joinResponseText(response.content));
+	return {
+		extraction: parseLabelResponse(payload),
+		usage,
+		// Claude は structured outputs を使えないので sources はプロンプトでしか要求できない。
+		// 書かれていなければ undefined になる(パース側が欠落に耐える)。
+		fieldSources: parseLabelSources(payload),
+	};
 }
 
 /**
@@ -412,7 +451,8 @@ async function analyzeLabelWithWebResearch(
 async function analyzeLabelWithGptResearch(
 	apiKey: string,
 	imageDataUrls: string[],
-): Promise<{ extraction: LabelExtraction; usage: AiUsage }> {
+	onTrace: WebResearchTraceSink,
+): Promise<LabelResearchResult> {
 	const client = new OpenAI({ apiKey });
 	const response = await client.responses.create({
 		model: AI_LABEL_GPT_MODEL,
@@ -425,6 +465,10 @@ async function analyzeLabelWithGptResearch(
 				search_context_size: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
 			},
 		],
+		// **検索結果のURLは既定では返らない**。これを付けないと web_search_call の
+		// action に query しか載らず、「何を検索したか」は分かっても「何を見たか」が
+		// 落ちる(open_page のURLだけは include 無しでも返る)。
+		include: ["web_search_call.action.sources"],
 		text: buildGptLabelTextFormat(),
 	});
 	// usage はサーバー側ツールループのぶんも合算済み。**web検索の回数だけは usage に
@@ -433,8 +477,15 @@ async function analyzeLabelWithGptResearch(
 		response.usage,
 		countGptWebSearches(response.output),
 	);
-	const extraction = parseLabelResponse(extractGptLabelText(response));
-	return { extraction, usage };
+	// **パースより先に渡す**。status="incomplete" や refusal で下が throw しても、
+	// どこまで検索したかは実行記録に残す。
+	onTrace(extractGptTrace(response.output));
+	const payload = extractJsonPayload(extractGptLabelText(response));
+	return {
+		extraction: parseLabelResponse(payload),
+		usage,
+		fieldSources: parseLabelSources(payload),
+	};
 }
 
 /**
@@ -501,6 +552,11 @@ export async function analyzeWineLabel(
 	// route だけを記録すると「GPTで成功」と「GPTが落ちてWorkers AIが拾った」を
 	// 区別できないため、別に持って実行記録に載せる。
 	let executedBy: LabelRoute | undefined;
+	// 裏取りの観測情報。**try の外で宣言する**のは、高精度経路が落ちて Workers AI へ
+	// 降格した回や、推論そのものが失敗した回の実行記録にも載せるため
+	// (「検索まで到達したが結果を使えなかった」ことが分かるのはここだけ)。
+	let webResearch: WebResearchTrace | undefined;
+	let fieldSources: LabelFieldSources | undefined;
 	try {
 		let usage: AiUsage = {};
 		const extractions: LabelExtraction[] = [];
@@ -515,9 +571,13 @@ export async function analyzeWineLabel(
 				const gpt = await analyzeLabelWithGptResearch(
 					openaiApiKey,
 					input.imageDataUrls,
+					(t) => {
+						webResearch = t;
+					},
 				);
 				extractions.push(gpt.extraction);
 				usage = addUsage(usage, gpt.usage);
+				fieldSources = gpt.fieldSources;
 				executedBy = "gpt-luna";
 			} catch (gptErr) {
 				logWarn("label gpt research failed; falling back to Workers AI", {
@@ -531,9 +591,13 @@ export async function analyzeWineLabel(
 				const web = await analyzeLabelWithWebResearch(
 					anthropicApiKey,
 					input.imageDataUrls,
+					(t) => {
+						webResearch = t;
+					},
 				);
 				extractions.push(web.extraction);
 				usage = addUsage(usage, web.usage);
+				fieldSources = web.fieldSources;
 				executedBy = "web-research";
 			} catch (webErr) {
 				logWarn("label web research failed; falling back to Workers AI", {
@@ -625,6 +689,8 @@ export async function analyzeWineLabel(
 			model: executedBy && AI_LABEL_ROUTE_MODELS[executedBy],
 			durationMs: Date.now() - startedAt,
 			reservedMicroUsd: res.reservedMicroUsd,
+			webResearch,
+			fieldSources,
 			err: e,
 		});
 		throw e;
@@ -638,6 +704,8 @@ export async function analyzeWineLabel(
 		actualTokens: charge.tokens,
 		costMicroUsd: charge.microUsd,
 		reservedMicroUsd: res.reservedMicroUsd,
+		webResearch,
+		fieldSources,
 	});
 	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
 	// ネットプラスになるため、残高参照は try の外で行う(#144)。

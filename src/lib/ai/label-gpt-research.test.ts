@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LABEL_JSON_SCHEMA, parseLabelResponse } from "./label-extraction";
+import { LABEL_WEB_JSON_SCHEMA, parseLabelResponse } from "./label-extraction";
 import {
 	buildGptLabelInput,
 	buildGptLabelTextFormat,
@@ -40,15 +40,16 @@ describe("buildGptLabelInput", () => {
 });
 
 describe("buildGptLabelTextFormat", () => {
-	it("Workers AI 経路と同じ出力スキーマを strict で強制する", () => {
+	it("高精度経路の出力スキーマ(根拠つき)を strict で強制する", () => {
 		const format = buildGptLabelTextFormat().format;
 		expect(format).toMatchObject({
 			type: "json_schema",
 			name: GPT_LABEL_SCHEMA_NAME,
 			strict: true,
 		});
-		// 出力フィールドの SSOT は LABEL_JSON_SCHEMA(経路ごとに書き分けない)
-		expect((format as { schema: unknown }).schema).toBe(LABEL_JSON_SCHEMA);
+		// 出力フィールドの SSOT は LABEL_WEB_JSON_SCHEMA(経路ごとに書き分けない)。
+		// 本体フィールドは LABEL_JSON_SCHEMA から derive されている。
+		expect((format as { schema: unknown }).schema).toBe(LABEL_WEB_JSON_SCHEMA);
 	});
 
 	it("スキーマ名は structured outputs の命名制約(a-zA-Z0-9_-, 64文字以内)を満たす", () => {

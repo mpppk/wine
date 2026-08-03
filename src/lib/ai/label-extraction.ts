@@ -65,6 +65,80 @@ export const LABEL_JSON_SCHEMA = {
 	additionalProperties: false,
 } as const;
 
+/** 抽出フィールドのキー。根拠(sources)のキーと1対1にするため LABEL_JSON_SCHEMA から導出する。 */
+export type LabelFieldKey = (typeof LABEL_JSON_SCHEMA.required)[number];
+
+/** フィールド値の出どころ。 */
+export type LabelFieldOrigin = "photo" | "web" | "photo_and_web" | "unknown";
+
+const LABEL_FIELD_ORIGINS: readonly LabelFieldOrigin[] = [
+	"photo",
+	"web",
+	"photo_and_web",
+	"unknown",
+];
+
+/**
+ * 1フィールドぶんの根拠スキーマ。strict な structured outputs は全項目 required +
+ * additionalProperties:false を要求するので、`url` は省略可能にせず `null` 許容にする。
+ */
+const LABEL_FIELD_SOURCE_SCHEMA = {
+	type: "object",
+	properties: {
+		origin: {
+			type: "string",
+			enum: LABEL_FIELD_ORIGINS,
+			description:
+				"photo = read from the photo, web = filled in from web search, photo_and_web = read from the photo and verified/corrected by web search, unknown = could not be determined",
+		},
+		url: {
+			type: ["string", "null"],
+			description:
+				"URL of the page actually used as evidence when origin involves web. null otherwise. Never invent a URL.",
+		},
+	},
+	required: ["origin", "url"],
+	additionalProperties: false,
+} as const;
+
+/**
+ * 根拠オブジェクトの properties。**本体フィールドのキーから derive する**ので、
+ * 抽出フィールドを足したときに根拠側だけ古くなることがない。
+ */
+const LABEL_FIELD_SOURCE_PROPERTIES = Object.fromEntries(
+	LABEL_JSON_SCHEMA.required.map((key) => [key, LABEL_FIELD_SOURCE_SCHEMA]),
+) as Record<LabelFieldKey, typeof LABEL_FIELD_SOURCE_SCHEMA>;
+
+/**
+ * 高精度経路(LLM + web検索)の出力スキーマ。`LABEL_JSON_SCHEMA` に**フィールドごとの
+ * 根拠(`sources`)を足したもの**で、GPT経路の structured outputs に渡す。
+ *
+ * **Workers AI 経路の `LABEL_JSON_SCHEMA` は変えない**のが要点。あちらは
+ * `guided_json` で Llama 4 Scout に形を強制する経路だが、guided_json は完全には
+ * 効かず(型の揺れは `labelExtractionShape` が吸収している)、出力上限も 512 トークンと
+ * 狭い。7フィールドぶんの根拠オブジェクトを足すと、裏取りをしないので `origin` が
+ * 常に "photo" になる情報量ゼロの出力のために、本体JSONが枠から溢れる危険だけが増える。
+ *
+ * 共通部分は `LABEL_JSON_SCHEMA` から展開して derive する(フィールドを足したときに
+ * 片方だけ古くなるのを防ぐ)。
+ */
+export const LABEL_WEB_JSON_SCHEMA = {
+	type: "object",
+	properties: {
+		...LABEL_JSON_SCHEMA.properties,
+		sources: {
+			type: "object",
+			description:
+				"Evidence for each extracted field: where the value came from and which page backs it",
+			properties: LABEL_FIELD_SOURCE_PROPERTIES,
+			required: [...LABEL_JSON_SCHEMA.required],
+			additionalProperties: false,
+		},
+	},
+	required: [...LABEL_JSON_SCHEMA.required, "sources"],
+	additionalProperties: false,
+} as const;
+
 /**
  * マスタ名の一覧をプロンプト用に整形する(呼称は正式名 name、品種は現地語名)。
  * モデルの出力表記をマスタへ寄せ、matchAop / matchGrapeVarietyIds のヒット率を
@@ -127,6 +201,14 @@ export function buildWebLabelPrompt(): string {
 		'   - "region": 地域名(例: Bourgogne, Bordeaux, Toscana)。不明なら null',
 		'   - "country": 生産国(例: France, Italy)。不明なら null',
 		'   - "grape_varieties": 品種名(原語)の文字列配列。確認できなければ空配列',
+		'   - "sources": 上記7フィールドそれぞれの根拠。キーはフィールド名と同じで、値は',
+		'     { "origin": "photo" | "web" | "photo_and_web" | "unknown", "url": 文字列 or null }。',
+		'     - "photo": 写真から読み取ってそのまま採用した',
+		'     - "web": 写真には無く、検索で確認して補った',
+		'     - "photo_and_web": 写真から読み取った値を検索で裏取り・修正した',
+		'     - "unknown": 特定できず null / 空配列にした',
+		'     "url" は origin が "web" / "photo_and_web" のとき、実際に参照したページのURLを1つ入れる。',
+		"     それ以外は null。**URLを創作しない**(実際に開いていないURLを書かない)。",
 		"4. 検索しても確認できない項目は null にする。JSONの前後に説明文・コードフェンスを書かない。",
 		"",
 		buildKnownListsSection(),
@@ -296,6 +378,88 @@ export function toLabelExtraction(d: {
 			.map((g) => g.trim())
 			.filter((g) => g.length > 0),
 	};
+}
+
+/** 1フィールドぶんの根拠(アプリ側の表現)。 */
+export interface LabelFieldSource {
+	origin: LabelFieldOrigin;
+	/** origin が web を含むときの参照元URL。 */
+	url?: string;
+}
+
+/** フィールドごとの根拠。モデルが書かなかったフィールドは持たない。 */
+export type LabelFieldSources = Partial<
+	Record<LabelFieldKey, LabelFieldSource>
+>;
+
+/**
+ * `sources` の受け取り側スキーマ。**抽出本体より更に寛容にする**: これは観測のための
+ * 付随情報で、形が崩れていても解析結果は正しいことがある。ここで throw すると
+ * 「根拠が書けなかっただけ」の回まで推論失敗として予約を返却することになり、
+ * 観測を足したせいで機能の可用性が下がる。
+ *
+ * 値がオブジェクトでなく `"web"` のような裸の文字列で返ることもあるので、その形も
+ * origin として受ける。
+ */
+const fieldSourceSchema = z
+	.union([
+		z.object({
+			origin: z.union([z.string(), z.number()]).nullish().catch(null),
+			url: z.union([z.string(), z.number()]).nullish().catch(null),
+		}),
+		z.string().transform((origin) => ({ origin, url: null })),
+	])
+	.nullish()
+	.catch(null);
+
+/** 想定外の origin は "unknown" に寄せる(列挙外の造語でログの集計を壊さない)。 */
+function toFieldOrigin(value: unknown): LabelFieldOrigin {
+	const text = String(value ?? "")
+		.trim()
+		.toLowerCase();
+	return (
+		LABEL_FIELD_ORIGINS.find((o) => o === text) ??
+		// "photo+web" のような表記揺れも拾う(モデルは列挙を厳密には守らない)
+		(text.includes("photo") && text.includes("web")
+			? "photo_and_web"
+			: text.includes("web")
+				? "web"
+				: text.includes("photo")
+					? "photo"
+					: "unknown")
+	);
+}
+
+/**
+ * モデルの生出力から `sources` を取り出す。**決して throw しない**(取れなければ
+ * undefined)。高精度経路のみが出力するフィールドで、Workers AI 経路では常に
+ * undefined になる。生の応答文字列と `extractJsonPayload` 済みのオブジェクトの
+ * どちらを渡してもよい。
+ */
+export function parseLabelSources(raw: unknown): LabelFieldSources | undefined {
+	let payload: unknown;
+	try {
+		payload = extractJsonPayload(raw);
+	} catch {
+		return undefined;
+	}
+	const sources = (payload as { sources?: unknown } | null)?.sources;
+	if (!sources || typeof sources !== "object") return undefined;
+	const out: LabelFieldSources = {};
+	for (const key of LABEL_JSON_SCHEMA.required) {
+		const parsed = fieldSourceSchema.safeParse(
+			(sources as Record<string, unknown>)[key],
+		);
+		if (!parsed.success || parsed.data == null) continue;
+		const url = cleanText(
+			parsed.data.url == null ? undefined : String(parsed.data.url),
+		);
+		out[key] = {
+			origin: toFieldOrigin(parsed.data.origin),
+			...(url ? { url } : {}),
+		};
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** モデルの生出力を1本ぶんの抽出結果にパースする。解釈できない場合は throw。 */
