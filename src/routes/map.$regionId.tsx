@@ -65,7 +65,7 @@ import {
 } from "#/lib/wine/terminology";
 import type { Aop, AopKind } from "#/lib/wine/types";
 import { getAffiliateConfig } from "#/server/affiliate";
-import { getSession } from "#/server/auth";
+import { getRouteSession } from "#/server/auth";
 import { getAopProgress } from "#/server/quiz";
 
 const searchSchema = z.object({
@@ -90,7 +90,7 @@ export const Route = createFileRoute("/map/$regionId")({
 	// クイズは未ログインでも回答可・記録なし。SSR時点で確定するログイン状態を
 	// context で下に渡す(quiz.play と同じパターン)
 	beforeLoad: async () => {
-		const session = await getSession();
+		const session = await getRouteSession();
 		return { isAuthenticated: !!session };
 	},
 	loader: async ({ params }) => {

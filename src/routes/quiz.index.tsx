@@ -9,12 +9,12 @@ import { QUIZ_TYPES, type QuizType } from "#/lib/quiz/types";
 import { cn } from "#/lib/utils";
 import { listRegions } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
-import { getSession } from "#/server/auth";
+import { getRouteSession } from "#/server/auth";
 
 export const Route = createFileRoute("/quiz/")({
 	// 未ログインでも利用可能。ログイン状態はバナー表示の出し分けに使う
 	beforeLoad: async () => {
-		const session = await getSession();
+		const session = await getRouteSession();
 		return { isAuthenticated: !!session };
 	},
 	// 静的データなのでサーバ関数は不要。loaderで直接返すとSSRにも乗る。

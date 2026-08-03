@@ -15,7 +15,7 @@ import { QUIZ_TYPE_IDS, type QuizType } from "#/lib/quiz/types";
 import { REGION_IDS } from "#/lib/wine/regions";
 import { getRegion } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
-import { getSession } from "#/server/auth";
+import { getRouteSession } from "#/server/auth";
 
 // URLにはセッション設定(地域・形式)のみを載せる。出題キューやタリーは
 // ローカルstate(リロードで新しいセッションが始まる)。
@@ -47,7 +47,7 @@ export const Route = createFileRoute("/quiz/play")({
 		}
 		// 未ログインでもプレイ可能。記録の有無だけが変わるので、
 		// SSR時点で確定するログイン状態を context で下に渡す
-		const session = await getSession();
+		const session = await getRouteSession();
 		return { isAuthenticated: !!session };
 	},
 	component: QuizPlayPage,

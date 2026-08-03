@@ -8,14 +8,14 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
-import { getSession } from "#/server/auth";
+import { getRouteSession } from "#/server/auth";
 import { getDashboard } from "#/server/dashboard";
 
 export const Route = createFileRoute("/")({
 	// ログイン時は学習ダッシュボード、未ログインは紹介カードを出す。
 	// ダッシュボードはユーザ固有データなのでログイン時のみ取得する。
 	beforeLoad: async () => {
-		const session = await getSession();
+		const session = await getRouteSession();
 		return { session };
 	},
 	loader: ({ context }) => (context.session ? getDashboard() : null),
@@ -27,7 +27,7 @@ function HomePage() {
 	const { session } = Route.useRouteContext();
 
 	if (data && session) {
-		return <DashboardView data={data} userName={session.user.name ?? null} />;
+		return <DashboardView data={data} userName={session.userName} />;
 	}
 
 	return <IntroCard />;

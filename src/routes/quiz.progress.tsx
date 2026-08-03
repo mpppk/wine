@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { QUIZ_TYPE_LABELS_JA } from "#/lib/quiz/types";
 import type { RegionProgress } from "#/lib/services/quiz-service";
 import { getRegion } from "#/lib/wine/service";
-import { getSession } from "#/server/auth";
+import { getRouteSession } from "#/server/auth";
 import { getQuizProgress } from "#/server/quiz";
 
 export const Route = createFileRoute("/quiz/progress")({
 	// 未ログインでも開けるが、進捗はユーザ固有データなのでログイン時のみ取得する
 	beforeLoad: async () => {
-		const session = await getSession();
+		const session = await getRouteSession();
 		return { isAuthenticated: !!session };
 	},
 	loader: ({ context }) => (context.isAuthenticated ? getQuizProgress() : null),
