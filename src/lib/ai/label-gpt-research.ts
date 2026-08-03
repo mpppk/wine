@@ -2,7 +2,7 @@ import type OpenAI from "openai";
 import type { AiUsage } from "#/lib/billing/ai-pricing";
 import {
 	buildWebLabelPrompt,
-	LABEL_JSON_SCHEMA,
+	LABEL_WEB_JSON_SCHEMA,
 	parseImageDataUrl,
 } from "./label-extraction";
 
@@ -48,16 +48,20 @@ export function buildGptLabelInput(
 }
 
 /**
- * structured outputs の指定。Workers AI 経路の guided_json と同じ LABEL_JSON_SCHEMA を
- * 使う(出力フィールドの SSOT)。strict は全項目 required + additionalProperties:false を
- * 要求するが、LABEL_JSON_SCHEMA はもともとその形なのでそのまま渡せる。
+ * structured outputs の指定。**高精度経路用の `LABEL_WEB_JSON_SCHEMA`** を使う
+ * (Workers AI 経路の `LABEL_JSON_SCHEMA` にフィールドごとの根拠 `sources` を足したもので、
+ * 共通部分は向こうから展開して derive してある)。strict は全項目 required +
+ * additionalProperties:false を要求するが、どちらももともとその形なのでそのまま渡せる。
+ *
+ * **`sources` を strict で強制できるのがこの経路の強み**。Claude経路は同じフィールドを
+ * プロンプトでしか要求できないので、書かれないことがある(パース側が欠落に耐える)。
  */
 export function buildGptLabelTextFormat(): OpenAI.Responses.ResponseTextConfig {
 	return {
 		format: {
 			type: "json_schema",
 			name: GPT_LABEL_SCHEMA_NAME,
-			schema: LABEL_JSON_SCHEMA as unknown as Record<string, unknown>,
+			schema: LABEL_WEB_JSON_SCHEMA as unknown as Record<string, unknown>,
 			strict: true,
 		},
 	};

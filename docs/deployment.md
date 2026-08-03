@@ -136,6 +136,49 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 | `model` | 実際に呼んだモデル ID（`gpt-5.6-luna` 等） |
 | `actualTokens` / `reservedTokens` | 実測と予約。見積の妥当性の評価に使う |
 | `requestId` | `credit_ledger.request_id` と同値。台帳と突き合わせられる |
+| `webResearch` | 高精度エチケット解析の**検索の軌跡**。下記参照 |
+| `fieldSources` | 抽出フィールドごとの**根拠**（モデルの自己申告）。下記参照 |
+
+#### エチケット解析の裏取りを追う
+
+高精度経路（`gpt-luna` / `web-research`）は web 検索で生産者・呼称・品種を裏取りするが、
+**何を検索して何を読んだかは応答の外からは一切見えない**。検索結果は毎回変わるので、
+後から同じ写真で再実行しても再現しない。推定が外れたときに「写真の読み取りを間違えた」
+のか「拾った情報が間違っていた」のかを切り分けられるよう、実行時に拾って 1 行に載せている。
+
+```jsonc
+{
+  "msg": "ai inference", "feature": "label_analysis", "executedBy": "gpt-luna",
+  "webResearch": {
+    "steps": [
+      { "action": "search", "query": "Trimbach Clos Sainte Hune 2017",
+        "urls": ["https://www.trimbach.fr/..."], "urlCount": 8 },
+      { "action": "open", "urls": ["https://www.trimbach.fr/..."], "urlCount": 1 }
+    ],
+    "stepCount": 2,
+    "hosts": ["www.trimbach.fr", "www.wine-searcher.com"]
+  },
+  "fieldSources": {
+    "vintage": { "origin": "photo" },
+    "grape_varieties": { "origin": "web", "url": "https://www.trimbach.fr/..." }
+  }
+}
+```
+
+- `webResearch.steps[].action` — `search`（検索）/ `open`（ページを開いた）/ `find`（ページ内検索）。
+  失敗時は `error`（`max_uses_exceeded` なら上限で裏取りを打ち切ったということ）。
+- `steps` は 20 件、`urls` は 1 操作 5 件で打ち切る。総数は `stepCount` / `urlCount` に残るので、
+  打ち切られたかどうかは差分で分かる。`hosts` は「どのサイトを見たか」の要約で、
+  `bun run logs --grep vivino` のような雑な検索で引っかけるためのもの。
+- `fieldSources[].origin` — `photo`（写真から読んだ）/ `web`（検索で補った）/
+  `photo_and_web`（写真の読み取りを検索で裏取り・修正した）/ `unknown`（特定できず null）。
+  GPT 経路は structured outputs で強制されるので必ず出るが、**Claude 経路はプロンプトでしか
+  要求できないので欠けることがある**。
+- **推論が失敗してフォールバックした回にも `webResearch` は出る**（応答のパースより先に
+  軌跡を取っている）。「検索まで到達したが結果を使えなかった」のか「そもそも検索できな
+  かった」のかは、このフィールドが空かどうかで分かる。
+- 検索をしない経路（`region_qa` / `wine_list_analysis` / `workers-ai` へのフォールバック）では
+  フィールドごと出ない。空の軌跡を出すと「検索したが何も見つからなかった」と誤読されるため。
 
 > [!NOTE]
 > **「警告が出ていないこと」を成功の証拠にしない。** 成功経路が無言だった頃は、
@@ -143,9 +186,18 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 > GPT-5.6 Luna 導入時（#357）の本番確認ではクレジット台帳の `:settle` 行と見積式を
 > 突き合わせる間接的な推論に頼るしかなかった。`outcome: "ok"` の行を直接見ること。
 
-記録するのは実行メタデータのみで、写真・質問文・抽出されたワイン名などのユーザ
-入力/出力は載せない（ログから利用者のワイン履歴を復元できないようにするため）。
-フィールドを増やすときは `inference-log.test.ts` のキー全列挙テストが落ちるので、
+> [!CAUTION]
+> **`webResearch` / `fieldSources` からは、利用者が解析した銘柄が復元できる。**
+> 検索クエリはラベルから読み取った生産者名・ワイン名そのもので、参照 URL も
+> Wine-Searcher の銘柄ページのように銘柄を含む。`userId` と同じ行に載るので
+> 「誰が何を解析したか」が読める。原則（実行メタデータのみを載せる）に対する意図的な
+> 例外で、緩和は保持期間（最大 7 日）とログ閲覧に `CLOUDFLARE_API_TOKEN` が要ることに
+> 依っている。**D1 へ永続化する・他の feature へ同種のフィールドを広げる場合は、
+> この判断をやり直すこと。**
+
+上記 2 フィールド以外に、写真・質問文・抽出されたワイン名などのユーザ入力/出力を載せる口は
+ない（`fieldSources` が持つのも「どこから来たか」と参照 URL だけで、抽出された値そのものは
+持たない）。フィールドを増やすときは `inference-log.test.ts` のキー全列挙テストが落ちるので、
 そこで privacy の是非を再確認する。
 
 > [!IMPORTANT]

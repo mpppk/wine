@@ -5,7 +5,9 @@ import {
 	buildLabelSuggestions,
 	buildWebLabelPrompt,
 	estimateLabelPromptTokens,
+	LABEL_JSON_SCHEMA,
 	LABEL_PROMPT,
+	LABEL_WEB_JSON_SCHEMA,
 	type LabelExtraction,
 	matchAop,
 	matchGrapeVarietyIds,
@@ -14,6 +16,7 @@ import {
 	normalizeLabelText,
 	parseImageDataUrl,
 	parseLabelResponse,
+	parseLabelSources,
 } from "./label-extraction";
 
 function extraction(partial: Partial<LabelExtraction>): LabelExtraction {
@@ -399,5 +402,134 @@ describe("buildWebLabelPrompt", () => {
 		// 品種マスタの現地語名(varieties.ts 由来)
 		expect(prompt).toContain("Pinot noir");
 		expect(prompt).toContain("Chardonnay");
+	});
+
+	it("フィールドごとの根拠(sources)を出力させ、URLの創作を禁じる", () => {
+		const prompt = buildWebLabelPrompt();
+		expect(prompt).toContain("sources");
+		for (const origin of ["photo", "web", "photo_and_web", "unknown"]) {
+			expect(prompt).toContain(origin);
+		}
+		// 参照していないURLを書かれるとログが嘘になる(観測の意味が消える)
+		expect(prompt).toContain("URLを創作しない");
+	});
+});
+
+describe("LABEL_WEB_JSON_SCHEMA", () => {
+	it("Workers AI 経路のスキーマは変えず、根拠だけを足した別スキーマにする", () => {
+		// guided_json は Llama 4 Scout では完全には効かず、出力上限も 512 と狭い。
+		// 裏取りをしない経路に情報量ゼロの根拠を書かせると本体JSONが溢れる危険だけが増える。
+		expect(LABEL_JSON_SCHEMA.properties).not.toHaveProperty("sources");
+		expect(LABEL_JSON_SCHEMA.required).not.toContain("sources");
+	});
+
+	it("本体フィールドは LABEL_JSON_SCHEMA から derive する(片方だけ古くならない)", () => {
+		for (const key of LABEL_JSON_SCHEMA.required) {
+			expect(LABEL_WEB_JSON_SCHEMA.properties[key]).toBe(
+				LABEL_JSON_SCHEMA.properties[key],
+			);
+			// 根拠のキーは本体フィールドと1対1
+			expect(
+				LABEL_WEB_JSON_SCHEMA.properties.sources.properties,
+			).toHaveProperty(key);
+		}
+		expect(
+			Object.keys(LABEL_WEB_JSON_SCHEMA.properties.sources.properties).sort(),
+		).toEqual([...LABEL_JSON_SCHEMA.required].sort());
+	});
+
+	it("strict な structured outputs の要件(全項目 required + 追加禁止)を満たす", () => {
+		// strict:true は「properties の全キーが required」「additionalProperties:false」を
+		// 要求する。満たさないとリクエスト自体が 400 になる。
+		const assertStrict = (schema: {
+			properties: object;
+			required: readonly string[];
+			additionalProperties: boolean;
+		}) => {
+			expect(schema.additionalProperties).toBe(false);
+			expect([...schema.required].sort()).toEqual(
+				Object.keys(schema.properties).sort(),
+			);
+		};
+		const { sources } = LABEL_WEB_JSON_SCHEMA.properties;
+		assertStrict(LABEL_WEB_JSON_SCHEMA);
+		assertStrict(sources);
+		assertStrict(sources.properties.wine_name);
+		// url は省略可ではなく null 許容(strict では optional にできない)
+		expect(sources.properties.wine_name.properties.url.type).toEqual([
+			"string",
+			"null",
+		]);
+	});
+});
+
+describe("parseLabelSources", () => {
+	it("フィールドごとの origin と参照URLを取り出す", () => {
+		expect(
+			parseLabelSources({
+				wine_name: "Clos Sainte Hune",
+				sources: {
+					wine_name: { origin: "photo_and_web", url: "https://trimbach.fr/x" },
+					vintage: { origin: "photo", url: null },
+					grape_varieties: { origin: "web", url: "https://vivino.com/y" },
+					producer: { origin: "unknown", url: null },
+				},
+			}),
+		).toEqual({
+			wine_name: { origin: "photo_and_web", url: "https://trimbach.fr/x" },
+			vintage: { origin: "photo" },
+			grape_varieties: { origin: "web", url: "https://vivino.com/y" },
+			producer: { origin: "unknown" },
+		});
+	});
+
+	it("生の応答文字列(コードフェンス混じり)でも取り出せる", () => {
+		const raw = '```json\n{"sources":{"vintage":{"origin":"photo"}}}\n```';
+		expect(parseLabelSources(raw)).toEqual({ vintage: { origin: "photo" } });
+	});
+
+	it("値そのもの(ワイン名等)は持たない", () => {
+		// ログに載るフィールドなので、抽出結果の値を持ち込む口が無いことを固定する
+		const sources = parseLabelSources({
+			wine_name: "Clos Sainte Hune",
+			sources: { wine_name: { origin: "photo", url: null } },
+		});
+		expect(JSON.stringify(sources)).not.toContain("Clos Sainte Hune");
+	});
+
+	it("表記揺れの origin を列挙値へ寄せ、未知の値は unknown にする", () => {
+		const sources = parseLabelSources({
+			sources: {
+				wine_name: { origin: "PHOTO" },
+				producer: { origin: "photo+web" },
+				// 値がオブジェクトでなく裸の文字列で返ることがある
+				region: "web",
+				country: { origin: "検索してない" },
+			},
+		});
+		expect(sources).toEqual({
+			wine_name: { origin: "photo" },
+			producer: { origin: "photo_and_web" },
+			region: { origin: "web" },
+			country: { origin: "unknown" },
+		});
+	});
+
+	it("sources が無い・壊れていても throw せず undefined を返す", () => {
+		// 観測のための付随情報なので、ここで throw すると「根拠が書けなかっただけ」の回まで
+		// 推論失敗として予約返却することになる(観測を足して可用性を下げない)
+		expect(parseLabelSources({ wine_name: "x" })).toBeUndefined();
+		expect(parseLabelSources({ sources: "なんか文字列" })).toBeUndefined();
+		expect(parseLabelSources({ sources: {} })).toBeUndefined();
+		expect(parseLabelSources("JSONですらない")).toBeUndefined();
+		expect(parseLabelSources(null)).toBeUndefined();
+	});
+
+	it("スキーマ外のキーは拾わない(ログに任意のキーを生やさせない)", () => {
+		expect(
+			parseLabelSources({
+				sources: { vintage: { origin: "photo" }, 悪意: { origin: "web" } },
+			}),
+		).toEqual({ vintage: { origin: "photo" } });
 	});
 });
