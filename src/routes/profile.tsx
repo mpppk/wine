@@ -17,17 +17,25 @@ import {
 	AI_REGION_QA_MODELS,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
+	estimateLabelReserveCharge,
+	LABEL_ENGINE_KEYS,
 	type LabelEngineKey,
 	type RegionQaModelKey,
+	resolveLabelRoute,
 	toLabelEngineKey,
 	toRegionQaModelKey,
 } from "#/lib/ai/config";
 import { authClient } from "#/lib/auth-client";
-import { PREMIUM_PRICING } from "#/lib/billing/plans";
+import {
+	MONTHLY_CREDITS_FREE,
+	MONTHLY_CREDITS_PREMIUM,
+	PREMIUM_PRICING,
+} from "#/lib/billing/plans";
 import {
 	BILLING_STATUS_QUERY_KEY,
 	useBillingStatus,
 } from "#/lib/billing/use-billing";
+import { costToCredits } from "#/lib/credit/credit-math";
 import { useCreditBalance } from "#/lib/credit/use-credit";
 import { formatDateJst } from "#/lib/date/display";
 import {
@@ -37,6 +45,7 @@ import {
 } from "#/lib/drunk-wine/photo";
 import { postImageForm } from "#/lib/images/form-client";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
+import { getLabelAnalysisPlan } from "#/server/ai";
 import { redeemExtensionCode } from "#/server/billing";
 
 interface ProfileSearch {
@@ -304,9 +313,28 @@ function AiModelCard() {
  * 高精度(Claude + web検索)はサーバに ANTHROPIC_API_KEY が設定されている場合のみ
  * 実際に使われ、使えない環境では選択に関わらず標準で解析される(サーバ側フォールバック)。
  */
+/**
+ * エンジンごとの目安消費(写真1枚)。**サーバの予約見積と同じ関数から算出する**ので、
+ * 単価改定・モデル差し替えで表示だけ古くなることがない(#355)。
+ */
+function creditsPerPhoto(engine: LabelEngineKey): number {
+	return costToCredits(estimateLabelReserveCharge(engine, 1).microUsd);
+}
+
 function LabelEngineCard() {
 	const { data: session, refetch: refetchSession } = authClient.useSession();
 	const [engine, setEngine] = useState<LabelEngineKey>(DEFAULT_LABEL_ENGINE);
+	// 高精度経路はサーバにAPIキーが無いと使えず、選択に関わらず降格する。
+	// **その環境で消費の目安として選択エンジンの数字を出すと嘘になる**ので、
+	// 実際に走る経路を出して食い違いを明示する(判定はサーバと同じ resolveLabelRoute)。
+	const { data: labelPlan } = useQuery({
+		queryKey: ["label-analysis-plan"],
+		queryFn: () => getLabelAnalysisPlan(),
+		staleTime: 5 * 60 * 1000,
+	});
+	const effectiveRoute = labelPlan
+		? resolveLabelRoute(engine, labelPlan.availability)
+		: null;
 	const [error, setError] = useState("");
 	const [successMessage, setSuccessMessage] = useState("");
 
@@ -363,6 +391,38 @@ function LabelEngineCard() {
 					<p className="text-xs text-muted-foreground">
 						{AI_LABEL_ENGINES[engine].description}
 					</p>
+					{/* 目安消費は選択肢に混ぜず一覧で出す。トリガーの表示が省略されて
+					    肝心の数字が読めなくなるのと、経路を切り替えないと他の消費が
+					    見えないのを避けるため。 */}
+					<p className="text-xs text-muted-foreground">
+						写真1枚あたりの目安:{" "}
+						{LABEL_ENGINE_KEYS.map(
+							(key) =>
+								`${AI_LABEL_ENGINES[key].label} ${creditsPerPhoto(key).toLocaleString("ja-JP")}`,
+						).join(" / ")}{" "}
+						クレジット
+					</p>
+					{effectiveRoute && (
+						<p className="text-xs text-muted-foreground">
+							{effectiveRoute === engine ? (
+								<>
+									写真1枚あたり約
+									{creditsPerPhoto(engine).toLocaleString("ja-JP")}
+									クレジットを消費します。
+								</>
+							) : (
+								<>
+									この環境では「{AI_LABEL_ENGINES[effectiveRoute].label}
+									」で解析されます(写真1枚あたり約
+									{creditsPerPhoto(effectiveRoute).toLocaleString("ja-JP")}
+									クレジット)。
+								</>
+							)}
+							月次付与は無料{MONTHLY_CREDITS_FREE}／プレミアム
+							{MONTHLY_CREDITS_PREMIUM}
+							。消費はAIの実費に比例するため、経路によって大きく変わります。
+						</p>
+					)}
 				</div>
 
 				{error && <p className="text-sm text-destructive">{error}</p>}

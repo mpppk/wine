@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { AI_MAX_ESTIMATE_MICRO_USD } from "#/lib/billing/ai-pricing";
+import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
+import { costToCredits } from "#/lib/credit/credit-math";
 import {
 	AI_HISTORY_CONTENT_MAX_CHARS,
 	AI_HISTORY_INPUT_MAX_MESSAGES,
@@ -8,7 +11,11 @@ import {
 	chatHistorySchema,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
+	estimateLabelReserveCharge,
+	estimateLabelReserveUsage,
+	estimateRegionQaReserveCharge,
 	LABEL_ENGINE_KEYS,
+	type LabelRoute,
 	labelEngineKeySchema,
 	REGION_QA_MODEL_KEYS,
 	regionQaModelKeySchema,
@@ -203,5 +210,73 @@ describe("chatHistorySchema (会話履歴の入力境界)", () => {
 		expect(
 			chatHistorySchema.safeParse([{ role: "system", content: "x" }]).success,
 		).toBe(false);
+	});
+});
+
+// ---- 予約見積(コスト単位) ----
+// 経路ごとの中心値見積。**単価表を通した µUSD** で比較するので、「トークン数は同じでも
+// 経路によって消費が2桁違う」という #355 の本質がそのまま固定される。
+
+describe("estimateLabelReserveCharge", () => {
+	const microUsd = (route: LabelRoute, photos: number) =>
+		estimateLabelReserveCharge(route, photos).microUsd;
+
+	it("枚数に比例し、0枚でも1枚ぶんを下限にする", () => {
+		for (const route of LABEL_ENGINE_KEYS) {
+			expect(microUsd(route, 3)).toBeGreaterThan(microUsd(route, 1));
+			expect(microUsd(route, 0)).toBe(microUsd(route, 1));
+		}
+	});
+
+	it("上限で必ずクランプされる", () => {
+		for (const route of LABEL_ENGINE_KEYS) {
+			expect(microUsd(route, 10_000)).toBe(AI_MAX_ESTIMATE_MICRO_USD);
+		}
+	});
+
+	it("経路の実費差が見積に出る(標準 < Luna < Claude)", () => {
+		// 転換前は3経路とも同水準のトークン見積で、消費もほぼ同じだった。
+		expect(microUsd("workers-ai", 1)).toBeLessThan(microUsd("gpt-luna", 1));
+		expect(microUsd("gpt-luna", 1)).toBeLessThan(microUsd("web-research", 1));
+	});
+
+	it("高精度経路は web検索の回数課金を見積に含む", () => {
+		// トークンだけで見積ると、Luna は原価の8割を占める項目を落としてしまう。
+		for (const route of ["gpt-luna", "web-research"] as const) {
+			expect(estimateLabelReserveUsage(route, 1).webSearches).toBeGreaterThan(
+				0,
+			);
+		}
+		expect(
+			estimateLabelReserveUsage("workers-ai", 1).webSearches,
+		).toBeUndefined();
+	});
+
+	it("標準経路は無料会員の月次付与で複数回使える", () => {
+		// 「高精度が高くて使えない」ときの逃げ道なので、ここが付与額に近づくと
+		// 無料会員は自動入力を実質使えなくなる。
+		expect(costToCredits(microUsd("workers-ai", 1)) * 10).toBeLessThanOrEqual(
+			MONTHLY_CREDITS_FREE,
+		);
+	});
+});
+
+describe("estimateRegionQaReserveCharge", () => {
+	it("モデルの単価差が見積に出る(gemma4 < llama4)", () => {
+		const promptTokens = 1_000;
+		expect(
+			estimateRegionQaReserveCharge("gemma4", promptTokens).microUsd,
+		).toBeLessThan(
+			estimateRegionQaReserveCharge("llama4", promptTokens).microUsd,
+		);
+	});
+
+	it("入力が増えれば見積も増え、上限でクランプされる", () => {
+		expect(
+			estimateRegionQaReserveCharge("gemma4", 5_000).microUsd,
+		).toBeGreaterThan(estimateRegionQaReserveCharge("gemma4", 100).microUsd);
+		expect(
+			estimateRegionQaReserveCharge("gemma4", 10_000_000_000).microUsd,
+		).toBe(AI_MAX_ESTIMATE_MICRO_USD);
 	});
 });

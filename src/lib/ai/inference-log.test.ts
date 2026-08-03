@@ -77,13 +77,15 @@ describe("buildAiInferenceFields", () => {
 			model: "gpt-5.6-luna",
 			photoCount: 2,
 			actualTokens: 14324,
-			reservedTokens: 33000,
+			costMicroUsd: 38400,
+			reservedMicroUsd: 39000,
 		});
 		// 出るキーを全列挙で固定する。写真・質問文・抽出されたワイン名を載せる口が
 		// 無いこと(=ログから利用者のワイン履歴が復元できないこと)がこのテストの主眼で、
 		// フィールドを足すときはここが必ず落ちて privacy の再確認を強制する。
 		expect(Object.keys(fields).sort()).toEqual([
 			"actualTokens",
+			"costMicroUsd",
 			"durationMs",
 			"executedBy",
 			"feature",
@@ -92,7 +94,7 @@ describe("buildAiInferenceFields", () => {
 			"outcome",
 			"photoCount",
 			"requestId",
-			"reservedTokens",
+			"reservedMicroUsd",
 			"route",
 			"userId",
 		]);

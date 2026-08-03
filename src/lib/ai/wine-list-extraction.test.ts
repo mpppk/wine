@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
-import {
-	AI_MAX_ESTIMATE_TOKENS,
-	MONTHLY_CREDITS_FREE,
-} from "#/lib/billing/plans";
-import { tokensToCredits } from "#/lib/credit/credit-math";
+import { AI_MAX_ESTIMATE_MICRO_USD } from "#/lib/billing/ai-pricing";
+import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
+import { costToCredits } from "#/lib/credit/credit-math";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import {
 	AI_WINE_LIST_MAX_WINES,
-	estimateWineListReserveTokens,
+	estimateWineListReserveCharge,
 } from "./config";
 import {
 	buildWineListCandidates,
@@ -357,34 +355,34 @@ describe("matchExistingEntries", () => {
 	});
 });
 
-describe("estimateWineListReserveTokens", () => {
+describe("estimateWineListReserveCharge", () => {
+	const microUsd = (n: number) => estimateWineListReserveCharge(n).microUsd;
+
 	it("枚数に比例し、上限でクランプされる", () => {
-		expect(estimateWineListReserveTokens(1)).toBeLessThan(
-			estimateWineListReserveTokens(5),
+		expect(microUsd(1)).toBeLessThan(microUsd(5));
+		expect(microUsd(MAX_PHOTOS_PER_IMPORT_BATCH)).toBeLessThanOrEqual(
+			AI_MAX_ESTIMATE_MICRO_USD,
 		);
-		expect(
-			estimateWineListReserveTokens(MAX_PHOTOS_PER_IMPORT_BATCH),
-		).toBeLessThanOrEqual(AI_MAX_ESTIMATE_TOKENS);
 	});
 
 	it("上限枚数を超える指定でも見積は増えない(境界を跨いだ過大予約を作らない)", () => {
-		expect(
-			estimateWineListReserveTokens(MAX_PHOTOS_PER_IMPORT_BATCH + 10),
-		).toBe(estimateWineListReserveTokens(MAX_PHOTOS_PER_IMPORT_BATCH));
+		expect(microUsd(MAX_PHOTOS_PER_IMPORT_BATCH + 10)).toBe(
+			microUsd(MAX_PHOTOS_PER_IMPORT_BATCH),
+		);
 	});
 
 	it("0枚でも1枚ぶんの下限を割らない", () => {
-		expect(estimateWineListReserveTokens(0)).toBe(
-			estimateWineListReserveTokens(1),
-		);
+		expect(microUsd(0)).toBe(microUsd(1));
 	});
 
 	it("写真1枚の解析は無料会員の月次付与内に収まる", () => {
 		// 1枚でも月次付与を超えると、無料会員はこの機能を一度も使えないまま
-		// 残高不足で弾かれ続ける。見積の基礎値(AI_WINE_LIST_BASE_TOKEN_ESTIMATE)を
+		// 残高不足で弾かれ続ける。**コスト基準ではこれがモデル選定の制約になる**:
+		// claude-opus-5($5/$25)だと1枚で無料枠を超えるため、この経路は
+		// claude-sonnet-5($3/$15)を使っている(#355)。モデルや見積の基礎値を
 		// 上げるときに気付けるよう、境界をここで固定する。
-		expect(
-			tokensToCredits(estimateWineListReserveTokens(1)),
-		).toBeLessThanOrEqual(MONTHLY_CREDITS_FREE);
+		expect(costToCredits(microUsd(1))).toBeLessThanOrEqual(
+			MONTHLY_CREDITS_FREE,
+		);
 	});
 });

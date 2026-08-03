@@ -1,9 +1,5 @@
 import type OpenAI from "openai";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
-import {
-	AI_LABEL_GPT_BASE_TOKEN_ESTIMATE,
-	AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE,
-} from "./config";
+import type { AiUsage } from "#/lib/billing/ai-pricing";
 import {
 	buildWebLabelPrompt,
 	LABEL_JSON_SCHEMA,
@@ -20,8 +16,10 @@ import {
 //    サーバー側で完走するため、Claude経路の pause_turn 継続ループに相当する処理は要らない。
 //  - structured outputs(text.format = json_schema)で出力形式を強制できるので、
 //    「JSONの前後に説明文を書かせない」ことをプロンプトだけに頼らなくて済む。
-//  - usage.total_tokens が入力(キャッシュ含む)+ 出力(reasoning 含む)の総和なので、
-//    Claude経路の sumAnthropicUsage のような内訳の足し合わせが要らない。
+//  - usage は input/output に分かれ、キャッシュヒットは input_tokens_details.cached_tokens
+//    として内数で返る(Claude のように別項目で足すのではない)。
+//  - web検索の**実行回数は usage に出ない**。output 配列の web_search_call アイテムを
+//    数えるしかない($10/1000回 の回数課金なので、数えないと原価の大半が漏れる)。
 
 /** structured outputs のスキーマ名(a-zA-Z0-9_- のみ・64文字以内)。 */
 export const GPT_LABEL_SCHEMA_NAME = "wine_label_extraction";
@@ -115,14 +113,45 @@ function findRefusal(
 }
 
 /**
- * GPT経路の予約トークン見積。web検索結果・reasoning が支配的で事前に読めないため、
- * 基礎値を大きめに取り settle の実測(usage.total_tokens)で差分を返す。上限で必ず
- * クランプする(Claude経路の estimateWebLabelReserveTokens と同じ流儀)。
+ * output 配列に含まれる web検索の実行回数を数える。
+ *
+ * **usage には出てこない**ため、ここで数えないと $10/1000回 の回数課金がまったく
+ * 計上されない。Luna は原価の8割が web検索なので、漏らすと経路の原価がほぼ見えなくなる。
  */
-export function estimateGptLabelReserveTokens(imageCount: number): number {
-	return Math.min(
-		AI_MAX_ESTIMATE_TOKENS,
-		AI_LABEL_GPT_BASE_TOKEN_ESTIMATE +
-			AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE * Math.max(1, imageCount),
-	);
+export function countGptWebSearches(
+	output: readonly unknown[] | undefined,
+): number {
+	let count = 0;
+	for (const item of output ?? []) {
+		if (!item || typeof item !== "object") continue;
+		if ((item as { type?: unknown }).type === "web_search_call") count++;
+	}
+	return count;
+}
+
+/**
+ * OpenAI Responses API の usage をクレジット計上用の `AiUsage` へ変換する。
+ *
+ * `input_tokens` は**キャッシュヒットを内数として含む**ため、`cached_tokens` を
+ * 差し引いてから非キャッシュ入力として計上する(二重計上を避ける)。web検索回数だけは
+ * usage に無いので呼び出し側が `countGptWebSearches` の結果を渡す。
+ */
+export function toGptUsage(
+	usage:
+		| {
+				input_tokens?: number | null;
+				output_tokens?: number | null;
+				input_tokens_details?: { cached_tokens?: number | null } | null;
+		  }
+		| undefined,
+	webSearches: number,
+): AiUsage {
+	const cached = usage?.input_tokens_details?.cached_tokens ?? 0;
+	const input = usage?.input_tokens ?? 0;
+	return {
+		inputTokens: Math.max(0, input - cached),
+		outputTokens: usage?.output_tokens ?? 0,
+		cacheReadTokens: cached,
+		webSearches,
+	};
 }

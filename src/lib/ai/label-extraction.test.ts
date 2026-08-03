@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
+import { AI_LABEL_PROMPT_TOKEN_ESTIMATE } from "./config";
 import {
 	buildLabelMessages,
 	buildLabelSuggestions,
 	buildWebLabelPrompt,
-	estimateLabelReserveTokens,
+	estimateLabelPromptTokens,
 	LABEL_PROMPT,
 	type LabelExtraction,
 	matchAop,
@@ -346,25 +346,18 @@ describe("buildLabelSuggestions", () => {
 	});
 });
 
-describe("estimateLabelReserveTokens", () => {
-	it("上限以内の正の見積を返す", () => {
-		const estimate = estimateLabelReserveTokens(1);
-		expect(estimate).toBeGreaterThan(0);
-		expect(estimate).toBeLessThanOrEqual(AI_MAX_ESTIMATE_TOKENS);
-	});
-
-	it("枚数が増えると見積も増える(上限まで)", () => {
-		expect(estimateLabelReserveTokens(3)).toBeGreaterThan(
-			estimateLabelReserveTokens(1),
+describe("estimateLabelPromptTokens", () => {
+	// 予約見積は config.ts の定数 AI_LABEL_PROMPT_TOKEN_ESTIMATE を使う(クライアントにも
+	// 読ませるため、マスタを引くこのモジュールに依存させられない)。定数が実長を下回ると
+	// Workers AI 経路の予約が実費を下回るので、ここで境界を固定する。
+	it("指示文の実長が config の見積定数を超えない", () => {
+		expect(estimateLabelPromptTokens()).toBeLessThanOrEqual(
+			AI_LABEL_PROMPT_TOKEN_ESTIMATE,
 		);
 	});
 
-	it("上限を超えない(多数枚でもクランプ)", () => {
-		expect(estimateLabelReserveTokens(100)).toBe(AI_MAX_ESTIMATE_TOKENS);
-	});
-
-	it("0枚でも下限として1枚ぶんの見積を返す", () => {
-		expect(estimateLabelReserveTokens(0)).toBe(estimateLabelReserveTokens(1));
+	it("マスタ名一覧を含むので自明に小さくはない", () => {
+		expect(estimateLabelPromptTokens()).toBeGreaterThan(1_000);
 	});
 });
 

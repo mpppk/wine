@@ -388,9 +388,11 @@ export const couponRedemption = sqliteTable(
  * AIクレジットの増減を記録する追記専用台帳。付与(grant)/消費(consume)/返却(refund)を
  * すべて1行として残し、履歴・監査・二重計上防止を一枚岩で解く。残高そのものは
  * credit_balance にキャッシュし、この台帳とは db.batch で整合させて更新する。
- * amount は符号付きの「表示クレジット」(付与+ / 消費- / 返却+)、tokenAmount は
- * 内部精度の実測/見積トークン。requestId は冪等キーで、付与は grant:{userId}:{YYYY-MM}、
- * 消費・返却は予約IDから導出する。unique(requestId) が再送・二重付与を弾く。
+ * amount は符号付きの「表示クレジット」(付与+ / 消費- / 返却+)で、**1クレジット =
+ * $0.001 の量子化された実原価**(#355)。costMicroUsd は量子化前の実原価、tokenAmount は
+ * トークン数で、どちらも課金の根拠ではなく観測値。requestId は冪等キーで、付与は
+ * grant:{userId}:{YYYY-MM}、消費・返却は予約IDから導出する。
+ * unique(requestId) が再送・二重付与を弾く。
  */
 export const creditLedger = sqliteTable(
 	"credit_ledger",
@@ -408,11 +410,20 @@ export const creditLedger = sqliteTable(
 		requestId: text("request_id").notNull(),
 		/** 対象付与月 "YYYY-MM"(JST) */
 		periodMonth: text("period_month").notNull(),
-		/** 内部精度の実測/見積トークン(consume/refund時)。grant時はnull */
+		/** 実測/見積トークン(consume/settle時)。grant時はnull。観測値で課金の根拠ではない */
 		tokenAmount: integer("token_amount"),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
+		/**
+		 * 量子化前の実原価(µUSD)。**列の順序を変えないこと**: `reserveCredits` と
+		 * `reservationMarkerInsert` の `INSERT ... SELECT` はテーブル定義と同じ列順・
+		 * 列数を要求し、`drizzle/0025` の `ALTER TABLE ADD COLUMN` は物理的に末尾へ
+		 * 足すので、ここは createdAt より後ろでなければならない。
+		 *
+		 * トークン基準で計上していた頃(#355 以前)の行は null。
+		 */
+		costMicroUsd: integer("cost_micro_usd"),
 	},
 	(table) => [
 		unique("credit_ledger_request_id_uq").on(table.requestId),

@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
-import { AI_MAX_HISTORY_MESSAGES, AI_MAX_OUTPUT_TOKENS } from "./config";
+import { AI_MAX_HISTORY_MESSAGES } from "./config";
 import {
 	buildRegionChatMessages,
 	buildRegionContext,
 	type ChatMessage,
 	clampHistory,
-	estimateReserveTokens,
+	estimateInputTokens,
 	type RegionContextInput,
 	stripReasoning,
 } from "./region-qa";
@@ -114,15 +113,22 @@ describe("stripReasoning", () => {
 	});
 });
 
-describe("estimateReserveTokens", () => {
-	it("プロンプト推定 + 出力上限。上限を超えたらクランプ", () => {
-		const small = estimateReserveTokens([{ role: "user", content: "短い" }]);
-		expect(small).toBeGreaterThanOrEqual(AI_MAX_OUTPUT_TOKENS);
-		expect(small).toBeLessThan(AI_MAX_ESTIMATE_TOKENS);
-
-		const huge = estimateReserveTokens([
-			{ role: "user", content: "あ".repeat(AI_MAX_ESTIMATE_TOKENS * 4) },
+describe("estimateInputTokens", () => {
+	it("全メッセージの推定入力トークンを合算する", () => {
+		const one = estimateInputTokens([
+			{ role: "user", content: "あ".repeat(100) },
 		]);
-		expect(huge).toBe(AI_MAX_ESTIMATE_TOKENS);
+		expect(one).toBe(50); // CHARS_PER_TOKEN_ESTIMATE = 2
+
+		const two = estimateInputTokens([
+			{ role: "user", content: "あ".repeat(100) },
+			{ role: "assistant", content: "あ".repeat(100) },
+		]);
+		expect(two).toBe(one * 2);
+	});
+
+	it("出力ぶんは含めない(出力単価で別に換算するため)", () => {
+		// 空の入力なら 0。ここに出力上限が混ざると、入力単価で出力を課金することになる。
+		expect(estimateInputTokens([])).toBe(0);
 	});
 });

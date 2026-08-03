@@ -2,10 +2,26 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
-import { user } from "#/db/auth-schema";
+import { subscription, user } from "#/db/auth-schema";
 import { creditLedger } from "#/db/schema";
-import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
-import { tokensToCredits } from "#/lib/credit/credit-math";
+import {
+	AI_LABEL_GPT_MODEL,
+	AI_LABEL_MODEL,
+	AI_LABEL_WEB_MODEL,
+	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_MODEL,
+	estimateLabelReserveCharge,
+} from "#/lib/ai/config";
+import {
+	type AiUsage,
+	MICRO_USD_PER_CREDIT,
+	usageToMicroUsd,
+} from "#/lib/billing/ai-pricing";
+import {
+	MONTHLY_CREDITS_FREE,
+	MONTHLY_CREDITS_PREMIUM,
+} from "#/lib/billing/plans";
+import { costToCredits } from "#/lib/credit/credit-math";
 import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
@@ -44,6 +60,25 @@ async function seedUser(): Promise<string> {
 }
 
 /**
+ * プレミアム会員のユーザを作る。
+ *
+ * **高精度経路(Claude / GPT + web検索)の検証には要る**。コスト基準の計上では
+ * Claude 経路の予約が写真2枚で約290クレジットになり、無料枠(150)では必ず
+ * 残高不足でブロックされるため(#355)。無料会員が高精度経路を使えないこと自体は
+ * 仕様どおりで、`残高不足(blocked)でも記録を残す` のテストがその側を押さえる。
+ */
+async function seedPremiumUser(): Promise<string> {
+	const id = await seedUser();
+	await db.insert(subscription).values({
+		id: `sub-${id}`,
+		plan: "premium",
+		referenceId: id,
+		status: "active",
+	});
+	return id;
+}
+
+/**
  * env.AI を差し替える。答えの中身ではなく「AI 呼び出しが成功/失敗したときに
  * 台帳と残高がどうなるか」を固定するためのスタブ。
  */
@@ -65,7 +100,11 @@ function stubAnthropic(respond: () => Promise<Response>): void {
 /** Anthropic Messages API の成功レスポンス(JSONテキスト + usage)を組み立てる。 */
 function anthropicMessage(
 	fields: Record<string, unknown>,
-	usage: { input_tokens: number; output_tokens: number },
+	usage: {
+		input_tokens: number;
+		output_tokens: number;
+		server_tool_use?: { web_search_requests: number };
+	},
 ): Response {
 	return Response.json({
 		id: "msg_test",
@@ -116,7 +155,8 @@ function stubProviders(handlers: {
  */
 function openaiResponse(
 	fields: Record<string, unknown>,
-	usage: { total_tokens: number },
+	usage: { input_tokens: number; output_tokens: number },
+	webSearchCalls = 0,
 ): Response {
 	return Response.json({
 		id: "resp_test",
@@ -127,6 +167,12 @@ function openaiResponse(
 		error: null,
 		incomplete_details: null,
 		output: [
+			// web検索の実行回数は usage に出ないので output から数える(回数課金)。
+			...Array.from({ length: webSearchCalls }, (_, i) => ({
+				type: "web_search_call",
+				id: `ws_${i}`,
+				status: "completed",
+			})),
 			{
 				type: "message",
 				id: "msg_test",
@@ -154,6 +200,23 @@ afterEach(() => {
 
 /** data URI 1枚ぶんのダミー(中身はスタブが解析しないので任意) */
 const PHOTO = "data:image/jpeg;base64,AAAA";
+
+/**
+ * 実測 usage から確定後の残高を求める。**モデルごとの単価で換算する**(#355)ので、
+ * 「同じトークン数でも経路によって消費クレジットが違う」ことがそのまま検証される。
+ */
+const balanceAfter = (
+	model: string,
+	usage: AiUsage,
+	grant = MONTHLY_CREDITS_FREE,
+) => grant - costToCredits(usageToMicroUsd(model, usage));
+
+/**
+ * Workers AI は usage の内訳を返さないため、実装は全量を出力単価で換算する(保守的)。
+ * 期待値もその前提で作る。
+ */
+const balanceAfterWorkersAi = (model: string, totalTokens: number) =>
+	balanceAfter(model, { outputTokens: totalTokens });
 
 describe("answerRegionQuestion のモデル解決順序 (#245)", () => {
 	it("モデル解決の失敗で予約が無記録で消えない", async () => {
@@ -223,7 +286,10 @@ describe("answerRegionQuestion の予約 → 確定/返却", () => {
 			actualTokens,
 		});
 		// 見積との差分は戻るので、最終的な消費は実測ぶんだけ
-		const expected = MONTHLY_CREDITS_FREE - tokensToCredits(actualTokens);
+		const expected = balanceAfterWorkersAi(
+			AI_REGION_QA_MODELS.gemma4.id,
+			actualTokens,
+		);
 		expect(await balanceOf(userId)).toBe(expected);
 		expect((result as { balance: number }).balance).toBe(expected);
 
@@ -262,7 +328,7 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 	});
 
 	it("ANTHROPIC_API_KEY 設定時はClaude経路で解析し、usage合算で確定する", async () => {
-		const userId = await seedUser();
+		const userId = await seedPremiumUser();
 		stubAnthropic(async () =>
 			anthropicMessage(
 				{
@@ -293,9 +359,20 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 			aopId: "chablis-grand-cru",
 			grapeVarietyIds: ["chardonnay"],
 		});
-		// 実測(1200)ぶんだけ消費し、予約との差分は返る
+		// 実測ぶんだけ消費し、予約との差分は返る。**Opus の単価で換算される**ので、
+		// 同じ 1,200 トークンでも Workers AI 経路より2桁多く消費する。
 		expect(await balanceOf(userId)).toBe(
-			MONTHLY_CREDITS_FREE - tokensToCredits(1200),
+			balanceAfter(
+				AI_LABEL_WEB_MODEL,
+				{
+					inputTokens: 1000,
+					outputTokens: 200,
+					cacheWriteTokens: 0,
+					cacheReadTokens: 0,
+					webSearches: 0,
+				},
+				MONTHLY_CREDITS_PREMIUM,
+			),
 		);
 		const rows = await ledgerRowsOf(userId);
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
@@ -337,7 +414,7 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 	});
 
 	it("Claude経路が失敗したら Workers AI へフォールバックして完了する", async () => {
-		const userId = await seedUser();
+		const userId = await seedPremiumUser();
 		// 400 はSDKがリトライしない失敗。経路ごと諦めてフォールバックさせる
 		stubAnthropic(async () =>
 			Response.json(
@@ -365,9 +442,14 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
 		if (result.blocked) throw new Error("unreachable");
 		expect(result.suggestions.name).toBe("Chablis");
-		// フォールバック後も settle で確定し、予約が焼き付かない
+		// フォールバック後も settle で確定し、予約が焼き付かない。**実際に結果を出した
+		// Workers AI の単価で課金する**(Opus の単価で Llama の推論を課金しない)。
 		expect(await balanceOf(userId)).toBe(
-			MONTHLY_CREDITS_FREE - tokensToCredits(55),
+			balanceAfter(
+				AI_LABEL_MODEL,
+				{ outputTokens: 55 },
+				MONTHLY_CREDITS_PREMIUM,
+			),
 		);
 	});
 
@@ -386,8 +468,8 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 // GPT-5.6 Luna 経路。既定エンジンなので「キーがあれば黙って走る」ことと、
 // 「キーが無いときに何へ降格するか」の両方を固定する。
 describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
-	it("OPENAI_API_KEY 設定時はGPT経路で解析し、usage.total_tokens で確定する", async () => {
-		const userId = await seedUser();
+	it("OPENAI_API_KEY 設定時はGPT経路で解析し、usage内訳とweb検索回数で確定する", async () => {
+		const userId = await seedPremiumUser();
 		stubOpenAi(async () =>
 			openaiResponse(
 				{
@@ -398,7 +480,8 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 					region: "Bourgogne",
 					grape_varieties: ["Chardonnay"],
 				},
-				{ total_tokens: 1500 },
+				{ input_tokens: 1300, output_tokens: 200 },
+				3,
 			),
 		);
 		// GPT経路が成功する限り Workers AI には触れない(触れたら失敗として検出される)
@@ -418,9 +501,19 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 			aopId: "chablis-grand-cru",
 			grapeVarietyIds: ["chardonnay"],
 		});
-		// 実測(1500)ぶんだけ消費し、予約との差分は返る
+		// 実測ぶんだけ消費し、予約との差分は返る。**web検索3回ぶんの回数課金も乗る**
+		// (転換前はここが完全に計上漏れだった)。
 		expect(await balanceOf(userId)).toBe(
-			MONTHLY_CREDITS_FREE - tokensToCredits(1500),
+			balanceAfter(
+				AI_LABEL_GPT_MODEL,
+				{
+					inputTokens: 1300,
+					outputTokens: 200,
+					cacheReadTokens: 0,
+					webSearches: 3,
+				},
+				MONTHLY_CREDITS_PREMIUM,
+			),
 		);
 		const rows = await ledgerRowsOf(userId);
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
@@ -428,7 +521,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 	});
 
 	it("GPT経路が失敗したら Workers AI へフォールバックして完了する", async () => {
-		const userId = await seedUser();
+		const userId = await seedPremiumUser();
 		// 400 はSDKがリトライしない失敗。経路ごと諦めてフォールバックさせる
 		stubOpenAi(async () =>
 			Response.json(
@@ -453,13 +546,18 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
 		if (result.blocked) throw new Error("unreachable");
 		expect(result.suggestions.name).toBe("Chablis");
+		// 実際に結果を出した Workers AI の単価で課金する(Luna の単価にしない)。
 		expect(await balanceOf(userId)).toBe(
-			MONTHLY_CREDITS_FREE - tokensToCredits(55),
+			balanceAfter(
+				AI_LABEL_MODEL,
+				{ outputTokens: 55 },
+				MONTHLY_CREDITS_PREMIUM,
+			),
 		);
 	});
 
 	it("途中で打ち切られた応答(incomplete)は成功扱いせずフォールバックする", async () => {
-		const userId = await seedUser();
+		const userId = await seedPremiumUser();
 		// web検索と reasoning が出力枠を使い切ると、JSONが途中で切れたまま 200 で返る。
 		// これを成功として扱うと「形式が不正」という無関係な例外で解析全体が落ちる。
 		stubOpenAi(async () =>
@@ -495,7 +593,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 	it("OPENAI_API_KEY 未設定なら、既定のままでも Claude経路へ引き継ぐ", async () => {
 		// 既定を gpt-luna に変えたことで、ANTHROPIC_API_KEY だけ設定された環境
 		// (#354 時点の本番)が黙って Workers AI へ降格しないことの回帰テスト。
-		const userId = await seedUser();
+		const userId = await seedPremiumUser();
 		stubAnthropic(async () =>
 			anthropicMessage(
 				{
@@ -518,7 +616,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 	});
 
 	it("両キー設定時にユーザがClaudeを選んでいればGPT経路を使わない", async () => {
-		const userId = await seedUser();
+		const userId = await seedPremiumUser();
 		await env.DB.prepare(
 			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
 		)
@@ -527,7 +625,10 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		// 経路の証明は実測トークン: GPT経路に入ってしまえば 9999 で確定する
 		stubProviders({
 			openai: async () =>
-				openaiResponse({ wine_name: "wrong path" }, { total_tokens: 9999 }),
+				openaiResponse(
+					{ wine_name: "wrong path" },
+					{ input_tokens: 9999, output_tokens: 0 },
+				),
 			anthropic: async () =>
 				anthropicMessage(
 					{
@@ -549,7 +650,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 	});
 
 	it("両キー設定時の既定(未選択)ではGPT経路を使う", async () => {
-		const userId = await seedUser();
+		const userId = await seedPremiumUser();
 		stubProviders({
 			openai: async () =>
 				openaiResponse(
@@ -561,7 +662,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 						region: null,
 						grape_varieties: [],
 					},
-					{ total_tokens: 1234 },
+					{ input_tokens: 1234, output_tokens: 0 },
 				),
 			anthropic: async () =>
 				anthropicMessage(
@@ -648,7 +749,13 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 			aopId: "chablis-grand-cru",
 		});
 		expect(await balanceOf(userId)).toBe(
-			MONTHLY_CREDITS_FREE - tokensToCredits(3500),
+			balanceAfter(AI_WINE_LIST_MODEL, {
+				inputTokens: 3000,
+				outputTokens: 500,
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+				webSearches: 0,
+			}),
 		);
 		const rows = await ledgerRowsOf(userId);
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
@@ -816,7 +923,7 @@ describe("analyzeWineLabel の実行記録ログ", () => {
 					region: null,
 					grape_varieties: [],
 				},
-				{ total_tokens: 1234 },
+				{ input_tokens: 1234, output_tokens: 0 },
 			),
 		);
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
@@ -886,11 +993,18 @@ describe("analyzeWineLabel の実行記録ログ", () => {
 	it("残高不足(blocked)でも記録を残す(推論しなかったことが分かる)", async () => {
 		const userId = await seedUser();
 		// 残高を直接0にしても reserveCredits 冒頭の月次付与で上書きされるため、
-		// **見積が月次付与を超える枚数**を渡して予約を弾かせる。
-		// GPT経路の見積 = 30,000 + 3,000×枚数 トークン。8枚 = 54,000 → 54クレジットで
-		// 無料会員の月次付与(50)を超える。
-		const photos = Array.from({ length: 8 }, () => PHOTO);
-		stubOpenAi(async () => openaiResponse({}, { total_tokens: 1 }));
+		// **見積が月次付与を超える経路**を選ばせて予約を弾かせる。
+		// Claude経路は写真1枚でも約275クレジットで、無料会員の月次付与(150)を超える
+		// ——コスト基準では高精度経路が無料枠では使えないのが仕様(#355)。
+		// 前提が崩れたら(単価改定・付与増で足りるようになったら)ここで気付けるよう、
+		// magic number ではなく見積関数と付与額から導いて確認する。
+		expect(
+			estimateLabelReserveCharge("web-research", 1).microUsd,
+		).toBeGreaterThan(MONTHLY_CREDITS_FREE * MICRO_USD_PER_CREDIT);
+		const photos = [PHOTO];
+		stubAnthropic(async () =>
+			anthropicMessage({}, { input_tokens: 1, output_tokens: 0 }),
+		);
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 
 		try {
@@ -901,7 +1015,7 @@ describe("analyzeWineLabel の実行記録ログ", () => {
 			expect(logs[0]).toMatchObject({
 				feature: "label_analysis",
 				outcome: "blocked",
-				route: "gpt-luna",
+				route: "web-research",
 				photoCount: photos.length,
 			});
 			// 推論に到達していないので実行経路は載らない

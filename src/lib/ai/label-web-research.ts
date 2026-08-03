@@ -1,9 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
-import {
-	AI_LABEL_WEB_BASE_TOKEN_ESTIMATE,
-	AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE,
-} from "./config";
+import type { AiUsage } from "#/lib/billing/ai-pricing";
 import { buildWebLabelPrompt, parseImageDataUrl } from "./label-extraction";
 
 // エチケット解析の高精度経路(Anthropic Claude + web検索)の純ロジック。
@@ -59,33 +55,30 @@ export function joinResponseText(
 }
 
 /**
- * Anthropic の usage をクレジット計上用の合計トークンへ畳む。入力(キャッシュ
- * 読み書き含む)+出力の総和。サーバー側ツールループの再送・pause_turn 継続の
- * ぶんは呼び出し側でリクエストごとに加算する。
+ * Anthropic の usage をクレジット計上用の `AiUsage` へ変換する。
+ *
+ * **入力・出力・キャッシュを畳まずに分けて返す**のが要点(#355)。出力単価は入力の
+ * 5倍、キャッシュ読み出しは入力の 1/10 で、合計トークンからは原価が復元できない。
+ *
+ * `server_tool_use.web_search_requests` も載せる。web検索は $10/1000回 の**回数課金**で
+ * トークンとは別建てのため、ここを落とすと Claude 経路の原価の2割が計上から漏れる
+ * (転換前は実際に漏れていた)。
+ *
+ * サーバー側ツールループの再送・pause_turn 継続のぶんは、呼び出し側が `addUsage` で
+ * リクエストごとに加算する。
  */
-export function sumAnthropicUsage(usage: {
+export function toAnthropicUsage(usage: {
 	input_tokens?: number | null;
 	output_tokens?: number | null;
 	cache_creation_input_tokens?: number | null;
 	cache_read_input_tokens?: number | null;
-}): number {
-	return (
-		(usage.input_tokens ?? 0) +
-		(usage.output_tokens ?? 0) +
-		(usage.cache_creation_input_tokens ?? 0) +
-		(usage.cache_read_input_tokens ?? 0)
-	);
-}
-
-/**
- * Claude経路の予約トークン見積。web検索結果・ツールループの再送が支配的で事前に
- * 読めないため、基礎値を大きめに取り settle の実測確定で差分を返す。上限で必ず
- * クランプする(Workers AI 経路の estimateLabelReserveTokens と同じ流儀)。
- */
-export function estimateWebLabelReserveTokens(imageCount: number): number {
-	return Math.min(
-		AI_MAX_ESTIMATE_TOKENS,
-		AI_LABEL_WEB_BASE_TOKEN_ESTIMATE +
-			AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE * Math.max(1, imageCount),
-	);
+	server_tool_use?: { web_search_requests?: number | null } | null;
+}): AiUsage {
+	return {
+		inputTokens: usage.input_tokens ?? 0,
+		outputTokens: usage.output_tokens ?? 0,
+		cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
+		cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+		webSearches: usage.server_tool_use?.web_search_requests ?? 0,
+	};
 }

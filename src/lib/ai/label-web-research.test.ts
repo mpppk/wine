@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
 import { parseLabelResponse } from "./label-extraction";
 import {
 	buildWebLabelMessages,
-	estimateWebLabelReserveTokens,
 	joinResponseText,
-	sumAnthropicUsage,
+	toAnthropicUsage,
 } from "./label-web-research";
 
 // buildWebLabelPrompt / parseImageDataUrl は GPT経路と共有するため label-extraction.ts に
@@ -65,35 +63,45 @@ describe("joinResponseText", () => {
 	});
 });
 
-describe("sumAnthropicUsage", () => {
-	it("入力(キャッシュ含む)+出力を合算する", () => {
+describe("toAnthropicUsage", () => {
+	it("入力・出力・キャッシュを畳まずに分けて返す", () => {
+		// 合算すると原価が復元できない(出力単価は入力の5倍、キャッシュ読みは 1/10)。
 		expect(
-			sumAnthropicUsage({
+			toAnthropicUsage({
 				input_tokens: 100,
 				output_tokens: 20,
 				cache_creation_input_tokens: 30,
 				cache_read_input_tokens: 50,
 			}),
-		).toBe(200);
+		).toEqual({
+			inputTokens: 100,
+			outputTokens: 20,
+			cacheWriteTokens: 30,
+			cacheReadTokens: 50,
+			webSearches: 0,
+		});
+	});
+
+	it("web検索の実行回数を server_tool_use から取る", () => {
+		// $10/1000回 の回数課金。転換前はこのフィールドをどこも読んでおらず、
+		// Claude 経路の原価の2割が計上から漏れていた(#355)。
+		expect(
+			toAnthropicUsage({
+				input_tokens: 1,
+				server_tool_use: { web_search_requests: 4 },
+			}).webSearches,
+		).toBe(4);
 	});
 
 	it("欠けているフィールドは0として扱う", () => {
-		expect(sumAnthropicUsage({ input_tokens: 10, output_tokens: null })).toBe(
-			10,
+		expect(toAnthropicUsage({ input_tokens: 10, output_tokens: null })).toEqual(
+			{
+				inputTokens: 10,
+				outputTokens: 0,
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+				webSearches: 0,
+			},
 		);
-		expect(sumAnthropicUsage({})).toBe(0);
-	});
-});
-
-describe("estimateWebLabelReserveTokens", () => {
-	it("枚数に比例して増え、0枚でも1枚ぶんを下限にする", () => {
-		const one = estimateWebLabelReserveTokens(1);
-		const three = estimateWebLabelReserveTokens(3);
-		expect(three).toBeGreaterThan(one);
-		expect(estimateWebLabelReserveTokens(0)).toBe(one);
-	});
-
-	it("上限で必ずクランプされる", () => {
-		expect(estimateWebLabelReserveTokens(1000)).toBe(AI_MAX_ESTIMATE_TOKENS);
 	});
 });

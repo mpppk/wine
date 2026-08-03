@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { AI_MAX_ESTIMATE_TOKENS } from "#/lib/billing/plans";
 import { LABEL_JSON_SCHEMA, parseLabelResponse } from "./label-extraction";
 import {
 	buildGptLabelInput,
 	buildGptLabelTextFormat,
-	estimateGptLabelReserveTokens,
+	countGptWebSearches,
 	extractGptLabelText,
 	GPT_LABEL_SCHEMA_NAME,
+	toGptUsage,
 } from "./label-gpt-research";
 
 describe("buildGptLabelInput", () => {
@@ -122,15 +122,57 @@ describe("extractGptLabelText", () => {
 	});
 });
 
-describe("estimateGptLabelReserveTokens", () => {
-	it("枚数に比例して増え、0枚でも1枚ぶんを下限にする", () => {
-		const one = estimateGptLabelReserveTokens(1);
-		const three = estimateGptLabelReserveTokens(3);
-		expect(three).toBeGreaterThan(one);
-		expect(estimateGptLabelReserveTokens(0)).toBe(one);
+describe("countGptWebSearches", () => {
+	// web検索の回数は usage に出ないので output から数えるしかない。$10/1000回 の
+	// 回数課金で Luna の原価の8割を占めるため、ここを落とすと原価がほぼ見えなくなる。
+	it("web_search_call アイテムを数える", () => {
+		expect(
+			countGptWebSearches([
+				{ type: "reasoning" },
+				{ type: "web_search_call" },
+				{ type: "web_search_call" },
+				{ type: "message" },
+			]),
+		).toBe(2);
 	});
 
-	it("上限で必ずクランプされる", () => {
-		expect(estimateGptLabelReserveTokens(1000)).toBe(AI_MAX_ESTIMATE_TOKENS);
+	it("検索が無ければ0", () => {
+		expect(countGptWebSearches([{ type: "message" }])).toBe(0);
+		expect(countGptWebSearches(undefined)).toBe(0);
+	});
+
+	it("null・非オブジェクトが混ざっても壊れない", () => {
+		expect(countGptWebSearches([null, "x", { type: "web_search_call" }])).toBe(
+			1,
+		);
+	});
+});
+
+describe("toGptUsage", () => {
+	it("キャッシュヒットを input の内数から外へ出す(二重計上を避ける)", () => {
+		expect(
+			toGptUsage(
+				{
+					input_tokens: 1_000,
+					output_tokens: 200,
+					input_tokens_details: { cached_tokens: 400 },
+				},
+				3,
+			),
+		).toEqual({
+			inputTokens: 600,
+			outputTokens: 200,
+			cacheReadTokens: 400,
+			webSearches: 3,
+		});
+	});
+
+	it("usage が無くても検索回数は残る", () => {
+		expect(toGptUsage(undefined, 2)).toEqual({
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			webSearches: 2,
+		});
 	});
 });

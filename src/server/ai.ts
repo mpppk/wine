@@ -32,3 +32,18 @@ export const askRegion = createServerFn({ method: "POST" })
 export const getWineListAnalysisAvailability = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.handler(() => ({ available: aiService.isWineListAnalysisAvailable() }));
+
+/**
+ * エチケット解析で**実際に走る経路**と、高精度経路の利用可否。
+ *
+ * 解析前に必要クレジットを表示するために要る(#355)。コスト基準の計上では経路によって
+ * 消費が 3 / 39 / 275 クレジットと2桁変わるので、押してから残高不足で弾かれると
+ * 「なぜ足りないのか」が分からない。経路はシークレットの設定状況に依存し
+ * クライアントでは決められないため、サーバから返す。
+ */
+export const getLabelAnalysisPlan = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.handler(async ({ context }) => ({
+		route: await aiService.resolveLabelRouteForUser(context.user.id),
+		availability: aiService.labelProviderAvailability(),
+	}));

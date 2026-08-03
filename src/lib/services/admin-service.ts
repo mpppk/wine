@@ -175,6 +175,8 @@ export interface AdminUserDetail {
 		type: string;
 		periodMonth: string;
 		tokenAmount: number | null;
+		/** 量子化前の実原価(µUSD)。#355 以前に計上された行は null。 */
+		costMicroUsd: number | null;
 		createdAt: Date;
 	}>;
 	/** クーポン適用履歴(新しい順)。 */
@@ -290,6 +292,7 @@ export async function getUserDetail(
 				type: creditLedger.type,
 				periodMonth: creditLedger.periodMonth,
 				tokenAmount: creditLedger.tokenAmount,
+				costMicroUsd: creditLedger.costMicroUsd,
 				createdAt: creditLedger.createdAt,
 			})
 			.from(creditLedger)

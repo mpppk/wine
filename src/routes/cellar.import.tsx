@@ -38,8 +38,8 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import { TAP_TARGET_44 } from "#/lib/a11y";
-import { estimateWineListReserveTokens } from "#/lib/ai/config";
-import { tokensToCredits } from "#/lib/credit/credit-math";
+import { estimateWineListReserveCharge } from "#/lib/ai/config";
+import { costToCredits } from "#/lib/credit/credit-math";
 import {
 	CREDIT_BALANCE_QUERY_KEY,
 	useCreditBalanceValue,
@@ -76,7 +76,7 @@ const NO_PLACE = "__none__";
 
 /** 写真N枚を解析するのに要るクレジット(サーバ側の予約見積と同じ式)。0枚は1枚と同じ。 */
 function creditsForPhotos(count: number): number {
-	return tokensToCredits(estimateWineListReserveTokens(count));
+	return costToCredits(estimateWineListReserveCharge(count).microUsd);
 }
 
 export const Route = createFileRoute("/cellar/import")({

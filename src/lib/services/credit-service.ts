@@ -2,7 +2,8 @@ import { waitUntil } from "cloudflare:workers";
 import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { creditBalance, creditLedger } from "#/db/schema";
-import { refundCredits, tokensToCredits } from "#/lib/credit/credit-math";
+import type { CreditCharge } from "#/lib/billing/ai-pricing";
+import { costToCredits, refundCredits } from "#/lib/credit/credit-math";
 import { monthlyGrantForPlan } from "#/lib/credit/grants";
 import { currentMonthKey } from "#/lib/credit/month";
 import {
@@ -128,7 +129,8 @@ export type ReserveResult =
 			requestId: string;
 			/** 予約した(=残高から引いた)クレジット */
 			reservedCredits: number;
-			reservedTokens: number;
+			/** 予約時に見積ったコスト。実測が取れなかったときの確定値に使う。 */
+			reservedMicroUsd: number;
 			balanceAfter: number;
 	  }
 	| {
@@ -397,12 +399,12 @@ export async function getBalance(userId: string): Promise<CreditBalance> {
  */
 export async function reserveCredits(
 	userId: string,
-	estimateTokens: number,
+	estimate: CreditCharge,
 	requestId: string,
 ): Promise<ReserveResult> {
 	await ensureCurrentMonthGranted(userId);
 	await reclaimOrphanReservations(userId);
-	const required = tokensToCredits(estimateTokens);
+	const required = costToCredits(estimate.microUsd);
 
 	const dup = await db
 		.select({ amount: creditLedger.amount })
@@ -415,7 +417,7 @@ export async function reserveCredits(
 			ok: true,
 			requestId,
 			reservedCredits: -dup[0].amount,
-			reservedTokens: estimateTokens,
+			reservedMicroUsd: estimate.microUsd,
 			balanceAfter: cur.balance,
 		};
 	}
@@ -447,13 +449,15 @@ export async function reserveCredits(
 					type: sql<CreditLedgerType>`'consume'`.as("type"),
 					requestId: sql<string>`${requestId}`.as("request_id"),
 					periodMonth: sql<string>`${currentMonthKey()}`.as("period_month"),
-					tokenAmount: sql<number>`${estimateTokens}`.as("token_amount"),
+					tokenAmount: sql<number>`${estimate.tokens}`.as("token_amount"),
 					// INSERT ... SELECT はテーブル定義と同じ順序・同じ列数を要求するため、
 					// 既定値に任せられない。schema.ts の default と同じ式を書く。
 					createdAt:
 						sql<number>`(cast(unixepoch('subsecond') * 1000 as integer))`.as(
 							"created_at",
 						),
+					// schema.ts の列順(createdAt の後ろ)と揃える。
+					costMicroUsd: sql<number>`${estimate.microUsd}`.as("cost_micro_usd"),
 				})
 				.from(creditBalance)
 				.where(
@@ -490,7 +494,7 @@ export async function reserveCredits(
 		ok: true,
 		requestId,
 		reservedCredits: required,
-		reservedTokens: estimateTokens,
+		reservedMicroUsd: estimate.microUsd,
 		balanceAfter: debited[0].balance,
 	};
 }
@@ -517,9 +521,18 @@ function reservationMarkerInsert(params: {
 	counterpartId: string;
 	amount: number;
 	tokenAmount: number | null;
+	/** 量子化前の実原価(µUSD)。返却(全額戻し)は原価を伴わないので null。 */
+	costMicroUsd: number | null;
 }) {
-	const { userId, requestId, markerId, counterpartId, amount, tokenAmount } =
-		params;
+	const {
+		userId,
+		requestId,
+		markerId,
+		counterpartId,
+		amount,
+		tokenAmount,
+		costMicroUsd,
+	} = params;
 	const month = currentMonthKey();
 	return db
 		.insert(creditLedger)
@@ -542,6 +555,10 @@ function reservationMarkerInsert(params: {
 						sql<Date>`(cast(unixepoch('subsecond') * 1000 as integer))`.as(
 							"created_at",
 						),
+					// schema.ts の列順(createdAt の後ろ)と揃える。
+					costMicroUsd: sql<number | null>`${costMicroUsd}`.as(
+						"cost_micro_usd",
+					),
 				})
 				// 「その予約の consume 行が在り、かつ相手側マーカーが無い」ときだけ1行になる。
 				.from(creditLedger)
@@ -571,9 +588,9 @@ export async function settleReservation(
 	userId: string,
 	requestId: string,
 	reservedCredits: number,
-	actualTokens: number,
+	actual: CreditCharge,
 ): Promise<void> {
-	const back = refundCredits(reservedCredits, actualTokens);
+	const back = refundCredits(reservedCredits, actual.microUsd);
 	const settleId = settleRequestId(requestId);
 	const refundId = refundRequestId(requestId);
 
@@ -598,7 +615,8 @@ export async function settleReservation(
 		markerId: settleId,
 		counterpartId: refundId,
 		amount: back,
-		tokenAmount: actualTokens,
+		tokenAmount: actual.tokens,
+		costMicroUsd: actual.microUsd,
 	});
 
 	// 戻す差分が無い場合は残高を触らず証跡だけ残す(balance + 0 の無駄な書き込みを避ける)。
@@ -710,6 +728,8 @@ export async function refundReservation(
 				counterpartId: settleId,
 				amount: reservedCredits,
 				tokenAmount: null,
+				// 全額返却は「消費が無かった」ことの記録なので原価も持たない。
+				costMicroUsd: null,
 			}),
 		]),
 	);

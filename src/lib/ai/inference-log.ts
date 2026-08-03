@@ -49,10 +49,16 @@ export interface AiInferenceLog {
 	/** 実際に呼んだモデルID(例: gpt-5.6-luna)。 */
 	model?: string;
 	photoCount?: number;
-	/** 実測トークン(settle に使った値)。 */
+	/** 実測トークン(観測値。課金の根拠ではない)。 */
 	actualTokens?: number;
-	/** 予約トークン。実測と並べて見積の妥当性を評価する。 */
-	reservedTokens?: number;
+	/**
+	 * 実測の原価(µUSD)。**settle に使った値**で、クレジット消費の根拠(#355)。
+	 * トークン数は経路をまたぐと原価に比例しないため、単価改定や経路追加の妥当性は
+	 * この値で評価する。`--grep "ai inference"` で経路別の実原価を集計できる。
+	 */
+	costMicroUsd?: number;
+	/** 予約した原価(µUSD)。実測と並べて中心値見積の妥当性を評価する。 */
+	reservedMicroUsd?: number;
 	/** failed のときの例外。logger が cause まで畳んで文字列化する。 */
 	err?: unknown;
 }
