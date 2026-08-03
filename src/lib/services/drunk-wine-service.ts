@@ -1655,6 +1655,116 @@ export async function undoImportBatch(
 	return { deletedCount: createdRows.length };
 }
 
+/** 一括登録バッチ履歴の一覧に返す1件。 */
+export interface ImportBatchSummary {
+	id: string;
+	placeId: string | null;
+	placeName: string | null;
+	/** 見かけた日 "YYYY-MM-DD" */
+	seenOn: string | null;
+	photoCount: number;
+	createdAt: number;
+	/** このバッチで新規作成されたエントリの件数 */
+	createdCount: number;
+	/** 既存エントリに目撃記録を追加しただけの件数(sightingCount - createdCount) */
+	matchedCount: number;
+	/** 目撃記録の総数(createdCount + matchedCount) */
+	sightingCount: number;
+	/**
+	 * 新規作成エントリのいずれかが登録後に編集されている(updatedAt が createdAt より
+	 * 1秒以上後。同一INSERT文内の誤差を編集扱いしないための閾値)。取り消すと編集内容も
+	 * 失われるため、一覧・確認ダイアログで警告する材料に使う(Issue #380 の未確定の論点)。
+	 */
+	hasEditedEntries: boolean;
+}
+
+const IMPORT_BATCH_HISTORY_LIMIT = 50;
+
+/**
+ * 過去の一括登録バッチを新しい順に一覧する(Issue #380)。#378 は取り消し導線を
+ * 登録直後の完了画面だけに限定したため件数の集計を持たなかったが、ここでは
+ * バッチ一覧画面から後からでも取り消せるようにするため、drunk_wine /
+ * wine_sighting を都度集計する(import_batch 自体には件数列を持たせない)。
+ *
+ * 全エントリが個別削除済みのバッチ(#380 未確定論点の1つ)は特別扱いしない。
+ * createdCount/sightingCount が0のまま一覧に出て、取り消しは
+ * undoImportBatch が対象0件のまま成功しバッチ行だけを消す(害が無い)。
+ */
+export async function listImportBatches(
+	userId: string,
+): Promise<ImportBatchSummary[]> {
+	const batches = await db
+		.select({
+			id: importBatch.id,
+			placeId: importBatch.placeId,
+			placeName: place.name,
+			seenOn: importBatch.seenOn,
+			photoKeys: importBatch.photoKeys,
+			createdAt: importBatch.createdAt,
+		})
+		.from(importBatch)
+		.leftJoin(place, eq(place.id, importBatch.placeId))
+		.where(eq(importBatch.userId, userId))
+		.orderBy(desc(importBatch.createdAt))
+		.limit(IMPORT_BATCH_HISTORY_LIMIT);
+	if (batches.length === 0) return [];
+
+	const ids = batches.map((b) => b.id);
+	const [createdStats, sightingStats] = await Promise.all([
+		db
+			.select({
+				batchId: drunkWine.batchId,
+				createdCount: sql<number>`count(*)`,
+				editedCount: sql<number>`sum(case when ${drunkWine.updatedAt} > ${drunkWine.createdAt} + 1000 then 1 else 0 end)`,
+			})
+			.from(drunkWine)
+			.where(and(eq(drunkWine.userId, userId), inArray(drunkWine.batchId, ids)))
+			.groupBy(drunkWine.batchId),
+		db
+			.select({
+				batchId: wineSighting.batchId,
+				sightingCount: sql<number>`count(*)`,
+			})
+			.from(wineSighting)
+			.where(
+				and(
+					eq(wineSighting.userId, userId),
+					inArray(wineSighting.batchId, ids),
+				),
+			)
+			.groupBy(wineSighting.batchId),
+	]);
+
+	const createdByBatch = new Map(
+		createdStats
+			.filter((r): r is typeof r & { batchId: string } => r.batchId != null)
+			.map((r) => [r.batchId, r]),
+	);
+	const sightingByBatch = new Map(
+		sightingStats
+			.filter((r): r is typeof r & { batchId: string } => r.batchId != null)
+			.map((r) => [r.batchId, Number(r.sightingCount)]),
+	);
+
+	return batches.map((b) => {
+		const created = createdByBatch.get(b.id);
+		const createdCount = Number(created?.createdCount ?? 0);
+		const sightingCount = sightingByBatch.get(b.id) ?? 0;
+		return {
+			id: b.id,
+			placeId: b.placeId,
+			placeName: b.placeName,
+			seenOn: b.seenOn,
+			photoCount: b.photoKeys.length,
+			createdAt: b.createdAt.getTime(),
+			createdCount,
+			matchedCount: Math.max(0, sightingCount - createdCount),
+			sightingCount,
+			hasEditedEntries: Number(created?.editedCount ?? 0) > 0,
+		};
+	});
+}
+
 /** 一括登録バッチ1件(写真アップロードの応答)。 */
 export interface ImportBatchEntry {
 	id: string;

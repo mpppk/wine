@@ -57,3 +57,12 @@ export const undoImportBatch = createServerFn({ method: "POST" })
 	.handler(({ data, context }) =>
 		drunkWineService.undoImportBatch(context.user.id, data.batchId),
 	);
+
+/**
+ * 過去の一括登録バッチ履歴の一覧(Issue #380)。`/cellar/import/history` から使う。
+ */
+export const listImportBatches = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.handler(({ context }) =>
+		drunkWineService.listImportBatches(context.user.id),
+	);

@@ -28,6 +28,7 @@ import {
 	getDrunkWine,
 	listDrunkWines,
 	listDrunkWinesByAop,
+	listImportBatches,
 	listWineSightings,
 	listWineTastings,
 	markWineDrunk,
@@ -1669,6 +1670,115 @@ describe("undoImportBatch", () => {
 		await expect(
 			undoImportBatch(userId, "no-such-batch"),
 		).rejects.toBeInstanceOf(NotFoundError);
+	});
+});
+
+// ---- listImportBatches(バッチ履歴の一覧, Issue #380) -----------------------
+
+describe("listImportBatches", () => {
+	it("新しい順に一覧し、場所名・件数・目撃記録の内訳を含める", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, { name: "既存のワイン" });
+
+		const first = await bulkRegisterFromScan(userId, {
+			newPlace: { name: "1軒目" },
+			seenOn: "2026-07-01",
+			photoCount: 2,
+			items: [
+				{ wine: { name: "新規A" } },
+				{ wine: undefined, existingId: existing.id },
+			],
+		});
+		// bulkRegisterFromScan の photoCount は解析枚数の申告値で、バッチの実写真
+		// (import_batch.photo_keys)は saveImportBatchPhotos(2段階目)まで空のまま
+		await db
+			.update(importBatch)
+			.set({ createdAt: new Date(1000) })
+			.where(eq(importBatch.id, first.batchId));
+
+		const second = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ wine: { name: "新規B" } }],
+		});
+		await db
+			.update(importBatch)
+			.set({ createdAt: new Date(2000) })
+			.where(eq(importBatch.id, second.batchId));
+
+		const batches = await listImportBatches(userId);
+		expect(batches.map((b) => b.id)).toEqual([second.batchId, first.batchId]);
+
+		expect(batches.find((b) => b.id === first.batchId)).toMatchObject({
+			placeName: "1軒目",
+			seenOn: "2026-07-01",
+			photoCount: 0,
+			createdCount: 1,
+			matchedCount: 1,
+			sightingCount: 2,
+			hasEditedEntries: false,
+		});
+	});
+
+	it("登録後に編集された新規エントリは hasEditedEntries を立てる", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ wine: { name: "後で編集される" } }],
+		});
+		const entryId = (await listDrunkWines(userId)).entries[0]?.id as string;
+		// 実時間を待たずに「作成からしばらく経って更新された」状態を直接作る
+		// (updatedAt の既定値と同じ式で作られる createdAt との差は通常 1ms 未満なので、
+		// この閾値を跨がない限り実際の編集とは区別できる)
+		await db
+			.update(drunkWine)
+			.set({ updatedAt: new Date(Date.now() + 60_000) })
+			.where(eq(drunkWine.id, entryId));
+
+		const [summary] = await listImportBatches(userId);
+		expect(summary).toMatchObject({
+			id: result.batchId,
+			hasEditedEntries: true,
+		});
+	});
+
+	it("全エントリが個別削除済みのバッチは0件のまま一覧に残る", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ wine: { name: "後で個別削除される" } }],
+		});
+		const entryId = (await listDrunkWines(userId)).entries[0]?.id as string;
+		await deleteDrunkWine(userId, entryId);
+
+		const [summary] = await listImportBatches(userId);
+		expect(summary).toMatchObject({
+			id: result.batchId,
+			createdCount: 0,
+			sightingCount: 0,
+		});
+	});
+
+	it("他ユーザのバッチは一覧に出ない", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		await bulkRegisterFromScan(owner, {
+			photoCount: 0,
+			items: [{ wine: { name: "他人のバッチ" } }],
+		});
+
+		expect(await listImportBatches(stranger)).toEqual([]);
+	});
+
+	it("取り消したバッチは一覧から消える", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ wine: { name: "取り消されるワイン" } }],
+		});
+
+		await undoImportBatch(userId, result.batchId);
+
+		expect(await listImportBatches(userId)).toEqual([]);
 	});
 });
 
