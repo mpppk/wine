@@ -90,22 +90,103 @@ export async function requireApiSession(
 }
 
 /**
- * サイズ前チェック込みで FormData をパースする。超過なら 413、パース失敗なら 400 の
+ * ボディを読みながら上限バイト数で打ち切るリクエストを作る。
+ *
+ * `exceeded()` は「上限超過で打ち切ったか」を返す。ストリームのエラーは
+ * `formData()` の例外として出てくるが、**例外の型・メッセージはランタイム依存**なので
+ * 種類の判別には使わず、このフラグで見る。
+ */
+function withBodyLimit(
+	request: Request,
+	limit: number,
+): { request: Request; exceeded: () => boolean } {
+	const body = request.body;
+	// ボディの無いリクエストは打ち切りようがない(formData() 側が 400 にする)。
+	if (!body) return { request, exceeded: () => false };
+
+	let seen = 0;
+	let over = false;
+	const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
+		transform(chunk, controller) {
+			if (over) return;
+			seen += chunk.byteLength;
+			if (seen > limit) {
+				over = true;
+				// **error ではなく terminate で打ち切る**。error にすると下流に例外が伝播する
+				// 経路が増え、どこかで未処理の rejection としてランタイムに漏れて
+				// 「超過リクエストのたびにエラーログが出る」(攻撃者が任意に量産できる
+				// ログノイズになる)。terminate なら下流は「本文が途中で終わった」だけを見る。
+				// 打ち切ったかどうかは over フラグで判る。
+				controller.terminate();
+				return;
+			}
+			controller.enqueue(chunk);
+		},
+	});
+
+	// 打ち切り時は書き込み側が閉じ、pipeTo は reject して上流の読み取りをキャンセルする
+	// (= 上限を超えたバイトはメモリに載らない)。その reject は想定内なので握りつぶす。
+	void body.pipeTo(writable).catch(() => {});
+
+	return {
+		request: new Request(request.url, {
+			method: request.method,
+			// multipart の boundary を含む content-type を保つ(無いとパースできない)。
+			headers: request.headers,
+			body: readable,
+			// ストリームをボディにする場合に必須。workerd の型には無いが、
+			// Request の初期化オプションとしては受け付ける。
+			duplex: "half",
+		} as RequestInit),
+		exceeded: () => over,
+	};
+}
+
+/**
+ * サイズ上限つきで FormData をパースする。超過なら 413、パース失敗なら 400 の
  * Response を返す。
+ *
+ * **Content-Length は信用できない**(#398)。`Transfer-Encoding: chunked` の POST には
+ * そもそもヘッダが無く、以前の実装は `Number(null ?? 0)` = 0 として素通しし、
+ * `request.formData()` が本文全体(Cloudflare の上限 100MB まで)を 128MB の isolate
+ * メモリへバッファしていた。ファイル単位の検証(`validateDeclaredPhotoFile`)はバッファ後に
+ * しか走らないため、並行して大きな chunked アップロードを投げれば isolate の OOM を誘発でき、
+ * 同居する処理中リクエストを巻き込めた。
+ *
+ * そこで**実際に流れたバイト数**を数えて上限で打ち切る。Content-Length のチェックは
+ * ボディを一切読まずに弾ける早期リターンとして残す(申告が正しい通常のクライアント向け)。
  */
 export async function readImageFormData(
 	request: Request,
 	maxPhotos: number = MAX_PHOTOS_PER_ENTRY,
 ): Promise<FormData | Response> {
+	const limit = maxFormDataBytes(maxPhotos);
+
+	// 申告値が既に超過なら、ボディを読まずに弾く(正直なクライアントの早期リターン)。
 	const contentLength = Number(request.headers.get("content-length") ?? 0);
-	if (contentLength > maxFormDataBytes(maxPhotos)) {
+	if (contentLength > limit) {
 		return apiJsonError(API_ERROR_MESSAGES.filesTooLarge, 413);
 	}
+
+	// 申告が無い/過少申告でも、実バイト数がここを超えたら読むのをやめる。
+	const limited = withBodyLimit(request, limit);
+	let form: FormData;
 	try {
-		return await request.formData();
+		form = await limited.request.formData();
 	} catch {
-		return apiJsonError(API_ERROR_MESSAGES.invalidFormData, 400);
+		// 打ち切った本文は multipart として不完全なのでパースに失敗するのが通常。
+		// 「大きすぎた」と「壊れていた」を取り違えないよう、フラグで区別する。
+		return limited.exceeded()
+			? apiJsonError(API_ERROR_MESSAGES.filesTooLarge, 413)
+			: apiJsonError(API_ERROR_MESSAGES.invalidFormData, 400);
 	}
+	// パースが成功しても、打ち切っていれば内容は途中まで。切れ目がパート境界と偶然
+	// 一致した場合にここへ来るので、成功側でも必ず確かめる(中途半端な FormData を
+	// 正常な入力として下流へ通さない)。
+	if (limited.exceeded()) {
+		return apiJsonError(API_ERROR_MESSAGES.filesTooLarge, 413);
+	}
+	return form;
 }
 
 /**
