@@ -182,3 +182,45 @@ secret は GitHub 上で手動設定する(ワークフロー側は環境を参�
 - webhook のイベントを増やす場合は `@better-auth/stripe` が処理するイベントと突合すること
 - **state ロックは無効**: R2 に DynamoDB 相当のロック機構がないため、同時に複数人が apply しない運用とする
   (現状は単独運用のため許容。必要になったら Terraform 1.10+ の `use_lockfile` の R2 対応状況を確認して導入する)
+
+## state ドリフトの復旧(#183)
+
+state を作り直した・Stripe 側で手動作成したなどで **実体は Stripe に在るのに state に無い** 状態になると、
+plan は「create」を出し、apply は Stripe の一意制約(プロモコードの `code` など)で 400 になって
+失敗し続ける。この場合は既存リソースを `terraform import` で state に取り込む。
+
+```bash
+cd terraform/preview   # 本番は terraform/production
+
+export AWS_ACCESS_KEY_ID=<R2のAccess Key ID>
+export AWS_SECRET_ACCESS_KEY=<R2のSecret Access Key>
+export STRIPE_API_KEY=<Stripeのシークレットキー>   # preview は sk_test_... / production は sk_live_...
+
+terraform init
+
+# 例: プロモコード。ID(promo_...)は Stripe から引く
+curl -s https://api.stripe.com/v1/promotion_codes -u "$STRIPE_API_KEY:" \
+  | jq -r '.data[] | select(.code=="WELCOME90") | .id'
+terraform import 'module.stripe.stripe_promotion_code.new_member' 'promo_xxxxxxxxxxxx'
+
+terraform plan   # 差分が消える(または in-place のみ)ことを確認する
+```
+
+> **import 後は plan が「replace」になっていないか必ず確認する**。この provider は create の
+> 直後にも Read で API 値を state に書き戻すため、「Stripe が自動で埋める値」を設定に書いていないと
+> 恒久差分になる。その属性が `ForceNew` だと差分は replace として出るが、
+> **プロモコードの delete は Stripe API 上 no-op(state から消えるだけ)** なので、
+> replace は「state から消す → 同じ `code` で作る → 既存と重複して 400」で必ず失敗し、
+> import した内容も失われる。`stripe_promotion_code.new_member` の `expires_at` が
+> まさにこれで(クーポンの `redeem_by` を Stripe が引き継ぐ)、設定側に明示して解消してある。
+
+### 一意制約を持つ Stripe リソース
+
+| リソース | 一意になる属性 | 実体が在るのに state に無いときの症状 |
+|---|---|---|
+| `stripe_promotion_code` | `code`(アクティブなもの同士で重複不可) | `An active promotion code with code: ... already exists.` で apply 失敗 |
+| `stripe_coupon` | `coupon_id`(Stripe 側の採番。手動指定時のみ衝突) | 同 ID 指定なら重複エラー |
+
+`stripe_product` / `stripe_price` / `stripe_webhook_endpoint` / `stripe_portal_configuration` は
+重複作成が可能なため、state に無いと **黙って二重に作られる**。plan の create 対象が意図した
+ものかを確認してから apply すること。

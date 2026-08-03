@@ -58,9 +58,17 @@ resource "stripe_coupon" "new_member" {
 
 # 上記クーポンを適用するためのプロモコード。ユーザが Checkout で入力する文字列。
 # first_time_transaction で「初回(新規入会)のみ」に限定する。
+#
+# expires_at はクーポンの redeem_by と同じ値を明示する(#183)。Stripe は
+# redeem_by 付きクーポンのプロモコードに expires_at を自動で引き継ぐため、設定に
+# 書かないと「実体は expires_at あり / 設定は null」の恒久差分になる。provider の
+# Read は create 直後も含めて API 値を state に書き戻し、かつ expires_at は ForceNew
+# なので、この差分は毎回 replace(destroy→create)としてプランに出続ける。プロモコードは
+# code の重複を許さないため、その replace は結局 apply に失敗するか ID を作り直す。
 resource "stripe_promotion_code" "new_member" {
-  coupon = stripe_coupon.new_member.id
-  code   = var.new_member_promotion_code
+  coupon     = stripe_coupon.new_member.id
+  code       = var.new_member_promotion_code
+  expires_at = var.new_member_coupon_redeem_by != "" ? var.new_member_coupon_redeem_by : null
 
   restrictions {
     first_time_transaction = true
