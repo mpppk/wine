@@ -108,6 +108,14 @@ export const drunkWine = sqliteTable(
 		sightingCount: integer("sighting_count").notNull().default(0),
 		/** 静的AOPマスタの Aop.id(任意) */
 		aopId: text("aop_id"),
+		/**
+		 * 産地の粗い紐付け(AOPまで特定できないワイン用)。静的マスタの Region.id /
+		 * WineCountry.id を参照する。aop_id とあわせて「最も細かい1つだけを保存する」
+		 * 排他をサービス層で強制する(aop_id があれば両方 NULL、region_id があれば
+		 * country_id は NULL。読み取り時は細→粗へ導出する)。
+		 */
+		regionId: text("region_id"),
+		countryId: text("country_id"),
 		/** ヴィンテージ(収穫年) */
 		vintage: integer("vintage"),
 		/** 静的品種マスタの GrapeVariety.id の配列 */

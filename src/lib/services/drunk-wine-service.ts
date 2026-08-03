@@ -27,15 +27,20 @@ import type {
 	UpdateWineTastingInput,
 } from "#/lib/drunk-wine/schema";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
-import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
+import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import { type LogFields, logError, logWarn } from "#/lib/logger";
-import type {
-	CreateWineSightingInput,
-	UpdateWineSightingInput,
+import { DEFAULT_PLACE_KIND } from "#/lib/place/place";
+import {
+	type CreateWineSightingInput,
+	MAX_PHOTOS_PER_IMPORT_BATCH,
+	type UpdateWineSightingInput,
 } from "#/lib/place/schema";
+import { countryForRegion, getCountry } from "#/lib/wine/countries";
 import {
 	getAop,
+	getRegion,
 	getVariety,
 	legacyAopIdsFor,
 	resolveAopId,
@@ -65,7 +70,16 @@ export interface DrunkWineEntry {
 	aopId: string | null;
 	/** AOP紐付け時のみ。静的マスタから導出 */
 	aopNameJa: string | null;
+	/**
+	 * 表示用の地域。AOP紐付けなら静的マスタから導出、地域紐付けなら保存値。
+	 * どちらも無ければ null(国紐付けのみ・未紐付け)。
+	 */
 	regionId: RegionId | null;
+	/**
+	 * 表示用の国。AOP/地域から導出、国紐付けなら保存値。無ければ null。
+	 * 保存上は「最も細かい1つだけ」の排他(aopId ⊃ regionId ⊃ countryId)。
+	 */
+	countryId: string | null;
 	/** 最新の飲用記録の評価。飲用記録が無い/未入力なら null */
 	lastRating: number | null;
 	/** 最新の飲用記録のメモ。飲用記録が無い/未入力なら null */
@@ -102,6 +116,11 @@ export interface WineSightingEntry {
 	placeName: string | null;
 	batchId: string | null;
 	photoIndex: number | null;
+	/**
+	 * 見かけたときの写真(一括登録のバッチ写真)の相対URL。手で足した目撃記録や、
+	 * 写真の保存に失敗したバッチでは null。
+	 */
+	photoUrl: string | null;
 	seenOn: string | null;
 	price: number | null;
 	memo: string | null;
@@ -118,9 +137,14 @@ type DrunkWineRow = typeof drunkWine.$inferSelect & {
 	lastMemo: string | null;
 };
 type WineTastingRow = typeof wineTasting.$inferSelect;
-/** 目撃記録の行に、表示用の場所名(LEFT JOIN で引く)を足したもの */
+/**
+ * 目撃記録の行に、表示用の場所名と由来バッチの写真キー配列(いずれも LEFT JOIN で
+ * 引く)を足したもの。写真は「バッチの photoKeys の photoIndex 番目」なので、
+ * 行だけでは URL を組み立てられない。
+ */
 type WineSightingRow = typeof wineSighting.$inferSelect & {
 	placeName: string | null;
+	batchPhotoKeys: string[] | null;
 };
 
 function toEntry(row: DrunkWineRow): DrunkWineEntry {
@@ -131,6 +155,26 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		// すり抜けた場合に「地図から静かに消える」だけで終わらないよう検出可能にする。
 		// `bun run logs --grep "orphan aop_id"` で棚卸しできる。
 		logWarn("orphan aop_id", { drunkWineId: row.id, aopId: row.aopId });
+	}
+	// 地域・国は細→粗へ導出する(AOPがあればその地域、地域があればその国)。
+	// 保存値が静的マスタから消えた場合も aop_id と同様に検出可能にする(#333 と同型)。
+	const storedRegion =
+		!aop && row.regionId ? getRegion(row.regionId) : undefined;
+	if (!aop && row.regionId && !storedRegion) {
+		logWarn("orphan region_id", {
+			drunkWineId: row.id,
+			regionId: row.regionId,
+		});
+	}
+	const region = aop ? getRegion(aop.region) : storedRegion;
+	const derivedCountry = region ? countryForRegion(region) : undefined;
+	const storedCountry =
+		!region && row.countryId ? getCountry(row.countryId) : undefined;
+	if (!region && row.countryId && !storedCountry) {
+		logWarn("orphan country_id", {
+			drunkWineId: row.id,
+			countryId: row.countryId,
+		});
 	}
 	return {
 		id: row.id,
@@ -144,7 +188,8 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		// AOP ページへのリンクが現行のマスタと突き合わせられるようにするため。
 		aopId: aop?.id ?? row.aopId,
 		aopNameJa: aop?.nameJa ?? null,
-		regionId: aop?.region ?? null,
+		regionId: aop?.region ?? storedRegion?.id ?? null,
+		countryId: derivedCountry?.id ?? storedCountry?.id ?? null,
 		lastRating: row.lastRating,
 		lastMemo: row.lastMemo,
 		vintage: row.vintage,
@@ -172,12 +217,18 @@ function toTastingEntry(row: WineTastingRow): WineTastingEntry {
 }
 
 function toSightingEntry(row: WineSightingRow): WineSightingEntry {
+	// 由来写真は「バッチの photoKeys の photoIndex 番目」。バッチが無い(手で足した
+	// 目撃記録)・写真をまだ保存していない・番号が範囲外のいずれでも null にする
+	// (存在しないキーの URL を作るとリンク切れの画像が並ぶ)。
+	const photoKey =
+		row.photoIndex != null ? row.batchPhotoKeys?.[row.photoIndex] : undefined;
 	return {
 		id: row.id,
 		placeId: row.placeId,
 		placeName: row.placeName,
 		batchId: row.batchId,
 		photoIndex: row.photoIndex,
+		photoUrl: photoKey ? imagePathForKey(photoKey) : null,
 		seenOn: row.seenOn,
 		price: row.price,
 		memo: row.memo,
@@ -298,16 +349,93 @@ async function assertOwnsDrunkWine(
 
 function assertValidRefs(input: {
 	aopId?: string | null;
+	regionId?: string | null;
+	countryId?: string | null;
 	grapeVarietyIds?: string[];
 }) {
 	if (input.aopId && !getAop(input.aopId)) {
 		throw new BadRequestError(`Unknown AOP: ${input.aopId}`);
+	}
+	if (input.regionId && !getRegion(input.regionId)) {
+		throw new BadRequestError(`Unknown region: ${input.regionId}`);
+	}
+	if (input.countryId && !getCountry(input.countryId)) {
+		throw new BadRequestError(`Unknown country: ${input.countryId}`);
 	}
 	for (const id of input.grapeVarietyIds ?? []) {
 		if (!getVariety(id)) {
 			throw new BadRequestError(`Unknown grape variety: ${id}`);
 		}
 	}
+}
+
+/**
+ * 産地紐付けの排他(「最も細かい1つだけを保存する」)の正規化。
+ *
+ * 3列(aop_id / region_id / country_id)を独立に持たせると「AOPはシャブリなのに
+ * 地域はボルドー」のような矛盾を表現できてしまうため、書き込み時にここで畳む。
+ * 読み取り(toEntry)は細→粗へ導出するので、粗い列に重複して保存する必要はない。
+ */
+
+/** 作成用: 入力の最も細かい単位だけを残した3列を返す。 */
+function provenanceInsertValues(input: {
+	aopId?: string | null;
+	regionId?: string | null;
+	countryId?: string | null;
+}): {
+	aopId: string | null;
+	regionId: string | null;
+	countryId: string | null;
+} {
+	if (input.aopId) {
+		// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)
+		return {
+			aopId: resolveAopId(input.aopId) ?? input.aopId,
+			regionId: null,
+			countryId: null,
+		};
+	}
+	if (input.regionId) {
+		return { aopId: null, regionId: input.regionId, countryId: null };
+	}
+	if (input.countryId) {
+		return { aopId: null, regionId: null, countryId: input.countryId };
+	}
+	return { aopId: null, regionId: null, countryId: null };
+}
+
+/**
+ * 更新用: いずれかの単位が文字列で指定されたら「その粒度を選んだ」とみなし、
+ * 他の2列をクリアする。全て未指定(undefined)なら3列とも変更しない。
+ * null(クリア)だけの指定はそのまま通す(フォームは紐付け解除時に該当列へ null を送る)。
+ */
+function provenanceUpdateValues(patch: {
+	aopId?: string | null;
+	regionId?: string | null;
+	countryId?: string | null;
+}): {
+	aopId?: string | null;
+	regionId?: string | null;
+	countryId?: string | null;
+} {
+	if (typeof patch.aopId === "string") {
+		return {
+			aopId: resolveAopId(patch.aopId) ?? patch.aopId,
+			regionId: null,
+			countryId: null,
+		};
+	}
+	if (typeof patch.regionId === "string") {
+		return { aopId: null, regionId: patch.regionId, countryId: null };
+	}
+	if (typeof patch.countryId === "string") {
+		return { aopId: null, regionId: null, countryId: patch.countryId };
+	}
+	return {
+		aopId: patch.aopId,
+		regionId: patch.regionId,
+		countryId: patch.countryId,
+	};
 }
 
 // 作成入力。Web(zodのCreateDrunkWineInput)に加え、MCPツールが共通の
@@ -337,8 +465,7 @@ export async function createDrunkWine(
 		userId,
 		name: input.name,
 		status,
-		// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)
-		aopId: input.aopId ? (resolveAopId(input.aopId) ?? input.aopId) : null,
+		...provenanceInsertValues(input),
 		vintage: input.vintage ?? null,
 		grapeVarietyIds: input.grapeVarietyIds ?? [],
 		producer: input.producer ?? null,
@@ -380,9 +507,7 @@ export async function updateDrunkWine(
 				.set({
 					name: patch.name,
 					status: patch.status,
-					aopId: patch.aopId
-						? (resolveAopId(patch.aopId) ?? patch.aopId)
-						: patch.aopId,
+					...provenanceUpdateValues(patch),
 					vintage: patch.vintage,
 					grapeVarietyIds: patch.grapeVarietyIds,
 					producer: patch.producer,
@@ -588,9 +713,11 @@ export async function listWineSightings(
 		.select({
 			...getTableColumns(wineSighting),
 			placeName: place.name,
+			batchPhotoKeys: importBatch.photoKeys,
 		})
 		.from(wineSighting)
 		.leftJoin(place, eq(place.id, wineSighting.placeId))
+		.leftJoin(importBatch, eq(importBatch.id, wineSighting.batchId))
 		.where(
 			and(
 				eq(wineSighting.drunkWineId, drunkWineId),
@@ -791,15 +918,27 @@ export async function updateLatestWineTasting(
  * 置換完了後の孤児掃除も同じ扱いにする。D1 の photo_keys は既に更新済みで、そちらが
  * 正となる状態のため、R2 に残骸が残ることより「成功した更新を失敗として返す」ほうが害が大きい。
  */
+// R2 delete は1回あたり最大1000キー。まとめて渡すとAPI呼び出しが失敗するため、
+// 一括削除(deleteDrunkWines)で複数エントリぶんの写真+サムネイルを渡すケースに備えて
+// ここでチャンク分割する(単体削除は常に1チャンクで収まるため挙動は変わらない)。
+const R2_DELETE_CHUNK_SIZE = 1000;
+
 async function cleanupPhotoObjects(
 	keys: string[],
 	fields: LogFields & { userId: string; entryId: string; phase: string },
 ): Promise<void> {
 	if (keys.length === 0) return;
-	try {
-		await env.AVATARS.delete(keys);
-	} catch (cleanupErr) {
-		logError("photo cleanup failed", { ...fields, keys, err: cleanupErr });
+	for (let i = 0; i < keys.length; i += R2_DELETE_CHUNK_SIZE) {
+		const chunk = keys.slice(i, i + R2_DELETE_CHUNK_SIZE);
+		try {
+			await env.AVATARS.delete(chunk);
+		} catch (cleanupErr) {
+			logError("photo cleanup failed", {
+				...fields,
+				keys: chunk,
+				err: cleanupErr,
+			});
+		}
 	}
 }
 
@@ -822,9 +961,47 @@ export async function deleteDrunkWine(
 	);
 }
 
+/**
+ * 複数エントリのまとめ削除(Issue #363 案B: /cellar 一覧のチェックボックス選択)。
+ * 所有権を持たない/存在しない id は黙って無視し(単体削除の Entry not found とは違い、
+ * 選択リストに他ユーザの id が混ざることは無いため、部分一致でも呼び出し側のミスとは
+ * 見なさない)、実際に消えた件数を返す。
+ *
+ * D1書き込みは `drunk_wine` 1テーブルへの delete のみで、`wine_tasting` /
+ * `wine_sighting` は ON DELETE CASCADE(schema.ts)で連動して消える。写真は
+ * エントリ横断でまとめて1回(チャンク分割込み)のR2一括削除にする。
+ */
+export async function deleteDrunkWines(
+	userId: string,
+	ids: string[],
+): Promise<{ deletedCount: number }> {
+	if (ids.length === 0) return { deletedCount: 0 };
+	const rows = await db
+		.delete(drunkWine)
+		.where(and(inArray(drunkWine.id, ids), eq(drunkWine.userId, userId)))
+		.returning({ photoKeys: drunkWine.photoKeys });
+	const keys = rows.flatMap((row) =>
+		row.photoKeys.length > 0
+			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
+			: [],
+	);
+	await cleanupPhotoObjects(keys, {
+		userId,
+		entryId: ids.join(","),
+		phase: "entries-deleted",
+	});
+	return { deletedCount: rows.length };
+}
+
 export interface ListDrunkWinesOptions {
 	/** 絞り込み条件(一覧のチップと同じ定義)。既定は "all"。 */
 	filter?: CellarFilterId;
+	/**
+	 * 場所での絞り込み(その場所で見かけた銘柄だけ)。チップ(所有状態)とは
+	 * **直交する別の軸**なので、CellarFilterId には混ぜない——「セラーにある」かつ
+	 * 「この店で見かけた」のような組み合わせが成立するため。
+	 */
+	placeId?: string;
 	/** 1ページの件数。未指定なら全件返す(地図のように全ピンが要る経路のため)。 */
 	limit?: number;
 	/** 前ページの nextCursor。先頭ページは未指定。 */
@@ -876,6 +1053,17 @@ function cellarFilterCondition(filter: CellarFilterId) {
 }
 
 /**
+ * 「その場所で見かけた銘柄」の条件。目撃記録は 1:N なので EXISTS で畳む
+ * (JOIN すると同じ場所で複数回見かけた銘柄が重複行になり、ページングの件数が狂う)。
+ *
+ * pure 版の対応物は置かない。所有状態のチップ(filter.ts)と違い、この軸は
+ * wine_sighting を読まないと判定できず、クライアント側に同じ述語を置く用途が無い。
+ */
+function placeCondition(placeId: string) {
+	return sql`exists (select 1 from ${wineSighting} where ${wineSighting.drunkWineId} = ${drunkWine.id} and ${wineSighting.placeId} = ${placeId})`;
+}
+
+/**
  * マイセラーの一覧。新しい順(createdAt 降順)。
  *
  * limit を渡すとカーソルページネーションになる(#254)。マイセラーはユーザが単調に
@@ -903,6 +1091,7 @@ export async function listDrunkWines(
 	const conditions = [eq(drunkWine.userId, userId)];
 	const filterCondition = cellarFilterCondition(filter);
 	if (filterCondition) conditions.push(filterCondition);
+	if (options.placeId) conditions.push(placeCondition(options.placeId));
 	if (after) {
 		// keyset: (created_at, id) の辞書順で「カーソルより古い」行だけを読む
 		conditions.push(
@@ -972,7 +1161,12 @@ export async function listDrunkWinesByAop(
  */
 export async function countCellarFilters(
 	userId: string,
+	options: { placeId?: string } = {},
 ): Promise<Record<CellarFilterId, number>> {
+	// 場所で絞り込んでいるときはチップの件数も同じ母集合で数える。ここを全件のまま
+	// にすると、チップの数字と実際に並ぶ件数が食い違う。
+	const conditions = [eq(drunkWine.userId, userId)];
+	if (options.placeId) conditions.push(placeCondition(options.placeId));
 	const [row] = await db
 		.select({
 			all: sql<number>`count(*)`,
@@ -982,7 +1176,7 @@ export async function countCellarFilters(
 			spotted: sql<number>`sum(case when ${drunkWine.status} = 'spotted' then 1 else 0 end)`,
 		})
 		.from(drunkWine)
-		.where(eq(drunkWine.userId, userId));
+		.where(and(...conditions));
 	return {
 		all: Number(row?.all ?? 0),
 		tasted: Number(row?.tasted ?? 0),
@@ -1165,4 +1359,315 @@ export async function syncDrunkWinePhotos(
 	// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
 	// 返却用に読み直す(R2 の後始末が済んでから)。
 	return getDrunkWine(userId, id);
+}
+
+// ---- 一括登録(写真からのスキャン。Issue #358) -----------------------------
+// レストランのワインリスト・ショップの棚を撮った写真から抽出した複数銘柄を、
+// 1回の確定でまとめて登録する経路。場所(新規なら)・バッチ・銘柄・目撃記録・
+// 飲用記録・集計キャッシュを**すべて同一の db.batch で原子的に**作る。
+//
+// ここに置くのは目撃記録・写真と同じ理由で、recomputeDrunkWineAggregates /
+// buildSightingValues / buildTastingValues / cleanupPhotoObjects といった
+// モジュール私有のヘルパと同じ batch に積む必要があるため。
+//
+// 写真の実体だけは2段階目(saveImportBatchPhotos)になる。R2キーが batchId 依存で、
+// バッチ行が確定するまでキーを採番できないため(エントリ写真と同じ制約)。
+
+export interface BulkRegisterFromScanResult {
+	/** 作成した一括登録バッチのID。写真アップロード(2段階目)がこれを使う */
+	batchId: string;
+	/** 紐付けた場所のID。場所を指定しなかった場合は null */
+	placeId: string | null;
+	/** 新規作成した銘柄の件数 */
+	createdCount: number;
+	/** 既存エントリに目撃記録だけを足した件数 */
+	matchedCount: number;
+	/** 作成した目撃記録の件数(= items の件数) */
+	sightingCount: number;
+	/** 作成した飲用記録の件数 */
+	tastingCount: number;
+}
+
+/**
+ * 集計キャッシュの一括再計算。**1文で全対象を更新する**が、id を分割して積むのは
+ * D1 の「1クエリあたりのバインド変数」上限に触れないため(1回の一括登録は最大
+ * MAX_ITEMS_PER_IMPORT 件 = 80件になりうる)。式は単体経路と同じものを使う。
+ */
+const RECOMPUTE_CHUNK_SIZE = 50;
+
+/**
+ * db.batch に積める文の型。db.batch は「1件以上」をタプルで要求するので、
+ * 件数が実行時に決まるこの経路では配列で組み立ててから最後にタプルへ寄せる。
+ */
+type BatchStatement = Parameters<typeof db.batch>[0][number];
+
+function recomputeDrunkWineAggregatesBulk(
+	userId: string,
+	ids: string[],
+): BatchStatement[] {
+	const statements: BatchStatement[] = [];
+	for (let i = 0; i < ids.length; i += RECOMPUTE_CHUNK_SIZE) {
+		const chunk = ids.slice(i, i + RECOMPUTE_CHUNK_SIZE);
+		statements.push(
+			db
+				.update(drunkWine)
+				.set({
+					tastingCount: TASTING_COUNT_EXPR,
+					lastDrankOn: MAX_DRANK_ON_EXPR,
+					sightingCount: SIGHTING_COUNT_EXPR,
+					lastSeenOn: MAX_SEEN_ON_EXPR,
+				})
+				.where(and(eq(drunkWine.userId, userId), inArray(drunkWine.id, chunk))),
+		);
+	}
+	return statements;
+}
+
+/**
+ * 写真から抽出した銘柄群をまとめて登録する。
+ *
+ * - `existingId` の項目は銘柄を作らず、その既存エントリに目撃記録だけを足す
+ *   (同じワインを別の店でも見かけた、を1エントリ + 目撃N件で表す設計)
+ * - 目撃記録の場所・見かけた日・バッチIDはバッチ共通の値をここで埋める
+ * - `status` 未指定の新規銘柄は "spotted"(見かけた)。createDrunkWine の既定
+ *   (finished)をそのまま使うと、見かけただけのワインが飲み終わり扱いになり、
+ *   日付なしの飲用記録まで作られてしまう
+ *
+ * **全成功か全失敗**なので、ネットワーク都合で再送されても部分的な重複は残らない
+ * (同じ入力をユーザが2回確定すれば2バッチできるが、それは意図した操作)。
+ */
+export async function bulkRegisterFromScan(
+	userId: string,
+	input: BulkRegisterFromScanInput,
+): Promise<BulkRegisterFromScanResult> {
+	// 静的マスタ(AOP・品種)の検証は新規銘柄ぶんだけ。1件でも不正なら登録全体を
+	// 断る(部分適用にすると、どれが入ってどれが入らなかったかを画面が説明できない)
+	for (const item of input.items) {
+		if (item.wine) assertValidRefs(item.wine);
+	}
+
+	// 既存エントリの所有権をまとめて確認する。1件ずつ SELECT すると件数ぶん
+	// ラウンドトリップが増えるので、id の集合で1回引いて差分を見る。
+	const existingIds = [
+		...new Set(
+			input.items
+				.map((i) => i.existingId)
+				.filter((id): id is string => id != null),
+		),
+	];
+	if (existingIds.length > 0) {
+		const rows = await db
+			.select({ id: drunkWine.id })
+			.from(drunkWine)
+			.where(
+				and(eq(drunkWine.userId, userId), inArray(drunkWine.id, existingIds)),
+			);
+		if (rows.length !== existingIds.length) {
+			// 存在しない/他ユーザ所有は区別しない(存在の探索を防ぐ規約)
+			throw new NotFoundError("Entry not found");
+		}
+	}
+
+	// 場所: 既存の指定は所有権を確認し、新規は同じ batch で作る
+	if (input.placeId) {
+		await assertOwnsSightingRefs(userId, { placeId: input.placeId });
+	}
+	const newPlaceId = input.newPlace ? crypto.randomUUID() : null;
+	const placeId = input.placeId ?? newPlaceId;
+
+	const batchId = crypto.randomUUID();
+	const statements: BatchStatement[] = [];
+
+	if (input.newPlace) {
+		statements.push(
+			db.insert(place).values({
+				id: newPlaceId as string,
+				userId,
+				name: input.newPlace.name,
+				kind: input.newPlace.kind ?? DEFAULT_PLACE_KIND,
+				memo: input.newPlace.memo ?? null,
+			}),
+		);
+	}
+
+	statements.push(
+		db.insert(importBatch).values({
+			id: batchId,
+			userId,
+			placeId,
+			seenOn: input.seenOn ?? null,
+			// 写真の実体は2段階目(saveImportBatchPhotos)で入る
+			photoKeys: [],
+		}),
+	);
+
+	const affectedIds: string[] = [];
+	let createdCount = 0;
+	let tastingCount = 0;
+	for (const item of input.items) {
+		let drunkWineId: string;
+		if (item.wine) {
+			drunkWineId = crypto.randomUUID();
+			createdCount += 1;
+			statements.push(
+				db.insert(drunkWine).values({
+					id: drunkWineId,
+					userId,
+					name: item.wine.name,
+					// 見かけただけ、が既定。飲んだかどうかは tasting の有無で表す
+					status: item.wine.status ?? "spotted",
+					...provenanceInsertValues(item.wine),
+					vintage: item.wine.vintage ?? null,
+					grapeVarietyIds: item.wine.grapeVarietyIds ?? [],
+					producer: item.wine.producer ?? null,
+					price: item.wine.price ?? null,
+				}),
+			);
+		} else {
+			// refine 済みなので existingId は必ずある
+			drunkWineId = item.existingId as string;
+		}
+		affectedIds.push(drunkWineId);
+
+		statements.push(
+			db.insert(wineSighting).values(
+				buildSightingValues(userId, drunkWineId, {
+					...item.sighting,
+					placeId: placeId ?? undefined,
+					batchId,
+					seenOn: input.seenOn,
+				}),
+			),
+		);
+
+		if (item.tasting) {
+			tastingCount += 1;
+			statements.push(
+				db
+					.insert(wineTasting)
+					.values(buildTastingValues(userId, drunkWineId, item.tasting)),
+			);
+		}
+	}
+
+	// 集計キャッシュは INSERT 群の後に積む(D1 の batch は順次実行なので、この
+	// UPDATE は同じ batch の INSERT の結果を見る)。新規銘柄も既存銘柄も対象。
+	statements.push(...recomputeDrunkWineAggregatesBulk(userId, affectedIds));
+
+	// items は1件以上(zod)なので statements も必ず1件以上になる
+	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
+
+	return {
+		batchId,
+		placeId,
+		createdCount,
+		matchedCount: input.items.length - createdCount,
+		sightingCount: input.items.length,
+		tastingCount,
+	};
+}
+
+/** 一括登録バッチ1件(写真アップロードの応答)。 */
+export interface ImportBatchEntry {
+	id: string;
+	placeId: string | null;
+	seenOn: string | null;
+	/** 写真の相対URL(/api/images/...)。撮影順 = 目撃記録の photoIndex が指す順 */
+	photoUrls: string[];
+	createdAt: number;
+}
+
+function toImportBatchEntry(
+	row: typeof importBatch.$inferSelect,
+): ImportBatchEntry {
+	return {
+		id: row.id,
+		placeId: row.placeId,
+		seenOn: row.seenOn,
+		photoUrls: row.photoKeys.map(imagePathForKey),
+		createdAt: row.createdAt.getTime(),
+	};
+}
+
+/**
+ * 一括登録バッチの写真をR2へ保存し、キー配列を確定する(2段階目)。
+ *
+ * リスト/棚の写真は**バッチに1回だけ置き、銘柄ごとに複製しない**。目撃記録は
+ * photoIndex でこの配列を指す。したがって**順番と枚数が登録時の申告
+ * (photoCount)と一致していること**が意味の前提になり、ここでずれると
+ * 「別の写真で見かけたことになる」ため、枚数が合わなければ拒否する。
+ *
+ * R2キーは `wines/{userId}/{batchId}/{photoId}.{ext}`。エントリ写真と同じ
+ * `wines/` 接頭辞に載せる理由は db/schema.ts の importBatch の JSDoc を参照
+ * (認可・署名URL・退会時削除がこのレイアウトと一対の契約になっている)。
+ *
+ * 既に写真が入っているバッチへの再アップロードは受け付けない(冪等性のためでは
+ * なく、目撃記録の photoIndex が既に確定した配列を指しているため。差し替えたい
+ * ケースは現状の導線に無い)。
+ */
+export async function saveImportBatchPhotos(
+	userId: string,
+	batchId: string,
+	photos: Array<{ bytes: ArrayBuffer | Uint8Array; mimeType: string }>,
+): Promise<ImportBatchEntry> {
+	if (photos.length > MAX_PHOTOS_PER_IMPORT_BATCH) {
+		throw new BadRequestError(
+			`写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです`,
+		);
+	}
+	const [existing] = await db
+		.select()
+		.from(importBatch)
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+	if (!existing) throw new NotFoundError("Import batch not found");
+	if (existing.photoKeys.length > 0) {
+		throw new ConflictError("このバッチの写真は保存済みです");
+	}
+
+	const putKeys: string[] = [];
+	try {
+		for (const photo of photos) {
+			// 保存する Content-Type は申告値ではなく実バイトから確定する(#150)。
+			// 新しい入力経路を足すときに必ずこの関門を通す(#174)。
+			const bytes =
+				photo.bytes instanceof Uint8Array
+					? photo.bytes
+					: new Uint8Array(photo.bytes);
+			const mime = resolveStoredPhotoMime(bytes, photo.mimeType);
+			if (!mime) {
+				throw new BadRequestError(
+					"画像として認識できないか、形式が申告値と一致しないファイルが含まれています",
+				);
+			}
+			const key = buildWinePhotoKey(userId, batchId, crypto.randomUUID(), mime);
+			await env.AVATARS.put(key, bytes, {
+				httpMetadata: { contentType: mime },
+			});
+			putKeys.push(key);
+		}
+	} catch (e) {
+		// 巻き戻しの成否に関わらず元例外を投げる(掃除の失敗で真因を隠さない)
+		await cleanupPhotoObjects(putKeys, {
+			userId,
+			entryId: batchId,
+			phase: "import-batch-rollback",
+			originalErr: e,
+		});
+		throw e;
+	}
+
+	const [row] = await db
+		.update(importBatch)
+		.set({ photoKeys: putKeys })
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)))
+		.returning();
+	if (!row) {
+		await cleanupPhotoObjects(putKeys, {
+			userId,
+			entryId: batchId,
+			phase: "import-batch-deleted",
+		});
+		throw new NotFoundError("Import batch not found");
+	}
+	return toImportBatchEntry(row);
 }

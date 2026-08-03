@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
 import { REGION_IDS } from "#/lib/wine/regions";
 import { aopClassificationLabel } from "#/lib/wine/tags";
-import { isOpenEndedAppellation } from "./aop-pool";
+import { duplicatesParentFact, isOpenEndedAppellation } from "./aop-pool";
 import { enumerateAopVarietyKeys } from "./generators/aop-variety";
 import { enumerateColorsKeys } from "./generators/colors";
 import { enumerateVarietyKeys } from "./generators/variety";
 import { parseKey } from "./keys";
+import { colorComboId } from "./labels";
 
 const igtAopIds = new Set(
 	AOPS.filter((a) => isOpenEndedAppellation(a)).map((a) => a.id),
@@ -38,5 +39,47 @@ describe("開かれた広域呼称(IGT)の出題除外", () => {
 	it("格付けラベルとしては IGT が引ける", () => {
 		const igt = AOPS.find((a) => a.id === "toscana-igt");
 		expect(igt && aopClassificationLabel(igt)).toBe("IGT");
+	});
+});
+
+describe("親畑と同一内容の設問の集約(duplicatesParentFact)", () => {
+	const byId = new Map(AOPS.map((a) => [a.id, a]));
+	const aopOf = (id: string) => {
+		const aop = byId.get(id);
+		if (!aop) throw new Error(`no such aop: ${id}`);
+		return aop;
+	};
+
+	it("値が親畑と同じクリマは true(シャブリGCのクリマの色)", () => {
+		expect(
+			duplicatesParentFact(aopOf("chablis-gc-les-clos"), (a) =>
+				colorComboId(a.colors),
+			),
+		).toBe(true);
+	});
+
+	it("値が親畑と異なるクリマは false(コルトンの赤のみクリマの色)", () => {
+		expect(
+			duplicatesParentFact(aopOf("corton-les-bressandes"), (a) =>
+				colorComboId(a.colors),
+			),
+		).toBe(false);
+	});
+
+	it("parentAopId を持たないAOPは常に false", () => {
+		expect(
+			duplicatesParentFact(aopOf("chablis-grand-cru"), (a) =>
+				colorComboId(a.colors),
+			),
+		).toBe(false);
+	});
+
+	it("事実が undefined / 空のときは false(比較不能なら除外しない)", () => {
+		expect(
+			duplicatesParentFact(aopOf("chablis-gc-les-clos"), () => undefined),
+		).toBe(false);
+		expect(duplicatesParentFact(aopOf("chablis-gc-les-clos"), () => "")).toBe(
+			false,
+		);
 	});
 });

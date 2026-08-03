@@ -1,7 +1,11 @@
 import { AOPS } from "#/lib/wine/aops-data";
 import { getAop } from "#/lib/wine/service";
-import type { RegionId } from "#/lib/wine/types";
-import { isOpenEndedAppellation, listClosedListAops } from "../aop-pool";
+import type { Aop, RegionId } from "#/lib/wine/types";
+import {
+	duplicatesParentFact,
+	isOpenEndedAppellation,
+	listClosedListAops,
+} from "../aop-pool";
 import { buildColorsKey, type ParsedQuestionKey } from "../keys";
 import { colorComboId, formatColorsJa } from "../labels";
 import { type Rng, shuffle } from "../rng";
@@ -21,10 +25,16 @@ function listExistingCombos(): string[] {
 	return existingCombos;
 }
 
+/** 正解の色コンボが親畑と同じクリマは、親側の1問に集約する(aop-pool.ts 参照) */
+const duplicatesParentColors = (a: Aop) =>
+	duplicatesParentFact(a, (x) => colorComboId(x.colors));
+
 // 開かれた広域呼称(IGT)は収録した colors が網羅でないため、「認められている色は」を
 // 断定するこの形式では出題しない(aop-pool.ts 参照)
 export function enumerateColorsKeys(regionId: RegionId): string[] {
-	return listClosedListAops({ regionId }).map((a) => buildColorsKey(a.id));
+	return listClosedListAops({ regionId })
+		.filter((a) => !duplicatesParentColors(a))
+		.map((a) => buildColorsKey(a.id));
 }
 
 export function materializeColorsQuestion(
@@ -32,7 +42,9 @@ export function materializeColorsQuestion(
 	rng: Rng,
 ): QuizQuestion | null {
 	const aop = getAop(parsed.aopId);
-	if (!aop || isOpenEndedAppellation(aop)) return null;
+	if (!aop || isOpenEndedAppellation(aop) || duplicatesParentColors(aop)) {
+		return null;
+	}
 
 	const correctCombo = colorComboId(aop.colors);
 	const comboColors = (combo: string) => combo.split("+");

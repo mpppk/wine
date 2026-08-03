@@ -1,7 +1,11 @@
 import { AOPS } from "#/lib/wine/aops-data";
 import { getAop } from "#/lib/wine/service";
-import type { RegionId } from "#/lib/wine/types";
-import { isOpenEndedAppellation, listClosedListAops } from "../aop-pool";
+import type { Aop, RegionId } from "#/lib/wine/types";
+import {
+	duplicatesParentFact,
+	isOpenEndedAppellation,
+	listClosedListAops,
+} from "../aop-pool";
 import { buildAopVarietyKey, type ParsedQuestionKey } from "../keys";
 import {
 	formatPrincipalGrapesJa,
@@ -30,12 +34,18 @@ function listExistingCombos(): string[] {
 	return existingCombos;
 }
 
+/** 正解の主要品種コンボが親畑と同じクリマは、親側の1問に集約する(aop-pool.ts 参照) */
+const duplicatesParentVariety = (a: Aop) =>
+	duplicatesParentFact(a, (x) => principalComboId(x));
+
 export function enumerateAopVarietyKeys(regionId: RegionId): string[] {
 	// 主要品種を持ち、かつ4択を作れる(実在コンボが4種以上ある)場合のみ出題。
 	// 開かれた広域呼称(IGT)は「主要品種」が定まらないため除く(aop-pool.ts 参照)
 	if (listExistingCombos().length < 4) return [];
 	return listClosedListAops({ regionId })
-		.filter((a) => principalVarietyIds(a).length > 0)
+		.filter(
+			(a) => principalVarietyIds(a).length > 0 && !duplicatesParentVariety(a),
+		)
 		.map((a) => buildAopVarietyKey(a.id));
 }
 
@@ -44,7 +54,9 @@ export function materializeAopVarietyQuestion(
 	rng: Rng,
 ): QuizQuestion | null {
 	const aop = getAop(parsed.aopId);
-	if (!aop || isOpenEndedAppellation(aop)) return null;
+	if (!aop || isOpenEndedAppellation(aop) || duplicatesParentVariety(aop)) {
+		return null;
+	}
 
 	const correctCombo = principalComboId(aop);
 	if (correctCombo.length === 0) return null;

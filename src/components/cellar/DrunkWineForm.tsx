@@ -49,6 +49,7 @@ import {
 	PHOTO_THUMB_MAX_DIMENSION,
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
+import { postImageForm } from "#/lib/images/form-client";
 import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { cn } from "#/lib/utils";
@@ -105,11 +106,13 @@ async function syncPhotos(
 			: { type: "new", index: newIndex.get(p.localId) },
 	);
 	form.append("layout", JSON.stringify(layout));
-	const res = await fetch("/api/wine-photos", { method: "POST", body: form });
-	const body = (await res.json()) as { error?: string; entry?: DrunkWineEntry };
-	if (!res.ok || !body.entry) {
-		throw new Error(body.error ?? "写真のアップロードに失敗しました");
-	}
+	const fallbackMessage = "写真のアップロードに失敗しました";
+	const body = await postImageForm<{ entry?: DrunkWineEntry }>(
+		"/api/wine-photos",
+		form,
+		{ fallbackMessage },
+	);
+	if (!body.entry) throw new Error(fallbackMessage);
 	return body.entry;
 }
 
@@ -241,6 +244,10 @@ export function DrunkWineForm({
 	};
 
 	// エチケット解析の候補と現在値の差分。ダイアログで選ばせている間だけ値を持つ。
+	//
+	// 「未入力の項目だけに自動反映する」形(#374 までの applySuggestions)はここで
+	// 廃止した。産地の排他(最も細かい1つだけ)を含む適用ルールは buildLabelDiffs が
+	// 一手に持ち、反映するかどうかはユーザが選ぶ(#362)。
 	const [labelDiffs, setLabelDiffs] = useState<LabelDiffItem[]>([]);
 
 	const { mutate: analyzeLabel, isPending: isAnalyzing } = useMutation({

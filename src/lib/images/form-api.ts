@@ -8,7 +8,12 @@ import {
 	MAX_PHOTO_BYTES,
 	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
+	maxFormDataBytes,
 } from "#/lib/drunk-wine/photo";
+
+// formData() はボディ全体をメモリに載せるため、明らかに大きいリクエストはパース前に弾く。
+// 上限の式はクライアント側の送信前ガードと共有する(photo.ts の maxFormDataBytes)。
+export { maxFormDataBytes };
 
 // FormData で画像を受け取る API ルート(アバター / ワイン写真 / エチケット解析)の共通関門(#260)。
 //
@@ -37,7 +42,16 @@ export function apiJsonError(message: string, status: number): Response {
 	return apiJson({ error: message } satisfies ApiErrorBody, status);
 }
 
-/** 3ルートで共有するエラー文言。上限値は定数から組み立てる(リテラル再記述を作らない)。 */
+/**
+ * 枚数上限の超過メッセージ。**上限はルートによって違う**(エントリの写真は
+ * MAX_PHOTOS_PER_ENTRY、一括登録の解析は MAX_PHOTOS_PER_IMPORT_BATCH)ので、
+ * 文言だけを共有して枚数は引数で受ける。
+ */
+export function tooManyPhotosMessage(limit: number): string {
+	return `写真は最大${limit}枚までです`;
+}
+
+/** 各ルートで共有するエラー文言。上限値は定数から組み立てる(リテラル再記述を作らない)。 */
 export const API_ERROR_MESSAGES = {
 	unauthorized: "Unauthorized",
 	impersonationReadOnly: IMPERSONATION_READONLY_MESSAGE,
@@ -45,15 +59,12 @@ export const API_ERROR_MESSAGES = {
 	unsupportedImageType: "Unsupported image type",
 	fileTooLarge: `File exceeds ${MAX_PHOTO_SIZE_LABEL} limit`,
 	filesTooLarge: "Files exceed size limit",
-	tooManyPhotos: `写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`,
+	tooManyPhotos: tooManyPhotosMessage(MAX_PHOTOS_PER_ENTRY),
+	noPhoto: "No photo file provided",
 } as const;
 
-/**
- * formData() はボディ全体をメモリに載せるため、明らかに大きいリクエストはパース前に弾く。
- * 全枚数ぶん + multipart 境界等のオーバーヘッドを見込む。
- */
-export const MAX_FORM_DATA_BYTES =
-	MAX_PHOTO_BYTES * MAX_PHOTOS_PER_ENTRY + 64 * 1024;
+/** エントリ写真の枚数(既定)を前提とした上限。 */
+export const MAX_FORM_DATA_BYTES = maxFormDataBytes(MAX_PHOTOS_PER_ENTRY);
 
 /**
  * ログイン中のセッションを返す。未ログインなら 401、なりすまし(impersonation)中の
@@ -84,9 +95,10 @@ export async function requireApiSession(
  */
 export async function readImageFormData(
 	request: Request,
+	maxPhotos: number = MAX_PHOTOS_PER_ENTRY,
 ): Promise<FormData | Response> {
 	const contentLength = Number(request.headers.get("content-length") ?? 0);
-	if (contentLength > MAX_FORM_DATA_BYTES) {
+	if (contentLength > maxFormDataBytes(maxPhotos)) {
 		return apiJsonError(API_ERROR_MESSAGES.filesTooLarge, 413);
 	}
 	try {
@@ -121,4 +133,46 @@ export function validateDeclaredPhotoFiles(
 		if (error) return error;
 	}
 	return null;
+}
+
+/**
+ * FormData の "photo" を取り出し、「1枚以上・上限枚数以下・MIME/サイズが妥当」まで
+ * 検証して返す。問題があれば Response を返すので、呼び出し側は `instanceof Response` で
+ * そのまま return する。
+ *
+ * AI解析系のルート(エチケット解析 / 一括抽出)がこの3点セットを個別に書くと、
+ * 4本目を足すときに枚数チェックだけ漏れる形になる(この関門を作った #260 と同じ動機)。
+ * 上限枚数はルートで違うので引数で受ける。
+ */
+export function readPhotoFiles(
+	formData: FormData,
+	maxPhotos: number = MAX_PHOTOS_PER_ENTRY,
+): File[] | Response {
+	const files = formData
+		.getAll("photo")
+		.filter((f): f is File => f instanceof File);
+	if (files.length === 0) return apiJsonError(API_ERROR_MESSAGES.noPhoto, 400);
+	if (files.length > maxPhotos) {
+		return apiJsonError(tooManyPhotosMessage(maxPhotos), 400);
+	}
+	const invalid = validateDeclaredPhotoFiles(files);
+	if (invalid) return invalid;
+	return files;
+}
+
+/**
+ * 画像ファイルを data URI に変換する(AIプロバイダへ渡す形)。btoa はチャンクで呼び、
+ * 巨大文字列の一括連結を避ける。
+ *
+ * **申告 MIME をそのまま載せる**のは、この先が R2 への保存ではなく AI への入力に限られる
+ * ため(保存する Content-Type は resolveStoredPhotoMime が実バイトから確定する #150)。
+ */
+export async function fileToDataUrl(file: File): Promise<string> {
+	const bytes = new Uint8Array(await file.arrayBuffer());
+	const chunkSize = 0x8000;
+	let binary = "";
+	for (let i = 0; i < bytes.length; i += chunkSize) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+	}
+	return `data:${file.type};base64,${btoa(binary)}`;
 }

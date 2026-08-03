@@ -12,6 +12,7 @@ import {
 	labelEngineKeySchema,
 	REGION_QA_MODEL_KEYS,
 	regionQaModelKeySchema,
+	resolveLabelRoute,
 	toLabelEngineKey,
 	toRegionQaModelKey,
 } from "./config";
@@ -114,6 +115,46 @@ describe("labelEngineKeySchema / toLabelEngineKey", () => {
 		if (!result.success) {
 			expect(result.error.issues[0]?.message).toBe(
 				"対応していない解析エンジンです。",
+			);
+		}
+	});
+});
+
+// 選択されたエンジンと実際に走る経路の対応づけ。ai-service が経路ごとに
+// `!!key && engine === "..."` を書くと、経路が増えるたびに条件がドリフトして
+// 「片方のキーだけ設定された環境で黙って標準へ落ちる」が起きるため、ここが SSOT。
+describe("resolveLabelRoute", () => {
+	const both = { openai: true, anthropic: true };
+	const neither = { openai: false, anthropic: false };
+	const onlyOpenai = { openai: true, anthropic: false };
+	const onlyAnthropic = { openai: false, anthropic: true };
+
+	it("キーが揃っていれば選択どおりの経路になる", () => {
+		expect(resolveLabelRoute("gpt-luna", both)).toBe("gpt-luna");
+		expect(resolveLabelRoute("web-research", both)).toBe("web-research");
+	});
+
+	it("標準(workers-ai)の明示選択はキー設定時でも高精度に上がらない", () => {
+		expect(resolveLabelRoute("workers-ai", both)).toBe("workers-ai");
+		expect(resolveLabelRoute("workers-ai", neither)).toBe("workers-ai");
+	});
+
+	it("選んだプロバイダのキーが無ければ、標準へ落とす前にもう一方の高精度を使う", () => {
+		// 既定が gpt-luna でも、ANTHROPIC_API_KEY だけの環境が Workers AI へ
+		// 降格しない(#354 時点の本番構成に対する回帰テスト)
+		expect(resolveLabelRoute("gpt-luna", onlyAnthropic)).toBe("web-research");
+		expect(resolveLabelRoute("web-research", onlyOpenai)).toBe("gpt-luna");
+	});
+
+	it("高精度のキーが1つも無ければ標準へ降格する", () => {
+		expect(resolveLabelRoute("gpt-luna", neither)).toBe("workers-ai");
+		expect(resolveLabelRoute("web-research", neither)).toBe("workers-ai");
+	});
+
+	it("既定エンジンはどのキー構成でも必ず解決先を持つ", () => {
+		for (const availability of [both, neither, onlyOpenai, onlyAnthropic]) {
+			expect(LABEL_ENGINE_KEYS).toContain(
+				resolveLabelRoute(DEFAULT_LABEL_ENGINE, availability),
 			);
 		}
 	});

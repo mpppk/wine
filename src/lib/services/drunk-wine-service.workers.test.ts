@@ -13,12 +13,15 @@ import { thumbKeyForPhotoKey } from "#/lib/drunk-wine/photo";
 import type { WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError } from "#/lib/errors";
 import { imageKeyFromPath } from "#/lib/images/signed-url";
+import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import {
 	addWineSighting,
 	addWineTasting,
+	bulkRegisterFromScan,
 	countCellarFilters,
 	createDrunkWine,
 	deleteDrunkWine,
+	deleteDrunkWines,
 	deleteWineSighting,
 	deleteWineTasting,
 	getCellarSummary,
@@ -28,12 +31,14 @@ import {
 	listWineSightings,
 	listWineTastings,
 	markWineDrunk,
+	saveImportBatchPhotos,
 	syncDrunkWinePhotos,
+	updateDrunkWine,
 	updateLatestWineTasting,
 	updateWineSighting,
 	updateWineTasting,
 } from "./drunk-wine-service";
-import { createPlace, deletePlace } from "./place-service";
+import { createPlace, deletePlace, listPlaces } from "./place-service";
 
 // D1(実SQLite)上で、所有状態(status)と飲用記録(wine_tasting)の2軸モデルを検証する。
 // 集計キャッシュ(tasting_count / last_drank_on)は相関サブクエリによる全再計算で
@@ -379,6 +384,47 @@ describe("所有権とカスケード", () => {
 	});
 });
 
+// ---- deleteDrunkWines(まとめ削除, Issue #363 案B) --------------------------
+
+describe("deleteDrunkWines", () => {
+	it("選んだ複数エントリをまとめて削除し、子テーブルもcascadeで消える", async () => {
+		const userId = await freshUser();
+		const a = await createDrunkWine(userId, {
+			name: "A",
+			tasting: { drankOn: "2020-01-01" },
+		});
+		const b = await createDrunkWine(userId, { name: "B" });
+		const keep = await createDrunkWine(userId, { name: "残す" });
+
+		const result = await deleteDrunkWines(userId, [a.id, b.id]);
+		expect(result.deletedCount).toBe(2);
+		expect(await wineRow(a.id)).toBeUndefined();
+		expect(await wineRow(b.id)).toBeUndefined();
+		expect(await wineRow(keep.id)).toBeDefined();
+		expect(await tastingRows(a.id)).toHaveLength(0);
+	});
+
+	it("他ユーザのidが混ざっていても自分のエントリだけ消え、件数もそれに一致する", async () => {
+		const owner = await freshUser();
+		const other = await freshUser();
+		const mine = await createDrunkWine(owner, { name: "自分の" });
+		const theirs = await createDrunkWine(other, { name: "他人の" });
+
+		const result = await deleteDrunkWines(owner, [mine.id, theirs.id]);
+		expect(result.deletedCount).toBe(1);
+		expect(await wineRow(mine.id)).toBeUndefined();
+		expect(await wineRow(theirs.id)).toBeDefined();
+	});
+
+	it("空配列を渡すと何も削除せず0件を返す", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "無傷" });
+		const result = await deleteDrunkWines(userId, []);
+		expect(result.deletedCount).toBe(0);
+		expect(await wineRow(entry.id)).toBeDefined();
+	});
+});
+
 describe("listWineTastings の並び", () => {
 	it("日付の新しい順で、日付未入力は末尾に来る", async () => {
 		const userId = await freshUser();
@@ -720,6 +766,128 @@ describe("listDrunkWinesByAop", () => {
 	});
 });
 
+// ---- 産地の粗い紐付け(地域・国) --------------------------------------------
+// 「最も細かい1つだけを保存する」排他と、読み取り時の細→粗の導出を実D1で固定する。
+
+describe("産地の粗い紐付け(region_id / country_id)", () => {
+	let userId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+	});
+
+	it("地域単位で保存でき、国は導出される", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "村不明のブルゴーニュ",
+			regionId: "bourgogne",
+		});
+		expect(entry.aopId).toBeNull();
+		expect(entry.regionId).toBe("bourgogne");
+		expect(entry.countryId).toBe("france");
+		const row = await wineRow(entry.id);
+		expect(row?.regionId).toBe("bourgogne");
+		expect(row?.countryId).toBeNull(); // 導出できる粗い列は保存しない
+	});
+
+	it("国単位で保存できる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "地域不明のイタリア",
+			countryId: "italy",
+		});
+		expect(entry.regionId).toBeNull();
+		expect(entry.countryId).toBe("italy");
+		expect((await wineRow(entry.id))?.countryId).toBe("italy");
+	});
+
+	it("AOP指定時は地域・国を渡しても保存されない(最も細かい1つだけ)", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "シャブリ",
+			aopId: "chablis",
+			regionId: "bordeaux", // 矛盾した入力はAOP優先で無視される
+			countryId: "italy",
+		});
+		expect(entry.regionId).toBe("bourgogne"); // AOPから導出
+		expect(entry.countryId).toBe("france");
+		const row = await wineRow(entry.id);
+		expect(row?.aopId).toBe("chablis");
+		expect(row?.regionId).toBeNull();
+		expect(row?.countryId).toBeNull();
+	});
+
+	it("更新でAOP→地域へ粒度を切り替えると aop_id がクリアされる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "紐付け直し",
+			aopId: "chablis",
+		});
+		const updated = await updateDrunkWine(userId, {
+			id: entry.id,
+			regionId: "bourgogne",
+		});
+		expect(updated.aopId).toBeNull();
+		expect(updated.regionId).toBe("bourgogne");
+		const row = await wineRow(entry.id);
+		expect(row?.aopId).toBeNull();
+		expect(row?.regionId).toBe("bourgogne");
+	});
+
+	it("更新で地域→AOPへ粒度を切り替えると region_id がクリアされる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "特定できた",
+			regionId: "bourgogne",
+		});
+		const updated = await updateDrunkWine(userId, {
+			id: entry.id,
+			aopId: "gevrey-chambertin",
+		});
+		expect(updated.aopId).toBe("gevrey-chambertin");
+		const row = await wineRow(entry.id);
+		expect(row?.aopId).toBe("gevrey-chambertin");
+		expect(row?.regionId).toBeNull();
+	});
+
+	it("更新で国→地域へ、地域のクリアだけも送れる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "国から地域へ",
+			countryId: "france",
+		});
+		const regionLinked = await updateDrunkWine(userId, {
+			id: entry.id,
+			regionId: "loire",
+		});
+		expect(regionLinked.regionId).toBe("loire");
+		expect((await wineRow(entry.id))?.countryId).toBeNull();
+
+		// 紐付け解除(null クリア)
+		const cleared = await updateDrunkWine(userId, {
+			id: entry.id,
+			regionId: null,
+		});
+		expect(cleared.regionId).toBeNull();
+		expect(cleared.countryId).toBeNull();
+	});
+
+	it("未知の地域・国は BadRequest", async () => {
+		await expect(
+			createDrunkWine(userId, { name: "x", regionId: "no-such-region" }),
+		).rejects.toBeInstanceOf(BadRequestError);
+		await expect(
+			createDrunkWine(userId, { name: "x", countryId: "spain" }),
+		).rejects.toBeInstanceOf(BadRequestError);
+	});
+
+	it("一括登録でも地域単位の紐付けが保存される", async () => {
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ wine: { name: "地域だけ判明", regionId: "toscana" } }],
+		} as BulkRegisterFromScanInput);
+		expect(result.createdCount).toBe(1);
+		const { entries } = await listDrunkWines(userId);
+		const found = entries.find((e) => e.name === "地域だけ判明");
+		expect(found?.regionId).toBe("toscana");
+		expect(found?.countryId).toBe("italy");
+		expect(found?.aopId).toBeNull();
+	});
+});
+
 // ---- 一覧用サムネイル (#237) -----------------------------------------------
 // 一覧グリッドは150〜200px表示なのに原寸(最大5MB)を読んでいた。保存時に縮小版を
 // 並べて置き、キーは原寸から導出する。DBに列を足していないので、「サムネイルが
@@ -805,6 +973,36 @@ describe("写真サムネイルの保存と削除", () => {
 		await deleteDrunkWine(userId, entry.id);
 		expect(await objectExists(photoKey)).toBe(false);
 		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
+	});
+
+	it("まとめ削除(deleteDrunkWines)でも複数エントリの写真とサムネイルが全て消える", async () => {
+		const userId = await freshUser();
+		const a = await createDrunkWine(userId, { name: "まとめ削除A" });
+		const b = await createDrunkWine(userId, { name: "まとめ削除B" });
+		const savedA = await syncDrunkWinePhotos(userId, a.id, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1,
+				mimeType: "image/jpeg",
+				thumbBytes: JPEG_1X1,
+			},
+		]);
+		const savedB = await syncDrunkWinePhotos(userId, b.id, [
+			{
+				kind: "new",
+				bytes: JPEG_1X1,
+				mimeType: "image/jpeg",
+				thumbBytes: JPEG_1X1,
+			},
+		]);
+		const keyA = imageKeyFromPath(savedA.photoUrls[0] as string);
+		const keyB = imageKeyFromPath(savedB.photoUrls[0] as string);
+
+		await deleteDrunkWines(userId, [a.id, b.id]);
+		for (const key of [keyA, keyB]) {
+			expect(await objectExists(key)).toBe(false);
+			expect(await objectExists(thumbKeyForPhotoKey(key))).toBe(false);
+		}
 	});
 
 	it("画像として認識できないサムネイルは保存しない(原寸は保存する)", async () => {
@@ -1176,5 +1374,372 @@ describe("目撃記録の所有権", () => {
 			.from(wineSighting)
 			.where(eq(wineSighting.drunkWineId, id));
 		expect(rows).toHaveLength(0);
+	});
+});
+
+// 写真からの一括登録(Issue #358)。1回の db.batch で場所・バッチ・銘柄・目撃記録・
+// 飲用記録・集計キャッシュを作る経路なので、見るのは「全部できているか」と
+// 「失敗したときに中途半端な状態が残らないか」。
+describe("bulkRegisterFromScan", () => {
+	const item = (
+		partial: Partial<BulkRegisterFromScanInput["items"][number]> = {},
+	): BulkRegisterFromScanInput["items"][number] => ({
+		wine: { name: "Chablis" },
+		...partial,
+	});
+
+	it("銘柄・目撃記録・バッチをまとめて作り、集計キャッシュを更新する", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			seenOn: "2026-08-01",
+			photoCount: 2,
+			items: [
+				item({
+					wine: { name: "Chablis Les Clos", vintage: 2020 },
+					sighting: { photoIndex: 0, price: 24000 },
+				}),
+				item({ wine: { name: "Barolo Brunate" }, sighting: { photoIndex: 1 } }),
+			],
+		});
+
+		expect(result).toMatchObject({
+			createdCount: 2,
+			matchedCount: 0,
+			sightingCount: 2,
+			tastingCount: 0,
+			placeId: null,
+		});
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries).toHaveLength(2);
+		for (const entry of entries) {
+			// 見かけただけなので「飲んだ」記録は作られない(status も spotted)
+			expect(entry.status).toBe("spotted");
+			expect(entry.tastingCount).toBe(0);
+			// 集計キャッシュが同じ batch で更新されている
+			expect(entry.sightingCount).toBe(1);
+			expect(entry.lastSeenOn).toBe("2026-08-01");
+		}
+
+		const sightings = await listWineSightings(
+			userId,
+			entries.find((e) => e.name === "Chablis Les Clos")?.id ?? "",
+		);
+		expect(sightings[0]).toMatchObject({
+			batchId: result.batchId,
+			photoIndex: 0,
+			price: 24000,
+			seenOn: "2026-08-01",
+		});
+	});
+
+	it("既存エントリには銘柄を作らず目撃記録だけを足す", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, {
+			name: "以前飲んだシャブリ",
+			status: "finished",
+		});
+
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [item({ wine: undefined, existingId: existing.id })],
+		});
+
+		expect(result).toMatchObject({ createdCount: 0, matchedCount: 1 });
+		const { entries } = await listDrunkWines(userId);
+		expect(entries).toHaveLength(1);
+		// 既存の状態(飲み終わった)は書き換えない。目撃記録が増えるだけ
+		expect(entries[0]).toMatchObject({
+			id: existing.id,
+			status: "finished",
+			sightingCount: 1,
+			tastingCount: 1,
+		});
+	});
+
+	it("「飲んだ」指定があれば飲用記録も同じ batch で作る", async () => {
+		const userId = await freshUser();
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				item({
+					wine: { name: "飲んだワイン", status: "finished" },
+					tasting: { drankOn: "2026-07-31", rating: 4 },
+				}),
+			],
+		});
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]).toMatchObject({
+			status: "finished",
+			tastingCount: 1,
+			lastDrankOn: "2026-07-31",
+			lastRating: 4,
+			sightingCount: 1,
+		});
+	});
+
+	it("新規で場所を作ると、全ての目撃記録がその場所を指す", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			newPlace: { name: "ビストロ・クロード" },
+			photoCount: 0,
+			items: [item({ wine: { name: "A" } }), item({ wine: { name: "B" } })],
+		});
+
+		expect(result.placeId).not.toBeNull();
+		const places = await listPlaces(userId);
+		expect(places).toHaveLength(1);
+		const { entries } = await listDrunkWines(userId);
+		for (const entry of entries) {
+			const [sighting] = await listWineSightings(userId, entry.id);
+			expect(sighting?.placeId).toBe(result.placeId);
+			expect(sighting?.placeName).toBe("ビストロ・クロード");
+		}
+	});
+
+	it("他ユーザのエントリを指定した登録は丸ごと失敗する(部分適用しない)", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		const theirs = await createDrunkWine(stranger, { name: "他人のワイン" });
+
+		await expect(
+			bulkRegisterFromScan(owner, {
+				photoCount: 0,
+				items: [
+					item({ wine: { name: "巻き添えになってはいけない" } }),
+					item({ wine: undefined, existingId: theirs.id }),
+				],
+			}),
+		).rejects.toThrow("Entry not found");
+
+		// 1件目も作られていない = 検証は全件そろってから
+		expect((await listDrunkWines(owner)).entries).toHaveLength(0);
+	});
+
+	it("他ユーザの場所を指した登録は失敗する(FKは所有者を見ないため)", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		const theirPlace = await createPlace(stranger, { name: "他人の行きつけ" });
+
+		await expect(
+			bulkRegisterFromScan(owner, {
+				placeId: theirPlace.id,
+				photoCount: 0,
+				items: [item()],
+			}),
+		).rejects.toThrow("Place not found");
+		expect((await listDrunkWines(owner)).entries).toHaveLength(0);
+	});
+
+	it("未知のAOPを含む登録は丸ごと失敗する", async () => {
+		const userId = await freshUser();
+		await expect(
+			bulkRegisterFromScan(userId, {
+				photoCount: 0,
+				items: [
+					item({ wine: { name: "正しい" } }),
+					item({ wine: { name: "壊れている", aopId: "no-such-aop" } }),
+				],
+			}),
+		).rejects.toBeInstanceOf(BadRequestError);
+		expect((await listDrunkWines(userId)).entries).toHaveLength(0);
+	});
+});
+
+describe("saveImportBatchPhotos", () => {
+	const JPEG_1X1_BYTES = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	async function seedBatch(userId: string): Promise<string> {
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{ wine: { name: "写真つきの一括登録" }, sighting: { photoIndex: 0 } },
+			],
+		});
+		return result.batchId;
+	}
+
+	it("バッチに1回だけ写真を置き、目撃記録の photoIndex が指す配列を確定する", async () => {
+		const userId = await freshUser();
+		const batchId = await seedBatch(userId);
+
+		const batch = await saveImportBatchPhotos(userId, batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+
+		expect(batch.photoUrls).toHaveLength(1);
+		const key = imageKeyFromPath(batch.photoUrls[0] as string);
+		// 認可・署名URL・退会時削除が前提にしている wines/{userId}/{中間ID}/ のレイアウト
+		expect(key.startsWith(`wines/${userId}/${batchId}/`)).toBe(true);
+		expect(await env.AVATARS.head(key)).not.toBeNull();
+	});
+
+	it("画像として認識できないファイルは保存しない(申告MIMEを信用しない #150)", async () => {
+		const userId = await freshUser();
+		const batchId = await seedBatch(userId);
+
+		await expect(
+			saveImportBatchPhotos(userId, batchId, [
+				{
+					bytes: new TextEncoder().encode("<html>not an image</html>"),
+					mimeType: "image/jpeg",
+				},
+			]),
+		).rejects.toBeInstanceOf(BadRequestError);
+	});
+
+	it("保存済みのバッチへの再アップロードは拒否する(photoIndex がずれるため)", async () => {
+		const userId = await freshUser();
+		const batchId = await seedBatch(userId);
+		await saveImportBatchPhotos(userId, batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+
+		await expect(
+			saveImportBatchPhotos(userId, batchId, [
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			]),
+		).rejects.toThrow("保存済み");
+	});
+
+	it("他ユーザのバッチには保存できない", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		const batchId = await seedBatch(owner);
+
+		await expect(
+			saveImportBatchPhotos(stranger, batchId, [
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			]),
+		).rejects.toThrow("Import batch not found");
+	});
+});
+
+// 閲覧側(Issue #358 PR4)。目撃記録の由来写真の解決と、場所での絞り込みを実D1で見る。
+describe("目撃記録の由来写真", () => {
+	const JPEG_1X1 = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	it("バッチの photoIndex 番目の写真URLを返す", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 2,
+			items: [
+				{ wine: { name: "2枚目に写っていた" }, sighting: { photoIndex: 1 } },
+			],
+		});
+		const batch = await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1, mimeType: "image/jpeg" },
+			{ bytes: JPEG_1X1, mimeType: "image/jpeg" },
+		]);
+
+		const { entries } = await listDrunkWines(userId);
+		const [sighting] = await listWineSightings(userId, entries[0]?.id ?? "");
+		// 1枚目ではなく2枚目(photoIndex=1)を指す
+		expect(sighting?.photoUrl).toBe(batch.photoUrls[1]);
+	});
+
+	it("写真がまだ保存されていないバッチでは null(壊れた画像URLを作らない)", async () => {
+		const userId = await freshUser();
+		await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [{ wine: { name: "写真未保存" }, sighting: { photoIndex: 0 } }],
+		});
+		const { entries } = await listDrunkWines(userId);
+		const [sighting] = await listWineSightings(userId, entries[0]?.id ?? "");
+		expect(sighting?.batchId).not.toBeNull();
+		expect(sighting?.photoUrl).toBeNull();
+	});
+
+	it("手で足した目撃記録(バッチ無し)は null", async () => {
+		const userId = await freshUser();
+		const { id } = await createDrunkWine(userId, { name: "手入力" });
+		await addWineSighting(userId, id, { seenOn: "2026-08-01" });
+		const [sighting] = await listWineSightings(userId, id);
+		expect(sighting?.photoUrl).toBeNull();
+	});
+});
+
+describe("場所での絞り込み", () => {
+	it("その場所で見かけた銘柄だけを返し、チップの件数も同じ母集合で数える", async () => {
+		const userId = await freshUser();
+		const shop = await createPlace(userId, { name: "ワインショップA" });
+		const other = await createPlace(userId, { name: "レストランB" });
+
+		await bulkRegisterFromScan(userId, {
+			placeId: shop.id,
+			photoCount: 0,
+			items: [
+				{ wine: { name: "Aで見かけた1" } },
+				{ wine: { name: "Aで見かけた2", status: "owned" } },
+			],
+		});
+		await bulkRegisterFromScan(userId, {
+			placeId: other.id,
+			photoCount: 0,
+			items: [{ wine: { name: "Bで見かけた" } }],
+		});
+		// どの場所でも見かけていない銘柄(絞り込みから外れる)
+		await createDrunkWine(userId, { name: "見かけていない" });
+
+		const all = await listDrunkWines(userId);
+		expect(all.entries).toHaveLength(4);
+
+		const atShop = await listDrunkWines(userId, { placeId: shop.id });
+		expect(atShop.entries.map((e) => e.name).sort()).toEqual([
+			"Aで見かけた1",
+			"Aで見かけた2",
+		]);
+
+		// チップの件数も場所で絞る(一覧と数字が食い違わない)
+		const counts = await countCellarFilters(userId, { placeId: shop.id });
+		expect(counts).toMatchObject({ all: 2, owned: 1, spotted: 1 });
+		expect(await countCellarFilters(userId)).toMatchObject({ all: 4 });
+	});
+
+	it("場所と所有状態は直交する(両方で絞れる)", async () => {
+		const userId = await freshUser();
+		const shop = await createPlace(userId, { name: "ショップ" });
+		await bulkRegisterFromScan(userId, {
+			placeId: shop.id,
+			photoCount: 0,
+			items: [
+				{ wine: { name: "見かけただけ" } },
+				{ wine: { name: "見かけて買った", status: "owned" } },
+			],
+		});
+
+		const owned = await listDrunkWines(userId, {
+			placeId: shop.id,
+			filter: "owned",
+		});
+		expect(owned.entries.map((e) => e.name)).toEqual(["見かけて買った"]);
+	});
+
+	it("同じ場所で複数回見かけた銘柄が重複して出ない(EXISTS で畳む)", async () => {
+		const userId = await freshUser();
+		const shop = await createPlace(userId, { name: "常連の店" });
+		const { id } = await createDrunkWine(userId, { name: "何度も見かけた" });
+		await addWineSighting(userId, id, {
+			placeId: shop.id,
+			seenOn: "2026-07-01",
+		});
+		await addWineSighting(userId, id, {
+			placeId: shop.id,
+			seenOn: "2026-08-01",
+		});
+
+		const page = await listDrunkWines(userId, { placeId: shop.id });
+		expect(page.entries).toHaveLength(1);
+		expect(page.entries[0]?.sightingCount).toBe(2);
 	});
 });

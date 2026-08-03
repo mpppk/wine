@@ -1,6 +1,7 @@
 import { getAop, listAops } from "#/lib/wine/service";
 import { aopClassificationLabel } from "#/lib/wine/tags";
-import type { RegionId } from "#/lib/wine/types";
+import type { Aop, RegionId } from "#/lib/wine/types";
+import { duplicatesParentFact } from "../aop-pool";
 import { buildAopClassificationKey, type ParsedQuestionKey } from "../keys";
 import { type Rng, sample, shuffle } from "../rng";
 import type { QuizQuestion } from "../types";
@@ -32,12 +33,20 @@ function listRegionLabels(regionId: RegionId): string[] {
 	];
 }
 
+/** 格付けラベルが親畑と同じクリマは、親側の1問に集約する(aop-pool.ts 参照) */
+const duplicatesParentClassification = (a: Aop) =>
+	duplicatesParentFact(a, (x) => aopClassificationLabel(x));
+
 export function enumerateAopClassificationKeys(regionId: RegionId): string[] {
 	// 自地域だけで4択を作れる地域(=実在ラベルが4種以上)だけ出題する。
 	// 足りない地域は制度をまたぐ不自然な選択肢になるため本形式では出題しない。
 	if (listRegionLabels(regionId).length < MIN_REGION_LABELS) return [];
 	return listAops({ regionId })
-		.filter((a) => aopClassificationLabel(a) !== undefined)
+		.filter(
+			(a) =>
+				aopClassificationLabel(a) !== undefined &&
+				!duplicatesParentClassification(a),
+		)
 		.map((a) => buildAopClassificationKey(a.id));
 }
 
@@ -46,7 +55,7 @@ export function materializeAopClassificationQuestion(
 	rng: Rng,
 ): QuizQuestion | null {
 	const aop = getAop(parsed.aopId);
-	if (!aop) return null;
+	if (!aop || duplicatesParentClassification(aop)) return null;
 	const correct = aopClassificationLabel(aop);
 	if (!correct) return null;
 

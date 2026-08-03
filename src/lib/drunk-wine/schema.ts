@@ -43,6 +43,18 @@ export const drunkWineFields = {
 		.regex(/^[a-z0-9-]+$/)
 		.max(80)
 		.optional(),
+	// 産地の粗い紐付け(AOPまで特定できない場合)。存在検証はAOP同様サービス層で行い、
+	// aopId ⊃ regionId ⊃ countryId の「最も細かい1つだけを保存」もサービス層が正規化する
+	regionId: z
+		.string()
+		.regex(/^[a-z0-9-]+$/)
+		.max(80)
+		.optional(),
+	countryId: z
+		.string()
+		.regex(/^[a-z0-9-]+$/)
+		.max(80)
+		.optional(),
 	vintage: z.number().int().min(VINTAGE_MIN).max(VINTAGE_MAX).optional(),
 	grapeVarietyIds: z.array(z.string().max(80)).max(20).optional(),
 	producer: z.string().max(PRODUCER_MAX).optional(),
@@ -73,6 +85,8 @@ export const updateDrunkWineInput = z.object({
 	// NOT NULL 列なのでクリア不可(fields.ts の clear:"never" と対応)
 	status: drunkWineFields.status,
 	aopId: drunkWineFields.aopId.nullable().optional(),
+	regionId: drunkWineFields.regionId.nullable().optional(),
+	countryId: drunkWineFields.countryId.nullable().optional(),
 	vintage: drunkWineFields.vintage.nullable().optional(),
 	grapeVarietyIds: drunkWineFields.grapeVarietyIds.optional(),
 	producer: drunkWineFields.producer.nullable().optional(),

@@ -24,6 +24,9 @@ const filled: DrunkWineFormState = {
 	producer: "Dauvissat",
 	price: "3000",
 	aopId: "chablis",
+	// 産地は「最も細かい1つだけ」: AOP選択時は地域・国を持たない
+	regionId: undefined,
+	countryId: undefined,
 	grapeVarietyIds: ["chardonnay"],
 };
 
@@ -45,6 +48,8 @@ const empty: DrunkWineFormState = {
 	producer: "",
 	price: "",
 	aopId: undefined,
+	regionId: undefined,
+	countryId: undefined,
 	grapeVarietyIds: [],
 };
 
@@ -54,7 +59,7 @@ const state = (patch: Partial<DrunkWineFormState>): DrunkWineFormState => ({
 });
 
 describe("toFormValues", () => {
-	it("フィールド定義の snakeKey と過不足なく一致する(UI専用の regionId を含まない)", () => {
+	it("フィールド定義の snakeKey と過不足なく一致する", () => {
 		expect(Object.keys(toFormValues(filled)).sort()).toEqual(
 			DRUNK_WINE_FIELD_DEFS.map((d) => d.snakeKey).sort(),
 		);
@@ -73,6 +78,8 @@ describe("toFormValues", () => {
 			price: "3000",
 			producer: "Dauvissat",
 			aop_id: "chablis",
+			region_id: "",
+			country_id: "",
 			grape_variety_ids: ["chardonnay"],
 		});
 	});
@@ -251,7 +258,9 @@ const mcpEntry = {
 };
 
 describe("fieldsValueFromMcpEntry", () => {
-	it("snake_case のエントリをフォームの値へ写す", () => {
+	it("snake_case のエントリをフォームの値へ写す(導出された地域はフォームに持たない)", () => {
+		// entry の region_id は AOP からの導出値。フォームは「最も細かい1つだけ」を
+		// 保持するので、AOP がある場合は regionId / countryId に写さない
 		expect(fieldsValueFromMcpEntry(mcpEntry)).toEqual({
 			name: "Chablis",
 			status: "finished",
@@ -259,9 +268,18 @@ describe("fieldsValueFromMcpEntry", () => {
 			producer: "Dauvissat",
 			price: "3000",
 			aopId: "chablis",
-			regionId: "bourgogne",
+			regionId: undefined,
+			countryId: undefined,
 			grapeVarietyIds: ["chardonnay"],
 		});
+	});
+
+	it("AOPが無ければ地域単位の紐付けとして写す", () => {
+		const regionLinked = { ...mcpEntry, aop_id: null, region_id: "bourgogne" };
+		const value = fieldsValueFromMcpEntry(regionLinked);
+		expect(value.aopId).toBeUndefined();
+		expect(value.regionId).toBe("bourgogne");
+		expect(value.countryId).toBeUndefined();
 	});
 
 	it("null・欠落・型違いは空の入力に倒す", () => {
@@ -283,6 +301,7 @@ describe("fieldsValueFromMcpEntry", () => {
 			price: "",
 			aopId: undefined,
 			regionId: undefined,
+			countryId: undefined,
 			grapeVarietyIds: [],
 		});
 	});
@@ -328,12 +347,35 @@ describe("buildMcpUpdatePatch", () => {
 		});
 	});
 
-	it("regionId は送らない(AOPから導出される)", () => {
+	it("産地を地域単位へ切り替えると aop_id のクリアと region_id を送る", () => {
 		const value = {
 			...fieldsValueFromMcpEntry(mcpEntry),
+			aopId: undefined,
 			regionId: "beaujolais",
 		};
-		expect(buildMcpUpdatePatch(mcpEntry, value)).toEqual({});
+		expect(buildMcpUpdatePatch(mcpEntry, value)).toEqual({
+			aop_id: null,
+			region_id: "beaujolais",
+		});
+	});
+
+	it("地域紐付けから国単位へ切り替えると region_id のクリアと country_id を送る", () => {
+		const regionLinked = {
+			...mcpEntry,
+			aop_id: null,
+			region_id: "bourgogne",
+			// サーバは国を地域から導出して返すが、差分の基準にはならない
+			country_id: "france",
+		};
+		const value = {
+			...fieldsValueFromMcpEntry(regionLinked),
+			regionId: undefined,
+			countryId: "france",
+		};
+		expect(buildMcpUpdatePatch(regionLinked, value)).toEqual({
+			region_id: null,
+			country_id: "france",
+		});
 	});
 
 	it("ホストが status を落としても、未編集なら status を送らない", () => {

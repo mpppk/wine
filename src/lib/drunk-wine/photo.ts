@@ -38,6 +38,20 @@ export const MAX_PHOTO_SIZE_LABEL = `${MAX_PHOTO_BYTES / 1024 / 1024}MB`;
 export const MAX_PHOTOS_PER_ENTRY = 6;
 
 /**
+ * FormData 全体のバイト数上限。全枚数ぶん + multipart 境界等のオーバーヘッドを見込む。
+ *
+ * **サーバ(images/form-api.ts の前チェック)とクライアント(images/form-client.ts の
+ * 送信前ガード)の双方が同じ式を使う**。片方だけ持つと、サーバが 413 で弾くサイズを
+ * クライアントが送信してしまい、モバイル回線では 413 が返る前に接続が切れて
+ * 「Failed to fetch」になる(レスポンスが無いのでエラー文言も出せない)。
+ */
+export function maxFormDataBytes(
+	maxPhotos: number = MAX_PHOTOS_PER_ENTRY,
+): number {
+	return MAX_PHOTO_BYTES * maxPhotos + 64 * 1024;
+}
+
+/**
  * MIMEタイプに対応する拡張子を返す。未対応は undefined。
  * PHOTO_EXT_MAP は plain object なので、外部入力の mimeType が constructor /
  * __proto__ / toString 等の継承プロパティに解決して truthy 値をすり抜けないよう、

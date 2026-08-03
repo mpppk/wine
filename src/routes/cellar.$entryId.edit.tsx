@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { DrunkWineForm } from "#/components/cellar/DrunkWineForm";
+import { SightingList } from "#/components/cellar/SightingList";
 import { TastingList } from "#/components/cellar/TastingList";
 import { Button } from "#/components/ui/button";
 import {
@@ -28,20 +29,26 @@ import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import {
 	deleteDrunkWine,
 	getDrunkWine,
+	listWineSightings,
 	listWineTastings,
 	markWineDrunk,
 	updateDrunkWine,
 } from "#/server/drunk-wine";
+import { listPlaces } from "#/server/place";
 
 export const Route = createFileRoute("/cellar/$entryId/edit")({
 	beforeLoad: requireAuthBeforeLoad,
 	loader: async ({ params }) => {
 		try {
-			const [entry, tastings] = await Promise.all([
+			// 目撃記録の場所を選び直せるよう、場所マスタも一緒に読む(件数は
+			// たかが知れているのでページングしない。place-service 参照)
+			const [entry, tastings, sightings, places] = await Promise.all([
 				getDrunkWine({ data: { id: params.entryId } }),
 				listWineTastings({ data: { drunkWineId: params.entryId } }),
+				listWineSightings({ data: { drunkWineId: params.entryId } }),
+				listPlaces(),
 			]);
-			return { entry, tastings };
+			return { entry, tastings, sightings, places };
 		} catch (e) {
 			// 存在しない/他ユーザのエントリは一覧へ逃がす。
 			// それ以外(一時障害等)は握りつぶさずエラー表示に任せる
@@ -55,7 +62,7 @@ export const Route = createFileRoute("/cellar/$entryId/edit")({
 });
 
 function CellarEditPage() {
-	const { entry, tastings } = Route.useLoaderData();
+	const { entry, tastings, sightings, places } = Route.useLoaderData();
 	const navigate = useNavigate();
 	const router = useRouter();
 	const [confirmOpen, setConfirmOpen] = useState(false);
@@ -86,13 +93,15 @@ function CellarEditPage() {
 	return (
 		<main className="mx-auto max-w-2xl px-4 py-10">
 			<div className="mb-6 flex items-center gap-2">
+				{/* 戻り先は閲覧画面。編集はそこの「編集」ボタンから来る導線なので、
+				    一覧まで飛ばすと1段飛ばしになる */}
 				<Button
 					asChild
 					variant="ghost"
 					size="icon"
-					aria-label="マイセラーへ戻る"
+					aria-label="ワインの詳細へ戻る"
 				>
-					<Link to="/cellar">
+					<Link to="/cellar/$entryId" params={{ entryId: entry.id }}>
 						<ArrowLeftIcon className="size-4" />
 					</Link>
 				</Button>
@@ -141,10 +150,28 @@ function CellarEditPage() {
 
 			<DrunkWineForm
 				entry={entry}
+				// 保存後は閲覧画面へ。保存した内容がその場で確認できる
 				onSaved={() => {
-					void navigate({ to: "/cellar" });
+					void navigate({
+						to: "/cellar/$entryId",
+						params: { entryId: entry.id },
+					});
 				}}
-				tastingSlot={<TastingList entryId={entry.id} tastings={tastings} />}
+				tastingSlot={
+					<>
+						<TastingList entryId={entry.id} tastings={tastings} />
+						{/*
+						  目撃記録は「所有状態 ⊥ 飲用履歴」に足した第3の軸(Issue #358)。
+						  飲用記録と並べて置き、どちらも 1:N として同じ形で編集できるようにする。
+						*/}
+						<SightingList
+							entryId={entry.id}
+							sightings={sightings}
+							places={places}
+							version={entry.updatedAt}
+						/>
+					</>
+				}
 			/>
 
 			<Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>

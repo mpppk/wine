@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
 import { REGION_IDS } from "#/lib/wine/regions";
-import { isOpenEndedAppellation } from "../aop-pool";
+import { duplicatesParentFact, isOpenEndedAppellation } from "../aop-pool";
 import { parseKey } from "../keys";
 import { principalComboId } from "../labels";
 import { mulberry32 } from "../rng";
@@ -14,15 +14,40 @@ const byId = new Map(AOPS.map((a) => [a.id, a]));
 
 describe("主要品種クイズ", () => {
 	// IGT(開かれた広域呼称)は「主要品種」が定まらないため対象外(#212)。
-	it("主要品種を持つ全AOP分(IGTを除く)のキーが列挙される", () => {
+	// 主要品種コンボが親畑と同じクリマは親側の1問に集約するため対象外(aop-pool.ts 参照)。
+	it("主要品種を持つ全AOP分(IGTと親畑に集約されるクリマを除く)のキーが列挙される", () => {
 		const total = REGION_IDS.flatMap((r) => enumerateAopVarietyKeys(r));
 		const withPrincipal = AOPS.filter(
 			(a) =>
 				a.grapes.some((g) => g.role === "principal") &&
-				!isOpenEndedAppellation(a),
+				!isOpenEndedAppellation(a) &&
+				!duplicatesParentFact(a, (x) => principalComboId(x)),
 		);
 		expect(total.length).toBe(withPrincipal.length);
 		expect(new Set(total).size).toBe(total.length);
+	});
+
+	it("主要品種が親畑と同じクリマは出題されず、異なるクリマは残る", () => {
+		const bourgogne = enumerateAopVarietyKeys("bourgogne");
+		// シャブリ・グラン・クリュの7クリマは全て親と同じシャルドネ → 親の1問に集約
+		expect(bourgogne).toContain("aop-variety:chablis-grand-cru");
+		expect(bourgogne.some((k) => k.startsWith("aop-variety:chablis-gc-"))).toBe(
+			false,
+		);
+		expect(
+			bourgogne.some((k) => k.startsWith("aop-variety:chablis-1er-")),
+		).toBe(false);
+		// コルトンのクリマは主要品種が親(ピノ・ノワール+シャルドネ)と異なるため残る
+		expect(bourgogne).toContain("aop-variety:corton-les-bressandes");
+	});
+
+	it("親畑と主要品種が同じクリマのキーは具現化されない(失効キー扱い)", () => {
+		expect(
+			materializeAopVarietyQuestion(
+				{ quizType: "aop-variety", aopId: "chablis-gc-les-clos" },
+				mulberry32(1),
+			),
+		).toBeNull();
 	});
 
 	it("全キーの全数スイープ: 4択・重複なし・正解が実データの主要品種コンボと一致", () => {

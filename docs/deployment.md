@@ -114,6 +114,40 @@ bun run logs --json                      # 生JSON(jq で加工する場合)
   後から追う用途には `bun run logs` を使う。
 - 保持期間は最大7日（それ以前を追う必要が出たら Logpush で R2 へ転送する）。
 
+### AI 推論の実行記録
+
+AI 経路（エチケット解析・地域 Q&A・写真からの一括抽出）は、**成功・残高不足・失敗の
+すべてで実行記録を 1 行出す**。実装は `src/lib/ai/inference-log.ts`（`logAiInference`）で、
+`msg` は全経路共通の `ai inference`。
+
+```bash
+bun run logs --grep "ai inference" --since 1d          # 全AI経路の実行履歴
+bun run logs --grep "ai inference" --level warn        # 失敗のみ
+```
+
+| フィールド | 意味 |
+|---|---|
+| `feature` | `label_analysis` / `region_qa` / `wine_list_analysis` |
+| `outcome` | `ok`（確定）/ `blocked`（残高不足で推論せず）/ `failed`（返却済み） |
+| `selected` | ユーザ選択（または既定）のエンジン・モデルキー |
+| `route` | シークレットの設定状況を加味して**意図した**経路 |
+| `executedBy` | **実際に結果を出した**経路。`route` と食い違えばフォールバック |
+| `fellBack` | 上記 2 つから導出。`true` なら高精度経路が落ちて拾われた |
+| `model` | 実際に呼んだモデル ID（`gpt-5.6-luna` 等） |
+| `actualTokens` / `reservedTokens` | 実測と予約。見積の妥当性の評価に使う |
+| `requestId` | `credit_ledger.request_id` と同値。台帳と突き合わせられる |
+
+> [!NOTE]
+> **「警告が出ていないこと」を成功の証拠にしない。** 成功経路が無言だった頃は、
+> 警告の不在が「正常に動いた」と「そもそも誰も使っていない」のどちらなのか区別できず、
+> GPT-5.6 Luna 導入時（#357）の本番確認ではクレジット台帳の `:settle` 行と見積式を
+> 突き合わせる間接的な推論に頼るしかなかった。`outcome: "ok"` の行を直接見ること。
+
+記録するのは実行メタデータのみで、写真・質問文・抽出されたワイン名などのユーザ
+入力/出力は載せない（ログから利用者のワイン履歴を復元できないようにするため）。
+フィールドを増やすときは `inference-log.test.ts` のキー全列挙テストが落ちるので、
+そこで privacy の是非を再確認する。
+
 > [!IMPORTANT]
 > **PRごとのプレビューURL（`https://<branch>-wine-preview.niboshi.workers.dev` /
 > `https://<commit>-wine-preview.niboshi.workers.dev`）へのアクセスはログに残らない。**
@@ -136,6 +170,68 @@ bun run logs --json                      # 生JSON(jq で加工する場合)
 |---|---|
 | `https://wine.nibo.sh/api/auth/ok?probe=...` | ✅ 約30秒後にログ取得 |
 | `https://claude-...-wine-preview.niboshi.workers.dev/api/auth/ok?probe=...` | ❌ 0件（5分待っても出ず） |
+
+## クライアント側のエラー収集（Sentry）
+
+Workers Logs は **サーバに届いたリクエストしか記録できない**。fetch がレスポンスを受け取る前に
+失敗する類（圏外・回線断・大きすぎるアップロード）や、ブラウザ固有のAPI差異による失敗は
+1件も残らない（#379 では `/api/wine-list-analysis` が7日間0件だった）。この穴を埋めるのが
+クライアント側の収集で、実装は `src/lib/observability/client-error.ts`（唯一の入口）と
+`sentry-client.ts`（Sentry の設定）。
+
+- **DSN が未設定なら収集は丸ごと無効**。SDK のチャンク（約30KB gz）も読み込まれない。
+  ローカルとCIでは設定しないこと。
+- 有効化は **Workers Builds のビルド環境変数**で行う（`.env.example` に一覧がある）。
+
+| 変数 | 種別 | 役割 |
+|---|---|---|
+| `VITE_SENTRY_DSN` | ビルド変数（公開値） | 収集先。未設定なら収集を無効化する |
+| `VITE_SENTRY_RELEASE` | ビルド変数 | リリース識別子。`WORKERS_CI_COMMIT_SHA` を渡す |
+| `SENTRY_AUTH_TOKEN` | ビルドシークレット | ソースマップのアップロード用 |
+| `SENTRY_ORG` / `SENTRY_PROJECT` | ビルド変数 | アップロード先 |
+
+- **`SENTRY_AUTH_TOKEN` がある環境でだけ**ソースマップの生成・アップロードが走る。トークンの
+  有無でビルドの成否は変わらない（CI は未設定のまま `bun run build` / `check:deploy` が通る）。
+- アップロードが失敗しても**ビルドは成功する**（Sentry 側の障害でデプロイを止めない）。その場合は
+  そのリリースだけスタックが復元できない状態になる。
+- ソースマップは**アップロード後に dist から削除する**。残すと静的アセットとして公開配信され、
+  誰でもクライアントの原文を読めてしまう。アップロード失敗時も削除される（公開されるより安全な側）。
+- `@sentry/cli`（アップロード用バイナリ）は `package.json` の `trustedDependencies` に入れてある。
+  bun は既定でライフサイクルスクリプトを実行しないため、外すとアップロードだけが静かに失敗する。
+
+環境名（`production` / `preview` / `local`）はドメインから導出するので、プレビューごとに変数を
+設定する必要はない。
+
+### 初回セットアップ（手作業）
+
+1. Sentry で組織とプロジェクト（platform: `javascript-react`）を作り、**DSN** を控える
+   （Settings > Projects > *project* > Client Keys (DSN)）
+2. ソースマップ用の **Organization Auth Token** を発行する（Settings > Auth Tokens）。
+   必要なスコープは `project:releases` と `org:read`
+3. Workers Builds のビルド環境変数に設定する。ダッシュボード（*Worker* > Settings > Build >
+   Build variables and secrets）か、下記「設定の確認・変更（Workers Builds API）」の
+   `build_variables` を PATCH する。**本番 `wine` とプレビュー `wine-preview` の両トリガーに要る**
+   - `VITE_SENTRY_DSN` / `SENTRY_ORG` / `SENTRY_PROJECT`（変数）
+   - `VITE_SENTRY_RELEASE` = `$WORKERS_CI_COMMIT_SHA`
+   - `SENTRY_AUTH_TOKEN`（**シークレットとして**登録する）
+4. 空コミット等で再ビルドし、ブラウザの Network タブで `ingest.sentry.io` への送信が出ることを確認する
+
+> `build_variables` は**丸ごと置き換わる**。既存の `BUN_VERSION` / `CLOUDFLARE_ENV` を含めた
+> 完全な集合を送ること（詳細は下記 API の節）。
+
+### Terraform 管理にしない理由
+
+Stripe リソースは Terraform 管理だが、**Sentry は当面ダッシュボードでの手作業とする**。理由:
+
+- Terraform 管理下に入るのは実質「プロジェクト1個 + Client Key 1個」で、Stripe（Product /
+  Price×2 / Coupon / PromotionCode / Webhook / Portal）のようにドリフトが痛むほどの量がない
+- **Cloudflare 側は Terraform で閉じない**。Cloudflare プロバイダに Workers Builds の
+  トリガー設定（build command / deploy command / `build_variables`）を扱うリソースが無いため、
+  Terraform を足しても設定手順が2系統に増えるだけになる
+- Sentry 側を Terraform 化する場合は [`jianyuan/sentry`](https://registry.terraform.io/providers/jianyuan/sentry/latest)
+  （Sentry 公式スポンサー）が使え、`sentry_key` から DSN を output できる。**アラートルールや
+  ノイズフィルタ（`sentry_issue_alert` / `sentry_project_inbound_data_filter`）を育て始めたら**
+  移行を検討する。そこは経緯が残らないと痛む種類の設定なので Terraform 向き
 
 ## シークレットの投入
 

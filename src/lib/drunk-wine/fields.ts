@@ -12,7 +12,14 @@ import { PRICE_MAX, PRICE_MIN, VINTAGE_MAX, VINTAGE_MIN } from "./schema";
 // (schemas.ts)も同じ定義から生成するため、本モジュールはランタイム非依存に保つ
 // (cloudflare:workers を import しない)。
 
-export type DrunkWineInputKind = "text" | "select" | "number" | "grape" | "aop";
+export type DrunkWineInputKind =
+	| "text"
+	| "select"
+	| "number"
+	| "grape"
+	| "aop"
+	| "region"
+	| "country";
 
 // 更新時に「空欄にしたら何を送るか」。
 // - "null": 空欄→null でクリア(大半のフィールド)
@@ -99,6 +106,26 @@ export const DRUNK_WINE_FIELD_DEFS = [
 		clear: "null",
 		col: "full",
 		placeholder: "list_aopsのid (例: gevrey-chambertin)",
+	},
+	// 産地の粗い紐付け(AOPまで特定できない場合)。aop_id とあわせて「最も細かい
+	// 1つだけを保存する」排他で、正規化はサービス層(applyProvenanceExclusivity)。
+	{
+		camelKey: "regionId",
+		snakeKey: "region_id",
+		label: "地域",
+		input: "region",
+		clear: "null",
+		col: "full",
+		placeholder: "list_wine_regionsのid (例: bourgogne)",
+	},
+	{
+		camelKey: "countryId",
+		snakeKey: "country_id",
+		label: "国",
+		input: "country",
+		clear: "null",
+		col: "full",
+		placeholder: "国のid (france / italy)",
 	},
 	{
 		camelKey: "grapeVarietyIds",
@@ -224,6 +251,28 @@ export function toSnakeEntry(
 	const out: Record<string, unknown> = {};
 	for (const d of DRUNK_WINE_FIELD_DEFS) {
 		out[d.snakeKey] = (entry as Record<string, unknown>)[d.camelKey];
+	}
+	return out;
+}
+
+/**
+ * 差分パッチの基準(entry)から、導出された粗い産地キーを落とす。
+ *
+ * サーバが返すエントリの region_id / country_id は「保存値または細かい単位からの
+ * 導出値」で、AOP紐付けのエントリでも非nullになる。これをそのまま
+ * collectDrunkWinePatch の基準にすると、フォーム(最も細かい1つだけを保持)との
+ * 差分で region_id: null が毎回送られ、「未変更なのに更新が飛ぶ」ことになる。
+ * 排他の不変条件(aop_id があれば粗い2列はDB上 NULL)を基準側にも適用して防ぐ。
+ */
+export function stripDerivedProvenance(
+	entry: Record<string, unknown>,
+): Record<string, unknown> {
+	const out = { ...entry };
+	if (out.aop_id) {
+		out.region_id = undefined;
+		out.country_id = undefined;
+	} else if (out.region_id) {
+		out.country_id = undefined;
 	}
 	return out;
 }

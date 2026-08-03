@@ -1,4 +1,4 @@
-import { listAops } from "#/lib/wine/service";
+import { getAop, listAops } from "#/lib/wine/service";
 import type { Aop } from "#/lib/wine/types";
 
 // 品種・色を「主張する」形式のための共通の出題プール。IGT のような開かれた
@@ -30,3 +30,26 @@ export function isOpenEndedAppellation(aop: Aop): boolean {
 /** 品種・色を主張する形式で使ってよいAOPだけに絞った listAops */
 export const listClosedListAops: typeof listAops = (filter) =>
 	listAops(filter).filter((a) => !isOpenEndedAppellation(a));
+
+/**
+ * 個別クリマ(parentAopId を持つAOP)の設問が、親畑(傘AOC)の同型設問と同一内容に
+ * なるか。クリマは独立したアペラシオンではなく、規約上の事実(色・品種・格付け等)は
+ * 親の傘AOCのものをそのまま引き継ぐ。値が親と同じ事実をクリマごとに出題すると、
+ * 名前だけ違う同一内容のクイズが畑の数だけ並ぶ(シャブリ・グラン・クリュの7クリマ等)。
+ * その場合は親側の1問に集約し、クリマ側では出題しない。
+ *
+ * 親と値が異なる事実(コルトンの各クリマの色・品種など)はクリマ固有の学びなので
+ * 出題対象のまま残る。fact には形式ごとの「正解を表す値」を渡す
+ * (colors ならコンボID、subregion なら subregionId 等)。
+ */
+export function duplicatesParentFact(
+	aop: Aop,
+	fact: (a: Aop) => string | undefined,
+): boolean {
+	if (!aop.parentAopId) return false;
+	const parent = getAop(aop.parentAopId);
+	if (!parent) return false;
+	const value = fact(aop);
+	if (value === undefined || value === "") return false;
+	return value === fact(parent);
+}
