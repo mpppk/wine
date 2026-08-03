@@ -448,7 +448,7 @@ export function DrunkWineForm({
 							{isAnalyzing ? "解析中..." : "エチケットから自動入力"}
 						</Button>
 						<p className="text-xs text-muted-foreground">
-							AIが全ての写真を総合して読み取り、未入力の項目を自動で埋めます(AIクレジットを消費)
+							AIが全ての写真を総合して読み取り、現在の入力と違う項目を反映するか選べます(AIクレジットを消費)
 						</p>
 					</div>
 				)}
