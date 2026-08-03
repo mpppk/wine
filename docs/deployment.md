@@ -114,6 +114,37 @@ bun run logs --json                      # 生JSON(jq で加工する場合)
   後から追う用途には `bun run logs` を使う。
 - 保持期間は最大7日（それ以前を追う必要が出たら Logpush で R2 へ転送する）。
 
+### レートリミットが効いているかの確認
+
+書き込みのスロットル（#397 / `src/lib/rate-limit.ts`）は **Cloudflare Workers の Rate Limiting
+バインディング**で判定する。**未設定・判定失敗は「素通し」に倒す**設計なので、効いていなくても
+アプリは正常に見える。効いているかは実際に上限を超えて叩いて確かめるしかない。
+
+> 🚨 **2026-08-03 時点で、実環境では機能していないことを実測済み**（原因未特定。#397 は未解決）。
+> 下記の手順で 429 が返らない状態が続いている。「設定したから効いているはず」と判断しないこと。
+
+```bash
+# 1) デプロイ済みバージョンにバインディングがあるか（設定が届いているかの確認）
+npx wrangler deployments list --env preview      # 稼働中の version id を確認
+npx wrangler versions view <version-id> --env preview | grep -i "rate limit"
+
+# 2) 実際に上限を超えて叩く（RATE_LIMIT_UPLOAD は 30/60s）。
+#    ボディ無し POST なら requireApiSession（=判定）は通り、その後 400 になるので
+#    R2 に書き込まずに判定だけを試せる。429 が混ざれば効いている。
+for i in $(seq 1 45); do
+  curl -sS -o /dev/null -w "%{http_code} " -X POST \
+    https://wine-preview.niboshi.workers.dev/api/upload -H "Cookie: <session cookie>"
+done
+
+# 3) ログで裏を取る
+bun run logs --env preview --grep "rate limited" --since 30m        # 絞られた記録
+bun run logs --env preview --grep "rate limit binding" --since 30m  # バインディング未解決の警告
+```
+
+**3 の「0 件」は根拠にならない**。同環境では warn レベルのログが出ている実績が乏しく、
+「警告が無い＝バインディングが解決している」とは言えない（positive control が取れない）。
+判断は **2 のステータスコード**で行う。
+
 ### AI 推論の実行記録
 
 AI 経路（エチケット解析・地域 Q&A・写真からの一括抽出）は、**成功・残高不足・失敗の
