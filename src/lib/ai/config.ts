@@ -236,9 +236,9 @@ export const AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE = 3_000;
  * (`AI_LABEL_WEB_MAX_OUTPUT_TOKENS` = 16k)ではなく実測の中心値を置く。
  *
  * 出力JSONにフィールドごとの根拠(`sources`: 7フィールド × origin + 参照URL)を
- * 載せるようにしたぶん、中心値を引き上げてある。
+ * 載せるようにしたぶん、中心値を引き上げてある(実応答で計測した増分は約250)。
  */
-export const AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE = 2_600;
+export const AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE = 2_300;
 
 /**
  * Claude経路の web検索回数の見積。**上限(`AI_LABEL_WEB_MAX_SEARCHES` = 8)ではなく
@@ -292,7 +292,7 @@ export const AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE = 3_000;
  * GPT経路の出力トークン見積(reasoning + JSON)。上限ではなく実測の中心値。
  * Claude経路と同じく、根拠(`sources`)を出力させるぶんを織り込んである。
  */
-export const AI_LABEL_GPT_OUTPUT_TOKEN_ESTIMATE = 2_600;
+export const AI_LABEL_GPT_OUTPUT_TOKEN_ESTIMATE = 2_300;
 
 /**
  * GPT経路の web検索回数の見積。
