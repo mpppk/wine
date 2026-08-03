@@ -54,7 +54,16 @@ const warnedMissing = new Set<string>();
  */
 function limiterFor(name: RateLimiterName): RateLimit | undefined {
 	const binding = RATE_LIMITERS[name];
-	const limiter = env[binding];
+	// **静的なプロパティアクセスで引く**(`env[binding]` の動的参照にしない)。
+	// バインディングの解決はバンドラ/ランタイムの実装に依存する部分があり、動的参照だと
+	// 環境によって undefined になりうる。ここが undefined でも設計上は素通しに倒れるため、
+	// 「設定はあるのに効かない」状態が黙って成立してしまう(実際にプレビューで踏んだ)。
+	const limiter =
+		name === "write"
+			? env.RATE_LIMIT_WRITE
+			: name === "upload"
+				? env.RATE_LIMIT_UPLOAD
+				: env.RATE_LIMIT_FETCH_TITLE;
 	if (!limiter) {
 		if (!warnedMissing.has(binding)) {
 			warnedMissing.add(binding);
