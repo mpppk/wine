@@ -569,7 +569,11 @@ function ProducerLinkButton({
 }
 
 // 購入リンクのダイアログ。楽天/Amazonの検索結果へ飛ぶボタン風リンク(広告リンクなので
-// rel="sponsored")と、景品表示法(ステマ規制)対応の広告表記(PRバッジ・注記)を含む。
+// rel="sponsored")と、景品表示法(ステマ規制)対応の広告表記を含む。
+//
+// 広告表記は末尾の注記(「楽天」「Amazon」は広告リンク)だけに持たせる。ダイアログには
+// 解説・受賞歴・公式サイトのような広告ではない情報も並ぶため、タイトルに「PR」バッジを
+// 出すとダイアログ全体が広告であるかのように読めてしまう。
 function ProducerPurchaseDialog({
 	open,
 	onOpenChange,
@@ -587,12 +591,7 @@ function ProducerPurchaseDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-sm" aria-describedby={undefined}>
 				<DialogHeader>
-					<DialogTitle className="flex items-center gap-1.5 pr-6">
-						<span className="shrink-0 rounded-sm border border-border px-1 py-px text-[10px] font-normal text-muted-foreground">
-							PR
-						</span>
-						<span className="min-w-0 truncate">{name}</span>
-					</DialogTitle>
+					<DialogTitle className="truncate pr-6">{name}</DialogTitle>
 				</DialogHeader>
 				{info?.description && (
 					<p className="text-sm leading-relaxed text-foreground/90">
