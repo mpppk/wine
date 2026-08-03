@@ -1,6 +1,7 @@
 import type { DrunkWineFieldsValue } from "#/components/cellar/drunk-wine-payload";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
-import { getAop, getRegion, getVariety } from "#/lib/wine/service";
+import { type ProvenanceValue, provenanceNameJa } from "#/lib/wine/provenance";
+import { getVariety } from "#/lib/wine/service";
 
 // エチケット解析の結果と現在のフォーム値を突き合わせ、差分のある項目だけを
 // ユーザに選ばせるためのビュー用データを組み立てる(#362)。
@@ -16,14 +17,29 @@ function grapeNamesDisplay(ids: string[]): string {
 	return ids.map((id) => getVariety(id)?.nameJa ?? id).join("、");
 }
 
-function regionAopDisplay(
-	regionId: string | undefined,
-	aopId: string | undefined,
-): string {
-	const parts: string[] = [];
-	if (regionId) parts.push(getRegion(regionId)?.nameJa ?? regionId);
-	if (aopId) parts.push(getAop(aopId)?.nameJa ?? aopId);
-	return parts.length > 0 ? parts.join(" / ") : EMPTY_DISPLAY;
+/**
+ * 産地の表示名。表示は `provenanceNameJa`(産地ピッカー・一覧と同じ SSOT)に委ね、
+ * マスタに無いIDだけ素のIDへ退避する——「値は入っているのに(未入力)と出る」より
+ * 生のIDが見えるほうが、差分を承認するかの判断材料になる。
+ */
+function provenanceDisplay(value: ProvenanceValue): string {
+	const id = value.aopId ?? value.regionId ?? value.countryId;
+	if (!id) return EMPTY_DISPLAY;
+	return provenanceNameJa(value) ?? id;
+}
+
+/**
+ * 候補の産地を「最も細かい1つだけ」へ畳む(AOP > 地域 > 国。#374 の粒度の優先順)。
+ *
+ * `buildLabelSuggestions` は AOP を解決できたとき **その地域も併せて返す**ため、
+ * 候補は aopId と regionId を同時に持ちうる。一方フォーム側
+ * (`DrunkWineFormState`)の産地は3つのうち高々1つなので、ここで1つに絞る。
+ */
+function suggestedProvenance(s: LabelSuggestions): ProvenanceValue | undefined {
+	if (s.aopId) return { aopId: s.aopId };
+	if (s.regionId) return { regionId: s.regionId };
+	if (s.countryId) return { countryId: s.countryId };
+	return undefined;
 }
 
 function sameIds(a: string[], b: string[]): boolean {
@@ -34,7 +50,7 @@ function sameIds(a: string[], b: string[]): boolean {
 }
 
 export interface LabelDiffItem {
-	key: "name" | "producer" | "vintage" | "region" | "grapeVarietyIds";
+	key: "name" | "producer" | "vintage" | "provenance" | "grapeVarietyIds";
 	label: string;
 	/** 表示用。未入力は EMPTY_DISPLAY 文字列 */
 	current: string;
@@ -44,9 +60,10 @@ export interface LabelDiffItem {
 
 /**
  * 解析結果(候補)と現在のフォーム値を比較し、値が変わる項目だけを返す。
- * 地域とAOPは常に1項目にまとめる(buildLabelSuggestions は AOP が解決できた
- * ときに必ずその地域も併せて返すため、片方だけ選べると絞り込みと矛盾した
- * 状態になりうる)。
+ *
+ * 産地は粒度(国 / 地域 / AOP)が違っても**1項目**として扱う。3つは排他で
+ * 「最も細かい1つだけ」を持つ不変条件(#374)があり、粒度ごとに選べると
+ * 「AOPは反映するが国は元のまま」のような不整合な状態を作れてしまうため。
  */
 export function buildLabelDiffs(
 	values: DrunkWineFieldsValue,
@@ -84,22 +101,35 @@ export function buildLabelDiffs(
 		});
 	}
 
-	if (s.regionId || s.aopId) {
-		const regionChanged = !!s.regionId && s.regionId !== values.regionId;
-		const aopChanged = !!s.aopId && s.aopId !== values.aopId;
-		if (regionChanged || aopChanged) {
-			const patch: Partial<DrunkWineFieldsValue> = {};
-			if (s.regionId) patch.regionId = s.regionId;
-			if (s.aopId) patch.aopId = s.aopId;
+	const suggestedPlace = suggestedProvenance(s);
+	if (suggestedPlace) {
+		const current: ProvenanceValue = {
+			aopId: values.aopId,
+			regionId: values.regionId,
+			countryId: values.countryId,
+		};
+		// 3キーすべてを比べる。粒度が変わるだけの差分(国→AOP 等)も検出したいので、
+		// 「候補が持つキー」だけを見ると取りこぼす。
+		const changed =
+			suggestedPlace.aopId !== current.aopId ||
+			suggestedPlace.regionId !== current.regionId ||
+			suggestedPlace.countryId !== current.countryId;
+		if (changed) {
 			diffs.push({
-				key: "region",
-				label: "地域/AOP",
-				current: regionAopDisplay(values.regionId, values.aopId),
-				suggested: regionAopDisplay(
-					s.regionId ?? values.regionId,
-					s.aopId ?? values.aopId,
-				),
-				patch,
+				key: "provenance",
+				label: "産地",
+				current: provenanceDisplay(current),
+				suggested: provenanceDisplay(suggestedPlace),
+				// **3キーすべてを明示的に入れる**(ProvenancePicker の onChange と同じ形)。
+				// DrunkWineForm の update は `{...prev, ...patch}` なので、undefined を
+				// 明示したキーだけが既存値を消す。候補が持つキーだけを patch に入れると、
+				// 例えば「国=フランスが入っている状態でAOP候補を反映」したときに
+				// countryId が残り、排他の不変条件が壊れる。
+				patch: {
+					aopId: suggestedPlace.aopId,
+					regionId: suggestedPlace.regionId,
+					countryId: suggestedPlace.countryId,
+				},
 			});
 		}
 	}
