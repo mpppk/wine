@@ -190,6 +190,136 @@ describe("readImageFormData", () => {
 	});
 });
 
+// #398: content-length を信用した事前チェックだけでは、ヘッダの無いストリーム送信
+// (Transfer-Encoding: chunked)が `Number(null ?? 0)` = 0 で素通りし、本文全体が
+// isolate メモリへバッファされた。実バイト数で打ち切ることを固定する。
+describe("readImageFormData のサイズ上限(content-length を信用しない・#398)", () => {
+	const BOUNDARY = "----formapitest";
+	/** 1枚ぶんの上限。上限式は maxFormDataBytes と同じ(定数から導き、リテラルを書かない)。 */
+	const ONE_PHOTO_LIMIT = MAX_PHOTO_BYTES * 1 + 64 * 1024;
+
+	/** multipart のボディを「少しずつ」流すストリーム(chunked 送信の再現)。 */
+	function multipartStream(payloadBytes: number): ReadableStream<Uint8Array> {
+		const enc = new TextEncoder();
+		const head = enc.encode(
+			`--${BOUNDARY}\r\nContent-Disposition: form-data; name="photo"; filename="a.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`,
+		);
+		const tail = enc.encode(`\r\n--${BOUNDARY}--\r\n`);
+		let sent = 0;
+		return new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(head);
+			},
+			pull(controller) {
+				if (sent >= payloadBytes) {
+					controller.enqueue(tail);
+					controller.close();
+					return;
+				}
+				const size = Math.min(64 * 1024, payloadBytes - sent);
+				controller.enqueue(new Uint8Array(size));
+				sent += size;
+			},
+		});
+	}
+
+	/** content-length を持たない(=申告の無い)ストリーム POST。 */
+	function streamedRequest(payloadBytes: number): Request {
+		return new Request("https://wine.test/api/wine-photos", {
+			method: "POST",
+			headers: { "content-type": `multipart/form-data; boundary=${BOUNDARY}` },
+			body: multipartStream(payloadBytes),
+			duplex: "half",
+		} as RequestInit);
+	}
+
+	it("前提: ストリーム送信には content-length が付かない", () => {
+		// これが付くなら旧実装でも弾けていたことになり、以下のテストが意味を失う。
+		expect(streamedRequest(1024).headers.get("content-length")).toBeNull();
+	});
+
+	it("申告が無くても実バイト数が上限を超えたら 413", async () => {
+		const res = await readImageFormData(
+			streamedRequest(ONE_PHOTO_LIMIT + 1024 * 1024),
+			1,
+		);
+		expect(res).toBeInstanceOf(Response);
+		if (!(res instanceof Response)) return;
+		expect(res.status).toBe(413);
+		expect((await body(res)).error).toBe(API_ERROR_MESSAGES.filesTooLarge);
+	});
+
+	it("申告が無くても上限内なら通す(正当な chunked 送信を壊さない)", async () => {
+		const res = await readImageFormData(streamedRequest(1024), 1);
+		expect(res).toBeInstanceOf(FormData);
+		if (!(res instanceof FormData)) return;
+		const file = res.get("photo");
+		expect(file).toBeInstanceOf(File);
+		// 打ち切りストリームを通しても中身が欠けない。
+		if (file instanceof File) expect(file.size).toBe(1024);
+	});
+
+	// 413 を返すだけでは不十分で、**本文を最後まで読まないこと**が本題(読み切ってしまうなら
+	// メモリは同じだけ使われ、OOM 誘発は塞げていない)。送信側が実際に生成したバイト数を
+	// 数えて、上限付近で打ち切られていることを確かめる。
+	it("上限を超えた本文は最後まで読まない(メモリに載せない)", async () => {
+		let produced = 0;
+		const enc = new TextEncoder();
+		// 100MB 送ろうとするストリーム。打ち切られなければ produced がそこまで伸びる。
+		const huge = new ReadableStream<Uint8Array>({
+			start(controller) {
+				const head = enc.encode(
+					`--${BOUNDARY}\r\nContent-Disposition: form-data; name="photo"; filename="a.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`,
+				);
+				produced += head.byteLength;
+				controller.enqueue(head);
+			},
+			pull(controller) {
+				if (produced >= 100 * 1024 * 1024) {
+					controller.close();
+					return;
+				}
+				const chunk = new Uint8Array(64 * 1024);
+				produced += chunk.byteLength;
+				controller.enqueue(chunk);
+			},
+		});
+
+		const res = await readImageFormData(
+			new Request("https://wine.test/api/wine-photos", {
+				method: "POST",
+				headers: {
+					"content-type": `multipart/form-data; boundary=${BOUNDARY}`,
+				},
+				body: huge,
+				duplex: "half",
+			} as RequestInit),
+			1,
+		);
+
+		expect(res).toBeInstanceOf(Response);
+		if (res instanceof Response) expect(res.status).toBe(413);
+		// 打ち切りの検知は「上限を超えた次のチャンク」で起きるので多少の行き過ぎは許容する。
+		// 100MB を読み切っていないこと(=桁で違うこと)が要点。
+		expect(produced).toBeLessThan(ONE_PHOTO_LIMIT * 2);
+	});
+
+	it("上限超過とパース不能を取り違えない(超過は 413、壊れた本文は 400)", async () => {
+		const broken = await readImageFormData(
+			new Request("https://wine.test/api/upload", {
+				method: "POST",
+				headers: {
+					"content-type": `multipart/form-data; boundary=${BOUNDARY}`,
+				},
+				body: "not a valid multipart body",
+			}),
+			1,
+		);
+		expect(broken).toBeInstanceOf(Response);
+		if (broken instanceof Response) expect(broken.status).toBe(400);
+	});
+});
+
 describe("validateDeclaredPhotoFile", () => {
 	it("許可外の申告MIMEは 400", async () => {
 		const res = validateDeclaredPhotoFile(
