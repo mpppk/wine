@@ -46,3 +46,14 @@ export const bulkRegisterFromScan = createServerFn({ method: "POST" })
 	.handler(({ data, context }) =>
 		drunkWineService.bulkRegisterFromScan(context.user.id, data),
 	);
+
+/**
+ * 一括登録バッチの取り消し(Issue #363 案A)。`/cellar/import` の登録完了直後
+ * からのみ呼ばれる想定(サービス層のJSDoc参照)。
+ */
+export const undoImportBatch = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ batchId: z.string().min(1).max(80) }))
+	.handler(({ data, context }) =>
+		drunkWineService.undoImportBatch(context.user.id, data.batchId),
+	);
