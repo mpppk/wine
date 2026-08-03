@@ -235,6 +235,37 @@ Stripe リソースは Terraform 管理だが、**Sentry は当面ダッシュ�
 
 ## シークレットの投入
 
+### `BETTER_AUTH_SECRET` は全環境で必須
+
+セッション Cookie の署名・OAuth の state/consent・MCP OAuth のトークン発行に使う鍵。
+**未設定でもアプリは起動してしまう**のが罠で、better-auth が OSS に書かれた公開の既定値
+（`better-auth-secret-…`）へ黙ってフォールバックする。この状態の環境は、署名鍵が公知なので
+**誰でも有効な署名の Cookie を自作でき、任意セッションになりすませる**。
+
+better-auth 自身の「既定値のままなら起動を拒否する」ガードは条件が `NODE_ENV === "production"`
+だが、**workerd では `process.env.NODE_ENV` が設定されないため発火しない**（Vite の静的置換も、
+better-auth 側が Proxy 経由の動的プロパティアクセスで読むので効かない）。実際、preview は
+長期間このガードをすり抜けて既定シークレットで稼働していた（Issue #389）。
+
+そのため `src/lib/auth.ts` が起動時に自前で検査し、未設定・既定値のままなら `logError` を出す
+（判定は `src/lib/auth-secret.ts`）。**デプロイ後は `bun run logs --level error --grep BETTER_AUTH_SECRET`
+で1行も出ないことを確認する**。起動拒否にしていないのは、シークレット未投入の環境が丸ごと
+起動不能になると投入するまで全PRのプレビューが止まるため。
+
+```bash
+# 生成
+npx wrangler secret put BETTER_AUTH_SECRET                      # 本番 (wine)
+npx wrangler versions secret put BETTER_AUTH_SECRET --env preview  # プレビュー (wine-preview)
+# 設定済みかの確認(値は表示されない)
+npx wrangler secret list
+npx wrangler secret list --env preview
+```
+
+**投入するとその環境の既存セッションは全て無効になる**（署名鍵が変わるため）。ログインし直しが
+必要になるだけで、データは失われない。
+
+### 環境ごとの非対称性
+
 過去のCI整備（PR #59/#63〜#67）で繰り返し踏んだ非対称性のまとめ。
 
 - **本番（`wine`）とプレビュー（`wine-preview`）でコマンドが異なる**。`wine-preview` は `wrangler versions upload` 運用のため `wrangler secret put` が

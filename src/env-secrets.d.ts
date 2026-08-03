@@ -13,9 +13,14 @@
 declare namespace Cloudflare {
 	interface Env {
 		// better-auth のセッションCookie署名・OAuthトークン生成に使う必須シークレット。
-		// 本番/プレビューは `wrangler secret put BETTER_AUTH_SECRET`、ローカルは
-		// `.dev.vars` で設定する(未設定だと better-auth は既定値へフォールバックし、
-		// NODE_ENV=production では起動時に fail-fast する)。
+		// 本番は `wrangler secret put BETTER_AUTH_SECRET`、プレビューは
+		// `wrangler versions secret put BETTER_AUTH_SECRET --env preview`、ローカルは
+		// `.dev.vars` で設定する。
+		//
+		// **未設定でも起動してしまう**(better-auth が公開の既定値へ黙ってフォールバックし、
+		// 署名を誰でも自作できる状態になる)。better-auth 側の fail-fast は
+		// `NODE_ENV === "production"` が条件で workerd では発火しないため、
+		// `src/lib/auth.ts` が起動時に自前で検査して logError する(#389)。
 		BETTER_AUTH_SECRET?: string;
 		STRIPE_SECRET_KEY?: string;
 		STRIPE_WEBHOOK_SECRET?: string;

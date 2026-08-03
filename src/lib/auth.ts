@@ -17,6 +17,7 @@ import {
 	needsImpersonationCheck,
 } from "#/lib/admin/impersonation";
 import { labelEngineKeySchema, regionQaModelKeySchema } from "#/lib/ai/config";
+import { authSecretProblem, authSecretProblemMessage } from "#/lib/auth-secret";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
 import { logError, logInfo, logWarn } from "#/lib/logger";
@@ -35,7 +36,28 @@ if (!env.STRIPE_WEBHOOK_SECRET) {
 	);
 }
 
+// セッションCookieの署名鍵。未設定なら better-auth は公開の既定値へ黙って
+// フォールバックし、署名を誰でも自作できる状態のまま起動する(#389)。better-auth 側の
+// fail-fast は NODE_ENV に依存していて workerd では発火しないため、ここで自分で確かめる
+// (詳細は auth-secret.ts)。STRIPE_WEBHOOK_SECRET のガード(#157)と同じ置き場所。
+//
+// **throw ではなく logError にしている**。ここで起動を拒否すると、シークレット未投入の
+// 環境(preview / 手元)が丸ごと起動不能になり、投入するまで全PRのプレビューが止まる。
+// 検知を確実にしつつ復旧手段を奪わない側に倒す。
+const secretProblem = authSecretProblem(env.BETTER_AUTH_SECRET);
+if (secretProblem) {
+	logError(authSecretProblemMessage(secretProblem), {
+		problem: secretProblem,
+	});
+}
+
 export const auth = betterAuth({
+	// **バインディングから明示的に渡す**。省略すると better-auth は `process.env` 経由で
+	// 読むが、Workers で `process.env` にシークレットが載るのは nodejs_compat と
+	// compatibility_date >= 2025-04-01 の組み合わせに依存する。互換設定が変わった瞬間に
+	// 「本番が黙って既定シークレットで動く」という最悪の劣化を起こしうるので、
+	// cloudflare:workers の env を単一の入手経路にする(#389)。
+	secret: env.BETTER_AUTH_SECRET,
 	database: drizzleAdapter(drizzle(env.DB), {
 		provider: "sqlite",
 		schema: authSchema,
