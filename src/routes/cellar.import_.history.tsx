@@ -20,7 +20,7 @@ import { listImportBatches, undoImportBatch } from "#/server/place";
 // `/cellar/import` の登録直後の完了画面だけに限定したが、そこを離れた後に
 // 「やっぱりあの一括登録は間違いだった」に対応する導線がここ。
 
-export const Route = createFileRoute("/cellar/import/history")({
+export const Route = createFileRoute("/cellar/import_/history")({
 	beforeLoad: requireAuthBeforeLoad,
 	loader: () => listImportBatches(),
 	component: CellarImportHistoryPage,
