@@ -73,6 +73,7 @@ import {
 	parseWineListResponse,
 	type WineListCandidate,
 	type WineListParseResult,
+	type WineListSubject,
 } from "#/lib/ai/wine-list-extraction";
 import {
 	type AiUsage,
@@ -730,6 +731,11 @@ export interface AnalyzeWineListInput {
 export interface WineListAnalysisSummary {
 	/** 統合後の銘柄数(= candidates.length)。 */
 	detected: number;
+	/**
+	 * 写真群の被写体(単一ワインのエチケット / ワインリスト・棚)。`single_wine` の
+	 * とき、UI は一括登録のレビューではなく単体の「ワインを記録」へ案内する(#416)。
+	 */
+	subject: WineListSubject;
 	/** バッチ内の重複統合で畳まれた件数。 */
 	mergedDuplicates: number;
 	/** 既存セラーの銘柄と一致した件数(新規作成せず目撃記録を足す候補)。 */
@@ -869,6 +875,7 @@ export async function analyzeWineList(
 		);
 		summary = {
 			detected: candidates.length,
+			subject: parsed.subject,
 			mergedDuplicates: deduped.mergedCount,
 			matchedExisting: candidates.filter((c) => !!c.existing).length,
 			truncated: parsed.truncated,

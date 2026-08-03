@@ -41,6 +41,38 @@ export interface ImportCardState {
 }
 
 /**
+ * 解析の自動入力候補をフォームの入力値へ変換する。
+ *
+ * 一括登録のレビューカードと、単一ワインと判定されたときの「ワインを記録」への
+ * 引き継ぎ(#416)が共有する。**産地を「最も細かい1つだけ」へ畳む規則をここに
+ * 一本化する**のが要点で、経路ごとに書くと片方だけ aopId と countryId を同時に
+ * 持つフォーム状態を作ってしまう。
+ *
+ * @param status 既定のステータス。経路ごとに違う(一括=見かけた / 単体=フォームの既定)
+ * @param price 銘柄の価格欄の初期値。未指定なら空
+ */
+export function valuesFromSuggestions(
+	suggestions: WineListCandidate["suggestions"],
+	status: WineStatus,
+	price?: number,
+): DrunkWineFieldsValue {
+	return {
+		name: suggestions.name ?? "",
+		status,
+		vintage: suggestions.vintage != null ? String(suggestions.vintage) : "",
+		producer: suggestions.producer ?? "",
+		price: price != null ? String(price) : "",
+		aopId: suggestions.aopId,
+		regionId: suggestions.aopId ? undefined : suggestions.regionId,
+		countryId:
+			suggestions.aopId || suggestions.regionId
+				? undefined
+				: suggestions.countryId,
+		grapeVarietyIds: suggestions.grapeVarietyIds ?? [],
+	};
+}
+
+/**
  * 解析結果の候補をカードの初期状態にする。
  *
  * - ステータスの既定は「見かけた」。写真に写っているワインのほとんどは
@@ -56,28 +88,9 @@ export function buildImportCards(
 	return candidates.map((candidate, index) => ({
 		localId: `c${index}`,
 		selected: true,
-		values: {
-			name: candidate.suggestions.name ?? "",
-			status: IMPORT_DEFAULT_STATUS,
-			vintage:
-				candidate.suggestions.vintage != null
-					? String(candidate.suggestions.vintage)
-					: "",
-			producer: candidate.suggestions.producer ?? "",
-			// 銘柄の価格は空のまま。リスト記載の価格は目撃記録側(sightingPrice)へ
-			price: "",
-			// 産地は「最も細かい1つだけ」。suggestions 側も排他だが、ここでも精度順に
-			// 畳んでおく(フォームの不変条件をAIの出力形に依存させない)
-			aopId: candidate.suggestions.aopId,
-			regionId: candidate.suggestions.aopId
-				? undefined
-				: candidate.suggestions.regionId,
-			countryId:
-				candidate.suggestions.aopId || candidate.suggestions.regionId
-					? undefined
-					: candidate.suggestions.countryId,
-			grapeVarietyIds: candidate.suggestions.grapeVarietyIds ?? [],
-		},
+		// 銘柄の価格は空のまま(price を渡さない)。リスト記載の価格は目撃記録側
+		// (sightingPrice)へ入れる
+		values: valuesFromSuggestions(candidate.suggestions, IMPORT_DEFAULT_STATUS),
 		drunk: false,
 		tasting: EMPTY_TASTING_DRAFT,
 		sightingPrice: candidate.price != null ? String(candidate.price) : "",

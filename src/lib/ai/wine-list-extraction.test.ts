@@ -48,6 +48,13 @@ describe("buildWineListPrompt", () => {
 		expect(prompt).toContain("photo_indexes");
 		expect(prompt).toContain("truncated");
 	});
+
+	it("被写体の判定(単一ワイン / リスト)を指示する", () => {
+		const prompt = buildWineListPrompt(1);
+		expect(prompt).toContain("subject");
+		expect(prompt).toContain("single_wine");
+		expect(prompt).toContain("wine_list");
+	});
 });
 
 describe("buildWineListMessages", () => {
@@ -186,6 +193,48 @@ describe("parseWineListResponse", () => {
 
 	it("JSONを含まない応答は throw する(呼び出し側でクレジット返却)", () => {
 		expect(() => parseWineListResponse("解析できませんでした", 1)).toThrow();
+	});
+
+	it("被写体が単一ワインなら subject を single_wine にする", () => {
+		const result = parseWineListResponse(
+			{
+				wines: [wineJson({ wine_name: "Chablis" })],
+				subject: "single_wine",
+				truncated: false,
+			},
+			1,
+		);
+		expect(result.subject).toBe("single_wine");
+	});
+
+	it.each([
+		["未指定", undefined],
+		["null", null],
+		["未知の値", "bottle_shelf"],
+		["真偽値", true],
+	])("subject が%sなら wine_list に寄せる", (_label, subject) => {
+		const result = parseWineListResponse(
+			{
+				wines: [wineJson({ wine_name: "Chablis" })],
+				subject,
+				truncated: false,
+			},
+			1,
+		);
+		expect(result.subject).toBe("wine_list");
+	});
+
+	it("打ち切りが起きた回は single_wine と自己申告されても wine_list に倒す", () => {
+		// 列挙しきれないほど銘柄がある写真を単体登録へ飛ばすと、残りを登録する導線ごと消える
+		const result = parseWineListResponse(
+			{
+				wines: [wineJson({ wine_name: "Chablis" })],
+				subject: "single_wine",
+				truncated: true,
+			},
+			1,
+		);
+		expect(result.subject).toBe("wine_list");
 	});
 });
 

@@ -56,9 +56,29 @@ const wineListItemSchema = z.object({
 		.catch([]),
 });
 
-/** モデル出力(全体)の受け取り側スキーマ。銘柄配列と打ち切りフラグ。 */
+/**
+ * 写真群が何を写しているか。
+ *
+ * - `single_wine`: 全ての写真が**同じ1本のワイン**(ボトル・エチケット・裏ラベル・
+ *   箱・ネックタグ)だけを写している
+ * - `wine_list`: それ以外(飲食店のリスト、ショップの陳列・棚、複数銘柄)
+ *
+ * 判定できなかった回は `wine_list` に寄せる。一括登録がこの機能の既定の流れで、
+ * 誤って単体登録へ飛ばすと、写した他の銘柄が黙って落ちるため。
+ */
+export type WineListSubject = "single_wine" | "wine_list";
+
+/** モデル出力(全体)の受け取り側スキーマ。銘柄配列・被写体の種別・打ち切りフラグ。 */
 const wineListResponseSchema = z.object({
 	wines: z.array(wineListItemSchema).nullish().catch([]),
+	/**
+	 * 被写体の種別。未知の文字列・欠落は null にして、呼び出し側で既定
+	 * (`wine_list`)へ寄せる。
+	 */
+	subject: z
+		.union([z.literal("single_wine"), z.literal("wine_list")])
+		.nullish()
+		.catch(null),
 	/** 出力上限などで列挙しきれなかった銘柄があるか。真偽値以外は false に寄せる。 */
 	truncated: z.boolean().nullish().catch(false),
 });
@@ -73,6 +93,11 @@ export interface WineListItem extends LabelExtraction {
 
 export interface WineListParseResult {
 	wines: WineListItem[];
+	/**
+	 * 写真群の被写体。`single_wine` のとき、UI は一括登録のレビューではなく
+	 * 単体の「ワインを記録」へ案内する(Issue #416)。
+	 */
+	subject: WineListSubject;
 	/**
 	 * 列挙しきれなかった銘柄があるか。モデルの自己申告(truncated)と、こちらの
 	 * 件数上限による切り捨ての**論理和**。UI は「写真を分けて再解析」を案内する。
@@ -90,7 +115,7 @@ export interface WineListParseResult {
  */
 export function buildWineListPrompt(photoCount: number): string {
 	return [
-		"これは飲食店のワインリスト、またはワインショップの陳列・棚・ポップを撮影した写真です",
+		"これは飲食店のワインリスト、ワインショップの陳列・棚・ポップ、または1本のワインのボトル・エチケット(ラベル)を撮影した写真です",
 		`(全${photoCount}枚。各写真の直前に「写真 N」と番号を記載しています)。`,
 		"写真に写っているワインの銘柄をすべて列挙し、最後にJSONオブジェクトだけを出力してください。",
 		"",
@@ -108,9 +133,11 @@ export function buildWineListPrompt(photoCount: number): string {
 		'     - "grape_varieties": 品種名の文字列配列。記載が無ければ空配列。下の既知リストに該当があればその表記を使う',
 		'     - "price": リスト記載の価格を整数(日本円)で。グラスとボトルが併記されていればボトルの価格。記載が無ければ null',
 		'     - "photo_indexes": この銘柄が写っていた写真番号(0始まり)の配列',
+		'   - "subject": 写真群の被写体。**すべての写真が同じ1本のワインだけを写している**場合(ボトル単体・エチケット・裏ラベル・箱・ネックタグのクローズアップなど)は "single_wine"、飲食店のワインリスト・ショップの陳列や棚・複数の銘柄が写っている場合は "wine_list"',
 		'   - "truncated": 列挙しきれなかった銘柄が残っている場合は true、すべて列挙できたなら false',
-		"5. 銘柄数が多くても省略・要約しない。どうしても出力が長くなりすぎる場合のみ途中で打ち切り、その場合は truncated を true にする。",
-		"6. JSONの前後に説明文・コードフェンスを書かない。",
+		'5. subject の判定は迷ったら "wine_list" にする。1本のワインだと確信できる場合にだけ "single_wine" にする。',
+		"6. 銘柄数が多くても省略・要約しない。どうしても出力が長くなりすぎる場合のみ途中で打ち切り、その場合は truncated を true にする。",
+		"7. JSONの前後に説明文・コードフェンスを書かない。",
 		"",
 		buildKnownListsSection(),
 	].join("\n");
@@ -198,6 +225,13 @@ export function parseWineListResponse(
 		.filter((w) => !!(w.wineName || w.producer || w.appellation));
 	return {
 		wines,
+		// 未指定・未知の値は既定の一括登録(wine_list)に寄せる。**打ち切りが起きた
+		// 回も一括扱いにする**——列挙しきれないほど銘柄があった写真を単体登録へ
+		// 飛ばすと、残りの銘柄を登録する導線ごと消える。
+		subject:
+			result.data.subject === "single_wine" && !result.data.truncated
+				? "single_wine"
+				: "wine_list",
 		truncated:
 			result.data.truncated === true ||
 			rawWines.length > AI_WINE_LIST_MAX_WINES,
