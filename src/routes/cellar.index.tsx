@@ -6,6 +6,7 @@ import {
 	useRouter,
 } from "@tanstack/react-router";
 import {
+	HistoryIcon,
 	ImagesIcon,
 	ListChecksIcon,
 	MapIcon,
@@ -318,6 +319,12 @@ function CellarPage() {
 							</Link>
 						</Button>
 					)}
+					<Button asChild variant="outline" size="sm">
+						<Link to="/cellar/import/history">
+							<HistoryIcon className="size-4" aria-hidden />
+							一括登録の履歴
+						</Link>
+					</Button>
 					<Button asChild size="sm">
 						<Link to="/cellar/new">
 							<PlusIcon className="size-4" aria-hidden />
