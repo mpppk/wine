@@ -3,6 +3,16 @@ import { creditLedgerTypeLabel } from "#/lib/credit/types";
 import type { AdminUserDetail } from "#/lib/services/admin-service";
 import { formatDateTime } from "./format";
 
+/**
+ * µUSD を読みやすい USD 表記にする。桁が4桁またぐ($0.0002 〜 $0.30)ので、
+ * 小さい値が 0 に丸められないよう有効数字で出す。
+ */
+function formatMicroUsd(microUsd: number): string {
+	if (microUsd === 0) return "$0";
+	const usd = microUsd / 1_000_000;
+	return `$${usd < 0.01 ? usd.toFixed(5) : usd.toFixed(3)}`;
+}
+
 export function CreditCard({ detail }: { detail: AdminUserDetail }) {
 	return (
 		<Card>
@@ -34,6 +44,7 @@ export function CreditCard({ detail }: { detail: AdminUserDetail }) {
 									<th className="px-3 py-2 font-medium">日時</th>
 									<th className="px-3 py-2 font-medium">種別</th>
 									<th className="px-3 py-2 text-right font-medium">増減</th>
+									<th className="px-3 py-2 text-right font-medium">原価</th>
 									<th className="px-3 py-2 text-right font-medium">トークン</th>
 									<th className="px-3 py-2 font-medium">対象月</th>
 								</tr>
@@ -54,6 +65,14 @@ export function CreditCard({ detail }: { detail: AdminUserDetail }) {
 											className={`px-3 py-2 text-right tabular-nums ${entry.amount < 0 ? "text-destructive" : ""}`}
 										>
 											{entry.amount > 0 ? `+${entry.amount}` : entry.amount}
+										</td>
+										{/* クレジット(増減)は 1 = $0.001 に量子化された原価なので、
+										    量子化前の実原価をここに出す。切り上げぶんの粗利や、
+										    見積と実測の乖離が台帳だけで見える。#355 以前の行は null。 */}
+										<td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+											{entry.costMicroUsd === null
+												? "-"
+												: formatMicroUsd(entry.costMicroUsd)}
 										</td>
 										<td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
 											{entry.tokenAmount?.toLocaleString("ja-JP") ?? "-"}

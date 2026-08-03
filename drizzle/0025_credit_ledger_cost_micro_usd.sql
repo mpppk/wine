@@ -1,0 +1,16 @@
+-- allow-destructive-migration
+--
+-- ↑ の理由: 唯一の該当箇所は `ADD COLUMN cost_micro_usd integer`。
+-- nullable + デフォルト無しの列追加(既存行は NULL で埋まる)なので
+-- expand-and-contract の対象ではない。既存列の NOT NULL 化・DROP・RENAME は無い。
+--
+-- Issue #355: AIクレジットの計上をトークン基準からコスト基準へ転換する。
+--
+-- クレジットの根拠が「消費トークン数」から「実原価(µUSD)」に変わった。amount
+-- (表示クレジット)は 1クレジット = $0.001 の量子化された原価なので原価の概算は
+-- amount から復元できるが、量子化前の実原価をそのまま持っておくと
+-- 「見積と実測の乖離」「経路ごとの実際の粗利」を台帳だけで監査できる。
+--
+-- 既存行は NULL のまま = 転換前(トークン基準)に計上された行。token_amount は
+-- 引き続きトークン数を持つ(課金の根拠ではなく観測値)。
+ALTER TABLE `credit_ledger` ADD COLUMN `cost_micro_usd` integer;

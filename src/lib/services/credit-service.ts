@@ -456,6 +456,8 @@ export async function reserveCredits(
 						sql<number>`(cast(unixepoch('subsecond') * 1000 as integer))`.as(
 							"created_at",
 						),
+					// schema.ts の列順(createdAt の後ろ)と揃える。
+					costMicroUsd: sql<number>`${estimate.microUsd}`.as("cost_micro_usd"),
 				})
 				.from(creditBalance)
 				.where(
@@ -519,9 +521,18 @@ function reservationMarkerInsert(params: {
 	counterpartId: string;
 	amount: number;
 	tokenAmount: number | null;
+	/** 量子化前の実原価(µUSD)。返却(全額戻し)は原価を伴わないので null。 */
+	costMicroUsd: number | null;
 }) {
-	const { userId, requestId, markerId, counterpartId, amount, tokenAmount } =
-		params;
+	const {
+		userId,
+		requestId,
+		markerId,
+		counterpartId,
+		amount,
+		tokenAmount,
+		costMicroUsd,
+	} = params;
 	const month = currentMonthKey();
 	return db
 		.insert(creditLedger)
@@ -544,6 +555,10 @@ function reservationMarkerInsert(params: {
 						sql<Date>`(cast(unixepoch('subsecond') * 1000 as integer))`.as(
 							"created_at",
 						),
+					// schema.ts の列順(createdAt の後ろ)と揃える。
+					costMicroUsd: sql<number | null>`${costMicroUsd}`.as(
+						"cost_micro_usd",
+					),
 				})
 				// 「その予約の consume 行が在り、かつ相手側マーカーが無い」ときだけ1行になる。
 				.from(creditLedger)
@@ -601,6 +616,7 @@ export async function settleReservation(
 		counterpartId: refundId,
 		amount: back,
 		tokenAmount: actual.tokens,
+		costMicroUsd: actual.microUsd,
 	});
 
 	// 戻す差分が無い場合は残高を触らず証跡だけ残す(balance + 0 の無駄な書き込みを避ける)。
@@ -712,6 +728,8 @@ export async function refundReservation(
 				counterpartId: settleId,
 				amount: reservedCredits,
 				tokenAmount: null,
+				// 全額返却は「消費が無かった」ことの記録なので原価も持たない。
+				costMicroUsd: null,
 			}),
 		]),
 	);

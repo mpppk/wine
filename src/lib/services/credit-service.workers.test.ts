@@ -215,6 +215,44 @@ describe("reserveCredits の原子性・冪等性 (#143)", () => {
 		expect(rows[0]?.amount).toBe(-MONTHLY_CREDITS_FREE);
 	});
 
+	it("consume と settle に量子化前の実原価(cost_micro_usd)を残す (#355)", async () => {
+		// `INSERT ... SELECT` はテーブル定義と同じ列順・列数を要求する。schema.ts の
+		// 宣言順と drizzle/0025 の物理列順(ALTER TABLE ADD COLUMN は末尾へ足す)が
+		// ずれると、値が別の列へ入るか INSERT ごと失敗する。実D1でしか検出できない。
+		const requestId = `cost-${userId}`;
+		// 予約 12,345 µUSD → 13 クレジット、実測 6,700 µUSD → 7 クレジット。
+		await reserveCredits(
+			userId,
+			{ microUsd: 12_345, tokens: 1_000 },
+			requestId,
+		);
+		await settleReservation(userId, requestId, 13, {
+			microUsd: 6_700,
+			tokens: 620,
+		});
+
+		const [consume] = await ledgerByRequestId(requestId);
+		expect(consume?.amount).toBe(-13);
+		expect(consume?.costMicroUsd).toBe(12_345);
+		expect(consume?.tokenAmount).toBe(1_000);
+
+		const [settle] = await ledgerByRequestId(`${requestId}:settle`);
+		expect(settle?.amount).toBe(6); // 13 - 7 を返却
+		expect(settle?.costMicroUsd).toBe(6_700);
+		expect(settle?.tokenAmount).toBe(620);
+	});
+
+	it("全額返却は原価を持たない(消費が無かったことの記録) (#355)", async () => {
+		const requestId = `cost-refund-${userId}`;
+		await reserveCredits(userId, { microUsd: 9_000, tokens: 800 }, requestId);
+		await refundReservation(userId, requestId, 9);
+
+		const [refund] = await ledgerByRequestId(`${requestId}:refund`);
+		expect(refund?.amount).toBe(9);
+		expect(refund?.costMicroUsd).toBeNull();
+		expect(refund?.tokenAmount).toBeNull();
+	});
+
 	it("ブロックされた予約を挟んでも台帳の合計と残高が一致する (#247)", async () => {
 		// 「台帳=真実」の前提。幽霊 consume が残ると SUM が残高より小さくなり、
 		// 障害補填の対象抽出(findConsumersInRange)が実際には消費していないユーザを拾う。
