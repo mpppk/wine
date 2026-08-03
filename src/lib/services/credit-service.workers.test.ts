@@ -9,10 +9,12 @@ import {
 	MONTHLY_CREDITS_FREE,
 	MONTHLY_CREDITS_PREMIUM,
 } from "#/lib/billing/plans";
+import { grantRequestId, grantUpgradeRequestId } from "#/lib/credit/grants";
 import { currentMonthKey } from "#/lib/credit/month";
 import type { CreditLedgerType } from "#/lib/credit/types";
 import {
 	ensureCurrentMonthGranted,
+	ensureCurrentMonthGrantedMany,
 	getBalance,
 	reclaimOrphanReservations,
 	refundReservation,
@@ -53,6 +55,34 @@ async function makePremium(userId: string): Promise<void> {
 		plan: "premium",
 		referenceId: userId,
 		status: "active",
+	});
+}
+
+/**
+ * #383(月次付与額の引き上げ)以前の無料枠。「旧付与額で当月分を受け取り済み」の状態を
+ * 作るためだけに使う固定値で、現行の定数とは独立に据え置く。
+ */
+const LEGACY_FREE_GRANT = 50;
+
+/**
+ * 「増額デプロイ前に旧付与額で当月分を受け取った」状態を作る。付与額の引き上げが
+ * grant_upgrade 経由で差分付与されるようになる、#387 の前提条件。
+ */
+async function seedLegacyGrant(userId: string, amount: number): Promise<void> {
+	const month = currentMonthKey();
+	await db.insert(creditLedger).values({
+		id: crypto.randomUUID(),
+		userId,
+		amount,
+		type: "grant",
+		requestId: grantRequestId(userId, month),
+		periodMonth: month,
+		tokenAmount: null,
+	});
+	await db.insert(creditBalance).values({
+		userId,
+		balance: amount,
+		periodMonth: month,
 	});
 }
 
@@ -118,7 +148,7 @@ describe("ensureCurrentMonthGranted", () => {
 			MONTHLY_CREDITS_PREMIUM - MONTHLY_CREDITS_FREE,
 		);
 		expect(upgrades[0]?.requestId).toBe(
-			`grant_upgrade:${userId}:${currentMonthKey()}`,
+			grantUpgradeRequestId(userId, currentMonthKey(), MONTHLY_CREDITS_PREMIUM),
 		);
 	});
 
@@ -166,6 +196,117 @@ describe("ensureCurrentMonthGranted", () => {
 		expect(grants).toHaveLength(1);
 		expect(grants[0]?.amount).toBe(MONTHLY_CREDITS_PREMIUM);
 		expect(await ledgerRows(userId, "grant_upgrade")).toHaveLength(0);
+	});
+
+	it("付与額の増額で差分付与を消費した後でも、昇格の差分付与が通る(#387)", async () => {
+		// 「増額デプロイ前に旧付与額で当月分を受け取った」状態を作る。#383 以前の無料枠は 50。
+		await seedLegacyGrant(userId, LEGACY_FREE_GRANT);
+
+		// 1) 増額後の初回アクセス: 無料枠の目標(FREE)まで差分付与される。
+		await ensureCurrentMonthGranted(userId);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_FREE);
+
+		// 2) 同じ月にプレミアムを購入。旧実装ではここが requestId 衝突で無言の no-op になり、
+		//    「課金したのに付与ゼロ・リトライしても回復しない」状態になった。
+		await makePremium(userId);
+		await ensureCurrentMonthGranted(userId);
+
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_PREMIUM);
+
+		// 増額ぶんと昇格ぶんで台帳は2本。目標額別のキーなので互いを潰さない。
+		const upgrades = await ledgerRows(userId, "grant_upgrade");
+		expect(upgrades).toHaveLength(2);
+		expect(upgrades.map((r) => r.requestId).sort()).toEqual(
+			[
+				grantUpgradeRequestId(userId, currentMonthKey(), MONTHLY_CREDITS_FREE),
+				grantUpgradeRequestId(
+					userId,
+					currentMonthKey(),
+					MONTHLY_CREDITS_PREMIUM,
+				),
+			].sort(),
+		);
+		// 累計付与額はプレミアムの目標額ちょうど(二重付与していない)。
+		expect(upgrades.reduce((sum, r) => sum + r.amount, LEGACY_FREE_GRANT)).toBe(
+			MONTHLY_CREDITS_PREMIUM,
+		);
+
+		// 再実行しても増えない(差分が0以下になるため)。
+		await ensureCurrentMonthGranted(userId);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_PREMIUM);
+		expect(await ledgerRows(userId, "grant_upgrade")).toHaveLength(2);
+	});
+
+	it("降格しても返却せず、再昇格でも二重付与しない", async () => {
+		await makePremium(userId);
+		await ensureCurrentMonthGranted(userId);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_PREMIUM);
+
+		// 降格(subscription を無効化) → 差分は負なので何もしない。
+		await db
+			.update(subscription)
+			.set({ status: "canceled" })
+			.where(eq(subscription.referenceId, userId));
+		await ensureCurrentMonthGranted(userId);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_PREMIUM);
+
+		// 同月に再昇格 → 累計付与額が既に目標に達しているので差分0。
+		await db
+			.update(subscription)
+			.set({ status: "active" })
+			.where(eq(subscription.referenceId, userId));
+		await ensureCurrentMonthGranted(userId);
+		expect((await getBalance(userId)).balance).toBe(MONTHLY_CREDITS_PREMIUM);
+		expect(await ledgerRows(userId, "grant_upgrade")).toHaveLength(0);
+	});
+});
+
+describe("ensureCurrentMonthGrantedMany", () => {
+	// 一括版は単体版と同じ付与の意味論を持たなければならない(同じ requestId 規約)。
+	// #387 の修正が単体版にしか入らないと、管理画面の一括付与経路だけ衝突が残る。
+	it("増額で差分付与を消費した後の昇格を、一括版でも取りこぼさない(#387)", async () => {
+		const upgraded = await freshUser();
+		const untouched = await freshUser();
+		await seedLegacyGrant(upgraded, LEGACY_FREE_GRANT);
+		await seedLegacyGrant(untouched, LEGACY_FREE_GRANT);
+
+		// 増額ぶんの差分付与(両者とも無料)。
+		await ensureCurrentMonthGrantedMany([upgraded, untouched]);
+		expect(await readBalance(upgraded)).toBe(MONTHLY_CREDITS_FREE);
+		expect(await readBalance(untouched)).toBe(MONTHLY_CREDITS_FREE);
+
+		// 片方だけ昇格。
+		await makePremium(upgraded);
+		await ensureCurrentMonthGrantedMany([upgraded, untouched]);
+
+		expect(await readBalance(upgraded)).toBe(MONTHLY_CREDITS_PREMIUM);
+		expect(await ledgerRows(upgraded, "grant_upgrade")).toHaveLength(2);
+		// 昇格していない側は増額ぶんの1本だけ。
+		expect(await readBalance(untouched)).toBe(MONTHLY_CREDITS_FREE);
+		expect(await ledgerRows(untouched, "grant_upgrade")).toHaveLength(1);
+	});
+
+	it("単体版と同じ残高・同じ requestId になる", async () => {
+		const single = await freshUser();
+		const many = await freshUser();
+		await seedLegacyGrant(single, LEGACY_FREE_GRANT);
+		await seedLegacyGrant(many, LEGACY_FREE_GRANT);
+
+		await ensureCurrentMonthGranted(single);
+		await ensureCurrentMonthGrantedMany([many]);
+		await makePremium(single);
+		await makePremium(many);
+		await ensureCurrentMonthGranted(single);
+		await ensureCurrentMonthGrantedMany([many]);
+
+		expect(await readBalance(many)).toBe(await readBalance(single));
+		const keyOf = (userId: string) => (r: { requestId: string | null }) =>
+			r.requestId?.replace(userId, "{user}");
+		expect(
+			(await ledgerRows(many, "grant_upgrade")).map(keyOf(many)).sort(),
+		).toEqual(
+			(await ledgerRows(single, "grant_upgrade")).map(keyOf(single)).sort(),
+		);
 	});
 });
 

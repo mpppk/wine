@@ -129,6 +129,15 @@ Cron は使わず、**残高参照・消費の入口で必ず `ensureCurrentMont
 
 - `requestId = grant:{userId}:{YYYY-MM}` と、`periodMonth <> 当月` を条件とする更新で
   二重付与・同月への二重リセット（＝消費の巻き戻し）を防ぐ。
+- 当月付与済みでも、現プランの付与目標が当月の累計付与額を上回る場合は差分を追加付与する
+  （`grant_upgrade`）。月途中のプレミアム昇格だけでなく、**付与額そのものの引き上げデプロイ**も
+  この経路を通る。冪等キーは `grant_upgrade:{userId}:{YYYY-MM}:{付与目標額}` で、
+  **目標額をキーに含めるのが必須**（#387）。`{userId}:{YYYY-MM}` 固定だと同一月に差分付与が
+  1回しか成立せず、増額で枠を使い切った後の昇格が `NOT EXISTS(request_id)` ガードと unique
+  制約に弾かれて無言で消える（課金したのに付与ゼロ・リトライでも回復しない）。
+- キーの導出は `src/lib/credit/grants.ts` が SSOT。単体版（`ensureCurrentMonthGranted`）と
+  一括版（`ensureCurrentMonthGrantedMany`）が同じ規約を共有する必要があるため、
+  文字列連結を呼び出し側に散らさない。
 - **閲覧が付与を起こしてはいけない文脈**（管理画面の残高表示など）では credit-service を経由せず
   `credit_balance` を生 SELECT する（`admin-service.ts` の方針）。
 - 管理者の手動付与（`admin_grant`）は当月残高への加算であり、翌月の月次リセットで失効する
