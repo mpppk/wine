@@ -16,11 +16,11 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { authClient } from "#/lib/auth-client";
-import { getSession } from "#/server/auth";
+import { getRouteSession } from "#/server/auth";
 
 export const Route = createFileRoute("/login")({
 	beforeLoad: async () => {
-		const session = await getSession();
+		const session = await getRouteSession();
 		if (session) {
 			throw redirect({ to: "/" });
 		}
