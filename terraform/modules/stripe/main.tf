@@ -107,8 +107,20 @@ resource "stripe_portal_configuration" "default" {
 
     # アプリの「解約する」は期間末解約(解約予約)前提のUIなので at_period_end。
     subscription_cancel {
-      enabled = true
-      mode    = "at_period_end"
+      enabled            = true
+      mode               = "at_period_end"
+      proration_behavior = "none"
+
+      cancellation_reason {
+        enabled = false
+        options = [
+          "too_expensive",
+          "missing_features",
+          "switched_service",
+          "unused",
+          "other",
+        ]
+      }
     }
   }
 }
