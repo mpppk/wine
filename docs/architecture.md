@@ -233,7 +233,7 @@ R2（`AVATARS` バインディング）に置いた画像は `/api/images/{r2Key
 
 - 署名対象は `v1:{r2Key}:{exp}` の HMAC-SHA256。**R2 キーと有効期限を束ねる**ので、自分の写真の署名を他人のキーへ付け替えたり期限だけ書き換えたりはできない。
 - TTL は `SIGNED_IMAGE_URL_TTL_MS`（1 時間）。MCP ホスト（Claude 等）の会話履歴やログに URL が残っても露出が恒久化しない長さにしている。切れたらツールを呼び直せば新しい URL が返る。
-- **署名鍵は R2 の `_internal/image-url-signing-key` に置き、初回アクセス時に乱数で自動生成する**（`src/lib/images/signing-key.ts`）。新しいシークレットを増やすと「本番だけ設定済み・プレビューは未設定」という環境差（`BETTER_AUTH_SECRET` が実際にそうなっている）を作るため、全環境に必ず存在する R2 を使う。このキーは `avatars/`・`wines/` のどちらでもないので `isAllowedImageKey` に弾かれ、配信経路からは読み出せない。
+- **署名鍵は R2 の `_internal/image-url-signing-key` に置き、初回アクセス時に乱数で自動生成する**（`src/lib/images/signing-key.ts`）。新しいシークレットを増やすと「本番だけ設定済み・プレビューは未設定」という環境差を作るため、全環境に必ず存在する R2 を使う（`BETTER_AUTH_SECRET` が実際にその差を作り、preview が公開の既定シークレットで稼働していた。Issue #389。現在は `src/lib/auth.ts` が起動時に検査して `logError` するので、同じ差が黙って続くことはない）。このキーは `avatars/`・`wines/` のどちらでもないので `isAllowedImageKey` に弾かれ、配信経路からは読み出せない。
 - MCP ツールが返す `photo_urls` / `photo_url` は `tools.ts` の `toSignedPhotoUrl` が署名する。R2 キーと配信 URL の相互変換は `imagePathForKey` / `imageKeyFromPath` に集約する（サービス層・MCP・フォームで別々に文字列を組まない）。
 
 ### ユーザ削除の後始末（`src/lib/services/user-deletion-service.ts`）
