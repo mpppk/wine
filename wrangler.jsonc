@@ -52,6 +52,30 @@
 	"ai": {
 		"binding": "AI"
 	},
+	// アプリ側エンドポイントのスロットル(#397)。エッジのカウンタで判定するので
+	// D1/KV を消費しない。**period は 10 か 60 秒のみ**・カウンタは colo ごと
+	// (全世界で厳密に N 回ではない)という性質は src/lib/rate-limit.ts を参照。
+	// namespace_id はアカウント内で一意な正整数の文字列。
+	"ratelimits": [
+		{
+			// server function の書き込み全般。通常操作(連続保存・一括登録)を妨げない幅を取る。
+			"name": "RATE_LIMIT_WRITE",
+			"namespace_id": "1001",
+			"simple": { "limit": 120, "period": 60 }
+		},
+		{
+			// 画像アップロード(R2 書き込み)。1エントリ最大6枚を数回ぶん通す想定。
+			"name": "RATE_LIMIT_UPLOAD",
+			"namespace_id": "1002",
+			"simple": { "limit": 30, "period": 60 }
+		},
+		{
+			// 任意URLへの外部fetch。送信リレーとして悪用されうるので最も厳しくする。
+			"name": "RATE_LIMIT_FETCH_TITLE",
+			"namespace_id": "1003",
+			"simple": { "limit": 20, "period": 60 }
+		}
+	],
 	"env": {
 		"preview": {
 			"name": "wine-preview",
@@ -80,7 +104,28 @@
 			],
 			"ai": {
 				"binding": "AI"
-			}
+			},
+			// **env ごとに再掲が必要**(ratelimits はトップレベル設定を継承しない。
+			// d1_databases / r2_buckets / ai と同じ扱い)。namespace_id は本番と
+			// 分ける必要はないが、プレビューの試行が本番のカウンタに混ざらないよう
+			// 別番号にしておく。
+			"ratelimits": [
+				{
+					"name": "RATE_LIMIT_WRITE",
+					"namespace_id": "2001",
+					"simple": { "limit": 120, "period": 60 }
+				},
+				{
+					"name": "RATE_LIMIT_UPLOAD",
+					"namespace_id": "2002",
+					"simple": { "limit": 30, "period": 60 }
+				},
+				{
+					"name": "RATE_LIMIT_FETCH_TITLE",
+					"namespace_id": "2003",
+					"simple": { "limit": 20, "period": 60 }
+				}
+			]
 		}
 	}
 	/**

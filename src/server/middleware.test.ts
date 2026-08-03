@@ -30,6 +30,10 @@ const hooks = vi.hoisted(() => ({
 	requestMethod: "POST",
 	/** auth.api.getSession の戻り値 */
 	session: null as unknown,
+	/** withinRateLimit が返す判定(false = 上限超過) */
+	rateLimitAllows: true,
+	/** withinRateLimit の呼び出し記録(用途とキー) */
+	rateLimitCalls: [] as Array<{ name: string; key: string }>,
 }));
 
 vi.mock("@tanstack/react-start", () => ({
@@ -48,6 +52,16 @@ vi.mock("@tanstack/react-start/server", () => ({
 // #/lib/auth は better-auth と cloudflare:workers を引き込むため、実体は読ませない。
 vi.mock("#/lib/auth", () => ({
 	auth: { api: { getSession: async () => hooks.session } },
+}));
+
+// #/lib/rate-limit も cloudflare:workers(バインディング)を引き込む。実際の判定は
+// 実 workerd 側(rate-limit.workers.test.ts)で見ているので、ここでは
+// 「どの用途を・どのキーで引いたか」と「false のときの写像」だけを見る。
+vi.mock("#/lib/rate-limit", () => ({
+	withinRateLimit: (name: string, key: string) => {
+		hooks.rateLimitCalls.push({ name, key });
+		return Promise.resolve(hooks.rateLimitAllows);
+	},
 }));
 
 const {
@@ -101,6 +115,8 @@ beforeEach(() => {
 	hooks.requestUrl = "https://wine.test/_serverFn/quiz.saveAnswer";
 	hooks.requestMethod = "POST";
 	hooks.session = null;
+	hooks.rateLimitAllows = true;
+	hooks.rateLimitCalls = [];
 	vi.restoreAllMocks();
 });
 
@@ -437,5 +453,68 @@ describe("impersonationMiddleware", () => {
 
 		expect(hooks.statuses).toEqual([400]);
 		expect(next).not.toHaveBeenCalled();
+	});
+});
+
+// #397: サインアップは開放されているので、1アカウントから書き込みを積み上げるだけで
+// R2/D1 の従量コストを増やせた。server function の入口はこの1箇所なので、ここで絞れば
+// 後から足す機能も自動的に守られる。
+describe("書き込みのレートリミット (#397)", () => {
+	it("書き込み(POST)は write 用途・userId をキーに判定する", async () => {
+		hooks.session = sessionFor({ id: "u1" });
+		hooks.requestMethod = "POST";
+
+		await runAuth({ next: vi.fn().mockResolvedValue("ok") });
+
+		expect(hooks.rateLimitCalls).toEqual([{ name: "write", key: "u1" }]);
+	});
+
+	// 1画面が複数の server function を並行に呼ぶため、読み取りまで数えると
+	// 通常利用が先に上限へ当たる。#397 の脅威はすべて書き込み側にある。
+	it("読み取り(GET)は判定そのものを行わない", async () => {
+		hooks.session = sessionFor({ id: "u1" });
+		hooks.requestMethod = "GET";
+
+		await runAuth({ next: vi.fn().mockResolvedValue("ok") });
+
+		expect(hooks.rateLimitCalls).toEqual([]);
+	});
+
+	it("上限超過は 429 で、ハンドラを実行しない", async () => {
+		hooks.session = sessionFor({ id: "u1" });
+		hooks.requestMethod = "POST";
+		hooks.rateLimitAllows = false;
+		const next = vi.fn();
+
+		const thrown = await runAuth({ next }).catch((e) => e);
+
+		expect((thrown as { status?: number }).status).toBe(429);
+		expect(hooks.statuses).toEqual([429]);
+		// 書き込みが起きないことが要点(429 を返すだけでは意味がない)。
+		expect(next).not.toHaveBeenCalled();
+	});
+
+	// 管理者は isAdminSession で絞り込まれた信頼済みの主体で、一括クレジット補填など
+	// 短時間に多くの書き込みを出す正当な用途がある。#397 の脅威モデルの外。
+	it("管理ルートは絞らない", async () => {
+		hooks.session = sessionFor({ id: "admin1", role: "admin" });
+		hooks.requestMethod = "POST";
+		hooks.rateLimitAllows = false;
+		const next = vi.fn().mockResolvedValue("ok");
+
+		await expect(runAdmin({ next })).resolves.toBe("ok");
+		expect(hooks.rateLimitCalls).toEqual([]);
+	});
+
+	// なりすましガードが先に立つ。順序が入れ替わると、なりすまし中の書き込みが
+	// 「上限内なら通る」ように見えてしまう。
+	it("なりすまし中の書き込みはレートリミット判定より前に 403 で止まる", async () => {
+		hooks.session = impersonatedSessionFor({ id: "u1" });
+		hooks.requestMethod = "POST";
+
+		await expect(runAuth({ next: vi.fn() })).rejects.toBeInstanceOf(
+			ForbiddenError,
+		);
+		expect(hooks.rateLimitCalls).toEqual([]);
 	});
 });

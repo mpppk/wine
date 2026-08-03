@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { aopReferenceLink } from "#/db/schema";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { withinRateLimit } from "#/lib/rate-limit";
 import { fetchPageTitle } from "#/lib/reference-link/fetch-title";
 import type {
 	CreateReferenceLinkInput,
@@ -45,12 +46,23 @@ function assertKnownAop(aopId: string) {
 
 // タイトルを確定する。ユーザ入力があればそれを使い、無ければリンク先ページから
 // 自動取得する(取得失敗時は null)。
+//
+// **自動取得は任意URLへのサーバ側 fetch** で、Cloudflare の egress IP とアプリの UA を
+// 使った外部への送信リレーになりうる(#397)。書き込み全体のスロットルとは別に、
+// ここだけ厳しい上限を掛ける。ユーザがタイトルを手入力した場合はそもそも外部へ出ないので
+// 上限も消費しない。
+//
+// 上限に当たったときは throw せず null(タイトル未確定)に倒す。呼び出し側の本来の意図は
+// 「リンクを保存すること」で、表示はURLで代替できる。ここで 429 にすると、自動取得という
+// 補助機能のためにリンク保存そのものが失敗する。
 async function resolveTitle(
+	userId: string,
 	url: string,
 	title: string | null | undefined,
 ): Promise<string | null> {
 	const trimmed = title?.trim();
 	if (trimmed) return trimmed;
+	if (!(await withinRateLimit("fetchTitle", userId, { userId }))) return null;
 	return fetchPageTitle(url);
 }
 
@@ -79,7 +91,7 @@ export async function createReferenceLink(
 	input: CreateReferenceLinkInput,
 ): Promise<ReferenceLinkEntry> {
 	assertKnownAop(input.aopId);
-	const title = await resolveTitle(input.url, input.title);
+	const title = await resolveTitle(userId, input.url, input.title);
 	const id = crypto.randomUUID();
 	const [row] = await db
 		.insert(aopReferenceLink)
@@ -119,7 +131,7 @@ export async function updateReferenceLink(
 	const nextTitle =
 		input.title === undefined
 			? existing.title
-			: await resolveTitle(nextUrl, input.title);
+			: await resolveTitle(userId, nextUrl, input.title);
 
 	const [row] = await db
 		.update(aopReferenceLink)

@@ -5,6 +5,7 @@ import {
 	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
 } from "#/lib/drunk-wine/photo";
+import { TOO_MANY_REQUESTS_MESSAGE } from "#/lib/errors";
 
 // requireApiSession の検証だけは better-auth の実セッション(署名済みCookie)が要るため、
 // getSession の戻り値だけを差し替える。form-api.ts が持つ判断(未ログイン/なりすまし)を
@@ -94,6 +95,68 @@ describe("requireApiSession", () => {
 		const get = new Request("https://wine.test/api/wine-photos");
 
 		await expect(requireApiSession(get)).resolves.toBe(session);
+	});
+
+	// #397: 画像アップロードは R2 の書き込み=オーナー負担の従量コストなので、
+	// 認証済みでもユーザ単位でスロットルする。上限値は wrangler.jsonc の設定
+	// (テストでは vitest.config.ts で少なくしてある)。
+	describe("レートリミット (#397)", () => {
+		/** テスト間でカウンタを共有しないよう、ユーザIDを毎回変える。 */
+		let seq = 0;
+		function asUser(): string {
+			seq += 1;
+			const id = `upload-rl-${seq}`;
+			authHooks.session = { user: { id }, session: { id: `s-${id}` } };
+			return id;
+		}
+
+		it("POST を叩き続けると 429 になる", async () => {
+			asUser();
+			let limited: Response | undefined;
+			for (let i = 0; i < 20 && !limited; i++) {
+				const res = await requireApiSession(
+					new Request("https://wine.test/api/wine-photos", { method: "POST" }),
+				);
+				if (res instanceof Response) limited = res;
+			}
+
+			expect(limited).toBeInstanceOf(Response);
+			if (!limited) return;
+			expect(limited.status).toBe(429);
+			// 文言は errors.ts の定数を共有する(経路ごとに書き下さない)。
+			expect((await body(limited)).error).toBe(TOO_MANY_REQUESTS_MESSAGE);
+		});
+
+		it("GET は絞らない(読み取りまで止めると通常利用が先に当たる)", async () => {
+			asUser();
+			// まず POST で上限を使い切る。
+			for (let i = 0; i < 20; i++) {
+				await requireApiSession(
+					new Request("https://wine.test/api/wine-photos", { method: "POST" }),
+				);
+			}
+
+			const res = await requireApiSession(
+				new Request("https://wine.test/api/wine-photos"),
+			);
+			expect(res).not.toBeInstanceOf(Response);
+		});
+
+		it("ユーザが違えば互いのカウンタに影響しない", async () => {
+			asUser();
+			for (let i = 0; i < 20; i++) {
+				await requireApiSession(
+					new Request("https://wine.test/api/wine-photos", { method: "POST" }),
+				);
+			}
+
+			// 別ユーザに切り替えると通る。
+			asUser();
+			const res = await requireApiSession(
+				new Request("https://wine.test/api/wine-photos", { method: "POST" }),
+			);
+			expect(res).not.toBeInstanceOf(Response);
+		});
 	});
 });
 
