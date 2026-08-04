@@ -99,7 +99,11 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 
 3 系統とも最終的に同じサービス層を呼ぶ。server fn の middleware と API ルートの認証は**別系統**なので混同しない。
 
-**書き込みのスロットルも共通のチョークポイントで掛ける**（#397）。server fn は `middleware.ts` の `authMiddleware`、API ルートは `form-api.ts` の `requireApiSession` が、それぞれ **userId をキー**に Cloudflare Workers の Rate Limiting バインディング（`src/lib/rate-limit.ts`）で判定する。**読み取りは絞らない**（1 画面が複数の server fn を並行に呼ぶため、読み取りまで数えると通常利用が先に上限へ当たる）。上限値は `wrangler.jsonc` の `ratelimits` が正で、**env ごとに再掲が必要**（トップレベル設定を継承しない）。
+**書き込みのスロットルは共通のチョークポイントに配線してある**（#397）。server fn は `middleware.ts` の `authMiddleware`、API ルートは `form-api.ts` の `requireApiSession` が、それぞれ **userId をキー**に Cloudflare Workers の Rate Limiting バインディング（`src/lib/rate-limit.ts`）で判定する。**読み取りは絞らない**（1 画面が複数の server fn を並行に呼ぶため、読み取りまで数えると通常利用が先に上限へ当たる）。上限値は `wrangler.jsonc` の `ratelimits` が正で、**env ごとに再掲が必要**（トップレベル設定を継承しない）。
+
+> 🚨 **現状このスロットルは実環境で機能していない（#397 は未解決）**。デプロイ済みの `wine-preview` に対し、上限 30/60s の `POST /api/upload` を同一セッションで 45 回連続・80 並列で投げても **429 が 1 件も返らない**ことを実測した（2026-08-03）。`wrangler versions view` ではバインディングが配備済みと表示され、同じコードは miniflare 上では期待どおり 429 になる。原因は未特定。
+>
+> **`src/lib/rate-limit.ts` は判定できないとき素通しに倒す設計**（可用性優先）なので、この状態でも動作は壊れない。しかし「守っているつもりで守れていない」ため、**#397 の脅威（1 アカウントからの R2/D1 積み上げ・外部 fetch リレー）は依然として塞がれていない**。この節の記述を「対処済み」と読まないこと。再検証の手順は `docs/deployment.md` の「レートリミットが効いているかの確認」を参照。
 
 > **これはクォータではない**。Rate Limiting のカウンタは colo ごと・「正確な会計ではない」設計なので、「1 ユーザあたりのエントリ数・写真総バイト数」のような累積上限には使えない。累積上限が要るなら D1 で数える（#397 の残作業）。
 
