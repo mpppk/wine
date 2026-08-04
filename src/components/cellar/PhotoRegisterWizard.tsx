@@ -48,6 +48,7 @@ import { TAP_TARGET_44 } from "#/lib/a11y";
 import {
 	estimateLabelReserveCharge,
 	estimateWineListReserveCharge,
+	type WineListRoute,
 } from "#/lib/ai/config";
 import { costToCredits } from "#/lib/credit/credit-math";
 import {
@@ -87,9 +88,12 @@ import { bulkRegisterFromScan, undoImportBatch } from "#/server/place";
 const NEW_PLACE = "__new__";
 const NO_PLACE = "__none__";
 
-/** 写真N枚を解析するのに要るクレジット(サーバ側の予約見積と同じ式)。0枚は1枚と同じ。 */
-function creditsForPhotos(count: number): number {
-	return costToCredits(estimateWineListReserveCharge(count).microUsd);
+/**
+ * 写真N枚を解析するのに要るクレジット(サーバ側の予約見積と同じ式)。0枚は1枚と同じ。
+ * 経路(Luna / Claude)で単価が桁で違うので、実際に走る経路で見積る(#426)。
+ */
+function creditsForPhotos(route: WineListRoute, count: number): number {
+	return costToCredits(estimateWineListReserveCharge(route, count).microUsd);
 }
 
 /** 選択中の写真1枚。プレビューURLは解放が要るので localId で同定する。 */
@@ -102,6 +106,11 @@ interface PhotoItem {
 export interface PhotoRegisterWizardProps {
 	/** 「写真の場所」の候補(ユーザ単位のマスタ)。 */
 	places: PlaceEntry[];
+	/**
+	 * 一括抽出で実際に走る経路(サーバが解決したもの)。必要クレジットの表示に使う。
+	 * このコンポーネントは経路が解決できた環境でしか描画されない(#426)。
+	 */
+	route: WineListRoute;
 	/**
 	 * このウィザードが表示されているか。単体の記録フォームへ切り替えている間は
 	 * false になり、離脱ガードを黙らせる(フォーム側のガードと二重に出さない)。
@@ -119,6 +128,7 @@ export interface PhotoRegisterWizardProps {
 
 export function PhotoRegisterWizard({
 	places,
+	route,
 	active,
 	onSwitchToManual,
 }: PhotoRegisterWizardProps) {
@@ -151,13 +161,13 @@ export function PhotoRegisterWizard({
 	// 解析を押す前に「この枚数でいくら要るか」を出す。押してから残高不足で弾かれると、
 	// 写真を選び直す手間だけが無駄になる(サーバ側の予約 estimateWineListReserveTokens と
 	// 同じ式を共有するので、見積を変えても表示だけ古くなることはない)。
-	const requiredCredits = creditsForPhotos(photos.length);
+	const requiredCredits = creditsForPhotos(route, photos.length);
 	// null = 未ログイン・取得中・取得失敗。残高0と区別できないので不足判定には使わない
 	const balance = useCreditBalanceValue();
 	const insufficientCredits = balance !== null && balance < requiredCredits;
 	// 枚数を減らせば足りるのか、最小構成でも足りないのかで案内が変わる
 	const canFixByFewerPhotos =
-		balance !== null && balance >= creditsForPhotos(1);
+		balance !== null && balance >= creditsForPhotos(route, 1);
 
 	// 単一ワイン判定で自動実行するエチケット解析の見積。経路(標準/Luna/Claude)で消費が
 	// 2桁変わるので、解析を押す前に額を出す(切り替え後に黙って消費させない #355)。
@@ -477,8 +487,8 @@ export function PhotoRegisterWizard({
 							AIが写真からワインを読み取ります。
 							{photos.length > 0
 								? `この${photos.length}枚の解析で最大${requiredCredits}クレジット`
-								: `写真1枚で最大${creditsForPhotos(1)}クレジット、以降1枚ごとに+${
-										creditsForPhotos(2) - creditsForPhotos(1)
+								: `写真1枚で最大${creditsForPhotos(route, 1)}クレジット、以降1枚ごとに+${
+										creditsForPhotos(route, 2) - creditsForPhotos(route, 1)
 									}クレジット`}
 							を消費します
 							{balance !== null && `(残高 ${balance})`}。
@@ -488,7 +498,7 @@ export function PhotoRegisterWizard({
 								クレジットが足りません。
 								{canFixByFewerPhotos
 									? "写真の枚数を減らすと解析できます。"
-									: `この機能には最低${creditsForPhotos(1)}クレジットが必要です。翌月の付与をお待ちいただくか、プレミアムプランをご検討ください。`}
+									: `この機能には最低${creditsForPhotos(route, 1)}クレジットが必要です。翌月の付与をお待ちいただくか、プレミアムプランをご検討ください。`}
 								<Link to="/pricing" className="ml-1 underline">
 									プレミアムプランを見る
 								</Link>

@@ -361,13 +361,22 @@ export function resolveLabelRoute(
 // 取り出す経路。エチケット解析(1解析=1本)とは出力の形が違うので定数も分けて持つ。
 
 /**
+ * 一括抽出で走りうる経路。**エチケット解析のエンジン選択(`LABEL_ENGINE_KEYS`)から
+ * `workers-ai` を除いたもの**(#426)。
+ *
+ * Workers AI を含めないのは #358 の決定を維持するため: Llama 4 Scout は配列の
+ * guided_json が安定せず、小さな文字が並ぶリスト写真の読み取り品質も低い。降格すると
+ * 「大量の欠落・でたらめな銘柄」が出て、レビュー画面での修正コストがユーザの手入力を
+ * 上回る。落とすなら黙って質を下げるより失敗させる。
+ */
+export const WINE_LIST_ROUTE_KEYS = ["gpt-luna", "web-research"] as const;
+
+/** 一括抽出で実際に走る経路。 */
+export type WineListRoute = (typeof WINE_LIST_ROUTE_KEYS)[number];
+
+/**
  * 一括抽出に使う Claude のモデルID。マルチモーダルで複数画像を1リクエストに載せ、
  * 写真横断の重複統合まで1回の推論でやらせる。
- *
- * **経路は Claude のみで、Workers AI へのフォールバックは持たない**(Issue #358 の決定)。
- * Llama 4 Scout は配列の guided_json が安定せず、小さな文字が並ぶリスト写真の読み取り
- * 品質も低いため、降格すると「大量の欠落・でたらめな銘柄」が出て、レビュー画面での
- * 修正コストがユーザの手入力を上回る。落とすなら黙って質を下げるより失敗させる。
  *
  * **Opus 5 ではなく Sonnet 5 を使う(#355)**。コスト基準の計上に切り替えると、Opus 5
  * ($5/$25 per MTok)では写真1枚の解析が無料会員の月次付与(150クレジット = $0.15)を
@@ -375,7 +384,72 @@ export function resolveLabelRoute(
  * 約126クレジットで付与内に収まる。web検索を使わない素直な読み取りタスクなので、
  * Llama 4 Scout で問題になった「配列の構造化出力の安定性」は Sonnet 5 でも満たせる。
  */
-export const AI_WINE_LIST_MODEL = "claude-sonnet-5";
+export const AI_WINE_LIST_CLAUDE_MODEL = "claude-sonnet-5";
+
+/**
+ * 一括抽出に使う OpenAI のモデルID(#426)。エチケット解析の GPT 経路
+ * (`AI_LABEL_GPT_MODEL`)と**別定数で持つ**——あちらは web検索での裏取り精度、こちらは
+ * 「小さな文字が数十行並ぶリスト写真の読み取り」で選ぶので、差し替えたい理由が独立している。
+ *
+ * Sonnet 5 に対する利点は2つ:
+ *  - 原価が桁で下がる($0.2/$1.2 per MTok = Sonnet 5 の 1/15・1/12.5)。一括抽出は
+ *    写真枚数に比例して伸びるので、ここが無料会員の月次付与を圧迫していた。
+ *  - structured outputs(strict)で出力形式を強制できる。Claude 経路は形を
+ *    `buildWineListPrompt` の指示文でしか担保できず、銘柄配列は壊れると全滅する。
+ */
+export const AI_WINE_LIST_GPT_MODEL = "gpt-5.6-luna";
+
+/**
+ * 経路 → 実際に呼ぶモデルID。**予約見積・実測換算・実行記録のログがすべてここを引く**
+ * (`AI_LABEL_ROUTE_MODELS` と同じ流儀)。ログ側でモデル名をリテラル指定すると、
+ * モデルを差し替えたときにログだけ古い名前を出し続け、観測が静かに嘘になる。
+ */
+export const AI_WINE_LIST_ROUTE_MODELS: Record<WineListRoute, string> = {
+	"gpt-luna": AI_WINE_LIST_GPT_MODEL,
+	"web-research": AI_WINE_LIST_CLAUDE_MODEL,
+};
+
+/**
+ * 経路の表示名。**`AI_LABEL_ENGINES` のラベルを流用しない**——あちらは
+ * 「高精度(GPT-5.6 Luna + web検索)」のように web検索を含む名前だが、一括抽出は
+ * web検索を使わない(#358 の住み分け)。流用すると、使っていない機能でお金を
+ * 取っているかのような表示になる。
+ */
+export const AI_WINE_LIST_ROUTE_LABELS: Record<WineListRoute, string> = {
+	"gpt-luna": "GPT-5.6 Luna",
+	"web-research": "Claude Sonnet 5",
+};
+
+/**
+ * 一括抽出のエンジン選択を、実際に走らせる経路へ解決する(#426)。**返せる経路が
+ * 無ければ `null`**——この機能は Workers AI へ降格しないので、「使えない」を
+ * 型で表現する(呼び出し側は導線を隠す / 503 を返す)。
+ *
+ * 設定は**エチケット解析と同じ `preferredLabelEngine` を共有する**。一括専用の
+ * ユーザ設定を新設すると user テーブルの列と better-auth の additionalFields が
+ * 増えるが、ユーザの意思表示は「web検索で裏取りしてほしいか」ではなく
+ * 「どのベンダーの読み取りを信用するか」でどちらも同じであり、分ける実益がない。
+ *
+ * **`workers-ai` を選んでいるユーザも高精度経路に載せる**。その選択の動機はコスト抑制
+ * だが、一括抽出の従来の実装は Sonnet 5 固定で、Luna はそれより安い。降格先が無い以上
+ * 「一括登録だけ使えない」にするより、より安い経路に載せるほうが選択の意図に沿う。
+ */
+export function resolveWineListRoute(
+	engine: LabelEngineKey,
+	availability: LabelProviderAvailability,
+): WineListRoute | null {
+	// 高精度の希望順: 選択されたプロバイダ → もう一方(resolveLabelRoute と同じ規則)。
+	// workers-ai 選択時は既定と同じ順(gpt-luna 優先)に載せる。
+	const preferred: WineListRoute[] =
+		engine === "web-research"
+			? ["web-research", "gpt-luna"]
+			: ["gpt-luna", "web-research"];
+	for (const route of preferred) {
+		if (route === "gpt-luna" && availability.openai) return route;
+		if (route === "web-research" && availability.anthropic) return route;
+	}
+	return null;
+}
 
 /**
  * 1レスポンスの最大出力トークン。**銘柄数に比例して伸びる**のがエチケット解析との
@@ -425,6 +499,21 @@ export const AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE = 3_500;
 export const AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE = 3_000;
 
 /**
+ * GPT経路の基礎出力トークン見積。**reasoning トークンも出力枠から出る**ぶん、
+ * Claude経路(3,000)より大きく取る。エチケット解析の GPT 経路と同じ事情
+ * (`AI_LABEL_GPT_MAX_OUTPUT_TOKENS` のコメント参照)。
+ */
+export const AI_WINE_LIST_GPT_BASE_OUTPUT_TOKEN_ESTIMATE = 4_000;
+
+/**
+ * GPT経路の推論の深さ(Responses API の reasoning.effort)。この経路の精度は
+ * 「写真を丁寧に読む」ことから来ており、長い内省ではない。effort を上げると
+ * reasoning が出力枠を食い、銘柄数に比例して伸びる本文JSONが途中で切れる
+ * (status="incomplete")リスクだけが増えるため低めに固定する。
+ */
+export const AI_WINE_LIST_GPT_REASONING_EFFORT = "low";
+
+/**
  * 画像1枚あたりの追加出力トークン見積。**この経路だけ出力が銘柄数に比例して伸びる**
  * (エチケット解析は1枚でも複数枚でも出力は1件ぶん)ので、枚数に連動させる。
  */
@@ -441,26 +530,40 @@ export const AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE = 500;
 // ない。見積の定数と式が同じファイルに並ぶので、原価を見て数値を差し替えるときの
 // 追随漏れも減る。
 
-/** 一括抽出の中心値使用量。写真枚数に比例させ、上限枚数でクランプする。 */
-export function estimateWineListReserveUsage(imageCount: number): AiUsage {
+/**
+ * 一括抽出の中心値使用量。写真枚数に比例させ、上限枚数でクランプする。
+ *
+ * **入力側は経路で分けない**: 指示文もマスタのグラウンディングも画像も両経路で同じで、
+ * トークン数の見込みに差が出る理由が無い(原価の違いは単価表が受け持つ)。出力側だけ
+ * 経路で分けるのは、GPT経路の reasoning が出力枠から出るため。
+ *
+ * どちらの経路も **web検索は使わない**(#358 の住み分け)ので `webSearches` は 0。
+ */
+export function estimateWineListReserveUsage(
+	route: WineListRoute,
+	imageCount: number,
+): AiUsage {
 	const photos = Math.min(Math.max(1, imageCount), MAX_PHOTOS_PER_IMPORT_BATCH);
+	const baseOutput =
+		route === "gpt-luna"
+			? AI_WINE_LIST_GPT_BASE_OUTPUT_TOKEN_ESTIMATE
+			: AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE;
 	return {
 		inputTokens:
 			AI_WINE_LIST_BASE_TOKEN_ESTIMATE +
 			AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE * photos,
-		outputTokens:
-			AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE +
-			AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE * photos,
+		outputTokens: baseOutput + AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE * photos,
 	};
 }
 
 /** 一括抽出の予約計上量。上限で必ずクランプする。 */
 export function estimateWineListReserveCharge(
+	route: WineListRoute,
 	imageCount: number,
 ): CreditCharge {
 	return toEstimateCharge(
-		AI_WINE_LIST_MODEL,
-		estimateWineListReserveUsage(imageCount),
+		AI_WINE_LIST_ROUTE_MODELS[route],
+		estimateWineListReserveUsage(route, imageCount),
 	);
 }
 

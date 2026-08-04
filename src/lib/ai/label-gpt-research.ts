@@ -92,15 +92,19 @@ export function extractGptLabelText(response: {
 		const reason = response.incomplete_details?.reason ?? "unknown";
 		throw new Error(`GPTの応答が途中で打ち切られました(${reason})`);
 	}
-	const refusal = findRefusal(response.output);
+	const refusal = findGptRefusal(response.output);
 	if (refusal) {
 		throw new Error(`GPTがエチケット解析の応答を拒否しました: ${refusal}`);
 	}
 	return response.output_text ?? "";
 }
 
-/** output の任意の階層に含まれる refusal ブロックの説明文を1つ返す。無ければ undefined。 */
-function findRefusal(
+/**
+ * output の任意の階層に含まれる refusal ブロックの説明文を1つ返す。無ければ undefined。
+ * 一括抽出の GPT 経路(wine-list-gpt.ts)も同じ判定を使う——refusal の入れ子の形は
+ * Responses API 共通で、経路ごとに書くとどちらかが取りこぼす。
+ */
+export function findGptRefusal(
 	output: readonly unknown[] | undefined,
 ): string | undefined {
 	for (const item of output ?? []) {

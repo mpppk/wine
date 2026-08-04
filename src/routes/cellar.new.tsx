@@ -17,7 +17,7 @@ import {
 	DialogTitle,
 } from "#/components/ui/dialog";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
-import { getWineListAnalysisAvailability } from "#/server/ai";
+import { getWineListAnalysisPlan } from "#/server/ai";
 import { listPlaces } from "#/server/place";
 
 // ワインの登録画面。**写真から始める**のが既定の流れで、手入力は「手動で入力」を
@@ -32,22 +32,22 @@ import { listPlaces } from "#/server/place";
 export const Route = createFileRoute("/cellar/new")({
 	beforeLoad: requireAuthBeforeLoad,
 	loader: async () => {
-		const [places, availability] = await Promise.all([
+		const [places, wineListPlan] = await Promise.all([
 			listPlaces(),
-			getWineListAnalysisAvailability(),
+			getWineListAnalysisPlan(),
 		]);
-		return { places, availability };
+		return { places, wineListPlan };
 	},
 	component: CellarNewPage,
 });
 
 function CellarNewPage() {
-	const { places, availability } = Route.useLoaderData();
+	const { places, wineListPlan } = Route.useLoaderData();
 	const navigate = useNavigate();
 	// 単体の記録フォームへ切り替えているときだけ荷物が入る。null = 写真ウィザード。
 	// 解析が使えない環境では写真の経路自体が無いので、最初から手入力で開く。
 	const [manual, setManual] = useState<ManualFormStart | null>(() =>
-		availability.available
+		wineListPlan.route
 			? null
 			: {
 					files: [],
@@ -59,7 +59,7 @@ function CellarNewPage() {
 	const [confirmBackOpen, setConfirmBackOpen] = useState(false);
 
 	// 写真ウィザードへ戻れるのは、解析が使える環境で切り替えてきたときだけ
-	const canGoBackToPhotos = availability.available && manual !== null;
+	const canGoBackToPhotos = wineListPlan.route !== null && manual !== null;
 
 	return (
 		<main className="mx-auto max-w-2xl px-4 py-10">
@@ -77,10 +77,11 @@ function CellarNewPage() {
 				<h1 className="text-2xl font-bold">ワインを記録</h1>
 			</div>
 
-			{availability.available && (
+			{wineListPlan.route && (
 				<div hidden={manual !== null}>
 					<PhotoRegisterWizard
 						places={places}
+						route={wineListPlan.route}
 						active={manual === null}
 						onSwitchToManual={setManual}
 					/>

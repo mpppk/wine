@@ -184,7 +184,7 @@ Cron は使わず、**残高参照・消費の入口で必ず `ensureCurrentMont
 ### 単価表の運用
 
 - **モデルを足したら単価も足す**。`ai-pricing.test.ts` が「実際に呼ぶモデルID
-  （`AI_LABEL_ROUTE_MODELS` / `AI_REGION_QA_MODELS` / `AI_WINE_LIST_MODEL`）がすべて単価表にある」
+  （`AI_LABEL_ROUTE_MODELS` / `AI_REGION_QA_MODELS` / `AI_WINE_LIST_ROUTE_MODELS`）がすべて単価表にある」
   ことを検証するので、忘れると CI で落ちる。
 - **単価未登録は throw しない**。settle は推論成功の**後**に走るため、ここで throw すると成功した
   推論が失敗扱いで全額返却され、原価だけ出てクレジットを取り損ねる。表中の最高単価へフォール
@@ -220,15 +220,21 @@ Cron は使わず、**残高参照・消費の入口で必ず `ensureCurrentMont
 | エチケット解析 標準 | `@cf/meta/llama-4-scout-17b-16e-instruct` | 約 4 |
 | エチケット解析 高精度 | `gpt-5.6-luna` + web検索 | 約 39 |
 | エチケット解析 高精度 | `claude-opus-5` + web検索 | 約 275 |
+| ワインリスト一括抽出 | `gpt-5.6-luna` | 約 11 |
 | ワインリスト一括抽出 | `claude-sonnet-5` | 約 126 |
 
 無料枠（150）で何ができるかは経路で大きく変わる:
 
 - 地域Q&A・エチケット解析の標準経路は月に数十回使える。
 - 高精度経路は Luna が月 3 回程度。**`claude-opus-5`（275）は 1 回も使えず、実質プレミアム専用**。
-- 一括抽出は写真 2 枚まで（3 枚で 162 > 150）。
+- 一括抽出は Luna なら上限の 10 枚（22）でも枠に収まる。Claude 経路は写真 2 枚まで（3 枚で 162 > 150）。
 
-一括抽出が `claude-opus-5` ではなく `claude-sonnet-5` なのはこの制約から来ている。opus のままだと
+一括抽出の経路はエチケット解析と同じユーザ設定（`preferredLabelEngine`）で決まり、**既定は
+`gpt-luna`**（#426）。**この経路だけは Workers AI へ降格しない**（#358: Llama 4 Scout は配列の
+構造化出力が安定せず、リスト写真の読み取り品質も低い）ため、「標準（Workers AI）」を選んでいる
+ユーザも高精度経路に載る。どちらのプロバイダキーも無い環境では機能ごと隠す。
+
+Claude 経路が `claude-opus-5` ではなく `claude-sonnet-5` なのは無料枠の制約から来ている。opus だと
 写真 1 枚（約 200）で無料枠を超え、無料会員がこの機能を一度も使えなくなる
-（`wine-list-extraction.test.ts` の「写真1枚の解析は無料会員の月次付与内に収まる」がこの境界を
-固定している）。
+（`wine-list-extraction.test.ts` の「どの経路でも写真1枚の解析は無料会員の月次付与内に収まる」が
+この境界を固定している）。

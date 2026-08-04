@@ -5,7 +5,11 @@ import { costToCredits } from "#/lib/credit/credit-math";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import {
 	AI_WINE_LIST_MAX_WINES,
+	DEFAULT_LABEL_ENGINE,
 	estimateWineListReserveCharge,
+	LABEL_ENGINE_KEYS,
+	resolveWineListRoute,
+	WINE_LIST_ROUTE_KEYS,
 } from "./config";
 import {
 	buildWineListCandidates,
@@ -405,7 +409,9 @@ describe("matchExistingEntries", () => {
 });
 
 describe("estimateWineListReserveCharge", () => {
-	const microUsd = (n: number) => estimateWineListReserveCharge(n).microUsd;
+	// 既定経路(#426)。枚数に対する性質は経路に依らないので、代表として Luna で見る
+	const microUsd = (n: number) =>
+		estimateWineListReserveCharge("gpt-luna", n).microUsd;
 
 	it("枚数に比例し、上限でクランプされる", () => {
 		expect(microUsd(1)).toBeLessThan(microUsd(5));
@@ -424,14 +430,69 @@ describe("estimateWineListReserveCharge", () => {
 		expect(microUsd(0)).toBe(microUsd(1));
 	});
 
-	it("写真1枚の解析は無料会員の月次付与内に収まる", () => {
+	it("どの経路でも写真1枚の解析は無料会員の月次付与内に収まる", () => {
 		// 1枚でも月次付与を超えると、無料会員はこの機能を一度も使えないまま
 		// 残高不足で弾かれ続ける。**コスト基準ではこれがモデル選定の制約になる**:
-		// claude-opus-5($5/$25)だと1枚で無料枠を超えるため、この経路は
+		// claude-opus-5($5/$25)だと1枚で無料枠を超えるため、Claude 経路は
 		// claude-sonnet-5($3/$15)を使っている(#355)。モデルや見積の基礎値を
 		// 上げるときに気付けるよう、境界をここで固定する。
-		expect(costToCredits(microUsd(1))).toBeLessThanOrEqual(
-			MONTHLY_CREDITS_FREE,
-		);
+		for (const route of WINE_LIST_ROUTE_KEYS) {
+			expect(
+				costToCredits(estimateWineListReserveCharge(route, 1).microUsd),
+				route,
+			).toBeLessThanOrEqual(MONTHLY_CREDITS_FREE);
+		}
+	});
+
+	it("既定の GPT 経路は Claude 経路より安い(#426 の主目的)", () => {
+		// 一括抽出を Luna 既定にした理由そのもの。Claude 側の単価が下がる等で
+		// この関係が崩れたら、既定の選択を見直すべきだと気付けるようにする。
+		for (const photos of [1, MAX_PHOTOS_PER_IMPORT_BATCH]) {
+			expect(
+				estimateWineListReserveCharge("gpt-luna", photos).microUsd,
+			).toBeLessThan(
+				estimateWineListReserveCharge("web-research", photos).microUsd,
+			);
+		}
+	});
+});
+
+describe("resolveWineListRoute", () => {
+	const both = { openai: true, anthropic: true };
+
+	it("既定(gpt-luna)は両キーがあれば GPT 経路になる", () => {
+		expect(resolveWineListRoute(DEFAULT_LABEL_ENGINE, both)).toBe("gpt-luna");
+		expect(DEFAULT_LABEL_ENGINE).toBe("gpt-luna");
+	});
+
+	it("Claude を選んでいれば Claude 経路になる", () => {
+		expect(resolveWineListRoute("web-research", both)).toBe("web-research");
+	});
+
+	it("標準(Workers AI)を選んでいても高精度経路に載せる(降格しない #358)", () => {
+		// 一括抽出は Llama 4 Scout では読み取り品質が足りず、降格すると
+		// 「大量の欠落・でたらめな銘柄」が出る。Workers AI は返さない。
+		expect(resolveWineListRoute("workers-ai", both)).toBe("gpt-luna");
+		expect(
+			resolveWineListRoute("workers-ai", { openai: false, anthropic: true }),
+		).toBe("web-research");
+	});
+
+	it("選んだプロバイダのキーが無ければもう一方へ引き継ぐ", () => {
+		expect(
+			resolveWineListRoute("gpt-luna", { openai: false, anthropic: true }),
+		).toBe("web-research");
+		expect(
+			resolveWineListRoute("web-research", { openai: true, anthropic: false }),
+		).toBe("gpt-luna");
+	});
+
+	it("どちらのキーも無ければ null(機能ごと使えない)", () => {
+		for (const engine of LABEL_ENGINE_KEYS) {
+			expect(
+				resolveWineListRoute(engine, { openai: false, anthropic: false }),
+				engine,
+			).toBeNull();
+		}
 	});
 });
