@@ -222,8 +222,10 @@ function CellarMapPage() {
 		);
 	}
 
+	// 高さの組み立ては map.$regionId と同じ(ヘッダ実測の --header-height を引き、
+	// はみ出しは内側のスクロール領域に閉じ込めてドキュメントをスクロールさせない)。
 	return (
-		<main className="flex h-[calc(100dvh-57px-var(--ad-banner-height,0px))] flex-col sm:h-[calc(100dvh-65px-var(--ad-banner-height,0px))]">
+		<main className="flex h-[calc(100dvh-var(--header-height,57px)-var(--ad-banner-height,0px))] flex-col overflow-hidden sm:h-[calc(100dvh-var(--header-height,65px)-var(--ad-banner-height,0px))]">
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2">
 				<PageHeader />
 				<div className="ml-auto flex flex-wrap items-center gap-2">
@@ -333,7 +335,9 @@ function CellarMapPage() {
 				{/* デスクトップ: 右サイドバー / モバイル: 下部オーバーレイ */}
 				{selectedAop && selectedAopEntries.length > 0 && (
 					<>
-						<aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border lg:block">
+						{/* relative: 絶対配置の子孫(sr-only 等)がスクロールのクリップを
+						    すり抜けてページのスクロール量になるのを防ぐ */}
+						<aside className="relative hidden w-80 shrink-0 overflow-y-auto border-l border-border lg:block">
 							<AopWinePanel
 								aopNameJa={selectedAop.nameJa}
 								entries={selectedAopEntries}
