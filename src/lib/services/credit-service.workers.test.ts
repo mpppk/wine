@@ -187,6 +187,42 @@ describe("ensureCurrentMonthGranted", () => {
 		expect(await ledgerRows(userId, "grant_upgrade")).toHaveLength(1);
 	});
 
+	// Issue #403: 「当月付与済み」の読み取りと db.batch のコミットの間に、別リクエストの
+	// 月次リセット(月替わり)が割り込む競合。差分付与の残高UPDATEに月境界ガードが無いと
+	// **翌月のリセット済み残高**に当月ぶんの差分が乗り、台帳(periodMonth=当月)と残高
+	// (翌月)の突合が合わなくなる。案A(当月末まで有効)の下では、付与が1ヶ月余分に生存する。
+	// settle/refund は同じ競合を月境界ガードで塞いでいる(#147)ので、grant 系だけが
+	// 実装済みイディオムから外れていた。
+	it("差分付与のコミット直前に月が替わっていたら、残高へ加算せず台帳だけ残す(#403)", async () => {
+		await ensureCurrentMonthGranted(userId);
+		await makePremium(userId);
+
+		// 「読み取り後・コミット前に別リクエストが翌月へリセット済み」の状態を作る。
+		// db.batch 自体は本物を走らせ、ガードが実クエリで効いていることを見る。
+		const NEXT_MONTH = "2999-12";
+		const RESET_BALANCE = 7;
+		const realBatch = db.batch.bind(db);
+		const spy = vi.spyOn(db, "batch").mockImplementationOnce((async (
+			statements: Parameters<typeof db.batch>[0],
+		) => {
+			await db
+				.update(creditBalance)
+				.set({ balance: RESET_BALANCE, periodMonth: NEXT_MONTH })
+				.where(eq(creditBalance.userId, userId));
+			return realBatch(statements);
+		}) as unknown as typeof db.batch);
+
+		try {
+			await ensureCurrentMonthGranted(userId);
+		} finally {
+			spy.mockRestore();
+		}
+
+		// 台帳には当月ぶんの差分付与が残るが、翌月のリセット済み残高には乗らない。
+		expect(await ledgerRows(userId, "grant_upgrade")).toHaveLength(1);
+		expect(await readBalance(userId)).toBe(RESET_BALANCE);
+	});
+
 	it("プレミアム会員として初回付与された場合は grant_upgrade を発生させない", async () => {
 		await makePremium(userId);
 		await ensureCurrentMonthGranted(userId);

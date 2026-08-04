@@ -231,6 +231,8 @@ export async function ensureCurrentMonthGrantedMany(
 						and(
 							eq(creditBalance.userId, userId),
 							sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${requestId})`,
+							// 月境界: 単体版と同じ理由(#403)。
+							eq(creditBalance.periodMonth, month),
 						),
 					),
 				db
@@ -372,6 +374,13 @@ async function topUpMidMonthUpgrade(
 				and(
 					eq(creditBalance.userId, userId),
 					sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${requestId})`,
+					// 月境界: 上の「当月付与済み」の読み取りとこのコミットの間に、別リクエストの
+					// 月次リセットが割り込むことがある。ガードが無いと**翌月のリセット済み残高**に
+					// 当月ぶんの差分が乗り、台帳(periodMonth=当月)と突合が合わなくなる(案Aでは
+					// 付与が1ヶ月余分に生存する)。月が替わっていたら台帳のみ記録に倒れる。
+					// settle/refund が台帳の period_month を参照して行っているのと同じ判定で、
+					// grant 系は月が引数で分かっているので直接比較でよい(#403、#147 と同型)。
+					eq(creditBalance.periodMonth, month),
 				),
 			),
 		db
