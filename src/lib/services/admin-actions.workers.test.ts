@@ -730,6 +730,59 @@ describe("grantCredits の冪等性", () => {
 		expect(audits).toHaveLength(1);
 	});
 
+	// Issue #403: ensureCurrentMonthGranted で当月へ揃えた後、db.batch のコミットまでの間に
+	// 別リクエストの月次リセット(月替わり)が割り込む競合。残高UPDATEに月境界ガードが
+	// 無いと、**翌月のリセット済み残高**に当月ぶんの補填が乗り、案A(当月末まで有効)の
+	// 下で1ヶ月余分に生存する。settle/refund は同じ競合を月境界ガードで塞いでいる(#147)。
+	it("コミット直前に月が替わっていたら、残高へ加算せず台帳だけ残す(#403)", async () => {
+		const targetUserId = await freshUser();
+		const NEXT_MONTH = "2999-12";
+		const RESET_BALANCE = 7;
+		const realBatch = db.batch.bind(db);
+		// 残高行が無いユーザなので、grantCredits が投げる db.batch は
+		// 1回目 = ensureCurrentMonthGranted の初回付与、2回目 = 付与本体。
+		// 付与本体のコミット直前だけに割り込ませる(db.batch は本物を走らせ、
+		// ガードが実クエリで効いていることを見る)。
+		let batchCalls = 0;
+		const spy = vi.spyOn(db, "batch").mockImplementation((async (
+			statements: Parameters<typeof db.batch>[0],
+		) => {
+			batchCalls += 1;
+			if (batchCalls === 2) {
+				await db
+					.update(creditBalance)
+					.set({ balance: RESET_BALANCE, periodMonth: NEXT_MONTH })
+					.where(eq(creditBalance.userId, targetUserId));
+			}
+			return realBatch(statements);
+		}) as unknown as typeof db.batch);
+
+		try {
+			await adminActions.grantCredits({
+				actorUserId: "admin-grant-actor",
+				targetUserId,
+				amount: 300,
+				reason: "障害のお詫び",
+			});
+		} finally {
+			spy.mockRestore();
+		}
+
+		// 台帳には補填が残るが、翌月のリセット済み残高には乗らない。
+		const grants = (
+			await db
+				.select()
+				.from(creditLedger)
+				.where(eq(creditLedger.userId, targetUserId))
+		).filter((r) => r.type === "admin_grant");
+		expect(grants).toHaveLength(1);
+		const balance = await db
+			.select({ balance: creditBalance.balance })
+			.from(creditBalance)
+			.where(eq(creditBalance.userId, targetUserId));
+		expect(balance[0]?.balance).toBe(RESET_BALANCE);
+	});
+
 	it("requestId が異なれば別の付与として加算する", async () => {
 		const targetUserId = await freshUser();
 
