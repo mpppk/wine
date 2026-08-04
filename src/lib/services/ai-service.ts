@@ -109,11 +109,16 @@ function chargeFor(model: string, usage: AiUsage): CreditCharge {
 }
 
 /**
- * 実測が取れなかったときの確定値。予約全量を実測とみなす(返却0=安全側)。
+ * 実測が取れなかったときの確定値。渡した見積額を実測とみなす。
  * トークンは観測できていないので 0 のままにし、**推定値を実測として台帳に残さない**。
+ *
+ * **渡すのは「実際に走った経路」の見積**であって予約額ではない(#404)。単経路の機能
+ * (地域Q&A・ワインリスト解析)では両者は同じ値だが、エチケット解析は高精度経路が
+ * 失敗すると Workers AI へ降格するため、予約額を渡すと Llama 1回の推論に高精度経路の
+ * 予約全量(例: 275クレジット)を課金してしまう。
  */
-function fallbackCharge(reservedMicroUsd: number): CreditCharge {
-	return { microUsd: reservedMicroUsd, tokens: 0 };
+function fallbackCharge(estimateMicroUsd: number): CreditCharge {
+	return { microUsd: estimateMicroUsd, tokens: 0 };
 }
 
 /**
@@ -266,7 +271,8 @@ export async function answerRegionQuestion(
 		answer = stripReasoning(rawText).trim();
 		// Workers AI は入出力の内訳を返さないので、全量を出力単価で換算する(保守的=
 		// 過大請求側)。この経路は原価がほぼゼロなので実害は無い。実測が取れなければ
-		// 予約全量を実測とみなす(返却0=安全側)。
+		// 予約全量を実測とみなす —— **この機能は単経路で降格が無い**ので、予約額は
+		// そのまま「実行された経路の見積」でもある(#404 のエチケット解析とは違う)。
 		const total = out.usage?.total_tokens;
 		charge =
 			total === undefined
@@ -665,11 +671,32 @@ export async function analyzeWineLabel(
 		suggestions = buildLabelSuggestions(mergeExtractions(extractions));
 		// **実際に結果を出した経路のモデル単価で課金する**。意図した経路(route)で換算すると、
 		// Claude が落ちて Workers AI が拾った回に Opus の単価で Llama の推論を課金してしまう。
-		const executedModel = AI_LABEL_ROUTE_MODELS[executedBy ?? route];
+		const executedRoute = executedBy ?? route;
+		const executedModel = AI_LABEL_ROUTE_MODELS[executedRoute];
 		const measured = chargeFor(executedModel, usage);
-		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		charge =
-			measured.microUsd > 0 ? measured : fallbackCharge(res.reservedMicroUsd);
+		if (measured.microUsd > 0) {
+			charge = measured;
+		} else {
+			// 実測が取れなかった回の床は**実行された経路の見積**にする(#404)。予約額
+			// (= 意図した経路の見積)を使うと、高精度経路が落ちて Workers AI が拾い、かつ
+			// Workers AI が usage を返さなかった回に、Llama 1回の推論へ高精度経路の予約全量
+			// (例: 275クレジット)を確定課金してしまう。単価換算(chargeFor)を実行経路に
+			// 揃えているのと同じ理由で、フォールバックの床も実行経路に揃える。
+			// 実行経路 = 予約した経路なら値は予約額と一致するので、降格が無い回の挙動は変わらない。
+			charge = fallbackCharge(
+				estimateLabelReserveCharge(executedRoute, input.imageDataUrls.length)
+					.microUsd,
+			);
+			// 実測欠落の頻度を観測できるようにする(Workers AI の usage は任意)。
+			logWarn("label usage missing; charging the executed route estimate", {
+				userId,
+				requestId,
+				route,
+				executedBy: executedRoute,
+				reservedMicroUsd: res.reservedMicroUsd,
+				chargedMicroUsd: charge.microUsd,
+			});
+		}
 		await creditService.settleReservation(
 			userId,
 			requestId,
@@ -880,7 +907,8 @@ export async function analyzeWineList(
 			matchedExisting: candidates.filter((c) => !!c.existing).length,
 			truncated: parsed.truncated,
 		};
-		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
+		// 実測が取れなければ予約全量を実測とみなす。**この機能は Claude 単経路で
+		// 降格が無い**ので、予約額はそのまま「実行された経路の見積」でもある(#404)。
 		const measured = chargeFor(AI_WINE_LIST_MODEL, usage);
 		charge =
 			measured.microUsd > 0 ? measured : fallbackCharge(res.reservedMicroUsd);
