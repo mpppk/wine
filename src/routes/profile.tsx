@@ -15,6 +15,7 @@ import {
 import {
 	AI_LABEL_ENGINES,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_ROUTE_LABELS,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
 	estimateLabelReserveCharge,
@@ -444,9 +445,9 @@ function LabelEngineCard() {
 						<p className="text-xs text-muted-foreground">
 							{wineListRoute ? (
 								<>
-									写真からまとめて登録するときは「
-									{AI_LABEL_ENGINES[wineListRoute].label}」で解析されます
-									(写真1枚あたり約
+									写真からまとめて登録するときは
+									{AI_WINE_LIST_ROUTE_LABELS[wineListRoute]}
+									で解析されます(web検索はしないため、写真1枚あたり約
 									{wineListCreditsPerPhoto(wineListRoute).toLocaleString(
 										"ja-JP",
 									)}

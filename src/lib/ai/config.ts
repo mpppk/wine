@@ -410,6 +410,17 @@ export const AI_WINE_LIST_ROUTE_MODELS: Record<WineListRoute, string> = {
 };
 
 /**
+ * 経路の表示名。**`AI_LABEL_ENGINES` のラベルを流用しない**——あちらは
+ * 「高精度(GPT-5.6 Luna + web検索)」のように web検索を含む名前だが、一括抽出は
+ * web検索を使わない(#358 の住み分け)。流用すると、使っていない機能でお金を
+ * 取っているかのような表示になる。
+ */
+export const AI_WINE_LIST_ROUTE_LABELS: Record<WineListRoute, string> = {
+	"gpt-luna": "GPT-5.6 Luna",
+	"web-research": "Claude Sonnet 5",
+};
+
+/**
  * 一括抽出のエンジン選択を、実際に走らせる経路へ解決する(#426)。**返せる経路が
  * 無ければ `null`**——この機能は Workers AI へ降格しないので、「使えない」を
  * 型で表現する(呼び出し側は導線を隠す / 503 を返す)。
