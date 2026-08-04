@@ -174,6 +174,17 @@ export const wineTasting = sqliteTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
+		/**
+		 * 由来の一括登録バッチ。手動で足した試飲記録では null(#393)。
+		 *
+		 * **バッチ取り消しを対称にするために要る**。一括登録は既存エントリにも
+		 * 試飲記録を足せるが、この列が無いと「バッチが足した試飲記録」を
+		 * 特定できず、取り消しても残ってしまう(新規作成エントリぶんは
+		 * drunk_wine 削除の FK cascade でたまたま消えていた)。
+		 */
+		batchId: text("batch_id").references(() => importBatch.id, {
+			onDelete: "set null",
+		}),
 		/** 飲んだ日 "YYYY-MM-DD"。覚えていない場合は null */
 		drankOn: text("drank_on"),
 		/** 1–5 */

@@ -525,11 +525,14 @@ function buildTastingValues(
 	userId: string,
 	drunkWineId: string,
 	input: CreateWineTastingInput,
+	/** 一括登録由来の場合のバッチID。手動追加は未指定(null)(#393)。 */
+	batchId: string | null = null,
 ) {
 	return {
 		id: crypto.randomUUID(),
 		drunkWineId,
 		userId,
+		batchId,
 		drankOn: input.drankOn ?? null,
 		rating: input.rating ?? null,
 		memo: input.memo ?? null,
@@ -1522,7 +1525,9 @@ export async function bulkRegisterFromScan(
 					producer: item.wine.producer ?? null,
 					price: item.wine.price ?? null,
 					// このバッチで新規作成したエントリだけに付ける(Issue #363 案A)。
-					// 既存一致(item.existingId)は目撃記録が増えるだけなので付けない。
+					// 既存一致(item.existingId)はエントリを作らないので付けない
+					// (足されるのは目撃記録と、指定があれば試飲記録。どちらも
+					//  それぞれの batch_id で辿れる)。
 					batchId,
 				}),
 			);
@@ -1546,9 +1551,11 @@ export async function bulkRegisterFromScan(
 		if (item.tasting) {
 			tastingCount += 1;
 			statements.push(
-				db
-					.insert(wineTasting)
-					.values(buildTastingValues(userId, drunkWineId, item.tasting)),
+				db.insert(wineTasting).values(
+					// **batchId を必ず付ける**(#393)。既存エントリに足した試飲記録も
+					// 取り消しの対象にするための唯一の手掛かり。
+					buildTastingValues(userId, drunkWineId, item.tasting, batchId),
+				),
 			);
 		}
 	}
@@ -1571,15 +1578,27 @@ export async function bulkRegisterFromScan(
 }
 
 /**
- * 一括登録バッチの取り消し(Issue #363 案A)。登録直後の完了導線からのみ
- * 呼ばれる想定(バッチ一覧やエントリ詳細からの恒常的な導線は無い)。この前提
- * により「登録後にユーザが編集した銘柄をどう扱うか」という論点を実質的に
- * 回避している——取り消しが呼ばれる時点でまだ他の操作が挟まっていないため。
+ * 一括登録バッチの取り消し(Issue #363 案A)。
+ *
+ * **登録直後の完了導線からのみ呼ばれる、という前提はもう成立しない**。#385 が
+ * 一括登録の履歴画面(`/cellar/import/history`)から**恒常的に**取り消せるようにした
+ * ため、「取り消しが呼ばれる時点で他の操作が挟まっていない」とは限らない
+ * (この JSDoc は以前その前提で「登録後にユーザが編集した銘柄をどう扱うか」の論点を
+ * 回避していると書いていたが、実態と乖離していた。#393)。編集済みエントリの扱いは
+ * 未決の論点のままで、現状の防波堤はクライアント側の確認ダイアログの警告だけ
+ * (`ImportBatchSummary.hasEditedEntries` が材料)。サーバ側は無条件に削除する。
  *
  * 削除対象は **このバッチで新規作成されたエントリ**(drunk_wine.batch_id が
  * このバッチのもの)のみ。「既存エントリに目撃記録が増えただけ」のものは
  * エントリを消さず、目撃記録だけを取り消して集計を再計算する(バッチと
  * 無関係な過去のデータを失わないため、issue本文の案Aの要点)。
+ *
+ * **試飲記録もバッチ由来のものだけ消す**(#393)。一括登録は既存エントリにも
+ * 試飲記録を足せる(「このワインを飲んだ」)ため、これを消さないと取り消しても
+ * tasting_count / last_drank_on / last_rating が戻らない。新規作成エントリぶんは
+ * エントリ削除の FK cascade でも消えるが、**既存エントリに足したぶんは
+ * wine_tasting.batch_id を辿らないと特定できない**。ユーザが手動で足した
+ * 試飲記録は batch_id が null なので巻き込まない。
  *
  * バッチが作った place は消さない(参照が無くなっても場所マスタとして残す。
  * 不要ならユーザが deletePlace で個別に消せる)。バッチ写真
@@ -1608,11 +1627,22 @@ export async function undoImportBatch(
 		.where(
 			and(eq(wineSighting.batchId, batchId), eq(wineSighting.userId, userId)),
 		);
-	// 新規作成エントリ以外(=既存エントリに目撃記録が増えただけ)は、目撃記録の
-	// 削除後に集計(sightingCount/lastSeenOn)を再計算する対象として拾っておく。
+	// バッチが足した試飲記録の付き先も拾う(#393)。実際には試飲記録が付く項目には
+	// 必ず目撃記録も付く(1項目=1目撃記録)ので集合は sighting 側に含まれるはずだが、
+	// **集計の再計算漏れは「取り消したのに数値が戻らない」という形で表に出る**ので、
+	// 取り消す行の付き先を両方から集める形にして依存を断つ。
+	const tastingRows = await db
+		.select({ drunkWineId: wineTasting.drunkWineId })
+		.from(wineTasting)
+		.where(
+			and(eq(wineTasting.batchId, batchId), eq(wineTasting.userId, userId)),
+		);
+	// 新規作成エントリ以外(=既存エントリに記録が増えただけ)は、削除後に集計
+	// (sightingCount/lastSeenOn/tastingCount/lastDrankOn/lastRating)を再計算する。
+	// 新規作成エントリはエントリごと消えるので再計算は要らない。
 	const touchedExistingIds = [
 		...new Set(
-			sightingRows
+			[...sightingRows, ...tastingRows]
 				.map((row) => row.drunkWineId)
 				.filter((id) => !createdIds.has(id)),
 		),
@@ -1623,6 +1653,14 @@ export async function undoImportBatch(
 			.delete(wineSighting)
 			.where(
 				and(eq(wineSighting.batchId, batchId), eq(wineSighting.userId, userId)),
+			),
+		// バッチ由来の試飲記録(batch_id 一致)だけを消す。手動で足したものは
+		// batch_id が null なので残る。**エントリ削除より前に置く**必要は無いが、
+		// 削除対象の集合は batch_id で決まるので順序に依存しない。
+		db
+			.delete(wineTasting)
+			.where(
+				and(eq(wineTasting.batchId, batchId), eq(wineTasting.userId, userId)),
 			),
 		db
 			.delete(drunkWine)
