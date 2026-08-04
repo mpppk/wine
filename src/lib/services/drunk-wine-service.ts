@@ -30,7 +30,7 @@ import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
 import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
-import { type LogFields, logError, logWarn } from "#/lib/logger";
+import { type LogFields, logError, logInfo, logWarn } from "#/lib/logger";
 import { DEFAULT_PLACE_KIND } from "#/lib/place/place";
 import {
 	type CreateWineSightingInput,
@@ -1026,6 +1026,16 @@ export async function deleteDrunkWines(
 		entryId: ids.join(","),
 		phase: "entries-deleted",
 	});
+	// 破壊的な一括削除の監査ライン(#394)。D1(cascade 込み)とR2にまたがる不可逆の
+	// 操作なので、成功も1行残す。これが無いと「エントリが消えた」という問い合わせに
+	// 対して「ユーザが消した / バグで消えた / そもそも無かった」を Workers Logs から
+	// 区別できない。requested と deleted の差は所有権で弾かれた id の数でもある。
+	logInfo("drunk wines bulk deleted", {
+		userId,
+		requestedCount: uniqueIds.length,
+		deletedCount: rows.length,
+		photoKeyCount: keys.length,
+	});
 	return { deletedCount: rows.length };
 }
 
@@ -1715,10 +1725,25 @@ export async function undoImportBatch(
 			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
 			: [],
 	);
-	await cleanupPhotoObjects([...batch.photoKeys, ...entryPhotoKeys], {
+	const photoKeys = [...batch.photoKeys, ...entryPhotoKeys];
+	await cleanupPhotoObjects(photoKeys, {
 		userId,
 		entryId: batchId,
 		phase: "import-batch-undone",
+	});
+
+	// 取り消しの監査ライン(#394)。3テーブル(cascade 込み)とR2写真に及ぶ不可逆の操作
+	// なので、成功も1行残す。**再構成の手段が無い**ため、後から「何がどれだけ消えたか」を
+	// 知る唯一の手掛かりになる。recomputedCount は「既存エントリから記録だけを取り消した」
+	// 件数で、deletedCount(このバッチで作られて消えたエントリ)とは別物。
+	logInfo("import batch undone", {
+		userId,
+		batchId,
+		deletedCount: createdRows.length,
+		sightingCount: sightingRows.length,
+		tastingCount: tastingRows.length,
+		recomputedCount: touchedExistingIds.length,
+		photoKeyCount: photoKeys.length,
 	});
 
 	return { deletedCount: createdRows.length };
