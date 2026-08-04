@@ -26,6 +26,7 @@ import {
 	deleteWineTasting,
 	getCellarSummary,
 	getDrunkWine,
+	getImportBatch,
 	listDrunkWines,
 	listDrunkWinesByAop,
 	listImportBatches,
@@ -1836,6 +1837,69 @@ describe("undoImportBatch", () => {
 			.from(wineTasting)
 			.where(eq(wineTasting.userId, userId));
 		expect(leftover).toHaveLength(0);
+	});
+});
+
+// ---- getImportBatch(履歴からの再解析の材料, Issue #427) --------------------
+
+describe("getImportBatch", () => {
+	// 1x1 JPEG(マジックバイト検証を通る最小の実データ)
+	const JPEG_1X1_BYTES = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	it("保存した写真URLを撮影順で返す(photoIndex の順と一致する)", async () => {
+		// 順序が崩れると「別の写真で見かけたことになる」。再解析はこの順で写真を
+		// 読み直して新バッチを作るので、ここが回帰防止の要になる。
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 2,
+			items: [{ wine: { name: "順序の確認" }, sighting: { photoIndex: 1 } }],
+		});
+		const saved = await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+
+		const batch = await getImportBatch(userId, result.batchId);
+
+		expect(batch.photoUrls).toEqual(saved.photoUrls);
+		expect(batch.photoUrls).toHaveLength(2);
+		// 再解析は場所・見かけた日も引き継ぐ
+		expect(batch.id).toBe(result.batchId);
+	});
+
+	it("場所と見かけた日を引き継げる形で返す", async () => {
+		const userId = await freshUser();
+		const shop = await createPlace(userId, { name: "やり直す店" });
+		const result = await bulkRegisterFromScan(userId, {
+			placeId: shop.id,
+			seenOn: "2026-07-20",
+			photoCount: 0,
+			items: [{ wine: { name: "場所つき" } }],
+		});
+
+		const batch = await getImportBatch(userId, result.batchId);
+
+		expect(batch.placeId).toBe(shop.id);
+		expect(batch.seenOn).toBe("2026-07-20");
+		expect(batch.photoUrls).toEqual([]);
+	});
+
+	it("他人のバッチは取得できない(404)", async () => {
+		const userId = await freshUser();
+		const stranger = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ wine: { name: "他人のもの" } }],
+		});
+
+		await expect(
+			getImportBatch(stranger, result.batchId),
+		).rejects.toBeInstanceOf(NotFoundError);
 	});
 });
 

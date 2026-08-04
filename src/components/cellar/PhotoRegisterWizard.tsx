@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PencilIcon, SparklesIcon, XIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DrunkWineFieldsValue } from "#/components/cellar/drunk-wine-payload";
 import { ImportCandidateCard } from "#/components/cellar/ImportCandidateCard";
 import {
@@ -12,6 +12,7 @@ import {
 	summarizeImportCards,
 	validateImportCards,
 } from "#/components/cellar/import-candidates";
+import { fetchBatchPhotoFiles } from "#/components/cellar/rescan-photos";
 import {
 	buildSingleWineHandoff,
 	MAX_HANDOFF_PHOTOS,
@@ -56,6 +57,7 @@ import {
 	useCreditBalanceValue,
 } from "#/lib/credit/use-credit";
 import { todayCalendarDate } from "#/lib/date/calendar-date";
+import { formatDateTimeJst } from "#/lib/date/display";
 import {
 	ALLOWED_PHOTO_TYPES,
 	MAX_PHOTO_BYTES,
@@ -96,6 +98,16 @@ function creditsForPhotos(route: WineListRoute, count: number): number {
 	return costToCredits(estimateWineListReserveCharge(route, count).microUsd);
 }
 
+/** 再解析の元になる一括登録バッチ(#427)。 */
+export interface RescanSource {
+	batchId: string;
+	/** 保存済み写真の相対URL。**この順が目撃記録の photoIndex の順**。 */
+	photoUrls: string[];
+	placeId: string | null;
+	seenOn: string | null;
+	createdAt: number;
+}
+
 /** 選択中の写真1枚。プレビューURLは解放が要るので localId で同定する。 */
 interface PhotoItem {
 	localId: string;
@@ -111,6 +123,12 @@ export interface PhotoRegisterWizardProps {
 	 * このコンポーネントは経路が解決できた環境でしか描画されない(#426)。
 	 */
 	route: WineListRoute;
+	/**
+	 * 過去の一括登録をやり直す場合の元バッチ(Issue #427)。写真・場所・見かけた日を
+	 * ここから初期化する。**元バッチは書き換えない**——確定すると新しいバッチができ、
+	 * 既に登録済みの銘柄はレビュー画面に「既存に追加」として出る(distinct の第2段)。
+	 */
+	rescan?: RescanSource;
 	/**
 	 * このウィザードが表示されているか。単体の記録フォームへ切り替えている間は
 	 * false になり、離脱ガードを黙らせる(フォーム側のガードと二重に出さない)。
@@ -129,6 +147,7 @@ export interface PhotoRegisterWizardProps {
 export function PhotoRegisterWizard({
 	places,
 	route,
+	rescan,
 	active,
 	onSwitchToManual,
 }: PhotoRegisterWizardProps) {
@@ -136,9 +155,17 @@ export function PhotoRegisterWizard({
 	const queryClient = useQueryClient();
 
 	const [photos, setPhotos] = useState<PhotoItem[]>([]);
-	const [placeChoice, setPlaceChoice] = useState<string>(NO_PLACE);
+	// 再解析なら元バッチの場所・見かけた日を引き継ぐ(同じ機会の記録なので、
+	// 選び直させる意味が無い)。写真の読み込みだけは非同期なので effect で入れる。
+	const [placeChoice, setPlaceChoice] = useState<string>(
+		rescan?.placeId ?? NO_PLACE,
+	);
 	const [newPlaceName, setNewPlaceName] = useState("");
-	const [seenOn, setSeenOn] = useState(() => todayCalendarDate());
+	const [seenOn, setSeenOn] = useState(
+		() => rescan?.seenOn ?? todayCalendarDate(),
+	);
+	// 保存済み写真の読み込み状態。再解析でないときは常に false / 空。
+	const [loadingRescanPhotos, setLoadingRescanPhotos] = useState(!!rescan);
 	const [cards, setCards] = useState<ImportCardState[] | null>(null);
 	const [summary, setSummary] = useState<WineListAnalysisSummary | null>(null);
 	const [error, setError] = useState("");
@@ -184,6 +211,36 @@ export function PhotoRegisterWizard({
 				).microUsd,
 			)
 		: null;
+
+	// 再解析の元写真を読み込む。**1回だけ**走らせる(依存は batchId)——ユーザが
+	// 写真を消した後に再取得すると、消したはずの写真が戻ってくる。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 初回の一度だけ読み込む
+	useEffect(() => {
+		if (!rescan) return;
+		let cancelled = false;
+		setLoadingRescanPhotos(true);
+		fetchBatchPhotoFiles(rescan.photoUrls)
+			.then((files) => {
+				if (cancelled) return;
+				setPhotos(
+					files.map((file) => ({
+						localId: `p${newIdRef.current++}`,
+						file,
+						previewUrl: URL.createObjectURL(file),
+					})),
+				);
+			})
+			.catch((e: Error) => {
+				if (cancelled) return;
+				setError(e.message || "保存済みの写真を読み込めませんでした");
+			})
+			.finally(() => {
+				if (!cancelled) setLoadingRescanPhotos(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [rescan?.batchId]);
 
 	/**
 	 * 目撃記録側の入力(写真の場所・撮影日)をユーザが触ったか。記録フォームには
@@ -345,11 +402,26 @@ export function PhotoRegisterWizard({
 			{completed && registered ? (
 				<ImportCompletionScreen
 					registered={registered}
+					rescanned={!!rescan}
 					onUndo={() => setUndoOpen(true)}
 					onProceed={() => void goToCellar()}
 				/>
 			) : cards === null ? (
 				<div className="flex flex-col gap-6">
+					{rescan && (
+						<div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+							<p>
+								{formatDateTimeJst(new Date(rescan.createdAt))}の一括登録を
+								{loadingRescanPhotos
+									? "読み込んでいます…"
+									: `やり直します(写真${photos.length}枚)。`}
+							</p>
+							<p className="mt-1 text-muted-foreground">
+								解析し直すとAIクレジットを消費します。元の登録はそのまま残り、
+								登録済みの銘柄は「既存に追加」として出ます。不要になったら履歴から取り消せます。
+							</p>
+						</div>
+					)}
 					<div className="flex flex-col gap-3">
 						<Label htmlFor="register-photo">
 							写真(最大{MAX_PHOTOS_PER_IMPORT_BATCH}枚)
@@ -452,6 +524,7 @@ export function PhotoRegisterWizard({
 								disabled={
 									photos.length === 0 ||
 									isAnalyzing ||
+									loadingRescanPhotos ||
 									insufficientCredits ||
 									(placeChoice === NEW_PLACE && !newPlaceName.trim())
 								}
@@ -701,10 +774,13 @@ export function PhotoRegisterWizard({
  */
 function ImportCompletionScreen({
 	registered,
+	rescanned,
 	onUndo,
 	onProceed,
 }: {
 	registered: Awaited<ReturnType<typeof bulkRegisterFromScan>>;
+	/** 履歴からの再解析だったか(#427)。元バッチの後始末を案内するために要る。 */
+	rescanned: boolean;
 	onUndo: () => void;
 	onProceed: () => void;
 }) {
@@ -719,6 +795,17 @@ function ImportCompletionScreen({
 						`・飲んだ記録${registered.tastingCount}件`}
 					)
 				</p>
+				{rescanned && (
+					// 元バッチは黙って残る。放置すると同じ機会の登録が二重に見えるので、
+					// 「取り消す」は取り消し導線が既にある履歴側に任せて場所だけ示す。
+					<p className="mt-2 text-muted-foreground">
+						やり直す前の登録はそのまま残っています。不要なら
+						<Link to="/cellar/import/history" className="mx-1 underline">
+							一括登録の履歴
+						</Link>
+						から取り消せます。
+					</p>
+				)}
 			</div>
 			<div className="flex gap-2">
 				<Button type="button" onClick={onProceed}>

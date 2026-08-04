@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon, ImagesIcon } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 import { DrunkWineForm } from "#/components/cellar/DrunkWineForm";
 import { PhotoRegisterWizard } from "#/components/cellar/PhotoRegisterWizard";
 import {
@@ -18,7 +19,7 @@ import {
 } from "#/components/ui/dialog";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import { getWineListAnalysisPlan } from "#/server/ai";
-import { listPlaces } from "#/server/place";
+import { getImportBatch, listPlaces } from "#/server/place";
 
 // ワインの登録画面。**写真から始める**のが既定の流れで、手入力は「手動で入力」を
 // 選んだときだけ出す。以前は「ワインを記録」(手入力)と「写真からまとめて登録」の
@@ -29,20 +30,48 @@ import { listPlaces } from "#/server/place";
 // から戻ったときに消えていてはいけない(#238)。逆に記録フォームは戻る操作で
 // 破棄する——こちらは作り直しにクレジットがかからないため。
 
+/**
+ * 一括登録履歴からの再解析(#427)。`?rescan=<batchId>` で開くと、そのバッチの
+ * 保存済み写真・場所・見かけた日を初期値にしてウィザードが立ち上がる。
+ * **元バッチは書き換えない**(確定すると新しいバッチができる)。
+ */
+const searchSchema = z.object({
+	rescan: z.string().min(1).max(80).optional(),
+});
+
 export const Route = createFileRoute("/cellar/new")({
+	validateSearch: searchSchema,
 	beforeLoad: requireAuthBeforeLoad,
-	loader: async () => {
-		const [places, wineListPlan] = await Promise.all([
+	loaderDeps: ({ search }) => ({ rescan: search.rescan }),
+	loader: async ({ deps }) => {
+		const [places, wineListPlan, rescanBatch] = await Promise.all([
 			listPlaces(),
 			getWineListAnalysisPlan(),
+			// 他人のバッチ・存在しないIDはサービス層が 404 にする。写真が無いバッチは
+			// 再解析しようがないので、素の登録画面として開く(URL直打ちの逃げ道)。
+			deps.rescan
+				? getImportBatch({ data: { batchId: deps.rescan } }).catch(() => null)
+				: null,
 		]);
-		return { places, wineListPlan };
+		return { places, wineListPlan, rescanBatch };
 	},
 	component: CellarNewPage,
 });
 
 function CellarNewPage() {
-	const { places, wineListPlan } = Route.useLoaderData();
+	const { places, wineListPlan, rescanBatch } = Route.useLoaderData();
+	// 写真の実体が無いバッチ(登録だけして写真アップロードに失敗した回)は
+	// 再解析の材料が無いので、通常の登録画面として扱う
+	const rescan =
+		rescanBatch && rescanBatch.photoUrls.length > 0
+			? {
+					batchId: rescanBatch.id,
+					photoUrls: rescanBatch.photoUrls,
+					placeId: rescanBatch.placeId,
+					seenOn: rescanBatch.seenOn,
+					createdAt: rescanBatch.createdAt,
+				}
+			: undefined;
 	const navigate = useNavigate();
 	// 単体の記録フォームへ切り替えているときだけ荷物が入る。null = 写真ウィザード。
 	// 解析が使えない環境では写真の経路自体が無いので、最初から手入力で開く。
@@ -74,7 +103,9 @@ function CellarNewPage() {
 						<ArrowLeftIcon className="size-4" />
 					</Link>
 				</Button>
-				<h1 className="text-2xl font-bold">ワインを記録</h1>
+				<h1 className="text-2xl font-bold">
+					{rescan ? "一括登録をやり直す" : "ワインを記録"}
+				</h1>
 			</div>
 
 			{wineListPlan.route && (
@@ -82,6 +113,7 @@ function CellarNewPage() {
 					<PhotoRegisterWizard
 						places={places}
 						route={wineListPlan.route}
+						rescan={rescan}
 						active={manual === null}
 						onSwitchToManual={setManual}
 					/>
