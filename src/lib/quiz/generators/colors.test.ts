@@ -1,31 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
 import { REGION_IDS } from "#/lib/wine/regions";
-import { duplicatesParentFact, isOpenEndedAppellation } from "../aop-pool";
+import { duplicatesUmbrellaFact, isOpenEndedAppellation } from "../aop-pool";
 import { colorComboId } from "../labels";
 import { mulberry32 } from "../rng";
 import { enumerateColorsKeys, materializeColorsQuestion } from "./colors";
 
 describe("生産可能色クイズ", () => {
 	// IGT(開かれた広域呼称)は colors が網羅でないため対象外(#212)。
-	// 色コンボが親畑と同じクリマは親側の1問に集約するため対象外(aop-pool.ts 参照)。
-	// それ以外のAOPは全件出題されることを固定する。
-	it("IGTと親畑に集約されるクリマを除く全AOP分のキーが列挙される", () => {
+	// 色コンボが上位AOP(傘AOC/村)と同じ畑は上位側の1問に集約するため対象外
+	// (aop-pool.ts 参照)。それ以外のAOPは全件出題されることを固定する。
+	it("IGTと上位AOPに集約される畑を除く全AOP分のキーが列挙される", () => {
 		const total = REGION_IDS.flatMap((r) => enumerateColorsKeys(r));
 		const eligible = AOPS.filter(
 			(a) =>
 				!isOpenEndedAppellation(a) &&
-				!duplicatesParentFact(a, (x) => colorComboId(x.colors)),
+				!duplicatesUmbrellaFact(a, (x) =>
+					isOpenEndedAppellation(x) ? undefined : colorComboId(x.colors),
+				),
 		);
 		expect(eligible.length).toBeLessThan(AOPS.length);
 		expect(total.length).toBe(eligible.length);
 		expect(new Set(total).size).toBe(total.length);
 	});
 
-	it("色が親畑と同じクリマは出題されず、異なるクリマは残る", () => {
+	it("色が上位AOPと同じ畑は出題されず、異なる畑は残る", () => {
 		const bourgogne = enumerateColorsKeys("bourgogne");
-		// シャブリ・グラン・クリュの7クリマは全て親と同じ「白のみ」→ 親の1問に集約
-		expect(bourgogne).toContain("colors:chablis-grand-cru");
+		// シャブリ・グラン・クリュの7クリマは全て親と同じ「白のみ」→ 集約先はシャブリ
+		// (傘AOC自身もシャブリと同一内容なのでさらに集約される)
+		expect(bourgogne).toContain("colors:chablis");
+		expect(bourgogne).not.toContain("colors:chablis-grand-cru");
 		expect(bourgogne).not.toContain("colors:chablis-gc-les-clos");
 		expect(bourgogne.some((k) => k.startsWith("colors:chablis-gc-"))).toBe(
 			false,
@@ -36,6 +40,14 @@ describe("生産可能色クイズ", () => {
 		// コルトンのクリマは親(赤白)と色が異なるものだけ残る
 		expect(bourgogne).toContain("colors:corton-les-bressandes"); // 赤のみ
 		expect(bourgogne).not.toContain("colors:corton-le-corton"); // 親と同じ赤白
+		// #436: 独立AOCのグラン・クリュも村と同じ色なら村側の1問に集約する
+		expect(bourgogne).toContain("colors:gevrey-chambertin");
+		expect(bourgogne).not.toContain("colors:chambertin");
+		expect(bourgogne).not.toContain("colors:romanee-conti");
+		// 村(赤のみ)と色が異なるミュジニー(赤・白)は残る
+		expect(bourgogne).toContain("colors:musigny");
+		// 複数村のうちモレ・サン・ドニ(赤・白)と異なるボンヌ・マール(赤のみ)も残る
+		expect(bourgogne).toContain("colors:bonnes-mares");
 	});
 
 	it("親畑と同じ色のクリマのキーは具現化されない(失効キー扱い)", () => {

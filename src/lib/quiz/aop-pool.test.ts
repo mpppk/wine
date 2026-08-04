@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
 import { REGION_IDS } from "#/lib/wine/regions";
 import { aopClassificationLabel } from "#/lib/wine/tags";
-import { duplicatesParentFact, isOpenEndedAppellation } from "./aop-pool";
+import type { Aop } from "#/lib/wine/types";
+import { duplicatesUmbrellaFact, isOpenEndedAppellation } from "./aop-pool";
 import { enumerateAopVarietyKeys } from "./generators/aop-variety";
 import { enumerateColorsKeys } from "./generators/colors";
 import { enumerateVarietyKeys } from "./generators/variety";
@@ -42,44 +43,73 @@ describe("開かれた広域呼称(IGT)の出題除外", () => {
 	});
 });
 
-describe("親畑と同一内容の設問の集約(duplicatesParentFact)", () => {
+describe("上位AOPと同一内容の設問の集約(duplicatesUmbrellaFact)", () => {
 	const byId = new Map(AOPS.map((a) => [a.id, a]));
 	const aopOf = (id: string) => {
 		const aop = byId.get(id);
 		if (!aop) throw new Error(`no such aop: ${id}`);
 		return aop;
 	};
+	const colorsOf = (a: Aop) => colorComboId(a.colors);
 
 	it("値が親畑と同じクリマは true(シャブリGCのクリマの色)", () => {
-		expect(
-			duplicatesParentFact(aopOf("chablis-gc-les-clos"), (a) =>
-				colorComboId(a.colors),
-			),
-		).toBe(true);
+		expect(duplicatesUmbrellaFact(aopOf("chablis-gc-les-clos"), colorsOf)).toBe(
+			true,
+		);
 	});
 
 	it("値が親畑と異なるクリマは false(コルトンの赤のみクリマの色)", () => {
 		expect(
-			duplicatesParentFact(aopOf("corton-les-bressandes"), (a) =>
-				colorComboId(a.colors),
-			),
+			duplicatesUmbrellaFact(aopOf("corton-les-bressandes"), colorsOf),
 		).toBe(false);
 	});
 
-	it("parentAopId を持たないAOPは常に false", () => {
+	// #436: シャンベルタン群は法的な親AOCを持たず villageAopIds で村に繋がるため、
+	// parentAopId だけを見ていた #373 の集約から漏れていた。
+	it("値が村と同じ独立AOCの畑も true(シャンベルタンの色)", () => {
+		expect(duplicatesUmbrellaFact(aopOf("chambertin"), colorsOf)).toBe(true);
+		expect(duplicatesUmbrellaFact(aopOf("romanee-conti"), colorsOf)).toBe(true);
+	});
+
+	it("値が村と異なる畑は false(ミュジニーは赤・白でシャンボールは赤のみ)", () => {
+		expect(duplicatesUmbrellaFact(aopOf("musigny"), colorsOf)).toBe(false);
+	});
+
+	// 複数村にまたがる畑は全村一致のときだけ集約する。一村でも違えばその村のスコープで
+	// 固有の事実になり、集約するとその村から学びが消える。
+	it("複数村にまたがる畑は、一村でも値が違えば false(ボンヌ・マールの色)", () => {
+		// シャンボール・ミュジニー(赤のみ)とは一致するが、モレ・サン・ドニは赤・白
+		expect(duplicatesUmbrellaFact(aopOf("bonnes-mares"), colorsOf)).toBe(false);
+	});
+
+	it("複数村にまたがる畑でも全村と一致すれば true(ボンヌ・マールの地区)", () => {
 		expect(
-			duplicatesParentFact(aopOf("chablis-grand-cru"), (a) =>
-				colorComboId(a.colors),
-			),
-		).toBe(false);
+			duplicatesUmbrellaFact(aopOf("bonnes-mares"), (a) => a.subregionId),
+		).toBe(true);
+	});
+
+	it("階層エッジを持たないAOPは常に false", () => {
+		expect(duplicatesUmbrellaFact(aopOf("gevrey-chambertin"), colorsOf)).toBe(
+			false,
+		);
 	});
 
 	it("事実が undefined / 空のときは false(比較不能なら除外しない)", () => {
 		expect(
-			duplicatesParentFact(aopOf("chablis-gc-les-clos"), () => undefined),
+			duplicatesUmbrellaFact(aopOf("chablis-gc-les-clos"), () => undefined),
 		).toBe(false);
-		expect(duplicatesParentFact(aopOf("chablis-gc-les-clos"), () => "")).toBe(
+		expect(duplicatesUmbrellaFact(aopOf("chablis-gc-les-clos"), () => "")).toBe(
 			false,
 		);
+	});
+
+	// 集約は「上位側が同型の1問を出す」ことが前提。上位が出題対象外(fact が undefined)
+	// なら集約先が無く、集約すると事実がどこからも出題されなくなる。
+	it("上位が出題対象外(undefined)なら集約しない", () => {
+		expect(
+			duplicatesUmbrellaFact(aopOf("chablis-gc-les-clos"), (a) =>
+				a.id === "chablis-grand-cru" ? undefined : colorComboId(a.colors),
+			),
+		).toBe(false);
 	});
 });

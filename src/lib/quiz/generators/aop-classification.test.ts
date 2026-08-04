@@ -83,6 +83,16 @@ describe("格付けクイズ", () => {
 		}
 	});
 
+	// #436: 集約エッジを村名AOCへ広げても、シャトーの格付けは村の格付け(多くは無し)と
+	// 値が違うので集約されない。シャトーの色・品種が村側に集約されて設問が減る中で、
+	// 格付けだけは残ることが「シャトー単位の学び」を保つ最後の砦になる。
+	it("シャトーの格付けは所属村に集約されない", () => {
+		const bordeaux = enumerateAopClassificationKeys("bordeaux");
+		expect(bordeaux).toContain("aop-classification:chateau-margaux");
+		expect(bordeaux).toContain("aop-classification:chateau-la-lagune");
+		expect(bordeaux).toContain("aop-classification:chateau-d-yquem");
+	});
+
 	it("固定RNGで決定的", () => {
 		// ボルドー(4ラベル以上)のシャトーを主題にする。ラベル数の少ない地域は
 		// 本形式の出題対象外(null)になるため、非nullで比較できる地域を使う。

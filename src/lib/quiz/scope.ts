@@ -59,7 +59,8 @@ export function expandScopeAopIds(scopeAopId: string): Set<string> | null {
 	}
 	// 固有の設問が1問も無い畑だけ、集約先(上位AOP)の設問を借りる。上で入れた配下からは
 	// 辿らない(選択AOP自身の集約先だけを足す)ので、村を経由して兄弟の設問までは広がらない。
-	for (const umbrellaId of listShareableUmbrellaAopIds(aop)) ids.add(umbrellaId);
+	for (const umbrellaId of listShareableUmbrellaAopIds(aop))
+		ids.add(umbrellaId);
 	return ids;
 }
 
