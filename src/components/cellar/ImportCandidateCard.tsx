@@ -10,6 +10,7 @@ import { TastingFields } from "#/components/cellar/TastingFields";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Checkbox } from "#/components/ui/checkbox";
+import { FormField } from "#/components/ui/form-section";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Switch } from "#/components/ui/switch";
@@ -117,10 +118,11 @@ export function ImportCandidateCard({
 							idPrefix={card.localId}
 						/>
 
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor={`${card.localId}-sighting-price`}>
-								この店での価格(円)
-							</Label>
+						<FormField
+							label="この店での価格(円)"
+							htmlFor={`${card.localId}-sighting-price`}
+							description="目撃記録として保存します(店ごとに違うため、銘柄の価格とは別に持ちます)"
+						>
 							<Input
 								id={`${card.localId}-sighting-price`}
 								type="number"
@@ -130,10 +132,7 @@ export function ImportCandidateCard({
 								onChange={(e) => onChange({ sightingPrice: e.target.value })}
 								placeholder="例: 12000"
 							/>
-							<p className="text-xs text-muted-foreground">
-								目撃記録として保存します(店ごとに違うため、銘柄の価格とは別に持ちます)
-							</p>
-						</div>
+						</FormField>
 
 						<fieldset className="flex flex-col gap-3">
 							<div className="flex items-center gap-3">

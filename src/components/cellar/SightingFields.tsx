@@ -1,5 +1,5 @@
+import { FormField } from "#/components/ui/form-section";
 import { Input } from "#/components/ui/input";
-import { Label } from "#/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -63,8 +63,15 @@ export function SightingFields({
 	return (
 		<>
 			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor={`${idPrefix}-place`}>場所</Label>
+				<FormField
+					label="場所"
+					htmlFor={`${idPrefix}-place`}
+					description={
+						places.length === 0
+							? "場所は「写真からまとめて登録」で作成できます"
+							: undefined
+					}
+				>
 					<Select
 						value={value.placeId || NO_PLACE_VALUE}
 						disabled={disabled || places.length === 0}
@@ -84,15 +91,9 @@ export function SightingFields({
 							))}
 						</SelectContent>
 					</Select>
-					{places.length === 0 && (
-						<p className="text-xs text-muted-foreground">
-							場所は「写真からまとめて登録」で作成できます
-						</p>
-					)}
-				</div>
+				</FormField>
 
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor={`${idPrefix}-seen-on`}>見かけた日</Label>
+				<FormField label="見かけた日" htmlFor={`${idPrefix}-seen-on`}>
 					<Input
 						id={`${idPrefix}-seen-on`}
 						type="date"
@@ -100,11 +101,10 @@ export function SightingFields({
 						disabled={disabled}
 						onChange={(e) => onChange({ seenOn: e.target.value })}
 					/>
-				</div>
+				</FormField>
 			</div>
 
-			<div className="flex flex-col gap-1.5">
-				<Label htmlFor={`${idPrefix}-price`}>その店での価格(円)</Label>
+			<FormField label="その店での価格(円)" htmlFor={`${idPrefix}-price`}>
 				<Input
 					id={`${idPrefix}-price`}
 					type="number"
@@ -116,10 +116,9 @@ export function SightingFields({
 					onChange={(e) => onChange({ price: e.target.value })}
 					placeholder="例: 12000"
 				/>
-			</div>
+			</FormField>
 
-			<div className="flex flex-col gap-1.5">
-				<Label htmlFor={`${idPrefix}-memo`}>メモ</Label>
+			<FormField label="メモ" htmlFor={`${idPrefix}-memo`}>
 				<Textarea
 					id={`${idPrefix}-memo`}
 					value={value.memo}
@@ -129,7 +128,7 @@ export function SightingFields({
 					rows={2}
 					placeholder="例: グラスでも提供していた"
 				/>
-			</div>
+			</FormField>
 		</>
 	);
 }

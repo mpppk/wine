@@ -9,7 +9,7 @@ import {
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { TastingFields } from "#/components/cellar/TastingFields";
 import { Button } from "#/components/ui/button";
-import { Label } from "#/components/ui/label";
+import { FormSection } from "#/components/ui/form-section";
 import type { WineTastingEntry } from "#/lib/services/drunk-wine-service";
 import {
 	addWineTasting,
@@ -83,12 +83,11 @@ export function TastingList({
 	const busy = save.isPending || remove.isPending;
 
 	return (
-		<fieldset className="flex flex-col gap-3">
-			<div className="flex items-center justify-between gap-2">
-				<Label asChild>
-					<legend>飲んだ記録</legend>
-				</Label>
-				{!adding && editingId === null && (
+		<FormSection
+			title="飲んだ記録"
+			action={
+				!adding &&
+				editingId === null && (
 					<Button
 						type="button"
 						variant="outline"
@@ -101,9 +100,9 @@ export function TastingList({
 						<PlusIcon className="size-4" aria-hidden />
 						記録を追加
 					</Button>
-				)}
-			</div>
-
+				)
+			}
+		>
 			{tastings.length === 0 && !adding && (
 				<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6">
 					<WineIcon className="size-6 text-muted-foreground/40" aria-hidden />
@@ -226,6 +225,6 @@ export function TastingList({
 					保存に失敗しました。時間をおいて再度お試しください。
 				</p>
 			)}
-		</fieldset>
+		</FormSection>
 	);
 }

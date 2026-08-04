@@ -1,7 +1,7 @@
 import { StarIcon } from "lucide-react";
 import type { WineTastingDraft } from "#/components/cellar/drunk-wine-payload";
+import { FormField } from "#/components/ui/form-section";
 import { Input } from "#/components/ui/input";
-import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
 import { cn } from "#/lib/utils";
 
@@ -34,8 +34,7 @@ export function TastingFields({
 	return (
 		<>
 			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor={`${idPrefix}-drank-on`}>飲んだ日</Label>
+				<FormField label="飲んだ日" htmlFor={`${idPrefix}-drank-on`}>
 					<Input
 						id={`${idPrefix}-drank-on`}
 						type="date"
@@ -43,10 +42,9 @@ export function TastingFields({
 						disabled={disabled}
 						onChange={(e) => onChange({ drankOn: e.target.value })}
 					/>
-				</div>
+				</FormField>
 
-				<div className="flex flex-col gap-1.5">
-					<Label>評価</Label>
+				<FormField label="評価">
 					<div className="flex h-9 items-center gap-0.5">
 						{[1, 2, 3, 4, 5].map((n) => {
 							const active = value.rating !== null && n <= value.rating;
@@ -75,11 +73,10 @@ export function TastingFields({
 							);
 						})}
 					</div>
-				</div>
+				</FormField>
 			</div>
 
-			<div className="flex flex-col gap-1.5">
-				<Label htmlFor={`${idPrefix}-memo`}>メモ</Label>
+			<FormField label="メモ" htmlFor={`${idPrefix}-memo`}>
 				<Textarea
 					id={`${idPrefix}-memo`}
 					value={value.memo}
@@ -89,7 +86,7 @@ export function TastingFields({
 					maxLength={2000}
 					rows={4}
 				/>
-			</div>
+			</FormField>
 		</>
 	);
 }

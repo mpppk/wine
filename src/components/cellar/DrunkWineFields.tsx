@@ -2,8 +2,8 @@ import type React from "react";
 import type { DrunkWineFieldsValue } from "#/components/cellar/drunk-wine-payload";
 import { GrapeVarietyMultiSelect } from "#/components/cellar/GrapeVarietyMultiSelect";
 import { ProvenancePicker } from "#/components/cellar/ProvenancePicker";
+import { FormField, FormSection } from "#/components/ui/form-section";
 import { Input } from "#/components/ui/input";
-import { Label } from "#/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -51,6 +51,8 @@ export interface DrunkWineFieldsProps {
  * 表示の単一情報源をこのコンポーネントに寄せ、保存経路の違い(server fn か
  * ホスト仲介の tools/call か)だけを呼び出し側が持つ。
  *
+ * 見出しと中身の間隔は FormField / FormSection に任せる(直接 gap を書かない)。
+ *
  * <form> は含めない。MCP App はホストのサンドボックス iframe(allow-forms が
  * 付かないことがある)の中で動くため、保存は submit ではなくボタンの onClick で
  * 行う必要がある。
@@ -64,10 +66,7 @@ export function DrunkWineFields({
 }: DrunkWineFieldsProps) {
 	return (
 		<>
-			<div className="flex flex-col gap-1.5">
-				<Label htmlFor={`${idPrefix}-name`}>
-					名前 <span className="text-destructive">*</span>
-				</Label>
+			<FormField label="名前" htmlFor={`${idPrefix}-name`} required>
 				<Input
 					id={`${idPrefix}-name`}
 					type="text"
@@ -77,10 +76,15 @@ export function DrunkWineFields({
 					maxLength={200}
 					required
 				/>
-			</div>
+			</FormField>
 
-			<div className="flex flex-col gap-1.5">
-				<Label htmlFor={`${idPrefix}-status`}>状態</Label>
+			<FormField
+				label="状態"
+				htmlFor={`${idPrefix}-status`}
+				description={
+					WINE_STATUSES.find((s) => s.id === value.status)?.descriptionJa
+				}
+			>
 				<Select
 					value={value.status}
 					onValueChange={(v) => onChange({ status: v as WineStatus })}
@@ -96,14 +100,10 @@ export function DrunkWineFields({
 						))}
 					</SelectContent>
 				</Select>
-				<p className="text-xs text-muted-foreground">
-					{WINE_STATUSES.find((s) => s.id === value.status)?.descriptionJa}
-				</p>
-			</div>
+			</FormField>
 
 			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor={`${idPrefix}-vintage`}>ヴィンテージ</Label>
+				<FormField label="ヴィンテージ" htmlFor={`${idPrefix}-vintage`}>
 					<Input
 						id={`${idPrefix}-vintage`}
 						type="number"
@@ -113,10 +113,9 @@ export function DrunkWineFields({
 						onChange={(e) => onChange({ vintage: e.target.value })}
 						placeholder="例: 2020"
 					/>
-				</div>
+				</FormField>
 
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor={`${idPrefix}-producer`}>生産者</Label>
+				<FormField label="生産者" htmlFor={`${idPrefix}-producer`}>
 					<Input
 						id={`${idPrefix}-producer`}
 						type="text"
@@ -125,7 +124,7 @@ export function DrunkWineFields({
 						placeholder="例: ドメーヌ・ルフレーヴ"
 						maxLength={200}
 					/>
-				</div>
+				</FormField>
 
 				{/*
 				 * 未購入(wishlist)では価格を出さない。state は消さずに描画だけ止める:
@@ -133,8 +132,7 @@ export function DrunkWineFields({
 				 * 状態を戻したときへ既存の価格が失われる。
 				 */}
 				{value.status !== "wishlist" && (
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor={`${idPrefix}-price`}>価格(円)</Label>
+					<FormField label="価格(円)" htmlFor={`${idPrefix}-price`}>
 						<Input
 							id={`${idPrefix}-price`}
 							type="number"
@@ -144,17 +142,14 @@ export function DrunkWineFields({
 							onChange={(e) => onChange({ price: e.target.value })}
 							placeholder="例: 5000"
 						/>
-					</div>
+					</FormField>
 				)}
 			</div>
 
-			<fieldset className="flex flex-col gap-3">
-				<Label asChild>
-					<legend>産地紐付け(任意)</legend>
-				</Label>
-				<p className="-mt-2 text-xs text-muted-foreground">
-					AOP(村・畑・クリマ)まで特定できる場合はその単位で、分からない場合は地域や国だけでも紐付けられます。
-				</p>
+			<FormSection
+				title="産地紐付け(任意)"
+				description="AOP(村・畑・クリマ)まで特定できる場合はその単位で、分からない場合は地域や国だけでも紐付けられます。"
+			>
 				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 					<ProvenancePicker
 						value={{
@@ -165,17 +160,14 @@ export function DrunkWineFields({
 						onChange={onChange}
 					/>
 				</div>
-			</fieldset>
+			</FormSection>
 
-			<fieldset className="flex flex-col gap-3">
-				<Label asChild>
-					<legend>ぶどう品種(複数選択可)</legend>
-				</Label>
+			<FormSection title="ぶどう品種(複数選択可)">
 				<GrapeVarietyMultiSelect
 					value={value.grapeVarietyIds}
 					onChange={(ids) => onChange({ grapeVarietyIds: ids })}
 				/>
-			</fieldset>
+			</FormSection>
 
 			{photoSlot}
 
