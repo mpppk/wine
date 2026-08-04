@@ -43,6 +43,7 @@ import {
 	DEFAULT_CELLAR_FILTER,
 } from "#/lib/drunk-wine/filter";
 import { DRUNK_WINE_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
+import { BULK_DELETE_MAX } from "#/lib/drunk-wine/schema";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
@@ -263,8 +264,20 @@ function CellarPage() {
 			return next;
 		});
 
+	// 「すべて選択」は読み込み済みの全件を選ぶので、選択数は1リクエストの上限
+	// (BULK_DELETE_MAX)を超えうる。超えた分は分割して順に送る(#400)。
+	// 途中で失敗したら、そこまでの削除は確定したまま中断してエラーを出す。
+	// そのまま「削除する」を押し直せば、消えた id は黙って無視されるので
+	// (サービス層の仕様)残りだけが消える。
 	const bulkDelete = useMutation({
-		mutationFn: () => deleteDrunkWines({ data: { ids: [...selected] } }),
+		mutationFn: async () => {
+			const ids = [...selected];
+			for (let i = 0; i < ids.length; i += BULK_DELETE_MAX) {
+				await deleteDrunkWines({
+					data: { ids: ids.slice(i, i + BULK_DELETE_MAX) },
+				});
+			}
+		},
 		onSuccess: () => {
 			setConfirmOpen(false);
 			setSelectMode(false);

@@ -66,6 +66,30 @@ async function wineRow(id: string) {
 	return row;
 }
 
+/**
+ * まとめ削除の件数境界(#400)用に、最小列だけの銘柄をまとめて作る。サービス層を
+ * 通すと1件ごとに複数文を投げるので、境界の100件超では遅すぎる。
+ * 種まき側の INSERT も同じ D1 のバインド変数上限に縛られるため小分けにする
+ * (drizzle が既定値も束縛するので1行6個 → 15行で90個)。
+ */
+async function seedEntries(userId: string, count: number): Promise<string[]> {
+	const ids = Array.from({ length: count }, (_, i) => `${userId}-bulk-${i}`);
+	for (let i = 0; i < ids.length; i += 15) {
+		await db
+			.insert(drunkWine)
+			.values(ids.slice(i, i + 15).map((id) => ({ id, userId, name: id })));
+	}
+	return ids;
+}
+
+async function countEntries(userId: string): Promise<number> {
+	const rows = await db
+		.select({ id: drunkWine.id })
+		.from(drunkWine)
+		.where(eq(drunkWine.userId, userId));
+	return rows.length;
+}
+
 async function tastingRows(drunkWineId: string) {
 	return db
 		.select()
@@ -424,6 +448,51 @@ describe("deleteDrunkWines", () => {
 		const result = await deleteDrunkWines(userId, []);
 		expect(result.deletedCount).toBe(0);
 		expect(await wineRow(entry.id)).toBeDefined();
+	});
+
+	// Issue #400: 「すべて選択」は読み込み済みの全件を選ぶので、100件を超える選択も
+	// 100件ちょうども実際に起きる。後者は id 100個 + userId で 101 バインド変数となり、
+	// 分割しないと D1 の「1クエリ100個」上限でクエリ自体が失敗する。
+	describe("大量の id(#400)", () => {
+		it("100件ちょうどでも D1 のバインド変数上限に触れず全件消える", async () => {
+			const userId = await freshUser();
+			const ids = await seedEntries(userId, 100);
+
+			const result = await deleteDrunkWines(userId, ids);
+
+			expect(result.deletedCount).toBe(100);
+			expect(await countEntries(userId)).toBe(0);
+		});
+
+		it("101件・120件のように1文に収まらない選択でも分割して全件消える", async () => {
+			for (const n of [101, 120]) {
+				const userId = await freshUser();
+				const ids = await seedEntries(userId, n);
+
+				const result = await deleteDrunkWines(userId, ids);
+
+				expect(result.deletedCount).toBe(n);
+				expect(await countEntries(userId)).toBe(0);
+			}
+		});
+
+		it("分割をまたいでも他ユーザのエントリには触れない", async () => {
+			const owner = await freshUser();
+			const other = await freshUser();
+			const mine = await seedEntries(owner, 110);
+			const theirs = await seedEntries(other, 10);
+
+			// 自分の110件の途中に他人のidを混ぜる(チャンク境界の内側と外側の両方)
+			const result = await deleteDrunkWines(owner, [
+				...mine.slice(0, 40),
+				...theirs,
+				...mine.slice(40),
+			]);
+
+			expect(result.deletedCount).toBe(110);
+			expect(await countEntries(owner)).toBe(0);
+			expect(await countEntries(other)).toBe(10);
+		});
 	});
 });
 

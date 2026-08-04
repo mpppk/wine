@@ -33,6 +33,28 @@ export const NAME_MAX = 200;
 export const MEMO_MAX = 2000;
 export const PRODUCER_MAX = 200;
 
+/** エントリID(crypto.randomUUID)。長さだけの緩い検証で、存在確認はサービス層。 */
+export const entryIdSchema = z.string().min(1).max(80);
+
+/**
+ * まとめ削除の1リクエストあたりの上限(#400)。
+ *
+ * 一覧の「すべて選択」は読み込み済みの全件を選ぶので、選択数はページサイズでは
+ * 頭打ちにならない。上限をページサイズ(100)に合わせていた頃は、100件を超える
+ * 選択が zod で拒否され、生の検証メッセージが画面に出ていた。
+ *
+ * ここは「1リクエストの大きさ」の歯止めであって選択数の上限ではない。**これを
+ * 超える選択はクライアントがこの単位に分割して送る**(cellar.index.tsx)。
+ * サーバ側は受け取った id をさらに小さく割って D1 に投げる(サービス層の
+ * ID_CHUNK_SIZE)ので、この値をバインド変数上限に合わせる必要はない。
+ */
+export const BULK_DELETE_MAX = 500;
+
+/** 一覧のチェックボックス選択からのまとめ削除。 */
+export const deleteDrunkWinesInput = z.object({
+	ids: z.array(entryIdSchema).min(1).max(BULK_DELETE_MAX),
+});
+
 /** 銘柄(ボトル)の属性。飲用ごとに変わらないものだけを置く */
 export const drunkWineFields = {
 	name: z.string().trim().min(1).max(NAME_MAX),
