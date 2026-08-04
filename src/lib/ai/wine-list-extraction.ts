@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
 import type { WineStatus } from "#/lib/drunk-wine/status";
+import { getAop } from "#/lib/wine/service";
 import { AI_WINE_LIST_MAX_WINES } from "./config";
 import {
 	buildKnownListsSection,
@@ -10,6 +11,7 @@ import {
 	type LabelExtraction,
 	type LabelSuggestions,
 	labelExtractionShape,
+	matchAop,
 	normalizeLabelText,
 	parseImageDataUrl,
 	toLabelExtraction,
@@ -271,13 +273,125 @@ export function wineIdentityKey(wine: {
 	return `${label}|${wine.vintage ?? ""}`;
 }
 
+/**
+ * 呼称名を取り除いた「銘柄を区別する部分」。`Barolo "Bussia"` と `"Bussia"` を
+ * 同じ `bussia` に、`Gevrey-Chambertin Vieilles Vignes` と `Vieilles Vignes` を
+ * 同じ `vieilles vignes` に畳む。名前が読めず呼称の日本語名で補われた回
+ * (`モンテ・ド・トネル`)は空文字になり、原語表記の回と一致する。
+ *
+ * AOPの正式名・短縮名・日本語名のいずれも落とす(モデルがどの表記を書くかは
+ * 一定しない)。
+ */
+function distinctiveNamePart(
+	name: string | null | undefined,
+	aopId: string | null | undefined,
+): string {
+	const base = normalizeLabelText(name ?? "");
+	const aop = aopId ? getAop(aopId) : undefined;
+	if (!base || !aop) return base;
+	let out = base;
+	for (const alias of [aop.name, aop.shortName, aop.nameJa]) {
+		const normalized = normalizeLabelText(alias);
+		if (normalized) out = out.split(normalized).join(" ");
+	}
+	return out.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * 同一銘柄の判定に使う2段のキー(#435)。
+ *
+ * `strict` は従来どおり「生産者 + ワイン名 + ヴィンテージ」。**モデルが
+ * 「ワイン名」と「呼称」をどう切り分けるかは実行ごとに変わる**ので、これだけでは
+ * 同じ写真を解析し直しただけで別銘柄になる(実測で7銘柄中0〜6件しか一致しなかった)。
+ *
+ * `loose` は「生産者 + 解決済みAOP + 呼称名を除いた名前 + ヴィンテージ」。切り分けが
+ * 変わっても**AOPの解決結果は変わらない**(`matchAop` は呼称とワイン名の両方を見る)
+ * ため、揺れを吸収できる。
+ *
+ * 緩める方向なので、取り違えないよう2つの歯止めを置く:
+ *  - AOPが解決できない銘柄には loose キーを作らない(空文字)
+ *  - 生産者も「呼称を除いた名前」も空なら作らない。「生産者不明・キュヴェ名なしの
+ *    バローロ2018」同士が別生産者でも一致してしまうため
+ *
+ * 同じAOP・同じ生産者・同じ年でもキュヴェが違えば `distinctiveNamePart` が違うので
+ * 分かれる(例: `Gevrey-Chambertin Vieilles Vignes` と素の `Gevrey-Chambertin`)。
+ *
+ * **これでも畳めない揺れが残る**: 一方が畑名まで原語で書かれ(`Chablis 1er Cru
+ * Montée de Tonnerre`)、もう一方は名前が読めずAOPの日本語名で補われた
+ * (`モンテ・ド・トネル`)場合、呼称名を除いた残りが原語と日本語で食い違う。
+ * ここを畳むには「残りが空なら生産者+AOP+年だけで一致とみなす」まで緩める必要が
+ * あるが、それだと同じ村の別キュヴェを取り違えて**別のワインに目撃記録が付く**。
+ * 分かれて重複が出るほうがレビュー画面で気付けるので、緩めない側に倒す。
+ */
+export interface WineIdentityKeys {
+	strict: string;
+	loose: string;
+}
+
+export function wineIdentityKeys(wine: {
+	name?: string | null;
+	producer?: string | null;
+	vintage?: number | null;
+	aopId?: string | null;
+}): WineIdentityKeys {
+	const strict = wineIdentityKey(wine);
+	const producer = normalizeLabelText(wine.producer ?? "");
+	const distinctive = distinctiveNamePart(wine.name, wine.aopId);
+	const loose =
+		wine.aopId && (producer || distinctive)
+			? `${producer}|${wine.aopId}|${distinctive}|${wine.vintage ?? ""}`
+			: "";
+	return { strict, loose };
+}
+
+/**
+ * 抽出結果(サジェスト前)のAOP。**`buildLabelSuggestions` と違い「地図に出せる地域か」
+ * では絞らない**——同一性の判定に要るのは解決の安定性だけで、表示可否は関係ない。
+ * バッチ内の統合はこの関数の結果だけで一貫するので、突合側(解決済み `aopId` を使う)
+ * と規則が違っても矛盾は生まれない。
+ */
+function itemAopId(item: WineListItem): string | undefined {
+	const texts = [item.appellation, item.wineName].filter(
+		(t): t is string => !!t,
+	);
+	return texts.length > 0 ? matchAop(texts)?.id : undefined;
+}
+
 /** 抽出結果からキーを作る(wineName がフォーム上の name に対応する)。 */
-function itemIdentityKey(item: WineListItem): string {
-	return wineIdentityKey({
+function itemIdentityKeys(item: WineListItem): WineIdentityKeys {
+	return wineIdentityKeys({
 		name: item.wineName,
 		producer: item.producer,
 		vintage: item.vintage,
+		aopId: itemAopId(item),
 	});
+}
+
+/**
+ * 2段のキーで既出のものを引く。**strict を先に見る**(厳密一致のほうが取り違えが
+ * 少ない)。見つからなければ loose で引く。
+ */
+function lookupByKeys<T>(
+	keys: WineIdentityKeys,
+	strictMap: Map<string, T>,
+	looseMap: Map<string, T>,
+): T | undefined {
+	const strictHit = keys.strict ? strictMap.get(keys.strict) : undefined;
+	if (strictHit) return strictHit;
+	return keys.loose ? looseMap.get(keys.loose) : undefined;
+}
+
+/** 2段のキーを両方登録する(既に入っているキーは先勝ちで上書きしない)。 */
+function registerKeys<T>(
+	keys: WineIdentityKeys,
+	value: T,
+	strictMap: Map<string, T>,
+	looseMap: Map<string, T>,
+): void {
+	if (keys.strict && !strictMap.has(keys.strict)) {
+		strictMap.set(keys.strict, value);
+	}
+	if (keys.loose && !looseMap.has(keys.loose)) looseMap.set(keys.loose, value);
 }
 
 export interface DedupeResult {
@@ -295,18 +409,19 @@ export interface DedupeResult {
  * (mergeExtractions と同じ流儀)。品種は和集合。
  */
 export function dedupeWineListItems(items: WineListItem[]): DedupeResult {
-	const byKey = new Map<string, WineListItem>();
+	const byStrict = new Map<string, WineListItem>();
+	const byLoose = new Map<string, WineListItem>();
 	const out: WineListItem[] = [];
 	for (const item of items) {
-		const key = itemIdentityKey(item);
-		const existing = key ? byKey.get(key) : undefined;
+		const keys = itemIdentityKeys(item);
+		const existing = lookupByKeys(keys, byStrict, byLoose);
 		if (!existing) {
 			const copy: WineListItem = {
 				...item,
 				grapeVarieties: [...item.grapeVarieties],
 				photoIndexes: [...item.photoIndexes],
 			};
-			if (key) byKey.set(key, copy);
+			registerKeys(keys, copy, byStrict, byLoose);
 			out.push(copy);
 			continue;
 		}
@@ -334,6 +449,8 @@ export interface ExistingWineIdentity {
 	name: string;
 	producer?: string | null;
 	vintage?: number | null;
+	/** 保存済みの呼称ID。**loose キー(#435)の材料**で、無い行は strict だけで突き合わせる。 */
+	aopId?: string | null;
 	status: WineStatus;
 }
 
@@ -373,7 +490,7 @@ export function buildWineListCandidates(
 
 /**
  * 候補を既存セラーと突合し、一致したものに existing を付ける(distinct の第2段)。
- * キーは wineIdentityKey で第1段と共有する。
+ * キーは wineIdentityKeys で第1段(バッチ内の統合)と共有する。
  *
  * 比較対象は **buildLabelSuggestions 後の値**にする。名前が読めなかった銘柄は
  * 呼称の日本語名で補われるため、補完前の生の抽出値で突き合わせると「保存したら
@@ -386,19 +503,19 @@ export function matchExistingEntries(
 	candidates: WineListCandidate[],
 	entries: readonly ExistingWineIdentity[],
 ): WineListCandidate[] {
-	const byKey = new Map<string, ExistingWineIdentity>();
+	const byStrict = new Map<string, ExistingWineIdentity>();
+	const byLoose = new Map<string, ExistingWineIdentity>();
 	for (const entry of entries) {
-		const key = wineIdentityKey(entry);
-		if (!key || byKey.has(key)) continue;
-		byKey.set(key, entry);
+		registerKeys(wineIdentityKeys(entry), entry, byStrict, byLoose);
 	}
 	return candidates.map((candidate) => {
-		const key = wineIdentityKey({
+		const keys = wineIdentityKeys({
 			name: candidate.suggestions.name,
 			producer: candidate.suggestions.producer,
 			vintage: candidate.suggestions.vintage,
+			aopId: candidate.suggestions.aopId,
 		});
-		const hit = key ? byKey.get(key) : undefined;
+		const hit = lookupByKeys(keys, byStrict, byLoose);
 		if (!hit) return candidate;
 		return {
 			...candidate,
