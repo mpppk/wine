@@ -55,6 +55,16 @@ import type { RegionId } from "#/lib/wine/types";
 // (Issue #195)。唯一の例外は「飲んだ」操作(markWineDrunk)で、飲用記録の追加と
 // status='finished' を1操作としてここに閉じている。
 
+/**
+ * `inArray(...)` に積む id の1文あたりの上限。**件数が実行時に決まる経路は
+ * すべてこの単位で分割する**(まとめ削除 #400 / 集計の一括再計算 #363)。
+ *
+ * D1 は1クエリのバインド変数を100個に制限しており、超えると
+ * `too many SQL variables` でクエリごと失敗する。id に加えて所有権の userId も
+ * 束縛するため「100件ちょうど」でも既に超える。余裕を見て 50 で割る。
+ */
+const ID_CHUNK_SIZE = 50;
+
 export interface DrunkWineEntry {
 	id: string;
 	name: string;
@@ -973,16 +983,39 @@ export async function deleteDrunkWine(
  * D1書き込みは `drunk_wine` 1テーブルへの delete のみで、`wine_tasting` /
  * `wine_sighting` は ON DELETE CASCADE(schema.ts)で連動して消える。写真は
  * エントリ横断でまとめて1回(チャンク分割込み)のR2一括削除にする。
+ *
+ * **id は ID_CHUNK_SIZE 件ずつの delete に割り、1つの db.batch にまとめて積む**
+ * (Issue #400)。一覧の「すべて選択」は読み込み済みの全件を選ぶので、1文に
+ * 収まらない件数が実際に来る。分割しないと D1 のバインド変数上限
+ * (1クエリ100個。id 100個 + 所有権の userId で既に超える)でクエリごと失敗した。
+ * db.batch は1トランザクションなので、分割しても「全部消えるか何も消えないか」は
+ * 変わらない。
  */
 export async function deleteDrunkWines(
 	userId: string,
 	ids: string[],
 ): Promise<{ deletedCount: number }> {
-	if (ids.length === 0) return { deletedCount: 0 };
-	const rows = await db
-		.delete(drunkWine)
-		.where(and(inArray(drunkWine.id, ids), eq(drunkWine.userId, userId)))
-		.returning({ photoKeys: drunkWine.photoKeys });
+	// 重複は1文の中では潰れるが、チャンクをまたぐと2回目の delete が0件になるだけで
+	// 実害は無い。とはいえ上限判定と分割数が無駄に増えるので先に畳んでおく。
+	const uniqueIds = [...new Set(ids)];
+	if (uniqueIds.length === 0) return { deletedCount: 0 };
+	const statements: BatchStatement[] = [];
+	for (let i = 0; i < uniqueIds.length; i += ID_CHUNK_SIZE) {
+		statements.push(
+			db
+				.delete(drunkWine)
+				.where(
+					and(
+						inArray(drunkWine.id, uniqueIds.slice(i, i + ID_CHUNK_SIZE)),
+						eq(drunkWine.userId, userId),
+					),
+				)
+				.returning({ photoKeys: drunkWine.photoKeys }),
+		);
+	}
+	const rows = (
+		await db.batch(statements as [BatchStatement, ...BatchStatement[]])
+	).flat() as { photoKeys: string[] }[];
 	const keys = rows.flatMap((row) =>
 		row.photoKeys.length > 0
 			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
@@ -1392,25 +1425,23 @@ export interface BulkRegisterFromScanResult {
 }
 
 /**
- * 集計キャッシュの一括再計算。**1文で全対象を更新する**が、id を分割して積むのは
- * D1 の「1クエリあたりのバインド変数」上限に触れないため(1回の一括登録は最大
- * MAX_ITEMS_PER_IMPORT 件 = 80件になりうる)。式は単体経路と同じものを使う。
- */
-const RECOMPUTE_CHUNK_SIZE = 50;
-
-/**
  * db.batch に積める文の型。db.batch は「1件以上」をタプルで要求するので、
  * 件数が実行時に決まるこの経路では配列で組み立ててから最後にタプルへ寄せる。
  */
 type BatchStatement = Parameters<typeof db.batch>[0][number];
 
+/**
+ * 集計キャッシュの一括再計算。**1文で全対象を更新する**が、id を ID_CHUNK_SIZE で
+ * 分割して積むのは D1 のバインド変数上限に触れないため(1回の一括登録は最大
+ * MAX_ITEMS_PER_IMPORT 件 = 80件になりうる)。式は単体経路と同じものを使う。
+ */
 function recomputeDrunkWineAggregatesBulk(
 	userId: string,
 	ids: string[],
 ): BatchStatement[] {
 	const statements: BatchStatement[] = [];
-	for (let i = 0; i < ids.length; i += RECOMPUTE_CHUNK_SIZE) {
-		const chunk = ids.slice(i, i + RECOMPUTE_CHUNK_SIZE);
+	for (let i = 0; i < ids.length; i += ID_CHUNK_SIZE) {
+		const chunk = ids.slice(i, i + ID_CHUNK_SIZE);
 		statements.push(
 			db
 				.update(drunkWine)

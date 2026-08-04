@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	BULK_DELETE_MAX,
 	createDrunkWineInput,
 	createWineTastingInput,
+	deleteDrunkWinesInput,
 	updateDrunkWineInput,
 	updateWineTastingInput,
 } from "./schema";
@@ -140,5 +142,33 @@ describe("updateWineTastingInput", () => {
 		expect(parsed.drankOn).toBeNull();
 		expect(parsed.rating).toBeNull();
 		expect(parsed.memo).toBeNull();
+	});
+});
+
+describe("deleteDrunkWinesInput", () => {
+	const ids = (n: number) => Array.from({ length: n }, (_, i) => `id-${i}`);
+
+	// #400: 上限を一覧のページサイズ(100)に合わせていた頃は、120件を「すべて選択」
+	// した削除が zod で拒否され、生の検証メッセージが画面に出ていた。
+	it("ページサイズを超える選択(101件・120件)も受け付ける", () => {
+		expect(deleteDrunkWinesInput.parse({ ids: ids(101) }).ids).toHaveLength(
+			101,
+		);
+		expect(deleteDrunkWinesInput.parse({ ids: ids(120) }).ids).toHaveLength(
+			120,
+		);
+	});
+
+	it("1リクエストの上限ちょうどは通り、超えると拒否する(分割は呼び出し側の責務)", () => {
+		expect(
+			deleteDrunkWinesInput.parse({ ids: ids(BULK_DELETE_MAX) }).ids,
+		).toHaveLength(BULK_DELETE_MAX);
+		expect(() =>
+			deleteDrunkWinesInput.parse({ ids: ids(BULK_DELETE_MAX + 1) }),
+		).toThrow();
+	});
+
+	it("空配列は拒否する(削除対象が無い呼び出しは呼び出し側のミス)", () => {
+		expect(() => deleteDrunkWinesInput.parse({ ids: [] })).toThrow();
 	});
 });

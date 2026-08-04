@@ -4,7 +4,9 @@ import { CELLAR_FILTER_IDS } from "#/lib/drunk-wine/filter";
 import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import {
 	createDrunkWineInput,
+	deleteDrunkWinesInput,
 	drunkWineFields,
+	entryIdSchema,
 	updateDrunkWineInput,
 	updateWineTastingInput,
 	wineTastingFields,
@@ -20,7 +22,7 @@ import { authMiddleware } from "./middleware";
 // 写真アップロードはバイナリを扱うため server fn ではなく
 // /api/wine-photos (FormData) で行う。
 
-const entryId = z.string().min(1).max(80);
+const entryId = entryIdSchema;
 
 export const createDrunkWine = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
@@ -43,15 +45,11 @@ export const deleteDrunkWine = createServerFn({ method: "POST" })
 		drunkWineService.deleteDrunkWine(context.user.id, data.id),
 	);
 
-// 一覧のチェックボックス選択からのまとめ削除(Issue #363 案B)。上限は一覧の
-// 1回の取得上限(DRUNK_WINE_MAX_PAGE_SIZE)に合わせる(それ以上選ばせるUIが無い)。
+// 一覧のチェックボックス選択からのまとめ削除(Issue #363 案B)。上限(BULK_DELETE_MAX)は
+// 1リクエストの大きさの歯止めで、これを超える選択はクライアントが分割して送る(#400)。
 export const deleteDrunkWines = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
-	.inputValidator(
-		z.object({
-			ids: z.array(entryId).min(1).max(DRUNK_WINE_MAX_PAGE_SIZE),
-		}),
-	)
+	.inputValidator(deleteDrunkWinesInput)
 	.handler(({ data, context }) =>
 		drunkWineService.deleteDrunkWines(context.user.id, data.ids),
 	);
