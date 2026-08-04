@@ -7,7 +7,6 @@ import {
 } from "@tanstack/react-router";
 import {
 	HistoryIcon,
-	ImagesIcon,
 	ListChecksIcon,
 	MapIcon,
 	PlusIcon,
@@ -47,7 +46,6 @@ import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { provenanceNameJa } from "#/lib/wine/provenance";
-import { getWineListAnalysisAvailability } from "#/server/ai";
 import {
 	countCellarFilters,
 	deleteDrunkWines,
@@ -79,9 +77,7 @@ export const Route = createFileRoute("/cellar/")({
 	// 件数は集計クエリで別に取る(#254)。
 	loaderDeps: ({ search }) => ({ filter: search.filter, place: search.place }),
 	loader: async ({ deps }) => {
-		// 一括登録は Claude 専用の経路で、キーが無い環境では使えない。導線ごと
-		// 隠すため、判定を一覧のロードで一緒に取る(サーバ側の 503 と同じ判定)。
-		const [page, counts, wineListAnalysis, places] = await Promise.all([
+		const [page, counts, places] = await Promise.all([
 			listDrunkWines({
 				data: {
 					filter: deps.filter,
@@ -91,10 +87,9 @@ export const Route = createFileRoute("/cellar/")({
 			}),
 			// チップの件数も場所で絞った母集合で数える(数字と一覧の食い違いを防ぐ)
 			countCellarFilters({ data: deps.place ? { placeId: deps.place } : {} }),
-			getWineListAnalysisAvailability(),
 			listPlaces(),
 		]);
-		return { page, counts, wineListAnalysis, places };
+		return { page, counts, places };
 	},
 	component: CellarPage,
 });
@@ -212,7 +207,7 @@ function EntryCard({
 }
 
 function CellarPage() {
-	const { page, counts, wineListAnalysis, places } = Route.useLoaderData();
+	const { page, counts, places } = Route.useLoaderData();
 	const { filter, place } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const router = useRouter();
@@ -311,18 +306,14 @@ function CellarPage() {
 							地図で見る
 						</Link>
 					</Button>
-					{wineListAnalysis.available && (
-						<Button asChild variant="outline" size="sm">
-							<Link to="/cellar/import">
-								<ImagesIcon className="size-4" aria-hidden />
-								写真からまとめて登録
-							</Link>
-						</Button>
-					)}
+					{/*
+					  「写真からまとめて登録」は「追加」(/cellar/new)に統合済み。写真から
+					  始める流れがそちらの既定になったので、別導線は置かない。
+					*/}
 					<Button asChild variant="outline" size="sm">
 						<Link to="/cellar/import/history">
 							<HistoryIcon className="size-4" aria-hidden />
-							一括登録の履歴
+							登録履歴
 						</Link>
 					</Button>
 					<Button asChild size="sm">
