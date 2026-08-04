@@ -32,8 +32,8 @@ import { TastingFields } from "#/components/cellar/TastingFields";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
+import { FormField, FormSection } from "#/components/ui/form-section";
 import { Input } from "#/components/ui/input";
-import { Label } from "#/components/ui/label";
 import { LiveRegion } from "#/components/ui/live-region";
 import { TAP_TARGET_44 } from "#/lib/a11y";
 import { estimateLabelReserveCharge } from "#/lib/ai/config";
@@ -424,131 +424,132 @@ export function DrunkWineForm({
 	// 写真UIはWeb版だけの機能(追加・削除・並べ替えは認証必須の /api/wine-photos を
 	// 叩く)。共有の入力項目には slot として差し込む。
 	const photoSection = (
-		<div className="flex flex-col gap-3">
-			<Label htmlFor="wine-photo">写真</Label>
-
-			{photos.length > 0 && (
-				<ul className="flex flex-wrap gap-3">
-					{photos.map((p, index) => (
-						<li
-							key={p.localId}
-							className="relative h-24 w-24 rounded-md border border-border"
-						>
-							<img
-								src={photoThumbSrc(p)}
-								alt={index === 0 ? "代表写真" : `写真${index + 1}`}
-								className="h-full w-full rounded-md object-cover"
-								loading="lazy"
-								decoding="async"
-								width={96}
-								height={96}
-							/>
-							{index === 0 && (
-								<span className="absolute left-1 top-1 rounded bg-foreground/80 px-1 py-0.5 text-[10px] font-medium leading-none text-background">
-									代表
-								</span>
-							)}
-							{/*
+		<FormField label="写真" htmlFor="wine-photo">
+			{/* 見出し直下は説明ではなく中身が続くので、要素同士の間隔だけここで持つ */}
+			<div className="flex flex-col gap-3">
+				{photos.length > 0 && (
+					<ul className="flex flex-wrap gap-3">
+						{photos.map((p, index) => (
+							<li
+								key={p.localId}
+								className="relative h-24 w-24 rounded-md border border-border"
+							>
+								<img
+									src={photoThumbSrc(p)}
+									alt={index === 0 ? "代表写真" : `写真${index + 1}`}
+									className="h-full w-full rounded-md object-cover"
+									loading="lazy"
+									decoding="async"
+									width={96}
+									height={96}
+								/>
+								{index === 0 && (
+									<span className="absolute left-1 top-1 rounded bg-foreground/80 px-1 py-0.5 text-[10px] font-medium leading-none text-background">
+										代表
+									</span>
+								)}
+								{/*
 							  当たり判定は TAP_TARGET_44 で44px確保する(#239)。削除は確認なしで
 							  即実行されるため、並べ替えとは対角(右上 / 左下・右下)に置いて
 							  中心を64px離し、44pxの判定が重ならないようにしている。
 							*/}
-							<button
-								type="button"
-								aria-label={`写真${index + 1}を削除`}
-								onClick={() => removePhoto(p.localId)}
-								className={cn(
-									"absolute right-1 top-1 rounded-full bg-foreground/70 p-1 text-background transition-colors hover:bg-foreground",
-									TAP_TARGET_44,
-								)}
-							>
-								<XIcon className="size-4" aria-hidden />
-							</button>
-							<div className="absolute inset-x-1 bottom-1 flex justify-between">
 								<button
 									type="button"
-									aria-label={`写真${index + 1}を前へ`}
-									disabled={index === 0}
-									onClick={() => movePhoto(p.localId, -1)}
+									aria-label={`写真${index + 1}を削除`}
+									onClick={() => removePhoto(p.localId)}
 									className={cn(
-										"relative rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
+										"absolute right-1 top-1 rounded-full bg-foreground/70 p-1 text-background transition-colors hover:bg-foreground",
 										TAP_TARGET_44,
 									)}
 								>
-									<ArrowLeftIcon className="size-4" aria-hidden />
+									<XIcon className="size-4" aria-hidden />
 								</button>
-								<button
-									type="button"
-									aria-label={`写真${index + 1}を後ろへ`}
-									disabled={index === photos.length - 1}
-									onClick={() => movePhoto(p.localId, 1)}
-									className={cn(
-										"relative rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
-										TAP_TARGET_44,
-									)}
-								>
-									<ArrowRightIcon className="size-4" aria-hidden />
-								</button>
-							</div>
-						</li>
-					))}
-				</ul>
-			)}
+								<div className="absolute inset-x-1 bottom-1 flex justify-between">
+									<button
+										type="button"
+										aria-label={`写真${index + 1}を前へ`}
+										disabled={index === 0}
+										onClick={() => movePhoto(p.localId, -1)}
+										className={cn(
+											"relative rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
+											TAP_TARGET_44,
+										)}
+									>
+										<ArrowLeftIcon className="size-4" aria-hidden />
+									</button>
+									<button
+										type="button"
+										aria-label={`写真${index + 1}を後ろへ`}
+										disabled={index === photos.length - 1}
+										onClick={() => movePhoto(p.localId, 1)}
+										className={cn(
+											"relative rounded bg-background/80 p-1 text-foreground transition-opacity hover:bg-background disabled:opacity-30",
+											TAP_TARGET_44,
+										)}
+									>
+										<ArrowRightIcon className="size-4" aria-hidden />
+									</button>
+								</div>
+							</li>
+						))}
+					</ul>
+				)}
 
-			<div className="flex flex-col gap-2">
-				<Input
-					id="wine-photo"
-					ref={fileInputRef}
-					type="file"
-					accept={PHOTO_ACCEPT_ATTR}
-					multiple
-					onChange={handleFileChange}
-					disabled={photos.length >= MAX_PHOTOS_PER_ENTRY}
-					className="max-w-xs"
-				/>
-				<p className="text-xs text-muted-foreground">
-					{PHOTO_FORMATS_LABEL_JA}、各{MAX_PHOTO_SIZE_LABEL}まで。最大
-					{MAX_PHOTOS_PER_ENTRY}
-					枚(1枚目が代表・矢印で並べ替え)
-				</p>
-				{photos.length > 0 && (
-					<div className="flex flex-col gap-1">
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="self-start"
-							disabled={isAnalyzing}
-							onClick={() => {
-								setError("");
-								setAnalyzeNotice("");
-								analyzeLabel({ auto: false });
-							}}
-						>
-							<SparklesIcon className="size-4" aria-hidden />
-							{isAnalyzing ? "解析中..." : "エチケットから自動入力"}
-						</Button>
-						<p className="text-xs text-muted-foreground">
-							AIが全ての写真を総合して読み取り、現在の入力と違う項目を反映するか選べます
-							{requiredCredits === null
-								? "(AIクレジットを消費)"
-								: `(約${requiredCredits.toLocaleString("ja-JP")}クレジットを消費)`}
-						</p>
-						{insufficientCredits && (
-							<p className="text-xs text-destructive">
-								クレジットが不足しています(残高
-								{balance?.toLocaleString("ja-JP")}
-								)。プロフィールで解析エンジンを 「標準(Workers
-								AI)」に変えると消費を抑えられます。
+				<div className="flex flex-col gap-2">
+					<Input
+						id="wine-photo"
+						ref={fileInputRef}
+						type="file"
+						accept={PHOTO_ACCEPT_ATTR}
+						multiple
+						onChange={handleFileChange}
+						disabled={photos.length >= MAX_PHOTOS_PER_ENTRY}
+						className="max-w-xs"
+					/>
+					<p className="text-xs text-muted-foreground">
+						{PHOTO_FORMATS_LABEL_JA}、各{MAX_PHOTO_SIZE_LABEL}まで。最大
+						{MAX_PHOTOS_PER_ENTRY}
+						枚(1枚目が代表・矢印で並べ替え)
+					</p>
+					{photos.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="self-start"
+								disabled={isAnalyzing}
+								onClick={() => {
+									setError("");
+									setAnalyzeNotice("");
+									analyzeLabel({ auto: false });
+								}}
+							>
+								<SparklesIcon className="size-4" aria-hidden />
+								{isAnalyzing ? "解析中..." : "エチケットから自動入力"}
+							</Button>
+							<p className="text-xs text-muted-foreground">
+								AIが全ての写真を総合して読み取り、現在の入力と違う項目を反映するか選べます
+								{requiredCredits === null
+									? "(AIクレジットを消費)"
+									: `(約${requiredCredits.toLocaleString("ja-JP")}クレジットを消費)`}
 							</p>
-						)}
-					</div>
-				)}
-				{analyzeNotice && (
-					<p className="text-xs text-muted-foreground">{analyzeNotice}</p>
-				)}
+							{insufficientCredits && (
+								<p className="text-xs text-destructive">
+									クレジットが不足しています(残高
+									{balance?.toLocaleString("ja-JP")}
+									)。プロフィールで解析エンジンを 「標準(Workers
+									AI)」に変えると消費を抑えられます。
+								</p>
+							)}
+						</div>
+					)}
+					{analyzeNotice && (
+						<p className="text-xs text-muted-foreground">{analyzeNotice}</p>
+					)}
+				</div>
 			</div>
-		</div>
+		</FormField>
 	);
 
 	return (
@@ -566,13 +567,10 @@ export function DrunkWineForm({
 				photoSlot={photoSection}
 				tastingSlot={
 					tastingSlot ?? (
-						<fieldset className="flex flex-col gap-4">
-							<Label asChild>
-								<legend>飲んだ記録(任意)</legend>
-							</Label>
-							<p className="-mt-2 text-xs text-muted-foreground">
-								飲んだ日や感想を入れると、飲用記録として保存されます。まだ飲んでいない場合は空のままで構いません。
-							</p>
+						<FormSection
+							title="飲んだ記録(任意)"
+							description="飲んだ日や感想を入れると、飲用記録として保存されます。まだ飲んでいない場合は空のままで構いません。"
+						>
 							<TastingFields
 								value={tastingDraft}
 								onChange={(patch) =>
@@ -580,7 +578,7 @@ export function DrunkWineForm({
 								}
 								idPrefix="wine-tasting"
 							/>
-						</fieldset>
+						</FormSection>
 					)
 				}
 			/>

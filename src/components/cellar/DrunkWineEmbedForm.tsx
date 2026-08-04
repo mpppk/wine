@@ -10,7 +10,7 @@ import {
 } from "#/components/cellar/drunk-wine-payload";
 import { TastingFields } from "#/components/cellar/TastingFields";
 import { Button } from "#/components/ui/button";
-import { Label } from "#/components/ui/label";
+import { FormSection } from "#/components/ui/form-section";
 import type { DrunkWinePatch } from "#/lib/drunk-wine/fields";
 import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
 import type { ReceivedDrunkWineEntry } from "#/lib/mcp-app/entry";
@@ -135,10 +135,7 @@ export function DrunkWineEmbedForm({
 				value={values}
 				onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
 				tastingSlot={
-					<fieldset className="flex flex-col gap-4">
-						<Label asChild>
-							<legend>最新の飲んだ記録</legend>
-						</Label>
+					<FormSection title="最新の飲んだ記録">
 						<TastingFields
 							value={tastingDraft}
 							onChange={(patch) =>
@@ -147,7 +144,7 @@ export function DrunkWineEmbedForm({
 							idPrefix="embed-tasting"
 							disabled={saving}
 						/>
-					</fieldset>
+					</FormSection>
 				}
 			/>
 
