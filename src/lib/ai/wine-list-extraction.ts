@@ -274,10 +274,19 @@ export function wineIdentityKey(wine: {
 }
 
 /**
+ * 級付けの綴りの揺れを畳む。ワインリストは `1er Cru` と書き、マスタは
+ * `Premier Cru` を持つ——**呼称名の除去は文字列一致でやる**ので、ここを揃えないと
+ * `Chablis 1er Cru Montée de Tonnerre` から呼称部分が落ちない(実測で残った不一致)。
+ */
+function canonicalizeCruWords(normalized: string): string {
+	return normalized.replace(/\b1er\b/g, "premier");
+}
+
+/**
  * 呼称名を取り除いた「銘柄を区別する部分」。`Barolo "Bussia"` と `"Bussia"` を
  * 同じ `bussia` に、`Gevrey-Chambertin Vieilles Vignes` と `Vieilles Vignes` を
  * 同じ `vieilles vignes` に畳む。名前が読めず呼称の日本語名で補われた回
- * (`モンテ・ド・トネル`)は空文字になり、原語表記の回と一致する。
+ * (`シャブリ・プルミエ・クリュ`)は空文字になり、原語表記の回と一致する。
  *
  * AOPの正式名・短縮名・日本語名のいずれも落とす(モデルがどの表記を書くかは
  * 一定しない)。
@@ -286,12 +295,12 @@ function distinctiveNamePart(
 	name: string | null | undefined,
 	aopId: string | null | undefined,
 ): string {
-	const base = normalizeLabelText(name ?? "");
+	const base = canonicalizeCruWords(normalizeLabelText(name ?? ""));
 	const aop = aopId ? getAop(aopId) : undefined;
 	if (!base || !aop) return base;
 	let out = base;
 	for (const alias of [aop.name, aop.shortName, aop.nameJa]) {
-		const normalized = normalizeLabelText(alias);
+		const normalized = canonicalizeCruWords(normalizeLabelText(alias));
 		if (normalized) out = out.split(normalized).join(" ");
 	}
 	return out.trim().replace(/\s+/g, " ");
@@ -312,6 +321,10 @@ function distinctiveNamePart(
  *  - AOPが解決できない銘柄には loose キーを作らない(空文字)
  *  - 生産者も「呼称を除いた名前」も空なら作らない。「生産者不明・キュヴェ名なしの
  *    バローロ2018」同士が別生産者でも一致してしまうため
+ *
+ * **生産者名がワイン名と同じ場合はキーから落とす**。ボルドーのシャトー物は
+ * 生産者＝銘柄名で、モデルが producer を埋める回と空にする回が交互に出る
+ * (`Château Gloria`)。名前側が同じなら生産者の有無で分かれる意味が無い。
  *
  * 同じAOP・同じ生産者・同じ年でもキュヴェが違えば `distinctiveNamePart` が違うので
  * 分かれる(例: `Gevrey-Chambertin Vieilles Vignes` と素の `Gevrey-Chambertin`)。
@@ -335,11 +348,16 @@ export function wineIdentityKeys(wine: {
 	aopId?: string | null;
 }): WineIdentityKeys {
 	const strict = wineIdentityKey(wine);
-	const producer = normalizeLabelText(wine.producer ?? "");
+	const producer = canonicalizeCruWords(
+		normalizeLabelText(wine.producer ?? ""),
+	);
 	const distinctive = distinctiveNamePart(wine.name, wine.aopId);
+	// 生産者＝銘柄名(シャトー物)なら生産者は情報を足していない。落として、
+	// producer が埋まらなかった回と一致させる。
+	const producerPart = producer === distinctive ? "" : producer;
 	const loose =
 		wine.aopId && (producer || distinctive)
-			? `${producer}|${wine.aopId}|${distinctive}|${wine.vintage ?? ""}`
+			? `${producerPart}|${wine.aopId}|${distinctive}|${wine.vintage ?? ""}`
 			: "";
 	return { strict, loose };
 }

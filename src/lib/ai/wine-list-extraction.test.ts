@@ -500,6 +500,46 @@ describe("wineIdentityKeys の loose キー(呼称の切り分けの揺れを吸
 		expect(asWritten.loose).toBe(filledFromAop.loose);
 	});
 
+	it("`1er Cru` と `Premier Cru` の綴り違いで分かれない", () => {
+		// リストは 1er Cru、マスタは Premier Cru。呼称名の除去が文字列一致なので、
+		// 揃えないと `Chablis 1er Cru Montée de Tonnerre` から呼称が落ちない
+		const abbreviated = keys(
+			"Chablis 1er Cru Montée de Tonnerre",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		const spelledOut = keys(
+			"Montée de Tonnerre",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		expect(abbreviated.strict).not.toBe(spelledOut.strict);
+		expect(abbreviated.loose).toBe(spelledOut.loose);
+	});
+
+	it("生産者＝銘柄名(シャトー物)は、生産者が空の回とも一致する", () => {
+		// モデルが producer を埋める回と空にする回が交互に出る
+		const withProducer = keys(
+			"Château Gloria",
+			"Château Gloria",
+			2016,
+			"saint-julien",
+		);
+		const withoutProducer = keys("Château Gloria", null, 2016, "saint-julien");
+		expect(withProducer.strict).not.toBe(withoutProducer.strict);
+		expect(withProducer.loose).toBe(withoutProducer.loose);
+	});
+
+	it("生産者が違えば同じキュヴェ名でも分かれる(生産者を落とすのは名前と同じ場合だけ)", () => {
+		expect(
+			keys("Vieilles Vignes", "Domaine A", 2019, "gevrey-chambertin").loose,
+		).not.toBe(
+			keys("Vieilles Vignes", "Domaine B", 2019, "gevrey-chambertin").loose,
+		);
+	});
+
 	it("同じ呼称・生産者・年でもキュヴェが違えば別銘柄のまま", () => {
 		// 緩めすぎると、同じ村の別キュヴェが1件に潰れて片方が消える
 		const vieillesVignes = keys(
