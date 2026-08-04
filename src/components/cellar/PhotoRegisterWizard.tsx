@@ -418,7 +418,11 @@ export function PhotoRegisterWizard({
 							</p>
 							<p className="mt-1 text-muted-foreground">
 								解析し直すとAIクレジットを消費します。元の登録はそのまま残り、
-								登録済みの銘柄は「既存に追加」として出ます。不要になったら履歴から取り消せます。
+								同じ銘柄と判定できたものは「既存に追加」として出ます。
+								<strong className="font-medium">
+									読み取り方が前回と変わった銘柄は新規として出る
+								</strong>
+								ので、重複させたくないものはチェックを外してください。不要になったら履歴から取り消せます。
 							</p>
 						</div>
 					)}
