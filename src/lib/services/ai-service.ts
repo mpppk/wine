@@ -15,8 +15,9 @@ import {
 	AI_LABEL_WEB_MODEL,
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_GPT_REASONING_EFFORT,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
-	AI_WINE_LIST_MODEL,
+	AI_WINE_LIST_ROUTE_MODELS,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
 	estimateLabelReserveCharge,
@@ -25,8 +26,10 @@ import {
 	type LabelRoute,
 	type RegionQaModelKey,
 	resolveLabelRoute,
+	resolveWineListRoute,
 	toLabelEngineKey,
 	toRegionQaModelKey,
+	type WineListRoute,
 } from "#/lib/ai/config";
 import { logAiInference } from "#/lib/ai/inference-log";
 import {
@@ -71,10 +74,16 @@ import {
 	dedupeWineListItems,
 	matchExistingEntries,
 	parseWineListResponse,
+	WINE_LIST_TRUNCATED_ERROR_MESSAGE,
 	type WineListCandidate,
 	type WineListParseResult,
 	type WineListSubject,
 } from "#/lib/ai/wine-list-extraction";
+import {
+	buildWineListGptInput,
+	buildWineListGptTextFormat,
+	extractWineListGptText,
+} from "#/lib/ai/wine-list-gpt";
 import {
 	type AiUsage,
 	addUsage,
@@ -755,14 +764,32 @@ export type AnalyzeWineListResult =
 	  };
 
 /**
- * 一括抽出が使える環境か(= ANTHROPIC_API_KEY が設定されているか)。
+ * 一括抽出でユーザに対して**実際に走る経路**。返せる経路が無ければ `null`(#426)。
  *
- * **この経路は Claude 専用でフォールバックを持たない**(Issue #358 の決定)ため、
- * キーが無い環境では機能そのものを出さない。UI の出し分けとサーバ側の拒否が
- * 同じ判定を見るよう、ここを単一の判定口にする。
+ * エチケット解析と同じ `preferredLabelEngine` を読み、`resolveWineListRoute` で
+ * 一括抽出用に解決する(Workers AI へは降格しない)。UI の必要クレジット表示と
+ * `analyzeWineList` の予約が**同じ解決を通る**ようにするための単一の判定口。
+ */
+export async function resolveWineListRouteForUser(
+	userId: string,
+): Promise<WineListRoute | null> {
+	const { preferredLabelEngine } = await userService.getCurrentUser(userId);
+	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
+	return resolveWineListRoute(engine, labelProviderAvailability());
+}
+
+/**
+ * 一括抽出が使える環境か(= OPENAI_API_KEY / ANTHROPIC_API_KEY のいずれかが
+ * 設定されているか)。
+ *
+ * **この経路は Workers AI へフォールバックしない**(Issue #358 の決定)ため、
+ * どちらのキーも無い環境では機能そのものを出さない。UI の出し分けとサーバ側の拒否が
+ * 同じ判定を見るよう、ここを単一の判定口にする。**ユーザ設定には依存しない**
+ * (どのエンジンを選んでいても、キーがあるほうの高精度経路に載る)。
  */
 export function isWineListAnalysisAvailable(): boolean {
-	return !!env.ANTHROPIC_API_KEY?.trim();
+	const availability = labelProviderAvailability();
+	return availability.openai || availability.anthropic;
 }
 
 /**
@@ -779,7 +806,7 @@ async function extractWineListWithClaude(
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new Anthropic({ apiKey });
 	const response = await client.messages.create({
-		model: AI_WINE_LIST_MODEL,
+		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
 		max_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 		messages: buildWineListMessages(imageDataUrls),
 	});
@@ -791,12 +818,41 @@ async function extractWineListWithClaude(
 	// 「形式が不正」という無関係な例外になる。銘柄が多すぎることが原因だと
 	// ユーザが分かる形で返す(escape hatch: 写真を分けて再解析)。
 	if (response.stop_reason === "max_tokens") {
-		throw new BadRequestError(
-			"写真に写っているワインが多すぎて、解析結果を最後まで受け取れませんでした。写真を分けて解析してください。",
-		);
+		throw new BadRequestError(WINE_LIST_TRUNCATED_ERROR_MESSAGE);
 	}
 	const parsed = parseWineListResponse(
 		joinResponseText(response.content),
+		imageDataUrls.length,
+	);
+	return { parsed, usage };
+}
+
+/**
+ * GPT(Responses API)で全写真を1リクエスト解析し、銘柄配列を取り出す(#426)。
+ * Claude 経路と同じ契約(env 非依存・失敗は throw)で、返す形も揃える。
+ *
+ * Claude 経路との違い:
+ *  - structured outputs(strict)で出力形式を強制する。指示文は共有しているので、
+ *    形が保証されるぶんだけ Claude 経路より安全側になる
+ *  - web検索ツールは付けない(#358 の住み分け)。エチケット解析の GPT 経路と違い
+ *    サーバー側ツールループが無いので、web検索回数の計上も要らない(0件)
+ */
+async function extractWineListWithGpt(
+	apiKey: string,
+	imageDataUrls: string[],
+): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
+	const client = new OpenAI({ apiKey });
+	const response = await client.responses.create({
+		model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
+		input: buildWineListGptInput(imageDataUrls),
+		max_output_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+		reasoning: { effort: AI_WINE_LIST_GPT_REASONING_EFFORT },
+		text: buildWineListGptTextFormat(),
+	});
+	// web検索を使わない経路なので回数は 0(usage に出ないのは同じだが、数える対象が無い)
+	const usage = toGptUsage(response.usage, 0);
+	const parsed = parseWineListResponse(
+		extractWineListGptText(response),
 		imageDataUrls.length,
 	);
 	return { parsed, usage };
@@ -824,10 +880,23 @@ export async function analyzeWineList(
 			`写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです`,
 		);
 	}
-	const apiKey = env.ANTHROPIC_API_KEY?.trim();
-	if (!apiKey) {
+	// 経路の解決(env + ユーザ設定の D1 読み)は**予約より前**に済ませ、「予約したら
+	// 必ず try で囲まれている」形を保つ(#245)。
+	const route = await resolveWineListRouteForUser(userId);
+	if (!route) {
 		// UI 側は isWineListAnalysisAvailable で導線ごと隠すので、ここに来るのは
 		// 直接APIを叩かれた場合。機能が無効な環境であることを 503 で明示する。
+		throw new HttpError(
+			503,
+			"この環境では写真からの一括登録を利用できません。管理者にお問い合わせください。",
+		);
+	}
+	const apiKey = (
+		route === "gpt-luna" ? env.OPENAI_API_KEY : env.ANTHROPIC_API_KEY
+	)?.trim();
+	// resolveWineListRoute はキーの設定状況から経路を選ぶので、ここが空になるのは
+	// 解決とキーの読み出しがズレたときだけ。型を絞るためのガード。
+	if (!apiKey) {
 		throw new HttpError(
 			503,
 			"この環境では写真からの一括登録を利用できません。管理者にお問い合わせください。",
@@ -836,17 +905,21 @@ export async function analyzeWineList(
 
 	// 既存セラーとの突合材料。D1 読みなので予約より前に済ませる(#245)。
 	const { entries } = await drunkWineService.listDrunkWines(userId);
-	const estimate = estimateWineListReserveCharge(input.imageDataUrls.length);
+	const estimate = estimateWineListReserveCharge(
+		route,
+		input.imageDataUrls.length,
+	);
+	const model = AI_WINE_LIST_ROUTE_MODELS[route];
 	const requestId = `scan_list:${crypto.randomUUID()}`;
 	const startedAt = Date.now();
 	const logBase = {
 		feature: "wine_list_analysis",
 		userId,
 		requestId,
-		// 一括抽出は Claude 単経路(キーが無ければ上で 503)。フォールバックは無い。
-		selected: "web-research",
-		route: "web-research",
-		model: AI_WINE_LIST_MODEL,
+		// 一括抽出はフォールバックを持たない(#358)ので、選択と実行経路は常に一致する。
+		selected: route,
+		route,
+		model,
 		photoCount: input.imageDataUrls.length,
 	} as const;
 
@@ -864,10 +937,12 @@ export async function analyzeWineList(
 	let summary: WineListAnalysisSummary;
 	let charge: CreditCharge;
 	try {
-		const { parsed, usage } = await extractWineListWithClaude(
-			apiKey,
-			input.imageDataUrls,
-		);
+		// **フォールバックは持たない**。片方の失敗でもう一方を叩くと、失敗した推論の
+		// 原価に加えてもう1回ぶんの消費が乗る(#404 と同種の問題を作らない)。
+		const { parsed, usage } =
+			route === "gpt-luna"
+				? await extractWineListWithGpt(apiKey, input.imageDataUrls)
+				: await extractWineListWithClaude(apiKey, input.imageDataUrls);
 		const deduped = dedupeWineListItems(parsed.wines);
 		candidates = matchExistingEntries(
 			buildWineListCandidates(deduped.items),
@@ -881,7 +956,7 @@ export async function analyzeWineList(
 			truncated: parsed.truncated,
 		};
 		// 実測が取れなければ予約全量を実測とみなす(返却0=安全側)
-		const measured = chargeFor(AI_WINE_LIST_MODEL, usage);
+		const measured = chargeFor(model, usage);
 		charge =
 			measured.microUsd > 0 ? measured : fallbackCharge(res.reservedMicroUsd);
 		await creditService.settleReservation(
@@ -909,7 +984,7 @@ export async function analyzeWineList(
 	logAiInference({
 		...logBase,
 		outcome: "ok",
-		executedBy: "web-research",
+		executedBy: route,
 		durationMs: Date.now() - startedAt,
 		actualTokens: charge.tokens,
 		costMicroUsd: charge.microUsd,

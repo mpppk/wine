@@ -18,12 +18,15 @@ import {
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
 	estimateLabelReserveCharge,
+	estimateWineListReserveCharge,
 	LABEL_ENGINE_KEYS,
 	type LabelEngineKey,
 	type RegionQaModelKey,
 	resolveLabelRoute,
+	resolveWineListRoute,
 	toLabelEngineKey,
 	toRegionQaModelKey,
+	type WineListRoute,
 } from "#/lib/ai/config";
 import { authClient } from "#/lib/auth-client";
 import {
@@ -308,10 +311,15 @@ function AiModelCard() {
 }
 
 /**
- * エチケット解析(マイセラーの自動入力)エンジンの選択。ユーザ設定として
- * user.preferredLabelEngine に保存し、解析側(analyzeWineLabel)はこの設定を使う。
- * 高精度(Claude + web検索)はサーバに ANTHROPIC_API_KEY が設定されている場合のみ
- * 実際に使われ、使えない環境では選択に関わらず標準で解析される(サーバ側フォールバック)。
+ * 画像解析エンジンの選択。ユーザ設定として user.preferredLabelEngine に保存し、
+ * **エチケット解析(analyzeWineLabel)と写真からの一括登録(analyzeWineList)の両方**が
+ * この設定を使う(#426)。
+ *
+ * 高精度経路は対応するAPIキーがサーバに設定されている場合のみ実際に使われる。
+ * エチケット解析はキーが無ければ標準(Workers AI)へ降格するが、**一括登録は降格せず、
+ * 高精度経路が無い環境では機能ごと使えない**(#358)。逆に「標準」を選んでいても
+ * 一括登録だけは高精度経路で走る。この食い違いは黙っていると「標準を選んだのに
+ * 消費が大きい」になるので、カード内で明示する。
  */
 /**
  * エンジンごとの目安消費(写真1枚)。**サーバの予約見積と同じ関数から算出する**ので、
@@ -319,6 +327,11 @@ function AiModelCard() {
  */
 function creditsPerPhoto(engine: LabelEngineKey): number {
 	return costToCredits(estimateLabelReserveCharge(engine, 1).microUsd);
+}
+
+/** 一括登録で写真1枚を解析するときの目安消費(経路ごと)。 */
+function wineListCreditsPerPhoto(route: WineListRoute): number {
+	return costToCredits(estimateWineListReserveCharge(route, 1).microUsd);
 }
 
 function LabelEngineCard() {
@@ -334,6 +347,10 @@ function LabelEngineCard() {
 	});
 	const effectiveRoute = labelPlan
 		? resolveLabelRoute(engine, labelPlan.availability)
+		: null;
+	// 一括登録は Workers AI へ降格しないので、解決結果が null(= 使えない)になりうる
+	const wineListRoute = labelPlan
+		? resolveWineListRoute(engine, labelPlan.availability)
 		: null;
 	const [error, setError] = useState("");
 	const [successMessage, setSuccessMessage] = useState("");
@@ -353,7 +370,7 @@ function LabelEngineCard() {
 		},
 		onSuccess: async () => {
 			await refetchSession();
-			setSuccessMessage("エチケット解析の設定を更新しました。");
+			setSuccessMessage("画像解析エンジンの設定を更新しました。");
 			setError("");
 		},
 		onError: (err: Error) => {
@@ -365,11 +382,11 @@ function LabelEngineCard() {
 	return (
 		<Card className="mt-6">
 			<CardHeader>
-				<CardTitle>エチケット解析</CardTitle>
+				<CardTitle>画像解析エンジン</CardTitle>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
 				<p className="text-sm text-muted-foreground">
-					マイセラーの「エチケットから自動入力」で使うAIを選べます。
+					「エチケットから自動入力」と「写真からまとめて登録」で使うAIを選べます。
 				</p>
 				<div className="flex flex-col gap-1.5">
 					<Label htmlFor="label-engine">解析エンジン</Label>
@@ -421,6 +438,25 @@ function LabelEngineCard() {
 							月次付与は無料{MONTHLY_CREDITS_FREE}／プレミアム
 							{MONTHLY_CREDITS_PREMIUM}
 							。消費はAIの実費に比例するため、経路によって大きく変わります。
+						</p>
+					)}
+					{labelPlan && (
+						<p className="text-xs text-muted-foreground">
+							{wineListRoute ? (
+								<>
+									写真からまとめて登録するときは「
+									{AI_LABEL_ENGINES[wineListRoute].label}」で解析されます
+									(写真1枚あたり約
+									{wineListCreditsPerPhoto(wineListRoute).toLocaleString(
+										"ja-JP",
+									)}
+									クレジット)。
+									{engine === "workers-ai" &&
+										"一括登録は標準(Workers AI)では読み取り精度が足りないため、この機能だけ高精度経路で解析します。"}
+								</>
+							) : (
+								<>この環境では写真からまとめて登録する機能を利用できません。</>
+							)}
 						</p>
 					)}
 				</div>

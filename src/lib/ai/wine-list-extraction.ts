@@ -32,6 +32,16 @@ import {
 // (labelExtractionShape / toLabelExtraction)。ここで書き直すと、片方の経路だけ
 // 「vintage が文字列で返ってきたら捨てる」といった差が生まれる。
 
+/**
+ * 出力上限で応答が打ち切られたときのメッセージ。**両経路が同じ文言を投げる**
+ * (Claude は stop_reason="max_tokens"、GPT は status="incomplete" として表面化する)。
+ * 打ち切られた応答は JSON が途中で切れており、パースに回すと「形式が不正」という
+ * 無関係な例外になる。銘柄が多すぎることが原因だとユーザに分かる形で返し、
+ * escape hatch(写真を分けて解析)を案内する。
+ */
+export const WINE_LIST_TRUNCATED_ERROR_MESSAGE =
+	"写真に写っているワインが多すぎて、解析結果を最後まで受け取れませんでした。写真を分けて解析してください。";
+
 /** モデルが返す銘柄1件の形(labelExtractionShape + 一括抽出に固有の2項目)。 */
 const wineListItemSchema = z.object({
 	...labelExtractionShape,

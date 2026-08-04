@@ -24,14 +24,21 @@ export const askRegion = createServerFn({ method: "POST" })
 	);
 
 /**
- * 写真からの一括登録(Issue #358)が使える環境か。この経路は Claude 専用で
- * フォールバックを持たないため、`ANTHROPIC_API_KEY` が無い環境では**導線ごと隠す**。
- * 判定の実体は ai-service 側と同じ関数で、UI の出し分けとサーバの 503 が
- * 食い違わないようにする。
+ * 写真からの一括登録(Issue #358)で**実際に走る経路**。使えない環境では `null`。
+ *
+ * この経路は Workers AI へフォールバックしない(#358)ため、`OPENAI_API_KEY` /
+ * `ANTHROPIC_API_KEY` のどちらも無い環境では**導線ごと隠す**。解決の実体は ai-service
+ * 側と同じ関数で、UI の出し分けとサーバの 503 が食い違わないようにする。
+ *
+ * 経路まで返すのは、解析前に必要クレジットを表示するため(#426)。GPT-5.6 Luna と
+ * Claude Sonnet 5 では単価が桁で違い、経路はシークレットの設定状況とユーザ設定に
+ * 依存するのでクライアントでは決められない(`getLabelAnalysisPlan` と同じ理由)。
  */
-export const getWineListAnalysisAvailability = createServerFn({ method: "GET" })
+export const getWineListAnalysisPlan = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
-	.handler(() => ({ available: aiService.isWineListAnalysisAvailable() }));
+	.handler(async ({ context }) => ({
+		route: await aiService.resolveWineListRouteForUser(context.user.id),
+	}));
 
 /**
  * エチケット解析で**実際に走る経路**と、高精度経路の利用可否。

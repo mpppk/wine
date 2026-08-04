@@ -9,7 +9,7 @@ import {
 	AI_LABEL_MODEL,
 	AI_LABEL_WEB_MODEL,
 	AI_REGION_QA_MODELS,
-	AI_WINE_LIST_MODEL,
+	AI_WINE_LIST_ROUTE_MODELS,
 	estimateLabelReserveCharge,
 } from "#/lib/ai/config";
 import {
@@ -750,7 +750,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 			aopId: "chablis-grand-cru",
 		});
 		expect(await balanceOf(userId)).toBe(
-			balanceAfter(AI_WINE_LIST_MODEL, {
+			balanceAfter(AI_WINE_LIST_ROUTE_MODELS["web-research"], {
 				inputTokens: 3000,
 				outputTokens: 500,
 				cacheWriteTokens: 0,
@@ -761,6 +761,123 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		const rows = await ledgerRowsOf(userId);
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
+	});
+
+	it("OPENAI_API_KEY だけの環境では GPT 経路で解析し、Luna の単価で確定する", async () => {
+		const userId = await seedUser();
+		stubOpenAi(async () =>
+			openaiResponse(
+				{
+					wines: [
+						wineJson({
+							wine_name: "Chablis Les Clos",
+							producer: "Vincent Dauvissat",
+							vintage: 2020,
+							photo_indexes: [0],
+						}),
+					],
+					subject: "wine_list",
+					truncated: false,
+				},
+				{ input_tokens: 3000, output_tokens: 500 },
+			),
+		);
+		// 一括抽出は Workers AI へ降格しない(触れたら失敗として検出される)
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 3500 });
+		if (result.blocked) throw new Error("unreachable");
+		expect(result.candidates[0]?.suggestions).toMatchObject({
+			name: "Chablis Les Clos",
+			producer: "Vincent Dauvissat",
+		});
+		// **Luna の単価で計上されること**がこの経路を入れた主目的(#426)。
+		// Claude の単価で確定していたらここで落ちる。
+		expect(await balanceOf(userId)).toBe(
+			balanceAfter(AI_WINE_LIST_ROUTE_MODELS["gpt-luna"], {
+				inputTokens: 3000,
+				outputTokens: 500,
+				cacheWriteTokens: 0,
+				cacheReadTokens: 0,
+				webSearches: 0,
+			}),
+		);
+	});
+
+	it("両キーがあれば既定(gpt-luna)で GPT が走り、Claude は呼ばない", async () => {
+		const userId = await seedUser();
+		// 経路の証明は実測トークン: Claude 経路に入ってしまえば 9999 で確定する
+		stubProviders({
+			openai: async () =>
+				openaiResponse(
+					{ wines: [wineJson({ wine_name: "Chablis" })], truncated: false },
+					{ input_tokens: 100, output_tokens: 20 },
+				),
+			anthropic: async () =>
+				anthropicMessage(
+					{ wines: [wineJson({ wine_name: "wrong path" })] },
+					{ input_tokens: 9999, output_tokens: 0 },
+				),
+		});
+
+		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 120 });
+		if (result.blocked) throw new Error("unreachable");
+		expect(result.candidates[0]?.suggestions.name).toBe("Chablis");
+	});
+
+	it("標準(Workers AI)を選んでいても一括抽出は高精度経路で走る", async () => {
+		// エチケット解析は「標準」で Workers AI に落ちるが、一括抽出は降格しない
+		// (#358)。ここが落ちると、標準を選んだユーザだけ一括登録が使えなくなる。
+		const userId = await seedUser();
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'workers-ai' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		stubOpenAi(async () =>
+			openaiResponse(
+				{ wines: [wineJson({ wine_name: "Chablis" })], truncated: false },
+				{ input_tokens: 100, output_tokens: 20 },
+			),
+		);
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false, actualTokens: 120 });
+	});
+
+	it("GPT の応答が出力上限で切れたら予約を全額返却し、写真を分ける案内を返す", async () => {
+		// Claude の stop_reason="max_tokens" と同じ扱いに揃える(#426)。
+		// structured outputs でも incomplete は起きるので、パースに回すと
+		// 「形式が不正」という無関係な例外になる。
+		const userId = await seedUser();
+		stubOpenAi(async () =>
+			Response.json({
+				id: "resp_test",
+				object: "response",
+				created_at: 0,
+				model: "gpt-5.6-luna",
+				status: "incomplete",
+				error: null,
+				incomplete_details: { reason: "max_output_tokens" },
+				output: [],
+				usage: { input_tokens: 5000, output_tokens: 20000 },
+			}),
+		);
+
+		await expect(
+			analyzeWineList(userId, { imageDataUrls: [PHOTO] }),
+		).rejects.toBeInstanceOf(BadRequestError);
+
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
 	});
 
 	it("既存セラーに同じ銘柄があれば新規作成ではなく目撃追加の候補にする", async () => {
@@ -852,7 +969,9 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
 	});
 
-	it("ANTHROPIC_API_KEY 未設定なら予約せずに 503 で拒否する", async () => {
+	it("両プロバイダのキーが未設定なら予約せずに 503 で拒否する", async () => {
+		// 一括抽出は Workers AI へ降格しない(#358)ので、高精度経路が1つも無ければ
+		// 機能ごと使えない。afterEach で両キーとも消えている状態を使う。
 		const userId = await seedUser();
 		expect(isWineListAnalysisAvailable()).toBe(false);
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	AI_LABEL_ROUTE_MODELS,
 	AI_REGION_QA_MODELS,
-	AI_WINE_LIST_MODEL,
+	AI_WINE_LIST_ROUTE_MODELS,
 } from "#/lib/ai/config";
 import {
 	AI_MAX_ESTIMATE_MICRO_USD,
@@ -24,7 +24,7 @@ describe("AI_MODEL_PRICING", () => {
 		const called = [
 			...Object.values(AI_LABEL_ROUTE_MODELS),
 			...Object.values(AI_REGION_QA_MODELS).map((m) => m.id),
-			AI_WINE_LIST_MODEL,
+			...Object.values(AI_WINE_LIST_ROUTE_MODELS),
 		];
 		for (const model of called) {
 			expect(getModelPricing(model), `単価未登録: ${model}`).not.toBeNull();
