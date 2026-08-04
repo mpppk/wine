@@ -1,6 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { AlertTriangleIcon, ArrowLeftIcon, ImageIcon } from "lucide-react";
+import {
+	AlertTriangleIcon,
+	ArrowLeftIcon,
+	ImageIcon,
+	SparklesIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
@@ -19,6 +24,10 @@ import { listImportBatches, undoImportBatch } from "#/server/place";
 // 過去の一括登録バッチの一覧・後からの取り消し(Issue #380)。#378 は取り消し導線を
 // `/cellar/import` の登録直後の完了画面だけに限定したが、そこを離れた後に
 // 「やっぱりあの一括登録は間違いだった」に対応する導線がここ。
+//
+// 「やり直す」(#427)も同じ理由でここに置く。取り消しが「無かったことにする」なら、
+// こちらは「同じ写真をもう一度解析する」——抽出漏れがあった回や、解析エンジンを
+// 変えて比べたい回(#426)のための導線。**結果は新しいバッチになり、元は残る**。
 
 export const Route = createFileRoute("/cellar/import_/history")({
 	beforeLoad: requireAuthBeforeLoad,
@@ -94,18 +103,32 @@ function CellarImportHistoryPage() {
 										</p>
 									)}
 								</div>
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									className="shrink-0"
-									onClick={() => {
-										setUndoError("");
-										setTarget(batch);
-									}}
-								>
-									取り消す
-								</Button>
+								<div className="flex shrink-0 flex-col items-end gap-1">
+									{batch.photoCount > 0 && (
+										// 写真が無いバッチは解析し直す材料が無いので出さない
+										<Button asChild type="button" variant="ghost" size="sm">
+											<Link
+												to="/cellar/new"
+												search={{ rescan: batch.id }}
+												aria-label="この写真で解析をやり直す"
+											>
+												<SparklesIcon className="size-4" aria-hidden />
+												やり直す
+											</Link>
+										</Button>
+									)}
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => {
+											setUndoError("");
+											setTarget(batch);
+										}}
+									>
+										取り消す
+									</Button>
+								</div>
 							</div>
 						</li>
 					))}

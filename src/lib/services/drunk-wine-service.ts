@@ -1857,6 +1857,27 @@ function toImportBatchEntry(
 }
 
 /**
+ * 一括登録バッチ1件を取り出す(本人所有のみ)。履歴からの再解析(#427)が、
+ * 保存済みの写真URLと当時の場所・見かけた日を読み直すために使う。
+ *
+ * 写真URLは `/api/images/wines/...` の相対URLで、**本人セッションの same-origin
+ * 取得で読める**(署名URLは要らない。images/signed-url.ts の認可経路1)。
+ * 再解析はアプリ内のログイン済み画面から走るので、クライアントがこのURLを
+ * fetch して解析用に縮小できる。
+ */
+export async function getImportBatch(
+	userId: string,
+	batchId: string,
+): Promise<ImportBatchEntry> {
+	const [row] = await db
+		.select()
+		.from(importBatch)
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+	if (!row) throw new NotFoundError("Import batch not found");
+	return toImportBatchEntry(row);
+}
+
+/**
  * 一括登録バッチの写真をR2へ保存し、キー配列を確定する(2段階目)。
  *
  * リスト/棚の写真は**バッチに1回だけ置き、銘柄ごとに複製しない**。目撃記録は

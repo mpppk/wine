@@ -31,7 +31,7 @@ import {
 	answerRegionQuestion,
 	isWineListAnalysisAvailable,
 } from "./ai-service";
-import { createDrunkWine } from "./drunk-wine-service";
+import { bulkRegisterFromScan, createDrunkWine } from "./drunk-wine-service";
 
 // ai-service のクレジット予約まわりを実D1で検証する。vitest.config.ts は AI バインディングを
 // 用意しない(ローカルでもリモート接続を張るため)ので、env.AI はテスト内で差し替える。
@@ -978,6 +978,50 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		});
 		// 既存に無い銘柄は新規作成の候補のまま
 		expect(result.candidates[1]?.existing).toBeUndefined();
+	});
+
+	it("一括登録で作ったエントリを再解析すると、新規ではなく既存への追加になる", async () => {
+		// 履歴からの再解析(#427)が成立する前提そのもの。ここが崩れると、同じ写真を
+		// 解析し直すたびに同じ銘柄が二重に作られる。**bulkRegisterFromScan で作った
+		// エントリ**で確かめるのが要点(createDrunkWine 経由の一致は別テストが見ている)。
+		const userId = await seedUser();
+		const wines = [
+			{
+				wine_name: "Chablis 1er Cru Montée de Tonnerre",
+				producer: "William Fèvre",
+				vintage: 2021,
+				photo_indexes: [0],
+			},
+			{
+				wine_name: 'Barolo "Bussia"',
+				producer: "Prunotto",
+				vintage: 2018,
+				photo_indexes: [0],
+			},
+		];
+		await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: wines.map((w) => ({
+				wine: {
+					name: w.wine_name,
+					producer: w.producer,
+					vintage: w.vintage,
+				},
+				sighting: { photoIndex: 0 },
+			})),
+		});
+		stubAnthropic(async () =>
+			anthropicMessage(
+				{ wines: wines.map(wineJson), truncated: false },
+				{ input_tokens: 1000, output_tokens: 200 },
+			),
+		);
+
+		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+
+		if (result.blocked) throw new Error("unreachable");
+		expect(result.summary.matchedExisting).toBe(2);
+		expect(result.candidates.every((c) => !!c.existing)).toBe(true);
 	});
 
 	it("出力が上限で打ち切られたら予約を全額返却し、写真を分ける案内を返す", async () => {

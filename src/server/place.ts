@@ -67,3 +67,14 @@ export const listImportBatches = createServerFn({ method: "GET" })
 	.handler(({ context }) =>
 		drunkWineService.listImportBatches(context.user.id),
 	);
+
+/**
+ * 一括登録バッチ1件の取得(Issue #427)。履歴からの再解析で、保存済みの写真URLと
+ * 当時の場所・見かけた日を読み直すために `/cellar/new` のローダーが呼ぶ。
+ */
+export const getImportBatch = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ batchId: z.string().min(1).max(80) }))
+	.handler(({ data, context }) =>
+		drunkWineService.getImportBatch(context.user.id, data.batchId),
+	);
