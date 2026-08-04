@@ -453,6 +453,68 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 		);
 	});
 
+	// Issue #404: 実測が取れないときのフォールバックは「予約全量を実測とみなす」形
+	// だったが、**予約は意図した経路(Claude ≈275クレジット)の見積**。Workers AI が
+	// 拾った回にそれを課金すると、Llama 1回の推論に275クレジットを確定課金してしまう。
+	// Workers AI の usage は任意(返らないことがある)ので、経路の複合で実際に起きうる。
+	it("Claude経路の失敗をWorkers AIが拾い実測が取れなくても、課金はWorkers AIの見積で止まる", async () => {
+		const userId = await seedPremiumUser();
+		stubAnthropic(async () =>
+			Response.json(
+				{
+					type: "error",
+					error: { type: "invalid_request_error", message: "bad request" },
+				},
+				{ status: 400 },
+			),
+		);
+		// usage を返さない Workers AI 応答(実測 0 → フォールバック経路に入る)
+		stubAiRun(async () => ({
+			response: JSON.stringify({
+				wine_name: "Chablis",
+				producer: null,
+				vintage: null,
+				appellation: null,
+				region: null,
+				grape_varieties: [],
+			}),
+		}));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false });
+		const workersAi = costToCredits(
+			estimateLabelReserveCharge("workers-ai", 1).microUsd,
+		);
+		const webResearch = costToCredits(
+			estimateLabelReserveCharge("web-research", 1).microUsd,
+		);
+		// 予約額(高精度経路の見積)との差が大きいことを明示しておく。ここが縮むと
+		// このテストは「たまたま同じ値」で通ってしまい、回帰を検出できなくなる。
+		expect(webResearch).toBeGreaterThan(workersAi * 10);
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_PREMIUM - workersAi);
+	});
+
+	// #404 の修正で「実測が取れないときは常に安い方」に倒しすぎていないことの裏側。
+	// 降格せず高精度経路が結果を出したなら、床は今まで通りその経路の見積(=予約額)。
+	it("Claude経路が結果を出したなら、実測が取れなくても床はClaude経路の見積のまま", async () => {
+		const userId = await seedPremiumUser();
+		stubAnthropic(async () =>
+			anthropicMessage(
+				{ wine_name: "Chablis" },
+				{ input_tokens: 0, output_tokens: 0 },
+			),
+		);
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false });
+		expect(await balanceOf(userId)).toBe(
+			MONTHLY_CREDITS_PREMIUM -
+				costToCredits(estimateLabelReserveCharge("web-research", 1).microUsd),
+		);
+	});
+
 	it("画像が空なら予約せずに 400 で弾く", async () => {
 		const userId = await seedUser();
 

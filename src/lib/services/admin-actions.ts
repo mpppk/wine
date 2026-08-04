@@ -155,6 +155,11 @@ export async function grantCredits(params: {
 				and(
 					eq(creditBalance.userId, targetUserId),
 					sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${requestId})`,
+					// 月境界: 上の ensureCurrentMonthGranted とこのコミットの間に、別リクエストの
+					// 月次リセットが割り込むことがある。ガードが無いと**翌月のリセット済み残高**に
+					// 当月ぶんの補填が乗り、案A(当月末まで有効)の下で1ヶ月余分に生存する。
+					// 月が替わっていたら台帳のみ記録に倒れる(#403、settle/refund の #147 と同型)。
+					eq(creditBalance.periodMonth, month),
 				),
 			),
 		// 台帳追記。type="admin_grant" で月次付与と区別する。unique(request_id) が再送を弾く。
@@ -548,6 +553,8 @@ export async function bulkGrantCredits(params: {
 					and(
 						eq(creditBalance.userId, targetUserId),
 						sql`NOT EXISTS (SELECT 1 FROM credit_ledger WHERE request_id = ${requestId})`,
+						// 月境界: 単体版と同じ理由(#403)。
+						eq(creditBalance.periodMonth, month),
 					),
 				),
 			db

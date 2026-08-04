@@ -57,7 +57,7 @@ export interface ModelPricing {
 /**
  * モデルID → 単価。**モデルを足したらここにも足す**。
  * `ai-pricing.test.ts` が「実際に呼ぶモデルID(AI_LABEL_ROUTE_MODELS /
- * AI_REGION_QA_MODELS / AI_WINE_LIST_MODEL)がすべてこの表にある」ことを検証するので、
+ * AI_REGION_QA_MODELS / AI_WINE_LIST_ROUTE_MODELS)がすべてこの表にある」ことを検証するので、
  * 単価の登録を忘れたまま経路を足すと CI が落ちる。
  *
  * 値の確認日: 2026-08-02(一次情報は各エントリの @see)。
