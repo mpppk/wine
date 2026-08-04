@@ -428,8 +428,14 @@ function MapPage() {
 		/>
 	);
 
+	// main はビューポート内に収まる固定高。はみ出す分は内側のスクロール領域が受け持ち、
+	// ドキュメント自体はスクロールさせない(ツールバーの余白をドラッグしてもページが動かない)。
+	// - ヘッダ高は Header が実測して --header-height に載せる。px定数はハイドレーション前の
+	//   フォールバックで、実測値と数pxずれるとその差がそのままページのスクロール量になる。
+	// - overflow-hidden は、内側のスクロール領域から絶対配置の子孫(Tailwind の sr-only)が
+	//   漏れてもページのスクロール量にしないための関門。
 	return (
-		<main className="flex h-[calc(100dvh-57px-var(--ad-banner-height,0px))] flex-col sm:h-[calc(100dvh-65px-var(--ad-banner-height,0px))]">
+		<main className="flex h-[calc(100dvh-var(--header-height,57px)-var(--ad-banner-height,0px))] flex-col overflow-hidden sm:h-[calc(100dvh-var(--header-height,65px)-var(--ad-banner-height,0px))]">
 			<div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-4 py-2">
 				<div className="flex items-center gap-2">
 					<Button
@@ -563,7 +569,11 @@ function MapPage() {
 
 			<div className="relative flex min-h-0 flex-1">
 				{isListView ? (
-					<div className="min-w-0 flex-1 overflow-y-auto">
+					// relative は必須: リストの各行は position:absolute の sr-only(「非AOC」
+					// 「正解」)を含み、containing block がこのスクロール領域の外側(親の
+					// relative)になるとスクロールのクリップをすり抜けて数千pxのページ
+					// スクロールを作る。
+					<div className="relative min-w-0 flex-1 overflow-y-auto">
 						{/* リストは色分けモードを持たないので正解率の凡例も出さない
 						    (ドットは区分色固定。進捗は各行の "solved/total" ピルが示す) */}
 						<div className="mx-auto max-w-2xl">{treeList}</div>
@@ -607,7 +617,8 @@ function MapPage() {
 
 				{/* デスクトップ: 右サイドバー(リスト表示時は詳細のみ、地図表示時は一覧 or 詳細) */}
 				{(selectedAop || !isListView) && (
-					<aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border lg:block">
+					// relative はリスト側のスクロール領域と同じ理由(sr-only の漏れ防止)
+					<aside className="relative hidden w-80 shrink-0 overflow-y-auto border-l border-border lg:block">
 						{selectedAop ? (
 							<SelectedAopPanel
 								aop={selectedAop}
