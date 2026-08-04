@@ -519,6 +519,23 @@ describe("wineIdentityKeys の loose キー(呼称の切り分けの揺れを吸
 		expect(abbreviated.loose).toBe(spelledOut.loose);
 	});
 
+	it("名前の末尾にヴィンテージが付いた回とも一致する", () => {
+		// `Chablis 1er Cru Montée de Tonnerre 2021` のように年を名前に含める回がある
+		const withVintageInName = keys(
+			"Chablis 1er Cru Montée de Tonnerre 2021",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		const withoutIt = keys(
+			"Montée de Tonnerre",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		expect(withVintageInName.loose).toBe(withoutIt.loose);
+	});
+
 	it("生産者＝銘柄名(シャトー物)は、生産者が空の回とも一致する", () => {
 		// モデルが producer を埋める回と空にする回が交互に出る
 		const withProducer = keys(

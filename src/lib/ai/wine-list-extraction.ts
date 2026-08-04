@@ -283,6 +283,16 @@ function canonicalizeCruWords(normalized: string): string {
 }
 
 /**
+ * 名前の末尾に付いたヴィンテージを落とす。モデルは `Chablis 1er Cru Montée de
+ * Tonnerre 2021` のように**年を名前に含める回と含めない回**があり(実測)、年は
+ * 別項目として持っているので名前側に残す意味が無い。1800〜2100 の4桁だけを対象に
+ * する(`Barolo 1er` のような数字を巻き込まない)。
+ */
+function stripTrailingVintage(normalized: string): string {
+	return normalized.replace(/\s(1[89]\d{2}|20\d{2}|2100)$/, "");
+}
+
+/**
  * 呼称名を取り除いた「銘柄を区別する部分」。`Barolo "Bussia"` と `"Bussia"` を
  * 同じ `bussia` に、`Gevrey-Chambertin Vieilles Vignes` と `Vieilles Vignes` を
  * 同じ `vieilles vignes` に畳む。名前が読めず呼称の日本語名で補われた回
@@ -295,7 +305,9 @@ function distinctiveNamePart(
 	name: string | null | undefined,
 	aopId: string | null | undefined,
 ): string {
-	const base = canonicalizeCruWords(normalizeLabelText(name ?? ""));
+	const base = stripTrailingVintage(
+		canonicalizeCruWords(normalizeLabelText(name ?? "")),
+	);
 	const aop = aopId ? getAop(aopId) : undefined;
 	if (!base || !aop) return base;
 	let out = base;
