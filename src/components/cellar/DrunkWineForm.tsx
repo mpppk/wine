@@ -5,7 +5,7 @@ import {
 	SparklesIcon,
 	XIcon,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DrunkWineFields } from "#/components/cellar/DrunkWineFields";
 import {
 	buildCreateInput,
@@ -71,6 +71,20 @@ export interface DrunkWineFormProps {
 	 * 未指定にし、フォーム内の TastingFields で1件ぶんを同時入力する。
 	 */
 	tastingSlot?: React.ReactNode;
+	/**
+	 * 新規作成時の初期値(一括登録からの引き継ぎ #416)。`entry` 指定時は無視する。
+	 * 初期値が入っていると離脱ガードの基準(未保存の変更あり)にもなる——引き継いだ
+	 * 内容はクレジットを消費して得たものなので、黙って捨てさせない。
+	 */
+	initialValues?: DrunkWineFieldsValue;
+	/** 新規作成時にフォームへ添付済みにする写真。`entry` 指定時は無視する。 */
+	initialPhotoFiles?: File[];
+	/**
+	 * マウント直後にエチケット解析を1回だけ自動実行する(#416)。結果は差分ダイアログを
+	 * 挟まずそのまま反映する——ユーザは遷移前の確認ダイアログで既に「解析して記録する」
+	 * を選んでおり、ここでもう一度選ばせるのは同じ意思決定の二度手間になるため。
+	 */
+	autoAnalyzeLabel?: boolean;
 }
 
 // フォームが扱う写真1枚。既存はR2キー保持、新規はローカルFile+プレビューURL。
@@ -131,10 +145,13 @@ export function DrunkWineForm({
 	entry,
 	onSaved,
 	tastingSlot,
+	initialValues,
+	initialPhotoFiles,
+	autoAnalyzeLabel,
 }: DrunkWineFormProps) {
 	// 入力項目の state は MCP App のフォームと共有する形(DrunkWineFieldsValue)で持つ
-	const [values, setValues] = useState<DrunkWineFieldsValue>(() =>
-		fieldsValueFromEntry(entry),
+	const [values, setValues] = useState<DrunkWineFieldsValue>(
+		() => (entry ? undefined : initialValues) ?? fieldsValueFromEntry(entry),
 	);
 	const update = (patch: Partial<DrunkWineFieldsValue>) =>
 		setValues((prev) => ({ ...prev, ...patch }));
@@ -143,13 +160,22 @@ export function DrunkWineForm({
 	const [tastingDraft, setTastingDraft] =
 		useState<WineTastingDraft>(EMPTY_TASTING_DRAFT);
 	// 写真は複数枚。表示順=配列順、先頭が代表(サムネイル)。既存写真はキーで保持する
-	const [photos, setPhotos] = useState<PhotoItem[]>(() =>
-		(entry?.photoUrls ?? []).map((url, i) => ({
-			localId: `e${i}`,
-			kind: "existing" as const,
-			key: imageKeyFromPath(url),
-		})),
-	);
+	const [photos, setPhotos] = useState<PhotoItem[]>(() => {
+		if (entry) {
+			return entry.photoUrls.map((url, i) => ({
+				localId: `e${i}`,
+				kind: "existing" as const,
+				key: imageKeyFromPath(url),
+			}));
+		}
+		// 引き継いだ写真(#416)。枚数の上限は呼び出し側で切り詰め済み
+		return (initialPhotoFiles ?? []).map((file, i) => ({
+			localId: `h${i}`,
+			kind: "new" as const,
+			file,
+			previewUrl: URL.createObjectURL(file),
+		}));
+	});
 	const [error, setError] = useState("");
 	const [analyzeNotice, setAnalyzeNotice] = useState("");
 	const [showInsufficient, setShowInsufficient] = useState(false);
@@ -276,41 +302,7 @@ export function DrunkWineForm({
 	const insufficientCredits =
 		balance !== null && requiredCredits !== null && balance < requiredCredits;
 
-	const { mutate: analyzeLabel, isPending: isAnalyzing } = useMutation({
-		mutationFn: async () => {
-			if (photos.length === 0) throw new Error("写真を選択してください");
-			// 既存写真はURL(同一オリジン)、新規はFileとして全枚数を総合解析する
-			const sources: AnalysisPhotoSource[] = photos.map((p) =>
-				p.kind === "new" ? p.file : { url: photoSrc(p) },
-			);
-			return analyzeLabelPhotos(sources);
-		},
-		onSuccess: (result) => {
-			// クレジットを消費するのでヘッダ等の残高表示を更新する
-			void queryClient.invalidateQueries({
-				queryKey: CREDIT_BALANCE_QUERY_KEY,
-			});
-			if (result.blocked) {
-				setShowInsufficient(true);
-				return;
-			}
-			// 「未入力の項目にしか反映しない」自動適用だと、写真追加やエンジン切替での
-			// 再解析結果が一切伝わらずクレジットだけ消費される(#362)。差分がある項目を
-			// ダイアログで提示し、反映するかどうかをユーザに選ばせる。
-			const diffs = buildLabelDiffs(values, result.suggestions);
-			if (diffs.length === 0) {
-				setAnalyzeNotice(
-					"今回の解析結果と現在の入力に差分はありませんでした(クレジットは消費されています)",
-				);
-				return;
-			}
-			setLabelDiffs(diffs);
-		},
-		onError: (e: Error) =>
-			setError(e.message || "エチケットの解析に失敗しました"),
-	});
-
-	// ダイアログで選ばれた項目だけをマージして反映する
+	// ダイアログで選ばれた項目(自動実行では全項目)をマージして反映する
 	const applySelectedLabelDiffs = (selected: LabelDiffItem[]) => {
 		const patch = selected.reduce<Partial<DrunkWineFieldsValue>>(
 			(acc, d) => Object.assign(acc, d.patch),
@@ -324,6 +316,69 @@ export function DrunkWineForm({
 				: "",
 		);
 	};
+
+	const { mutate: analyzeLabel, isPending: isAnalyzing } = useMutation({
+		// auto=true は「遷移直後の自動実行」(#416)。ユーザ操作を起点にしないので、
+		// 結果の提示の仕方(ダイアログ / 不足時のモーダル)を変える
+		mutationFn: async ({ auto: _auto }: { auto: boolean }) => {
+			if (photos.length === 0) throw new Error("写真を選択してください");
+			// 既存写真はURL(同一オリジン)、新規はFileとして全枚数を総合解析する
+			const sources: AnalysisPhotoSource[] = photos.map((p) =>
+				p.kind === "new" ? p.file : { url: photoSrc(p) },
+			);
+			return analyzeLabelPhotos(sources);
+		},
+		onSuccess: (result, { auto }) => {
+			// クレジットを消費するのでヘッダ等の残高表示を更新する
+			void queryClient.invalidateQueries({
+				queryKey: CREDIT_BALANCE_QUERY_KEY,
+			});
+			if (result.blocked) {
+				// 自動実行では残高不足のモーダルを出さない。ユーザが押していない処理で
+				// 画面到達直後にモーダルが被さると、引き継いだ入力内容(=一括解析で
+				// 既にクレジットを払って得たもの)が見えないまま驚かせるだけになる。
+				if (auto) {
+					setAnalyzeNotice(
+						"クレジットが不足しているため、詳細なエチケット解析は実行できませんでした。写真から読み取った内容をそのまま入力しています。",
+					);
+					return;
+				}
+				setShowInsufficient(true);
+				return;
+			}
+			// 「未入力の項目にしか反映しない」自動適用だと、写真追加やエンジン切替での
+			// 再解析結果が一切伝わらずクレジットだけ消費される(#362)。差分がある項目を
+			// ダイアログで提示し、反映するかどうかをユーザに選ばせる。
+			const diffs = buildLabelDiffs(values, result.suggestions);
+			if (diffs.length === 0) {
+				setAnalyzeNotice(
+					auto
+						? "エチケットを解析しました(写真から読み取った内容と差はありませんでした)"
+						: "今回の解析結果と現在の入力に差分はありませんでした(クレジットは消費されています)",
+				);
+				return;
+			}
+			// 自動実行はダイアログを挟まずそのまま反映する。反映の規則(産地の排他など)は
+			// buildLabelDiffs が持つので、ここで別の適用ロジックを書かない
+			if (auto) {
+				applySelectedLabelDiffs(diffs);
+				return;
+			}
+			setLabelDiffs(diffs);
+		},
+		onError: (e: Error) =>
+			setError(e.message || "エチケットの解析に失敗しました"),
+	});
+
+	// 引き継ぎ直後の自動解析は1回だけ。写真が無ければ何もしない(解析対象が無い)。
+	const autoAnalyzedRef = useRef(false);
+	useEffect(() => {
+		if (!autoAnalyzeLabel || autoAnalyzedRef.current) return;
+		if (photos.length === 0) return;
+		autoAnalyzedRef.current = true;
+		setAnalyzeNotice("エチケットを解析しています…");
+		analyzeLabel({ auto: true });
+	}, [autoAnalyzeLabel, photos.length, analyzeLabel]);
 
 	const { mutate: save, isPending } = useMutation({
 		mutationFn: async () => {
@@ -467,7 +522,7 @@ export function DrunkWineForm({
 							onClick={() => {
 								setError("");
 								setAnalyzeNotice("");
-								analyzeLabel();
+								analyzeLabel({ auto: false });
 							}}
 						>
 							<SparklesIcon className="size-4" aria-hidden />

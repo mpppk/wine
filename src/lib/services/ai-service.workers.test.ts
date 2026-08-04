@@ -733,6 +733,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		if (result.blocked) throw new Error("unreachable");
 		expect(result.summary).toEqual({
 			detected: 1,
+			subject: "wine_list",
 			mergedDuplicates: 1,
 			matchedExisting: 0,
 			truncated: false,

@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useRef, useState } from "react";
@@ -12,6 +12,12 @@ import {
 	summarizeImportCards,
 	validateImportCards,
 } from "#/components/cellar/import-candidates";
+import {
+	buildSingleWineHandoff,
+	MAX_HANDOFF_PHOTOS,
+	setSingleWineHandoff,
+	singleWineCandidate,
+} from "#/components/cellar/single-wine-handoff";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
 import {
 	analyzeWineListPhotos,
@@ -38,7 +44,11 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 import { TAP_TARGET_44 } from "#/lib/a11y";
-import { estimateWineListReserveCharge } from "#/lib/ai/config";
+import {
+	estimateLabelReserveCharge,
+	estimateWineListReserveCharge,
+} from "#/lib/ai/config";
+import type { WineListCandidate } from "#/lib/ai/wine-list-extraction";
 import { costToCredits } from "#/lib/credit/credit-math";
 import {
 	CREDIT_BALANCE_QUERY_KEY,
@@ -56,7 +66,10 @@ import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
 import type { WineListAnalysisSummary } from "#/lib/services/ai-service";
 import { cn } from "#/lib/utils";
-import { getWineListAnalysisAvailability } from "#/server/ai";
+import {
+	getLabelAnalysisPlan,
+	getWineListAnalysisAvailability,
+} from "#/server/ai";
 import {
 	bulkRegisterFromScan,
 	listPlaces,
@@ -109,6 +122,10 @@ function CellarImportPage() {
 	const [seenOn, setSeenOn] = useState(() => todayCalendarDate());
 	const [cards, setCards] = useState<ImportCardState[] | null>(null);
 	const [summary, setSummary] = useState<WineListAnalysisSummary | null>(null);
+	// 「写っていたのは1本のワインのエチケットだった」と判定したときの候補(#416)。
+	// **セットされている間はレビュー(cards)へ進んでいない**——確認ダイアログの答えを
+	// 待っている状態で、単体登録へ進むか一括レビューを続けるかをここで分岐する。
+	const [singleWine, setSingleWine] = useState<WineListCandidate | null>(null);
 	const [error, setError] = useState("");
 	const [showInsufficient, setShowInsufficient] = useState(false);
 	// 登録(server fn)が通った後の結果。写真アップロードだけ失敗したときの
@@ -193,8 +210,13 @@ function CellarImportPage() {
 				setShowInsufficient(true);
 				return;
 			}
-			setCards(buildImportCards(result.candidates));
 			setSummary(result.summary);
+			setCards(buildImportCards(result.candidates));
+			// 1本のワインのエチケット等を撮った写真だった場合は、一括登録のレビューでは
+			// なく単体の「ワインを記録」へ案内する(#416)。**自動では遷移しない**——
+			// 誤判定だと入力済みの場所・見かけた日が黙って捨てられるため、確認を挟む。
+			// レビュー画面は裏で組み立てておき、断られたらそのまま従来の流れに戻る。
+			setSingleWine(singleWineCandidate(result.candidates, result.summary));
 			if (result.candidates.length === 0) {
 				setError(
 					"写真からワインを読み取れませんでした。ワインリストや棚が写るように撮り直してください。",
@@ -209,6 +231,41 @@ function CellarImportPage() {
 		doneRef.current = true;
 		await navigate({ to: "/cellar", search: { filter: "spotted" } });
 	};
+
+	/**
+	 * 単体の「ワインを記録」へ切り替える(#416)。写真の実体と読み取った内容を
+	 * 荷物として預けてから遷移する。ここではまだ何も登録していない(バッチも目撃記録も
+	 * 作らない)——単体登録の保存は遷移先のフォームが担当する。
+	 */
+	const goToSingleWineForm = async () => {
+		if (!singleWine) return;
+		setSingleWineHandoff(
+			buildSingleWineHandoff(
+				singleWine,
+				photos.map((p) => p.file),
+			),
+		);
+		// プレビュー用の blob URL だけを解放する(File 自体は荷物として生きている)
+		for (const p of photos) URL.revokeObjectURL(p.previewUrl);
+		doneRef.current = true;
+		await navigate({ to: "/cellar/new" });
+	};
+
+	// 遷移先で自動実行するエチケット解析の見積。経路(標準/Luna/Claude)で消費が2桁
+	// 変わるので、遷移を選ぶ前に額を出す(押した後に不足で止まると理由が分からない #355)。
+	const { data: labelPlan } = useQuery({
+		queryKey: ["label-analysis-plan"],
+		queryFn: () => getLabelAnalysisPlan(),
+		staleTime: 5 * 60 * 1000,
+	});
+	const labelAnalysisCredits = labelPlan
+		? costToCredits(
+				estimateLabelReserveCharge(
+					labelPlan.route,
+					Math.min(photos.length, MAX_HANDOFF_PHOTOS),
+				).microUsd,
+			)
+		: null;
 
 	const { mutate: register, isPending: isRegistering } = useMutation({
 		mutationFn: async () => {
@@ -556,6 +613,67 @@ function CellarImportPage() {
 				open={showInsufficient}
 				onOpenChange={setShowInsufficient}
 			/>
+
+			{/*
+			  単一ワインと判定したときの案内(#416)。閉じる操作は「一括登録を続ける」と
+			  同じ扱いにする——解析済みのレビュー画面は既に背後にあるので、どう閉じても
+			  消費したクレジットが無駄にならない。
+			*/}
+			<Dialog
+				open={!!singleWine}
+				onOpenChange={(open) => {
+					if (!open) setSingleWine(null);
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>1本のワインの写真のようです</DialogTitle>
+						<DialogDescription asChild>
+							<div className="flex flex-col gap-2 text-left">
+								<p>
+									{singleWine?.suggestions.name
+										? `「${singleWine.suggestions.name}」を読み取りました。`
+										: "写真から1銘柄だけを読み取りました。"}
+									「ワインを記録」に切り替えると、写真と読み取った内容を引き継いで
+									エチケット解析を自動で実行します
+									{labelAnalysisCredits !== null &&
+										`(約${labelAnalysisCredits.toLocaleString("ja-JP")}クレジットを消費)`}
+									。
+								</p>
+								<p>
+									見かけた場所・見かけた日は引き継がれません。目撃記録として残したい
+									場合は、このまま一括登録を続けてください。
+								</p>
+								{photos.length > MAX_HANDOFF_PHOTOS && (
+									<p>
+										写真は先頭{MAX_HANDOFF_PHOTOS}
+										枚のみ引き継ぎます(1件のワインに保存できる上限)。
+									</p>
+								)}
+								{singleWine?.existing && (
+									<p>
+										マイセラーには既に「{singleWine.existing.name}
+										」があります。同じ銘柄をもう1件作らずに目撃記録だけを足すなら、
+										一括登録を続けてください。
+									</p>
+								)}
+							</div>
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setSingleWine(null)}
+						>
+							このまま一括登録を続ける
+						</Button>
+						<Button type="button" onClick={() => void goToSingleWineForm()}>
+							ワインを記録へ
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<Dialog open={undoOpen} onOpenChange={setUndoOpen}>
 				<DialogContent>
