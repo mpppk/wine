@@ -1,13 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { WineListCandidate } from "#/lib/ai/wine-list-extraction";
 import { DEFAULT_WINE_STATUS } from "#/lib/drunk-wine/status";
 import type { WineListAnalysisSummary } from "#/lib/services/ai-service";
 import {
 	buildSingleWineHandoff,
 	MAX_HANDOFF_PHOTOS,
-	setSingleWineHandoff,
 	singleWineCandidate,
-	takeSingleWineHandoff,
+	takePhotosForEntry,
 } from "./single-wine-handoff";
 
 function candidate(
@@ -64,7 +63,7 @@ describe("singleWineCandidate", () => {
 		expect(singleWineCandidate([], summary({ detected: 0 }))).toBeNull();
 	});
 
-	it("既存セラーと一致していても候補にはする(遷移するかはユーザが選ぶ)", () => {
+	it("既存セラーと一致していても候補にはする(切り替え後に戻れる)", () => {
 		const c = candidate({
 			existing: {
 				id: "e1",
@@ -144,22 +143,35 @@ describe("buildSingleWineHandoff", () => {
 		expect(handoff.files).toHaveLength(1);
 		expect(handoff.droppedPhotoCount).toBe(0);
 	});
+
+	it("自動切り替えの荷物として印を付ける", () => {
+		const handoff = buildSingleWineHandoff(candidate(), [], true);
+		expect(handoff.reason).toBe("single_wine");
+		// 写真の場所・撮影日は記録フォームに引き継げないので、その旨を持ち回る
+		expect(handoff.discardedSightingInput).toBe(true);
+	});
 });
 
-describe("荷物の受け渡し", () => {
-	beforeEach(() => {
-		takeSingleWineHandoff();
+describe("takePhotosForEntry", () => {
+	it("上限を超えた分は落とし、落とした枚数を伝える", () => {
+		const files = Array.from({ length: MAX_HANDOFF_PHOTOS + 3 }, (_, i) =>
+			photoFile(`p${i}.jpg`),
+		);
+		const taken = takePhotosForEntry(files);
+		expect(taken.files).toHaveLength(MAX_HANDOFF_PHOTOS);
+		expect(taken.files.at(-1)?.name).toBe(`p${MAX_HANDOFF_PHOTOS - 1}.jpg`);
+		expect(taken.droppedPhotoCount).toBe(3);
 	});
 
-	it("預けた荷物を1回だけ取り出せる", () => {
-		const handoff = buildSingleWineHandoff(candidate(), [photoFile("p0.jpg")]);
-		setSingleWineHandoff(handoff);
-		expect(takeSingleWineHandoff()).toBe(handoff);
-		// 2回目は空。保存後に「ワインを記録」を開き直しても前回の内容は蘇らない
-		expect(takeSingleWineHandoff()).toBeNull();
+	it("上限以下ならそのまま", () => {
+		const taken = takePhotosForEntry([photoFile("a.jpg"), photoFile("b.jpg")]);
+		expect(taken.files).toHaveLength(2);
+		expect(taken.droppedPhotoCount).toBe(0);
 	});
 
-	it("預けていなければ null(通常の新規作成)", () => {
-		expect(takeSingleWineHandoff()).toBeNull();
+	it("1枚も選んでいなければ空", () => {
+		const taken = takePhotosForEntry([]);
+		expect(taken.files).toEqual([]);
+		expect(taken.droppedPhotoCount).toBe(0);
 	});
 });
