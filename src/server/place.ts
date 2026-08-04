@@ -48,8 +48,9 @@ export const bulkRegisterFromScan = createServerFn({ method: "POST" })
 	);
 
 /**
- * 一括登録バッチの取り消し(Issue #363 案A)。`/cellar/import` の登録完了直後
- * からのみ呼ばれる想定(サービス層のJSDoc参照)。
+ * 一括登録バッチの取り消し(Issue #363 案A)。`/cellar/import` の登録完了直後に加えて、
+ * **一括登録の履歴画面(#385)からも恒常的に呼ばれる**。編集済みエントリの扱いは
+ * 未決の論点で、警告はクライアント側の確認ダイアログに委ねている(サービス層のJSDoc参照)。
  */
 export const undoImportBatch = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])

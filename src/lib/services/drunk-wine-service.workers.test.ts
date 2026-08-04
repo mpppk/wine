@@ -1671,6 +1671,103 @@ describe("undoImportBatch", () => {
 			undoImportBatch(userId, "no-such-batch"),
 		).rejects.toBeInstanceOf(NotFoundError);
 	});
+
+	// #393: 一括登録は既存エントリにも試飲記録を足せる(「このワインを飲んだ」)。
+	// 取り消しがこれを消し残すと、ユーザには「取り消したのに飲んだ記録と評価が残る」
+	// という無言のデータ不整合になる。**新規作成エントリぶんは FK cascade でたまたま
+	// 消えていた**ため、既存エントリ経路だけがこの不具合の対象だった。
+	it("既存エントリに足した試飲記録も取り消し、集計を元に戻す(#393)", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, {
+			name: "以前飲んだシャブリ",
+			status: "finished",
+			tasting: { drankOn: "2020-01-01", rating: 3 },
+		});
+
+		const result = await bulkRegisterFromScan(userId, {
+			seenOn: "2026-08-01",
+			photoCount: 0,
+			items: [
+				// 既存エントリに「飲んだ」を付けて登録する
+				{
+					wine: undefined,
+					existingId: existing.id,
+					tasting: { drankOn: "2026-08-01", rating: 5 },
+				},
+			],
+		});
+		expect(result.tastingCount).toBe(1);
+		// 取り消し前は2件(元からの1件 + バッチが足した1件)
+		expect(await listWineTastings(userId, existing.id)).toHaveLength(2);
+
+		await undoImportBatch(userId, result.batchId);
+
+		// バッチが足した試飲記録だけが消え、手動で足した過去の記録は残る
+		const tastings = await listWineTastings(userId, existing.id);
+		expect(tastings).toHaveLength(1);
+		expect(tastings[0]).toMatchObject({ drankOn: "2020-01-01", rating: 3 });
+
+		// 集計も元に戻る(ここが戻らないと一覧・詳細に取り消し前の値が残り続ける)
+		const { entries } = await listDrunkWines(userId);
+		expect(entries).toHaveLength(1);
+		expect(entries[0]).toMatchObject({
+			id: existing.id,
+			tastingCount: 1,
+			lastDrankOn: "2020-01-01",
+			lastRating: 3,
+		});
+	});
+
+	// バッチ由来かどうかは wine_tasting.batch_id で判定する。取り消しが
+	// 「そのエントリの試飲記録を全部消す」実装に退化したらここで落ちる。
+	it("取り消し後に手動で足した試飲記録は巻き込まない(#393)", async () => {
+		const userId = await freshUser();
+		// status を明示して「日付なしの飲用記録を1件作る」既定(finished)を避ける。
+		// ここで見たいのは batch 由来かどうかの選別だけなので、雑音を入れない。
+		const existing = await createDrunkWine(userId, {
+			name: "既存エントリ",
+			status: "spotted",
+		});
+
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: undefined,
+					existingId: existing.id,
+					tasting: { drankOn: "2026-08-01" },
+				},
+			],
+		});
+		// バッチとは無関係に、ユーザが自分で試飲記録を足す
+		await addWineTasting(userId, existing.id, { drankOn: "2026-08-02" });
+
+		await undoImportBatch(userId, result.batchId);
+
+		const tastings = await listWineTastings(userId, existing.id);
+		expect(tastings).toHaveLength(1);
+		expect(tastings[0]).toMatchObject({ drankOn: "2026-08-02" });
+	});
+
+	it("新規作成エントリに足した試飲記録もエントリごと消える", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{ wine: { name: "新規のワイン" }, tasting: { drankOn: "2026-08-01" } },
+			],
+		});
+
+		await undoImportBatch(userId, result.batchId);
+
+		expect((await listDrunkWines(userId)).entries).toHaveLength(0);
+		// 取り残された試飲記録が無いこと(エントリが消えても行だけ残ると集計が壊れる)
+		const leftover = await db
+			.select()
+			.from(wineTasting)
+			.where(eq(wineTasting.userId, userId));
+		expect(leftover).toHaveLength(0);
+	});
 });
 
 // ---- listImportBatches(バッチ履歴の一覧, Issue #380) -----------------------

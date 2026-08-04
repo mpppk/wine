@@ -1,0 +1,25 @@
+-- allow-destructive-migration
+--
+-- ↑ の理由: 唯一の該当箇所は `ADD COLUMN batch_id text REFERENCES ...`。
+-- nullable + デフォルト無しの列追加(既存行は NULL で埋まる)なので
+-- expand-and-contract の対象ではない(0022 で wine_sighting.batch_id、
+-- 0024 で drunk_wine.batch_id を足したときと同じ形)。既存列の NOT NULL 化・
+-- DROP・RENAME は無い。旧コードはこの列を書かないので、
+-- 「新スキーマ×旧コード」の窓でも NULL のまま動く。
+--
+-- Issue #393: 一括登録バッチの取り消しが試飲記録を消し残す。
+--
+-- 一括登録は「既存エントリに一致した項目」にも試飲記録(wine_tasting)を
+-- 足せる(ImportCandidateCard の「このワインを飲んだ」)。一方 undoImportBatch は
+-- wine_sighting と「このバッチで新規作成した drunk_wine」しか消しておらず、
+-- **既存エントリに足された試飲記録が恒久的に残っていた**(集計の
+-- tasting_count/last_drank_on/last_rating も戻らない)。新規作成エントリぶんは
+-- drunk_wine の削除に伴う FK cascade でたまたま消えていたため、取り消しの
+-- 不完全さが表に出にくかった。
+--
+-- この列で「どのバッチで足された試飲記録か」を辿れるようにし、取り消しを
+-- 対称にする(手動で足した試飲記録は NULL のままなので巻き込まない)。
+--
+-- 索引は張らない。参照するのは取り消し時の1クエリだけで、
+-- wine_sighting.batch_id にも索引を張っていない(0022)のと揃える。
+ALTER TABLE `wine_tasting` ADD COLUMN `batch_id` text REFERENCES `import_batch`(`id`) ON UPDATE no action ON DELETE set null;
