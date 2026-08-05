@@ -320,6 +320,171 @@ describe("AOPメタデータの整合性", () => {
 		]);
 	});
 
+	// メドック1855格付け(計88シャトー)の顔ぶれ(#391)。
+	//
+	// サンテミリオン第1特別級・グラーヴ・クリュ・ブルジョワには顔ぶれ固定があるのに、
+	// **最大の格付けであるここにだけ件数アサートしか無かった**。#216(La Gaffelière
+	// 混入 + La Mondotte 欠落)は**件数が合っていたため**件数スナップショットを
+	// 素通りしており、同じ取り違えがここでは88件ぶん起こりうる。1件の差し替えが
+	// `aop-classification` クイズ経由で利用者に誤った事実を教えるので、名前で固定する。
+	//
+	// 1855年の格付けは「メドックの赤61」と「ソーテルヌ/バルサックの甘口27」の2本立てで、
+	// 級のタグは両者で共有している(例: 第1級16 = メドック5 + ソーテルヌ11)。
+	it("メドック1855格付けは公式の顔ぶれ(88シャトー)と一致する", () => {
+		const namesOf = (tag: string) =>
+			AOPS.filter((a) => a.tags?.includes(tag as never))
+				.map((a) => a.name)
+				.sort();
+
+		// ソーテルヌのみ。1855年に唯一この級に置かれた。
+		expect(namesOf("premier-cru-superieur-1855")).toEqual(["Château d'Yquem"]);
+
+		// メドック5(Mouton は1973年に第2級から昇格)+ ソーテルヌ11。
+		expect(namesOf("premier-cru-classe-1855")).toEqual([
+			"Château Climens",
+			"Château Clos Haut-Peyraguey",
+			"Château Coutet",
+			"Château Guiraud",
+			"Château Haut-Brion",
+			"Château La Tour Blanche",
+			"Château Lafaurie-Peyraguey",
+			"Château Lafite Rothschild",
+			"Château Latour",
+			"Château Margaux",
+			"Château Mouton Rothschild",
+			"Château Rabaud-Promis",
+			"Château Rieussec",
+			"Château Sigalas-Rabaud",
+			"Château Suduiraut",
+			"Château de Rayne-Vigneau",
+		]);
+
+		// メドック14 + ソーテルヌ/バルサック15。ソーテルヌ側は分割で件数が増えた組が
+		// あり(Doisy→Daëne/Dubroca/Védrines、Romer→Romer/Romer du Hayot、
+		// Lamothe→Lamothe/Lamothe-Guignard)、いずれも現在それぞれ独立した格付け銘柄。
+		//
+		// **Doisy-Dubroca を「現存しない」として消さないこと**。2012年に畑を引き抜き、
+		// 2014年に Doisy-Daëne 側(Dubourdieu家)へ売却された経緯から、二次情報の多くは
+		// 「以後生産されない」と書いている。しかし所有者の公式サイトによれば植え替えを経て
+		// **2019年ヴィンテージから生産を再開**している(1.5ha・セミヨン100%)。グラーヴ格付けで
+		// 現存しない2件を除いた前例(#218)があるため、二次情報だけを見て同じ処理をしがちな箇所。
+		// Romer(約5,000本)・Suau(約20,000本)・de Myrat(1988年に植え替え)も現役で、
+		// 1855年の27件はいずれも現存する。
+		expect(namesOf("deuxieme-cru-classe-1855")).toEqual([
+			"Château Brane-Cantenac",
+			"Château Broustet",
+			"Château Caillou",
+			"Château Cos d'Estournel",
+			"Château Doisy-Daëne",
+			"Château Doisy-Dubroca",
+			"Château Doisy-Védrines",
+			"Château Ducru-Beaucaillou",
+			"Château Durfort-Vivens",
+			"Château Filhot",
+			"Château Gruaud-Larose",
+			"Château Lamothe",
+			"Château Lamothe-Guignard",
+			"Château Lascombes",
+			"Château Léoville-Barton",
+			"Château Léoville-Las Cases",
+			"Château Léoville-Poyferré",
+			"Château Montrose",
+			"Château Nairac",
+			"Château Pichon-Longueville Baron",
+			"Château Pichon-Longueville Comtesse de Lalande",
+			"Château Rauzan-Gassies",
+			"Château Rauzan-Ségla",
+			"Château Romer",
+			"Château Romer du Hayot",
+			"Château Suau",
+			"Château d'Arche",
+			"Château de Malle",
+			"Château de Myrat",
+		]);
+
+		// 第3級以下はメドックの赤のみ(ソーテルヌの格付けは第2級まで)。
+		expect(namesOf("troisieme-cru-classe-1855")).toEqual([
+			"Château Boyd-Cantenac",
+			"Château Calon-Ségur",
+			"Château Cantenac-Brown",
+			"Château Desmirail",
+			"Château Ferrière",
+			"Château Giscours",
+			"Château Kirwan",
+			"Château La Lagune",
+			"Château Lagrange",
+			"Château Langoa-Barton",
+			"Château Malescot St. Exupéry",
+			"Château Marquis d'Alesme Becker",
+			"Château Palmer",
+			"Château d'Issan",
+		]);
+
+		expect(namesOf("quatrieme-cru-classe-1855")).toEqual([
+			"Château Beychevelle",
+			"Château Branaire-Ducru",
+			"Château Duhart-Milon",
+			"Château La Tour Carnet",
+			"Château Lafon-Rochet",
+			"Château Marquis de Terme",
+			"Château Pouget",
+			"Château Prieuré-Lichine",
+			"Château Saint-Pierre",
+			"Château Talbot",
+		]);
+
+		expect(namesOf("cinquieme-cru-classe-1855")).toEqual([
+			"Château Batailley",
+			"Château Belgrave",
+			"Château Cantemerle",
+			"Château Clerc-Milon",
+			"Château Cos Labory",
+			"Château Croizet-Bages",
+			"Château Dauzac",
+			"Château Grand-Puy-Ducasse",
+			"Château Grand-Puy-Lacoste",
+			"Château Haut-Bages Libéral",
+			"Château Haut-Batailley",
+			"Château Lynch-Bages",
+			"Château Lynch-Moussas",
+			"Château Pontet-Canet",
+			"Château Pédesclaux",
+			"Château d'Armailhac",
+			"Château de Camensac",
+			"Château du Tertre",
+		]);
+	});
+
+	// 級とAOCの対応。顔ぶれの配列だけだと「名前は合っているが別のコミューンに
+	// 引っ越している」変更を拾えない(1855年の格付けは AOC 単位で語られるので、
+	// 産地が変わると出題も誤る)。
+	it("メドック1855格付けの各シャトーは正しいAOCに属する", () => {
+		const cru1855 = AOPS.filter((a) =>
+			(a.tags ?? []).some((t) => t.endsWith("-1855")),
+		);
+		expect(cru1855.length).toBe(88);
+		// メドックの赤61(オー・ブリオンだけは例外的にペサック・レオニャン)と
+		// ソーテルヌ/バルサックの甘口27。
+		const byAop = new Map<string, number>();
+		for (const a of cru1855) {
+			for (const v of a.villageAopIds ?? []) {
+				byAop.set(v, (byAop.get(v) ?? 0) + 1);
+			}
+		}
+		// メドック赤61 = margaux21 + pauillac18 + saint-julien11 + saint-estephe5
+		// + haut-medoc5 + pessac-leognan1、甘口27 = sauternes17 + barsac10。
+		expect(Object.fromEntries([...byAop].sort())).toEqual({
+			barsac: 10,
+			"haut-medoc": 5,
+			margaux: 21,
+			pauillac: 18,
+			"pessac-leognan": 1,
+			"saint-estephe": 5,
+			"saint-julien": 11,
+			sauternes: 17,
+		});
+	});
+
 	it("ボルドー1855/サンテミリオン格付けタグは winery のみが持つ", () => {
 		const wineryTags = new Set([
 			"premier-cru-superieur-1855",
