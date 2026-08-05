@@ -453,6 +453,13 @@ export function PhotoRegisterWizard({
 										<span className="absolute left-1 top-1 rounded bg-foreground/80 px-1 py-0.5 text-[10px] font-medium leading-none text-background">
 											{index + 1}枚目
 										</span>
+										{p.source === "rescan" && (
+											// どれが元バッチの写真かが見えないと、足したつもりの
+											// ページを撮り違えても気付けない(#428)
+											<span className="absolute inset-x-0 bottom-0 rounded-b-md bg-foreground/70 py-0.5 text-center text-[10px] leading-none text-background">
+												元の写真
+											</span>
+										)}
 										<button
 											type="button"
 											aria-label={`写真${index + 1}を削除`}
