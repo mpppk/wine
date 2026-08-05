@@ -2084,6 +2084,101 @@ describe("saveImportBatchPhotos", () => {
 			]),
 		).rejects.toThrow("Import batch not found");
 	});
+
+	// Issue #405: 登録時の申告枚数(photoCount)は zod の検証にしか使われず永続化
+	// されていなかったため、2段階目は「申告どおりの枚数が来たか」を確認できなかった。
+	// 申告より少ない枚数が入ると、目撃記録の photoIndex が配列外(写真が出ない)か、
+	// 前段が抜けた繰り上がりで**別の写真**を指す。
+	describe("申告枚数との照合 (#405)", () => {
+		/** photoIndex が 0,1,2 を指す3枚申告のバッチ。 */
+		async function seedBatchOf3(userId: string): Promise<string> {
+			const result = await bulkRegisterFromScan(userId, {
+				photoCount: 3,
+				items: [
+					{ wine: { name: "1枚目のワイン" }, sighting: { photoIndex: 0 } },
+					{ wine: { name: "2枚目のワイン" }, sighting: { photoIndex: 1 } },
+					{ wine: { name: "3枚目のワイン" }, sighting: { photoIndex: 2 } },
+				],
+			});
+			return result.batchId;
+		}
+
+		const jpeg = () => ({
+			bytes: JPEG_1X1_BYTES,
+			mimeType: "image/jpeg",
+		});
+
+		it("申告枚数を import_batch に残す", async () => {
+			const userId = await freshUser();
+			const batchId = await seedBatchOf3(userId);
+
+			const [row] = await db
+				.select({ photoCount: importBatch.photoCount })
+				.from(importBatch)
+				.where(eq(importBatch.id, batchId));
+			expect(row?.photoCount).toBe(3);
+		});
+
+		it("申告より少ない枚数は拒否し、R2にも書かない", async () => {
+			const userId = await freshUser();
+			const batchId = await seedBatchOf3(userId);
+
+			await expect(
+				saveImportBatchPhotos(userId, batchId, [jpeg(), jpeg()]),
+			).rejects.toBeInstanceOf(BadRequestError);
+
+			// 拒否は R2 へ書く前に起きる(孤児オブジェクトを作らない)
+			const objects = await env.AVATARS.list({
+				prefix: `wines/${userId}/${batchId}/`,
+			});
+			expect(objects.objects).toHaveLength(0);
+			// 写真キーも空のまま = やり直せる
+			const [row] = await db
+				.select({ photoKeys: importBatch.photoKeys })
+				.from(importBatch)
+				.where(eq(importBatch.id, batchId));
+			expect(row?.photoKeys).toEqual([]);
+		});
+
+		it("申告より多い枚数も拒否する(順序がずれて別の写真を指すため)", async () => {
+			const userId = await freshUser();
+			const batchId = await seedBatchOf3(userId);
+
+			await expect(
+				saveImportBatchPhotos(userId, batchId, [
+					jpeg(),
+					jpeg(),
+					jpeg(),
+					jpeg(),
+				]),
+			).rejects.toBeInstanceOf(BadRequestError);
+		});
+
+		it("申告どおりの枚数なら通る", async () => {
+			const userId = await freshUser();
+			const batchId = await seedBatchOf3(userId);
+
+			const batch = await saveImportBatchPhotos(userId, batchId, [
+				jpeg(),
+				jpeg(),
+				jpeg(),
+			]);
+			expect(batch.photoUrls).toHaveLength(3);
+		});
+
+		it("申告枚数を持たない既存バッチ(photo_count=null)は照合をスキップする", async () => {
+			const userId = await freshUser();
+			const batchId = await seedBatchOf3(userId);
+			// この列を持つ前に作られたバッチを再現する
+			await db
+				.update(importBatch)
+				.set({ photoCount: null })
+				.where(eq(importBatch.id, batchId));
+
+			const batch = await saveImportBatchPhotos(userId, batchId, [jpeg()]);
+			expect(batch.photoUrls).toHaveLength(1);
+		});
+	});
 });
 
 // 閲覧側(Issue #358 PR4)。目撃記録の由来写真の解決と、場所での絞り込みを実D1で見る。

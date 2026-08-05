@@ -1540,8 +1540,11 @@ export async function bulkRegisterFromScan(
 			userId,
 			placeId,
 			seenOn: input.seenOn ?? null,
-			// 写真の実体は2段階目(saveImportBatchPhotos)で入る
+			// 写真の実体は2段階目(saveImportBatchPhotos)で入る。申告枚数はここで
+			// 残しておく——2段階目が「申告どおりの枚数が来たか」を確認する唯一の
+			// 手掛かりで、捨てると photoIndex の指す先を保証できない(#405)。
 			photoKeys: [],
+			photoCount: input.photoCount,
 		}),
 	);
 
@@ -1910,6 +1913,14 @@ export async function getImportBatch(
  * (photoCount)と一致していること**が意味の前提になり、ここでずれると
  * 「別の写真で見かけたことになる」ため、枚数が合わなければ拒否する。
  *
+ * **枚数の照合は import_batch.photo_count と行う**(#405)。この列を持つ前に
+ * 作られたバッチは `null` で、申告枚数を復元する手立てが無いので照合を飛ばす
+ * (目撃記録の最大 photoIndex から下限は導けるが、それは申告枚数とは別物で、
+ * 「その写真を誰も指していない」だけの正常なバッチを誤って拒否する)。
+ * **順番はサーバ側では検証できない**——受け取った配列の順序が撮影順である保証は
+ * クライアント側にしか無い。枚数の一致は、抜けたファイルによる繰り上がり
+ * (= 別の写真を指す)を検出する代理指標として効く。
+ *
  * R2キーは `wines/{userId}/{batchId}/{photoId}.{ext}`。エントリ写真と同じ
  * `wines/` 接頭辞に載せる理由は db/schema.ts の importBatch の JSDoc を参照
  * (認可・署名URL・退会時削除がこのレイアウトと一対の契約になっている)。
@@ -1935,6 +1946,13 @@ export async function saveImportBatchPhotos(
 	if (!existing) throw new NotFoundError("Import batch not found");
 	if (existing.photoKeys.length > 0) {
 		throw new ConflictError("このバッチの写真は保存済みです");
+	}
+	// 申告枚数との照合(#405)。**R2へ書く前**に弾く(後で拒否すると孤児オブジェクトの
+	// 掃除が要る)。null は列を持つ前の既存バッチで、照合できないので通す。
+	if (existing.photoCount != null && photos.length !== existing.photoCount) {
+		throw new BadRequestError(
+			`写真の枚数が登録時の申告(${existing.photoCount}枚)と一致しません`,
+		);
 	}
 
 	const putKeys: string[] = [];
