@@ -2,7 +2,7 @@ import { AOPS } from "#/lib/wine/aops-data";
 import { getAop } from "#/lib/wine/service";
 import type { Aop, RegionId } from "#/lib/wine/types";
 import {
-	duplicatesParentFact,
+	duplicatesUmbrellaFact,
 	isOpenEndedAppellation,
 	listClosedListAops,
 } from "../aop-pool";
@@ -25,15 +25,18 @@ function listExistingCombos(): string[] {
 	return existingCombos;
 }
 
-/** 正解の色コンボが親畑と同じクリマは、親側の1問に集約する(aop-pool.ts 参照) */
-const duplicatesParentColors = (a: Aop) =>
-	duplicatesParentFact(a, (x) => colorComboId(x.colors));
+/** 正解の色コンボが上位AOP(傘AOC/村)と同じ畑は、上位側の1問に集約する(aop-pool.ts 参照) */
+const duplicatesUmbrellaColors = (a: Aop) =>
+	duplicatesUmbrellaFact(a, (x) =>
+		// IGT は本形式の出題対象外(集約先になれない)
+		isOpenEndedAppellation(x) ? undefined : colorComboId(x.colors),
+	);
 
 // 開かれた広域呼称(IGT)は収録した colors が網羅でないため、「認められている色は」を
 // 断定するこの形式では出題しない(aop-pool.ts 参照)
 export function enumerateColorsKeys(regionId: RegionId): string[] {
 	return listClosedListAops({ regionId })
-		.filter((a) => !duplicatesParentColors(a))
+		.filter((a) => !duplicatesUmbrellaColors(a))
 		.map((a) => buildColorsKey(a.id));
 }
 
@@ -42,7 +45,7 @@ export function materializeColorsQuestion(
 	rng: Rng,
 ): QuizQuestion | null {
 	const aop = getAop(parsed.aopId);
-	if (!aop || isOpenEndedAppellation(aop) || duplicatesParentColors(aop)) {
+	if (!aop || isOpenEndedAppellation(aop) || duplicatesUmbrellaColors(aop)) {
 		return null;
 	}
 

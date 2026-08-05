@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
 import { REGION_IDS } from "#/lib/wine/regions";
-import { duplicatesParentFact, isOpenEndedAppellation } from "../aop-pool";
+import { duplicatesUmbrellaFact, isOpenEndedAppellation } from "../aop-pool";
 import { parseKey } from "../keys";
 import { principalComboId } from "../labels";
 import { mulberry32 } from "../rng";
@@ -14,23 +14,27 @@ const byId = new Map(AOPS.map((a) => [a.id, a]));
 
 describe("主要品種クイズ", () => {
 	// IGT(開かれた広域呼称)は「主要品種」が定まらないため対象外(#212)。
-	// 主要品種コンボが親畑と同じクリマは親側の1問に集約するため対象外(aop-pool.ts 参照)。
-	it("主要品種を持つ全AOP分(IGTと親畑に集約されるクリマを除く)のキーが列挙される", () => {
+	// 主要品種コンボが上位AOP(傘AOC/村)と同じ畑は上位側の1問に集約するため対象外
+	// (aop-pool.ts 参照)。
+	it("主要品種を持つ全AOP分(IGTと上位AOPに集約される畑を除く)のキーが列挙される", () => {
 		const total = REGION_IDS.flatMap((r) => enumerateAopVarietyKeys(r));
 		const withPrincipal = AOPS.filter(
 			(a) =>
 				a.grapes.some((g) => g.role === "principal") &&
 				!isOpenEndedAppellation(a) &&
-				!duplicatesParentFact(a, (x) => principalComboId(x)),
+				!duplicatesUmbrellaFact(a, (x) =>
+					isOpenEndedAppellation(x) ? undefined : principalComboId(x),
+				),
 		);
 		expect(total.length).toBe(withPrincipal.length);
 		expect(new Set(total).size).toBe(total.length);
 	});
 
-	it("主要品種が親畑と同じクリマは出題されず、異なるクリマは残る", () => {
+	it("主要品種が上位AOPと同じ畑は出題されず、異なる畑は残る", () => {
 		const bourgogne = enumerateAopVarietyKeys("bourgogne");
-		// シャブリ・グラン・クリュの7クリマは全て親と同じシャルドネ → 親の1問に集約
-		expect(bourgogne).toContain("aop-variety:chablis-grand-cru");
+		// シャブリ・グラン・クリュの7クリマは全て親と同じシャルドネ → 集約先はシャブリ
+		expect(bourgogne).toContain("aop-variety:chablis");
+		expect(bourgogne).not.toContain("aop-variety:chablis-grand-cru");
 		expect(bourgogne.some((k) => k.startsWith("aop-variety:chablis-gc-"))).toBe(
 			false,
 		);
@@ -39,6 +43,10 @@ describe("主要品種クイズ", () => {
 		).toBe(false);
 		// コルトンのクリマは主要品種が親(ピノ・ノワール+シャルドネ)と異なるため残る
 		expect(bourgogne).toContain("aop-variety:corton-les-bressandes");
+		// #436: 独立AOCのグラン・クリュも村と同じ主要品種なら村側の1問に集約する
+		expect(bourgogne).toContain("aop-variety:gevrey-chambertin");
+		expect(bourgogne).not.toContain("aop-variety:chambertin");
+		expect(bourgogne).not.toContain("aop-variety:romanee-conti");
 	});
 
 	it("親畑と主要品種が同じクリマのキーは具現化されない(失効キー扱い)", () => {

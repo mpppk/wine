@@ -1,7 +1,7 @@
 import { getRegion } from "#/lib/wine/regions";
 import { getAop, listAops } from "#/lib/wine/service";
 import type { Aop, RegionId, Subregion } from "#/lib/wine/types";
-import { duplicatesParentFact } from "../aop-pool";
+import { duplicatesUmbrellaFact } from "../aop-pool";
 import { buildAopSubregionKey, type ParsedQuestionKey } from "../keys";
 import { type Rng, sample, shuffle } from "../rng";
 import type { QuizQuestion } from "../types";
@@ -30,9 +30,13 @@ function realSubregions(regionId: RegionId): Subregion[] {
 	);
 }
 
-/** 所属地区が親畑と同じクリマは、親側の1問に集約する(aop-pool.ts 参照) */
-const duplicatesParentSubregion = (a: Aop) =>
-	duplicatesParentFact(a, (x) => x.subregionId);
+/** 所属地区が上位AOP(傘AOC/村)と同じ畑は、上位側の1問に集約する(aop-pool.ts 参照) */
+const duplicatesUmbrellaSubregion = (a: Aop) =>
+	duplicatesUmbrellaFact(a, (x) =>
+		// 広域AOCは本形式の主語にならない(集約先になれない)。オー・メドックのような
+		// 広域AOCに属するシャトーの地区設問を消さないための条件(aop-pool.ts 参照)
+		isScopedToSubregion(x.kind) ? x.subregionId : undefined,
+	);
 
 export function enumerateAopSubregionKeys(regionId: RegionId): string[] {
 	const subregions = realSubregions(regionId);
@@ -43,7 +47,7 @@ export function enumerateAopSubregionKeys(regionId: RegionId): string[] {
 			(a) =>
 				isScopedToSubregion(a.kind) &&
 				subregionIds.has(a.subregionId) &&
-				!duplicatesParentSubregion(a),
+				!duplicatesUmbrellaSubregion(a),
 		)
 		.map((a) => buildAopSubregionKey(a.id));
 }
@@ -56,7 +60,7 @@ export function materializeAopSubregionQuestion(
 	if (
 		!aop ||
 		!isScopedToSubregion(aop.kind) ||
-		duplicatesParentSubregion(aop)
+		duplicatesUmbrellaSubregion(aop)
 	) {
 		return null;
 	}

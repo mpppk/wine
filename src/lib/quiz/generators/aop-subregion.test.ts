@@ -44,6 +44,17 @@ describe("所属地区クイズ", () => {
 		expect(enumerateAopSubregionKeys("bourgogne").length).toBeGreaterThan(0);
 	});
 
+	// #436: 所属地区は畑と上位AOPで一致することが多く、集約しないと同じ地区を答える
+	// 設問が畑の数だけ並ぶ(ジュヴレの9クリュ・シャブリの24クリマ等)。
+	it("所属地区が上位AOPと同じ畑は上位側の1問に集約される", () => {
+		const bourgogne = enumerateAopSubregionKeys("bourgogne");
+		expect(bourgogne).toContain("aop-subregion:gevrey-chambertin");
+		expect(bourgogne).not.toContain("aop-subregion:chambertin");
+		expect(bourgogne).not.toContain("aop-subregion:romanee-conti");
+		// 複数村にまたがる畑も、全村と地区が一致するなら集約する
+		expect(bourgogne).not.toContain("aop-subregion:bonnes-mares");
+	});
+
 	it("広域AOC(regional)は主題にならない", () => {
 		const regionalIds = new Set(
 			AOPS.filter((a) => a.kind === "regional").map((a) => a.id),

@@ -32,24 +32,58 @@ export const listClosedListAops: typeof listAops = (filter) =>
 	listAops(filter).filter((a) => !isOpenEndedAppellation(a));
 
 /**
- * 個別クリマ(parentAopId を持つAOP)の設問が、親畑(傘AOC)の同型設問と同一内容に
- * なるか。クリマは独立したアペラシオンではなく、規約上の事実(色・品種・格付け等)は
- * 親の傘AOCのものをそのまま引き継ぐ。値が親と同じ事実をクリマごとに出題すると、
- * 名前だけ違う同一内容のクイズが畑の数だけ並ぶ(シャブリ・グラン・クリュの7クリマ等)。
- * その場合は親側の1問に集約し、クリマ側では出題しない。
+ * 畑・シャトーを内包する上位AOP(傘AOC/村名AOC)。階層エッジは2種類あり、
+ * スキーマ上は相互排他(`aop-schema.ts`):
+ *  - parentAopId : 個別クリマ → 内包する親畑(シャブリ・グラン・クリュ等の傘AOC)
+ *  - villageAopIds: 畑/シャトー → 所属する村名AOC(複数村にまたがる畑は複数)
  *
- * 親と値が異なる事実(コルトンの各クリマの色・品種など)はクリマ固有の学びなので
- * 出題対象のまま残る。fact には形式ごとの「正解を表す値」を渡す
- * (colors ならコンボID、subregion なら subregionId 等)。
+ * 両方を辿るのは、同じ「上位と同一内容」の重複が構造の違いで取りこぼされるため。
+ * シャブリ・グラン・クリュ配下の7クリマは単一AOC内のリュー・ディなので
+ * parentAopId を持つが、シャンベルタン群はそれぞれが独立したAOCで法的な親AOCが
+ * 無く villageAopIds でジュヴレ・シャンベルタンに繋がる。#373 が parentAopId
+ * だけを見ていたため、後者は集約されず同一内容の設問が畑の数だけ残っていた。
  */
-export function duplicatesParentFact(
+function listUmbrellaAops(aop: Aop): Aop[] | undefined {
+	const ids = [
+		...(aop.parentAopId ? [aop.parentAopId] : []),
+		...(aop.villageAopIds ?? []),
+	];
+	if (ids.length === 0) return undefined;
+	const umbrellas: Aop[] = [];
+	for (const id of ids) {
+		const umbrella = getAop(id);
+		// 参照先が引けないなら集約先が確かめられないので集約しない(設問を残す)
+		if (!umbrella) return undefined;
+		umbrellas.push(umbrella);
+	}
+	return umbrellas;
+}
+
+/**
+ * 畑・シャトーの設問が、それを内包する上位AOP(傘AOC/村名AOC)の同型設問と同一内容に
+ * なるか。畑は上位AOPと地理的に重なり、規約上の事実(色・品種・地区・格付け等)の多くを
+ * そのまま引き継ぐ。値が上位と同じ事実を畑ごとに出題すると、名前だけ違う同一内容の
+ * クイズが畑の数だけ並ぶ(ジュヴレ・シャンベルタンの9グラン・クリュ等)。その場合は
+ * 上位側の1問に集約し、畑側では出題しない。
+ *
+ * 上位と値が異なる事実(コルトンの各クリマの色・品種、ミュジニーの色など)は畑固有の
+ * 学びなので出題対象のまま残る。複数村にまたがる畑は**全ての村と一致するときだけ**
+ * 集約する。一村でも値が違えばその村のスコープでは固有の事実になり、集約すると
+ * その村から学びが消えるため(ボンヌ・マールは赤のみで、モレ・サン・ドニは赤・白)。
+ *
+ * fact には形式ごとの「正解を表す値」を渡す(colors ならコンボID、subregion なら
+ * subregionId 等)。**その形式で出題対象にならないAOPには undefined を返すこと**。
+ * 集約は「上位側が同型の1問を出す」ことが前提で、上位が出題対象外なら集約先が無く、
+ * 事実がどこからも出題されなくなる(オー・メドックは広域AOCで地区クイズの主語に
+ * ならないため、配下シャトーの地区設問は集約できない)。
+ */
+export function duplicatesUmbrellaFact(
 	aop: Aop,
 	fact: (a: Aop) => string | undefined,
 ): boolean {
-	if (!aop.parentAopId) return false;
-	const parent = getAop(aop.parentAopId);
-	if (!parent) return false;
+	const umbrellas = listUmbrellaAops(aop);
+	if (!umbrellas) return false;
 	const value = fact(aop);
 	if (value === undefined || value === "") return false;
-	return value === fact(parent);
+	return umbrellas.every((umbrella) => fact(umbrella) === value);
 }
