@@ -34,5 +34,24 @@
 		"formatter": {
 			"quoteStyle": "double"
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": [
+				"**/src/components/**/*.ts",
+				"**/src/components/**/*.tsx",
+				"**/src/routes/**/*.ts",
+				"**/src/routes/**/*.tsx",
+				"!**/*.test.ts",
+				"!**/*.test.tsx"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "error"
+					}
+				}
+			}
+		}
+	]
 }
