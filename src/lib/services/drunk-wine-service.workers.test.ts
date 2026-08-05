@@ -2209,3 +2209,111 @@ describe("場所での絞り込み", () => {
 		expect(page.entries[0]?.sightingCount).toBe(2);
 	});
 });
+
+// ---- 破壊的な一括削除の監査ライン(Issue #394) ------------------------------
+//
+// D1(cascade 込み)とR2にまたがる不可逆の削除は、成功時にも1行残さないと
+// 「エントリが消えた」という問い合わせに対して「ユーザが消した / バグで消えた /
+// そもそも無かった」を Workers Logs から区別できない。件数まで載せるのは、
+// 異常な大量削除を後から検知できるようにするため。
+
+describe("一括削除の監査ライン (#394)", () => {
+	let lines: string[] = [];
+	beforeEach(() => {
+		lines = [];
+		vi.spyOn(console, "info").mockImplementation((line: unknown) => {
+			lines.push(String(line));
+		});
+	});
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	/** 構造化ログ(1行JSON)を msg で拾う。 */
+	function logged(msg: string): Record<string, unknown>[] {
+		return lines
+			.map((line) => {
+				try {
+					return JSON.parse(line) as Record<string, unknown>;
+				} catch {
+					return null;
+				}
+			})
+			.filter((o): o is Record<string, unknown> => o?.msg === msg);
+	}
+
+	it("deleteDrunkWines は成功時に件数つきの info を残す", async () => {
+		const userId = await freshUser();
+		const other = await freshUser();
+		const a = await createDrunkWine(userId, { name: "A" });
+		const b = await createDrunkWine(userId, { name: "B" });
+		const theirs = await createDrunkWine(other, { name: "他人の" });
+
+		// 他人の id を混ぜる = 要求件数と削除件数がずれるケース
+		await deleteDrunkWines(userId, [a.id, b.id, theirs.id]);
+
+		const rows = logged("drunk wines bulk deleted");
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			level: "info",
+			userId,
+			requestedCount: 3,
+			deletedCount: 2,
+		});
+	});
+
+	it("空配列の削除ではログを出さない(何も起きていない)", async () => {
+		const userId = await freshUser();
+		await deleteDrunkWines(userId, []);
+		expect(logged("drunk wines bulk deleted")).toHaveLength(0);
+	});
+
+	it("undoImportBatch は成功時に取り消した内訳つきの info を残す", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, {
+			name: "以前飲んだシャブリ",
+			status: "spotted",
+		});
+		const result = await bulkRegisterFromScan(userId, {
+			seenOn: "2026-08-01",
+			photoCount: 0,
+			items: [
+				{ wine: { name: "新規のワイン" } },
+				{
+					wine: undefined,
+					existingId: existing.id,
+					tasting: { drankOn: "2026-08-01" },
+				},
+			],
+		});
+
+		await undoImportBatch(userId, result.batchId);
+
+		const rows = logged("import batch undone");
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			level: "info",
+			userId,
+			batchId: result.batchId,
+			// 新規作成の1件が消え、既存エントリ1件は記録だけ取り消して再計算した
+			deletedCount: 1,
+			sightingCount: 2,
+			tastingCount: 1,
+			recomputedCount: 1,
+		});
+	});
+
+	it("取り消せなかった場合(他ユーザのバッチ)はログを出さない", async () => {
+		const owner = await freshUser();
+		const stranger = await freshUser();
+		const result = await bulkRegisterFromScan(owner, {
+			photoCount: 0,
+			items: [{ wine: { name: "他人のバッチ" } }],
+		});
+
+		await expect(undoImportBatch(stranger, result.batchId)).rejects.toThrow(
+			NotFoundError,
+		);
+		expect(logged("import batch undone")).toHaveLength(0);
+	});
+});
