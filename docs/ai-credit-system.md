@@ -44,7 +44,13 @@
 
 トークン従量では消費量が事前に確定しないため、**予約（reserve）→ 実測確定（settle）**方式を採る。
 実装は `credit-service.ts` の `reserveCredits` / `settleReservation` / `refundReservation` で、
-消費者は `src/lib/services/ai-service.ts`（地域 Q&A・エチケット解析）。
+消費者は `src/lib/services/ai-service.ts`（地域 Q&A・エチケット解析・ワインリスト一括抽出）。
+
+**この4ステップを直接書くのは `runMeteredInference`（`src/lib/services/metered-inference.ts`）
+だけ**で、AI 機能側はそれを呼ぶ（#392）。以前は3つの機能が約70行の骨格を逐語コピーで
+持っており、下記の順序制約（返却を担う `try` の内側／外側の別）が typecheck もテストも
+強制しない「書く順番」だけで守られていた。ラッパーの不変条件は
+`metered-inference.workers.test.ts` が実 D1 で固定している。
 
 1. **最低残高チェック** — 残高が最大見積を下回るならブロック。推論は開始せず、アップグレード誘導を返す。
 2. **予約** — 最大見積分を `consume` として仮計上し、残高から引く（`request_id` 付き）。

@@ -31,7 +31,6 @@ import {
 	toRegionQaModelKey,
 	type WineListRoute,
 } from "#/lib/ai/config";
-import { type AiInferenceLog, logAiInference } from "#/lib/ai/inference-log";
 import {
 	buildLabelMessages,
 	buildLabelSuggestions,
@@ -95,46 +94,10 @@ import { BadRequestError, HttpError } from "#/lib/errors";
 import { logWarn } from "#/lib/logger";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
-import * as creditService from "#/lib/services/credit-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
+import { runMeteredInference } from "#/lib/services/metered-inference";
 import * as userService from "#/lib/services/user-service";
 import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
-
-/**
- * 実行記録を出し、**失敗なら運用者向けの通知も出す**(#395)。ai-service からの記録は
- * すべてここを通す(経路ごとに書くと、経路が増えたときに通知だけ漏れる)。
- *
- * 通知に載せるのは実行メタデータの**明示した部分集合だけ**。実行記録には
- * `webResearch` / `fieldSources` という「解析した銘柄が復元できる」フィールドがあり、
- * これは保持7日・APIトークン必須の Workers Logs に限る取り決めになっている
- * (docs/deployment.md)。まとめて転送すると、その判断を黙って外部へ広げてしまう。
- *
- * 個々の失敗そのものは即時対応を要さない(ユーザには返却済み)ので level は warning。
- * **見たいのは頻度**——推論が落ち続ければプロバイダへの原価だけが出ていくので、
- * 閾値はコード側で発明せず Sentry のアラートルール(件数/期間)に委ねる。
- */
-function recordInference(entry: AiInferenceLog): void {
-	logAiInference(entry);
-	if (entry.outcome !== "failed") return;
-	alertOperator(
-		"ai inference failed",
-		{
-			feature: entry.feature,
-			userId: entry.userId,
-			requestId: entry.requestId,
-			route: entry.route,
-			executedBy: entry.executedBy,
-			model: entry.model,
-			durationMs: entry.durationMs,
-			reservedMicroUsd: entry.reservedMicroUsd,
-			err: entry.err,
-		},
-		{
-			level: "warning",
-			tags: { kind: "ai_inference_failed", feature: entry.feature },
-		},
-	);
-}
 
 /**
  * 実測 usage を計上量へ畳む**唯一の関門**(#355)。
@@ -271,7 +234,6 @@ export async function answerRegionQuestion(
 	// NotFoundError で throw しうる。予約の後・try の外でこれを await すると、その throw が
 	// 下の catch(refundReservationOnFailure)に届かず、予約が返却も記録もされずに消える。
 	// モデル解決は予約と独立なので、先に済ませて「予約したら必ず try で囲まれている」形にする。
-	const startedAt = Date.now();
 	const modelKey = await resolveModelKey(userId, input.model);
 	const model = AI_REGION_QA_MODELS[modelKey];
 	// 見積はモデルが決まってから作る。gemma4 と llama4 で単価が3倍違うため、
@@ -280,96 +242,62 @@ export async function answerRegionQuestion(
 	// 実行記録の共通部分。経路ごとに組み立て直すとフィールドがドリフトするため1つ持つ。
 	const logBase = {
 		feature: "region_qa",
-		userId,
-		requestId,
 		selected: modelKey,
 		// 地域Q&Aはフォールバック経路が無いので、意図した経路＝実行経路。
 		route: modelKey,
 		model: model.id,
 	} as const;
 
-	const res = await creditService.reserveCredits(userId, estimate, requestId);
-	if (!res.ok) {
-		recordInference({
-			...logBase,
-			outcome: "blocked",
-			durationMs: Date.now() - startedAt,
-		});
-		return { blocked: true, balance: res.balance, required: res.required };
-	}
-
-	let answer: string;
-	let charge: CreditCharge;
-	try {
-		const raw = await env.AI.run(model.id, {
-			messages,
-			max_completion_tokens: AI_MAX_OUTPUT_TOKENS,
-			// モデル固有オプションを展開。Gemma 4 は既定で thinking が有効で、放置すると
-			// reasoning が出力枠(512)を先に使い切り本文(content)が途中で切れる/空になるため
-			// extraOptions で enable_thinking=false を渡す(Llama 4 はこのオプション不要)。
-			...model.extraOptions,
-		});
-		// レスポンス形式はモデルで異なるため両対応する:
-		//  - Chat Completions 互換(Gemma 4 等): choices[0].message.content
-		//  - 従来テキスト生成(Llama 系等): response
-		// usage は両形式とも usage.total_tokens（無いモデルもあるため任意）。
-		const out = raw as {
-			response?: string;
-			choices?: Array<{ message?: { content?: string | null } }>;
-			usage?: { total_tokens?: number };
+	const result = await runMeteredInference(
+		userId,
+		{ estimate, requestId, logBase },
+		async (ctx) => {
+			const raw = await env.AI.run(model.id, {
+				messages,
+				max_completion_tokens: AI_MAX_OUTPUT_TOKENS,
+				// モデル固有オプションを展開。Gemma 4 は既定で thinking が有効で、放置すると
+				// reasoning が出力枠(512)を先に使い切り本文(content)が途中で切れる/空になるため
+				// extraOptions で enable_thinking=false を渡す(Llama 4 はこのオプション不要)。
+				...model.extraOptions,
+			});
+			// レスポンス形式はモデルで異なるため両対応する:
+			//  - Chat Completions 互換(Gemma 4 等): choices[0].message.content
+			//  - 従来テキスト生成(Llama 系等): response
+			// usage は両形式とも usage.total_tokens（無いモデルもあるため任意）。
+			const out = raw as {
+				response?: string;
+				choices?: Array<{ message?: { content?: string | null } }>;
+				usage?: { total_tokens?: number };
+			};
+			const rawText = out.choices?.[0]?.message?.content ?? out.response ?? "";
+			// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
+			const answer = stripReasoning(rawText).trim();
+			// Workers AI は入出力の内訳を返さないので、全量を出力単価で換算する(保守的=
+			// 過大請求側)。この経路は原価がほぼゼロなので実害は無い。実測が取れなければ
+			// 予約全量を実測とみなす —— **この機能は単経路で降格が無い**ので、予約額は
+			// そのまま「実行された経路の見積」でもある(#404 のエチケット解析とは違う)。
+			const total = out.usage?.total_tokens;
+			const charge =
+				total === undefined
+					? fallbackCharge(ctx.reservedMicroUsd)
+					: chargeFor(model.id, { outputTokens: total });
+			// 単経路なので実行経路は選択経路と常に一致する。
+			ctx.addLogFields({ executedBy: modelKey });
+			return { value: answer, charge };
+		},
+	);
+	if (result.blocked) {
+		return {
+			blocked: true,
+			balance: result.balance,
+			required: result.required,
 		};
-		const rawText = out.choices?.[0]?.message?.content ?? out.response ?? "";
-		// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
-		answer = stripReasoning(rawText).trim();
-		// Workers AI は入出力の内訳を返さないので、全量を出力単価で換算する(保守的=
-		// 過大請求側)。この経路は原価がほぼゼロなので実害は無い。実測が取れなければ
-		// 予約全量を実測とみなす —— **この機能は単経路で降格が無い**ので、予約額は
-		// そのまま「実行された経路の見積」でもある(#404 のエチケット解析とは違う)。
-		const total = out.usage?.total_tokens;
-		charge =
-			total === undefined
-				? fallbackCharge(res.reservedMicroUsd)
-				: chargeFor(model.id, { outputTokens: total });
-		await creditService.settleReservation(
-			userId,
-			requestId,
-			res.reservedCredits,
-			charge,
-		);
-	} catch (e) {
-		// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
-		// 潰さず伝播する(#158)。
-		await creditService.refundReservationOnFailure(
-			userId,
-			requestId,
-			res.reservedCredits,
-		);
-		recordInference({
-			...logBase,
-			outcome: "failed",
-			durationMs: Date.now() - startedAt,
-			reservedMicroUsd: res.reservedMicroUsd,
-			err: e,
-		});
-		throw e;
 	}
-	recordInference({
-		...logBase,
-		outcome: "ok",
-		executedBy: modelKey,
-		durationMs: Date.now() - startedAt,
-		actualTokens: charge.tokens,
-		costMicroUsd: charge.microUsd,
-		reservedMicroUsd: res.reservedMicroUsd,
-	});
-	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
-	// ネットプラスになるため、残高参照は try の外で行う(#144)。
-	const after = await creditService.getBalance(userId);
 	return {
 		blocked: false,
-		answer,
-		actualTokens: charge.tokens,
-		balance: after.balance,
+		answer: result.value,
+		actualTokens: result.charge.tokens,
+		balance: result.balance,
 	};
 }
 
@@ -585,216 +513,180 @@ export async function analyzeWineLabel(
 		input.imageDataUrls.length,
 	);
 	const requestId = `analyze_label:${crypto.randomUUID()}`;
-	const startedAt = Date.now();
 	const logBase = {
 		feature: "label_analysis",
-		userId,
-		requestId,
 		selected: engine,
 		route,
 		photoCount: input.imageDataUrls.length,
 	} as const;
 
-	const res = await creditService.reserveCredits(userId, estimate, requestId);
-	if (!res.ok) {
-		recordInference({
-			...logBase,
-			outcome: "blocked",
-			durationMs: Date.now() - startedAt,
-		});
-		return { blocked: true, balance: res.balance, required: res.required };
-	}
-
-	let suggestions: LabelSuggestions;
-	let charge: CreditCharge;
-	// 実際に結果を出した経路。高精度経路が失敗すると route と食い違う(=フォールバック)。
-	// route だけを記録すると「GPTで成功」と「GPTが落ちてWorkers AIが拾った」を
-	// 区別できないため、別に持って実行記録に載せる。
-	let executedBy: LabelRoute | undefined;
-	// 裏取りの観測情報。**try の外で宣言する**のは、高精度経路が落ちて Workers AI へ
-	// 降格した回や、推論そのものが失敗した回の実行記録にも載せるため
-	// (「検索まで到達したが結果を使えなかった」ことが分かるのはここだけ)。
-	let webResearch: WebResearchTrace | undefined;
-	let fieldSources: LabelFieldSources | undefined;
-	try {
-		let usage: AiUsage = {};
-		const extractions: LabelExtraction[] = [];
-
-		// 高精度経路: LLM + web検索で全写真を1リクエスト総合解析する。失敗しても全体を
-		// 落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
-		// **失敗時にもう一方の高精度プロバイダは試さない**: 予約は選んだ経路の見積で
-		// 取ってあり、2つ目の課金と待ち時間を積み増すより確実に応答を返す方を採る
-		// (キー未設定による降格は予約前の resolveLabelRoute が済ませている)。
-		if (route === "gpt-luna" && openaiApiKey) {
-			try {
-				const gpt = await analyzeLabelWithGptResearch(
-					openaiApiKey,
-					input.imageDataUrls,
-					(t) => {
-						webResearch = t;
-					},
-				);
-				extractions.push(gpt.extraction);
-				usage = addUsage(usage, gpt.usage);
-				fieldSources = gpt.fieldSources;
-				executedBy = "gpt-luna";
-			} catch (gptErr) {
-				logWarn("label gpt research failed; falling back to Workers AI", {
-					userId,
-					requestId,
-					err: gptErr,
+	const result = await runMeteredInference(
+		userId,
+		{ estimate, requestId, logBase },
+		async (ctx) => {
+			// 実際に結果を出した経路。高精度経路が失敗すると route と食い違う(=フォールバック)。
+			// route だけを記録すると「GPTで成功」と「GPTが落ちてWorkers AIが拾った」を
+			// 区別できないため、別に持って実行記録に載せる。
+			let executedBy: LabelRoute | undefined;
+			/** 実行経路が確定したら実行記録にも反映する(降格した回も失敗した回も残る)。 */
+			const markExecutedBy = (executed: LabelRoute) => {
+				executedBy = executed;
+				ctx.addLogFields({
+					executedBy: executed,
+					model: AI_LABEL_ROUTE_MODELS[executed],
 				});
-			}
-		} else if (route === "web-research" && anthropicApiKey) {
-			try {
-				const web = await analyzeLabelWithWebResearch(
-					anthropicApiKey,
-					input.imageDataUrls,
-					(t) => {
-						webResearch = t;
-					},
-				);
-				extractions.push(web.extraction);
-				usage = addUsage(usage, web.usage);
-				fieldSources = web.fieldSources;
-				executedBy = "web-research";
-			} catch (webErr) {
-				logWarn("label web research failed; falling back to Workers AI", {
-					userId,
-					requestId,
-					err: webErr,
-				});
-			}
-		}
+			};
+			// 裏取りの観測情報(webResearch / fieldSources)は**判明した時点で** ctx に積む。
+			// ラッパーが ok と failed の両方の実行記録に載せるので、高精度経路が落ちて
+			// Workers AI へ降格した回や推論そのものが失敗した回にも残る —— 「検索まで
+			// 到達したが結果を使えなかった」ことが分かるのはここだけ(#392)。
+			let usage: AiUsage = {};
+			const extractions: LabelExtraction[] = [];
 
-		if (extractions.length === 0) {
-			// Workers AI 経路: 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側)。
-			// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
-			// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
-			// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
-			let anyCallOk = false;
-			let lastPhotoErr: unknown;
-			// 高精度経路が失敗して降格した場合、そこまでの usage は**破棄する**。
-			// 課金は実行したモデル1つの単価で行う(chargeFor に渡せるモデルは1つ)。
-			// 失敗した高精度呼び出しのぶんは原価としては発生しているが、ユーザには
-			// 「失敗した推論の料金」を負担させない(過小請求側=ユーザ有利に倒す)。
-			usage = {};
-			for (const [photoIndex, imageDataUrl] of input.imageDataUrls.entries()) {
+			// 高精度経路: LLM + web検索で全写真を1リクエスト総合解析する。失敗しても全体を
+			// 落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
+			// **失敗時にもう一方の高精度プロバイダは試さない**: 予約は選んだ経路の見積で
+			// 取ってあり、2つ目の課金と待ち時間を積み増すより確実に応答を返す方を採る
+			// (キー未設定による降格は予約前の resolveLabelRoute が済ませている)。
+			if (route === "gpt-luna" && openaiApiKey) {
 				try {
-					const raw = await env.AI.run(AI_LABEL_MODEL, {
-						messages: buildLabelMessages(imageDataUrl),
-						// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
-						guided_json: LABEL_JSON_SCHEMA,
-						max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
-					});
-					// guided_json 時の response は文字列とパース済みオブジェクトの両方がありうる
-					// (parseLabelResponse が両対応する)
-					const out = raw as {
-						response?: unknown;
-						usage?: { total_tokens?: number };
-					};
-					extractions.push(parseLabelResponse(out.response ?? ""));
-					// Workers AI は内訳を返さないので全量を出力単価で換算する(保守的)。
-					usage = addUsage(usage, {
-						outputTokens: out.usage?.total_tokens ?? 0,
-					});
-					anyCallOk = true;
-				} catch (photoErr) {
-					// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
-					// モデルエラーとJSONパース失敗を後から切り分けられるよう記録は残す(#156)。
-					lastPhotoErr = photoErr;
-					logWarn("label photo analysis failed", {
+					const gpt = await analyzeLabelWithGptResearch(
+						openaiApiKey,
+						input.imageDataUrls,
+						(t) => ctx.addLogFields({ webResearch: t }),
+					);
+					extractions.push(gpt.extraction);
+					usage = addUsage(usage, gpt.usage);
+					ctx.addLogFields({ fieldSources: gpt.fieldSources });
+					markExecutedBy("gpt-luna");
+				} catch (gptErr) {
+					logWarn("label gpt research failed; falling back to Workers AI", {
 						userId,
 						requestId,
-						photoIndex,
-						err: photoErr,
+						err: gptErr,
+					});
+				}
+			} else if (route === "web-research" && anthropicApiKey) {
+				try {
+					const web = await analyzeLabelWithWebResearch(
+						anthropicApiKey,
+						input.imageDataUrls,
+						(t) => ctx.addLogFields({ webResearch: t }),
+					);
+					extractions.push(web.extraction);
+					usage = addUsage(usage, web.usage);
+					ctx.addLogFields({ fieldSources: web.fieldSources });
+					markExecutedBy("web-research");
+				} catch (webErr) {
+					logWarn("label web research failed; falling back to Workers AI", {
+						userId,
+						requestId,
+						err: webErr,
 					});
 				}
 			}
-			// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)。
-			// 最後の失敗要因を cause に持たせ、全滅時の原因追跡を可能にする(#156)。
-			if (!anyCallOk) {
-				throw new Error("すべての写真の解析に失敗しました", {
-					cause: lastPhotoErr,
+
+			if (extractions.length === 0) {
+				// Workers AI 経路: 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側)。
+				// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
+				// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
+				// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
+				let anyCallOk = false;
+				let lastPhotoErr: unknown;
+				// 高精度経路が失敗して降格した場合、そこまでの usage は**破棄する**。
+				// 課金は実行したモデル1つの単価で行う(chargeFor に渡せるモデルは1つ)。
+				// 失敗した高精度呼び出しのぶんは原価としては発生しているが、ユーザには
+				// 「失敗した推論の料金」を負担させない(過小請求側=ユーザ有利に倒す)。
+				usage = {};
+				for (const [
+					photoIndex,
+					imageDataUrl,
+				] of input.imageDataUrls.entries()) {
+					try {
+						const raw = await env.AI.run(AI_LABEL_MODEL, {
+							messages: buildLabelMessages(imageDataUrl),
+							// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
+							guided_json: LABEL_JSON_SCHEMA,
+							max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+						});
+						// guided_json 時の response は文字列とパース済みオブジェクトの両方がありうる
+						// (parseLabelResponse が両対応する)
+						const out = raw as {
+							response?: unknown;
+							usage?: { total_tokens?: number };
+						};
+						extractions.push(parseLabelResponse(out.response ?? ""));
+						// Workers AI は内訳を返さないので全量を出力単価で換算する(保守的)。
+						usage = addUsage(usage, {
+							outputTokens: out.usage?.total_tokens ?? 0,
+						});
+						anyCallOk = true;
+					} catch (photoErr) {
+						// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
+						// モデルエラーとJSONパース失敗を後から切り分けられるよう記録は残す(#156)。
+						lastPhotoErr = photoErr;
+						logWarn("label photo analysis failed", {
+							userId,
+							requestId,
+							photoIndex,
+							err: photoErr,
+						});
+					}
+				}
+				// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)。
+				// 最後の失敗要因を cause に持たせ、全滅時の原因追跡を可能にする(#156)。
+				if (!anyCallOk) {
+					throw new Error("すべての写真の解析に失敗しました", {
+						cause: lastPhotoErr,
+					});
+				}
+				markExecutedBy("workers-ai");
+			}
+			const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
+			// **実際に結果を出した経路のモデル単価で課金する**。意図した経路(route)で換算すると、
+			// Claude が落ちて Workers AI が拾った回に Opus の単価で Llama の推論を課金してしまう。
+			const executedRoute = executedBy ?? route;
+			const executedModel = AI_LABEL_ROUTE_MODELS[executedRoute];
+			const measured = chargeFor(executedModel, usage);
+			let charge: CreditCharge;
+			if (measured.microUsd > 0) {
+				charge = measured;
+			} else {
+				// 実測が取れなかった回の床は**実行された経路の見積**にする(#404)。予約額
+				// (= 意図した経路の見積)を使うと、高精度経路が落ちて Workers AI が拾い、かつ
+				// Workers AI が usage を返さなかった回に、Llama 1回の推論へ高精度経路の予約全量
+				// (例: 275クレジット)を確定課金してしまう。単価換算(chargeFor)を実行経路に
+				// 揃えているのと同じ理由で、フォールバックの床も実行経路に揃える。
+				// 実行経路 = 予約した経路なら値は予約額と一致するので、降格が無い回の挙動は変わらない。
+				charge = fallbackCharge(
+					estimateLabelReserveCharge(executedRoute, input.imageDataUrls.length)
+						.microUsd,
+				);
+				// 実測欠落の頻度を観測できるようにする(Workers AI の usage は任意)。
+				logWarn("label usage missing; charging the executed route estimate", {
+					userId,
+					requestId,
+					route,
+					executedBy: executedRoute,
+					reservedMicroUsd: ctx.reservedMicroUsd,
+					chargedMicroUsd: charge.microUsd,
 				});
 			}
-			executedBy = "workers-ai";
-		}
-		suggestions = buildLabelSuggestions(mergeExtractions(extractions));
-		// **実際に結果を出した経路のモデル単価で課金する**。意図した経路(route)で換算すると、
-		// Claude が落ちて Workers AI が拾った回に Opus の単価で Llama の推論を課金してしまう。
-		const executedRoute = executedBy ?? route;
-		const executedModel = AI_LABEL_ROUTE_MODELS[executedRoute];
-		const measured = chargeFor(executedModel, usage);
-		if (measured.microUsd > 0) {
-			charge = measured;
-		} else {
-			// 実測が取れなかった回の床は**実行された経路の見積**にする(#404)。予約額
-			// (= 意図した経路の見積)を使うと、高精度経路が落ちて Workers AI が拾い、かつ
-			// Workers AI が usage を返さなかった回に、Llama 1回の推論へ高精度経路の予約全量
-			// (例: 275クレジット)を確定課金してしまう。単価換算(chargeFor)を実行経路に
-			// 揃えているのと同じ理由で、フォールバックの床も実行経路に揃える。
-			// 実行経路 = 予約した経路なら値は予約額と一致するので、降格が無い回の挙動は変わらない。
-			charge = fallbackCharge(
-				estimateLabelReserveCharge(executedRoute, input.imageDataUrls.length)
-					.microUsd,
-			);
-			// 実測欠落の頻度を観測できるようにする(Workers AI の usage は任意)。
-			logWarn("label usage missing; charging the executed route estimate", {
-				userId,
-				requestId,
-				route,
-				executedBy: executedRoute,
-				reservedMicroUsd: res.reservedMicroUsd,
-				chargedMicroUsd: charge.microUsd,
-			});
-		}
-		await creditService.settleReservation(
-			userId,
-			requestId,
-			res.reservedCredits,
-			charge,
-		);
-	} catch (e) {
-		// 返却を試み成否をログに残す。返却失敗でも元の例外 e を伝播する(#158)。
-		await creditService.refundReservationOnFailure(
-			userId,
-			requestId,
-			res.reservedCredits,
-		);
-		recordInference({
-			...logBase,
-			outcome: "failed",
-			executedBy,
-			model: executedBy && AI_LABEL_ROUTE_MODELS[executedBy],
-			durationMs: Date.now() - startedAt,
-			reservedMicroUsd: res.reservedMicroUsd,
-			webResearch,
-			fieldSources,
-			err: e,
-		});
-		throw e;
+			return { value: suggestions, charge };
+		},
+	);
+	if (result.blocked) {
+		return {
+			blocked: true,
+			balance: result.balance,
+			required: result.required,
+		};
 	}
-	recordInference({
-		...logBase,
-		outcome: "ok",
-		executedBy,
-		model: executedBy && AI_LABEL_ROUTE_MODELS[executedBy],
-		durationMs: Date.now() - startedAt,
-		actualTokens: charge.tokens,
-		costMicroUsd: charge.microUsd,
-		reservedMicroUsd: res.reservedMicroUsd,
-		webResearch,
-		fieldSources,
-	});
-	// settle 成功後は消費確定済み。getBalance の失敗で catch の全額返却が走ると消費が
-	// ネットプラスになるため、残高参照は try の外で行う(#144)。
-	const after = await creditService.getBalance(userId);
 	return {
 		blocked: false,
-		suggestions,
-		actualTokens: charge.tokens,
-		balance: after.balance,
+		suggestions: result.value,
+		actualTokens: result.charge.tokens,
+		balance: result.balance,
 	};
 }
 
@@ -981,11 +873,8 @@ export async function analyzeWineList(
 	);
 	const model = AI_WINE_LIST_ROUTE_MODELS[route];
 	const requestId = `scan_list:${crypto.randomUUID()}`;
-	const startedAt = Date.now();
 	const logBase = {
 		feature: "wine_list_analysis",
-		userId,
-		requestId,
 		// 一括抽出はフォールバックを持たない(#358)ので、選択と実行経路は常に一致する。
 		selected: route,
 		route,
@@ -993,82 +882,51 @@ export async function analyzeWineList(
 		photoCount: input.imageDataUrls.length,
 	} as const;
 
-	const res = await creditService.reserveCredits(userId, estimate, requestId);
-	if (!res.ok) {
-		recordInference({
-			...logBase,
-			outcome: "blocked",
-			durationMs: Date.now() - startedAt,
-		});
-		return { blocked: true, balance: res.balance, required: res.required };
-	}
-
-	let candidates: WineListCandidate[];
-	let summary: WineListAnalysisSummary;
-	let charge: CreditCharge;
-	try {
-		// **フォールバックは持たない**。片方の失敗でもう一方を叩くと、失敗した推論の
-		// 原価に加えてもう1回ぶんの消費が乗る(#404 と同種の問題を作らない)。
-		const { parsed, usage } =
-			route === "gpt-luna"
-				? await extractWineListWithGpt(apiKey, input.imageDataUrls)
-				: await extractWineListWithClaude(apiKey, input.imageDataUrls);
-		const deduped = dedupeWineListItems(parsed.wines);
-		candidates = matchExistingEntries(
-			buildWineListCandidates(deduped.items),
-			entries,
-		);
-		summary = {
-			detected: candidates.length,
-			subject: parsed.subject,
-			mergedDuplicates: deduped.mergedCount,
-			matchedExisting: candidates.filter((c) => !!c.existing).length,
-			truncated: parsed.truncated,
+	const result = await runMeteredInference(
+		userId,
+		{ estimate, requestId, logBase },
+		async (ctx) => {
+			// **フォールバックは持たない**。片方の失敗でもう一方を叩くと、失敗した推論の
+			// 原価に加えてもう1回ぶんの消費が乗る(#404 と同種の問題を作らない)。
+			const { parsed, usage } =
+				route === "gpt-luna"
+					? await extractWineListWithGpt(apiKey, input.imageDataUrls)
+					: await extractWineListWithClaude(apiKey, input.imageDataUrls);
+			const deduped = dedupeWineListItems(parsed.wines);
+			const candidates = matchExistingEntries(
+				buildWineListCandidates(deduped.items),
+				entries,
+			);
+			const summary: WineListAnalysisSummary = {
+				detected: candidates.length,
+				subject: parsed.subject,
+				mergedDuplicates: deduped.mergedCount,
+				matchedExisting: candidates.filter((c) => !!c.existing).length,
+				truncated: parsed.truncated,
+			};
+			// 実測が取れなければ予約全量を実測とみなす。経路はユーザ設定で変わるが
+			// **経路間のフォールバックが無い**(#426)ので、予約はこの推論を実行した経路の
+			// 見積そのものであり、そのまま「実行された経路の見積」でもある(#404)。
+			const measured = chargeFor(model, usage);
+			const charge =
+				measured.microUsd > 0 ? measured : fallbackCharge(ctx.reservedMicroUsd);
+			// フォールバックが無いので実行経路は常に選択経路と一致する。
+			ctx.addLogFields({ executedBy: route });
+			return { value: { candidates, summary }, charge };
+		},
+	);
+	if (result.blocked) {
+		return {
+			blocked: true,
+			balance: result.balance,
+			required: result.required,
 		};
-		// 実測が取れなければ予約全量を実測とみなす。経路はユーザ設定で変わるが
-		// **経路間のフォールバックが無い**(#426)ので、予約はこの推論を実行した経路の
-		// 見積そのものであり、そのまま「実行された経路の見積」でもある(#404)。
-		const measured = chargeFor(model, usage);
-		charge =
-			measured.microUsd > 0 ? measured : fallbackCharge(res.reservedMicroUsd);
-		await creditService.settleReservation(
-			userId,
-			requestId,
-			res.reservedCredits,
-			charge,
-		);
-	} catch (e) {
-		// 返却を試み成否をログに残す。返却失敗でも元の例外 e を伝播する(#158)。
-		await creditService.refundReservationOnFailure(
-			userId,
-			requestId,
-			res.reservedCredits,
-		);
-		recordInference({
-			...logBase,
-			outcome: "failed",
-			durationMs: Date.now() - startedAt,
-			reservedMicroUsd: res.reservedMicroUsd,
-			err: e,
-		});
-		throw e;
 	}
-	recordInference({
-		...logBase,
-		outcome: "ok",
-		executedBy: route,
-		durationMs: Date.now() - startedAt,
-		actualTokens: charge.tokens,
-		costMicroUsd: charge.microUsd,
-		reservedMicroUsd: res.reservedMicroUsd,
-	});
-	// settle 成功後は消費確定済み(#144)。
-	const after = await creditService.getBalance(userId);
 	return {
 		blocked: false,
-		candidates,
-		summary,
-		actualTokens: charge.tokens,
-		balance: after.balance,
+		candidates: result.value.candidates,
+		summary: result.value.summary,
+		actualTokens: result.charge.tokens,
+		balance: result.balance,
 	};
 }
