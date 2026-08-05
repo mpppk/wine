@@ -35,7 +35,8 @@ permissions:
 
 jobs:
   smoke:
-    name: Smoke test (${{ matrix.name }})
+    # dispatch では matrix.url が空なので、従来どおり入力URLを表示する
+    name: Smoke test (${{ matrix.url || github.event.inputs.url || 'https://wine.nibo.sh' }})
     runs-on: ubuntu-latest
     # 既定(360分)のままだと curl のリトライ滞留で長時間ランナーを占有する
     timeout-minutes: 15
