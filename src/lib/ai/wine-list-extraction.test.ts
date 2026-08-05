@@ -21,6 +21,7 @@ import {
 	parseWineListResponse,
 	type WineListItem,
 	wineIdentityKey,
+	wineIdentityKeys,
 } from "./wine-list-extraction";
 
 /** モデル出力(銘柄1件)のダミー。省略した項目は null / 空配列。 */
@@ -271,6 +272,48 @@ describe("wineIdentityKey", () => {
 });
 
 describe("dedupeWineListItems", () => {
+	it("写真ごとに呼称の切り分けが変わっても1件にまとめる(#435)", () => {
+		// 1枚目は名前に呼称を含め、2枚目は呼称を分けて書く——同じ棚を撮った
+		// 複数枚でモデルの切り分けが揺れると、同じ銘柄が2件に割れていた
+		const { items, mergedCount } = dedupeWineListItems([
+			item({
+				wineName: 'Barolo "Bussia"',
+				producer: "Prunotto",
+				vintage: 2018,
+				photoIndexes: [0],
+			}),
+			item({
+				wineName: '"Bussia"',
+				producer: "Prunotto",
+				vintage: 2018,
+				appellation: "Barolo",
+				photoIndexes: [1],
+			}),
+		]);
+		expect(items).toHaveLength(1);
+		expect(mergedCount).toBe(1);
+		expect(items[0]?.photoIndexes).toEqual([0, 1]);
+	});
+
+	it("同じ呼称・生産者・年でもキュヴェが違えば分けたまま(#435 で緩めすぎない)", () => {
+		const { items } = dedupeWineListItems([
+			item({
+				wineName: "Gevrey-Chambertin",
+				producer: "Domaine Rossignol-Trapet",
+				vintage: 2019,
+				photoIndexes: [0],
+			}),
+			item({
+				wineName: "Vieilles Vignes",
+				producer: "Domaine Rossignol-Trapet",
+				vintage: 2019,
+				appellation: "Gevrey-Chambertin",
+				photoIndexes: [0],
+			}),
+		]);
+		expect(items).toHaveLength(2);
+	});
+
 	it("写真をまたいだ同一銘柄を1件にまとめ、写真番号は和集合を採る", () => {
 		const { items, mergedCount } = dedupeWineListItems([
 			item({
@@ -405,6 +448,226 @@ describe("matchExistingEntries", () => {
 			existing({ id: "older", vintage: 2020 }),
 		]);
 		expect(matched?.existing?.id).toBe("newer");
+	});
+});
+
+// #435: モデルが「ワイン名」と「呼称」をどう切り分けるかは実行ごとに変わる。
+// 同じ写真を解析し直しただけで別銘柄になると、再解析(#427)のたびに重複が増える。
+describe("wineIdentityKeys の loose キー(呼称の切り分けの揺れを吸収する)", () => {
+	const keys = (
+		name: string | null,
+		producer: string | null,
+		vintage: number | null,
+		aopId: string | null,
+	) => wineIdentityKeys({ name, producer, vintage, aopId });
+
+	it("呼称がワイン名に入った回と、呼称側に出た回で同じキーになる", () => {
+		// 実測で観測した揺れ: `Barolo "Bussia"` / `"Bussia"`
+		const withAppellationInName = keys(
+			'Barolo "Bussia"',
+			"Prunotto",
+			2018,
+			"barolo",
+		);
+		const withAppellationSeparate = keys(
+			'"Bussia"',
+			"Prunotto",
+			2018,
+			"barolo",
+		);
+		expect(withAppellationInName.strict).not.toBe(
+			withAppellationSeparate.strict,
+		);
+		expect(withAppellationInName.loose).toBe(withAppellationSeparate.loose);
+	});
+
+	it("名前が呼称そのものの回と、日本語名で補われた回が一致する", () => {
+		// wine_name が読めなかった回は buildLabelSuggestions が AOP の日本語名で補う。
+		// 同じ写真でも「呼称をそのまま名前に書いた回」と交互に出るので、両者を畳む。
+		const asWritten = keys(
+			"Chablis Premier Cru",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		const filledFromAop = keys(
+			"シャブリ・プルミエ・クリュ",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		expect(asWritten.strict).not.toBe(filledFromAop.strict);
+		expect(asWritten.loose).toBe(filledFromAop.loose);
+	});
+
+	it("`1er Cru` と `Premier Cru` の綴り違いで分かれない", () => {
+		// リストは 1er Cru、マスタは Premier Cru。呼称名の除去が文字列一致なので、
+		// 揃えないと `Chablis 1er Cru Montée de Tonnerre` から呼称が落ちない
+		const abbreviated = keys(
+			"Chablis 1er Cru Montée de Tonnerre",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		const spelledOut = keys(
+			"Montée de Tonnerre",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		expect(abbreviated.strict).not.toBe(spelledOut.strict);
+		expect(abbreviated.loose).toBe(spelledOut.loose);
+	});
+
+	it("名前の末尾にヴィンテージが付いた回とも一致する", () => {
+		// `Chablis 1er Cru Montée de Tonnerre 2021` のように年を名前に含める回がある
+		const withVintageInName = keys(
+			"Chablis 1er Cru Montée de Tonnerre 2021",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		const withoutIt = keys(
+			"Montée de Tonnerre",
+			"William Fèvre",
+			2021,
+			"chablis-premier-cru",
+		);
+		expect(withVintageInName.loose).toBe(withoutIt.loose);
+	});
+
+	it("生産者＝銘柄名(シャトー物)は、生産者が空の回とも一致する", () => {
+		// モデルが producer を埋める回と空にする回が交互に出る
+		const withProducer = keys(
+			"Château Gloria",
+			"Château Gloria",
+			2016,
+			"saint-julien",
+		);
+		const withoutProducer = keys("Château Gloria", null, 2016, "saint-julien");
+		expect(withProducer.strict).not.toBe(withoutProducer.strict);
+		expect(withProducer.loose).toBe(withoutProducer.loose);
+	});
+
+	it("生産者が違えば同じキュヴェ名でも分かれる(生産者を落とすのは名前と同じ場合だけ)", () => {
+		expect(
+			keys("Vieilles Vignes", "Domaine A", 2019, "gevrey-chambertin").loose,
+		).not.toBe(
+			keys("Vieilles Vignes", "Domaine B", 2019, "gevrey-chambertin").loose,
+		);
+	});
+
+	it("同じ呼称・生産者・年でもキュヴェが違えば別銘柄のまま", () => {
+		// 緩めすぎると、同じ村の別キュヴェが1件に潰れて片方が消える
+		const vieillesVignes = keys(
+			"Vieilles Vignes",
+			"Domaine Rossignol-Trapet",
+			2019,
+			"gevrey-chambertin",
+		);
+		const village = keys(
+			"Gevrey-Chambertin",
+			"Domaine Rossignol-Trapet",
+			2019,
+			"gevrey-chambertin",
+		);
+		expect(vieillesVignes.loose).not.toBe(village.loose);
+		expect(vieillesVignes.loose).not.toBe("");
+	});
+
+	it("ヴィンテージ違いは別銘柄のまま(#358 の決定を緩めない)", () => {
+		expect(keys('Barolo "Bussia"', "Prunotto", 2018, "barolo").loose).not.toBe(
+			keys('Barolo "Bussia"', "Prunotto", 2019, "barolo").loose,
+		);
+	});
+
+	it("呼称が解決できなければ loose キーを作らない", () => {
+		expect(keys("Vin de France Rouge", "Domaine X", 2020, null).loose).toBe("");
+	});
+
+	it("生産者もキュヴェ名も無ければ loose キーを作らない(別生産者を混ぜない)", () => {
+		// 「生産者不明・キュヴェ名なしのバローロ2018」同士が一致すると、別の生産者の
+		// ワインに目撃記録が足される
+		expect(keys("Barolo", null, 2018, "barolo").loose).toBe("");
+	});
+});
+
+describe("matchExistingEntries の揺れ吸収(#435)", () => {
+	const candidateFor = (item: Partial<WineListItem>) =>
+		buildWineListCandidates([
+			{ grapeVarieties: [], photoIndexes: [0], ...item },
+		]);
+
+	it("呼称の切り分けが変わった再解析でも既存に一致する", () => {
+		const entry: ExistingWineIdentity = {
+			id: "e1",
+			name: 'Barolo "Bussia"',
+			producer: "Prunotto",
+			vintage: 2018,
+			aopId: "barolo",
+			status: "spotted",
+		};
+		const [matched] = matchExistingEntries(
+			candidateFor({
+				wineName: '"Bussia"',
+				producer: "Prunotto",
+				vintage: 2018,
+				appellation: "Barolo",
+			}),
+			[entry],
+		);
+		expect(matched?.existing?.id).toBe("e1");
+	});
+
+	it("同じ呼称・生産者・年の別キュヴェは新規のまま", () => {
+		const entry: ExistingWineIdentity = {
+			id: "e1",
+			name: "Gevrey-Chambertin",
+			producer: "Domaine Rossignol-Trapet",
+			vintage: 2019,
+			aopId: "gevrey-chambertin",
+			status: "spotted",
+		};
+		const [matched] = matchExistingEntries(
+			candidateFor({
+				wineName: "Vieilles Vignes",
+				producer: "Domaine Rossignol-Trapet",
+				vintage: 2019,
+				appellation: "Gevrey-Chambertin",
+			}),
+			[entry],
+		);
+		expect(matched?.existing).toBeUndefined();
+	});
+
+	it("aopId を持たない既存エントリ(手入力)は従来どおり strict だけで突き合わせる", () => {
+		const entry: ExistingWineIdentity = {
+			id: "e1",
+			name: 'Barolo "Bussia"',
+			producer: "Prunotto",
+			vintage: 2018,
+			status: "spotted",
+		};
+		const [looseOnly] = matchExistingEntries(
+			candidateFor({
+				wineName: '"Bussia"',
+				producer: "Prunotto",
+				vintage: 2018,
+				appellation: "Barolo",
+			}),
+			[entry],
+		);
+		expect(looseOnly?.existing).toBeUndefined();
+
+		const [exact] = matchExistingEntries(
+			candidateFor({
+				wineName: 'Barolo "Bussia"',
+				producer: "Prunotto",
+				vintage: 2018,
+			}),
+			[entry],
+		);
+		expect(exact?.existing?.id).toBe("e1");
 	});
 });
 
