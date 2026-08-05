@@ -17,6 +17,7 @@ import {
 } from "#/lib/billing/stripe-write";
 import { BadRequestError, ConflictError } from "#/lib/errors";
 import { logError } from "#/lib/logger";
+import { alertOperator } from "#/lib/observability/operator-alert";
 
 // 会員区分のユーザ状態を扱うサービス層。判定ロジックは
 // #/lib/billing/entitlements の純関数に置き、ここはD1アクセスとの薄い橋渡しに徹する。
@@ -194,12 +195,13 @@ export async function redeemExtensionCode(
 			// 適用されたか分からない。引換行を残して再引換を封じる(残高ではなく契約期間
 			// なので、二重適用は後から検知も取り消しもできない)。行が残ること自体が
 			// 「このコードは決着待ち」の記録になり、問い合わせ時の裏取りに使える。
-			logError("extension code kept; stripe extension outcome unconfirmed", {
-				userId,
-				code,
-				days,
-				err: e,
-			});
+			// ユーザの延長が宙に浮いたまま人手の決着待ちになる。放置すると
+			// 「課金したのに反映されない」が問い合わせまで表に出ない(#395)。
+			alertOperator(
+				"extension code kept; stripe extension outcome unconfirmed",
+				{ userId, code, days, err: e },
+				{ tags: { kind: "billing_extension_unconfirmed" } },
+			);
 			throw new ConflictError(
 				"延長処理の結果を確認できませんでした。延長が適用されている可能性があるため、しばらく待ってから契約状況をご確認ください。反映されない場合はお問い合わせください。",
 			);
@@ -217,12 +219,13 @@ export async function redeemExtensionCode(
 			// 補償の失敗で元例外を握り潰さない(#158 と同じイディオム)。ここを素通りさせると
 			// 「延長されていないのに引換行だけ残り、ユーザは以後ずっと利用済みで弾かれる」
 			// 状態の理由がどこにも残らない。両方の例外を1行に残して元例外を投げ直す。
-			logError("extension code compensation failed; redemption row left", {
-				userId,
-				code,
-				err: compensationErr,
-				originalErr: e,
-			});
+			// 延長されていないのに引換行だけ残る = ユーザは以後ずっと「利用済み」で
+			// 弾かれる。手で行を消すまで直らないので通知する(#395)。
+			alertOperator(
+				"extension code compensation failed; redemption row left",
+				{ userId, code, err: compensationErr, originalErr: e },
+				{ tags: { kind: "billing_extension_compensation_failed" } },
+			);
 			throw e;
 		}
 		logError("extension code redemption rolled back after stripe failure", {

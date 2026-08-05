@@ -316,6 +316,61 @@ Stripe リソースは Terraform 管理だが、**Sentry は当面ダッシュ�
   ノイズフィルタ（`sentry_issue_alert` / `sentry_project_inbound_data_filter`）を育て始めたら**
   移行を検討する。そこは経緯が残らないと痛む種類の設定なので Terraform 向き
 
+## サーバ側の運用通知（Sentry / #395）
+
+**運用者が手を動かさないと直らない事象**だけを、Workers から Sentry へ直接送る。クライアント側の
+収集（上記 `VITE_SENTRY_DSN`）とは投入先が別で、**サーバは `SENTRY_DSN` シークレット**を使う。
+
+| | クライアント | サーバ |
+|---|---|---|
+| 変数 | `VITE_SENTRY_DSN`（ビルド変数） | `SENTRY_DSN`（Worker シークレット） |
+| 送信 | `@sentry/react`（動的 import） | `fetch` で envelope を1本（SDK なし） |
+| 入口 | `reportClientError`（#381） | `alertOperator`（`src/lib/observability/operator-alert.ts`） |
+
+同じプロジェクトへ送ってよい。イベントには `logger: "worker"` と `runtime: "workers"` タグが付く
+ので、Sentry 側で `logger:worker` で絞れる。分けたければサーバ用プロジェクトを作って DSN を変える。
+
+### 投入
+
+```bash
+# 本番
+bunx wrangler secret put SENTRY_DSN
+# プレビュー（デプロイ済みバージョンに対して）
+bunx wrangler versions secret put SENTRY_DSN --env preview
+```
+
+**未設定でもアプリは動く**（ログには従来どおり出て、送信だけしない）。ローカルは `.dev.vars` に
+書けるが、通常は入れない（開発中のエラーで本番のアラートを鳴らさないため。環境名は
+`BETTER_AUTH_URL` のホストから導出され、localhost は `local` になる）。
+
+### 何が送られるか
+
+| kind | level | 意味 / 運用者の行動 |
+|---|---|---|
+| `billing_extension_unconfirmed` | error | 延長コードの適用結果が不明。Stripe 側を見て決着させる |
+| `billing_extension_compensation_failed` | error | 延長できていないのに引換行が残った。行を消す |
+| `credit_refund_failed` | error | 推論失敗の返却に失敗。台帳から手で戻す |
+| `credit_orphan_reclaim_failed` | error | 焼き付いた予約の回収に失敗。原因を見て手で戻す |
+| （管理操作の監査記録失敗） | error | 操作は適用済みで証跡が無い。監査ログを手で補う |
+| `ai_inference_failed` | warning | 推論の失敗。**1件ずつは対応不要**で、見たいのは頻度 |
+| `ai_pricing_missing` | warning | 単価表に無いモデルで課金中。価格表を直す |
+
+> [!IMPORTANT]
+> **閾値はコード側に持たせていない。** 「失敗が急増したら知らせる」は Sentry のアラートルール
+> （件数/期間）で設定する。実装側で閾値を発明すると、変えるたびにデプロイが要り、
+> かつ isolate 分散のため件数を正しく数えられない（#178 と同じ理由）。
+>
+> 最低限、次の2本を Sentry で作っておく:
+> 1. `logger:worker` かつ `level:error` → 発生したら即通知
+> 2. `kind:ai_inference_failed` → 一定時間内の件数が閾値を超えたら通知（原価だけが出ていく状態）
+
+### 送らないもの
+
+`webResearch` / `fieldSources`（エチケット解析の裏取り情報）は**送らない**。解析した銘柄が復元
+できるため、保持7日・APIトークン必須の Workers Logs に限る取り決めになっている（上記
+「エチケット解析の裏取りを追う」の CAUTION）。`alertOperator` へ渡すフィールドは呼び出し側が
+明示的に選ぶ（AI 実行記録は `recordInference` が部分集合だけを渡す）。
+
 ## シークレットの投入
 
 ### `BETTER_AUTH_SECRET` は全環境で必須

@@ -31,7 +31,7 @@ import {
 	toRegionQaModelKey,
 	type WineListRoute,
 } from "#/lib/ai/config";
-import { logAiInference } from "#/lib/ai/inference-log";
+import { type AiInferenceLog, logAiInference } from "#/lib/ai/inference-log";
 import {
 	buildLabelMessages,
 	buildLabelSuggestions,
@@ -93,11 +93,48 @@ import {
 } from "#/lib/billing/ai-pricing";
 import { BadRequestError, HttpError } from "#/lib/errors";
 import { logWarn } from "#/lib/logger";
+import { alertOperator } from "#/lib/observability/operator-alert";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import * as creditService from "#/lib/services/credit-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import * as userService from "#/lib/services/user-service";
 import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
+
+/**
+ * 実行記録を出し、**失敗なら運用者向けの通知も出す**(#395)。ai-service からの記録は
+ * すべてここを通す(経路ごとに書くと、経路が増えたときに通知だけ漏れる)。
+ *
+ * 通知に載せるのは実行メタデータの**明示した部分集合だけ**。実行記録には
+ * `webResearch` / `fieldSources` という「解析した銘柄が復元できる」フィールドがあり、
+ * これは保持7日・APIトークン必須の Workers Logs に限る取り決めになっている
+ * (docs/deployment.md)。まとめて転送すると、その判断を黙って外部へ広げてしまう。
+ *
+ * 個々の失敗そのものは即時対応を要さない(ユーザには返却済み)ので level は warning。
+ * **見たいのは頻度**——推論が落ち続ければプロバイダへの原価だけが出ていくので、
+ * 閾値はコード側で発明せず Sentry のアラートルール(件数/期間)に委ねる。
+ */
+function recordInference(entry: AiInferenceLog): void {
+	logAiInference(entry);
+	if (entry.outcome !== "failed") return;
+	alertOperator(
+		"ai inference failed",
+		{
+			feature: entry.feature,
+			userId: entry.userId,
+			requestId: entry.requestId,
+			route: entry.route,
+			executedBy: entry.executedBy,
+			model: entry.model,
+			durationMs: entry.durationMs,
+			reservedMicroUsd: entry.reservedMicroUsd,
+			err: entry.err,
+		},
+		{
+			level: "warning",
+			tags: { kind: "ai_inference_failed", feature: entry.feature },
+		},
+	);
+}
 
 /**
  * 実測 usage を計上量へ畳む**唯一の関門**(#355)。
@@ -112,7 +149,13 @@ import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
  */
 function chargeFor(model: string, usage: AiUsage): CreditCharge {
 	if (getModelPricing(model) === null) {
-		logWarn("ai pricing missing; charging at fallback rate", { model });
+		// 単価表に無いモデルで課金している = **請求は続くのに原価が読めない**。
+		// 価格表を直すまで解消しないので通知する(#395)。
+		alertOperator(
+			"ai pricing missing; charging at fallback rate",
+			{ model },
+			{ level: "warning", tags: { kind: "ai_pricing_missing" } },
+		);
 	}
 	return toCharge(model, usage);
 }
@@ -247,7 +290,7 @@ export async function answerRegionQuestion(
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
 	if (!res.ok) {
-		logAiInference({
+		recordInference({
 			...logBase,
 			outcome: "blocked",
 			durationMs: Date.now() - startedAt,
@@ -301,7 +344,7 @@ export async function answerRegionQuestion(
 			requestId,
 			res.reservedCredits,
 		);
-		logAiInference({
+		recordInference({
 			...logBase,
 			outcome: "failed",
 			durationMs: Date.now() - startedAt,
@@ -310,7 +353,7 @@ export async function answerRegionQuestion(
 		});
 		throw e;
 	}
-	logAiInference({
+	recordInference({
 		...logBase,
 		outcome: "ok",
 		executedBy: modelKey,
@@ -554,7 +597,7 @@ export async function analyzeWineLabel(
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
 	if (!res.ok) {
-		logAiInference({
+		recordInference({
 			...logBase,
 			outcome: "blocked",
 			durationMs: Date.now() - startedAt,
@@ -719,7 +762,7 @@ export async function analyzeWineLabel(
 			requestId,
 			res.reservedCredits,
 		);
-		logAiInference({
+		recordInference({
 			...logBase,
 			outcome: "failed",
 			executedBy,
@@ -732,7 +775,7 @@ export async function analyzeWineLabel(
 		});
 		throw e;
 	}
-	logAiInference({
+	recordInference({
 		...logBase,
 		outcome: "ok",
 		executedBy,
@@ -952,7 +995,7 @@ export async function analyzeWineList(
 
 	const res = await creditService.reserveCredits(userId, estimate, requestId);
 	if (!res.ok) {
-		logAiInference({
+		recordInference({
 			...logBase,
 			outcome: "blocked",
 			durationMs: Date.now() - startedAt,
@@ -1001,7 +1044,7 @@ export async function analyzeWineList(
 			requestId,
 			res.reservedCredits,
 		);
-		logAiInference({
+		recordInference({
 			...logBase,
 			outcome: "failed",
 			durationMs: Date.now() - startedAt,
@@ -1010,7 +1053,7 @@ export async function analyzeWineList(
 		});
 		throw e;
 	}
-	logAiInference({
+	recordInference({
 		...logBase,
 		outcome: "ok",
 		executedBy: route,

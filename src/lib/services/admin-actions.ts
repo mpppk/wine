@@ -13,6 +13,7 @@ import { auth } from "#/lib/auth";
 import { currentMonthKey } from "#/lib/credit/month";
 import { BadRequestError } from "#/lib/errors";
 import { logError, logInfo } from "#/lib/logger";
+import { alertOperator } from "#/lib/observability/operator-alert";
 import * as billingService from "#/lib/services/billing-service";
 import {
 	type BatchUnit,
@@ -68,7 +69,8 @@ async function recordAfterEffect(params: {
 		}
 	} catch (e) {
 		// 適用済みなのに監査ログが無い状態。ログが唯一の証跡になるので内容ごと残す。
-		logError("admin audit record failed; action already applied", {
+		// 監査が成立しない状態で、手で補うほか直しようがないので通知もする(#395)。
+		alertOperator("admin audit record failed; action already applied", {
 			...fields,
 			err: e,
 		});
