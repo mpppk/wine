@@ -26,8 +26,27 @@
 **新スキーマ×旧コード**のまま固定化する。この状態は `/` も OAuth メタデータも DB を引かずに 200 を
 返すため外形からは分からないので、`/api/health` が**適用済みの最新マイグレーションとコード側が期待する
 世代（`src/db/migrations.ts` の `EXPECTED_LATEST_MIGRATION`）を突き合わせて**返す。ズレ・D1 到達不能は
-どちらも 503 + `"ok":false` になり、6時間ごとのスモーク（`.github/workflows/smoke.yml`）が検出する（#336）。
+どちらも 503 + `"ok":false` になり、**デプロイ直後のスモーク**（下記）と1時間ごとの定期スモーク
+（`.github/workflows/smoke.yml`）が検出する（#336, #396）。
 **`drizzle/` に連番SQLを足したら `EXPECTED_LATEST_MIGRATION` も更新する**（テストが強制する）。
+
+### デプロイ直後のスモーク（#396）
+
+deploy command の末尾で `scripts/smoke.sh` を走らせ、**デプロイした Worker 自身を外形から叩いて**
+から成功にする。これが無かった頃は、上記の「新スキーマ×旧コード」を含む壊れたデプロイが
+次の cron tick（最大6時間後）まで誰にも見えなかった。
+
+- **ロールバックはしない**。`wrangler deploy` は既に完了しているので、これは*検出*であって
+  復旧ではない。落ちたときは Workers Builds のビルドが赤くなり（＝通知が飛び）、運用者が
+  revert を出すか手で直す
+- **ブランチプレビュー（`main` 以外）では走らせない**。`wrangler versions upload` はプレビュー
+  URL を差し替えるだけで、そのURLは bot 保護等でCIから到達できないことがある（CLAUDE.md 参照）
+- 一過性の 5xx・伝播中の揺らぎは `scripts/smoke.sh` の `curl --retry` が吸収する
+
+### トリガー設定
+
+Workers Builds の build / deploy command はダッシュボード（Settings > Build）にのみ保存され、
+`wrangler.jsonc` などリポジトリのファイルには保存できない。現在の設定は以下。
 
 ### トリガー設定
 
@@ -36,12 +55,16 @@ Workers Builds の build / deploy command はダッシュボード（Settings > 
 
 | Worker | ブランチ | build command | deploy command |
 |---|---|---|---|
-| `wine` | `main` | `bun install --frozen-lockfile && bun run build` | `bun run db:migrate:remote && npx wrangler deploy` |
-| `wine-preview` | `main` | `bun install --frozen-lockfile && bun run build` | `bun run db:migrate:preview && npx wrangler deploy` |
+| `wine` | `main` | `bun install --frozen-lockfile && bun run build` | `bun run db:migrate:remote && npx wrangler deploy && bun run smoke` |
+| `wine-preview` | `main` | `bun install --frozen-lockfile && bun run build` | `bun run db:migrate:preview && npx wrangler deploy && bun run smoke:preview` |
 | `wine-preview` | `*`（`main` 以外） | `bun install --frozen-lockfile && bun run build` | `bun run db:migrate:preview && npx wrangler versions upload` |
 
 - `db:migrate:remote` = `wrangler d1 migrations apply DB --remote`（`wine-db`）
 - `db:migrate:preview` = `wrangler d1 migrations apply DB --remote --env preview`（`wine-preview-db`）
+- `smoke` = `bash scripts/smoke.sh`（既定で本番 `https://wine.nibo.sh`）、
+  `smoke:preview` = 同スクリプトを `https://wine-preview.niboshi.workers.dev --shared-db` で叩く。
+  **URL とオプションを `package.json` 側に置いてある**のは、ダッシュボードにしか保存できない
+  deploy command を短く保ち、対象URLの変更をリポジトリで追えるようにするため（#396）
 - **bun のバージョンは `package.json` の `packageManager` が真実の源**（#339）。CI（`setup-bun` の
   `bun-version-file: package.json`）とローカル（`bun` 本体が読む）はこれで揃うが、**Workers Builds の
   ビルドイメージはこのフィールドを見ない**。ビルド環境変数 `BUN_VERSION` を同じ値に設定して揃える
@@ -92,6 +115,33 @@ npx wrangler d1 migrations apply DB --remote --env preview
 
 恒久策としては「スキーマ変更 PR を1本ずつマージする」運用を守る（CLAUDE.md 参照）。それでも
 残留が問題になるなら、スキーマ変更 PR だけブランチ専用 D1 を割り当てる仕組みを別途検討する。
+
+## 定期スモーク（`.github/workflows/smoke.yml`）
+
+デプロイ直後のスモーク（上記）が拾うのは「デプロイが壊れた」ケースだけで、**デプロイを経由しない
+破損**は拾えない。共有プレビュー DB の汚染（上記 #54）、外部サービス側の変化、ドメイン・証明書の
+失効などがこれに当たる。そこで1時間ごとに、デプロイ済みの2環境を matrix で叩く（#396）。
+
+| 対象 | URL | プロファイル |
+|---|---|---|
+| 本番 `wine` | https://wine.nibo.sh | 既定（`/api/health` に `"ok":true` を要求） |
+| main ミラー `wine-preview` | https://wine-preview.niboshi.workers.dev | `--shared-db` |
+
+`workflow_dispatch` では任意URL（PRごとのプレビュー等）を対象にできる。共有 D1 を使う対象なら
+`shared_db` 入力にチェックを入れる。
+
+### `--shared-db` プロファイル
+
+プレビュー共通 DB には**開いている PR ブランチのマイグレーションが main より先に適用される**
+（上記「環境」）。したがって main ミラーでは「適用済み > `EXPECTED_LATEST_MIGRATION`」が**正常**で、
+本番と同じ `"ok":true` を要求すると、誰かがスキーマ変更 PR を開いている間ずっとスモークが赤くなる
+（＝赤が常態化して誰も見なくなる）。`--shared-db` は `/api/health` の判定だけを次のように緩める。
+
+- 許容: 適用済みが期待より**進んでいる**（503 + `inSync:false` でも通す）
+- 検出: `"db":"error"`（D1 到達不能・バインディング設定ミス・共有DB破損）
+- 検出: 適用済みが期待より**戻っている**（マイグレーションが当たらず新コードだけ載った状態）
+
+他のチェック（`/`・better-auth・OAuth メタデータ・MCP・GeoJSON）は本番と同一。
 
 ## ランタイムログの確認
 

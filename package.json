@@ -19,6 +19,7 @@
 		"check:deploy:preview": "CLOUDFLARE_ENV=preview vite build && CLOUDFLARE_ENV=preview wrangler deploy --dry-run",
 		"typecheck": "tsc",
 		"smoke": "bash scripts/smoke.sh",
+		"smoke:preview": "bash scripts/smoke.sh https://wine-preview.niboshi.workers.dev --shared-db",
 		"logs": "node scripts/logs.mjs",
 		"deploy": "bun run build && wrangler deploy",
 		"deploy:preview": "CLOUDFLARE_ENV=preview vite build && CLOUDFLARE_ENV=preview wrangler versions upload",

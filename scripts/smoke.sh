@@ -8,14 +8,30 @@
 # 本番/プレビューに出てしまったことを検出する。
 #
 # 使い方:
-#   bash scripts/smoke.sh [BASE_URL]
+#   bash scripts/smoke.sh [BASE_URL] [--shared-db]
 #   bun run smoke [BASE_URL]        # package.json 経由
 # BASE_URL 省略時は本番 (https://wine.nibo.sh) を対象にする。
+#
+# --shared-db: 対象の D1 が PR プレビューと共有されている場合に付ける (wine-preview)。
+#   /api/health の判定だけを緩める。詳細は check_health_shared_db の説明を参照。
 #
 # 全チェック成功で exit 0、1つでも失敗すると exit 1。
 set -uo pipefail
 
-BASE_URL="${1:-https://wine.nibo.sh}"
+BASE_URL=""
+SHARED_DB=0
+for arg in "$@"; do
+  case "$arg" in
+    --shared-db) SHARED_DB=1 ;;
+    -*)
+      echo "unknown option: $arg" >&2
+      echo "usage: bash scripts/smoke.sh [BASE_URL] [--shared-db]" >&2
+      exit 2
+      ;;
+    *) BASE_URL="$arg" ;;
+  esac
+done
+BASE_URL="${BASE_URL:-https://wine.nibo.sh}"
 BASE_URL="${BASE_URL%/}" # 末尾スラッシュを除去
 
 # curl のリトライ設定 (外部サービスの一時的な揺らぎ対策)。
@@ -100,7 +116,74 @@ check_nonempty() {
   fi
 }
 
+# 共有 D1 (wine-preview-db) 向けの /api/health 判定 (#396)。
+#
+# プレビュー共通 DB には**開いている PR ブランチのマイグレーションが main より先に適用される**
+# (docs/deployment.md「環境」)。つまり main ミラー (wine-preview) の
+# `EXPECTED_LATEST_MIGRATION` より適用済みが進んでいる状態は**正常**で、ここで
+# `"ok":true` を要求すると、誰かがスキーマ変更 PR を開いている間ずっとスモークが赤くなる
+# (＝赤が常態化して誰も見なくなる)。
+#
+# そこで共有 DB の対象では、進んでいる分は許容しつつ次の2つは落とす:
+#   - D1 に到達できない / クエリが失敗する (`"db":"error"`)。バインディング設定ミスや
+#     共有 DB の破損 (#54) はここに出る
+#   - 適用済みが期待より**戻っている** (applied < expected)。マイグレーションが当たらずに
+#     新コードだけ載った状態で、本番で最も警戒している「新コード×旧スキーマ」に当たる
+check_health_shared_db() {
+  local url="${BASE_URL}/api/health"
+  local body code applied expected applied_seq expected_seq
+  # 不一致時の 503 は --retry の対象になり数秒余計にかかるが、一過性の 5xx と
+  # 区別できないのでリトライ設定は本番と揃える。
+  body="$(curl "${CURL_OPTS[@]}" -w '\n%{http_code}' -X GET "$url" 2>/dev/null)"
+  code="${body##*$'\n'}"
+  body="${body%$'\n'*}"
+
+  # 不一致時は 503 が返る (=共有 DB では想定内)。それ以外のコードは異常。
+  if [ "$code" != "200" ] && [ "$code" != "503" ]; then
+    printf '  FAIL  %-4s %-45s want=200/503 got=%s\n' GET /api/health "$code"
+    fail=$((fail + 1))
+    return
+  fi
+  if ! printf '%s' "$body" | grep -qF '"db":"ok"'; then
+    printf '  FAIL  %-4s %-45s got=%s (expected %q)\n' GET /api/health "$code" '"db":"ok"'
+    fail=$((fail + 1))
+    return
+  fi
+
+  # {"migration":{"applied":"0027_foo","expected":"0027_foo",...}} から連番を取り出す。
+  # applied は null になり得る (その場合 grep が空になり、下の数値判定で落ちる)。
+  applied="$(printf '%s' "$body" | grep -o '"applied":"[^"]*"' | head -1 | sed 's/.*:"//; s/"$//')"
+  expected="$(printf '%s' "$body" | grep -o '"expected":"[^"]*"' | head -1 | sed 's/.*:"//; s/"$//')"
+  applied_seq="${applied%%_*}"
+  expected_seq="${expected%%_*}"
+  if ! printf '%s' "$applied_seq" | grep -qE '^[0-9]+$' ||
+    ! printf '%s' "$expected_seq" | grep -qE '^[0-9]+$'; then
+    printf '  FAIL  %-4s %-45s got=%s (migration 連番を読めない applied=%q expected=%q)\n' \
+      GET /api/health "$code" "$applied" "$expected"
+    fail=$((fail + 1))
+    return
+  fi
+  # 先頭ゼロを8進数と解釈させないため 10# を付ける
+  if [ "$((10#$applied_seq))" -lt "$((10#$expected_seq))" ]; then
+    printf '  FAIL  %-4s %-45s got=%s (適用済みが期待より古い applied=%s expected=%s)\n' \
+      GET /api/health "$code" "$applied" "$expected"
+    fail=$((fail + 1))
+    return
+  fi
+
+  local note="in sync"
+  if [ "$((10#$applied_seq))" -gt "$((10#$expected_seq))" ]; then
+    note="ahead (PR ブランチが先行適用。共有 DB では想定内)"
+  fi
+  printf '  ok    %-4s %-45s %s (db=ok applied=%s expected=%s / %s)\n' \
+    GET /api/health "$code" "$applied" "$expected" "$note"
+  pass=$((pass + 1))
+}
+
 echo "Smoke test against: ${BASE_URL}"
+if [ "$SHARED_DB" -eq 1 ]; then
+  echo "(shared-db profile: /api/health は先行適用を許容する)"
+fi
 echo
 
 # --- HTML (SSR) ---
@@ -111,7 +194,12 @@ check_status GET / 200 "home page"
 # 当たって新 Worker が反映されていない状態や D1 バインディングの設定ミスを、他のどの
 # チェックも検出できない(ホームも OAuth メタデータも DB を引かずに 200 を返すため)。
 # ズレ・接続失敗はどちらも 503 + "ok":false になる。
-check_body   GET /api/health 200 '"ok":true'
+# 共有 D1 (プレビュー) だけは PR ブランチの先行適用を許容する (--shared-db)。
+if [ "$SHARED_DB" -eq 1 ]; then
+  check_health_shared_db
+else
+  check_body GET /api/health 200 '"ok":true'
+fi
 
 # --- better-auth ---
 # /api/auth/ok は better-auth 組込みのヘルスチェック相当 (未認証で 200 {"ok":true})。

@@ -1,34 +1,55 @@
 name: Smoke Test
 
-# デプロイ後のスモークテスト (Issue #53)。
+# デプロイ後のスモークテスト (Issue #53, #396)。
 #
 # デプロイは Cloudflare Workers Builds (GitHub Actions 外) が行い、Actions には
 # 「デプロイ完了」イベントが来ない。そこで本ワークフローは外部デプロイ完了に依存せず、
 # 次の2経路で主要エンドポイントの健全性を検証する。
-#   - schedule: 本番 (wine.nibo.sh) を定期スモークし、壊れたまま本番デプロイされた
-#     回帰をインターバル内で検出する。
-#   - workflow_dispatch: 任意 URL (プレビュー環境など) を手動でスモークする。
+#   - schedule: 本番 (wine.nibo.sh) と main ミラー (wine-preview) を定期スモークし、
+#     壊れたままデプロイされた回帰をインターバル内で検出する。
+#   - workflow_dispatch: 任意 URL (PR ごとのプレビュー環境など) を手動でスモークする。
+#
+# デプロイ直後の検証は Workers Builds の deploy command 側でも走る (docs/deployment.md)。
+# こちらの schedule が拾うのは「デプロイを経由しない破損」— 共有プレビュー DB の汚染
+# (#54)、外部サービス側の変化、証明書やドメイン設定の失効など。
 
 on:
   schedule:
-    # 6時間ごとに本番をスモークする (UTC)。
-    - cron: "0 */6 * * *"
+    # 1時間ごとにデプロイ済み環境をスモークする (UTC)。#396 以前は6時間ごとで、
+    # 破損が最大6時間潜伏していた。
+    - cron: "0 * * * *"
   workflow_dispatch:
     inputs:
       url:
         description: "スモーク対象の Base URL (プレビュー URL など)"
         required: false
         default: "https://wine.nibo.sh"
+      shared_db:
+        description: "対象の D1 が PR プレビューと共有されている (wine-preview 系)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   smoke:
-    name: Smoke test (${{ github.event.inputs.url || 'https://wine.nibo.sh' }})
+    # dispatch では matrix.url が空なので、従来どおり入力URLを表示する
+    name: Smoke test (${{ matrix.url || github.event.inputs.url || 'https://wine.nibo.sh' }})
     runs-on: ubuntu-latest
     # 既定(360分)のままだと curl のリトライ滞留で長時間ランナーを占有する
     timeout-minutes: 15
+    strategy:
+      # 片方が落ちても、もう片方が健全かどうかは知りたい
+      fail-fast: false
+      matrix:
+        # schedule では本番と main ミラーの2つを、workflow_dispatch では入力の1つだけを
+        # 対象にする。GitHub の matrix には条件付き要素が書けないので、イベントごとに
+        # 配列そのものを fromJSON で選ぶ。dispatch 側は url を空にして、下の env で
+        # 入力へフォールバックさせる(JSON リテラル内に ${{ }} は書けないため)。
+        include: ${{ fromJSON(github.event_name == 'schedule' && '[{"name":"production","url":"https://wine.nibo.sh","shared_db":false},{"name":"preview-mirror","url":"https://wine-preview.niboshi.workers.dev","shared_db":true}]' || '[{"name":"dispatch","url":"","shared_db":false}]') }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,5 +59,11 @@ jobs:
         # dispatch 入力から任意コマンドを注入できる。env 経由で渡し、シェルには
         # 変数として展開させる(値がコードとして解釈されない)。
         env:
-          SMOKE_URL: ${{ github.event.inputs.url || 'https://wine.nibo.sh' }}
-        run: bash scripts/smoke.sh "$SMOKE_URL"
+          SMOKE_URL: ${{ matrix.url || github.event.inputs.url || 'https://wine.nibo.sh' }}
+          SMOKE_SHARED_DB: ${{ matrix.shared_db || github.event.inputs.shared_db || 'false' }}
+        run: |
+          args=("$SMOKE_URL")
+          if [ "$SMOKE_SHARED_DB" = "true" ]; then
+            args+=(--shared-db)
+          fi
+          bash scripts/smoke.sh "${args[@]}"
