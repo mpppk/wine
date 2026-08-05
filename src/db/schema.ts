@@ -272,6 +272,19 @@ export const importBatch = sqliteTable(
 			.$type<string[]>()
 			.notNull()
 			.default(sql`'[]'`),
+		/**
+		 * 登録時に申告された写真の枚数(#405)。**2段階目のアップロードで
+		 * 「申告どおりの枚数が来たか」を検証するために要る**。
+		 *
+		 * 目撃記録は photoIndex でこの配列を指すので、申告より少ない枚数が入ると
+		 * 添字が範囲外になる(写真が出ない)か、**別の写真を指す**(前段が抜けて
+		 * 後続が繰り上がる)。登録時の zod も `photoIndex < photoCount` を見ているが、
+		 * その値がここに残っていないと後段は同じ前提を確認できない。
+		 *
+		 * `null` は **この列を持つ前に作られた既存バッチ**を意味し、その場合は
+		 * 検証をスキップする(申告枚数は遡って復元できない)。
+		 */
+		photoCount: integer("photo_count"),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
