@@ -18,6 +18,7 @@ import {
 	statusLineColorExpr,
 } from "#/lib/drunk-wine/map-style";
 import type { WineStatus } from "#/lib/drunk-wine/status";
+import { reportClientError } from "#/lib/observability/client-error";
 import { cn } from "#/lib/utils";
 import {
 	BASEMAP_STYLE_URL,
@@ -257,6 +258,9 @@ export function AopMapView({
 	const hoveredIdRef = useRef<number | undefined>(undefined);
 	const boundsRef = useRef<FeatureBounds>({});
 	const loadedRef = useRef(false);
+	// maplibre の error は失敗タイル1枚ごとに飛ぶ。全部を収集先へ送ると1回の
+	// 障害でイベントが溢れるので、**この地図インスタンスで最初の1件だけ**送る。
+	const reportedMapErrorRef = useRef(false);
 	// AOP境界(GeoJSON)取得失敗のエラー表示と、再試行での地図再生成トリガー。
 	// reloadKey を変えると初期化effectが再走し、地図を作り直して再取得する。
 	const [loadError, setLoadError] = useState(false);
@@ -322,10 +326,16 @@ export function AopMapView({
 			mapRef.current = map;
 			map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
 
-			// ベースマップ(OpenFreeMap)のスタイル/タイル/フォント読み込み失敗など、
-			// 外部依存の障害を無言にしない。少なくとも原因をコンソールに残す。
+			// ベースマップ(OpenFreeMap)のスタイル/タイル/フォント読み込み失敗や、
+			// worker の解決失敗(#184 で地図が真っ白になったクラス)を無言にしない。
+			// CI が緑のまま実機だけ壊れる種類なので、収集先まで届かせる(#390)。
 			map.on("error", (e) => {
-				console.error("maplibre error", e.error ?? e);
+				if (reportedMapErrorRef.current) return;
+				reportedMapErrorRef.current = true;
+				reportClientError(e.error ?? e, {
+					kind: "maplibre_error",
+					regionId: region.id,
+				});
 			});
 
 			const popup = new maplibregl.Popup({
@@ -356,10 +366,13 @@ export function AopMapView({
 					geojson = (await res.json()) as FeatureCollection;
 				} catch (e) {
 					if (cancelled) return;
-					console.error(
-						`AOP境界データの読み込みに失敗しました: ${region.geojsonPath}`,
-						e,
-					);
+					// 地図が空で表示される(= 機能が壊れている)失敗。静的アセットの
+					// 解決が壊れる #184 型の回帰はここに出る(#390)。
+					reportClientError(e, {
+						kind: "aop_geojson_fetch",
+						regionId: region.id,
+						path: region.geojsonPath,
+					});
 					setLoadError(true);
 					return;
 				}
@@ -384,7 +397,17 @@ export function AopMapView({
 				if (boundariesRes?.ok) {
 					boundaries = (await boundariesRes.json()) as FeatureCollection;
 				} else if (region.boundariesPath) {
-					console.warn(`boundaries fetch failed: ${region.boundariesPath}`);
+					// 境界データは任意なので描画は続くが、静的アセットが引けないこと自体は
+					// 異常。マスク・境界線が無い地図が無言で出続けるのを防ぐ(#390)。
+					reportClientError(
+						new Error(`boundaries fetch failed: ${region.boundariesPath}`),
+						{
+							kind: "aop_boundaries_fetch",
+							regionId: region.id,
+							path: region.boundariesPath,
+							status: boundariesRes?.status,
+						},
+					);
 				}
 				if (cancelled) return;
 

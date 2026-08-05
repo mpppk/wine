@@ -1,5 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { reportClientError } from "#/lib/observability/client-error";
 import { addSaveFailure, type QuizSaveFailure } from "#/lib/quiz/save-status";
 import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
 import type { AnswerSnapshot } from "#/lib/services/quiz-service";
@@ -196,7 +197,15 @@ export function useQuizSession(
 					});
 				}
 			} catch (error) {
-				console.error("failed to fetch quiz questions", error);
+				// 出題が止まる失敗。ネットワーク断ならサーバ側には何も残らないので、
+				// 収集先へ送らないと再発時に再び原因不明になる(#381/#390)。
+				reportClientError(error, {
+					kind: "quiz_fetch_questions",
+					regionId,
+					quizTypes: stableQuizTypes,
+					scopeAopId,
+					remaining: remainingRef.current,
+				});
 				// 表示できる問題が無い(キューが空)ときだけエラー画面へ遷移する。捕捉時点の
 				// live な queue で判定する — 起動時に捕捉した queuedKeys では、プリフェッチ中に
 				// キューが尽きてから失敗したケース(その間の fetchMore([]) は fetchingRef で
@@ -298,7 +307,14 @@ export function useQuizSession(
 							return snapshot;
 						})
 						.catch((error) => {
-							console.error("failed to record quiz answer", error);
+							// 進捗が無言で消えるクラスの失敗(#255 のサポート起票シナリオ)。
+							// 画面にはバナーを出しつつ、原因は収集先に残す(#390)。
+							reportClientError(error, {
+								kind: "quiz_record_answer",
+								regionId,
+								quizType: current.quizType,
+								questionKey: current.key,
+							});
 							setSaveFailure((prev) => addSaveFailure(prev, error));
 							return null;
 						}),
@@ -307,7 +323,7 @@ export function useQuizSession(
 				recordRef.current = null;
 			}
 		},
-		[current, phase, isLoggedIn, enqueueMutation, applyRemaining],
+		[current, phase, isLoggedIn, regionId, enqueueMutation, applyRemaining],
 	);
 
 	// 回答を取り消してやり直す(誤タップ救済)。ローカル状態を回答前へ戻し、
@@ -344,11 +360,23 @@ export function useQuizSession(
 				}
 			}).catch((error) => {
 				// 取り消しの失敗もサーバ側が実際と食い違う状態なので、記録失敗と同じく表示する。
-				console.error("failed to revert quiz answer", error);
+				reportClientError(error, {
+					kind: "quiz_revert_answer",
+					regionId,
+					quizType: current.quizType,
+					questionKey: current.key,
+				});
 				setSaveFailure((prev) => addSaveFailure(prev, error));
 			});
 		}
-	}, [phase, current, selectedOptionId, enqueueMutation, applyRemaining]);
+	}, [
+		phase,
+		current,
+		selectedOptionId,
+		regionId,
+		enqueueMutation,
+		applyRemaining,
+	]);
 
 	const next = useCallback(() => {
 		if (phase !== "feedback") return;

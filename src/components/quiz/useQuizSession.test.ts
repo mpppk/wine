@@ -15,6 +15,11 @@ vi.mock("#/server/quiz", () => ({
 vi.mock("@tanstack/react-router", () => ({
 	useRouter: () => ({ invalidate: vi.fn() }),
 }));
+// クライアント側エラー収集の唯一の入口(#381)。実SDKを読み込まずに配線だけを見る。
+const reportClientError = vi.fn();
+vi.mock("#/lib/observability/client-error", () => ({
+	reportClientError: (...args: unknown[]) => reportClientError(...args),
+}));
 
 const { useQuizSession } = await import("./useQuizSession");
 
@@ -51,6 +56,7 @@ function makeQuestion(key: string): QuizQuestion {
 describe("useQuizSession の取得失敗ハンドリング", () => {
 	beforeEach(() => {
 		getNextQuestions.mockReset();
+		reportClientError.mockReset();
 	});
 
 	it("初回取得が失敗すると loading のままではなく error になる", async () => {
@@ -78,6 +84,25 @@ describe("useQuizSession の取得失敗ハンドリング", () => {
 		});
 		await waitFor(() => expect(result.current.phase).toBe("answering"));
 		expect(result.current.current?.key).toBe("colors:x:y");
+	});
+
+	// Issue #390: 出題が止まる失敗が console.error だけで握り潰されていた。ネットワーク断は
+	// サーバ側に痕跡が残らない(#379 型)ので、収集先へ送らないと再発時に原因へ到達できない。
+	it("取得失敗を収集先へ送る(#390)", async () => {
+		const boom = new Error("boom");
+		getNextQuestions.mockRejectedValueOnce(boom);
+		const { result } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], false),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("error"));
+
+		expect(reportClientError).toHaveBeenCalledWith(
+			boom,
+			expect.objectContaining({
+				kind: "quiz_fetch_questions",
+				regionId: "bourgogne",
+			}),
+		);
 	});
 
 	// プリフェッチ中にキューが尽きてから失敗しても loading で固まらず error になる。
@@ -218,6 +243,7 @@ describe("useQuizSession の解答記録失敗ハンドリング (#255)", () => 
 		getNextQuestions.mockReset();
 		recordAnswer.mockReset();
 		revertAnswer.mockReset();
+		reportClientError.mockReset();
 		getNextQuestions.mockImplementation(async () => ({
 			questions: [makeQuestion("q1"), makeQuestion("q2"), makeQuestion("q3")],
 			remaining: 3,
@@ -243,6 +269,30 @@ describe("useQuizSession の解答記録失敗ハンドリング (#255)", () => 
 		);
 		// 保存は失敗しているが出題自体は継続できる(学習を止めない)。
 		expect(result.current.phase).toBe("feedback");
+		await drainAndUnmount(unmount);
+	});
+
+	// Issue #390: バナーは出ていたが収集先へは何も送っていなかった。進捗が無言で消える
+	// クラスの失敗(#255 のサポート起票シナリオ)を、テレメトリ側からも見えるようにする。
+	it("記録の失敗を収集先へ送る(#390)", async () => {
+		const boom = new Error("network down");
+		recordAnswer.mockRejectedValue(boom);
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], true),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+
+		act(() => result.current.answer("a"));
+		await waitFor(() => expect(result.current.saveFailure).not.toBeNull());
+
+		expect(reportClientError).toHaveBeenCalledWith(
+			boom,
+			expect.objectContaining({
+				kind: "quiz_record_answer",
+				regionId: "bourgogne",
+				questionKey: "q1",
+			}),
+		);
 		await drainAndUnmount(unmount);
 	});
 
