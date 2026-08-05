@@ -68,6 +68,30 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # コミット済みの worker-configuration.d.ts が wrangler.jsonc と揃っているかを見る(#401)。
+      # バインディングを足して再生成を忘れると `Env` 型が古いまま **typecheck は緑になり**、
+      # 未型付け・存在しないバインディングへのアクセスが実行時まで漏れる。シークレット型
+      # (env-secrets.test.ts)・マイグレーション連番(migrations.test.ts)には既にドリフト
+      # ガードがあり、この生成物だけ機械的な検査が無かった。
+      #
+      # Type check より前に置く。型が古いままの typecheck は「緑だが信用できない」状態で、
+      # 先に鮮度を見たほうが失敗の意味が明確になる。
+      #
+      # 再生成して差分を見るのではなく wrangler 自身の --check を使う。前者は wrangler 更新の
+      # たびに14,700行の差分が出て原因が読み取れないが、--check は「再生成せよ」と1行で言う。
+      # 検査対象は (1) 設定から算出される Env 型のハッシュ (2) workerd バージョンと
+      # compatibility_date/flags を含むランタイムヘッダの2つ。したがって **wrangler(workerd)を
+      # 上げたPRでも落ちる**が、そのとき生成物は実際に古いので `bun run cf-typegen` を回して
+      # コミットするのが正しい。wrangler の更新は automerge から外して人手で見る運用(#263/#402)
+      # なので、この失敗はレビュー中のPRに出る。
+      #
+      # `--env-file=/dev/null` は cf-typegen と揃える(手元の .dev.vars が生成内容に混ざるのを
+      # 防ぐ。#261)。これが無いとローカルとCIで判定が食い違う。
+      - name: Check generated Worker types are fresh
+        run: bun run check:types
+        env:
+          WRANGLER_SEND_METRICS: "false"
+
       - name: Type check
         run: bun run typecheck
 

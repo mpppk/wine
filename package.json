@@ -30,7 +30,8 @@
 		"db:migrate:local": "wrangler d1 migrations apply DB --local",
 		"db:migrate:remote": "wrangler d1 migrations apply DB --remote",
 		"db:migrate:preview": "wrangler d1 migrations apply DB --remote --env preview",
-		"cf-typegen": "wrangler types --env-file=/dev/null --strict-vars=false"
+		"cf-typegen": "wrangler types --env-file=/dev/null --strict-vars=false",
+		"check:types": "wrangler types --env-file=/dev/null --strict-vars=false --check"
 	},
 	"trustedDependencies": [
 		"@sentry/cli"
