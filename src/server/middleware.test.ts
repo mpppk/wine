@@ -4,7 +4,11 @@ import { IMPERSONATION_READONLY_MESSAGE } from "#/lib/admin/impersonation";
 import {
 	BadRequestError,
 	ForbiddenError,
+	INTERNAL_ERROR_MESSAGE,
 	NotFoundError,
+	TOO_MANY_REQUESTS_MESSAGE,
+	TooManyRequestsError,
+	UNAUTHORIZED_MESSAGE,
 	UnauthorizedError,
 } from "#/lib/errors";
 
@@ -176,12 +180,15 @@ describe("authMiddleware", () => {
 		expect(hooks.statuses).toEqual([expected]);
 	});
 
-	it("想定外の例外は userId 付きで構造化ログに残し、ステータスは触らず再throwする", async () => {
+	it("想定外の例外は userId 付きで構造化ログに残し、ステータスは触らず throw する", async () => {
 		hooks.session = sessionFor({ id: "u42" });
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		const boom = new TypeError("undefined is not a function");
 
-		await expect(runAuth({ next: throwingNext(boom) })).rejects.toBe(boom);
+		// 呼び出し側へ渡るのは汎用文言に差し替えたエラー(#424。詳細は下の describe)
+		await expect(runAuth({ next: throwingNext(boom) })).rejects.toThrow(
+			INTERNAL_ERROR_MESSAGE,
+		);
 
 		// 5xx のまま(既定)にする。ここで 4xx を付けると障害が成功系に見える
 		expect(hooks.statuses).toEqual([]);
@@ -274,7 +281,9 @@ describe("optionalAuthMiddleware", () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		const boom = new Error("kaboom");
 
-		await expect(runOptional({ next: throwingNext(boom) })).rejects.toBe(boom);
+		await expect(runOptional({ next: throwingNext(boom) })).rejects.toThrow(
+			INTERNAL_ERROR_MESSAGE,
+		);
 
 		const line = loggedLine(error);
 		expect(line).toMatchObject({ level: "error", msg: "server fn failed" });
@@ -332,7 +341,9 @@ describe("失敗ログの path (#332)", () => {
 			const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
 			const boom = new Error("kaboom");
-			await expect(run({ next: throwingNext(boom) })).rejects.toBe(boom);
+			await expect(run({ next: throwingNext(boom) })).rejects.toThrow(
+				INTERNAL_ERROR_MESSAGE,
+			);
 
 			expect(loggedLine(error)).toMatchObject({
 				msg: "server fn failed",
@@ -340,6 +351,129 @@ describe("失敗ログの path (#332)", () => {
 			});
 		},
 	);
+});
+
+// #424: server function の例外はクライアントへ渡る途中で素の Error に平坦化されるが
+// message は保持され、各画面が `err.message` をそのまま描画する。素通しすると失敗SQL・
+// バインドパラメータ・内部IDが利用者の画面に出る(実際に「まとめ削除」の確認ダイアログへ
+// 出た)。露出の可否をこの1箇所に閉じ、全経路で同じ判断になることを固定する。
+describe("クライアントへの露出 (#424)", () => {
+	const runners: [string, ServerFn, () => void][] = [
+		[
+			"authMiddleware",
+			runAuth,
+			() => {
+				hooks.session = sessionFor({ id: "u1" });
+			},
+		],
+		[
+			"adminMiddleware",
+			runAdmin,
+			() => {
+				hooks.session = sessionFor({ id: "admin1", role: "admin" });
+			},
+		],
+		[
+			"optionalAuthMiddleware",
+			runOptional,
+			() => {
+				hooks.session = sessionFor({ id: "u1" });
+			},
+		],
+		[
+			"impersonationMiddleware",
+			runImpersonation,
+			() => {
+				hooks.session = impersonatedSessionFor({ id: "u1" });
+			},
+		],
+	];
+
+	// 実際に画面へ出た文字列(#400 / PR #422 の検証中に観測)。テーブル名・列名・
+	// クエリ構造・内部IDがそのまま利用者に見えていた。
+	const LEAKED_SQL =
+		'Failed query: delete from "drunk_wine" where ("drunk_wine"."id" in (?, ?) and ' +
+		'"drunk_wine"."user_id" = ?) returning "photo_keys"\n' +
+		"params: pr422c-0,pr422c-1,DFFWPiigdbqgoJ2tX8KfDLeAIOSReUyV";
+
+	it.each(runners)(
+		"%s: 想定外例外の message は汎用文言に差し替える",
+		async (_label, run, setup) => {
+			setup();
+			hooks.requestMethod = "GET"; // なりすましの書き込みガードに引っ掛けない
+			vi.spyOn(console, "error").mockImplementation(() => {});
+
+			const thrown = await run({
+				next: throwingNext(new Error(LEAKED_SQL)),
+			}).catch((e: unknown) => e);
+
+			expect(thrown).toBeInstanceOf(Error);
+			expect((thrown as Error).message).toBe(INTERNAL_ERROR_MESSAGE);
+			// 元の message が経路のどこにも残っていないこと(cause 経由の再露出も防ぐ)
+			expect(
+				JSON.stringify(thrown, Object.getOwnPropertyNames(thrown)),
+			).not.toContain("drunk_wine");
+		},
+	);
+
+	// 101件のまとめ削除で zod の生の issues 配列が同じ場所に出た。inputValidator の
+	// 失敗は server function 本体(最後のミドルウェア)の中で throw されるため、
+	// 想定外例外と同じくこの境界を通る。
+	it("zod 検証エラーの生 issues も差し替える", async () => {
+		hooks.session = sessionFor({ id: "u1" });
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const zodIssues = new Error(
+			JSON.stringify([
+				{ origin: "array", code: "too_big", maximum: 100, path: ["ids"] },
+			]),
+		);
+
+		await expect(runAuth({ next: throwingNext(zodIssues) })).rejects.toThrow(
+			INTERNAL_ERROR_MESSAGE,
+		);
+	});
+
+	it("差し替えても原因はログに残る(調査手段を奪わない)", async () => {
+		hooks.session = sessionFor({ id: "u42" });
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+		await expect(
+			runAuth({ next: throwingNext(new Error(LEAKED_SQL)) }),
+		).rejects.toThrow(INTERNAL_ERROR_MESSAGE);
+
+		// 利用者には出さないが、Workers Logs では今まで通り原因を追える
+		expect(String(loggedLine(error).err)).toContain("drunk_wine");
+	});
+
+	// HttpError の message はクライアントが文言で種別を判定している経路がある(#255)。
+	// ここを差し替えると「セッション失効」「なりすまし中」の判定が黙って壊れる。
+	it.each([
+		[new UnauthorizedError(), UNAUTHORIZED_MESSAGE],
+		[new TooManyRequestsError(), TOO_MANY_REQUESTS_MESSAGE],
+		[new NotFoundError("Entry not found"), "Entry not found"],
+	])("HttpError の message はそのまま通す (%s)", async (thrown, expected) => {
+		hooks.session = sessionFor({ id: "u1" });
+
+		await expect(runAuth({ next: throwingNext(thrown) })).rejects.toThrow(
+			expected,
+		);
+	});
+
+	// redirect は Response で表現される制御フローであって失敗ではない。差し替えると
+	// 「処理に失敗しました」に化けて遷移しなくなる。
+	it("Response(redirect)はそのまま通し、失敗ログにも載せない", async () => {
+		hooks.session = sessionFor({ id: "u1" });
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const response = new Response(null, {
+			status: 307,
+			headers: { Location: "/login" },
+		});
+
+		await expect(runAuth({ next: throwingNext(response) })).rejects.toBe(
+			response,
+		);
+		expect(error).not.toHaveBeenCalled();
+	});
 });
 
 // なりすまし(impersonation)中の書き込み禁止(#116)。

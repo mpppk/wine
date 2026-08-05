@@ -12,6 +12,7 @@ import {
 	BadRequestError,
 	ForbiddenError,
 	HttpError,
+	INTERNAL_ERROR_MESSAGE,
 	TooManyRequestsError,
 	UnauthorizedError,
 } from "#/lib/errors";
@@ -27,6 +28,13 @@ import { withinRateLimit } from "#/lib/rate-limit";
 // 加えて、HttpError 以外(=想定外の 5xx)はこの1箇所で構造化ログに残す。全 server
 // function がこのミドルウェアを通るため、新機能(billing/credit/ai 等)の想定外失敗も
 // 呼び出し側に手を入れず userId 付きで Workers Logs から追跡できる(#156)。
+//
+// そして同じ理由から、ここは**クライアントへの露出のチョークポイント**でもある(#424)。
+// server function の例外はクライアントへ渡る途中で素の Error に平坦化されるが message は
+// 保持され、各画面はそれを `err.message` のまま描画する。素通しすると失敗SQL・バインド
+// パラメータ・内部IDや各SDKの例外文が利用者の画面に出るため、想定外例外の message は
+// ここで INTERNAL_ERROR_MESSAGE に差し替える(原因は上のログに残る)。露出可否の判断を
+// 画面ごとに書くと後から足した画面で必ず漏れるので、判断はこの1箇所に閉じる。
 async function runWithHttpStatus<T>(
 	next: () => Promise<T> | T,
 	ctx?: { userId?: string; path?: string },
@@ -36,19 +44,28 @@ async function runWithHttpStatus<T>(
 	} catch (e) {
 		if (e instanceof HttpError) {
 			// 想定内の 4xx。ステータスだけ写してログは出さない(障害シグナルを薄めない)。
+			// message は UI に出る文言であり、クライアントが文言で種別を判定している
+			// 経路もある(#255 の UNAUTHORIZED_MESSAGE 等)ため、そのまま通す。
 			setResponseStatus(e.status);
-		} else {
-			// path が無いと、D1 障害などで複数機能が同時に落ちたときに同一文言の行が
-			// 並ぶだけになり、`bun run logs --level error` から障害箇所を切り分けられない
-			// (#332)。同ファイルの未認証ログ・書き込みブロックログは既に path を残して
-			// いたので、失敗ログだけドリフトしていた。
-			logError("server fn failed", {
-				userId: ctx?.userId,
-				path: ctx?.path,
-				err: e,
-			});
+			throw e;
 		}
-		throw e;
+		// Response(TanStack Router の redirect を含む)は失敗ではなく制御フロー。
+		// 差し替えると redirect が「処理に失敗しました」に化けて動かなくなるため、
+		// ログにも載せずそのまま通す。現状 server function から投げている箇所は無いが、
+		// 後から足したときに黙って壊れる罠を残さない。
+		if (e instanceof Response) throw e;
+		// path が無いと、D1 障害などで複数機能が同時に落ちたときに同一文言の行が
+		// 並ぶだけになり、`bun run logs --level error` から障害箇所を切り分けられない
+		// (#332)。同ファイルの未認証ログ・書き込みブロックログは既に path を残して
+		// いたので、失敗ログだけドリフトしていた。
+		logError("server fn failed", {
+			userId: ctx?.userId,
+			path: ctx?.path,
+			err: e,
+		});
+		// cause に元の例外を繋がない。繋ぐと直列化の実装次第で元の message が再び
+		// クライアントへ渡りうる(原因は直前の logError に残っている)。
+		throw new Error(INTERNAL_ERROR_MESSAGE);
 	}
 }
 
