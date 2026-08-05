@@ -15,14 +15,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+// これ以上の idApp は INAO ポリゴンを持たない詳細エントリ(ブルゴーニュのクリマ・
+// 合成総称ノード)。GeoJSON も重心も持たないので欠落チェックの対象外にする。
+// 値は src/lib/wine/geo-bands.json が SSOT(TS 側の POLYGONLESS_IDAPP_MIN と同じ実体)。
+import { POLYGONLESS_IDAPP_MIN } from "./geo-bands.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GEO_DIR = path.join(ROOT, "public", "data", "aop");
 const OUT_PATH = path.join(ROOT, "src", "lib", "wine", "aop-centroids.json");
-// これ以上の idApp は INAO ポリゴンを持たない詳細エントリ(ブルゴーニュのクリマ・
-// 合成総称ノード)。GeoJSON も重心も持たないので欠落チェックの対象外にする。
-// src/lib/wine/types.ts の POLYGONLESS_IDAPP_MIN と同値。
-const POLYGONLESS_IDAPP_MIN = 930000;
 
 /** リング([[lng,lat],...])の符号付き面積と面積加重セントロイド項を返す */
 function ringCentroid(ring) {

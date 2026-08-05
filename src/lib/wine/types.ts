@@ -1,14 +1,20 @@
 // Domain types for the wine AOP study feature. Kept free of runtime imports so
 // they can be shared by the data files, services, API routes, UI and MCP tools.
 
+import geoBands from "./geo-bands.json";
 import type { AopTagId } from "./tags";
 
 /**
  * これ以上の idApp は INAO の独立ポリゴンを持たない(地図に描かない)エントリ帯
  * (ブルゴーニュのクリマ・合成総称ノード)。ジオメトリ/重心の生成・整合チェックは
- * この値以上の idApp を対象外にする。scripts/*.mjs 側は同値のリテラルで判定する。
+ * この値以上の idApp を対象外にする。
+ *
+ * **値の唯一の情報源は `geo-bands.json`**(Issue #407)。ジオデータ生成スクリプトは
+ * Node ESM で TS を import できないため、同じ JSON を `scripts/geo-bands.mjs` 経由で
+ * 読む。以前は同値のリテラルが3箇所に複製されており、同期漏れは「古い定数で生成された
+ * 成果物」として無言で通っていた(`geo-bands.test.ts` が両者の一致を固定する)。
  */
-export const POLYGONLESS_IDAPP_MIN = 930000;
+export const POLYGONLESS_IDAPP_MIN = geoBands.polygonlessIdAppMin;
 
 /** ワインのタイプ(色) */
 export type WineColor = "red" | "white" | "rose" | "sparkling" | "sweet-white";
