@@ -80,6 +80,13 @@ export const PROGRESS_BUCKETS: { fill: string; line: string }[] = [
 	{ fill: "#14532b", line: "#0c3d1f" },
 ];
 
+/**
+ * 進捗を「率のスケール」ではなく1色で表すときの代表色(進捗フィルタのチップ等)。
+ * スケールの中でも濃い側を採り、白文字を載せられるコントラストを確保する。
+ */
+export const PROGRESS_ACCENT_COLOR =
+	PROGRESS_BUCKETS[2] ?? PROGRESS_EMPTY_COLOR;
+
 // バケット境界(4段階なら 0.25/0.5/0.75)。等間隔に自動生成する
 const PROGRESS_STOPS = PROGRESS_BUCKETS.map(
 	(_, i) => i / PROGRESS_BUCKETS.length,
