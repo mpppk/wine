@@ -36,11 +36,13 @@ import { AopReferenceLinks } from "#/components/wine/AopReferenceLinks";
 import { AopTreeList } from "#/components/wine/AopTreeList";
 import { GrapeFilterMenu } from "#/components/wine/GrapeFilterMenu";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
+import { ProgressFilterMenu } from "#/components/wine/ProgressFilterMenu";
 import { MapProgressLegend } from "#/components/wine/ProgressLegend";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import { countScopedQuestions, expandScopeAopIds } from "#/lib/quiz/scope";
 import {
+	aopProgressState,
 	aopToken,
 	buildKindFacets,
 	facetLabelJa,
@@ -49,6 +51,8 @@ import {
 	groupTokens,
 	type KindFacets,
 	kindToken,
+	PROGRESS_TOKENS,
+	progressToken,
 } from "#/lib/wine/aop-filter";
 import {
 	buildAopTree,
@@ -76,7 +80,8 @@ const searchSchema = z.object({
 	/**
 	 * 非表示にするフィルタトークン(カンマ区切り)。省略時は全表示。
 	 * 単純トグル区分は区分ID(例 "village")、マルチセレクト区分は "区分:facet"
-	 * (例 "vineyard:grand-cru" / "village:__none__")。
+	 * (例 "vineyard:grand-cru" / "village:__none__")。学習の進捗は
+	 * "progress:状態"(例 "progress:untouched")。
 	 */
 	hide: z.string().optional(),
 	/** 表示モード。省略時は地図 */
@@ -248,10 +253,16 @@ function MapPage() {
 		() => new Map(kindFacets.map((kf) => [kf.kind, kf])),
 		[kindFacets],
 	);
-	// 既定=全表示の判定・URL 整形に使う、全フィルタトークンの基準順リスト
+	// 既定=全表示の判定・URL 整形に使う、全フィルタトークンの基準順リスト。
+	// 進捗トークンは未ログイン時は含めない: 正解が記録されず全AOPが「未着手」に潰れるため、
+	// 進捗で絞れる状態のまま古いURLを開くと地図が丸ごと消えかねない。ここから外すと
+	// parseHide が未知トークンとして捨て、既定=全表示に寄る。
 	const allTokens = useMemo(
-		() => kindFacets.flatMap((kf) => groupTokens(kf)),
-		[kindFacets],
+		() => [
+			...kindFacets.flatMap((kf) => groupTokens(kf)),
+			...(isAuthenticated ? PROGRESS_TOKENS : []),
+		],
+		[kindFacets, isAuthenticated],
 	);
 	const validTokens = useMemo(() => new Set(allTokens), [allTokens]);
 	const hideSet = useMemo(
@@ -263,10 +274,26 @@ function MapPage() {
 		() => (a: Aop) => aopToken(a, facetsByKind),
 		[facetsByKind],
 	);
-	// 区分・格付けフィルタで非表示になるAOP(品種フィルタは含めない: 地図では灰色に沈める)
+	// 進捗フィルタの非表示判定。判定に使う solved/total はリストの行ピル・詳細パネルの
+	// 「関連クイズN問」と同じスコープ(自身+階層近傍)なので、画面に見えている数字と
+	// 絞り込み結果が食い違わない。
+	const progressHidden = useMemo(
+		() => (a: Aop) =>
+			hideSet.has(progressToken(aopProgressState(scopedProgressByAopId[a.id]))),
+		[hideSet, scopedProgressByAopId],
+	);
+
+	// 区分・格付け・進捗フィルタで非表示になるAOP(品種フィルタは含めない: 地図では灰色に沈める)。
+	// 進捗は品種と違って地図でも隠す: 「全問正解の産地だけ」を見るのが目的なので、
+	// 灰色に沈めるだけでは絞り込んだことにならない。
 	const hiddenAopIds = useMemo(
-		() => new Set(aops.filter((a) => hideSet.has(tokenOf(a))).map((a) => a.id)),
-		[aops, hideSet, tokenOf],
+		() =>
+			new Set(
+				aops
+					.filter((a) => hideSet.has(tokenOf(a)) || progressHidden(a))
+					.map((a) => a.id),
+			),
+		[aops, hideSet, tokenOf, progressHidden],
 	);
 
 	const selectedAop = aops.find((a) => a.id === selectedAopId);
@@ -307,13 +334,11 @@ function MapPage() {
 		() =>
 			new Set(
 				aops
-					.filter(
-						(a) =>
-							!hideSet.has(tokenOf(a)) && (!grape || aopAllowsGrape(a, grape)),
-					)
+					.filter((a) => !hiddenAopIds.has(a.id))
+					.filter((a) => !grape || aopAllowsGrape(a, grape))
 					.map((a) => a.id),
 			),
-		[aops, hideSet, tokenOf, grape],
+		[aops, hiddenAopIds, grape],
 	);
 
 	const setSearch = (patch: {
@@ -538,7 +563,7 @@ function MapPage() {
 
 					<fieldset
 						className="flex items-center gap-1"
-						aria-label="品種・区分・格付けフィルタ"
+						aria-label="品種・区分・格付け・進捗フィルタ"
 					>
 						{kindFacets.map((kf) =>
 							kf.multi ? (
@@ -562,6 +587,11 @@ function MapPage() {
 						<GrapeFilterMenu
 							value={grape}
 							onChange={(v) => setSearch({ grape: v })}
+						/>
+						<ProgressFilterMenu
+							hideSet={hideSet}
+							onToggle={toggleToken}
+							isAuthenticated={isAuthenticated}
 						/>
 					</fieldset>
 				</div>

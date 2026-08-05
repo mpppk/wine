@@ -90,3 +90,57 @@ export function aopToken(aop: Aop, byKind: Map<AopKind, KindFacets>): string {
 export function facetLabelJa(facet: Facet): string {
 	return facet === NO_CLASS_FACET ? "格付けなし" : AOP_TAG_LABELS_JA[facet];
 }
+
+// ---------------------------------------------------------------------------
+// 学習の進捗による絞り込み(区分×格付けとは直交する第2の軸)
+//
+// 区分・格付けが静的データ由来なのに対し、進捗はユーザ固有・可変。それでも同じ
+// `hide` パラメータに同居させるのは、「非表示トークンの集合」という1つの表現で
+// URL 復元・トグル・既定=全表示の判定が全部済むため。トークンは `progress:` 前置で
+// 区分トークン(AopKind = regional/village/vineyard/winery)とも
+// 区分:格付けトークンとも衝突しない。
+// ---------------------------------------------------------------------------
+
+/** 進捗の3状態(チップの選択肢の表示順 = URL 整形の基準順)。 */
+export const PROGRESS_FILTER_STATES = [
+	"untouched",
+	"learning",
+	"complete",
+] as const;
+export type ProgressState = (typeof PROGRESS_FILTER_STATES)[number];
+
+const PROGRESS_TOKEN_PREFIX = "progress:";
+
+/** 進捗状態のフィルタトークン(`progress:状態`)。 */
+export function progressToken(state: ProgressState): string {
+	return `${PROGRESS_TOKEN_PREFIX}${state}`;
+}
+
+/** 進捗軸が持つ全トークン(既定=全選択の判定・URL 整形の基準順に使う)。 */
+export const PROGRESS_TOKENS: string[] =
+	PROGRESS_FILTER_STATES.map(progressToken);
+
+/**
+ * 正解進捗(solved/total)を3状態に畳む。
+ *
+ * 分母は「自身+階層近傍」スコープ(リストの行ピル・詳細パネルの関連クイズ数と同じ)を
+ * 想定する。進捗エントリが無い = そのスコープに候補問題が1問も無いAOPで、solved=0 の
+ * 側に落とす(全問正解には決してならないため)。
+ */
+export function aopProgressState(
+	progress: { solved: number; total: number } | undefined,
+): ProgressState {
+	if (!progress || progress.solved === 0) return "untouched";
+	return progress.solved >= progress.total ? "complete" : "learning";
+}
+
+const PROGRESS_LABELS_JA: Record<ProgressState, string> = {
+	untouched: "未着手",
+	learning: "学習中",
+	complete: "全問正解",
+};
+
+/** 進捗状態の表示名。 */
+export function progressLabelJa(state: ProgressState): string {
+	return PROGRESS_LABELS_JA[state];
+}
