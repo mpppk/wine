@@ -362,6 +362,14 @@ describe("AOPメタデータの整合性", () => {
 		// メドック14 + ソーテルヌ/バルサック15。ソーテルヌ側は分割で件数が増えた組が
 		// あり(Doisy→Daëne/Dubroca/Védrines、Romer→Romer/Romer du Hayot、
 		// Lamothe→Lamothe/Lamothe-Guignard)、いずれも現在それぞれ独立した格付け銘柄。
+		//
+		// **Doisy-Dubroca を「現存しない」として消さないこと**。2012年に畑を引き抜き、
+		// 2014年に Doisy-Daëne 側(Dubourdieu家)へ売却された経緯から、二次情報の多くは
+		// 「以後生産されない」と書いている。しかし所有者の公式サイトによれば植え替えを経て
+		// **2019年ヴィンテージから生産を再開**している(1.5ha・セミヨン100%)。グラーヴ格付けで
+		// 現存しない2件を除いた前例(#218)があるため、二次情報だけを見て同じ処理をしがちな箇所。
+		// Romer(約5,000本)・Suau(約20,000本)・de Myrat(1988年に植え替え)も現役で、
+		// 1855年の27件はいずれも現存する。
 		expect(namesOf("deuxieme-cru-classe-1855")).toEqual([
 			"Château Brane-Cantenac",
 			"Château Broustet",
