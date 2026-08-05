@@ -18,6 +18,7 @@ import {
 } from "#/lib/credit/reservation";
 import type { CreditLedgerType } from "#/lib/credit/types";
 import { logError, logInfo, logWarn } from "#/lib/logger";
+import { alertOperator } from "#/lib/observability/operator-alert";
 import * as billingService from "#/lib/services/billing-service";
 
 // AIクレジットの付与・消費のD1アクセス層。判定・換算の純ロジックは #/lib/credit/ に置き、
@@ -695,12 +696,13 @@ export async function refundReservationOnFailure(
 			});
 		}
 	} catch (refundErr) {
-		logError("credit refund failed after inference error", {
-			userId,
-			requestId,
-			reservedCredits,
-			err: refundErr,
-		});
+		// 推論も返却も失敗 = **ユーザが失敗した推論の料金を負担したまま**。
+		// 台帳から手で戻すまで直らないので通知する(#395)。
+		alertOperator(
+			"credit refund failed after inference error",
+			{ userId, requestId, reservedCredits, err: refundErr },
+			{ tags: { kind: "credit_refund_failed" } },
+		);
 	}
 }
 
@@ -822,12 +824,13 @@ export async function reclaimOrphanReservations(userId: string): Promise<void> {
 			});
 		} catch (err) {
 			// 1件の失敗で残りを諦めない(次の機会にも再度候補に挙がる)。
-			logError("orphan reservation reclaim failed", {
-				userId,
-				requestId: orphan.requestId,
-				reservedCredits,
-				err,
-			});
+			// 予約が焼き付いたまま回収に失敗している。次の機会にも候補には挙がるが、
+			// 同じ原因なら永久に戻らないので通知する(#395)。
+			alertOperator(
+				"orphan reservation reclaim failed",
+				{ userId, requestId: orphan.requestId, reservedCredits, err },
+				{ tags: { kind: "credit_orphan_reclaim_failed" } },
+			);
 		}
 	}
 }
