@@ -12,6 +12,10 @@ import {
 	summarizeImportCards,
 	validateImportCards,
 } from "#/components/cellar/import-candidates";
+import {
+	acceptPhotoFiles,
+	remainingPhotoSlots,
+} from "#/components/cellar/photo-picker";
 import { fetchBatchPhotoFiles } from "#/components/cellar/rescan-photos";
 import {
 	buildSingleWineHandoff,
@@ -59,8 +63,6 @@ import {
 import { todayCalendarDate } from "#/lib/date/calendar-date";
 import { formatDateTimeJst } from "#/lib/date/display";
 import {
-	ALLOWED_PHOTO_TYPES,
-	MAX_PHOTO_BYTES,
 	MAX_PHOTO_SIZE_LABEL,
 	PHOTO_ACCEPT_ATTR,
 	PHOTO_FORMATS_LABEL_JA,
@@ -113,6 +115,12 @@ interface PhotoItem {
 	localId: string;
 	file: File;
 	previewUrl: string;
+	/**
+	 * どこから来た写真か。再解析(#427)は元バッチの写真が入った状態で始まり、
+	 * そこへ撮り忘れたページを足せる(#428)。**どれが元の写真かをサムネイルに出す**
+	 * ために持つ——足したつもりのページを撮り違えても気付けないため。
+	 */
+	source: "rescan" | "picked";
 }
 
 export interface PhotoRegisterWizardProps {
@@ -189,6 +197,8 @@ export function PhotoRegisterWizard({
 	// 写真を選び直す手間だけが無駄になる(サーバ側の予約 estimateWineListReserveTokens と
 	// 同じ式を共有するので、見積を変えても表示だけ古くなることはない)。
 	const requiredCredits = creditsForPhotos(route, photos.length);
+	// あと何枚足せるか。再解析では元バッチの写真を含めた残りになる(#428)
+	const remainingSlots = remainingPhotoSlots(photos.length);
 	// null = 未ログイン・取得中・取得失敗。残高0と区別できないので不足判定には使わない
 	const balance = useCreditBalanceValue();
 	const insufficientCredits = balance !== null && balance < requiredCredits;
@@ -222,13 +232,18 @@ export function PhotoRegisterWizard({
 		fetchBatchPhotoFiles(rescan.photoUrls)
 			.then((files) => {
 				if (cancelled) return;
-				setPhotos(
-					files.map((file) => ({
+				// **置き換えない**。読み込みは非同期なので、待っている間にユーザが
+				// 追加の写真を選んでいることがある(#428)。元の写真は先頭に入れる
+				// ——この順が目撃記録の photoIndex の順になる
+				setPhotos((prev) => [
+					...files.map((file) => ({
 						localId: `p${newIdRef.current++}`,
 						file,
 						previewUrl: URL.createObjectURL(file),
+						source: "rescan" as const,
 					})),
-				);
+					...prev,
+				]);
 			})
 			.catch((e: Error) => {
 				if (cancelled) return;
@@ -261,32 +276,20 @@ export function PhotoRegisterWizard({
 		const files = Array.from(e.target.files ?? []);
 		e.target.value = "";
 		if (files.length === 0) return;
-		const accepted: PhotoItem[] = [];
-		let rejectMsg = "";
-		let remaining = MAX_PHOTOS_PER_IMPORT_BATCH - photos.length;
-		for (const file of files) {
-			// サーバ側の 400 を待たずに弾く(制約は photo.ts / place/schema.ts と共通)
-			if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
-				rejectMsg = `対応していない画像形式です(${PHOTO_FORMATS_LABEL_JA})`;
-				continue;
-			}
-			if (file.size > MAX_PHOTO_BYTES) {
-				rejectMsg = `写真は${MAX_PHOTO_SIZE_LABEL}以下にしてください`;
-				continue;
-			}
-			if (remaining <= 0) {
-				rejectMsg = `写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです`;
-				continue;
-			}
-			accepted.push({
+		// 上限は「今ある枚数 + これから足す枚数」で見る。再解析では元バッチの写真が
+		// 既に入っているので、選んだファイルだけで判定すると上限を超える(#428)
+		const { accepted, rejectMessage } = acceptPhotoFiles(files, photos.length);
+		setError(rejectMessage);
+		if (accepted.length === 0) return;
+		setPhotos((prev) => [
+			...prev,
+			...accepted.map((file) => ({
 				localId: `p${newIdRef.current++}`,
 				file,
 				previewUrl: URL.createObjectURL(file),
-			});
-			remaining -= 1;
-		}
-		setError(rejectMsg);
-		if (accepted.length > 0) setPhotos((prev) => [...prev, ...accepted]);
+				source: "picked" as const,
+			})),
+		]);
 	};
 
 	const removePhoto = (localId: string) => {
@@ -417,12 +420,15 @@ export function PhotoRegisterWizard({
 									: `やり直します(写真${photos.length}枚)。`}
 							</p>
 							<p className="mt-1 text-muted-foreground">
-								解析し直すとAIクレジットを消費します。元の登録はそのまま残り、
-								同じ銘柄と判定できたものは「既存に追加」として出ます。
+								撮り忘れたページがあれば
+								<strong className="font-medium">写真を足してから</strong>
+								解析できます。解析し直すとAIクレジットを消費します。元の登録は
+								そのまま残り、同じ銘柄と判定できたものは「既存に追加」、
 								<strong className="font-medium">
-									読み取り方が前回と変わった銘柄は新規として出る
+									読み取り方が前回と変わった銘柄は新規
 								</strong>
-								ので、重複させたくないものはチェックを外してください。不要になったら履歴から取り消せます。
+								として出るので、重複させたくないものはチェックを外してください。
+								不要になったら履歴から取り消せます。
 							</p>
 						</div>
 					)}
@@ -472,9 +478,18 @@ export function PhotoRegisterWizard({
 							className="max-w-xs"
 						/>
 						<p className="text-xs text-muted-foreground">
-							ワインのエチケット(ラベル)や、レストランのワインリスト・ショップの棚を撮った写真を選んでください。
+							{rescan
+								? "撮り忘れたページや棚の続きを足せます。"
+								: "ワインのエチケット(ラベル)や、レストランのワインリスト・ショップの棚を撮った写真を選んでください。"}
 							{PHOTO_FORMATS_LABEL_JA}、各{MAX_PHOTO_SIZE_LABEL}まで。
 							同じワインが複数の写真に写っていても1件にまとめます。
+							{/*
+							  残り枚数は明示する。無言で disabled にすると「なぜ選べないのか」が
+							  分からない——再解析では元バッチの写真で既に枠が埋まっていることがある(#428)
+							*/}
+							{remainingSlots > 0
+								? `あと${remainingSlots}枚まで追加できます。`
+								: `写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです。追加するには、どれかを外してください。`}
 						</p>
 					</div>
 
