@@ -6,9 +6,11 @@
   ],
   "packageRules": [
     {
+      "description": "devDependencies の patch/minor は無人マージする。ただし公開直後のリリースは待つ(#402): automerge は人の目を通らないので、侵害されたリリースが CI 通過と同時に main へ着地しうる。3日置けば取り下げ・yank が間に合う。レビューが要る更新(下の no-automerge グループ)には掛けない — 人が見るなら待つ理由が無い。",
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
-      "automerge": true
+      "automerge": true,
+      "minimumReleaseAge": "3 days"
     },
     {
       "description": "Cloudflare ツールチェーンは足並みを揃えないと壊れる(#103: wrangler 単独更新で旧 vite-plugin が生成する legacy_env を新 CLI が拒否し deploy 失敗)。1つのPRにまとめ、automerge を外して人手のレビューを必須にする。dependencies/devDependencies を跨ぐため matchDepTypes は指定しない。",
@@ -18,6 +20,15 @@
         "@cloudflare/vitest-pool-workers"
       ],
       "groupName": "cloudflare workers toolchain",
+      "automerge": false
+    },
+    {
+      "description": "バンドラ本体とそのプラグインは automerge から外す(#402)。#184(maplibre-gl v6 の worker を Vite が検出できず実行時404で地図が真っ白)が示すとおり、アセット解決の変更は typecheck/build/test が緑のままランタイムだけ壊れる。CI が検出できない以上、無人マージは「壊れたものが誰にも気付かれず main に乗る」と同義なので、人手でプレビュー実機を見てからマージする。",
+      "matchPackageNames": [
+        "vite",
+        "@vitejs/plugin-react"
+      ],
+      "groupName": "vite build toolchain",
       "automerge": false
     }
   ],
