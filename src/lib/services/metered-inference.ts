@@ -83,7 +83,7 @@ export type MeteredInferenceLogBase = Omit<
 /** 推論中に判明し、**ok と failed の両方**の実行記録に載せたいフィールド。 */
 export type MeteredInferenceLogFields = Pick<
 	AiInferenceLog,
-	"executedBy" | "model" | "webResearch" | "fieldSources"
+	"executedBy" | "model" | "webResearch" | "fieldSources" | "verified" | "steps"
 >;
 
 /** 推論本体(infer)に渡す実行コンテキスト。 */

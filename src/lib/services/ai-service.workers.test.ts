@@ -150,8 +150,8 @@ function stubProviders(handlers: {
 
 /**
  * OpenAI Responses API の成功レスポンス(JSONテキスト + usage)を組み立てる。
- * SDK は output[].content[] の output_text ブロックから response.output_text を
- * 組み立てるので、message アイテムの形で返す必要がある。
+ * SDK は output[].content[] の output_text ブロックから本文を組み立てるので、
+ * message アイテムの形で返す必要がある。**一括抽出(生の Responses API 経路)用**。
  */
 function openaiResponse(
 	fields: Record<string, unknown>,
@@ -185,6 +185,46 @@ function openaiResponse(
 						annotations: [],
 					},
 				],
+			},
+		],
+		usage,
+	});
+}
+
+/**
+ * エチケット解析(エージェントループ経路)の成功レスポンス。
+ *
+ * **最終回答は本文テキストではなく `submit_answer` ツールの呼び出し**として返る。
+ * 検証を通れば `stopWhen` がその場でループを止めるので、応答は1回で足りる
+ * (2回目のリクエストは発生しない)。一括抽出は生の Responses API のままなので
+ * `openaiResponse` と分けて持つ。
+ */
+function openaiSubmitAnswerResponse(
+	fields: Record<string, unknown>,
+	usage: { input_tokens: number; output_tokens: number },
+	webSearchCalls = 0,
+): Response {
+	return Response.json({
+		id: "resp_test",
+		object: "response",
+		created_at: 0,
+		model: "gpt-5.6-luna",
+		status: "completed",
+		error: null,
+		incomplete_details: null,
+		output: [
+			...Array.from({ length: webSearchCalls }, (_, i) => ({
+				type: "web_search_call",
+				id: `ws_${i}`,
+				status: "completed",
+			})),
+			{
+				type: "function_call",
+				id: "fc_test",
+				call_id: "call_test",
+				name: "submit_answer",
+				arguments: JSON.stringify(fields),
+				status: "completed",
 			},
 		],
 		usage,
@@ -533,7 +573,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 	it("OPENAI_API_KEY 設定時はGPT経路で解析し、usage内訳とweb検索回数で確定する", async () => {
 		const userId = await seedPremiumUser();
 		stubOpenAi(async () =>
-			openaiResponse(
+			openaiSubmitAnswerResponse(
 				{
 					wine_name: "Chablis Les Clos",
 					producer: "Vincent Dauvissat",
@@ -687,7 +727,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		// 経路の証明は実測トークン: GPT経路に入ってしまえば 9999 で確定する
 		stubProviders({
 			openai: async () =>
-				openaiResponse(
+				openaiSubmitAnswerResponse(
 					{ wine_name: "wrong path" },
 					{ input_tokens: 9999, output_tokens: 0 },
 				),
@@ -715,7 +755,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		const userId = await seedPremiumUser();
 		stubProviders({
 			openai: async () =>
-				openaiResponse(
+				openaiSubmitAnswerResponse(
 					{
 						wine_name: "Chablis",
 						producer: null,
@@ -1140,7 +1180,7 @@ describe("analyzeWineLabel の実行記録ログ", () => {
 	it("GPT経路の成功を1行残す(誰が・どのモデルで・成功したか)", async () => {
 		const userId = await seedUser();
 		stubOpenAi(async () =>
-			openaiResponse(
+			openaiSubmitAnswerResponse(
 				{
 					wine_name: "Chablis",
 					producer: null,
