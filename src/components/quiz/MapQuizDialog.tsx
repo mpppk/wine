@@ -32,6 +32,7 @@ export function MapQuizDialog({
 	regionNameJa,
 	scopeAop,
 	isAuthenticated,
+	initialIncludeSolved = false,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -40,6 +41,12 @@ export function MapQuizDialog({
 	/** 出題スコープの起点AOP。未指定なら地域全体 */
 	scopeAop?: Aop;
 	isAuthenticated: boolean;
+	/**
+	 * 1周目から正解済みも含めて出題する(復習モード)。開いた時点で全問正解済みと
+	 * 分かっているスコープ用。既定(false)では未正解のみを出し、解き切ったところで
+	 * 完了画面から「再チャレンジ」に進む。
+	 */
+	initialIncludeSolved?: boolean;
 }) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -56,6 +63,7 @@ export function MapQuizDialog({
 					regionId={regionId}
 					scopeAopId={scopeAop?.id}
 					isAuthenticated={isAuthenticated}
+					initialIncludeSolved={initialIncludeSolved}
 					onClose={() => onOpenChange(false)}
 				/>
 			</DialogContent>
@@ -67,18 +75,21 @@ function QuizSessionBody({
 	regionId,
 	scopeAopId,
 	isAuthenticated,
+	initialIncludeSolved,
 	onClose,
 }: {
 	regionId: RegionId;
 	scopeAopId?: string;
 	isAuthenticated: boolean;
+	initialIncludeSolved: boolean;
 	onClose: () => void;
 }) {
 	// 「再チャレンジ」/「もう一度」はセッション(フックの内部状態)ごと作り直したいので
 	// key で再マウントする。2周目以降は includeSolved=true にして、正解済みの問題も
 	// 出題対象に含める(ログイン時の全問正解済みからの再挑戦)。実績はそのまま加算される。
+	// 復習モード(initialIncludeSolved)で開いた場合は1周目からその状態で始める。
 	const [round, setRound] = useState(0);
-	const [includeSolved, setIncludeSolved] = useState(false);
+	const [includeSolved, setIncludeSolved] = useState(initialIncludeSolved);
 	return (
 		<SessionRound
 			key={round}
