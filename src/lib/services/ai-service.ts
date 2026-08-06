@@ -18,6 +18,7 @@ import {
 	AI_LABEL_MAX_OUTPUT_TOKENS,
 	AI_LABEL_MODEL,
 	AI_LABEL_ROUTE_MODELS,
+	AI_LABEL_VIEW_MAX_DIMENSION,
 	AI_LABEL_WEB_MAX_CONTINUATIONS,
 	AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
 	AI_LABEL_WEB_MAX_SEARCHES,
@@ -57,7 +58,11 @@ import {
 	buildGptLabelMessages,
 	GPT_WEB_SEARCH_TOOL_NAME,
 } from "#/lib/ai/label-gpt-research";
-import { type AnswerCollector, buildLabelTools } from "#/lib/ai/label-tools";
+import {
+	type AnswerCollector,
+	buildLabelTools,
+	ZOOM_OUTPUT_MAX_DIMENSION,
+} from "#/lib/ai/label-tools";
 import {
 	buildWebLabelMessages,
 	joinResponseText,
@@ -102,6 +107,11 @@ import {
 	usageToMicroUsd,
 } from "#/lib/billing/ai-pricing";
 import { BadRequestError, HttpError } from "#/lib/errors";
+import {
+	cropImage,
+	downscaleImage,
+	isImageTransformAvailable,
+} from "#/lib/images/transform";
 import { logWarn } from "#/lib/logger";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
@@ -464,11 +474,20 @@ async function analyzeLabelWithWebResearch(
  */
 async function analyzeLabelWithGptResearch(
 	apiKey: string,
+	/** モデルへ最初に見せる版(縮小済み)。 */
 	imageDataUrls: string[],
+	/**
+	 * 拡大の元になる版(クライアントが送ってきた解像度のまま)。`zoom_photo` はこちらを切る。
+	 * 添字は `imageDataUrls` と対応する。**`undefined` なら `zoom_photo` を出さない**
+	 * (画像変換が使えない環境)。
+	 */
+	sourceDataUrls: string[] | undefined,
 	onTrace: WebResearchTraceSink,
 	budgetMicroUsd: number,
 ): Promise<LabelResearchResult> {
 	const openai = createOpenAI({ apiKey });
+	// クロージャで使うので、undefined の可能性を先に畳んでおく。
+	const cropSources = sourceDataUrls;
 	// 軌跡は**モデル呼び出しが終わった時点**で積む(`onStepFinish` ではない)。
 	//
 	// web検索はプロバイダ実行ツールなので、その結果は `submit_answer` と**同じ応答**に
@@ -494,7 +513,28 @@ async function analyzeLabelWithGptResearch(
 			[GPT_WEB_SEARCH_TOOL_NAME]: openai.tools.webSearch({
 				searchContextSize: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
 			}),
-			...buildLabelTools(collector, () => ({ trace })),
+			...buildLabelTools({
+				collector,
+				getVerifyContext: () => ({ trace }),
+				photoCount: imageDataUrls.length,
+				// **写真の拡大はこの経路の精度の要**(全体写真では読めない文字がある)。
+				// 元になるのは縮小前の版で、切り出した結果はモデルへ画像として返る。
+				// 画像変換が使えない環境では渡さない = ツールごと出さない。
+				...(cropSources
+					? {
+							cropPhoto: async (photoIndex, box) => {
+								const source = cropSources[photoIndex];
+								if (!source) throw new Error(`写真 ${photoIndex} がありません`);
+								const cropped = await cropImage(
+									source,
+									box,
+									ZOOM_OUTPUT_MAX_DIMENSION,
+								);
+								return { dataUrl: cropped.dataUrl, applied: cropped.applied };
+							},
+						}
+					: {}),
+			}),
 		},
 		stopWhen: [
 			// 検証を通った回答が出たら、それ以上考えさせない。
@@ -630,9 +670,31 @@ export async function analyzeWineLabel(
 			// (キー未設定による降格は予約前の resolveLabelRoute が済ませている)。
 			if (route === "gpt-luna" && openaiApiKey) {
 				try {
+					// **見せる版と切る版を分ける**。クライアントは拡大に耐える解像度で
+					// 送ってくるが、それをそのまま会話へ載せると入力トークンが毎ターン
+					// 効いてくる(しかも全体写真は解像度を上げても読めるようにならない
+					// ことが実測で分かっている)。会話には縮小版を載せ、`zoom_photo` は
+					// 元の版から切る。
+					// バインディングが無い環境では拡大を諦めて解析だけ通す。設定漏れで
+					// 機能が丸ごと落ちるより、精度が下がるだけで済むほうが被害が小さい。
+					const canTransform = isImageTransformAvailable();
+					if (!canTransform) {
+						logWarn("image transform unavailable; zoom_photo disabled", {
+							userId,
+							requestId,
+						});
+					}
+					const viewDataUrls = canTransform
+						? await Promise.all(
+								input.imageDataUrls.map((url) =>
+									downscaleImage(url, AI_LABEL_VIEW_MAX_DIMENSION),
+								),
+							)
+						: input.imageDataUrls;
 					const gpt = await analyzeLabelWithGptResearch(
 						openaiApiKey,
-						input.imageDataUrls,
+						viewDataUrls,
+						canTransform ? input.imageDataUrls : undefined,
 						(t) => ctx.addLogFields({ webResearch: t }),
 						ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
 					);

@@ -1,5 +1,6 @@
 import { jsonSchema, tool } from "ai";
 import { z } from "zod";
+import type { NormalizedBox } from "#/lib/images/crop-geometry";
 import {
 	LABEL_WEB_JSON_SCHEMA,
 	type LabelExtraction,
@@ -25,6 +26,94 @@ import { type LabelVerifyContext, verifyLabelAnswer } from "./label-verify";
 
 /** ツール名。計上・軌跡・stopWhen が同じ名前を見るので定数で持つ。 */
 export const SUBMIT_ANSWER_TOOL_NAME = "submit_answer";
+
+/** 写真の一部を拡大して読み直すツールの名前。 */
+export const ZOOM_PHOTO_TOOL_NAME = "zoom_photo";
+
+/**
+ * 拡大結果の長辺の上限。**元より大きくはしない**(resolveOutputWidth)。
+ * 大きすぎると入力トークンが嵩み、小さすぎると拡大した意味が消える。
+ */
+export const ZOOM_OUTPUT_MAX_DIMENSION = 1024;
+
+/**
+ * 写真の一部を切り出してモデルへ返すツール。
+ *
+ * **エチケット解析の精度を決めるのはここ**。ボトル全体が写った写真では、原寸(2180px)を
+ * 送っても生産者名を読めない —— プロバイダが画像を内部で縮小するため、画角に占める
+ * 割合が小さい文字は潰れる。実測では、同じ写真でも**ラベル部分を切り出した途端に
+ * 正解へ到達した**(全体写真では9回連続で誤答)。
+ *
+ * 結果は `toModelOutput` で**画像として**返す。JSONで座標だけ返しても読めるようには
+ * ならないので、切り出した画素そのものを会話に載せる必要がある。
+ */
+function buildZoomTool(photoCount: number, cropPhoto: CropPhoto) {
+	return tool({
+		description: [
+			"写真の一部を拡大して読み直す。**文字が小さくて読めないときに使う**。",
+			"ラベルの文字はボトル全体の写真では潰れて読めないことが多いので、",
+			"生産者名・ワイン名・ヴィンテージが読み取れないときは推測せずこれを使うこと。",
+			"座標は画像の左上を (0,0)、右下を (1,1) とする正規化値。",
+			"読みたい文字が確実に入るよう余裕をもった範囲を指定する(狭すぎる指定は自動で広がる)。",
+			"結果には実際に適用した範囲が付くので、ずれていたら指定し直せる。",
+		].join("\n"),
+		inputSchema: z.object({
+			photoIndex: z
+				.number()
+				.int()
+				.min(0)
+				.describe("拡大する写真の番号(0始まり)"),
+			x: z.number().describe("左端の位置(0〜1)"),
+			y: z.number().describe("上端の位置(0〜1)"),
+			width: z.number().describe("幅(0〜1)"),
+			height: z.number().describe("高さ(0〜1)"),
+		}),
+		execute: async ({ photoIndex, x, y, width, height }) => {
+			if (photoIndex < 0 || photoIndex >= photoCount) {
+				return {
+					error: `写真 ${photoIndex} はありません(0〜${photoCount - 1} の範囲で指定してください)`,
+				};
+			}
+			const cropped = await cropPhoto(photoIndex, { x, y, width, height });
+			return {
+				photoIndex,
+				applied: cropped.applied,
+				dataUrl: cropped.dataUrl,
+			};
+		},
+		// 画像はJSONではなくメディアとして会話へ載せる(座標だけ返しても読めない)。
+		// data URI から base64 部分だけを取り出して渡す。
+		toModelOutput: (options: { output: unknown }) => {
+			const result = options.output as {
+				error?: string;
+				applied?: NormalizedBox;
+				dataUrl?: string;
+			};
+			if (result.error || !result.dataUrl) {
+				return {
+					type: "error-text",
+					value: result.error ?? "拡大に失敗しました",
+				};
+			}
+			const comma = result.dataUrl.indexOf(",");
+			return {
+				type: "content",
+				value: [
+					{
+						type: "text",
+						text: `適用した範囲: ${JSON.stringify(result.applied)}`,
+					},
+					{
+						type: "file",
+						mediaType: "image/jpeg",
+						// FileData はタグ付き共用体。base64 文字列は type: "data" で渡す。
+						data: { type: "data", data: result.dataUrl.slice(comma + 1) },
+					},
+				],
+			};
+		},
+	});
+}
 
 /** `submit_answer` が受け付ける最終回答の形。抽出フィールドの SSOT から derive する。 */
 export const SUBMIT_ANSWER_SCHEMA = jsonSchema<Record<string, unknown>>(
@@ -57,17 +146,41 @@ export interface AnswerCollector {
 export type VerifyContextProvider = () => LabelVerifyContext;
 
 /**
- * エージェントループに渡すツール一式を組み立てる。
- *
- * @param collector 提出された回答の受け取り先(呼び出し側がループ後に読む)
- * @param getVerifyContext 検証に使う文脈を返す関数。web検索の軌跡は毎ターン伸びるので、
- *   組み立て時点の値を焼き込まず提出のたびに最新を取る
+ * 写真の一部を切り出す関数。**env 依存を注入する**(`env.IMAGES` を使うので、
+ * ここで直接呼ぶと純ロジックのテストから触れなくなる)。
  */
-export function buildLabelTools(
-	collector: AnswerCollector,
-	getVerifyContext: VerifyContextProvider,
-) {
+export type CropPhoto = (
+	photoIndex: number,
+	box: NormalizedBox,
+) => Promise<{ dataUrl: string; applied: NormalizedBox }>;
+
+export interface LabelToolsOptions {
+	/** 提出された回答の受け取り先(呼び出し側がループ後に読む)。 */
+	collector: AnswerCollector;
+	/**
+	 * 検証に使う文脈を返す関数。web検索の軌跡は毎ターン伸びるので、組み立て時点の値を
+	 * 焼き込まず提出のたびに最新を取る。
+	 */
+	getVerifyContext: VerifyContextProvider;
+	/** 解析対象の写真の枚数(`zoom_photo` の添字の範囲チェックに使う)。 */
+	photoCount: number;
+	/** 写真の一部を切り出す。省略すると `zoom_photo` を出さない。 */
+	cropPhoto?: CropPhoto;
+}
+
+/**
+ * エージェントループに渡すツール一式を組み立てる。
+ */
+export function buildLabelTools({
+	collector,
+	getVerifyContext,
+	photoCount,
+	cropPhoto,
+}: LabelToolsOptions) {
 	return {
+		...(cropPhoto
+			? { [ZOOM_PHOTO_TOOL_NAME]: buildZoomTool(photoCount, cropPhoto) }
+			: {}),
 		search_appellation: tool({
 			description:
 				"原産地呼称(AOC/AOP/DOC/DOCG等)をこのアプリのマスタから検索する。綴りが不確かなときに候補を引く。該当があればその正式表記をそのまま使うこと。マスタは対応地域ぶんしか無いので、見つからなくても誤りとは限らない。",

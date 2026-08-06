@@ -231,10 +231,79 @@ function openaiSubmitAnswerResponse(
 	});
 }
 
+/**
+ * `IMAGES` バインディングを差し替える。実変換はせず入力をそのまま返す
+ * (テストの画像はダミーなので実際の変換は通らない)。**見たいのは変換結果ではなく、
+ * ツールが渡り結果が画像として次のリクエストへ載ること**。
+ */
+function stubImages(): void {
+	const passthrough = {
+		transform: () => passthrough,
+		output: async () => ({
+			response: () => new Response(new Uint8Array([1, 2, 3])),
+		}),
+	};
+	(env as unknown as { IMAGES: unknown }).IMAGES = {
+		info: async () => ({
+			format: "image/jpeg",
+			fileSize: 3,
+			width: 800,
+			height: 1200,
+		}),
+		input: () => passthrough,
+	};
+}
+
+/** OpenAI への outbound を捕まえつつ応答を返す(リクエスト本文を検査するため)。 */
+function stubOpenAiCapturing(
+	requests: string[],
+	respond: () => Response,
+): void {
+	(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+	vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+		requests.push(typeof init?.body === "string" ? init.body : "");
+		return respond();
+	});
+}
+
+/** zoom_photo を1回呼ぶだけの応答。 */
+function openaiZoomResponse(usage: {
+	input_tokens: number;
+	output_tokens: number;
+}): Response {
+	return Response.json({
+		id: "resp_zoom",
+		object: "response",
+		created_at: 0,
+		model: "gpt-5.6-luna",
+		status: "completed",
+		error: null,
+		incomplete_details: null,
+		output: [
+			{
+				type: "function_call",
+				id: "fc_zoom",
+				call_id: "call_zoom",
+				name: "zoom_photo",
+				arguments: JSON.stringify({
+					photoIndex: 0,
+					x: 0.3,
+					y: 0.4,
+					width: 0.2,
+					height: 0.2,
+				}),
+				status: "completed",
+			},
+		],
+		usage,
+	});
+}
+
 afterEach(() => {
 	delete (env as unknown as { AI?: unknown }).AI;
 	delete (env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY;
 	delete (env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY;
+	delete (env as unknown as { IMAGES?: unknown }).IMAGES;
 	vi.unstubAllGlobals();
 });
 
@@ -777,6 +846,43 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 1234 });
+	});
+
+	it("画像変換が使えるときは zoom_photo を渡し、切り出した画像がモデルへ届く", async () => {
+		// **この経路の精度を決める往復**。ボトル全体の写真ではラベルの文字が潰れて読めず、
+		// 実測では原寸を送っても改善しなかった。効いたのは切り出しだけなので、
+		// 「ツールが渡り、結果が画像として次のリクエストに載る」ことを固定する。
+		const userId = await seedPremiumUser();
+		stubImages();
+		const requests: string[] = [];
+		let call = 0;
+		stubOpenAiCapturing(requests, () => {
+			call += 1;
+			// 1回目: 拡大を要求する。2回目: 提出する。
+			return call === 1
+				? openaiZoomResponse({ input_tokens: 1000, output_tokens: 100 })
+				: openaiSubmitAnswerResponse(
+						{
+							wine_name: "Chablis Les Clos",
+							producer: "Vincent Dauvissat",
+							vintage: 2020,
+							appellation: "Chablis Grand Cru",
+							region: "Bourgogne",
+							grape_varieties: ["Chardonnay"],
+						},
+						{ input_tokens: 1300, output_tokens: 200 },
+					);
+		});
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false });
+		// 1回目のリクエストに zoom_photo がツールとして載る
+		expect(requests[0]).toContain("zoom_photo");
+		// 2回目のリクエストには切り出した画像が input_image として載る
+		// (JSONで座標だけ返しても読めるようにはならない)
+		expect(requests[1]).toContain("input_image");
 	});
 });
 
