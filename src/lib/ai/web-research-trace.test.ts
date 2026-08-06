@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	extractAiSdkWebSearchTrace,
 	extractAnthropicTrace,
-	extractGptTrace,
 	WEB_RESEARCH_MAX_STEPS,
 	WEB_RESEARCH_MAX_URLS_PER_STEP,
 } from "./web-research-trace";
@@ -164,16 +164,19 @@ describe("extractAnthropicTrace", () => {
 	});
 });
 
-describe("extractGptTrace", () => {
-	it("search / open_page / find_in_page を操作の種類として区別する", () => {
-		const trace = extractGptTrace([
-			{ type: "reasoning", summary: [] },
+describe("extractAiSdkWebSearchTrace", () => {
+	it("search / openPage / findInPage を操作の種類として区別する", () => {
+		// AI SDK は action.type が camelCase で、検索結果のURLは action ではなく
+		// ツール結果の直下(output.sources)に入る。素の Responses API とは形が違う。
+		const trace = extractAiSdkWebSearchTrace([
 			{
-				type: "web_search_call",
-				status: "completed",
-				action: {
-					type: "search",
-					queries: ["Château Margaux 2015", "margaux cepage"],
+				type: "tool-result",
+				toolName: "web_search",
+				output: {
+					action: {
+						type: "search",
+						queries: ["Château Margaux 2015", "margaux cepage"],
+					},
 					sources: [
 						{ type: "url", url: "https://www.chateau-margaux.com/vins" },
 						{ type: "url", url: "https://www.vivino.com/margaux" },
@@ -181,20 +184,24 @@ describe("extractGptTrace", () => {
 				},
 			},
 			{
-				type: "web_search_call",
-				status: "completed",
-				action: {
-					type: "open_page",
-					url: "https://www.chateau-margaux.com/vins",
+				type: "tool-result",
+				toolName: "web_search",
+				output: {
+					action: {
+						type: "openPage",
+						url: "https://www.chateau-margaux.com/vins",
+					},
 				},
 			},
 			{
-				type: "web_search_call",
-				status: "completed",
-				action: {
-					type: "find_in_page",
-					url: "https://www.chateau-margaux.com/vins",
-					pattern: "encépagement",
+				type: "tool-result",
+				toolName: "web_search",
+				output: {
+					action: {
+						type: "findInPage",
+						url: "https://www.chateau-margaux.com/vins",
+						pattern: "encépagement",
+					},
 				},
 			},
 		]);
@@ -225,45 +232,52 @@ describe("extractGptTrace", () => {
 	});
 
 	it("非推奨の単数形 query もフォールバックとして拾う", () => {
-		const trace = extractGptTrace([
-			{ type: "web_search_call", action: { type: "search", query: "q" } },
+		const trace = extractAiSdkWebSearchTrace([
+			{
+				type: "tool-result",
+				output: { action: { type: "search", query: "q" } },
+			},
 		]);
 		expect(trace.steps[0]).toEqual({ action: "search", query: "q" });
 	});
 
-	it("sources が無い(include 未指定)場合も検索語だけは残す", () => {
-		// include: ["web_search_call.action.sources"] を付け忘れるとこの形になる
-		const trace = extractGptTrace([
+	it("sources が無い場合も検索語だけは残す", () => {
+		const trace = extractAiSdkWebSearchTrace([
 			{
-				type: "web_search_call",
-				status: "completed",
-				action: { type: "search", queries: ["q"] },
+				type: "tool-result",
+				output: { action: { type: "search", queries: ["q"] } },
 			},
 		]);
 		expect(trace.steps[0]).toEqual({ action: "search", query: "q" });
 		expect(trace.hosts).toEqual([]);
 	});
 
-	it("失敗した検索に error を立てる", () => {
-		const trace = extractGptTrace([
+	it("失敗したツール呼び出しに error を立てる", () => {
+		const trace = extractAiSdkWebSearchTrace([
 			{
-				type: "web_search_call",
-				status: "failed",
-				action: { type: "search", queries: ["q"] },
+				type: "tool-error",
+				toolName: "web_search",
+				error: "rate_limited",
+				output: { action: { type: "search", queries: ["q"] } },
 			},
+		]);
+		expect(trace.steps[0]?.error).toBe("rate_limited");
+	});
+
+	it("エラー内容が文字列でなくても軌跡は残る", () => {
+		const trace = extractAiSdkWebSearchTrace([
+			{ type: "tool-error", error: { message: "boom" }, output: {} },
 		]);
 		expect(trace.steps[0]?.error).toBe("failed");
 	});
 
-	it("web_search_call 以外のアイテムは無視し、空でも throw しない", () => {
-		expect(
-			extractGptTrace([
-				{ type: "message", content: [{ type: "output_text", text: "{}" }] },
-				null,
-				"x",
-			]),
-		).toEqual({ steps: [], stepCount: 0, hosts: [] });
-		expect(extractGptTrace(undefined)).toEqual({
+	it("空・null が混ざっても throw しない", () => {
+		expect(extractAiSdkWebSearchTrace([null, "x"])).toEqual({
+			steps: [],
+			stepCount: 0,
+			hosts: [],
+		});
+		expect(extractAiSdkWebSearchTrace(undefined)).toEqual({
 			steps: [],
 			stepCount: 0,
 			hosts: [],
@@ -271,12 +285,11 @@ describe("extractGptTrace", () => {
 	});
 
 	it("解釈できないURLはホスト要約から落ちるが、軌跡には残る", () => {
-		const trace = extractGptTrace([
+		const trace = extractAiSdkWebSearchTrace([
 			{
-				type: "web_search_call",
-				action: {
-					type: "search",
-					queries: ["q"],
+				type: "tool-result",
+				output: {
+					action: { type: "search", queries: ["q"] },
 					sources: [{ url: "not a url" }],
 				},
 			},

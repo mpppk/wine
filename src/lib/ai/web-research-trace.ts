@@ -7,10 +7,10 @@
 // 無い(検索結果は毎回変わるので、後から同じ写真で再実行しても再現しない)。実行時に
 // 拾って実行記録へ載せる以外に観測手段が無いため、ここで軌跡を組み立てる。
 //
-// 抽出はプロバイダごとに形が全く違う(Claude は content ブロックの
-// server_tool_use / web_search_tool_result のペア、GPT は output 配列の
-// web_search_call アイテム)ので、それぞれの抽出器を用意して**同じ型**に落とす。
-// ログの読み手が経路ごとに別のフィールドを覚えなくて済むようにするため。
+// 抽出は経路ごとに形が全く違う(Claude SDK は content ブロックの server_tool_use /
+// web_search_tool_result のペア、AI SDK はツール結果の output)ので、それぞれの抽出器を
+// 用意して**同じ型**に落とす。ログの読み手が経路ごとに別のフィールドを覚えなくて
+// 済むようにするため。
 //
 // SDK の型には合わせにいかず unknown で受けて絞り込む: どちらの SDK も判別共用体が
 // バージョンごとに増え、テスト用のダミー値が組み立てられなくなる(label-gpt-research.ts の
@@ -173,30 +173,33 @@ export function extractAnthropicTrace(
 }
 
 /**
- * OpenAI Responses API の output から検索の軌跡を組み立てる。
+ * AI SDK 経由の web検索(プロバイダ実行ツール)の結果から検索の軌跡を組み立てる。
  *
- * Claude と違い1アイテムで完結し、`action` の種類で「検索した(search)」「ページを開いた
- * (open_page)」「ページ内を探した(find_in_page)」が区別できる。
+ * 生の Responses API とは**形が2つ違う**ので、素の output 用の抽出器は使い回せない:
+ *  - `action.type` が camelCase(`openPage` / `findInPage`)
+ *  - 検索結果のURLが `action.sources` ではなく**ツール結果の直下** `output.sources`
  *
- * **`action.sources`(検索結果のURL)は `include: ["web_search_call.action.sources"]` を
- * リクエストに付けないと返らない**。付け忘れると検索語だけが残り「何を見たか」が
- * 落ちるので、リクエスト側とセットで扱う。
+ * 素の Responses API と違い `include: ["web_search_call.action.sources"]` は要らない
+ * (provider が既定で sources を取り寄せる)。
+ *
+ * **呼び出し側は全ステップぶんの toolResults を連結して渡す**。エージェントループでは
+ * 1リクエストが複数ステップに分かれ、各ステップは自分のぶんだけを持つため。
  */
-export function extractGptTrace(
-	output: readonly unknown[] | undefined,
+export function extractAiSdkWebSearchTrace(
+	toolResults: readonly unknown[] | undefined,
 ): WebResearchTrace {
 	const steps: WebResearchStep[] = [];
-	for (const item of output ?? []) {
-		if (!item || typeof item !== "object") continue;
-		const { type, status, action } = item as Record<string, unknown>;
-		if (type !== "web_search_call") continue;
-		const act = (action ?? {}) as Record<string, unknown>;
+	for (const result of toolResults ?? []) {
+		if (!result || typeof result !== "object") continue;
+		const { type, output } = result as Record<string, unknown>;
+		const out = (output ?? {}) as Record<string, unknown>;
+		const act = (out.action ?? {}) as Record<string, unknown>;
 		const step: WebResearchStep = { action: "search" };
 
-		if (act.type === "open_page") {
+		if (act.type === "openPage") {
 			step.action = "open";
 			Object.assign(step, toUrlFields(compact([asText(act.url)])));
-		} else if (act.type === "find_in_page") {
+		} else if (act.type === "findInPage") {
 			step.action = "find";
 			step.query = asText(act.pattern);
 			Object.assign(step, toUrlFields(compact([asText(act.url)])));
@@ -207,15 +210,19 @@ export function extractGptTrace(
 				? act.queries.map(asText).filter((q): q is string => !!q)
 				: [];
 			step.query = queries.length > 0 ? queries.join(" | ") : asText(act.query);
-			const sources = Array.isArray(act.sources)
-				? act.sources
+			const sources = Array.isArray(out.sources)
+				? out.sources
 						.map((s) => asText((s as { url?: unknown } | null)?.url))
 						.filter((u): u is string => !!u)
 				: [];
 			Object.assign(step, toUrlFields(sources));
 		}
 
-		if (status === "failed") step.error = "failed";
+		// 失敗したツール呼び出しは結果ではなくエラーとして届く。軌跡としては
+		// 「検索まで行ったが結果を得られなかった」ことが残ればよい。
+		if (type === "tool-error") {
+			step.error = asText((result as { error?: unknown }).error) ?? "failed";
+		}
 		steps.push(step);
 	}
 	return toTrace(steps);

@@ -1,6 +1,12 @@
 import { env } from "cloudflare:workers";
+import { createOpenAI } from "@ai-sdk/openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { generateText } from "ai";
 import OpenAI from "openai";
+import {
+	countProviderExecutedCalls,
+	toAiSdkUsage,
+} from "#/lib/ai/ai-sdk-usage";
 import {
 	AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 	AI_LABEL_GPT_MODEL,
@@ -44,11 +50,10 @@ import {
 	parseLabelSources,
 } from "#/lib/ai/label-extraction";
 import {
-	buildGptLabelInput,
-	buildGptLabelTextFormat,
-	countGptWebSearches,
-	extractGptLabelText,
-	toGptUsage,
+	assertGptLabelFinished,
+	buildGptLabelMessages,
+	buildGptLabelOutput,
+	GPT_WEB_SEARCH_TOOL_NAME,
 } from "#/lib/ai/label-gpt-research";
 import {
 	buildWebLabelMessages,
@@ -63,8 +68,8 @@ import {
 	stripReasoning,
 } from "#/lib/ai/region-qa";
 import {
+	extractAiSdkWebSearchTrace,
 	extractAnthropicTrace,
-	extractGptTrace,
 	type WebResearchTrace,
 } from "#/lib/ai/web-research-trace";
 import {
@@ -82,6 +87,7 @@ import {
 	buildWineListGptInput,
 	buildWineListGptTextFormat,
 	extractWineListGptText,
+	toGptUsage,
 } from "#/lib/ai/wine-list-gpt";
 import { toWorkersAiUsage } from "#/lib/ai/workers-ai-usage";
 import {
@@ -432,43 +438,63 @@ async function analyzeLabelWithWebResearch(
  * 1リクエスト解析する。Claude経路と同じ契約(env 非依存・失敗は throw してフォールバックは
  * 呼び出し側)で、返す形も揃える。
  *
- * Claude経路と違い pause_turn の継続ループが要らない: Responses API は web検索の
- * ツールループをサーバー側で完走させてから1つの応答を返す。打ち切りは
- * status="incomplete" として表面化するので、extractGptLabelText がそれを throw に変える。
+ * **AI SDK(`ai` + `@ai-sdk/openai`)で呼ぶ**(#455 の実測で移行を決定。usage の内訳は
+ * 生の Responses API と一致し、キャッシュ書き込みや reasoning の内訳はむしろ細かく取れる)。
+ *
+ * Claude経路と違い pause_turn の継続ループが要らない: web検索はプロバイダ実行ツールで、
+ * ツールループをサーバー側で完走させてから1つの応答を返す。打ち切りは finishReason に
+ * 畳まれるので、assertGptLabelFinished がそれを throw に変える。
  */
 async function analyzeLabelWithGptResearch(
 	apiKey: string,
 	imageDataUrls: string[],
 	onTrace: WebResearchTraceSink,
 ): Promise<LabelResearchResult> {
-	const client = new OpenAI({ apiKey });
-	const response = await client.responses.create({
-		model: AI_LABEL_GPT_MODEL,
-		input: buildGptLabelInput(imageDataUrls),
-		max_output_tokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
-		reasoning: { effort: AI_LABEL_GPT_REASONING_EFFORT },
-		tools: [
-			{
-				type: "web_search",
-				search_context_size: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
-			},
-		],
-		// **検索結果のURLは既定では返らない**。これを付けないと web_search_call の
-		// action に query しか載らず、「何を検索したか」は分かっても「何を見たか」が
-		// 落ちる(open_page のURLだけは include 無しでも返る)。
-		include: ["web_search_call.action.sources"],
-		text: buildGptLabelTextFormat(),
+	const openai = createOpenAI({ apiKey });
+	// 軌跡はステップ完了ごとに積む。**本文のパースより先に onTrace へ渡す**ため
+	// (structured outputs の検証は generateText の中で走るので、打ち切られた回は
+	// generateText 自体が throw する。戻り値を待ってから軌跡を組むと、
+	// 「検索まで到達したが結果を使えなかった」回の観測が丸ごと落ちる)。
+	const toolResults: unknown[] = [];
+	const result = await generateText({
+		model: openai(AI_LABEL_GPT_MODEL),
+		messages: buildGptLabelMessages(imageDataUrls),
+		tools: {
+			[GPT_WEB_SEARCH_TOOL_NAME]: openai.tools.webSearch({
+				searchContextSize: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
+			}),
+		},
+		output: buildGptLabelOutput(),
+		maxOutputTokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
+		providerOptions: {
+			openai: { reasoningEffort: AI_LABEL_GPT_REASONING_EFFORT },
+		},
+		// **Workers では明示的に切る**。AI SDK の telemetry は Node の
+		// `diagnostics_channel` を使うが、workerd(nodejs_compat)のシムは
+		// `hasSubscribers` を返さないため無効化の分岐が働かず、tracePromise が
+		// 呼び出しごとに派生 Promise を作る。その派生 Promise には誰も catch を
+		// 付けないので、**推論が失敗するたびに未処理の Promise 拒否が残る**
+		// (こちらは try/catch で受けて Workers AI へ降格しているのに、ランタイムには
+		// 未処理として記録される)。OpenTelemetry の連携は使っておらず、観測は
+		// logAiInference と Sentry で足りているので、切って困るものが無い。
+		telemetry: { isEnabled: false },
+		onStepFinish: (step) => {
+			toolResults.push(...step.toolResults);
+			onTrace(extractAiSdkWebSearchTrace(toolResults));
+		},
 	});
+	assertGptLabelFinished(result.finishReason);
 	// usage はサーバー側ツールループのぶんも合算済み。**web検索の回数だけは usage に
-	// 出ない**ので output から数える($10/1000回 の回数課金で、Luna の原価の8割を占める)。
-	const usage = toGptUsage(
-		response.usage,
-		countGptWebSearches(response.output),
-	);
-	// **パースより先に渡す**。status="incomplete" や refusal で下が throw しても、
-	// どこまで検索したかは実行記録に残す。
-	onTrace(extractGptTrace(response.output));
-	const payload = extractJsonPayload(extractGptLabelText(response));
+	// 出ない**のでツール呼び出しを数える($10/1000回 の回数課金で、Luna の原価の8割を占める)。
+	const usage = toAiSdkUsage(result.usage, {
+		webSearches: countProviderExecutedCalls(
+			result.toolCalls,
+			GPT_WEB_SEARCH_TOOL_NAME,
+		),
+		// OpenAI はキャッシュ書き込みを課金しない(拾うと入力単価で過大請求になる)。
+		billCacheWrites: false,
+	});
+	const payload = result.output;
 	return {
 		extraction: parseLabelResponse(payload),
 		usage,

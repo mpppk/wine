@@ -1,11 +1,11 @@
 import type OpenAI from "openai";
+import type { AiUsage } from "#/lib/billing/ai-pricing";
 import { BadRequestError } from "#/lib/errors";
 import {
 	LABEL_JSON_SCHEMA,
 	type LabelFieldKey,
 	parseImageDataUrl,
 } from "./label-extraction";
-import { findGptRefusal } from "./label-gpt-research";
 import {
 	buildWineListPrompt,
 	WINE_LIST_TRUNCATED_ERROR_MESSAGE,
@@ -128,7 +128,7 @@ export function buildWineListGptTextFormat(): OpenAI.Responses.ResponseTextConfi
 
 /**
  * 応答から本文JSONの文字列を取り出す。**「失敗しているのに空文字を返す」ことを避ける**のが
- * この関数の主目的(エチケット解析の `extractGptLabelText` と同じ役割)だが、
+ * この関数の主目的(エチケット解析の `assertGptLabelFinished` と同じ役割)だが、
  * **打ち切りの扱いだけが違う**:
  *
  * 一括抽出の出力は銘柄数に比例して伸びるので、`max_output_tokens` での打ち切りは
@@ -156,4 +156,61 @@ export function extractWineListGptText(response: {
 		throw new Error(`GPTがワインリストの解析の応答を拒否しました: ${refusal}`);
 	}
 	return response.output_text ?? "";
+}
+
+/**
+ * output の任意の階層に含まれる refusal ブロックの説明文を1つ返す。無ければ undefined。
+ */
+export function findGptRefusal(
+	output: readonly unknown[] | undefined,
+): string | undefined {
+	for (const item of output ?? []) {
+		if (!item || typeof item !== "object") continue;
+		const content = (item as { content?: unknown }).content;
+		if (!Array.isArray(content)) continue;
+		for (const block of content) {
+			if (!block || typeof block !== "object") continue;
+			const { type, refusal } = block as { type?: unknown; refusal?: unknown };
+			if (type === "refusal" && typeof refusal === "string") return refusal;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * OpenAI Responses API の usage をクレジット計上用の `AiUsage` へ変換する。
+ *
+ * `input_tokens` は**キャッシュヒットを内数として含む**ため、`cached_tokens` を
+ * 差し引いてから非キャッシュ入力として計上する(二重計上を避ける)。web検索回数だけは
+ * usage に無いので呼び出し側が渡す(この経路は web検索を使わないので常に 0)。
+ *
+ * **`cache_write_tokens` は意図的に計上しない**。OpenAI はキャッシュ書き込みを課金せず
+ * (割引は cached input 側だけ)、単価表にも `cacheWriteUsdPerMTok` を置いていない。
+ * 一方 `usageToMicroUsd` は単価未定義のキャッシュ書き込みを**入力単価**で換算する
+ * (割引を勝手に仮定しない安全側の既定)ので、拾うと無料のトークンに課金することになる。
+ * 型に載せてあるのは「返ってくることを知った上で使っていない」ことを明示するため
+ * (usage-accounting.test.ts が回帰を検出する)。
+ */
+export function toGptUsage(
+	usage:
+		| {
+				input_tokens?: number | null;
+				output_tokens?: number | null;
+				input_tokens_details?: {
+					cached_tokens?: number | null;
+					/** 課金されないので計上しない(上のコメント参照)。 */
+					cache_write_tokens?: number | null;
+				} | null;
+		  }
+		| undefined,
+	webSearches: number,
+): AiUsage {
+	const cached = usage?.input_tokens_details?.cached_tokens ?? 0;
+	const input = usage?.input_tokens ?? 0;
+	return {
+		inputTokens: Math.max(0, input - cached),
+		outputTokens: usage?.output_tokens ?? 0,
+		cacheReadTokens: cached,
+		webSearches,
+	};
 }

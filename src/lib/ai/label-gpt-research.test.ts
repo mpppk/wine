@@ -1,55 +1,68 @@
 import { describe, expect, it } from "vitest";
-import { LABEL_WEB_JSON_SCHEMA, parseLabelResponse } from "./label-extraction";
+import { LABEL_WEB_JSON_SCHEMA } from "./label-extraction";
 import {
-	buildGptLabelInput,
-	buildGptLabelTextFormat,
-	countGptWebSearches,
-	extractGptLabelText,
+	assertGptLabelFinished,
+	buildGptLabelMessages,
+	buildGptLabelOutput,
+	GPT_LABEL_OUTPUT_SCHEMA,
 	GPT_LABEL_SCHEMA_NAME,
-	toGptUsage,
+	GPT_WEB_SEARCH_TOOL_NAME,
 } from "./label-gpt-research";
 
-describe("buildGptLabelInput", () => {
+describe("buildGptLabelMessages", () => {
 	it("指示文と全画像を1つのuserメッセージに載せる", () => {
-		const input = buildGptLabelInput([
+		const messages = buildGptLabelMessages([
 			"data:image/jpeg;base64,AAAA",
 			"data:image/png;base64,BBBB",
 		]);
-		expect(input).toHaveLength(1);
-		const message = input[0] as { role: string; content: unknown[] };
+		expect(messages).toHaveLength(1);
+		const message = messages[0] as { role: string; content: unknown[] };
 		expect(message.role).toBe("user");
 		expect(message.content).toHaveLength(3);
-		expect(message.content[0]).toMatchObject({ type: "input_text" });
+		expect(message.content[0]).toMatchObject({ type: "text" });
 		expect(message.content[1]).toEqual({
-			type: "input_image",
-			image_url: "data:image/jpeg;base64,AAAA",
-			detail: "auto",
+			type: "file",
+			mediaType: "image/jpeg",
+			data: "data:image/jpeg;base64,AAAA",
 		});
 		expect(message.content[2]).toEqual({
-			type: "input_image",
-			image_url: "data:image/png;base64,BBBB",
-			detail: "auto",
+			type: "file",
+			mediaType: "image/png",
+			data: "data:image/png;base64,BBBB",
 		});
+	});
+
+	it("画像は file パートで渡す(image パートはプロンプトキャッシュを外す)", () => {
+		// 非推奨の image パートで渡すとシリアライズが変わり、キャッシュのプレフィクスが
+		// 一致しなくなる。実測でコストが約2倍になった(#455)。
+		const message = buildGptLabelMessages([
+			"data:image/jpeg;base64,AAAA",
+		])[0] as {
+			content: { type: string }[];
+		};
+		expect(message.content.map((c) => c.type)).toEqual(["text", "file"]);
 	});
 
 	it("data URI 以外(HTTP URL)は弾く", () => {
-		// image_url は素の URL も受け付けてしまうため、境界で data URI を強制する
-		expect(() => buildGptLabelInput(["https://example.com/a.jpg"])).toThrow();
-		expect(() => buildGptLabelInput(["data:image/jpeg,notbase64"])).toThrow();
+		// 素の URL も受け付けてしまうため、境界で data URI を強制する
+		expect(() =>
+			buildGptLabelMessages(["https://example.com/a.jpg"]),
+		).toThrow();
+		expect(() =>
+			buildGptLabelMessages(["data:image/jpeg,notbase64"]),
+		).toThrow();
 	});
 });
 
-describe("buildGptLabelTextFormat", () => {
-	it("高精度経路の出力スキーマ(根拠つき)を strict で強制する", () => {
-		const format = buildGptLabelTextFormat().format;
-		expect(format).toMatchObject({
-			type: "json_schema",
-			name: GPT_LABEL_SCHEMA_NAME,
-			strict: true,
-		});
+describe("buildGptLabelOutput", () => {
+	it("高精度経路の出力スキーマ(根拠つき)を structured outputs に渡す", () => {
 		// 出力フィールドの SSOT は LABEL_WEB_JSON_SCHEMA(経路ごとに書き分けない)。
 		// 本体フィールドは LABEL_JSON_SCHEMA から derive されている。
-		expect((format as { schema: unknown }).schema).toBe(LABEL_WEB_JSON_SCHEMA);
+		expect(GPT_LABEL_OUTPUT_SCHEMA.jsonSchema).toBe(LABEL_WEB_JSON_SCHEMA);
+	});
+
+	it("Output として組み立てられる", () => {
+		expect(buildGptLabelOutput()).toBeDefined();
 	});
 
 	it("スキーマ名は structured outputs の命名制約(a-zA-Z0-9_-, 64文字以内)を満たす", () => {
@@ -57,123 +70,40 @@ describe("buildGptLabelTextFormat", () => {
 	});
 });
 
-describe("extractGptLabelText", () => {
-	it("完了した応答の本文をそのまま返し、parseLabelResponse で解釈できる", () => {
-		const text = extractGptLabelText({
-			status: "completed",
-			output_text:
-				'{"wine_name":"Les Clos","producer":"Dauvissat","vintage":2020,"appellation":"Chablis Grand Cru","region":"Bourgogne","grape_varieties":["Chardonnay"]}',
-			output: [],
-		});
-		expect(parseLabelResponse(text)).toEqual({
-			wineName: "Les Clos",
-			producer: "Dauvissat",
-			vintage: 2020,
-			appellation: "Chablis Grand Cru",
-			region: "Bourgogne",
-			grapeVarieties: ["Chardonnay"],
-		});
+describe("assertGptLabelFinished", () => {
+	it("正常終了は通す", () => {
+		expect(() => assertGptLabelFinished("stop")).not.toThrow();
 	});
 
-	it("打ち切られた応答(incomplete)は理由つきでthrowする", () => {
-		// 空文字を返すと「JSONが含まれていない」という無関係な例外になり、
-		// web検索/reasoning が出力枠を食い切ったことが後から追えなくなる
-		expect(() =>
-			extractGptLabelText({
-				status: "incomplete",
-				incomplete_details: { reason: "max_output_tokens" },
-				output_text: "",
-				output: [],
-			}),
-		).toThrow("max_output_tokens");
+	it("ツール呼び出しで終わった応答も通す(web検索はプロバイダ実行ツール)", () => {
+		expect(() => assertGptLabelFinished("tool-calls")).not.toThrow();
 	});
 
-	it("理由が無い incomplete でもthrowする", () => {
-		expect(() =>
-			extractGptLabelText({ status: "incomplete", output: [] }),
-		).toThrow();
+	it("出力上限での打ち切りは理由つきでthrowする", () => {
+		// 素通しすると「JSONの形式が不正」という無関係な例外になり、web検索/reasoning が
+		// 出力枠を食い切ったことが後から追えなくなる
+		expect(() => assertGptLabelFinished("length")).toThrow("length");
 	});
 
-	it("refusal ブロックはthrowする(structured outputsでもスキーマに従わない)", () => {
-		expect(() =>
-			extractGptLabelText({
-				status: "completed",
-				output_text: "",
-				output: [
-					{
-						type: "message",
-						content: [{ type: "refusal", refusal: "できません" }],
-					},
-				],
-			}),
-		).toThrow("できません");
-	});
-
-	it("content を持たない output 要素(ツール呼び出し・reasoning)は素通しする", () => {
-		const text = extractGptLabelText({
-			status: "completed",
-			output_text: "{}",
-			output: [
-				{ type: "web_search_call", status: "completed" },
-				{ type: "reasoning", summary: [] },
-				{ type: "message", content: [{ type: "output_text", text: "{}" }] },
-			],
-		});
-		expect(text).toBe("{}");
-	});
-});
-
-describe("countGptWebSearches", () => {
-	// web検索の回数は usage に出ないので output から数えるしかない。$10/1000回 の
-	// 回数課金で Luna の原価の8割を占めるため、ここを落とすと原価がほぼ見えなくなる。
-	it("web_search_call アイテムを数える", () => {
-		expect(
-			countGptWebSearches([
-				{ type: "reasoning" },
-				{ type: "web_search_call" },
-				{ type: "web_search_call" },
-				{ type: "message" },
-			]),
-		).toBe(2);
-	});
-
-	it("検索が無ければ0", () => {
-		expect(countGptWebSearches([{ type: "message" }])).toBe(0);
-		expect(countGptWebSearches(undefined)).toBe(0);
-	});
-
-	it("null・非オブジェクトが混ざっても壊れない", () => {
-		expect(countGptWebSearches([null, "x", { type: "web_search_call" }])).toBe(
-			1,
+	it("セーフティ拒否はthrowする(structured outputsでもスキーマに従わない)", () => {
+		expect(() => assertGptLabelFinished("content-filter")).toThrow(
+			"content-filter",
 		);
 	});
-});
 
-describe("toGptUsage", () => {
-	it("キャッシュヒットを input の内数から外へ出す(二重計上を避ける)", () => {
-		expect(
-			toGptUsage(
-				{
-					input_tokens: 1_000,
-					output_tokens: 200,
-					input_tokens_details: { cached_tokens: 400 },
-				},
-				3,
-			),
-		).toEqual({
-			inputTokens: 600,
-			outputTokens: 200,
-			cacheReadTokens: 400,
-			webSearches: 3,
-		});
+	it("プロバイダ側エラーはthrowする", () => {
+		expect(() => assertGptLabelFinished("error")).toThrow("error");
 	});
 
-	it("usage が無くても検索回数は残る", () => {
-		expect(toGptUsage(undefined, 2)).toEqual({
-			inputTokens: 0,
-			outputTokens: 0,
-			cacheReadTokens: 0,
-			webSearches: 2,
-		});
+	it("未知の finishReason は通す(新しい値で機能を止めない)", () => {
+		expect(() => assertGptLabelFinished("other")).not.toThrow();
+	});
+});
+
+describe("GPT_WEB_SEARCH_TOOL_NAME", () => {
+	it("計上と軌跡の抽出が同じツール名を見る", () => {
+		// 回数課金の計上(countProviderExecutedCalls)がこの名前でツール呼び出しを
+		// 数えるので、リクエスト側の tools のキーと食い違うと原価が丸ごと漏れる。
+		expect(GPT_WEB_SEARCH_TOOL_NAME).toBe("web_search");
 	});
 });

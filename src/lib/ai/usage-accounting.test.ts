@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+	countProviderExecutedCalls,
+	toAiSdkUsage,
+} from "#/lib/ai/ai-sdk-usage";
+import {
 	AI_LABEL_ROUTE_MODELS,
 	AI_REGION_QA_MODELS,
 	AI_WINE_LIST_ROUTE_MODELS,
 } from "#/lib/ai/config";
-import { countGptWebSearches, toGptUsage } from "#/lib/ai/label-gpt-research";
+import { GPT_WEB_SEARCH_TOOL_NAME } from "#/lib/ai/label-gpt-research";
 import { toAnthropicUsage } from "#/lib/ai/label-web-research";
+import { toGptUsage } from "#/lib/ai/wine-list-gpt";
 import { toWorkersAiUsage } from "#/lib/ai/workers-ai-usage";
 import {
 	type AiUsage,
@@ -67,26 +72,41 @@ interface RouteAccounting {
 }
 
 /**
- * GPT経路(エチケット解析)。トークン数は 2026-08-06 に `gpt-5.6-luna` の実応答から
- * 採った値(scripts/spike-label-usage.ts の実行結果)。web検索の回数は usage に出ない
- * ため、`output` 配列の web_search_call を数えて渡すのが現行の形。
+ * エチケット解析の GPT 経路は **AI SDK 経由**(#455)。usage はプロバイダ横断の共通形で
+ * 返り、内訳は `inputTokenDetails` / `outputTokenDetails` に分かれる。トークン数は
+ * 2026-08-06 に `gpt-5.6-luna` の実応答から採った値(scripts/spike-label-usage.ts)。
  *
- * **`cache_write_tokens` も非ゼロにしてある**(実測ではキャッシュのヒット回とミス回で
+ * **`cacheWriteTokens` も非ゼロにしてある**(実測ではキャッシュのヒット回とミス回で
  * 片方ずつだった)。プロバイダが返しうる項目をすべて埋めておかないと、「宣言していない
  * 項目を黙って計上し始めていない」の検査が素通りしてしまうため。前方のプレフィクスが
  * ヒットしつつ後続が新たにキャッシュされれば、実際に両方が同時に載る。
  */
-const GPT_LABEL_RAW_USAGE = {
+const GPT_LABEL_AI_SDK_USAGE = {
+	inputTokens: 23_247,
+	inputTokenDetails: {
+		noCacheTokens: 11_022,
+		cacheReadTokens: 12_225,
+		cacheWriteTokens: 3_100,
+	},
+	outputTokens: 746,
+} as const;
+
+/** web検索はプロバイダ実行ツール。回数は usage に出ないので呼び出しを数える。 */
+const GPT_LABEL_TOOL_CALLS = [
+	{ toolName: GPT_WEB_SEARCH_TOOL_NAME, toolCallId: "ws_1" },
+	{ toolName: GPT_WEB_SEARCH_TOOL_NAME, toolCallId: "ws_2" },
+] as const;
+
+/**
+ * 一括抽出の GPT 経路は**生の Responses API を直接叩く**ので usage の形が違う
+ * (キャッシュヒットは input の内数)。エチケット解析と同じモデルでも、マッパーが
+ * 別なら別の経路として検査する。
+ */
+const GPT_WINE_LIST_RAW_USAGE = {
 	input_tokens: 23_247,
 	input_tokens_details: { cached_tokens: 12_225, cache_write_tokens: 3_100 },
 	output_tokens: 746,
 } as const;
-
-const GPT_LABEL_RAW_OUTPUT = [
-	{ type: "web_search_call", id: "ws_1" },
-	{ type: "web_search_call", id: "ws_2" },
-	{ type: "message", content: [{ type: "output_text", text: "{}" }] },
-] as const;
 
 /**
  * Claude経路。`server_tool_use.web_search_requests` に web検索の回数が載る
@@ -107,11 +127,14 @@ const ROUTE_ACCOUNTING: readonly RouteAccounting[] = [
 	{
 		name: "エチケット解析 / gpt-luna",
 		model: AI_LABEL_ROUTE_MODELS["gpt-luna"],
-		usage: toGptUsage(
-			GPT_LABEL_RAW_USAGE,
-			countGptWebSearches(GPT_LABEL_RAW_OUTPUT),
-		),
-		// OpenAI はキャッシュ**書き込み**を課金しないので計上しない(下の専用テスト参照)。
+		usage: toAiSdkUsage(GPT_LABEL_AI_SDK_USAGE, {
+			webSearches: countProviderExecutedCalls(
+				GPT_LABEL_TOOL_CALLS,
+				GPT_WEB_SEARCH_TOOL_NAME,
+			),
+			// OpenAI はキャッシュ**書き込み**を課金しない(下の専用テスト参照)。
+			billCacheWrites: false,
+		}),
 		billed: ["inputTokens", "outputTokens", "cacheReadTokens", "webSearches"],
 	},
 	{
@@ -137,7 +160,7 @@ const ROUTE_ACCOUNTING: readonly RouteAccounting[] = [
 		// 課金対象が1つ少ない。マッパーは共有だが宣言は経路ごとに持つ。
 		name: "一括抽出 / gpt-luna",
 		model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
-		usage: toGptUsage(GPT_LABEL_RAW_USAGE, 0),
+		usage: toGptUsage(GPT_WINE_LIST_RAW_USAGE, 0),
 		billed: ["inputTokens", "outputTokens", "cacheReadTokens"],
 	},
 	{
@@ -237,14 +260,30 @@ describe("OpenAI経路のキャッシュ書き込み", () => {
 		expect(getModelPricing(model)?.cacheWriteUsdPerMTok).toBeUndefined();
 	});
 
-	it("実応答に cache_write_tokens があっても計上しない(過大請求になるため)", () => {
+	it("AI SDK 経路: 実応答に cacheWriteTokens があっても計上しない", () => {
+		const usage = toAiSdkUsage(
+			{
+				inputTokens: 25_684,
+				inputTokenDetails: {
+					noCacheTokens: 25_684,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 12_772,
+				},
+				outputTokens: 822,
+			},
+			{ webSearches: 2, billCacheWrites: false },
+		);
+		expect(usage.cacheWriteTokens ?? 0).toBe(0);
+	});
+
+	it("生の Responses API 経路(一括抽出): cache_write_tokens を計上しない", () => {
 		const usage = toGptUsage(
 			{
 				input_tokens: 25_684,
 				input_tokens_details: { cached_tokens: 0, cache_write_tokens: 12_772 },
 				output_tokens: 822,
 			},
-			2,
+			0,
 		);
 		expect(usage.cacheWriteTokens ?? 0).toBe(0);
 	});

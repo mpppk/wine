@@ -38,6 +38,7 @@
 		"@sentry/cli"
 	],
 	"dependencies": {
+		"@ai-sdk/openai": "^4.0.32",
 		"@anthropic-ai/sdk": "^0.115.0",
 		"@better-auth/stripe": "^1.6.23",
 		"@cloudflare/vite-plugin": "^1.45.0",
@@ -56,6 +57,7 @@
 		"@tanstack/react-router": "^1.169.2",
 		"@tanstack/react-router-ssr-query": "^1.166.12",
 		"@tanstack/react-start": "^1.167.65",
+		"ai": "^7.0.55",
 		"better-auth": "^1.6.14",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
@@ -73,7 +75,6 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
-		"@ai-sdk/openai": "^4.0.32",
 		"@biomejs/biome": "2.5.7",
 		"@cloudflare/vitest-pool-workers": "^0.20.0",
 		"@sentry/vite-plugin": "^5.4.0",
@@ -89,7 +90,6 @@
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
 		"@vitejs/plugin-react": "^6.0.1",
-		"ai": "^7.0.55",
 		"jsdom": "^30.0.0",
 		"mapshaper": "^0.7.39",
 		"tsx": "^4.21.0",
