@@ -83,6 +83,7 @@ import {
 	buildWineListGptTextFormat,
 	extractWineListGptText,
 } from "#/lib/ai/wine-list-gpt";
+import { toWorkersAiUsage } from "#/lib/ai/workers-ai-usage";
 import {
 	type AiUsage,
 	addUsage,
@@ -276,11 +277,11 @@ export async function answerRegionQuestion(
 			// 過大請求側)。この経路は原価がほぼゼロなので実害は無い。実測が取れなければ
 			// 予約全量を実測とみなす —— **この機能は単経路で降格が無い**ので、予約額は
 			// そのまま「実行された経路の見積」でもある(#404 のエチケット解析とは違う)。
-			const total = out.usage?.total_tokens;
+			const measured = toWorkersAiUsage(out.usage);
 			const charge =
-				total === undefined
+				measured === undefined
 					? fallbackCharge(ctx.reservedMicroUsd)
-					: chargeFor(model.id, { outputTokens: total });
+					: chargeFor(model.id, measured);
 			// 単経路なので実行経路は選択経路と常に一致する。
 			ctx.addLogFields({ executedBy: modelKey });
 			return { value: answer, charge };
@@ -617,9 +618,9 @@ export async function analyzeWineLabel(
 						};
 						extractions.push(parseLabelResponse(out.response ?? ""));
 						// Workers AI は内訳を返さないので全量を出力単価で換算する(保守的)。
-						usage = addUsage(usage, {
-							outputTokens: out.usage?.total_tokens ?? 0,
-						});
+						// 写真ごとの usage を足し込むので、欠落した回は 0 として素通しする
+						// (全滅時のみ measured.microUsd === 0 で予約見積の床に落ちる)。
+						usage = addUsage(usage, toWorkersAiUsage(out.usage) ?? {});
 						anyCallOk = true;
 					} catch (photoErr) {
 						// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、

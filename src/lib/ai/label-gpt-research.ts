@@ -143,13 +143,24 @@ export function countGptWebSearches(
  * `input_tokens` は**キャッシュヒットを内数として含む**ため、`cached_tokens` を
  * 差し引いてから非キャッシュ入力として計上する(二重計上を避ける)。web検索回数だけは
  * usage に無いので呼び出し側が `countGptWebSearches` の結果を渡す。
+ *
+ * **`cache_write_tokens` は意図的に計上しない**。OpenAI はキャッシュ書き込みを課金せず
+ * (割引は cached input 側だけ)、単価表にも `cacheWriteUsdPerMTok` を置いていない。
+ * 一方 `usageToMicroUsd` は単価未定義のキャッシュ書き込みを**入力単価**で換算する
+ * (割引を勝手に仮定しない安全側の既定)ので、拾うと無料のトークンに課金することになる。
+ * 型に載せてあるのは「返ってくることを知った上で使っていない」ことを明示するため
+ * (usage-accounting.test.ts が回帰を検出する)。
  */
 export function toGptUsage(
 	usage:
 		| {
 				input_tokens?: number | null;
 				output_tokens?: number | null;
-				input_tokens_details?: { cached_tokens?: number | null } | null;
+				input_tokens_details?: {
+					cached_tokens?: number | null;
+					/** 課金されないので計上しない(上のコメント参照)。 */
+					cache_write_tokens?: number | null;
+				} | null;
 		  }
 		| undefined,
 	webSearches: number,
