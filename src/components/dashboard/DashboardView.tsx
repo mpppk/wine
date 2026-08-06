@@ -186,17 +186,30 @@ function TodaySummary({
 					 * 未飲ワインも登録できるようになったため「飲んだ本数」と登録総数が
 					 * 一致しなくなった。タイルの主値は飲んだ本数のままにし、登録総数は
 					 * 補助表示に出して意味の違いが見えるようにする。
+					 *
+					 * タイル全体をマイセラー一覧へのリンクにする。主値が飲んだ本数なので
+					 * filter=tasted を付けて、タップ後の一覧の件数がタイルの数字と一致
+					 * するようにする(素の /cellar だと未飲・気になるも混ざって食い違う)。
 					 */}
-					<StatTile
-						icon={<WineIcon className="size-4" aria-hidden />}
-						label="飲んだ"
-						value={`${cellar.tastedCount}`}
-						sub={
-							cellar.totalCount > cellar.tastedCount
-								? `本 / 登録${cellar.totalCount}`
-								: "本"
-						}
-					/>
+					<Link
+						to="/cellar"
+						search={{ filter: "tasted", place: undefined }}
+						className={cn(
+							STAT_TILE_CLASS,
+							"transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+						)}
+					>
+						<StatTileBody
+							icon={<WineIcon className="size-4" aria-hidden />}
+							label="飲んだ"
+							value={`${cellar.tastedCount}`}
+							sub={
+								cellar.totalCount > cellar.tastedCount
+									? `本 / 登録${cellar.totalCount}`
+									: "本"
+							}
+						/>
+					</Link>
 				</div>
 
 				<div>
@@ -227,19 +240,20 @@ function TodaySummary({
 	);
 }
 
-function StatTile({
-	icon,
-	label,
-	value,
-	sub,
-}: {
+// タイルの枠。リンクになるタイル(<Link>)と、ならないタイル(<div>)で外側の要素が
+// 変わるため、枠のクラスと中身を分けて両方から使う。
+const STAT_TILE_CLASS = "rounded-xl border p-3";
+
+interface StatTileContent {
 	icon: React.ReactNode;
 	label: string;
 	value: string;
 	sub: string;
-}) {
+}
+
+function StatTileBody({ icon, label, value, sub }: StatTileContent) {
 	return (
-		<div className="rounded-xl border p-3">
+		<>
 			<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
 				{icon}
 				{label}
@@ -248,6 +262,14 @@ function StatTile({
 				<span className="text-2xl font-semibold tabular-nums">{value}</span>
 				<span className="text-xs text-muted-foreground">{sub}</span>
 			</div>
+		</>
+	);
+}
+
+function StatTile(props: StatTileContent) {
+	return (
+		<div className={STAT_TILE_CLASS}>
+			<StatTileBody {...props} />
 		</div>
 	);
 }
