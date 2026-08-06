@@ -303,6 +303,78 @@ export const AI_LABEL_GPT_OUTPUT_TOKEN_ESTIMATE = 2_300;
  */
 export const AI_LABEL_GPT_SEARCH_ESTIMATE = 3;
 
+// ---- エージェントループ(GPT経路) ----
+// 1回で答えを出させず、ツール(呼称検索・生産者逆引き・検証つき提出)で裏を取りながら
+// 収束させる。#455 の実測で、同一写真4回の解析が毎回別の生産者を返し、そのすべてが
+// 「裏取り済み」の体裁を伴っていた —— 1ターンで確定させる形そのものが限界だった。
+
+/**
+ * ループの最大ステップ数(= モデル呼び出しの回数)。
+ *
+ * 打ち切りの主役は**予算**(`AI_LABEL_AGENT_BUDGET_RATIO`)で、こちらは
+ * 「予算計算が壊れても無限には回らない」ための最後の歯止め。実測で収束は3〜4ステップ
+ * なので、指摘を受けて調べ直す往復に2回ぶんの余裕を足した値にする。
+ */
+export const AI_LABEL_AGENT_MAX_STEPS = 8;
+
+/**
+ * ループを続けてよい原価の上限(予約額に対する比)。ここを超えたら、答えが未確定でも
+ * それ以上ステップを回さない。
+ *
+ * **予約を超えて課金できない**(settle は予約額で頭打ち)ので、超過ぶんは原価の持ち出しに
+ * なる。1.0 ではなく余裕を残すのは、判定は「次のステップを始める前」にしか行えず、
+ * 開始したステップぶんは必ず乗るため。
+ *
+ * **粒度が粗いことに注意**: web検索は1回 10,000µUSD の回数課金で、1ステップで2〜3回
+ * 走る。つまり判定の刻みは予約額の 2〜3割ある。比率を下げすぎると1ステップ目の直後に
+ * 打ち切られ、ループがまったく回らない(実測で 0.75 だと収束前に止まった)。
+ */
+export const AI_LABEL_AGENT_BUDGET_RATIO = 0.85;
+
+/**
+ * エージェントループの基礎入力トークン見積(初回ステップの非キャッシュ入力)。
+ *
+ * **1リクエスト完結だった頃(30,000)より小さい**: 呼称マスタの全名称(516件・
+ * 約4,900トークン)を指示文から外し、`search_appellation` で必要な数件だけ引く形に
+ * 変えたため(label-extraction.ts の `buildAgentLabelPrompt` を参照)。
+ */
+export const AI_LABEL_AGENT_BASE_TOKEN_ESTIMATE = 9_000;
+
+/**
+ * 2ステップ目以降で1ステップあたりに増える**非キャッシュ**入力トークンの見積。
+ * 積み上がるツール結果・検索結果のぶん。再送される先頭部分は下の
+ * `AI_LABEL_AGENT_CACHE_READ_PER_STEP` 側で数える。
+ */
+export const AI_LABEL_AGENT_TOKEN_PER_STEP = 3_000;
+
+/**
+ * 2ステップ目以降で1ステップあたりに読まれるキャッシュのトークン見積。
+ *
+ * ループは毎ターン会話全体を再送するが、**写真と指示文は先頭に固定されるので
+ * プロンプトキャッシュに乗る**。キャッシュ読みの単価は入力の 1/10 なので、
+ * 全量を非キャッシュ入力として見積ると予約が実費の数倍になり、無料枠を無駄に圧迫する。
+ * 実測(写真1枚・2ステップ)でキャッシュ読みは約25,000トークンだった。
+ */
+export const AI_LABEL_AGENT_CACHE_READ_PER_STEP = 12_000;
+
+/** 予約見積で仮定するステップ数(実測の中心値)。上限ではない。 */
+export const AI_LABEL_AGENT_STEP_ESTIMATE = 3;
+
+/**
+ * エージェントループの出力トークン見積(全ステップ合計。reasoning + ツール引数 + 提出)。
+ * ツール呼び出しの引数を毎ステップ書くぶん、1リクエスト完結の頃(2,300)より大きい。
+ */
+export const AI_LABEL_AGENT_OUTPUT_TOKEN_ESTIMATE = 4_000;
+
+/**
+ * エージェントループの web検索回数の見積。
+ *
+ * **この経路の原価はほぼこれで決まる**。1回 10,000µUSD の回数課金で、トークンぶんの
+ * 原価(実測で 5,000µUSD 前後)より桁が大きい。1リクエスト完結の頃(3回)より増えるのは、
+ * 検証で差し戻されたときに調べ直すぶん。実測(写真1枚・収束まで)は4回だった。
+ */
+export const AI_LABEL_AGENT_SEARCH_ESTIMATE = 5;
+
 /**
  * エンジンキーの解決先(実際に走る経路)。ユーザ選択(LabelEngineKey)と1対1ではなく、
  * **プロバイダキーの設定状況で降格しうる**ため別の型にする。
@@ -578,14 +650,22 @@ export function estimateLabelReserveUsage(
 ): AiUsage {
 	const photos = Math.max(1, imageCount);
 	switch (route) {
-		case "gpt-luna":
+		case "gpt-luna": {
+			// エージェントループ。**入力はステップ数に比例して伸びる**(毎ターン会話全体を
+			// 再送する)が、写真と指示文は先頭に固定されるのでプロンプトキャッシュに乗る。
+			// 非キャッシュ入力とキャッシュ読みを分けて見積らないと、単価が10倍違うぶん
+			// 予約が実費の数倍に膨らみ、無料枠を無駄に押さえてしまう。
+			const extraSteps = AI_LABEL_AGENT_STEP_ESTIMATE - 1;
 			return {
 				inputTokens:
-					AI_LABEL_GPT_BASE_TOKEN_ESTIMATE +
-					AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE * photos,
-				outputTokens: AI_LABEL_GPT_OUTPUT_TOKEN_ESTIMATE,
-				webSearches: AI_LABEL_GPT_SEARCH_ESTIMATE,
+					AI_LABEL_AGENT_BASE_TOKEN_ESTIMATE +
+					AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE * photos +
+					AI_LABEL_AGENT_TOKEN_PER_STEP * extraSteps,
+				cacheReadTokens: AI_LABEL_AGENT_CACHE_READ_PER_STEP * extraSteps,
+				outputTokens: AI_LABEL_AGENT_OUTPUT_TOKEN_ESTIMATE,
+				webSearches: AI_LABEL_AGENT_SEARCH_ESTIMATE,
 			};
+		}
 		case "web-research":
 			return {
 				inputTokens:

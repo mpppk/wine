@@ -88,3 +88,49 @@ export function countProviderExecutedCalls(
 	}
 	return count;
 }
+
+/** `accumulateStepUsage` が受け取るステップの必要部分。 */
+export interface AiSdkStep {
+	usage?: AiSdkUsage;
+	toolCalls?: readonly unknown[];
+}
+
+/**
+ * ここまでのステップの usage を1つに合算する。**ループの途中で原価を見る**ために使う
+ * (予算超過で打ち切る判定・実行記録)。
+ *
+ * `generateText` の戻り値の `usage` は全ステップ合算済みだが、**ループを止めるかどうかは
+ * 戻る前に決めないといけない**ので、`stopWhen` に渡ってくるステップ列から自前で積む。
+ * web検索の回数も同じ理由でステップをまたいで数える。
+ */
+export function accumulateStepUsage(
+	steps: readonly AiSdkStep[],
+	options: AiSdkUsageOptions & { webSearchToolName: string },
+): AiUsage {
+	let inputTokens = 0;
+	let outputTokens = 0;
+	let cacheReadTokens = 0;
+	let cacheWriteTokens = 0;
+	let webSearches = 0;
+	for (const step of steps) {
+		const usage = toAiSdkUsage(step.usage, {
+			webSearches: countProviderExecutedCalls(
+				step.toolCalls,
+				options.webSearchToolName,
+			),
+			billCacheWrites: options.billCacheWrites,
+		});
+		inputTokens += usage.inputTokens ?? 0;
+		outputTokens += usage.outputTokens ?? 0;
+		cacheReadTokens += usage.cacheReadTokens ?? 0;
+		cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+		webSearches += usage.webSearches ?? 0;
+	}
+	return {
+		inputTokens,
+		outputTokens,
+		cacheReadTokens,
+		cacheWriteTokens,
+		webSearches,
+	};
+}

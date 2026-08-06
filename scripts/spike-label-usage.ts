@@ -25,28 +25,28 @@
 
 import { readFile } from "node:fs/promises";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import {
+	accumulateStepUsage,
 	countProviderExecutedCalls,
 	toAiSdkUsage,
 } from "#/lib/ai/ai-sdk-usage";
 import {
+	AI_LABEL_AGENT_BUDGET_RATIO,
+	AI_LABEL_AGENT_MAX_STEPS,
 	AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 	AI_LABEL_GPT_MODEL,
 	AI_LABEL_GPT_REASONING_EFFORT,
 	AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
+	estimateLabelReserveCharge,
 } from "#/lib/ai/config";
-import {
-	buildLabelSuggestions,
-	parseLabelResponse,
-	parseLabelSources,
-} from "#/lib/ai/label-extraction";
+import { buildLabelSuggestions } from "#/lib/ai/label-extraction";
 import {
 	assertGptLabelFinished,
 	buildGptLabelMessages,
-	buildGptLabelOutput,
 	GPT_WEB_SEARCH_TOOL_NAME,
 } from "#/lib/ai/label-gpt-research";
+import { type AnswerCollector, buildLabelTools } from "#/lib/ai/label-tools";
 import {
 	extractAiSdkWebSearchTrace,
 	type WebResearchTrace,
@@ -55,6 +55,7 @@ import {
 	type AiUsage,
 	MICRO_USD_PER_CREDIT,
 	toCharge,
+	usageToMicroUsd,
 } from "#/lib/billing/ai-pricing";
 
 const MEDIA_TYPES: Record<string, string> = {
@@ -85,10 +86,20 @@ async function main(): Promise<void> {
 	const imageDataUrls = await Promise.all(paths.map(toDataUrl));
 	console.log(`写真 ${imageDataUrls.length} 枚 / モデル ${AI_LABEL_GPT_MODEL}`);
 
-	// 本番と同じ組み立て。軌跡はステップ完了ごとに積む(本文のパースより先に取る)。
+	// 本番と同じ組み立て。軌跡はステップ完了ごとに積む(検証器が引用の裏取りに使う)。
 	const openai = createOpenAI({ apiKey });
-	const toolResults: unknown[] = [];
+	const contentParts: unknown[] = [];
 	let trace: WebResearchTrace | undefined;
+	const collector: AnswerCollector = {};
+	const usageOptions = {
+		billCacheWrites: false,
+		webSearchToolName: GPT_WEB_SEARCH_TOOL_NAME,
+		webSearches: 0,
+	};
+	// 予算は本番と同じ式で出す(予約見積 × 比率)。
+	const budgetMicroUsd =
+		estimateLabelReserveCharge("gpt-luna", imageDataUrls.length).microUsd *
+		AI_LABEL_AGENT_BUDGET_RATIO;
 	const startedAt = Date.now();
 	const result = await generateText({
 		model: openai(AI_LABEL_GPT_MODEL),
@@ -97,17 +108,27 @@ async function main(): Promise<void> {
 			[GPT_WEB_SEARCH_TOOL_NAME]: openai.tools.webSearch({
 				searchContextSize: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
 			}),
+			...buildLabelTools(collector, () => ({ trace })),
 		},
-		output: buildGptLabelOutput(),
+		stopWhen: [
+			() => collector.accepted !== undefined,
+			({ steps }) =>
+				usageToMicroUsd(
+					AI_LABEL_GPT_MODEL,
+					accumulateStepUsage(steps, usageOptions),
+				) >= budgetMicroUsd,
+			stepCountIs(AI_LABEL_AGENT_MAX_STEPS),
+		],
 		maxOutputTokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 		providerOptions: {
 			openai: { reasoningEffort: AI_LABEL_GPT_REASONING_EFFORT },
 		},
 		// 本番と揃える(workerd では未処理の Promise 拒否を残すため切ってある)
 		telemetry: { isEnabled: false },
-		onStepFinish: (step) => {
-			toolResults.push(...step.toolResults);
-			trace = extractAiSdkWebSearchTrace(toolResults);
+		// 本番と同じ: ツール実行の前に軌跡を積む(検証器が引用の裏取りに使うため)
+		onLanguageModelCallEnd: ({ content }) => {
+			contentParts.push(...content);
+			trace = extractAiSdkWebSearchTrace(contentParts);
 		},
 	});
 	const elapsedMs = Date.now() - startedAt;
@@ -120,8 +141,9 @@ async function main(): Promise<void> {
 		),
 		billCacheWrites: false,
 	});
-	const payload = result.output;
-	const extraction = parseLabelResponse(payload);
+	const answer = collector.accepted ?? collector.last;
+	if (!answer) throw new Error("エージェントループが回答を提出しませんでした");
+	const extraction = answer.extraction;
 
 	console.log("\n================ usage の内訳 ================");
 	console.table([
@@ -138,7 +160,23 @@ async function main(): Promise<void> {
 	// SDK が返していないのかをここで切り分ける。
 	console.log("SDK usage:", JSON.stringify(result.usage, null, 2));
 	console.log("finishReason:", result.finishReason);
-	console.log("steps:", result.steps.length);
+	console.log(
+		"steps:",
+		result.steps.length,
+		"/ 上限",
+		AI_LABEL_AGENT_MAX_STEPS,
+	);
+	console.log("verified:", answer.verified);
+	console.log(
+		"予算(µUSD):",
+		Math.round(budgetMicroUsd),
+		"/ 予約見積:",
+		estimateLabelReserveCharge("gpt-luna", imageDataUrls.length).microUsd,
+	);
+	console.log(
+		"使ったツール:",
+		JSON.stringify(result.toolCalls.map((c) => c.toolName)),
+	);
 
 	console.log("\n================ 抽出結果 ================");
 	console.log("extraction:", JSON.stringify(extraction, null, 2));
@@ -146,10 +184,7 @@ async function main(): Promise<void> {
 		"suggestions:",
 		JSON.stringify(buildLabelSuggestions(extraction), null, 2),
 	);
-	console.log(
-		"fieldSources:",
-		JSON.stringify(parseLabelSources(payload), null, 2),
-	);
+	console.log("fieldSources:", JSON.stringify(answer.fieldSources, null, 2));
 	console.log("trace:", JSON.stringify(trace, null, 2));
 }
 

@@ -94,6 +94,19 @@ export interface AiInferenceLog {
 	 * 値そのものは持たない(origin と参照URLのみ)。
 	 */
 	fieldSources?: LabelFieldSources;
+	/**
+	 * こちらの検証器を通った回答か(エージェントループ経路のみ)。
+	 *
+	 * `false` は「予算・ステップ上限で打ち切り、検証を通らない回答を候補として返した」
+	 * 回。**この比率が収束率そのもの**で、上がらないならプロンプト・ツール・予算配分の
+	 * どれかを見直す材料になる。値は持たない真偽値。
+	 */
+	verified?: boolean;
+	/**
+	 * エージェントループのステップ数(モデル呼び出しの回数)。収束の速さの観測用で、
+	 * 予約見積(`AI_LABEL_AGENT_STEP_ESTIMATE`)が実態と合っているかの根拠にする。
+	 */
+	steps?: number;
 	/** failed のときの例外。logger が cause まで畳んで文字列化する。 */
 	err?: unknown;
 }

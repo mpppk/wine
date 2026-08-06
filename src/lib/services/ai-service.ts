@@ -1,13 +1,16 @@
 import { env } from "cloudflare:workers";
 import { createOpenAI } from "@ai-sdk/openai";
 import Anthropic from "@anthropic-ai/sdk";
-import { generateText } from "ai";
+import { generateText, stepCountIs } from "ai";
 import OpenAI from "openai";
 import {
+	accumulateStepUsage,
 	countProviderExecutedCalls,
 	toAiSdkUsage,
 } from "#/lib/ai/ai-sdk-usage";
 import {
+	AI_LABEL_AGENT_BUDGET_RATIO,
+	AI_LABEL_AGENT_MAX_STEPS,
 	AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 	AI_LABEL_GPT_MODEL,
 	AI_LABEL_GPT_REASONING_EFFORT,
@@ -52,9 +55,9 @@ import {
 import {
 	assertGptLabelFinished,
 	buildGptLabelMessages,
-	buildGptLabelOutput,
 	GPT_WEB_SEARCH_TOOL_NAME,
 } from "#/lib/ai/label-gpt-research";
+import { type AnswerCollector, buildLabelTools } from "#/lib/ai/label-tools";
 import {
 	buildWebLabelMessages,
 	joinResponseText,
@@ -96,6 +99,7 @@ import {
 	type CreditCharge,
 	getModelPricing,
 	toCharge,
+	usageToMicroUsd,
 } from "#/lib/billing/ai-pricing";
 import { BadRequestError, HttpError } from "#/lib/errors";
 import { logWarn } from "#/lib/logger";
@@ -361,6 +365,14 @@ interface LabelResearchResult {
 	usage: AiUsage;
 	/** モデルが自己申告したフィールドごとの根拠。書かれていなければ undefined。 */
 	fieldSources?: LabelFieldSources;
+	/**
+	 * こちらの検証器を通った回答か(エージェントループ経路のみ)。`false` は
+	 * 「予算・ステップ上限で打ち切り、未検証の回答を候補として返した」ことを意味する。
+	 * **実行記録に載せて収束率を観測する**ための情報で、利用者への出し分けはしない。
+	 */
+	verified?: boolean;
+	/** ループのステップ数(エージェントループ経路のみ)。収束の速さの観測用。 */
+	steps?: number;
 }
 
 /**
@@ -434,28 +446,47 @@ async function analyzeLabelWithWebResearch(
 }
 
 /**
- * 高精度経路: OpenAI GPT-5.6 Luna(マルチモーダル + サーバーサイドweb検索)で全写真を
- * 1リクエスト解析する。Claude経路と同じ契約(env 非依存・失敗は throw してフォールバックは
- * 呼び出し側)で、返す形も揃える。
+ * 高精度経路: OpenAI GPT-5.6 Luna を**エージェントループ**で回し、全写真を総合解析する。
+ * Claude経路と同じ契約(env 非依存・失敗は throw してフォールバックは呼び出し側)で、
+ * 返す形も揃える。
  *
- * **AI SDK(`ai` + `@ai-sdk/openai`)で呼ぶ**(#455 の実測で移行を決定。usage の内訳は
- * 生の Responses API と一致し、キャッシュ書き込みや reasoning の内訳はむしろ細かく取れる)。
+ * **1回で答えを出させない**のがこの経路の要点(#455)。同一写真の解析を4回繰り返すと
+ * 毎回別の生産者を返し、そのすべてが `origin: "photo_and_web"` と参照URLを伴っていた。
+ * 誤答が裏取り済みの体裁で出てくる以上、モデルの自己申告は停止条件に使えない。
+ * 代わりに `submit_answer` の中で**こちらの検証器**を走らせ、通らなければ問題点を
+ * ツール結果として返して調べ直させる(label-tools.ts / label-verify.ts)。
  *
- * Claude経路と違い pause_turn の継続ループが要らない: web検索はプロバイダ実行ツールで、
- * ツールループをサーバー側で完走させてから1つの応答を返す。打ち切りは finishReason に
- * 畳まれるので、assertGptLabelFinished がそれを throw に変える。
+ * ループを止めるのは次の3つ。**答えが出たかどうかだけに任せない**:
+ *  1. 検証を通った回答が提出された(正常な収束)
+ *  2. 原価が予約の `AI_LABEL_AGENT_BUDGET_RATIO` に達した(予約を超えた消費は
+ *     settle が頭打ちにするため、超過ぶんは原価の持ち出しになる)
+ *  3. ステップ上限(予算計算が壊れても無限には回らないための歯止め)
  */
 async function analyzeLabelWithGptResearch(
 	apiKey: string,
 	imageDataUrls: string[],
 	onTrace: WebResearchTraceSink,
+	budgetMicroUsd: number,
 ): Promise<LabelResearchResult> {
 	const openai = createOpenAI({ apiKey });
-	// 軌跡はステップ完了ごとに積む。**本文のパースより先に onTrace へ渡す**ため
-	// (structured outputs の検証は generateText の中で走るので、打ち切られた回は
-	// generateText 自体が throw する。戻り値を待ってから軌跡を組むと、
-	// 「検索まで到達したが結果を使えなかった」回の観測が丸ごと落ちる)。
-	const toolResults: unknown[] = [];
+	// 軌跡は**モデル呼び出しが終わった時点**で積む(`onStepFinish` ではない)。
+	//
+	// web検索はプロバイダ実行ツールなので、その結果は `submit_answer` と**同じ応答**に
+	// 載ってくる。`onStepFinish` はツール実行の後に発火するため、そこで積むと
+	// 「同じステップで検索してから提出した」回に検証器が空の軌跡を見てしまい、
+	// 実際には検索しているのに「web検索を実行していません」と誤って落とす。
+	// `onLanguageModelCallEnd` はツール実行の前に応答内容ごと渡ってくるので、
+	// 提出の検証に間に合う。
+	const contentParts: unknown[] = [];
+	let trace: WebResearchTrace | undefined;
+	const collector: AnswerCollector = {};
+	const usageOptions = {
+		// OpenAI はキャッシュ書き込みを課金しない(拾うと入力単価で過大請求になる)。
+		billCacheWrites: false,
+		webSearchToolName: GPT_WEB_SEARCH_TOOL_NAME,
+		webSearches: 0,
+	};
+
 	const result = await generateText({
 		model: openai(AI_LABEL_GPT_MODEL),
 		messages: buildGptLabelMessages(imageDataUrls),
@@ -463,8 +494,20 @@ async function analyzeLabelWithGptResearch(
 			[GPT_WEB_SEARCH_TOOL_NAME]: openai.tools.webSearch({
 				searchContextSize: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
 			}),
+			...buildLabelTools(collector, () => ({ trace })),
 		},
-		output: buildGptLabelOutput(),
+		stopWhen: [
+			// 検証を通った回答が出たら、それ以上考えさせない。
+			() => collector.accepted !== undefined,
+			// 予約に対する原価の上限。次のステップを始める前にしか判定できないので、
+			// 比率には余裕を持たせてある(config の AI_LABEL_AGENT_BUDGET_RATIO)。
+			({ steps }) =>
+				usageToMicroUsd(
+					AI_LABEL_GPT_MODEL,
+					accumulateStepUsage(steps, usageOptions),
+				) >= budgetMicroUsd,
+			stepCountIs(AI_LABEL_AGENT_MAX_STEPS),
+		],
 		maxOutputTokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 		providerOptions: {
 			openai: { reasoningEffort: AI_LABEL_GPT_REASONING_EFFORT },
@@ -478,27 +521,37 @@ async function analyzeLabelWithGptResearch(
 		// 未処理として記録される)。OpenTelemetry の連携は使っておらず、観測は
 		// logAiInference と Sentry で足りているので、切って困るものが無い。
 		telemetry: { isEnabled: false },
-		onStepFinish: (step) => {
-			toolResults.push(...step.toolResults);
-			onTrace(extractAiSdkWebSearchTrace(toolResults));
+		onLanguageModelCallEnd: ({ content }) => {
+			contentParts.push(...content);
+			trace = extractAiSdkWebSearchTrace(contentParts);
+			onTrace(trace);
 		},
 	});
 	assertGptLabelFinished(result.finishReason);
-	// usage はサーバー側ツールループのぶんも合算済み。**web検索の回数だけは usage に
-	// 出ない**のでツール呼び出しを数える($10/1000回 の回数課金で、Luna の原価の8割を占める)。
+	// usage は全ステップ合算済み。**web検索の回数だけは usage に出ない**ので
+	// ツール呼び出しを数える($10/1000回 の回数課金で、Luna の原価の8割を占める)。
 	const usage = toAiSdkUsage(result.usage, {
 		webSearches: countProviderExecutedCalls(
 			result.toolCalls,
 			GPT_WEB_SEARCH_TOOL_NAME,
 		),
-		// OpenAI はキャッシュ書き込みを課金しない(拾うと入力単価で過大請求になる)。
 		billCacheWrites: false,
 	});
-	const payload = result.output;
+
+	// 検証を通った回答を最優先。無ければ**検証を通らなかった最後の回答**を使う。
+	// これはフォームの自動入力候補であって確定値ではないので、「不完全でも候補を出す」
+	// ほうが「解析失敗」より利用者の得になる(利用者が画面で直せる)。どちらも無ければ
+	// 推論失敗として throw し、Workers AI へ降格する。
+	const answer = collector.accepted ?? collector.last;
+	if (!answer) {
+		throw new Error("エージェントループが回答を提出しませんでした");
+	}
 	return {
-		extraction: parseLabelResponse(payload),
+		extraction: answer.extraction,
 		usage,
-		fieldSources: parseLabelSources(payload),
+		...(answer.fieldSources ? { fieldSources: answer.fieldSources } : {}),
+		verified: answer.verified,
+		steps: result.steps.length,
 	};
 }
 
@@ -581,10 +634,15 @@ export async function analyzeWineLabel(
 						openaiApiKey,
 						input.imageDataUrls,
 						(t) => ctx.addLogFields({ webResearch: t }),
+						ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
 					);
 					extractions.push(gpt.extraction);
 					usage = addUsage(usage, gpt.usage);
-					ctx.addLogFields({ fieldSources: gpt.fieldSources });
+					ctx.addLogFields({
+						fieldSources: gpt.fieldSources,
+						verified: gpt.verified,
+						steps: gpt.steps,
+					});
 					markExecutedBy("gpt-luna");
 				} catch (gptErr) {
 					logWarn("label gpt research failed; falling back to Workers AI", {

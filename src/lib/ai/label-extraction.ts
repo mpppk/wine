@@ -147,11 +147,23 @@ export const LABEL_WEB_JSON_SCHEMA = {
  */
 export function buildKnownListsSection(): string {
 	const aopNames = listAops().map((a) => a.name);
-	const grapeNames = GRAPE_VARIETIES.map((v) => v.nameLocal);
 	return [
 		"## 既知の原産地呼称リスト(該当があればこの表記を一字一句そのまま使う)",
 		aopNames.join(" / "),
 		"",
+		buildKnownGrapesSection(),
+	].join("\n");
+}
+
+/**
+ * 品種マスタだけの一覧。**エージェントループ経路はこちらだけを同梱する**
+ * (呼称は516件・約4,900トークンあり、毎ターン再送するには重すぎるので
+ * `search_appellation` に置き換える。品種は84件・約560トークンと軽く、
+ * 閉じた語彙なので同梱したほうが往復が減る)。
+ */
+export function buildKnownGrapesSection(): string {
+	const grapeNames = GRAPE_VARIETIES.map((v) => v.nameLocal);
+	return [
 		"## 既知の品種リスト(該当があればこの表記を使う)",
 		grapeNames.join(" / "),
 	].join("\n");
@@ -174,44 +186,96 @@ export const LABEL_PROMPT = [
 ].join("\n");
 
 /**
+ * 裏取りの規範。**どの経路でも同じことを求める**ので、経路ごとに書き分けない
+ * (書き分けると「片方だけ規範が古い」状態が生まれる)。
+ */
+const LABEL_RESEARCH_RULES = [
+	"   - 生産者名・ワイン名の綴りを正式表記に正す(写真の読み取り誤りを修正する)。",
+	"   - 原産地呼称はラベルに明記されていなくても、このワインの正式なAOC/AOP/DOC/DOCG等を特定する。",
+	"   - 品種はラベルに無記載でも、生産者情報・ワインデータベースで確認できたセパージュを列挙する(推測は不可。検索で確認できた場合のみ)。",
+	"   - ヴィンテージは写真から読めた値を最優先する。写真から読めない場合は null にする(検索結果から創作しない)。",
+];
+
+/**
+ * 出力フィールドの定義。**全経路で共有する**(Workers AI 経路の `LABEL_JSON_SCHEMA` と
+ * 同じキーで、応答パースを `parseLabelResponse` に一本化するため)。
+ */
+const LABEL_OUTPUT_FIELD_RULES = [
+	'   - "wine_name": キュヴェ名等を含む正式なワイン名(原語)。無ければ null',
+	'   - "producer": 生産者/ドメーヌ/シャトー名(原語の正式表記)。無ければ null',
+	'   - "vintage": 西暦の整数(例: 2020)。不明なら null',
+	'   - "appellation": 正式な原産地呼称(原語)。不明なら null',
+	'   - "region": 地域名(例: Bourgogne, Bordeaux, Toscana)。不明なら null',
+	'   - "country": 生産国(例: France, Italy)。不明なら null',
+	'   - "grape_varieties": 品種名(原語)の文字列配列。確認できなければ空配列',
+	'   - "sources": 上記7フィールドそれぞれの根拠。キーはフィールド名と同じで、値は',
+	'     { "origin": "photo" | "web" | "photo_and_web" | "unknown", "url": 文字列 or null }。',
+	'     - "photo": 写真から読み取ってそのまま採用した',
+	'     - "web": 写真には無く、検索で確認して補った',
+	'     - "photo_and_web": 写真から読み取った値を検索で裏取り・修正した',
+	'     - "unknown": 特定できず null / 空配列にした',
+	'     "url" は origin が "web" / "photo_and_web" のとき、実際に参照したページのURLを1つ入れる。',
+	"     それ以外は null。**URLを創作しない**(実際に開いていないURLを書かない)。",
+];
+
+/** 写真の枚数と性質の説明。全経路で共通の前置き。 */
+const LABEL_PHOTO_INTRO =
+	"これはワインのボトル/エチケット(ラベル)の写真です(同一ボトルの表・裏ラベルなど複数枚のことがあります)。";
+
+/**
  * 高精度経路(LLM + web検索)への指示文。読み取り→web検索での裏取り→JSON出力の
- * 手順を規定する。**Claude経路(label-web-research.ts)と GPT経路(label-gpt-research.ts)が
- * これを共有する**: 指示の内容はプロバイダ非依存で、経路ごとに書き分けると
- * 「片方だけ裏取りの規範が古い」状態が生まれるため(SSOT)。
+ * 手順を規定する。**Claude経路(label-web-research.ts)が使う**。
  *
- * 出力フィールドは Workers AI 経路(LABEL_JSON_SCHEMA)と同じキーにし、応答パースを
- * parseLabelResponse で共通化する。GPT経路は同じ形を structured outputs でも強制する。
+ * GPT経路はエージェントループ化(#455 以降)に伴い `buildAgentLabelPrompt` を使うが、
+ * 裏取りの規範と出力フィールドの定義はここと共有している(SSOT)。違うのは
+ * 「1回で出し切る」か「ツールを使って収束させる」かという進め方だけ。
  */
 export function buildWebLabelPrompt(): string {
 	return [
-		"これはワインのボトル/エチケット(ラベル)の写真です(同一ボトルの表・裏ラベルなど複数枚のことがあります)。",
+		LABEL_PHOTO_INTRO,
 		"以下の手順でこのワインの情報を特定し、最後にJSONオブジェクトだけを出力してください。",
 		"",
 		"1. 全ての写真からワイン名・生産者・ヴィンテージ・原産地呼称・地域・品種を読み取る。",
 		"2. web検索で裏取りする。生産者の公式サイト、Wine-Searcher・Vivino等のワインデータベース、輸入元の商品ページ、原産地呼称の公式情報を優先して参照する。",
-		"   - 生産者名・ワイン名の綴りを正式表記に正す(写真の読み取り誤りを修正する)。",
-		"   - 原産地呼称はラベルに明記されていなくても、このワインの正式なAOC/AOP/DOC/DOCG等を特定する。",
-		"   - 品種はラベルに無記載でも、生産者情報・ワインデータベースで確認できたセパージュを列挙する(推測は不可。検索で確認できた場合のみ)。",
-		"   - ヴィンテージは写真から読めた値を最優先する。写真から読めない場合は null にする(検索結果から創作しない)。",
+		...LABEL_RESEARCH_RULES,
 		"3. 出力するJSONのフィールド:",
-		'   - "wine_name": キュヴェ名等を含む正式なワイン名(原語)。無ければ null',
-		'   - "producer": 生産者/ドメーヌ/シャトー名(原語の正式表記)。無ければ null',
-		'   - "vintage": 西暦の整数(例: 2020)。不明なら null',
-		'   - "appellation": 正式な原産地呼称(原語)。不明なら null',
-		'   - "region": 地域名(例: Bourgogne, Bordeaux, Toscana)。不明なら null',
-		'   - "country": 生産国(例: France, Italy)。不明なら null',
-		'   - "grape_varieties": 品種名(原語)の文字列配列。確認できなければ空配列',
-		'   - "sources": 上記7フィールドそれぞれの根拠。キーはフィールド名と同じで、値は',
-		'     { "origin": "photo" | "web" | "photo_and_web" | "unknown", "url": 文字列 or null }。',
-		'     - "photo": 写真から読み取ってそのまま採用した',
-		'     - "web": 写真には無く、検索で確認して補った',
-		'     - "photo_and_web": 写真から読み取った値を検索で裏取り・修正した',
-		'     - "unknown": 特定できず null / 空配列にした',
-		'     "url" は origin が "web" / "photo_and_web" のとき、実際に参照したページのURLを1つ入れる。',
-		"     それ以外は null。**URLを創作しない**(実際に開いていないURLを書かない)。",
+		...LABEL_OUTPUT_FIELD_RULES,
 		"4. 検索しても確認できない項目は null にする。JSONの前後に説明文・コードフェンスを書かない。",
 		"",
 		buildKnownListsSection(),
+	].join("\n");
+}
+
+/**
+ * エージェントループ経路への指示文。**1回で出し切らせず、ツールで裏を取ってから
+ * `submit_answer` で提出させる**。
+ *
+ * `buildWebLabelPrompt` との違いは進め方だけで、裏取りの規範(`LABEL_RESEARCH_RULES`)と
+ * 出力フィールドの定義(`LABEL_OUTPUT_FIELD_RULES`)は共有している。
+ *
+ * **呼称の一覧を同梱しない**のがコスト面での要点。516件・約4,900トークンを毎ターン
+ * 再送するとループの固定費がターン数倍で効くため、`search_appellation` で必要な数件だけ
+ * 引かせる。品種は84件と小さく、閉じた語彙なので同梱を続ける(検索の往復を減らす)。
+ */
+export function buildAgentLabelPrompt(): string {
+	return [
+		LABEL_PHOTO_INTRO,
+		"ツールを使って調べながら、このワインを特定してください。**推測で埋めず、裏を取ってから提出すること。**",
+		"",
+		"1. 全ての写真からワイン名・生産者・ヴィンテージ・原産地呼称・地域・品種を読み取る。読めない文字がある場合は、読めた部分(語尾・語頭)を手がかりとして扱う。",
+		"2. web検索で裏取りする。生産者の公式サイト、Wine-Searcher・Vivino等のワインデータベース、輸入元の商品ページ、原産地呼称の公式情報を優先して参照する。",
+		...LABEL_RESEARCH_RULES,
+		"3. 呼称と生産者はこのアプリのマスタとも突き合わせる。",
+		"   - search_appellation: 読み取った呼称の綴りが不確かなときに候補を引く。マスタに該当があれば、その正式表記を一字一句そのまま使う。",
+		"   - get_appellation: 呼称の許可品種・生産者・格付けを引く。読み取った品種がその呼称で認められているかの確認に使う。",
+		"   - lookup_producer: **生産者名から呼称を逆引きする**。ラベルの呼称が欠けている・読めないときの主要な手がかり。",
+		"   - マスタは対応地域ぶんしか無いので、**引けなくても誤りとは限らない**。その場合はweb検索の結果を優先してよい。",
+		"4. 確信が持てたら submit_answer で提出する。引数のフィールド:",
+		...LABEL_OUTPUT_FIELD_RULES,
+		"5. submit_answer は検証を行う。問題が返ってきたら、指摘された点を調べ直して再度 submit_answer を呼ぶこと。",
+		"   同じ答えをそのまま再提出しない。確認できない項目は null / 空配列にして提出してよい。",
+		"",
+		buildKnownGrapesSection(),
 	].join("\n");
 }
 
