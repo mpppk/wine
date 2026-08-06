@@ -38,6 +38,7 @@ import { GrapeFilterMenu } from "#/components/wine/GrapeFilterMenu";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
 import { ProgressFilterMenu } from "#/components/wine/ProgressFilterMenu";
 import { MapProgressLegend } from "#/components/wine/ProgressLegend";
+import { isQuizComplete } from "#/components/wine/QuizProgressIndicator";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
 import { countScopedQuestions, expandScopeAopIds } from "#/lib/quiz/scope";
@@ -305,9 +306,24 @@ function MapPage() {
 		() => (selectedAop ? countScopedQuestions(region.id, selectedAop.id) : 0),
 		[selectedAop, region.id],
 	);
+	// パネルに出す正解進捗。未ログインでは solved が動かず全AOPが「0/N」に見えるので
+	// 渡さない(パネル側が出題数のみの表示に落ちる)。リストの行ピルと同じ扱い。
+	const selectedAopQuizProgress =
+		isAuthenticated && selectedAop
+			? scopedProgressByAopId[selectedAop.id]
+			: undefined;
 	const startAopQuiz = selectedAop
 		? () => setQuizScope({ kind: "aop", aopId: selectedAop.id })
 		: undefined;
+	// 全問正解済みのスコープは1周目から復習モード(正解済みも出題)で開く。パネルの
+	// ボタンが「復習」を名乗るため、開いた先が「すべて正解済みです」の完了画面だと
+	// 一手余計になる。判定は表示中の進捗と同じ値を使い、ラベルと挙動を一致させる。
+	const quizScopeProgress =
+		quizScope?.kind === "aop"
+			? scopedProgressByAopId[quizScope.aopId]
+			: undefined;
+	const startQuizAsReview =
+		isAuthenticated && isQuizComplete(quizScopeProgress);
 
 	// マイセラー欄(ユーザ固有・要ログイン)。このAOPを紐付けて登録したワインへの
 	// リンクを並べる。参考リンク欄と同じく両パネルに同じ内容を差し込む。
@@ -659,6 +675,7 @@ function MapPage() {
 								position={siblings}
 								onClose={() => selectFresh(undefined)}
 								quizQuestionCount={selectedAopQuizCount}
+								quizProgress={selectedAopQuizProgress}
 								onStartQuiz={startAopQuiz}
 								affiliate={affiliate}
 								aops={aops}
@@ -692,6 +709,7 @@ function MapPage() {
 							onNext={goNext}
 							position={siblings}
 							quizQuestionCount={selectedAopQuizCount}
+							quizProgress={selectedAopQuizProgress}
 							onStartQuiz={startAopQuiz}
 							affiliate={affiliate}
 							aops={aops}
@@ -721,6 +739,7 @@ function MapPage() {
 						: undefined
 				}
 				isAuthenticated={isAuthenticated}
+				initialIncludeSolved={startQuizAsReview}
 			/>
 
 			<RegionChatDialog

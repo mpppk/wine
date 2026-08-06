@@ -15,6 +15,11 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import {
+	isQuizComplete,
+	QuizProgressIndicator,
+} from "#/components/wine/QuizProgressIndicator";
+import type { AopProgress } from "#/lib/services/quiz-service";
 import { cn } from "#/lib/utils";
 import {
 	type AffiliateConfig,
@@ -113,6 +118,7 @@ export function AopDetailPanel({
 	closeButtonClassName,
 	compact = false,
 	quizQuestionCount,
+	quizProgress,
 	onStartQuiz,
 	affiliate = EMPTY_AFFILIATE_CONFIG,
 	aops,
@@ -141,6 +147,12 @@ export function AopDetailPanel({
 	compact?: boolean;
 	/** このAOPを起点に出題できる問題数。0ならクイズボタンを出さない */
 	quizQuestionCount?: number;
+	/**
+	 * このAOPのクイズ正解進捗。分母は quizQuestionCount と同じスコープ(自身+階層近傍)。
+	 * 未指定なら分数を出さず出題数のみ示す。未ログインでは正解が記録されず分数が
+	 * 動かないので、呼び出し側はログイン時だけ渡す(リストの行ピルと同じ扱い)。
+	 */
+	quizProgress?: AopProgress;
 	/** クイズ開始。未指定ならクイズボタンを出さない(embed等) */
 	onStartQuiz?: () => void;
 	/** アフィリエイトID。購入リンクの計測用ラップに使う。未指定なら素の検索リンク */
@@ -259,16 +271,11 @@ export function AopDetailPanel({
 			</div>
 
 			{onStartQuiz && (quizQuestionCount ?? 0) > 0 && (
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					onClick={onStartQuiz}
-					className="w-full"
-				>
-					<GraduationCapIcon className="size-4" aria-hidden />
-					このAOPのクイズに挑戦({quizQuestionCount}問)
-				</Button>
+				<QuizStartButton
+					questionCount={quizQuestionCount ?? 0}
+					progress={quizProgress}
+					onStart={onStartQuiz}
+				/>
 			)}
 
 			{ancestry && (
@@ -330,6 +337,57 @@ export function AopDetailPanel({
 				{getBoundarySourceNoteJa(aop)}
 			</p>
 		</div>
+	);
+}
+
+/**
+ * このAOPのクイズ導線。ラベルは進捗の3状態で切り替え、右端にリストの行と同じ
+ * 進捗ピル(solved/total、全問正解ならチェック+緑)を出す。
+ *
+ * ラベルを状態で変えるのは、全問正解後も「挑戦」のままだと押す理由が伝わらず、
+ * 逆にチェックアイコンだけでは「あと何問残っているか」が落ちるため。出題側は
+ * 既定で未正解のみを出す(quiz-service の filterUnsolved)ので、「残りN問」は
+ * 実際に出題される問題数と一致する。
+ *
+ * 「復習」= 正解済みも含めて解き直す再チャレンジ(includeSolved)への入口だが、
+ * その判断は呼び出し側(出題スコープを持つページ)が行う。ここは表示だけに徹する。
+ */
+function QuizStartButton({
+	questionCount,
+	progress,
+	onStart,
+}: {
+	questionCount: number;
+	progress?: AopProgress;
+	onStart: () => void;
+}) {
+	// total=0 の進捗(候補問題を持たないAOP)は「進捗なし」に倒す。分数を出しても
+	// 0/0 で意味を成さず、ボタンの表示条件(questionCount>0)とも食い違う
+	const known = progress && progress.total > 0 ? progress : undefined;
+	const complete = isQuizComplete(known);
+	const label = !known
+		? "このAOPのクイズに挑戦"
+		: complete
+			? "このAOPのクイズを復習"
+			: known.solved > 0
+				? `残り${known.total - known.solved}問に挑戦`
+				: "このAOPのクイズに挑戦";
+	return (
+		<Button
+			type="button"
+			variant="outline"
+			size="sm"
+			onClick={onStart}
+			className="w-full"
+		>
+			<GraduationCapIcon className="size-4" aria-hidden />
+			{label}
+			<QuizProgressIndicator
+				progress={known ?? { solved: 0, total: questionCount }}
+				countOnly={!known}
+				className="ml-auto"
+			/>
+		</Button>
 	);
 }
 

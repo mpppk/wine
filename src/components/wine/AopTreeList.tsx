@@ -1,5 +1,8 @@
-import { CircleCheckIcon } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
+import {
+	isQuizComplete,
+	QuizProgressIndicator,
+} from "#/components/wine/QuizProgressIndicator";
 import type { AopProgress } from "#/lib/services/quiz-service";
 import {
 	buildAopTree,
@@ -238,7 +241,7 @@ export function AopTreeList({
 								{section.subregion.nameJa}
 							</span>
 							{sectionProgress && (
-								<ProgressIndicator
+								<QuizProgressIndicator
 									progress={sectionProgress}
 									countOnly={countOnly}
 								/>
@@ -373,7 +376,7 @@ function VillageItem({
 					<span aria-hidden className="size-2.5 shrink-0" />
 					<span className="min-w-0 flex-1 truncate">{node.village.nameJa}</span>
 					{villageProgress && (
-						<ProgressIndicator
+						<QuizProgressIndicator
 							progress={villageProgress}
 							countOnly={countOnly}
 						/>
@@ -518,11 +521,7 @@ function AopRow({
 	// リングにして色チャンネル側に逃がし、テキストは支援技術向けの sr-only で残す。
 	const nonAppellation = aop.kind === "vineyard" && !isLegalAppellation(aop);
 	// 全問正解済みの行は淡い緑ティントで区別する(ホバー時は muted 優先)
-	const complete =
-		showProgress &&
-		!!progress &&
-		progress.total > 0 &&
-		progress.solved >= progress.total;
+	const complete = showProgress && isQuizComplete(progress);
 	const dotColor = progressDot
 		? progressDotColor(progress)
 		: aop.tags?.includes("grand-cru")
@@ -557,56 +556,9 @@ function AopRow({
 				</span>
 			)}
 			{showProgress && progress && (
-				<ProgressIndicator progress={progress} countOnly={countOnly} />
+				<QuizProgressIndicator progress={progress} countOnly={countOnly} />
 			)}
 		</button>
-	);
-}
-
-/**
- * 正解進捗を "solved/total" のピルで示す。全問正解済みはチェック+緑で強調する。
- * countOnly(未ログイン)時は正解が記録されず分数が動かないため、代わりに
- * そのスコープの出題数を「クイズN問」の中立ピルで示す。
- */
-function ProgressIndicator({
-	progress,
-	countOnly = false,
-}: {
-	progress: AopProgress;
-	countOnly?: boolean;
-}) {
-	const { solved, total } = progress;
-	if (total <= 0) return null;
-	if (countOnly) {
-		return (
-			<span className="inline-flex shrink-0 items-center rounded border border-border px-1 text-[10px] tabular-nums text-muted-foreground">
-				クイズ{total}問
-			</span>
-		);
-	}
-	const complete = solved >= total;
-	return (
-		<span
-			className={`inline-flex shrink-0 items-center gap-0.5 rounded px-1 text-[10px] tabular-nums ${
-				complete
-					? "border border-transparent font-medium text-white"
-					: "border border-border text-muted-foreground"
-			}`}
-			style={
-				complete
-					? {
-							backgroundColor:
-								PROGRESS_BUCKETS[PROGRESS_BUCKETS.length - 1]?.fill ??
-								PROGRESS_EMPTY_COLOR.fill,
-						}
-					: undefined
-			}
-		>
-			{complete && <CircleCheckIcon className="size-3" aria-hidden />}
-			{/* 格付けバッジと隣り合うため、読み上げで "特級 12/20" が何の数かを示す */}
-			<span className="sr-only">正解</span>
-			{solved}/{total}
-		</span>
 	);
 }
 

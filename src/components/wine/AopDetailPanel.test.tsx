@@ -88,3 +88,80 @@ describe("AopDetailPanel のユーザ固有スロット", () => {
 		expect(screen.queryByText("マイセラーの中身")).toBeNull();
 	});
 });
+
+// クイズ導線は「このAOPの関連クイズをどこまで解いたか」をボタン自身で示す。
+// アイコンだけでは残り問題数が落ちるので、ラベル(状態で3通り)と進捗ピル
+// (solved/total)を併記し、全問正解時はボタンの役割を「復習」に切り替える。
+describe("AopDetailPanel のクイズ導線", () => {
+	/** クイズボタンの表示テキスト(ラベル + 進捗ピル) */
+	function quizButtonText(): string {
+		return (
+			screen.getByRole("button", { name: /クイズ|残り/ }).textContent ?? ""
+		);
+	}
+
+	it("進捗を渡さなければ分数を出さず出題数だけを示す(未ログイン)", () => {
+		render(
+			<AopDetailPanel
+				aop={AOP}
+				quizQuestionCount={20}
+				onStartQuiz={() => {}}
+			/>,
+		);
+		const text = quizButtonText();
+		expect(text).toContain("このAOPのクイズに挑戦");
+		expect(text).toContain("クイズ20問");
+		expect(text).not.toContain("0/20");
+	});
+
+	it("未着手なら「挑戦」のまま 0/N を示す", () => {
+		render(
+			<AopDetailPanel
+				aop={AOP}
+				quizQuestionCount={20}
+				quizProgress={{ solved: 0, total: 20 }}
+				onStartQuiz={() => {}}
+			/>,
+		);
+		const text = quizButtonText();
+		expect(text).toContain("このAOPのクイズに挑戦");
+		expect(text).toContain("0/20");
+	});
+
+	// 出題側は既定で未正解のみを出す(quiz-service の filterUnsolved)ため、
+	// 「残りN問」は実際に出題される問題数と一致する
+	it("学習中は残りの未正解数をラベルに出す", () => {
+		render(
+			<AopDetailPanel
+				aop={AOP}
+				quizQuestionCount={20}
+				quizProgress={{ solved: 12, total: 20 }}
+				onStartQuiz={() => {}}
+			/>,
+		);
+		const text = quizButtonText();
+		expect(text).toContain("残り8問に挑戦");
+		expect(text).toContain("12/20");
+	});
+
+	it("全問正解済みならボタンの役割を「復習」に切り替える", () => {
+		render(
+			<AopDetailPanel
+				aop={AOP}
+				quizQuestionCount={20}
+				quizProgress={{ solved: 20, total: 20 }}
+				onStartQuiz={() => {}}
+			/>,
+		);
+		const text = quizButtonText();
+		expect(text).toContain("このAOPのクイズを復習");
+		expect(text).toContain("20/20");
+	});
+
+	it("出題できる問題が無ければクイズボタン自体を出さない", () => {
+		render(
+			<AopDetailPanel aop={AOP} quizQuestionCount={0} onStartQuiz={() => {}} />,
+		);
+		expect(screen.queryByRole("button", { name: /クイズ/ })).toBeNull();
+	});
+});
