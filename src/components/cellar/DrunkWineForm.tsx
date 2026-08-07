@@ -65,7 +65,11 @@ import { postImageForm } from "#/lib/images/form-client";
 import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import { cn } from "#/lib/utils";
-import { getLabelAnalysisPlan } from "#/server/ai";
+import {
+	attachLabelAnalysisJobEntry,
+	consumeLabelAnalysisJob,
+	getLabelAnalysisPlan,
+} from "#/server/ai";
 import { createDrunkWine, updateDrunkWine } from "#/server/drunk-wine";
 
 export interface DrunkWineFormProps {
@@ -92,6 +96,14 @@ export interface DrunkWineFormProps {
 	 * を選んでおり、ここでもう一度選ばせるのは同じ意思決定の二度手間になるため。
 	 */
 	autoAnalyzeLabel?: boolean;
+	/**
+	 * 完了したエチケット解析ジョブの結果を、開いた直後に差分ダイアログで提示する(#472)。
+	 *
+	 * 解析中に保存して離脱した回の受け取り口。**`autoAnalyzeLabel` と違って解析は走らせない**
+	 * (結果は既にサーバにある)し、**自動反映もしない**——宛先は保存済みのワインで、利用者が
+	 * その後に手で直している可能性がある。上書きしてよいかは選ばせる。
+	 */
+	pendingLabelJob?: { jobId: string; suggestions: LabelSuggestions };
 }
 
 // フォームが扱う写真1枚。既存はR2キー保持、新規はローカルFile+プレビューURL。
@@ -155,6 +167,7 @@ export function DrunkWineForm({
 	initialValues,
 	initialPhotoFiles,
 	autoAnalyzeLabel,
+	pendingLabelJob,
 }: DrunkWineFormProps) {
 	// 入力項目の state は MCP App のフォームと共有する形(DrunkWineFieldsValue)で持つ
 	const [values, setValues] = useState<DrunkWineFieldsValue>(
@@ -368,6 +381,19 @@ export function DrunkWineForm({
 	// それを精緻化するものなので、17〜31秒(#463 の本番実測)拘束する必要が無い。
 	const [jobId, setJobId] = useState<string | null>(null);
 	const { data: job } = useLabelAnalysisJob(jobId);
+	/**
+	 * 走っているジョブに保存先を教える(#472)。**best-effort**——保存は既に成功して
+	 * おり、紐づけの失敗で利用者の操作を止める理由が無い(受け取りが従来どおり新規作成
+	 * モードへ落ちるだけ)。
+	 *
+	 * 保存の直後だけでなく、既存エントリの編集中に投入した回もここを通す。「この解析結果が
+	 * どのワインに宛てられているか」は投入と保存のどちらが先でも同じ意味を持つ。
+	 */
+	const attachJobToEntry = (targetJobId: string, targetEntryId: string) => {
+		void attachLabelAnalysisJobEntry({
+			data: { jobId: targetJobId, entryId: targetEntryId },
+		}).catch(() => {});
+	};
 	// 完了を1回だけ処理する。ポーリングは終端で止まるが、その最後の1件が
 	// 再レンダリングのたびに流れ込まないようにする。
 	const handledJobRef = useRef<string | null>(null);
@@ -407,6 +433,9 @@ export function DrunkWineForm({
 			}
 			jobAutoRef.current = auto;
 			setJobId(result.jobId);
+			// 宛先が既に決まっている(編集中・保存済み)なら、この時点で教えておく。
+			const target = savedRef.current ?? entry;
+			if (target) attachJobToEntry(result.jobId, target.id);
 			setAnalyzeNotice(
 				auto
 					? "写真から読み取った内容を入力しました。エチケットの詳細な解析を実行中です(完了までこのページを離れても構いません)。"
@@ -430,6 +459,15 @@ export function DrunkWineForm({
 		if (!job || handledJobRef.current === job.jobId) return;
 		if (job.status === "queued" || job.status === "running") return;
 		handledJobRef.current = job.jobId;
+		// **この画面で結果を受け取ったジョブは受け取り済みにする**(#472)。しないと
+		// 成功したジョブは `succeeded` のまま `consumed_at` が null で残り、目の前で
+		// 反映したはずの結果がマイセラーのバッジに「解析が完了しました」として並ぶ。
+		// そこから開く導線は新規登録なので、同じワインを2件作る入口になっていた。
+		if (job.status === "succeeded") {
+			void consumeLabelAnalysisJob({ data: { jobId: job.jobId } }).catch(
+				() => {},
+			);
+		}
 		// 実測での確定が済んでいるので残高を引き直す(予約時との差分が戻っている)。
 		void queryClient.invalidateQueries({ queryKey: CREDIT_BALANCE_QUERY_KEY });
 		void queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY });
@@ -441,6 +479,24 @@ export function DrunkWineForm({
 		setAnalyzeNotice("");
 		applyLabelSuggestions(job.suggestions, { auto: jobAutoRef.current });
 	}, [job, queryClient]);
+
+	// 離脱後に完了したジョブの受け取り(#472)。**解析は走らせない**——結果は既にサーバに
+	// あるので、差分ダイアログに載せて反映するかどうかを選ばせるだけ。提示できた時点で
+	// 受け取り済みにする(バッジから消し、同じ結果で二度目の登録に進めないようにする)。
+	//
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 受け取りは1回だけ
+	useEffect(() => {
+		if (!pendingLabelJob || handledJobRef.current === pendingLabelJob.jobId) {
+			return;
+		}
+		handledJobRef.current = pendingLabelJob.jobId;
+		applyLabelSuggestions(pendingLabelJob.suggestions, { auto: false });
+		void consumeLabelAnalysisJob({ data: { jobId: pendingLabelJob.jobId } })
+			.then(() =>
+				queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY }),
+			)
+			.catch(() => {});
+	}, [pendingLabelJob, queryClient]);
 
 	// 引き継ぎ直後の自動解析は1回だけ。写真が無ければ何もしない(解析対象が無い)。
 	const autoAnalyzedRef = useRef(false);
@@ -491,6 +547,9 @@ export function DrunkWineForm({
 			for (const p of photos) {
 				if (p.kind === "new") URL.revokeObjectURL(p.previewUrl);
 			}
+			// 走っているジョブに保存先を教える(#472)。この直後に画面を離れても、完了の
+			// 受け取りが新規登録ではなく「このワインを編集」へ向くようになる。
+			if (jobId) attachJobToEntry(jobId, saved.id);
 			// 保存済みなので、この後の遷移は警告しない(onSaved が遷移することが多い)
 			leavingAfterSaveRef.current = true;
 			await onSaved(saved);

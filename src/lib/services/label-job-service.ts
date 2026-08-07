@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { labelAnalysisJob } from "#/db/schema";
+import { drunkWine, labelAnalysisJob } from "#/db/schema";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import {
 	isTerminalLabelJobStatus,
@@ -83,6 +83,11 @@ export interface LabelAnalysisJobView {
 	finishedAt?: number;
 	/** 利用者が結果を受け取ったか(#462)。完了バッジの出し分けに使う */
 	consumed?: boolean;
+	/**
+	 * この結果が宛てられている既存エントリ(#472)。受け取り導線がここを見て
+	 * 「新規登録」と「そのワインを編集」を振り分ける。
+	 */
+	entryId?: string;
 }
 
 /** 未終端(= まだ枠を占有している)状態。 */
@@ -461,6 +466,53 @@ export async function consumeLabelAnalysisJob(
 	return { view: toJobView(job), alreadyConsumed: !updated };
 }
 
+/**
+ * 解析結果の宛先エントリを記録する(#472)。
+ *
+ * 解析中に記録フォームを保存して離脱すると、完了の受け取り(`/cellar/new?labelJob=…`)が
+ * 新規作成モードで開き、**同じワインが2件登録される**。保存した時点でその宛先をジョブに
+ * 残しておけば、受け取りを「そのワインを編集」へ振り分けられる。
+ *
+ * **最初に宛てられたエントリが勝つ**(`entry_id IS NULL` の条件付き UPDATE)。同じジョブの
+ * 結果を2つのエントリへ記録できてしまうと、後から開いたときにどちらを直せばよいか決まらない。
+ * 2回目以降は `attached: false` を返すだけで、呼び出し側の保存は妨げない。
+ *
+ * 終端・受け取り済みのジョブにも紐づける。走行中に保存した回だけでなく、完了を見てから
+ * 保存した回も「この結果はもう記録済み」であることに変わりはなく、URLを開き直したときの
+ * 重複を同じ仕組みで塞げる。
+ */
+export async function attachLabelAnalysisJobEntry(
+	userId: string,
+	jobId: string,
+	entryId: string,
+): Promise<{ attached: boolean }> {
+	// 宛先が本人のエントリであることを確かめる。**他人のエントリIDを宛先にできると**、
+	// 受け取り導線がそのIDへ遷移し、存在の有無を漏らす経路になる(所有権チェックは
+	// WHERE id AND user_id の規約 #177)。
+	const [entry] = await db
+		.select({ id: drunkWine.id })
+		.from(drunkWine)
+		.where(and(eq(drunkWine.id, entryId), eq(drunkWine.userId, userId)))
+		.limit(1);
+	if (!entry) throw new NotFoundError("ワインが見つかりません");
+
+	const [updated] = await db
+		.update(labelAnalysisJob)
+		.set({ entryId })
+		.where(
+			and(
+				eq(labelAnalysisJob.id, jobId),
+				eq(labelAnalysisJob.userId, userId),
+				isNull(labelAnalysisJob.entryId),
+			),
+		)
+		.returning({ id: labelAnalysisJob.id });
+	if (updated) {
+		logInfo("label analysis job attached to entry", { userId, jobId, entryId });
+	}
+	return { attached: !!updated };
+}
+
 /** 未終端(queued/running)のジョブ件数。同時実行上限の判定に使う。 */
 async function countActiveLabelAnalysisJobs(userId: string): Promise<number> {
 	const [row] = await db
@@ -669,6 +721,7 @@ function toJobView(job: LabelAnalysisJobRow): LabelAnalysisJobView {
 		...(job.actualTokens === null ? {} : { actualTokens: job.actualTokens }),
 		...(job.error ? { error: job.error } : {}),
 		...(job.consumedAt ? { consumed: true } : {}),
+		...(job.entryId ? { entryId: job.entryId } : {}),
 		createdAt: job.createdAt.getTime(),
 		...(job.finishedAt ? { finishedAt: job.finishedAt.getTime() } : {}),
 	};

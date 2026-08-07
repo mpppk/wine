@@ -13,6 +13,7 @@ import {
 	WineIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 import { DrunkWineForm } from "#/components/cellar/DrunkWineForm";
 import { SightingList } from "#/components/cellar/SightingList";
 import { TastingList } from "#/components/cellar/TastingList";
@@ -26,6 +27,7 @@ import {
 	DialogTitle,
 } from "#/components/ui/dialog";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
+import { getLabelAnalysisJobById } from "#/server/ai";
 import {
 	deleteDrunkWine,
 	getDrunkWine,
@@ -36,19 +38,38 @@ import {
 } from "#/server/drunk-wine";
 import { listPlaces } from "#/server/place";
 
+const searchSchema = z.object({
+	/**
+	 * このワインに宛てられた、完了済みエチケット解析ジョブ(#472)。解析中に保存して
+	 * 離脱した回の受け取り口で、`/cellar/new?labelJob=<id>` からリダイレクトされて来る。
+	 * 候補は差分ダイアログで提示し、反映するかどうかは利用者が選ぶ。
+	 */
+	labelJob: z.string().min(1).max(80).optional(),
+});
+
 export const Route = createFileRoute("/cellar/$entryId/edit")({
+	validateSearch: searchSchema,
 	beforeLoad: requireAuthBeforeLoad,
-	loader: async ({ params }) => {
+	loaderDeps: ({ search }) => ({ labelJob: search.labelJob }),
+	loader: async ({ params, deps }) => {
 		try {
 			// 目撃記録の場所を選び直せるよう、場所マスタも一緒に読む(件数は
 			// たかが知れているのでページングしない。place-service 参照)
-			const [entry, tastings, sightings, places] = await Promise.all([
+			const [entry, tastings, sightings, places, labelJob] = await Promise.all([
 				getDrunkWine({ data: { id: params.entryId } }),
 				listWineTastings({ data: { drunkWineId: params.entryId } }),
 				listWineSightings({ data: { drunkWineId: params.entryId } }),
 				listPlaces(),
+				// 他人のジョブ・存在しないIDは 404 になるので、素の編集画面として開く。
+				// **既読化はここでしない**——ルータは `defaultPreload: "intent"` で、リンクに
+				// ホバーしただけでローダーが走る(#462 と同じ理由)。
+				deps.labelJob
+					? getLabelAnalysisJobById({ data: { jobId: deps.labelJob } }).catch(
+							() => null,
+						)
+					: null,
 			]);
-			return { entry, tastings, sightings, places };
+			return { entry, tastings, sightings, places, labelJob };
 		} catch (e) {
 			// 存在しない/他ユーザのエントリは一覧へ逃がす。
 			// それ以外(一時障害等)は握りつぶさずエラー表示に任せる
@@ -62,7 +83,13 @@ export const Route = createFileRoute("/cellar/$entryId/edit")({
 });
 
 function CellarEditPage() {
-	const { entry, tastings, sightings, places } = Route.useLoaderData();
+	const { entry, tastings, sightings, places, labelJob } =
+		Route.useLoaderData();
+	// 宛先違いのジョブは無視する(URL直打ちで他のワインの候補を流し込ませない)。
+	const pendingLabelJob =
+		labelJob?.suggestions && labelJob.entryId === entry.id
+			? { jobId: labelJob.jobId, suggestions: labelJob.suggestions }
+			: undefined;
 	const navigate = useNavigate();
 	const router = useRouter();
 	const [confirmOpen, setConfirmOpen] = useState(false);
@@ -150,6 +177,7 @@ function CellarEditPage() {
 
 			<DrunkWineForm
 				entry={entry}
+				{...(pendingLabelJob ? { pendingLabelJob } : {})}
 				// 保存後は閲覧画面へ。保存した内容がその場で確認できる
 				onSaved={() => {
 					void navigate({

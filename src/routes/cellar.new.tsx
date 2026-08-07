@@ -1,5 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	redirect,
+	useNavigate,
+} from "@tanstack/react-router";
 import { ArrowLeftIcon, ImagesIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
@@ -80,6 +85,16 @@ export const Route = createFileRoute("/cellar/new")({
 					)
 				: null,
 		]);
+		// 既に記録済みのワインに宛てられた結果は、**新規登録の口を開かない**(#472)。
+		// 解析中に保存して離脱した回がここに来るので、素の登録画面を出すと同じワインが
+		// 2件できる。宛先の編集画面へ送り、候補は差分ダイアログで反映させる。
+		if (labelJob?.entryId && labelJob.suggestions) {
+			throw redirect({
+				to: "/cellar/$entryId/edit",
+				params: { entryId: labelJob.entryId },
+				search: { labelJob: labelJob.jobId },
+			});
+		}
 		return { places, wineListPlan, rescanBatch, labelJob };
 	},
 	component: CellarNewPage,
