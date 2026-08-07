@@ -503,9 +503,12 @@ export function DrunkWineForm({
 			for (const p of photos) {
 				if (p.kind === "new") URL.revokeObjectURL(p.previewUrl);
 			}
-			// 走っているジョブに保存先を教える(#472)。この直後に画面を離れても、完了の
+			// 解析結果の行き先をジョブに教える(#472)。この直後に画面を離れても、完了の
 			// 受け取りが新規登録ではなく「このワインを編集」へ向くようになる。
-			if (jobId) attachJobToEntry(jobId, saved.id);
+			// **受け取って開いた回(`pendingLabelJob`)も通す**——そちらは完了済みなので、
+			// この保存で解析に使った写真がこのワインの写真として引き継がれる(#474)。
+			const targetJobId = jobId ?? pendingLabelJob?.jobId;
+			if (targetJobId) attachJobToEntry(targetJobId, saved.id);
 			// 保存済みなので、この後の遷移は警告しない(onSaved が遷移することが多い)
 			leavingAfterSaveRef.current = true;
 			await onSaved(saved);
