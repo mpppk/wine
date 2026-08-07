@@ -8,6 +8,7 @@ import {
 	requireApiSession,
 } from "#/lib/images/form-api";
 import { logError } from "#/lib/logger";
+import { buildPendingNotification } from "#/lib/push/notification";
 import {
 	consumeLabelAnalysisJob,
 	getLabelAnalysisJob,
@@ -25,6 +26,7 @@ import {
 //   GET   /api/label-analysis-jobs?id=…        1件の状態(終端なら suggestions / error と残高)
 //   GET   /api/label-analysis-jobs             未終端 + 未受け取りのジョブ一覧
 //   GET   /api/label-analysis-jobs?badge=1     件数だけ(マイセラーのバッジ用。#462)
+//   GET   /api/label-analysis-jobs?notification=1  Service Worker が出す通知の内容(#466)
 //   PATCH /api/label-analysis-jobs?id=…        完了ジョブを受け取り済みにして候補を返す(#462)
 //
 // を提供する。受け取り・検証の骨格は form-api の共通関門を共有する(#260/#174 の方針)。
@@ -80,6 +82,14 @@ export const Route = createFileRoute("/api/label-analysis-jobs")({
 					// (suggestions は数KBある)を運ばない専用の形を返す。
 					if (params.get("badge")) {
 						return apiJson(await getLabelAnalysisJobBadge(session.user.id));
+					}
+					// Service Worker が通知を組むための内容(#466)。プッシュは本文なしで
+					// 「何かあった」しか伝えないので、**文言と遷移先はここで決めて渡す**
+					// (プレーンJSの SW に散らすと、テストの効かない所でドリフトする)。
+					// 受け取り待ちが無ければ `notification: null`。
+					if (params.get("notification")) {
+						const badge = await getLabelAnalysisJobBadge(session.user.id);
+						return apiJson({ notification: buildPendingNotification(badge) });
 					}
 					if (!jobId) {
 						return apiJson({

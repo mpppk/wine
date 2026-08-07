@@ -1,45 +1,38 @@
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
-import {
-	ApplicationServerKeys,
-	generatePushHTTPRequest,
-	setWebCrypto,
-} from "webpush-webcrypto";
 import { db } from "#/db";
 import { pushSubscription } from "#/db/schema";
 import { logError, logInfo, logWarn } from "#/lib/logger";
 import {
 	isGonePushStatus,
-	type PushNotificationPayload,
 	type PushSubscriptionInput,
 } from "#/lib/push/notification";
+import {
+	createVapidAuthorization,
+	importVapidPrivateKey,
+} from "#/lib/push/vapid";
 
 // Web Push の購読管理と送信(Issue #466)。
 //
-// 本文の暗号化と VAPID JWT は `webpush-webcrypto` に任せる。依存ゼロで WebCrypto だけを
-// 使い、**送信そのものは自分で fetch する**形なので Workers に載る。自前で書かない理由は
-// 「送ったつもりで届かない」壊れ方をこの環境では検出できないため(ヘッドレス Chromium が
-// プッシュ購読を作れない。#466 参照)。
+// **本文を送らない**(payload-less push)。プッシュサービスへは「何かあった」だけを伝え、
+// 通知の文言と遷移先は Service Worker がアプリのAPI(`?notification=1`)から取る。
 //
-// ⚠️ **暗号化は `aesgcm`(draft-04)であって RFC 8291 の `aes128gcm` ではない。**
-// 調べた範囲では Workers で動く Web Push ライブラリ(`webpush-webcrypto` /
-// `@block65/webcrypto-web-push`)はどちらも draft-04 のままで、`aes128gcm` にするには
-// 自前実装しか選択肢が無い——それはこのライブラリを選んだ理由と正面から矛盾する。
+// なぜこの形か:
 //
-// 実害が出るとすれば「プッシュサービスが draft-04 の受け入れをやめたとき、送信は 2xx の
-// まま通知だけ届かなくなる」形。**配信が確認できないときは、まずここを疑うこと。**
-// 移行が必要になったら `aes128gcm` 対応のライブラリへ差し替える(encoding が変わったことは
-// push-service.workers.test.ts が検知する)。
+//  - 本文を送るなら RFC 8291 の暗号化が要る(プッシュサービスは中継する第三者なので、
+//    中身を読ませないため)。その実装は ECDH + HKDF + AES-GCM + フレーミングで、
+//    正しさを閉じるには「実際に届いて復号できること」を見るしかない。**この環境では
+//    それができない**(ヘッドレス Chromium がプッシュ購読を作れない。#466)
+//  - Workers で動くライブラリは調べた範囲でどちらも draft-04(`aesgcm`)のままで、
+//    RFC 8291 の `aes128gcm` にするには自前実装しか無かった
+//  - 本文が無ければ暗号化する対象も無い。残るのは VAPID(標準的な ES256 の JWT)だけで、
+//    **そちらは署名検証まで自動テストで閉じられる**
+//
+// 代償は通知のたびにネットワーク往復が1回増えること。解析の完了は数十秒に1回の
+// できごとなので、これは払ってよい。
 //
 // **通知は付随物**という位置づけを全体に貫く: 送信の失敗はジョブの終端化にも購読の
 // 保存にも影響させない。届かないことより、届かないせいで解析結果が失われるほうが悪い。
-
-// **WebCrypto を明示的に渡す**。ライブラリの既定は「モジュール評価時に `self.crypto` が
-// あれば拾う」で、無ければ使用時に throw する。workerd では `self` が居るので今は拾えるが、
-// **これは型でもテストでも守られていない前提**であり、外れたときの壊れ方が「ビルドは通る
-// のに送信時に毎回 throw」——つまり CI が緑のまま実機だけ壊れる(#184/#178 と同じ類型)。
-// 明示的に渡せば前提そのものが消える。
-setWebCrypto(crypto);
 
 /** VAPID の連絡先。プッシュサービスが送信元に問い合わせるための識別子(RFC 8292)。 */
 const VAPID_SUBJECT = "mailto:niboshiporipori@gmail.com";
@@ -74,6 +67,10 @@ export function webPushPublicKey(): string | null {
  * endpoint に unique を張ってあるので、別ユーザが同じ endpoint を主張してきた場合は
  * 所有者ごと入れ替わる——これは正しい: 同じブラウザで別アカウントにログインし直した
  * ケースで、通知の宛先も新しいユーザに移るべき。
+ *
+ * **`p256dh` / `auth` は今の送信経路では使わない**(本文を送らないため)。それでも受け取って
+ * 保存しているのは、本文を送る形へ切り替えたくなったときに**利用者に購読し直させずに済む**
+ * ようにするため。どちらもその購読へ送るためだけの値で、endpoint と揃って初めて意味を持つ。
  */
 export async function savePushSubscription(
 	userId: string,
@@ -128,17 +125,14 @@ export async function hasPushSubscription(userId: string): Promise<boolean> {
 }
 
 /**
- * 1ユーザの全購読へ通知を送る。**throw しない**——通知は付随物で、呼び出し元
- * (ジョブの終端化)を巻き込ませない。送れた件数を返す。
+ * 1ユーザの全購読へ「何かあった」を送る(本文なし)。**throw しない**——通知は付随物で、
+ * 呼び出し元(ジョブの終端化)を巻き込ませない。送れた件数を返す。
  *
  * 無効な購読(404/410)はその場で消す。それ以外の失敗は消さない: プッシュサービスの
  * 一時障害(429・5xx)で全ユーザの購読を消してしまうと、利用者は購読し直すまで
  * 通知が来なくなり、しかもそのことに気づけない。
  */
-export async function sendPushToUser(
-	userId: string,
-	payload: PushNotificationPayload,
-): Promise<number> {
+export async function sendPushToUser(userId: string): Promise<number> {
 	if (!isWebPushConfigured()) return 0;
 
 	let subscriptions: (typeof pushSubscription.$inferSelect)[];
@@ -153,44 +147,40 @@ export async function sendPushToUser(
 	}
 	if (subscriptions.length === 0) return 0;
 
-	let keys: ApplicationServerKeys;
+	const publicKey = env.VAPID_PUBLIC_KEY.trim();
+	let privateKey: CryptoKey;
 	try {
 		// 鍵は毎回インポートする。isolate をまたいでキャッシュしても、鍵の入れ替え時に
 		// 古い鍵で送り続ける経路を作るだけで、得られるのは1回ぶんの CPU 時間しかない。
-		keys = await ApplicationServerKeys.fromJSON({
-			publicKey: env.VAPID_PUBLIC_KEY.trim(),
-			// isWebPushConfigured() で両方の存在を確認済み。型を絞るための ?? "".
-			privateKey: (env.VAPID_PRIVATE_KEY ?? "").trim(),
-		});
+		privateKey = await importVapidPrivateKey(
+			(env.VAPID_PRIVATE_KEY ?? "").trim(),
+		);
 	} catch (e) {
 		// 鍵の形式が壊れている = 全ユーザに送れない。設定を直すまで解消しないので記録する。
 		logError("invalid VAPID keys; push disabled", { err: e });
 		return 0;
 	}
 
-	const body = JSON.stringify(payload);
 	let sent = 0;
 	for (const subscription of subscriptions) {
 		try {
-			const {
-				headers,
-				body: encrypted,
-				endpoint,
-			} = await generatePushHTTPRequest({
-				applicationServerKeys: keys,
-				payload: body,
-				target: {
-					endpoint: subscription.endpoint,
-					keys: { p256dh: subscription.p256dh, auth: subscription.auth },
-				},
-				adminContact: VAPID_SUBJECT,
-				ttl: PUSH_TTL_SECONDS,
-				urgency: "normal",
+			// **VAPID の `aud` は endpoint のオリジン**なので、購読ごとに署名し直す。
+			const authorization = await createVapidAuthorization({
+				endpoint: subscription.endpoint,
+				privateKey,
+				publicKeyBase64url: publicKey,
+				subject: VAPID_SUBJECT,
 			});
-			const res = await fetch(endpoint, {
+			const res = await fetch(subscription.endpoint, {
 				method: "POST",
-				headers,
-				body: encrypted,
+				headers: {
+					Authorization: authorization,
+					TTL: String(PUSH_TTL_SECONDS),
+					// 本文が無いことを明示する。付けないと一部のプッシュサービスが
+					// 「本文があるのに Content-Encoding が無い」と解釈して 400 を返す。
+					"Content-Length": "0",
+					Urgency: "normal",
+				},
 			});
 			if (res.ok) {
 				sent += 1;
@@ -214,7 +204,7 @@ export async function sendPushToUser(
 			// 一時的な失敗。**消さない**(次の通知で再試行される)。
 			logWarn("push delivery failed", { userId, status: res.status });
 		} catch (e) {
-			// 暗号化・ネットワークの失敗。ここで throw すると呼び出し元(ジョブの終端化)を
+			// 署名・ネットワークの失敗。ここで throw すると呼び出し元(ジョブの終端化)を
 			// 巻き込むので、記録だけ残して次の購読へ進む。
 			logError("push delivery threw", { userId, err: e });
 		}

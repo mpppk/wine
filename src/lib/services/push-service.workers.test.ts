@@ -3,7 +3,12 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { pushSubscription } from "#/db/schema";
-import { buildLabelAnalysisDonePayload } from "#/lib/push/notification";
+import {
+	decodeJwtClaims,
+	importVapidPublicKey,
+	parseVapidAuthorization,
+	verifyJwtSignature,
+} from "#/lib/push/vapid";
 import {
 	deletePushSubscription,
 	hasPushSubscription,
@@ -20,7 +25,10 @@ import {
 //  - 購読の CRUD と、同じ端末の再購読が重複しないこと
 //  - プッシュサービスの応答に対する扱い(無効なら消す / 一時障害なら残す)
 //  - 鍵が無い環境で機能ごと無効になること
-//  - 暗号化されたリクエストが実際に組み上がること(ヘッダ・宛先)
+//  - リクエストが本文なしで組み上がり、**VAPID の署名が検証できる**こと
+//
+// 本文の暗号化を捨てた(#466)ので、残る暗号処理は VAPID だけ。そちらは自分で検証
+// できるため、「実際に届くか」を見なくても正しさが閉じる。
 
 /** 実在の形式を持つ VAPID 鍵ペア(このテスト専用に生成したもの)。 */
 const TEST_VAPID_PUBLIC =
@@ -126,9 +134,7 @@ describe("鍵が無い環境", () => {
 
 		expect(isWebPushConfigured()).toBe(false);
 		expect(webPushPublicKey()).toBeNull();
-		expect(
-			await sendPushToUser(userId, buildLabelAnalysisDonePayload("j")),
-		).toBe(0);
+		expect(await sendPushToUser(userId)).toBe(0);
 		// 購読があっても送りにいかない(UI も出さないので、そもそも購読は増えない)。
 		expect(fetchSpy).not.toHaveBeenCalled();
 	});
@@ -139,7 +145,7 @@ describe("送信", () => {
 	const TEST_VAPID_PRIVATE =
 		"MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgKJM-c2C7YuOPa4LE6Zx-95oQVz-kIEdHrZI8OL5l1KmhRANCAAQxOPLfkwBuG7TOMCCam2_aKM_p-FYyVwBfCIzaAqE85WFrRe5fawCKuexnHlDNmli_fApKuj2laNk1yQ0mSTD1";
 
-	it("暗号化したリクエストを購読の endpoint へ送る", async () => {
+	it("本文なしのリクエストを購読の endpoint へ送り、署名が検証できる", async () => {
 		const userId = await seedUser();
 		await savePushSubscription(userId, SUB);
 		setVapid(TEST_VAPID_PRIVATE);
@@ -149,34 +155,57 @@ describe("送信", () => {
 			return new Response(null, { status: 201 });
 		});
 
-		const sent = await sendPushToUser(
-			userId,
-			buildLabelAnalysisDonePayload("job-1"),
-		);
+		const sent = await sendPushToUser(userId);
 
 		expect(sent).toBe(1);
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.url).toBe(SUB.endpoint);
 		const headers = calls[0]?.init.headers as Record<string, string>;
-		// **`aesgcm`(draft-04)であることを固定する**。RFC 8291 の最終形は `aes128gcm` だが、
-		// 採用したライブラリが実装しているのは前者(push-service.ts の注記を参照)。
-		// ライブラリ更新で encoding が変わったらここで気づけるようにしておく——
-		// 配信を実機確認できない以上、変化の検知を自動テストに持たせるしかない。
-		expect(headers["Content-Encoding"]).toBe("aesgcm");
-		// draft-04 は salt と送信側公開鍵を専用ヘッダで運ぶ(aes128gcm は本文に含める)
-		expect(headers.Encryption).toMatch(/^salt=/);
-		expect(headers["Crypto-Key"]).toMatch(/dh=/);
-		// VAPID も draft-04 の形(`WebPush <jwt>` + Crypto-Key の p256ecdsa)。
-		// RFC 8292 は `vapid t=<jwt>, k=<key>` だが、encoding と同じ理由でこちら。
-		expect(headers.Authorization).toMatch(/^WebPush /);
-		expect(headers["Crypto-Key"]).toMatch(/p256ecdsa=/);
-		expect(headers.TTL).toBeDefined();
-		// **本文は平文ではない**(ペイロードがそのまま乗っていない)。
-		const body = calls[0]?.init.body as ArrayBuffer;
-		expect(body.byteLength).toBeGreaterThan(0);
-		expect(new TextDecoder().decode(body)).not.toContain("labelJob");
+		// **本文を送らない**(#466)。送るものが無いので暗号化も要らない。
+		expect(calls[0]?.init.body).toBeUndefined();
+		expect(headers["Content-Length"]).toBe("0");
+		// 暗号化まわりのヘッダは出ない(本文が無いので付ける意味も無い)。
+		expect(headers["Content-Encoding"]).toBeUndefined();
+		expect(headers.Encryption).toBeUndefined();
+		expect(headers.TTL).toBe(String(12 * 60 * 60));
+
+		// **残る暗号処理は VAPID だけで、それは検証できる**。ここが payload-less に
+		// した見返り——「届くか」を見なくても署名の正しさが閉じる。
+		const parsed = parseVapidAuthorization(headers.Authorization ?? "");
+		expect(parsed?.publicKey).toBe(TEST_VAPID_PUBLIC);
+		const publicKey = await importVapidPublicKey(TEST_VAPID_PUBLIC);
+		expect(await verifyJwtSignature(parsed?.jwt ?? "", publicKey)).toBe(true);
+		// aud は endpoint のオリジン(購読ごとに署名し直している証拠)
+		expect(decodeJwtClaims(parsed?.jwt ?? "")?.aud).toBe(
+			"https://fcm.googleapis.com",
+		);
+
 		// 成功したら最終送信時刻を残す(送れていない購読の棚卸しに使う)。
 		expect((await subsOf(userId))[0]?.lastNotifiedAt).not.toBeNull();
+	});
+
+	it("購読ごとに aud を変えて署名する", async () => {
+		const userId = await seedUser();
+		await savePushSubscription(userId, SUB);
+		await savePushSubscription(userId, {
+			...SUB,
+			endpoint: "https://updates.push.services.mozilla.com/wpush/v2/xyz",
+		});
+		setVapid(TEST_VAPID_PRIVATE);
+		const auds: unknown[] = [];
+		vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+			const headers = init.headers as Record<string, string>;
+			const parsed = parseVapidAuthorization(headers.Authorization ?? "");
+			auds.push(decodeJwtClaims(parsed?.jwt ?? "")?.aud);
+			return new Response(null, { status: 201 });
+		});
+
+		expect(await sendPushToUser(userId)).toBe(2);
+		// 使い回すとプッシュサービスに弾かれる(aud が自分自身かを見るため)。
+		expect(auds.sort()).toEqual([
+			"https://fcm.googleapis.com",
+			"https://updates.push.services.mozilla.com",
+		]);
 	});
 
 	it("410 が返った購読は消す", async () => {
@@ -185,9 +214,7 @@ describe("送信", () => {
 		setVapid(TEST_VAPID_PRIVATE);
 		vi.stubGlobal("fetch", async () => new Response(null, { status: 410 }));
 
-		expect(
-			await sendPushToUser(userId, buildLabelAnalysisDonePayload("j")),
-		).toBe(0);
+		expect(await sendPushToUser(userId)).toBe(0);
 		expect(await subsOf(userId)).toHaveLength(0);
 	});
 
@@ -197,9 +224,7 @@ describe("送信", () => {
 		setVapid(TEST_VAPID_PRIVATE);
 		vi.stubGlobal("fetch", async () => new Response(null, { status: 503 }));
 
-		expect(
-			await sendPushToUser(userId, buildLabelAnalysisDonePayload("j")),
-		).toBe(0);
+		expect(await sendPushToUser(userId)).toBe(0);
 		// プッシュサービスの一時障害で全ユーザの購読が飛ぶことを防ぐ。
 		expect(await subsOf(userId)).toHaveLength(1);
 	});
@@ -213,9 +238,7 @@ describe("送信", () => {
 		});
 
 		// 通知は付随物。ここで throw するとジョブの終端化を巻き込む。
-		await expect(
-			sendPushToUser(userId, buildLabelAnalysisDonePayload("j")),
-		).resolves.toBe(0);
+		await expect(sendPushToUser(userId)).resolves.toBe(0);
 		expect(await subsOf(userId)).toHaveLength(1);
 	});
 
@@ -225,9 +248,7 @@ describe("送信", () => {
 		const fetchSpy = vi.fn();
 		vi.stubGlobal("fetch", fetchSpy);
 
-		expect(
-			await sendPushToUser(userId, buildLabelAnalysisDonePayload("j")),
-		).toBe(0);
+		expect(await sendPushToUser(userId)).toBe(0);
 		expect(fetchSpy).not.toHaveBeenCalled();
 	});
 
@@ -237,8 +258,6 @@ describe("送信", () => {
 		setVapid("not-a-valid-pkcs8-key");
 		vi.stubGlobal("fetch", async () => new Response(null, { status: 201 }));
 
-		expect(
-			await sendPushToUser(userId, buildLabelAnalysisDonePayload("j")),
-		).toBe(0);
+		expect(await sendPushToUser(userId)).toBe(0);
 	});
 });

@@ -23,7 +23,6 @@ import {
 	TooManyRequestsError,
 } from "#/lib/errors";
 import { logError, logInfo, logWarn } from "#/lib/logger";
-import { buildLabelAnalysisDonePayload } from "#/lib/push/notification";
 import {
 	resolveLabelPlan,
 	restoreLabelPlan,
@@ -606,7 +605,7 @@ async function finishJob(
 	// **送信は throw しない**(push-service が内部で握る)。通知は付随物で、
 	// 届かないことより届かないせいで終端化が巻き戻るほうが悪い。
 	if (row && !("error" in outcome)) {
-		await sendPushToUser(row.userId, buildLabelAnalysisDonePayload(jobId));
+		await sendPushToUser(row.userId);
 	}
 }
 

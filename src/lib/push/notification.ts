@@ -11,9 +11,16 @@ export const PUSH_NOTIFICATION_KINDS = ["label_analysis_done"] as const;
 export type PushNotificationKind = (typeof PUSH_NOTIFICATION_KINDS)[number];
 
 /**
- * 送るペイロード。**そのまま JSON にして暗号化する**ので、ここに入れたものは
- * プッシュサービス経由で端末に届く。銘柄名のような解析結果は入れない——
- * 通知は「終わったこと」を伝えるだけにして、中身はアプリを開いてから見せる。
+ * 表示する通知の中身。
+ *
+ * **プッシュサービスには載せない**(#466)。本文なしで「何かあった」だけを送り、
+ * Service Worker がアプリのAPI(`?notification=1`)からこれを取って表示する。
+ * そうすることで暗号化が要らなくなり(送るものが無い)、同時に**文言と遷移先が
+ * サーバ側の TS に残る**——プレーンJSの Service Worker に散らすと、テストの効かない
+ * ところで文言や導線がドリフトする。
+ *
+ * 銘柄名のような解析結果は入れない——通知はロック画面に出る前提なので、
+ * 「何を飲む/買うか」が他人に見える状態を作らない。
  *
  * `url` はクリック時に開く先。アプリ内バッジと**同じ受け取り導線**
  * (`/cellar/new?labelJob=<jobId>`)に合流させることで、通知から入っても
@@ -53,6 +60,26 @@ export function buildLabelAnalysisDonePayload(
 		url: `/cellar/new?labelJob=${encodeURIComponent(jobId)}`,
 		tag: `label-analysis-${jobId}`,
 	};
+}
+
+/**
+ * 通知が来たとき、いまの状態から表示すべき内容を決める(#466)。
+ *
+ * **プッシュは「何かあった」しか伝えない**ので、何を見せるかは Service Worker が
+ * 取りに来た時点の状態で決まる。受け取り待ちが複数あっても通知は1つに畳む——
+ * 「3件終わりました」と出しても、開いた先で受け取れるのは古い1件だけなので、
+ * 件数を出すと導線と食い違う。
+ *
+ * 受け取り待ちが無ければ null。**通知を出さない**という選択はできない
+ * (`userVisibleOnly: true` は必ず何かの表示を要求する)ので、その判断は
+ * Service Worker 側の汎用文言に委ねる。
+ */
+export function buildPendingNotification(badge: {
+	readyCount: number;
+	nextReadyJobId?: string;
+}): PushNotificationPayload | null {
+	if (badge.readyCount === 0 || !badge.nextReadyJobId) return null;
+	return buildLabelAnalysisDonePayload(badge.nextReadyJobId);
 }
 
 /** ブラウザの `PushSubscription` から、サーバへ送る形を取り出したもの。 */
