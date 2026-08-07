@@ -57,13 +57,28 @@ export const getLabelAnalysisPlan = createServerFn({ method: "GET" })
 	}));
 
 /**
- * 完了したエチケット解析ジョブを受け取り、候補を返す(#462)。
+ * エチケット解析ジョブ1件の状態を返す(#462)。**読み取り専用**。
  *
- * 登録画面(`/cellar/new?labelJob=<jobId>`)の**ローダーから**呼ぶ。クライアントで
- * 受け取ると、フォームが空でマウントしてから候補が入る一瞬が見えるため、SSR の時点で
- * 初期値に入っている形にする。
+ * 登録画面(`/cellar/new?labelJob=<jobId>`)のローダーが使う。SSR の時点で候補が
+ * 初期値に入るので、フォームが空でマウントしてから埋まる一瞬が見えない。
  *
- * `method: "POST"` なのは既読化(書き込み)を伴うため。ローダーは再実行されうるが、
+ * **ここで既読化してはいけない**。ルータは `defaultPreload: "intent"` なので、
+ * リンクにホバーしただけでローダーが走る。既読化を混ぜると「バッジのボタンに触れただけで
+ * 完了が消え、結果はURLを知らないと二度と開けない」ことになる(#462 の実機確認で実際に
+ * 起きた)。ローダーは副作用を持たない。
+ */
+export const getLabelAnalysisJobById = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ jobId: z.string().min(1).max(80) }))
+	.handler(async ({ data, context }) =>
+		labelJobService.getLabelAnalysisJob(context.user.id, data.jobId),
+	);
+
+/**
+ * 完了したエチケット解析ジョブを受け取り済みにする(#462)。
+ *
+ * **画面がマウントされてから**クライアントが1回だけ呼ぶ。既読化は「利用者が実際に結果を
+ * 見た」ことの記録なので、ローダー(= ホバーで走りうる)ではなくここで行う。
  * 2回目以降は `alreadyConsumed: true` になるだけで候補は同じものが返る(冪等)。
  */
 export const consumeLabelAnalysisJob = createServerFn({ method: "POST" })
