@@ -21,7 +21,6 @@ import {
 import { LabelSuggestionDiffDialog } from "#/components/cellar/LabelSuggestionDiffDialog";
 import {
 	type AnalysisPhotoSource,
-	analyzeLabelPhotos,
 	submitLabelAnalysisJob,
 } from "#/components/cellar/label-analysis";
 import {
@@ -359,50 +358,35 @@ export function DrunkWineForm({
 	const analysisSources = (): AnalysisPhotoSource[] =>
 		photos.map((p) => (p.kind === "new" ? p.file : { url: photoSrc(p) }));
 
-	// 引き継ぎ直後の自動解析だけが使う**同期**経路(#462)。ここをジョブにすると、
-	// 一括解析から遷移してきた画面が空のまま出てしまう(結果が入っていることが体験の要)。
-	const { mutate: analyzeLabelSync, isPending: isAnalyzingSync } = useMutation({
-		mutationFn: async () => {
-			if (photos.length === 0) throw new Error("写真を選択してください");
-			return analyzeLabelPhotos(analysisSources());
-		},
-		onSuccess: (result) => {
-			// クレジットを消費するのでヘッダ等の残高表示を更新する
-			void queryClient.invalidateQueries({
-				queryKey: CREDIT_BALANCE_QUERY_KEY,
-			});
-			if (result.blocked) {
-				// 自動実行では残高不足のモーダルを出さない。ユーザが押していない処理で
-				// 画面到達直後にモーダルが被さると、引き継いだ入力内容(=一括解析で
-				// 既にクレジットを払って得たもの)が見えないまま驚かせるだけになる。
-				setAnalyzeNotice(
-					"クレジットが不足しているため、詳細なエチケット解析は実行できませんでした。写真から読み取った内容をそのまま入力しています。",
-				);
-				return;
-			}
-			applyLabelSuggestions(result.suggestions, { auto: true });
-		},
-		onError: (e: Error) =>
-			setError(e.message || "エチケットの解析に失敗しました"),
-	});
-
-	// ---- ジョブ経路(利用者が押すボタン。#462) ----
+	// ---- 解析はすべてジョブ経路(#462 / #464) ----
 	//
 	// 投入が返った時点でサーバに予約と写真が載っているので、**ここから先はページを
-	// 離れてよい**。フォームに留まっていればポーリングが完了を拾い、従来と同じ差分
-	// ダイアログが出る。離脱した場合はマイセラーのバッジから受け取れる。
+	// 離れてよい**。フォームに留まっていればポーリングが完了を拾い、離脱した場合は
+	// マイセラーのバッジから受け取れる。
+	//
+	// **自動実行(#416 の引き継ぎ直後)も同じ経路を通る**(#464)。以前ここだけ同期だった
+	// のは「画面到達時に結果が入っていることが体験の要」という理由だったが、フォームには
+	// 一括抽出の候補が既に初期値として入っているので空にはならない。エチケット解析は
+	// それを精緻化するものなので、17〜31秒(#463 の本番実測)拘束する必要が無い。
 	const [jobId, setJobId] = useState<string | null>(null);
 	const { data: job } = useLabelAnalysisJob(jobId);
 	// 完了を1回だけ処理する。ポーリングは終端で止まるが、その最後の1件が
 	// 再レンダリングのたびに流れ込まないようにする。
 	const handledJobRef = useRef<string | null>(null);
+	/**
+	 * 走っているジョブが自動実行のものか。**完了まで持ち回る**必要がある——自動と手動で
+	 * 結末の出し方が違う(ダイアログの有無・残高不足の見せ方)のに、判断できるのは
+	 * 投入した時点だけだから。ジョブ行には持たせない: これは「この画面がどう見せるか」
+	 * であってジョブの性質ではない(別の画面が同じジョブを受け取ることもある)。
+	 */
+	const jobAutoRef = useRef(false);
 
 	const { mutate: startAnalysisJob, isPending: isSubmittingJob } = useMutation({
-		mutationFn: async () => {
+		mutationFn: async ({ auto: _auto }: { auto: boolean }) => {
 			if (photos.length === 0) throw new Error("写真を選択してください");
 			return submitLabelAnalysisJob(analysisSources());
 		},
-		onSuccess: (result) => {
+		onSuccess: (result, { auto }) => {
 			// 投入時点で予約が立つ(=残高が動く)ので、ここで残高表示を更新する。
 			void queryClient.invalidateQueries({
 				queryKey: CREDIT_BALANCE_QUERY_KEY,
@@ -411,15 +395,33 @@ export function DrunkWineForm({
 				queryKey: LABEL_JOB_BADGE_QUERY_KEY,
 			});
 			if (result.blocked) {
+				// 自動実行では残高不足のモーダルを出さない。ユーザが押していない処理で
+				// 画面到達直後にモーダルが被さると、引き継いだ入力内容(=一括解析で
+				// 既にクレジットを払って得たもの)が見えないまま驚かせるだけになる。
+				if (auto) {
+					setAnalyzeNotice(
+						"クレジットが不足しているため、詳細なエチケット解析は実行できませんでした。写真から読み取った内容をそのまま入力しています。",
+					);
+					return;
+				}
 				setShowInsufficient(true);
 				return;
 			}
+			jobAutoRef.current = auto;
 			setJobId(result.jobId);
 			setAnalyzeNotice(
-				"解析を開始しました。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。",
+				auto
+					? "写真から読み取った内容を入力しました。エチケットの詳細な解析を実行中です(完了までこのページを離れても構いません)。"
+					: "解析を開始しました。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。",
 			);
 		},
-		onError: (e: Error) => setError(e.message || "解析の受付に失敗しました"),
+		onError: (e: Error, { auto }) =>
+			setError(
+				e.message ||
+					(auto
+						? "エチケットの解析に失敗しました"
+						: "解析の受付に失敗しました"),
+			),
 	});
 
 	// applyLabelSuggestions は values を読むが、**完了時点の入力**に対して差分を出すのが
@@ -439,7 +441,7 @@ export function DrunkWineForm({
 			return;
 		}
 		setAnalyzeNotice("");
-		applyLabelSuggestions(job.suggestions, { auto: false });
+		applyLabelSuggestions(job.suggestions, { auto: jobAutoRef.current });
 	}, [job, queryClient]);
 
 	// 引き継ぎ直後の自動解析は1回だけ。写真が無ければ何もしない(解析対象が無い)。
@@ -448,14 +450,12 @@ export function DrunkWineForm({
 		if (!autoAnalyzeLabel || autoAnalyzedRef.current) return;
 		if (photos.length === 0) return;
 		autoAnalyzedRef.current = true;
-		setAnalyzeNotice("エチケットを解析しています…");
-		analyzeLabelSync();
-	}, [autoAnalyzeLabel, photos.length, analyzeLabelSync]);
+		startAnalysisJob({ auto: true });
+	}, [autoAnalyzeLabel, photos.length, startAnalysisJob]);
 
-	/** 解析中(投入待ち + ジョブ実行中 + 引き継ぎ直後の同期解析)。 */
+	/** 解析中(投入待ち + ジョブ実行中)。 */
 	const isAnalyzing =
 		isSubmittingJob ||
-		isAnalyzingSync ||
 		(job !== undefined &&
 			(job.status === "queued" || job.status === "running"));
 
@@ -601,7 +601,7 @@ export function DrunkWineForm({
 								onClick={() => {
 									setError("");
 									setAnalyzeNotice("");
-									startAnalysisJob();
+									startAnalysisJob({ auto: false });
 								}}
 							>
 								<SparklesIcon className="size-4" aria-hidden />
