@@ -502,14 +502,13 @@ export const AI_WINE_LIST_ROUTE_MODELS: Record<WineListRoute, string> = {
 };
 
 /**
- * 経路の表示名。**`AI_LABEL_ENGINES` のラベルを流用しない**——あちらは
- * 「高精度(GPT-5.6 Luna + web検索)」のように web検索を含む名前だが、一括抽出は
- * web検索を使わない(#358 の住み分け)。流用すると、使っていない機能でお金を
- * 取っているかのような表示になる。
+ * 経路の表示名。裏取りを含むことが分かる名前にする(#474)——一括抽出も web検索で
+ * 裏を取るようになったので、`AI_LABEL_ENGINES` と同じ「+ web検索」を付けて、
+ * 消費が読み取りだけの頃より大きいことが名前からも分かるようにする。
  */
 export const AI_WINE_LIST_ROUTE_LABELS: Record<WineListRoute, string> = {
-	"gpt-luna": "GPT-5.6 Luna",
-	"web-research": "Claude Sonnet 5",
+	"gpt-luna": "GPT-5.6 Luna + web検索",
+	"web-research": "Claude Sonnet 5 + web検索",
 };
 
 /**
