@@ -518,8 +518,7 @@ export function DrunkWineForm({
 			// 受け取りが新規登録ではなく「このワインを編集」へ向くようになる。
 			// **受け取って開いた回(`pendingLabelJob`)も通す**——そちらは完了済みなので、
 			// この保存で解析に使った写真がこのワインの写真として引き継がれる(#474)。
-			const targetJobId =
-				jobId ?? pendingLabelJob?.jobId ?? sourceLabelJobId;
+			const targetJobId = jobId ?? pendingLabelJob?.jobId ?? sourceLabelJobId;
 			if (targetJobId) attachJobToEntry(targetJobId, saved.id);
 			// 保存済みなので、この後の遷移は警告しない(onSaved が遷移することが多い)
 			leavingAfterSaveRef.current = true;
