@@ -2,11 +2,24 @@ import { downscaleForAnalysis } from "#/components/cellar/photo-resize";
 import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import { postImageForm } from "#/lib/images/form-client";
 import type { AnalyzeLabelResult } from "#/lib/services/ai-service";
+import type {
+	LabelAnalysisJobBadge,
+	LabelAnalysisJobView,
+	SubmitLabelAnalysisJobResult,
+} from "#/lib/services/label-job-service";
 
 // エチケット自動入力のクライアント側ヘルパー。現在フォームに添付中の写真(新規ファイル+
-// 保存済みの既存写真)をすべて解析用に縮小して /api/label-analysis へ送り、複数枚を
-// 総合判断させる。縮小はAI入力トークン(=クレジット)と転送量の削減が目的で、保存用の
-// オリジナル写真(/api/wine-photos)には影響しない。
+// 保存済みの既存写真)をすべて解析用に縮小して送り、複数枚を総合判断させる。縮小はAI入力
+// トークン(=クレジット)と転送量の削減が目的で、保存用のオリジナル写真
+// (/api/wine-photos)には影響しない。
+//
+// 経路は2本あり、**利用者が押すボタンはジョブ経路**(#462):
+//
+//  - `submitLabelAnalysisJob` … /api/label-analysis-jobs へ投入して jobId を受け取る。
+//    投入後はページを離れてよく、完了はマイセラーのバッジから受け取れる
+//  - `analyzeLabelPhotos` … /api/label-analysis で完了まで待つ同期経路。**一括登録
+//    ウィザードからの引き継ぎ直後の自動解析だけ**が使う(#416)。あちらは「画面到達と
+//    同時に結果が入っている」ことが体験の要で、ジョブ化すると画面が空のまま出る
 
 /** 解析対象の写真ソース。新規はFile、既存はサーバ配信URL(同一オリジン)。 */
 export type AnalysisPhotoSource = File | { url: string };
@@ -33,13 +46,10 @@ async function toAnalysisBlob(source: AnalysisPhotoSource): Promise<Blob> {
 	return res.blob();
 }
 
-/**
- * 添付中の全写真を縮小して解析APIへ送り、自動入力候補を受け取る。失敗時はErrorをthrow。
- * sources は表示順。新規ファイルと既存写真(URL)を混在して渡せる。
- */
-export async function analyzeLabelPhotos(
+/** 添付中の全写真を解析用に縮小して FormData に積む。2つの経路が共有する。 */
+async function buildAnalysisForm(
 	sources: AnalysisPhotoSource[],
-): Promise<AnalyzeLabelResult> {
+): Promise<FormData> {
 	if (sources.length === 0) throw new Error("写真を選択してください");
 	const form = new FormData();
 	for (const [index, source] of sources.entries()) {
@@ -55,8 +65,89 @@ export async function analyzeLabelPhotos(
 				: new File([blob], "label.jpg", { type: blob.type }),
 		);
 	}
-	return postImageForm<AnalyzeLabelResult>("/api/label-analysis", form, {
-		fallbackMessage: "エチケットの解析に失敗しました",
-		maxPhotos: MAX_PHOTOS_PER_ENTRY,
-	});
+	return form;
+}
+
+/**
+ * 添付中の全写真を縮小して**同期**解析APIへ送り、自動入力候補を受け取る。
+ * 失敗時はErrorをthrow。sources は表示順。
+ *
+ * **利用者が押すボタンはこちらではない**(#462)。使うのは一括登録ウィザードからの
+ * 引き継ぎ直後の自動解析だけで、そちらは画面到達時に結果が入っていることが要件。
+ */
+export async function analyzeLabelPhotos(
+	sources: AnalysisPhotoSource[],
+): Promise<AnalyzeLabelResult> {
+	return postImageForm<AnalyzeLabelResult>(
+		"/api/label-analysis",
+		await buildAnalysisForm(sources),
+		{
+			fallbackMessage: "エチケットの解析に失敗しました",
+			maxPhotos: MAX_PHOTOS_PER_ENTRY,
+		},
+	);
+}
+
+/**
+ * 添付中の全写真を解析ジョブとして**投入する**(#462)。返るのは jobId で、解析結果は
+ * ポーリング(`fetchLabelAnalysisJob`)で受け取る。
+ *
+ * 投入が返った時点でサーバ側に予約と写真が載っているので、ここから先はページを離れてよい。
+ */
+export async function submitLabelAnalysisJob(
+	sources: AnalysisPhotoSource[],
+): Promise<SubmitLabelAnalysisJobResult> {
+	return postImageForm<SubmitLabelAnalysisJobResult>(
+		"/api/label-analysis-jobs",
+		await buildAnalysisForm(sources),
+		{
+			fallbackMessage: "解析の受付に失敗しました",
+			maxPhotos: MAX_PHOTOS_PER_ENTRY,
+		},
+	);
+}
+
+/** JSON を取り、エラーレスポンスはサーバの文言で throw する共通の受け口。 */
+async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
+	const res = await fetch(url, init);
+	const body = await res
+		.json()
+		.then((json) => json as T & { error?: unknown })
+		.catch(() => null);
+	if (!res.ok) {
+		throw new Error(
+			typeof body?.error === "string"
+				? body.error
+				: "解析状況の取得に失敗しました",
+		);
+	}
+	if (body === null) throw new Error("解析状況の取得に失敗しました");
+	return body;
+}
+
+/** ジョブ1件の状態を取る(ポーリングの本体)。 */
+export async function fetchLabelAnalysisJob(
+	jobId: string,
+): Promise<LabelAnalysisJobView> {
+	return getJson<LabelAnalysisJobView>(
+		`/api/label-analysis-jobs?id=${encodeURIComponent(jobId)}`,
+	);
+}
+
+/** マイセラーのバッジの件数を取る(行の中身は運ばれない)。 */
+export async function fetchLabelAnalysisJobBadge(): Promise<LabelAnalysisJobBadge> {
+	return getJson<LabelAnalysisJobBadge>("/api/label-analysis-jobs?badge=1");
+}
+
+/**
+ * 完了ジョブを受け取り済みにして候補を取る(#462)。既読化と取得が1操作なので、
+ * 「開いたのにバッジが減らない」「減ったのに候補が出ない」がどちらも起きない。
+ */
+export async function consumeLabelAnalysisJob(
+	jobId: string,
+): Promise<{ view: LabelAnalysisJobView; alreadyConsumed: boolean }> {
+	return getJson<{ view: LabelAnalysisJobView; alreadyConsumed: boolean }>(
+		`/api/label-analysis-jobs?id=${encodeURIComponent(jobId)}`,
+		{ method: "PATCH" },
+	);
 }

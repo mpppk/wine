@@ -1,13 +1,16 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon, ImagesIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { DrunkWineForm } from "#/components/cellar/DrunkWineForm";
+import { valuesFromSuggestions } from "#/components/cellar/import-candidates";
 import { PhotoRegisterWizard } from "#/components/cellar/PhotoRegisterWizard";
 import {
 	MAX_HANDOFF_PHOTOS,
 	type ManualFormStart,
 } from "#/components/cellar/single-wine-handoff";
+import { LABEL_JOB_BADGE_QUERY_KEY } from "#/components/cellar/use-label-analysis-job";
 import { Button } from "#/components/ui/button";
 import {
 	Dialog,
@@ -17,8 +20,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import { DEFAULT_WINE_STATUS } from "#/lib/drunk-wine/status";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
-import { getWineListAnalysisPlan } from "#/server/ai";
+import {
+	consumeLabelAnalysisJob,
+	getLabelAnalysisJobById,
+	getWineListAnalysisPlan,
+} from "#/server/ai";
 import { getImportBatch, listPlaces } from "#/server/place";
 
 // ワインの登録画面。**写真から始める**のが既定の流れで、手入力は「手動で入力」を
@@ -37,14 +45,23 @@ import { getImportBatch, listPlaces } from "#/server/place";
  */
 const searchSchema = z.object({
 	rescan: z.string().min(1).max(80).optional(),
+	/**
+	 * 完了したエチケット解析ジョブの受け取り(#462)。`?labelJob=<jobId>` で開くと、
+	 * その候補を初期値にした記録フォームが立ち上がる(写真ウィザードは飛ばす)。
+	 * マイセラーの解析バッジからの唯一の遷移先。
+	 */
+	labelJob: z.string().min(1).max(80).optional(),
 });
 
 export const Route = createFileRoute("/cellar/new")({
 	validateSearch: searchSchema,
 	beforeLoad: requireAuthBeforeLoad,
-	loaderDeps: ({ search }) => ({ rescan: search.rescan }),
+	loaderDeps: ({ search }) => ({
+		rescan: search.rescan,
+		labelJob: search.labelJob,
+	}),
 	loader: async ({ deps }) => {
-		const [places, wineListPlan, rescanBatch] = await Promise.all([
+		const [places, wineListPlan, rescanBatch, labelJob] = await Promise.all([
 			listPlaces(),
 			getWineListAnalysisPlan(),
 			// 他人のバッチ・存在しないIDはサービス層が 404 にする。写真が無いバッチは
@@ -52,14 +69,24 @@ export const Route = createFileRoute("/cellar/new")({
 			deps.rescan
 				? getImportBatch({ data: { batchId: deps.rescan } }).catch(() => null)
 				: null,
+			// 候補をローダーで**読む**ことで、フォームが空でマウントしてから埋まる一瞬を
+			// 作らない。**既読化はここでしない**——ルータは `defaultPreload: "intent"` で、
+			// リンクにホバーしただけでローダーが走る。ここに書き込みを混ぜると「バッジの
+			// ボタンに触れただけで完了が消える」ことになる(実機確認で実際に起きた)。
+			// 他人のジョブ・存在しないIDは 404 になるので、素の登録画面として開く。
+			deps.labelJob
+				? getLabelAnalysisJobById({ data: { jobId: deps.labelJob } }).catch(
+						() => null,
+					)
+				: null,
 		]);
-		return { places, wineListPlan, rescanBatch };
+		return { places, wineListPlan, rescanBatch, labelJob };
 	},
 	component: CellarNewPage,
 });
 
 function CellarNewPage() {
-	const { places, wineListPlan, rescanBatch } = Route.useLoaderData();
+	const { places, wineListPlan, rescanBatch, labelJob } = Route.useLoaderData();
 	// 写真の実体が無いバッチ(登録だけして写真アップロードに失敗した回)は
 	// 再解析の材料が無いので、通常の登録画面として扱う
 	const rescan =
@@ -75,17 +102,56 @@ function CellarNewPage() {
 	const navigate = useNavigate();
 	// 単体の記録フォームへ切り替えているときだけ荷物が入る。null = 写真ウィザード。
 	// 解析が使えない環境では写真の経路自体が無いので、最初から手入力で開く。
-	const [manual, setManual] = useState<ManualFormStart | null>(() =>
-		wineListPlan.route
+	const [manual, setManual] = useState<ManualFormStart | null>(() => {
+		// 解析ジョブの受け取り(#462)。候補は既にサーバ側で得ているので、写真ウィザードは
+		// 飛ばして記録フォームを候補入りで開く。**写真は引き継がない**——ジョブの入力写真は
+		// 終端で削除される(解析の入力であって成果物ではない)ので、フォームに載せる実体が
+		// 無い。利用者は必要なら保存用の写真を改めて選ぶ。
+		if (labelJob?.suggestions) {
+			return {
+				values: valuesFromSuggestions(
+					labelJob.suggestions,
+					DEFAULT_WINE_STATUS,
+				),
+				files: [],
+				droppedPhotoCount: 0,
+				reason: "label_job",
+				discardedSightingInput: false,
+			};
+		}
+		return wineListPlan.route
 			? null
 			: {
 					files: [],
 					droppedPhotoCount: 0,
 					reason: "manual_choice",
 					discardedSightingInput: false,
-				},
-	);
+				};
+	});
 	const [confirmBackOpen, setConfirmBackOpen] = useState(false);
+
+	// 解析結果を**実際に画面へ出した**時点で受け取り済みにする(#462)。ローダーではなく
+	// ここで行うのは、ルータの `defaultPreload: "intent"` によりローダーがホバーだけで
+	// 走るため——書き込みをローダーに置くと、バッジのボタンに触れただけで完了が消える。
+	const queryClient = useQueryClient();
+	const consumedRef = useRef<string | null>(null);
+	useEffect(() => {
+		const jobId = labelJob?.jobId;
+		if (!jobId || !labelJob.suggestions) return;
+		if (consumedRef.current === jobId) return;
+		consumedRef.current = jobId;
+		consumeLabelAnalysisJob({ data: { jobId } })
+			.then(() => {
+				// バッジの件数を引き直す(この1件が受け取り待ちから外れる)。
+				void queryClient.invalidateQueries({
+					queryKey: LABEL_JOB_BADGE_QUERY_KEY,
+				});
+			})
+			.catch(() => {
+				// 既読化に失敗しても候補は画面に出ている。バッジに残るだけなので、
+				// 利用者の操作を止めるほどのことではない(次に開けば消える)。
+			});
+	}, [labelJob, queryClient]);
 
 	// 写真ウィザードへ戻れるのは、解析が使える環境で切り替えてきたときだけ
 	const canGoBackToPhotos = wineListPlan.route !== null && manual !== null;
@@ -189,11 +255,19 @@ function ManualNotice({
 	onBack?: () => void;
 }) {
 	const fromSingleWine = start.reason === "single_wine";
+	const fromLabelJob = start.reason === "label_job";
 	// 手入力しか選べない環境(解析が使えない)では案内することが何も無い
-	if (!fromSingleWine && !onBack && start.files.length === 0) return null;
+	if (!fromSingleWine && !fromLabelJob && !onBack && start.files.length === 0) {
+		return null;
+	}
 
 	return (
 		<div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-4 text-sm">
+			{fromLabelJob && (
+				<p>
+					エチケットの解析結果を反映しました。内容を確認して保存してください(写真は解析用のもので保存されていないため、残す場合は選び直してください)。
+				</p>
+			)}
 			{fromSingleWine ? (
 				<p>
 					1本のワインの写真と判定したため、記録フォームに切り替えました。写真から読み取った内容を入力し、エチケットの詳細な解析を実行しています。

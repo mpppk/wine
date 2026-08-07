@@ -22,6 +22,7 @@ import { LabelSuggestionDiffDialog } from "#/components/cellar/LabelSuggestionDi
 import {
 	type AnalysisPhotoSource,
 	analyzeLabelPhotos,
+	submitLabelAnalysisJob,
 } from "#/components/cellar/label-analysis";
 import {
 	buildLabelDiffs,
@@ -30,6 +31,10 @@ import {
 import { downscaleImage } from "#/components/cellar/photo-resize";
 import { TastingFields } from "#/components/cellar/TastingFields";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
+import {
+	LABEL_JOB_BADGE_QUERY_KEY,
+	useLabelAnalysisJob,
+} from "#/components/cellar/use-label-analysis-job";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { FormField, FormSection } from "#/components/ui/form-section";
@@ -37,6 +42,7 @@ import { Input } from "#/components/ui/input";
 import { LiveRegion } from "#/components/ui/live-region";
 import { TAP_TARGET_44 } from "#/lib/a11y";
 import { estimateLabelReserveCharge } from "#/lib/ai/config";
+import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import { costToCredits } from "#/lib/credit/credit-math";
 import {
 	CREDIT_BALANCE_QUERY_KEY,
@@ -317,18 +323,50 @@ export function DrunkWineForm({
 		);
 	};
 
-	const { mutate: analyzeLabel, isPending: isAnalyzing } = useMutation({
-		// auto=true は「遷移直後の自動実行」(#416)。ユーザ操作を起点にしないので、
-		// 結果の提示の仕方(ダイアログ / 不足時のモーダル)を変える
-		mutationFn: async ({ auto: _auto }: { auto: boolean }) => {
-			if (photos.length === 0) throw new Error("写真を選択してください");
-			// 既存写真はURL(同一オリジン)、新規はFileとして全枚数を総合解析する
-			const sources: AnalysisPhotoSource[] = photos.map((p) =>
-				p.kind === "new" ? p.file : { url: photoSrc(p) },
+	/**
+	 * 解析結果(候補)をフォームに反映する。**同期経路とジョブ経路で共有する**——
+	 * 差分の作り方と提示の仕方を経路ごとに書くと、片方だけ産地の排他規則を落とすような
+	 * ドリフトが起きる(#362 でその適用ルールを buildLabelDiffs に寄せたのと同じ理由)。
+	 *
+	 * `auto` は「遷移直後の自動実行」(#416)。ユーザ操作を起点にしないので、ダイアログを
+	 * 挟まずそのまま反映する——遷移前の確認ダイアログで既に「解析して記録する」を選んで
+	 * おり、ここでもう一度選ばせるのは同じ意思決定の二度手間になる。
+	 */
+	const applyLabelSuggestions = (
+		suggestions: LabelSuggestions,
+		{ auto }: { auto: boolean },
+	) => {
+		// 「未入力の項目にしか反映しない」自動適用だと、写真追加やエンジン切替での
+		// 再解析結果が一切伝わらずクレジットだけ消費される(#362)。差分がある項目を
+		// ダイアログで提示し、反映するかどうかをユーザに選ばせる。
+		const diffs = buildLabelDiffs(values, suggestions);
+		if (diffs.length === 0) {
+			setAnalyzeNotice(
+				auto
+					? "エチケットを解析しました(写真から読み取った内容と差はありませんでした)"
+					: "今回の解析結果と現在の入力に差分はありませんでした(クレジットは消費されています)",
 			);
-			return analyzeLabelPhotos(sources);
+			return;
+		}
+		if (auto) {
+			applySelectedLabelDiffs(diffs);
+			return;
+		}
+		setLabelDiffs(diffs);
+	};
+
+	/** 添付中の写真を解析ソースへ。既存写真はURL(同一オリジン)、新規はFile。 */
+	const analysisSources = (): AnalysisPhotoSource[] =>
+		photos.map((p) => (p.kind === "new" ? p.file : { url: photoSrc(p) }));
+
+	// 引き継ぎ直後の自動解析だけが使う**同期**経路(#462)。ここをジョブにすると、
+	// 一括解析から遷移してきた画面が空のまま出てしまう(結果が入っていることが体験の要)。
+	const { mutate: analyzeLabelSync, isPending: isAnalyzingSync } = useMutation({
+		mutationFn: async () => {
+			if (photos.length === 0) throw new Error("写真を選択してください");
+			return analyzeLabelPhotos(analysisSources());
 		},
-		onSuccess: (result, { auto }) => {
+		onSuccess: (result) => {
 			// クレジットを消費するのでヘッダ等の残高表示を更新する
 			void queryClient.invalidateQueries({
 				queryKey: CREDIT_BALANCE_QUERY_KEY,
@@ -337,38 +375,72 @@ export function DrunkWineForm({
 				// 自動実行では残高不足のモーダルを出さない。ユーザが押していない処理で
 				// 画面到達直後にモーダルが被さると、引き継いだ入力内容(=一括解析で
 				// 既にクレジットを払って得たもの)が見えないまま驚かせるだけになる。
-				if (auto) {
-					setAnalyzeNotice(
-						"クレジットが不足しているため、詳細なエチケット解析は実行できませんでした。写真から読み取った内容をそのまま入力しています。",
-					);
-					return;
-				}
-				setShowInsufficient(true);
-				return;
-			}
-			// 「未入力の項目にしか反映しない」自動適用だと、写真追加やエンジン切替での
-			// 再解析結果が一切伝わらずクレジットだけ消費される(#362)。差分がある項目を
-			// ダイアログで提示し、反映するかどうかをユーザに選ばせる。
-			const diffs = buildLabelDiffs(values, result.suggestions);
-			if (diffs.length === 0) {
 				setAnalyzeNotice(
-					auto
-						? "エチケットを解析しました(写真から読み取った内容と差はありませんでした)"
-						: "今回の解析結果と現在の入力に差分はありませんでした(クレジットは消費されています)",
+					"クレジットが不足しているため、詳細なエチケット解析は実行できませんでした。写真から読み取った内容をそのまま入力しています。",
 				);
 				return;
 			}
-			// 自動実行はダイアログを挟まずそのまま反映する。反映の規則(産地の排他など)は
-			// buildLabelDiffs が持つので、ここで別の適用ロジックを書かない
-			if (auto) {
-				applySelectedLabelDiffs(diffs);
-				return;
-			}
-			setLabelDiffs(diffs);
+			applyLabelSuggestions(result.suggestions, { auto: true });
 		},
 		onError: (e: Error) =>
 			setError(e.message || "エチケットの解析に失敗しました"),
 	});
+
+	// ---- ジョブ経路(利用者が押すボタン。#462) ----
+	//
+	// 投入が返った時点でサーバに予約と写真が載っているので、**ここから先はページを
+	// 離れてよい**。フォームに留まっていればポーリングが完了を拾い、従来と同じ差分
+	// ダイアログが出る。離脱した場合はマイセラーのバッジから受け取れる。
+	const [jobId, setJobId] = useState<string | null>(null);
+	const { data: job } = useLabelAnalysisJob(jobId);
+	// 完了を1回だけ処理する。ポーリングは終端で止まるが、その最後の1件が
+	// 再レンダリングのたびに流れ込まないようにする。
+	const handledJobRef = useRef<string | null>(null);
+
+	const { mutate: startAnalysisJob, isPending: isSubmittingJob } = useMutation({
+		mutationFn: async () => {
+			if (photos.length === 0) throw new Error("写真を選択してください");
+			return submitLabelAnalysisJob(analysisSources());
+		},
+		onSuccess: (result) => {
+			// 投入時点で予約が立つ(=残高が動く)ので、ここで残高表示を更新する。
+			void queryClient.invalidateQueries({
+				queryKey: CREDIT_BALANCE_QUERY_KEY,
+			});
+			void queryClient.invalidateQueries({
+				queryKey: LABEL_JOB_BADGE_QUERY_KEY,
+			});
+			if (result.blocked) {
+				setShowInsufficient(true);
+				return;
+			}
+			setJobId(result.jobId);
+			setAnalyzeNotice(
+				"解析を開始しました。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。",
+			);
+		},
+		onError: (e: Error) => setError(e.message || "解析の受付に失敗しました"),
+	});
+
+	// applyLabelSuggestions は values を読むが、**完了時点の入力**に対して差分を出すのが
+	// 正しい(解析中に編集した内容を上書き候補として見せる)。依存に values を入れると
+	// 入力のたびに再実行されるため、意図的に job の遷移だけを見る。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 完了の1回だけ処理する
+	useEffect(() => {
+		if (!job || handledJobRef.current === job.jobId) return;
+		if (job.status === "queued" || job.status === "running") return;
+		handledJobRef.current = job.jobId;
+		// 実測での確定が済んでいるので残高を引き直す(予約時との差分が戻っている)。
+		void queryClient.invalidateQueries({ queryKey: CREDIT_BALANCE_QUERY_KEY });
+		void queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY });
+		if (job.status === "failed" || !job.suggestions) {
+			setError(job.error || "エチケットの解析に失敗しました");
+			setAnalyzeNotice("");
+			return;
+		}
+		setAnalyzeNotice("");
+		applyLabelSuggestions(job.suggestions, { auto: false });
+	}, [job, queryClient]);
 
 	// 引き継ぎ直後の自動解析は1回だけ。写真が無ければ何もしない(解析対象が無い)。
 	const autoAnalyzedRef = useRef(false);
@@ -377,8 +449,15 @@ export function DrunkWineForm({
 		if (photos.length === 0) return;
 		autoAnalyzedRef.current = true;
 		setAnalyzeNotice("エチケットを解析しています…");
-		analyzeLabel({ auto: true });
-	}, [autoAnalyzeLabel, photos.length, analyzeLabel]);
+		analyzeLabelSync();
+	}, [autoAnalyzeLabel, photos.length, analyzeLabelSync]);
+
+	/** 解析中(投入待ち + ジョブ実行中 + 引き継ぎ直後の同期解析)。 */
+	const isAnalyzing =
+		isSubmittingJob ||
+		isAnalyzingSync ||
+		(job !== undefined &&
+			(job.status === "queued" || job.status === "running"));
 
 	const { mutate: save, isPending } = useMutation({
 		mutationFn: async () => {
@@ -522,7 +601,7 @@ export function DrunkWineForm({
 								onClick={() => {
 									setError("");
 									setAnalyzeNotice("");
-									analyzeLabel({ auto: false });
+									startAnalysisJob();
 								}}
 							>
 								<SparklesIcon className="size-4" aria-hidden />
@@ -533,6 +612,7 @@ export function DrunkWineForm({
 								{requiredCredits === null
 									? "(AIクレジットを消費)"
 									: `(約${requiredCredits.toLocaleString("ja-JP")}クレジットを消費)`}
+								。解析はサーバ側で続くので、待たずにページを離れても構いません
 							</p>
 							{insufficientCredits && (
 								<p className="text-xs text-destructive">

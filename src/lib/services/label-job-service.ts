@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { labelAnalysisJob } from "#/db/schema";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
@@ -80,10 +80,27 @@ export interface LabelAnalysisJobView {
 	balance?: number;
 	createdAt: number;
 	finishedAt?: number;
+	/** 利用者が結果を受け取ったか(#462)。完了バッジの出し分けに使う */
+	consumed?: boolean;
 }
 
 /** 未終端(= まだ枠を占有している)状態。 */
 const ACTIVE_STATUSES = ["queued", "running"] as const;
+
+/**
+ * マイセラーの解析バッジの材料(#462)。
+ *
+ * **件数だけでなく最新の1件のIDを返す**。バッジの主導線は「完了をタップして候補入りの
+ * 登録フォームを開く」なので、UI 側がもう1往復して一覧を引き直さずに遷移できる形にする。
+ */
+export interface LabelAnalysisJobBadge {
+	/** 未終端(queued/running)の件数 */
+	activeCount: number;
+	/** 完了していて、まだ受け取られていない件数 */
+	readyCount: number;
+	/** 受け取り待ちのうち最も古いジョブのID。`readyCount === 0` なら undefined */
+	nextReadyJobId?: string;
+}
 
 /**
  * エチケット解析ジョブを投入する。
@@ -338,24 +355,109 @@ export async function getLabelAnalysisJob(
 }
 
 /**
- * 本人の未終端ジョブを新しい順に返す(マイセラーの「解析中」バッジの材料)。
+ * 本人の「まだ画面に出すべき」ジョブを新しい順に返す。
+ *
+ * 対象は **未終端(queued/running) + 完了していて未受け取り(succeeded かつ consumed_at
+ * が null)**。失敗したジョブは含めない——失敗は投入した画面でその場で見せるもので、
+ * 後からマイセラーに溜めても利用者が取れる行動が無い(クレジットは返却済み)。
+ *
  * 件数は同時実行上限で頭打ちなので上限指定は要らない。
  */
-export async function listActiveLabelAnalysisJobs(
+export async function listPendingLabelAnalysisJobs(
 	userId: string,
 ): Promise<LabelAnalysisJobView[]> {
 	await settleStaleLabelAnalysisJobs(userId);
 	const rows = await db
 		.select()
 		.from(labelAnalysisJob)
-		.where(
-			and(
-				eq(labelAnalysisJob.userId, userId),
-				inArray(labelAnalysisJob.status, [...ACTIVE_STATUSES]),
-			),
-		)
+		.where(and(eq(labelAnalysisJob.userId, userId), pendingCondition()))
 		.orderBy(desc(labelAnalysisJob.createdAt));
 	return rows.map(toJobView);
+}
+
+/**
+ * 未終端、または完了していて未受け取りのジョブを指す条件(#462)。
+ *
+ * **一覧・バッジ・受け取りで同じ条件を使う**ため関数に切り出す。ここが経路ごとに
+ * 書き分けられると、「バッジには出るのに開くと空」「受け取ったのにバッジが減らない」が
+ * 静かに生まれる(CLAUDE.md の「同種の定義が2箇所以上に現れたらSSOT化する」)。
+ */
+function pendingCondition() {
+	return or(
+		inArray(labelAnalysisJob.status, [...ACTIVE_STATUSES]),
+		and(
+			eq(labelAnalysisJob.status, "succeeded"),
+			isNull(labelAnalysisJob.consumedAt),
+		),
+	);
+}
+
+/**
+ * マイセラーの解析バッジの材料を返す(#462)。
+ *
+ * 一覧(`listPendingLabelAnalysisJobs`)と**同じ条件**を通し、件数だけを取り出す。
+ * バッジは全ページの共通ヘッダから引かれうるので、行の中身(suggestions は数KBある)を
+ * 運ばない形にしてある。
+ */
+export async function getLabelAnalysisJobBadge(
+	userId: string,
+): Promise<LabelAnalysisJobBadge> {
+	await settleStaleLabelAnalysisJobs(userId);
+	const rows = await db
+		.select({
+			id: labelAnalysisJob.id,
+			status: labelAnalysisJob.status,
+			createdAt: labelAnalysisJob.createdAt,
+		})
+		.from(labelAnalysisJob)
+		.where(and(eq(labelAnalysisJob.userId, userId), pendingCondition()))
+		.orderBy(asc(labelAnalysisJob.createdAt));
+	const ready = rows.filter((row) => row.status === "succeeded");
+	return {
+		activeCount: rows.length - ready.length,
+		readyCount: ready.length,
+		// 受け取り待ちは**古い順に**案内する(投げた順に片付く)。
+		...(ready[0] ? { nextReadyJobId: ready[0].id } : {}),
+	};
+}
+
+/**
+ * 完了したジョブを受け取り済みにして、その候補を返す(#462)。
+ *
+ * 「候補入りの登録フォームを開く」導線の入口。**取得と既読化を1つの操作にする**のは、
+ * 別々にすると「開いたのにバッジが減らない」「減ったのに候補が出ない」の両方が起きうる
+ * ため。既読化は条件付き UPDATE の RETURNING で行い、二重に開いても2回目は
+ * `alreadyConsumed` を返す(候補自体は返すので、リロードで空になったりはしない)。
+ */
+export async function consumeLabelAnalysisJob(
+	userId: string,
+	jobId: string,
+): Promise<{ view: LabelAnalysisJobView; alreadyConsumed: boolean }> {
+	const [job] = await db
+		.select()
+		.from(labelAnalysisJob)
+		.where(
+			and(eq(labelAnalysisJob.id, jobId), eq(labelAnalysisJob.userId, userId)),
+		)
+		.limit(1);
+	if (!job) throw new NotFoundError("ジョブが見つかりません");
+	if (job.status !== "succeeded") {
+		// まだ終わっていない/失敗したジョブには受け取る候補が無い。ポーリングの
+		// 状態取得(getLabelAnalysisJob)を使うべき場面なので、その旨を返す。
+		throw new BadRequestError("このジョブにはまだ解析結果がありません");
+	}
+	const [updated] = await db
+		.update(labelAnalysisJob)
+		.set({ consumedAt: new Date() })
+		.where(
+			and(
+				eq(labelAnalysisJob.id, jobId),
+				eq(labelAnalysisJob.userId, userId),
+				isNull(labelAnalysisJob.consumedAt),
+			),
+		)
+		.returning({ id: labelAnalysisJob.id });
+	return { view: toJobView(job), alreadyConsumed: !updated };
 }
 
 /** 未終端(queued/running)のジョブ件数。同時実行上限の判定に使う。 */
@@ -554,6 +656,7 @@ function toJobView(job: LabelAnalysisJobRow): LabelAnalysisJobView {
 			: {}),
 		...(job.actualTokens === null ? {} : { actualTokens: job.actualTokens }),
 		...(job.error ? { error: job.error } : {}),
+		...(job.consumedAt ? { consumed: true } : {}),
 		createdAt: job.createdAt.getTime(),
 		...(job.finishedAt ? { finishedAt: job.finishedAt.getTime() } : {}),
 	};
