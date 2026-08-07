@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { NormalizedBox } from "#/lib/images/crop-geometry";
 import { LABEL_WEB_JSON_SCHEMA } from "./label-extraction";
 import {
 	type AnswerCollector,
 	buildLabelTools,
 	SUBMIT_ANSWER_SCHEMA,
 	SUBMIT_ANSWER_TOOL_NAME,
+	ZOOM_PHOTO_TOOL_NAME,
 } from "./label-tools";
 import type { WebResearchTrace } from "./web-research-trace";
 
@@ -24,7 +26,11 @@ async function callSubmit(
 	answer: Record<string, unknown>,
 	context: { trace?: WebResearchTrace } = {},
 ) {
-	const tools = buildLabelTools(collector, () => context);
+	const tools = buildLabelTools({
+		collector,
+		getVerifyContext: () => context,
+		photoCount: 1,
+	});
 	const submit = tools[SUBMIT_ANSWER_TOOL_NAME] as unknown as {
 		execute: (input: unknown) => unknown;
 	};
@@ -43,7 +49,11 @@ const validAnswer = {
 
 describe("buildLabelTools", () => {
 	it("マスタ参照3種と提出ツールを渡す", () => {
-		const tools = buildLabelTools({}, () => ({}));
+		const tools = buildLabelTools({
+			collector: {},
+			getVerifyContext: () => ({}),
+			photoCount: 1,
+		});
 		expect(Object.keys(tools).sort()).toEqual([
 			"get_appellation",
 			"lookup_producer",
@@ -109,7 +119,11 @@ describe("submit_answer", () => {
 		// 「後から開いたページ」の引用をURLの創作とみなして落としてしまう。
 		const collector: AnswerCollector = {};
 		let current: { trace?: WebResearchTrace } = {};
-		const tools = buildLabelTools(collector, () => current);
+		const tools = buildLabelTools({
+			collector,
+			getVerifyContext: () => current,
+			photoCount: 1,
+		});
 		const submit = tools[SUBMIT_ANSWER_TOOL_NAME] as unknown as {
 			execute: (input: unknown) => unknown;
 		};
@@ -149,5 +163,90 @@ describe("submit_answer", () => {
 			origin: "photo_and_web",
 			url: "https://www.vivino.com/d",
 		});
+	});
+});
+
+describe("zoom_photo", () => {
+	// **この経路の精度を決めるツール**。ボトル全体の写真ではラベルの文字が潰れて読めず、
+	// 実測では原寸(2180px)を送っても改善しなかった。効いたのは切り出しだけ。
+	const crop = async (_photoIndex: number, box: NormalizedBox) => ({
+		dataUrl: "data:image/jpeg;base64,QUJD",
+		applied: { ...box, x: box.x + 0.01 },
+	});
+
+	function zoomTool(photoCount: number, cropPhoto = crop) {
+		const tools = buildLabelTools({
+			collector: {},
+			getVerifyContext: () => ({}),
+			photoCount,
+			cropPhoto,
+		});
+		return tools[ZOOM_PHOTO_TOOL_NAME] as unknown as {
+			execute: (input: unknown) => unknown;
+			toModelOutput: (options: { output: unknown }) => unknown;
+		};
+	}
+
+	it("cropPhoto を渡さなければツールを出さない", () => {
+		// 変換手段が無い環境で「使えないツール」を見せない
+		const tools = buildLabelTools({
+			collector: {},
+			getVerifyContext: () => ({}),
+			photoCount: 1,
+		});
+		expect(ZOOM_PHOTO_TOOL_NAME in tools).toBe(false);
+	});
+
+	it("範囲外の写真番号はエラーを返す(throw しない)", async () => {
+		const result = (await zoomTool(2).execute({
+			photoIndex: 5,
+			x: 0,
+			y: 0,
+			width: 1,
+			height: 1,
+		})) as { error?: string };
+		expect(result.error).toContain("写真 5 はありません");
+	});
+
+	it("結果は画像としてモデルへ返す(座標だけ返しても読めるようにならない)", async () => {
+		const tool = zoomTool(1);
+		const output = await tool.execute({
+			photoIndex: 0,
+			x: 0.3,
+			y: 0.4,
+			width: 0.2,
+			height: 0.2,
+		});
+		const modelOutput = tool.toModelOutput({ output }) as {
+			type: string;
+			value: { type: string; mediaType?: string }[];
+		};
+		expect(modelOutput.type).toBe("content");
+		expect(modelOutput.value.map((v) => v.type)).toEqual(["text", "file"]);
+		expect(modelOutput.value[1]?.mediaType).toBe("image/jpeg");
+	});
+
+	it("適用した範囲を本文で伝える(モデルがズレに気づける)", async () => {
+		const tool = zoomTool(1);
+		const output = await tool.execute({
+			photoIndex: 0,
+			x: 0.3,
+			y: 0.4,
+			width: 0.2,
+			height: 0.2,
+		});
+		const modelOutput = tool.toModelOutput({ output }) as {
+			value: { type: string; text?: string }[];
+		};
+		// 指定(0.3)ではなく実際に適用された値(0.31)が載る
+		expect(modelOutput.value[0]?.text).toContain("0.31");
+	});
+
+	it("失敗はエラーとしてモデルへ返す", () => {
+		const modelOutput = zoomTool(1).toModelOutput({
+			output: { error: "写真 5 はありません" },
+		}) as { type: string; value: string };
+		expect(modelOutput.type).toBe("error-text");
+		expect(modelOutput.value).toContain("写真 5 はありません");
 	});
 });

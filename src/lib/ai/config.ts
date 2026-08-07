@@ -367,6 +367,26 @@ export const AI_LABEL_AGENT_STEP_ESTIMATE = 3;
 export const AI_LABEL_AGENT_OUTPUT_TOKEN_ESTIMATE = 4_000;
 
 /**
+ * モデルへ**最初に見せる**版の長辺(px)。クライアントはこれより大きい解像度で送ってくる
+ * (`zoom_photo` の拡大元にするため)ので、会話へ載せる前にここまで縮小する。
+ *
+ * **上げても精度は上がらない**ことが実測で分かっている: ボトル全体が写った写真は
+ * 原寸(2180px)を送っても生産者名を読めなかった(プロバイダが内部で縮小するため)。
+ * 一方で入力トークンは毎ターン再送されるので、上げるとループのコストだけが増える。
+ * 読めない文字は `zoom_photo` で切り出して読む、という役割分担にしてある。
+ */
+export const AI_LABEL_VIEW_MAX_DIMENSION = 1280;
+
+/**
+ * 1回の解析で見込む `zoom_photo` の回数(予約見積用)。
+ *
+ * 切り出した画像は会話へ載るので、以後のターンで入力トークンとして効く。
+ * 回数そのものに課金は無い(web検索と違いプロバイダのツールではない)が、
+ * 画像ぶんのトークンは実測に乗る。
+ */
+export const AI_LABEL_AGENT_ZOOM_ESTIMATE = 2;
+
+/**
  * エージェントループの web検索回数の見積。
  *
  * **この経路の原価はほぼこれで決まる**。1回 10,000µUSD の回数課金で、トークンぶんの
@@ -659,7 +679,9 @@ export function estimateLabelReserveUsage(
 			return {
 				inputTokens:
 					AI_LABEL_AGENT_BASE_TOKEN_ESTIMATE +
-					AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE * photos +
+					// 元の写真 + 拡大した切り出し画像。どちらも会話へ載るので同じ単価で効く。
+					AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE *
+						(photos + AI_LABEL_AGENT_ZOOM_ESTIMATE) +
 					AI_LABEL_AGENT_TOKEN_PER_STEP * extraSteps,
 				cacheReadTokens: AI_LABEL_AGENT_CACHE_READ_PER_STEP * extraSteps,
 				outputTokens: AI_LABEL_AGENT_OUTPUT_TOKEN_ESTIMATE,

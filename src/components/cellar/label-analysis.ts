@@ -11,8 +11,18 @@ import type { AnalyzeLabelResult } from "#/lib/services/ai-service";
 /** 解析対象の写真ソース。新規はFile、既存はサーバ配信URL(同一オリジン)。 */
 export type AnalysisPhotoSource = File | { url: string };
 
-/** 解析用に縮小する際の長辺の上限(px)。ラベルの文字が読める程度に保つ。 */
-const ANALYSIS_MAX_DIMENSION = 1280;
+/**
+ * 解析用に縮小する際の長辺の上限(px)。
+ *
+ * **`zoom_photo` の拡大元になるので、モデルへ見せる版(1280px)より大きく送る。**
+ * ボトル全体が写った写真ではラベルの文字は潰れて読めず、実測では原寸を送っても
+ * 改善しなかった(プロバイダが内部で縮小するため)。効いたのはラベル部分の切り出しで、
+ * そのためには縮小前の画素がサーバ側に要る。
+ *
+ * 会話へ載せる版はサーバが 1280px へ落とすので(AI_LABEL_VIEW_MAX_DIMENSION)、
+ * ここを上げても毎ターンの入力トークンは増えない。増えるのはアップロード量だけ。
+ */
+const ANALYSIS_MAX_DIMENSION = 2048;
 const ANALYSIS_JPEG_QUALITY = 0.85;
 
 /** 解析ソースを解析用のBlobに解決する。既存写真(URL)は同一オリジンから取得する。 */

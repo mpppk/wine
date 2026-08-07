@@ -23,7 +23,10 @@
  * **実際に課金が発生する**(1回あたり数十クレジット相当)。CI からは実行しない。
  */
 
-import { readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, stepCountIs } from "ai";
 import {
@@ -46,7 +49,11 @@ import {
 	buildGptLabelMessages,
 	GPT_WEB_SEARCH_TOOL_NAME,
 } from "#/lib/ai/label-gpt-research";
-import { type AnswerCollector, buildLabelTools } from "#/lib/ai/label-tools";
+import {
+	type AnswerCollector,
+	buildLabelTools,
+	ZOOM_OUTPUT_MAX_DIMENSION,
+} from "#/lib/ai/label-tools";
 import {
 	extractAiSdkWebSearchTrace,
 	type WebResearchTrace,
@@ -57,6 +64,7 @@ import {
 	toCharge,
 	usageToMicroUsd,
 } from "#/lib/billing/ai-pricing";
+import { resolveCropBox, resolveOutputWidth } from "#/lib/images/crop-geometry";
 
 const MEDIA_TYPES: Record<string, string> = {
 	jpg: "image/jpeg",
@@ -70,6 +78,48 @@ async function toDataUrl(path: string): Promise<string> {
 	const mediaType = MEDIA_TYPES[ext] ?? "image/jpeg";
 	const buf = await readFile(path);
 	return `data:${mediaType};base64,${buf.toString("base64")}`;
+}
+
+/**
+ * PIL で切り出す(このスクリプト専用。本番は Cloudflare Images バインディング)。
+ * 幾何は本番と同じ `resolveCropBox` / `resolveOutputWidth` を通す。
+ */
+async function cropWithPil(
+	path: string,
+	box: { x: number; y: number; width: number; height: number },
+): Promise<{ dataUrl: string; applied: typeof box }> {
+	const size = JSON.parse(
+		execFileSync("python3", [
+			"-c",
+			`from PIL import Image;im=Image.open(${JSON.stringify(path)});import json;print(json.dumps({"width":im.size[0],"height":im.size[1]}))`,
+		]).toString(),
+	) as { width: number; height: number };
+	const resolved = resolveCropBox(box, size);
+	const { left, top, width, height } = resolved.pixels;
+	const outWidth = resolveOutputWidth(
+		resolved.pixels,
+		ZOOM_OUTPUT_MAX_DIMENSION,
+	);
+	const out = join(tmpdir(), `crop-${Date.now()}.jpg`);
+	execFileSync("python3", [
+		"-c",
+		[
+			"from PIL import Image",
+			`im=Image.open(${JSON.stringify(path)}).crop((${left},${top},${left + width},${top + height}))`,
+			outWidth === undefined
+				? ""
+				: `im=im.resize((${outWidth}, max(1, round(im.size[1]*${outWidth}/im.size[0]))))`,
+			`im.save(${JSON.stringify(out)}, quality=90)`,
+		]
+			.filter(Boolean)
+			.join("\n"),
+	]);
+	const buf = await readFile(out);
+	await writeFile(out, buf);
+	return {
+		dataUrl: `data:image/jpeg;base64,${buf.toString("base64")}`,
+		applied: resolved.applied,
+	};
 }
 
 function creditsOf(usage: AiUsage): number {
@@ -108,7 +158,16 @@ async function main(): Promise<void> {
 			[GPT_WEB_SEARCH_TOOL_NAME]: openai.tools.webSearch({
 				searchContextSize: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
 			}),
-			...buildLabelTools(collector, () => ({ trace })),
+			...buildLabelTools({
+				collector,
+				getVerifyContext: () => ({ trace }),
+				photoCount: imageDataUrls.length,
+				// 本番は env.IMAGES で切るが、このスクリプトは Node で動くので PIL に委ねる。
+				// **幾何(どこを切るか)は本番と同じ resolveCropBox を通す**ので、
+				// 検証したい部分は共通のまま。
+				cropPhoto: async (photoIndex, box) =>
+					cropWithPil(paths[photoIndex] as string, box),
+			}),
 		},
 		stopWhen: [
 			() => collector.accepted !== undefined,
@@ -175,7 +234,13 @@ async function main(): Promise<void> {
 	);
 	console.log(
 		"使ったツール:",
-		JSON.stringify(result.toolCalls.map((c) => c.toolName)),
+		JSON.stringify(
+			result.toolCalls.map((c) =>
+				c?.toolName === "zoom_photo"
+					? { tool: c.toolName, input: c.input }
+					: c?.toolName,
+			),
+		),
 	);
 
 	console.log("\n================ 抽出結果 ================");
