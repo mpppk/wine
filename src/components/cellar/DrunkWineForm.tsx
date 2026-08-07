@@ -27,6 +27,10 @@ import {
 	buildLabelDiffs,
 	type LabelDiffItem,
 } from "#/components/cellar/label-suggestion-diff";
+import {
+	acceptPhotoFiles,
+	detachPhotoFiles,
+} from "#/components/cellar/photo-picker";
 import { downscaleImage } from "#/components/cellar/photo-resize";
 import { TastingFields } from "#/components/cellar/TastingFields";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
@@ -49,8 +53,6 @@ import {
 } from "#/lib/credit/use-credit";
 import { hasDrunkWinePatch } from "#/lib/drunk-wine/fields";
 import {
-	ALLOWED_PHOTO_TYPES,
-	MAX_PHOTO_BYTES,
 	MAX_PHOTO_SIZE_LABEL,
 	MAX_PHOTOS_PER_ENTRY,
 	PHOTO_ACCEPT_ATTR,
@@ -223,40 +225,36 @@ export function DrunkWineForm({
 			? p.previewUrl
 			: `${imagePathForKey(thumbKeyForPhotoKey(p.key))}?v=${entry?.updatedAt ?? ""}`;
 
-	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(e.target.files ?? []);
 		// 同じファイルを続けて選べるよう、また選択と実アップロードが乖離しないよう毎回リセット
 		e.target.value = "";
 		if (files.length === 0) return;
 
-		const accepted: PhotoItem[] = [];
-		let rejectMsg = "";
-		let remaining = MAX_PHOTOS_PER_ENTRY - photos.length;
-		for (const file of files) {
-			// サーバ側の 400 を待たずに弾く(制約は photo.ts と共通)
-			if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
-				rejectMsg = `対応していない画像形式です(${PHOTO_FORMATS_LABEL_JA})`;
-				continue;
-			}
-			if (file.size > MAX_PHOTO_BYTES) {
-				rejectMsg = `写真は${MAX_PHOTO_SIZE_LABEL}以下にしてください`;
-				continue;
-			}
-			if (remaining <= 0) {
-				rejectMsg = `写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`;
-				continue;
-			}
-			accepted.push({
-				localId: `n${newIdRef.current++}`,
-				kind: "new",
-				file,
-				previewUrl: URL.createObjectURL(file),
-			});
-			remaining -= 1;
-		}
-		setError(rejectMsg);
+		// 形式・サイズ・枚数の判定は写真選択の共通処理に寄せる(#469)。以前はここに
+		// 同じ判定が別途書かれており、まとめて登録側にだけ手が入る形になっていた。
+		const { accepted, rejectMessage } = acceptPhotoFiles(
+			files,
+			photos.length,
+			MAX_PHOTOS_PER_ENTRY,
+		);
+		// **選んだ瞬間に中身を掴む**(#469)。解析(数十秒)を挟んでから保存するので、
+		// 端末側でファイルが回収されると保存だけが送信前に落ちる。
+		const detached = await detachPhotoFiles(accepted);
+		setError(detached.rejectMessage || rejectMessage);
 		setAnalyzeNotice("");
-		if (accepted.length > 0) setPhotos((prev) => [...prev, ...accepted]);
+		if (detached.accepted.length === 0) return;
+		setPhotos((prev) => [
+			...prev,
+			...detached.accepted.map(
+				(file): PhotoItem => ({
+					localId: `n${newIdRef.current++}`,
+					kind: "new",
+					file,
+					previewUrl: URL.createObjectURL(file),
+				}),
+			),
+		]);
 	};
 
 	const removePhoto = (localId: string) => {
@@ -581,7 +579,7 @@ export function DrunkWineForm({
 						type="file"
 						accept={PHOTO_ACCEPT_ATTR}
 						multiple
-						onChange={handleFileChange}
+						onChange={(e) => void handleFileChange(e)}
 						disabled={photos.length >= MAX_PHOTOS_PER_ENTRY}
 						className="max-w-xs"
 					/>

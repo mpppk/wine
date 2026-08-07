@@ -14,6 +14,7 @@ import {
 } from "#/components/cellar/import-candidates";
 import {
 	acceptPhotoFiles,
+	detachPhotoFiles,
 	remainingPhotoSlots,
 } from "#/components/cellar/photo-picker";
 import { fetchBatchPhotoFiles } from "#/components/cellar/rescan-photos";
@@ -272,18 +273,22 @@ export function PhotoRegisterWizard({
 		);
 	};
 
-	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(e.target.files ?? []);
 		e.target.value = "";
 		if (files.length === 0) return;
 		// 上限は「今ある枚数 + これから足す枚数」で見る。再解析では元バッチの写真が
 		// 既に入っているので、選んだファイルだけで判定すると上限を超える(#428)
 		const { accepted, rejectMessage } = acceptPhotoFiles(files, photos.length);
-		setError(rejectMessage);
-		if (accepted.length === 0) return;
+		// **選んだ瞬間に中身を掴む**(#469)。ここは解析→レビュー→確定と数分かかる導線で、
+		// 端末側でファイルが回収されると最後の写真アップロードだけが送信前に落ちる。
+		const detached = await detachPhotoFiles(accepted);
+		// 読めなかった理由を優先して出す。枚数超過より利用者の行動が変わる。
+		setError(detached.rejectMessage || rejectMessage);
+		if (detached.accepted.length === 0) return;
 		setPhotos((prev) => [
 			...prev,
-			...accepted.map((file) => ({
+			...detached.accepted.map((file) => ({
 				localId: `p${newIdRef.current++}`,
 				file,
 				previewUrl: URL.createObjectURL(file),
@@ -480,7 +485,7 @@ export function PhotoRegisterWizard({
 							type="file"
 							accept={PHOTO_ACCEPT_ATTR}
 							multiple
-							onChange={handleFileChange}
+							onChange={(e) => void handleFileChange(e)}
 							disabled={photos.length >= MAX_PHOTOS_PER_IMPORT_BATCH}
 							className="max-w-xs"
 						/>
