@@ -98,6 +98,16 @@ export interface DrunkWineFormProps {
 	 * 直している可能性がある。上書きしてよいかは選ばせる。
 	 */
 	pendingLabelJob?: { jobId: string; suggestions: LabelSuggestions };
+	/**
+	 * このフォームの内容がどの解析ジョブの結果か(#474)。**候補は `initialValues` に
+	 * 入れて渡す前提**で、こちらは由来だけを伝える。
+	 *
+	 * 保存できた時点で、そのジョブが解析に使った写真をこのワインの写真として引き継ぐ。
+	 * `pendingLabelJob` と分けるのは、あちらが「保存済みのワインに差分として提示する」
+	 * のに対し、こちらは新規登録で**既に初期値に反映済み**だから——同じ値をダイアログに
+	 * 出すと差分ゼロになり、「クレジットは消費されています」という無関係な案内が出る。
+	 */
+	sourceLabelJobId?: string;
 }
 
 // フォームが扱う写真1枚。既存はR2キー保持、新規はローカルFile+プレビューURL。
@@ -161,6 +171,7 @@ export function DrunkWineForm({
 	initialValues,
 	initialPhotoFiles,
 	pendingLabelJob,
+	sourceLabelJobId,
 }: DrunkWineFormProps) {
 	// 入力項目の state は MCP App のフォームと共有する形(DrunkWineFieldsValue)で持つ
 	const [values, setValues] = useState<DrunkWineFieldsValue>(
@@ -507,7 +518,8 @@ export function DrunkWineForm({
 			// 受け取りが新規登録ではなく「このワインを編集」へ向くようになる。
 			// **受け取って開いた回(`pendingLabelJob`)も通す**——そちらは完了済みなので、
 			// この保存で解析に使った写真がこのワインの写真として引き継がれる(#474)。
-			const targetJobId = jobId ?? pendingLabelJob?.jobId;
+			const targetJobId =
+				jobId ?? pendingLabelJob?.jobId ?? sourceLabelJobId;
 			if (targetJobId) attachJobToEntry(targetJobId, saved.id);
 			// 保存済みなので、この後の遷移は警告しない(onSaved が遷移することが多い)
 			leavingAfterSaveRef.current = true;

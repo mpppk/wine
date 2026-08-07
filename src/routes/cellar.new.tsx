@@ -214,6 +214,8 @@ function CellarNewPage() {
 					<DrunkWineForm
 						initialValues={manual.values}
 						initialPhotoFiles={manual.files}
+						// 保存できた時点で、このジョブが解析に使った写真を引き継ぐ(#474)。
+						{...(labelJob?.jobId ? { sourceLabelJobId: labelJob.jobId } : {})}
 						onSaved={() => {
 							void navigate({ to: "/cellar" });
 						}}
