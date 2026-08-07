@@ -86,6 +86,13 @@ export default defineConfig({
 							compatibilityFlags,
 							d1Databases: ["DB"],
 							r2Buckets: ["AVATARS"],
+							// エチケット解析ジョブ(#460)の producer。**consumer は用意しない**:
+							// テストプールは Worker エントリ(src/worker.ts)を読まないので配信先が
+							// 無く、「キューが確実に配信すること」はこちらの検証対象でもない。
+							// 見たいのはコンシューマ本体(runLabelAnalysisJob)の状態遷移なので、
+							// テストはそれを直接呼ぶ。ここに producer が要るのは、投入 API が
+							// `env.LABEL_JOBS.send()` を通ること自体を経路として通すため。
+							queueProducers: { LABEL_JOBS: "wine-label-jobs" },
 							// スロットル(#397)。**本番の上限値はあえて再現しない**。
 							// 上限そのものは wrangler.jsonc の設定値であって、テストで
 							// 数値を書き写しても設定を二重管理するだけになる。ここで

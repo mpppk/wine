@@ -8,6 +8,8 @@ import {
 	unique,
 } from "drizzle-orm/sqlite-core";
 import type { AdminAuditAction } from "#/lib/admin/audit";
+import type { LabelEngineKey, LabelRoute } from "#/lib/ai/config";
+import type { LabelJobStatus } from "#/lib/ai/label-job";
 import type { CreditLedgerType } from "#/lib/credit/types";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { DEFAULT_PLACE_KIND, type PlaceKind } from "#/lib/place/place";
@@ -476,6 +478,83 @@ export const creditBalance = sqliteTable("credit_balance", {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
 });
+
+/**
+ * エチケット解析の非同期ジョブ(Issue #460)。「投入したらページを離れてよく、後から
+ * 完了が分かる」ための状態の置き場。
+ *
+ * **クライアントには置けない**。ページを閉じた時点でエージェントループを進める主体が
+ * 消えるため、写真(R2)・状態(この表)・進行のすべてをサーバが持つ以外に選択肢が無い。
+ * 画像そのものは D1 に入れず、R2キーだけをここに持つ(`wines/{userId}/{jobId}/…`。
+ * マイセラー写真と同じ接頭辞に載せることで、非公開画像の認可・署名URL・退会時の一括削除が
+ * そのまま効く。専用接頭辞の新設はその4箇所の同時拡張を要求する。import_batch と同じ判断)。
+ *
+ * クレジットは**投入時に予約**し、コンシューマが実測で確定する(runMeteredInference を
+ * begin/finish に開いたのはこのため)。行が存在する = 予約は成立している、が不変条件で、
+ * 残高不足は行を作らず投入APIがその場で返す。
+ */
+export const labelAnalysisJob = sqliteTable(
+	"label_analysis_job",
+	{
+		/** crypto.randomUUID()。R2キーの推測不能性もこのIDに依存する */
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 状態。値のSSOTは src/lib/ai/label-job.ts の LABEL_JOB_STATUSES */
+		status: text("status").notNull().$type<LabelJobStatus>().default("queued"),
+		/** 解析対象のR2キー(撮影順)。終端に到達した時点で削除するので、その後は空配列 */
+		photoKeys: text("photo_keys", { mode: "json" })
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'`),
+		/**
+		 * 申告枚数。`photoKeys` は完了後に空になるため、実行記録の photoCount と
+		 * 見積の再計算にはこちらを使う(枚数は経路の単価に効く)。
+		 */
+		photoCount: integer("photo_count").notNull(),
+		/**
+		 * クレジット台帳の request_id(予約の冪等キー)。settle / refund はここから導出
+		 * されるので、ジョブと台帳を突き合わせる唯一のキーでもある。
+		 */
+		requestId: text("request_id").notNull(),
+		/** 予約した表示クレジット。確定・返却に必要 */
+		reservedCredits: integer("reserved_credits").notNull(),
+		/** 予約した原価(µUSD)。実測が取れなかった回の床の計算に使う */
+		reservedMicroUsd: integer("reserved_micro_usd").notNull(),
+		/** ユーザがプロフィールで選んでいたエンジン。実行記録の selected に載る */
+		selectedEngine: text("selected_engine").notNull().$type<LabelEngineKey>(),
+		/** 予約時に解決した実行経路。**コンシューマは再解決せずこれを使う**(予約と食い違わせない) */
+		route: text("route").notNull().$type<LabelRoute>(),
+		/** 成功時の自動入力候補(LabelSuggestions)。未完了・失敗なら null */
+		suggestions: text("suggestions", { mode: "json" }).$type<unknown>(),
+		/** 成功時の実測トークン。観測値で課金の根拠ではない */
+		actualTokens: integer("actual_tokens"),
+		/** 失敗時の利用者向け文言。詳細(モデル都合の例外)はサーバ側のログにだけ残す */
+		error: text("error"),
+		/** `running` に遷移した時刻。LABEL_JOB_STALE_MS の起点 */
+		startedAt: integer("started_at", { mode: "timestamp_ms" }),
+		/** 終端(succeeded/failed)に到達した時刻 */
+		finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		// 予約の冪等キーと1対1。二重投入で同じ予約に2つのジョブがぶら下がらない
+		unique("label_analysis_job_request_id_uq").on(table.requestId),
+		// 「このユーザの未終端ジョブ」(同時実行上限・stale の走査)と「最近のジョブ一覧」
+		index("label_analysis_job_user_status_idx").on(table.userId, table.status),
+		index("label_analysis_job_user_created_idx").on(
+			table.userId,
+			table.createdAt,
+		),
+	],
+);
 
 /**
  * ユーザが村・畑・地方・シャトー(AOP)ごとに貼り付ける参考リンク(非公開)。
