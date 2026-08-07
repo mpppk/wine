@@ -8,12 +8,14 @@ import {
 	AI_LABEL_ENGINES,
 	AI_MAX_HISTORY_MESSAGES,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_MAX_SEARCHES,
 	chatHistorySchema,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
 	estimateLabelReserveCharge,
 	estimateLabelReserveUsage,
 	estimateRegionQaReserveCharge,
+	estimateWineListReserveUsage,
 	LABEL_ENGINE_KEYS,
 	type LabelRoute,
 	labelEngineKeySchema,
@@ -22,6 +24,7 @@ import {
 	resolveLabelRoute,
 	toLabelEngineKey,
 	toRegionQaModelKey,
+	WINE_LIST_ROUTE_KEYS,
 } from "./config";
 
 // 地域Q&Aモデルの許可リスト定義の健全性。キー⇄定義の対応と既定キーの妥当性を保証する。
@@ -258,6 +261,32 @@ describe("estimateLabelReserveCharge", () => {
 		expect(costToCredits(microUsd("workers-ai", 1)) * 10).toBeLessThanOrEqual(
 			MONTHLY_CREDITS_FREE,
 		);
+	});
+});
+
+describe("estimateWineListReserveUsage (#474)", () => {
+	it("両経路とも web検索の回数課金を見積に含む", () => {
+		// 一括抽出も裏取りするようになった(#474)。トークンだけで見積ると、web検索の
+		// 回数課金($10/1000回)が丸ごと予約から漏れる。
+		for (const route of WINE_LIST_ROUTE_KEYS) {
+			expect(
+				estimateWineListReserveUsage(route, 1).webSearches,
+			).toBeGreaterThan(0);
+		}
+	});
+
+	it("検索回数は枚数に比例するが、上限でクランプされる", () => {
+		// 予約時に銘柄数は分からないので枚数を代理指標にしている。比例させたままだと
+		// 「銘柄数 × 検索でコストが発散する」(#358 が裏取りを外した理由)に戻るので、
+		// 上限が効いていることを固定する。
+		for (const route of WINE_LIST_ROUTE_KEYS) {
+			const one = estimateWineListReserveUsage(route, 1).webSearches ?? 0;
+			const three = estimateWineListReserveUsage(route, 3).webSearches ?? 0;
+			expect(three).toBeGreaterThan(one);
+			expect(estimateWineListReserveUsage(route, 10_000).webSearches).toBe(
+				AI_WINE_LIST_MAX_SEARCHES,
+			);
+		}
 	});
 });
 

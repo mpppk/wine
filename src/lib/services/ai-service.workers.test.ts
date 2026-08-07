@@ -906,7 +906,10 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 	}
 
 	it("解析に成功したら候補とサマリを返し、実測ぶんだけ消費する", async () => {
-		const userId = await seedUser();
+		// **プレミアムで回す**。写真をまたいだ重複統合を見るので2枚必要だが、裏取りが
+		// 乗った Claude 経路(#474)の2枚は無料付与(200)を超えて blocked になる。
+		// 無料枠に収まるかどうかは wine-list-extraction.test.ts の不変条件が見ている。
+		const userId = await seedPremiumUser();
 		stubAnthropic(async () =>
 			anthropicMessage(
 				{
@@ -958,13 +961,19 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 			aopId: "chablis-grand-cru",
 		});
 		expect(await balanceOf(userId)).toBe(
-			balanceAfter(AI_WINE_LIST_ROUTE_MODELS["web-research"], {
-				inputTokens: 3000,
-				outputTokens: 500,
-				cacheWriteTokens: 0,
-				cacheReadTokens: 0,
-				webSearches: 0,
-			}),
+			balanceAfter(
+				AI_WINE_LIST_ROUTE_MODELS["web-research"],
+				{
+					inputTokens: 3000,
+					outputTokens: 500,
+					cacheWriteTokens: 0,
+					cacheReadTokens: 0,
+					// スタブの応答に server_tool_use が無い = このケースは検索0回。
+					// 実測どおり計上されることは usage-accounting.test.ts が見ている。
+					webSearches: 0,
+				},
+				MONTHLY_CREDITS_PREMIUM,
+			),
 		);
 		const rows = await ledgerRowsOf(userId);
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);

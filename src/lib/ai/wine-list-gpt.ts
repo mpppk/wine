@@ -159,6 +159,27 @@ export function extractWineListGptText(response: {
 }
 
 /**
+ * 応答の output に並ぶ web検索の実行回数を数える(#474)。
+ *
+ * **usage には出ない**。web検索は $10/1000回 の回数課金で、トークンとは別建てのため、
+ * ここを落とすとこの経路の原価が過小計上になる(Claude 経路は `server_tool_use` から
+ * 取れるので、この関数は GPT 経路のためだけにある)。
+ *
+ * 型に構造を合わせにいかず `type` だけを見るのは `findGptRefusal` と同じ流儀
+ * (SDK の判別共用体が版で動いても、数え漏れではなく型エラーにならない側に倒す)。
+ */
+export function countGptWebSearchCalls(
+	output: readonly unknown[] | undefined,
+): number {
+	let count = 0;
+	for (const item of output ?? []) {
+		if (!item || typeof item !== "object") continue;
+		if ((item as { type?: unknown }).type === "web_search_call") count += 1;
+	}
+	return count;
+}
+
+/**
  * output の任意の階層に含まれる refusal ブロックの説明文を1つ返す。無ければ undefined。
  */
 export function findGptRefusal(
@@ -182,7 +203,7 @@ export function findGptRefusal(
  *
  * `input_tokens` は**キャッシュヒットを内数として含む**ため、`cached_tokens` を
  * 差し引いてから非キャッシュ入力として計上する(二重計上を避ける)。web検索回数だけは
- * usage に無いので呼び出し側が渡す(この経路は web検索を使わないので常に 0)。
+ * usage に無いので呼び出し側が渡す(`countGptWebSearchCalls` で数えた回数)。
  *
  * **`cache_write_tokens` は意図的に計上しない**。OpenAI はキャッシュ書き込みを課金せず
  * (割引は cached input 側だけ)、単価表にも `cacheWriteUsdPerMTok` を置いていない。
