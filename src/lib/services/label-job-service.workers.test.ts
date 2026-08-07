@@ -1,0 +1,437 @@
+import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { db } from "#/db";
+import { subscription } from "#/db/auth-schema";
+import { creditLedger, labelAnalysisJob } from "#/db/schema";
+import { AI_LABEL_MODEL } from "#/lib/ai/config";
+import {
+	LABEL_JOB_STALE_MS,
+	MAX_CONCURRENT_LABEL_JOBS,
+} from "#/lib/ai/label-job";
+import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
+import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
+import { NotFoundError, TooManyRequestsError } from "#/lib/errors";
+import {
+	getLabelAnalysisJob,
+	listActiveLabelAnalysisJobs,
+	runLabelAnalysisJob,
+	settleStaleLabelAnalysisJobs,
+	submitLabelAnalysisJob,
+} from "./label-job-service";
+
+// エチケット解析ジョブのライフサイクルを実D1 + 実R2(miniflare)で検証する(Issue #460)。
+//
+// 見るのは推論の中身ではなく**状態機械とクレジットの帳尻**:
+//  - ジョブ行が存在する = 予約が成立している(残高不足では行が作られない)
+//  - 終端に到達する経路がどれも予約を閉じる(確定 or 返却)
+//  - キューの at-least-once 再配信で二重実行・二重課金しない
+//  - 死んだコンシューマの `running` が決着し、枠と UI のポーリングが解放される
+//
+// 推論そのものは env.AI をスタブして固定する(vitest.config.ts は AI バインディングを
+// 用意しない。ai-service.workers.test.ts と同じ流儀)。
+
+/** 最小の JPEG(SOI + APP0 "JFIF")。実バイト検証(#150)を通すために本物の先頭が要る。 */
+const JPEG_BYTES = new Uint8Array([
+	0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01,
+	0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+]);
+
+const photo = () => ({ bytes: JPEG_BYTES, mimeType: "image/jpeg" });
+
+async function seedUser(): Promise<string> {
+	const id = crypto.randomUUID();
+	await env.DB.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+		.bind(id, "label-job-user", `${id}@example.test`)
+		.run();
+	return id;
+}
+
+async function seedPremiumUser(): Promise<string> {
+	const id = await seedUser();
+	await db.insert(subscription).values({
+		id: `sub-${id}`,
+		plan: "premium",
+		referenceId: id,
+		status: "active",
+	});
+	return id;
+}
+
+async function balanceOf(userId: string): Promise<number> {
+	const row = await env.DB.prepare(
+		"SELECT balance FROM credit_balance WHERE user_id = ?",
+	)
+		.bind(userId)
+		.first<{ balance: number }>();
+	return row?.balance ?? 0;
+}
+
+async function ledgerRowsOf(userId: string) {
+	return db.select().from(creditLedger).where(eq(creditLedger.userId, userId));
+}
+
+async function jobRow(jobId: string) {
+	const [row] = await db
+		.select()
+		.from(labelAnalysisJob)
+		.where(eq(labelAnalysisJob.id, jobId));
+	return row;
+}
+
+/** env.AI を差し替える(答えの中身ではなく台帳と状態を固定するためのスタブ)。 */
+function stubAiRun(run: () => Promise<unknown>): void {
+	(env as unknown as { AI: { run: () => Promise<unknown> } }).AI = { run };
+}
+
+/** Workers AI 経路の成功応答。usage を返すので実測で確定する。 */
+function workersAiOk(totalTokens = 300) {
+	return async () => ({
+		response: JSON.stringify({
+			wine_name: "Chablis Les Clos",
+			producer: "Vincent Dauvissat",
+			vintage: 2020,
+		}),
+		usage: { total_tokens: totalTokens },
+	});
+}
+
+/** 投入 → 成功。ユーザは標準経路(Workers AI)に固定する(高精度キーを立てない)。 */
+async function submitOne(userId: string, photos = 1) {
+	const result = await submitLabelAnalysisJob(
+		userId,
+		Array.from({ length: photos }, photo),
+	);
+	if (result.blocked) throw new Error("unexpected blocked");
+	return result;
+}
+
+afterEach(() => {
+	delete (env as unknown as { AI?: unknown }).AI;
+	delete (env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY;
+	delete (env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY;
+	vi.unstubAllGlobals();
+	vi.useRealTimers();
+});
+
+describe("ジョブの投入", () => {
+	it("予約を立てて queued の行を作り、写真をR2に置く", async () => {
+		const userId = await seedUser();
+
+		const { jobId, status } = await submitOne(userId, 2);
+
+		expect(status).toBe("queued");
+		const job = await jobRow(jobId);
+		expect(job).toMatchObject({
+			userId,
+			status: "queued",
+			photoCount: 2,
+			route: "workers-ai",
+		});
+		// 予約が立っている = 残高が引かれ、consume 台帳がある。
+		expect(await balanceOf(userId)).toBeLessThan(MONTHLY_CREDITS_FREE);
+		expect(job?.reservedCredits).toBeGreaterThan(0);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId === job?.requestId)).toBe(true);
+
+		// 写真は wines/{userId}/{jobId}/… に載る(マイセラー写真と同じ接頭辞)。
+		expect(job?.photoKeys).toHaveLength(2);
+		for (const key of job?.photoKeys ?? []) {
+			expect(key.startsWith(`wines/${userId}/${jobId}/`)).toBe(true);
+			expect(await env.AVATARS.get(key)).not.toBeNull();
+		}
+	});
+
+	it("残高不足なら blocked を返し、ジョブ行を作らない", async () => {
+		// 高精度経路(Claude)は写真1枚でも無料枠(150)を超える見積になる。
+		const userId = await seedUser();
+		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
+			"sk-ant-test";
+
+		const result = await submitLabelAnalysisJob(userId, [photo()]);
+
+		expect(result).toMatchObject({ blocked: true });
+		// 「行が存在する = 予約が成立している」の不変条件。予約が立たない回に行を作ると、
+		// 予約の無いジョブが推論を走らせてしまう。
+		expect(
+			await db
+				.select()
+				.from(labelAnalysisJob)
+				.where(eq(labelAnalysisJob.userId, userId)),
+		).toHaveLength(0);
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+	});
+
+	it("画像として認識できないファイルは拒否し、予約も立てない", async () => {
+		const userId = await seedUser();
+
+		await expect(
+			submitLabelAnalysisJob(userId, [
+				{ bytes: new TextEncoder().encode("<html>"), mimeType: "image/jpeg" },
+			]),
+		).rejects.toThrow(/画像として認識できない/);
+
+		// 台帳が空 = 予約どころか月次付与にも到達していない(検証が予約より前にある証拠)。
+		expect(await ledgerRowsOf(userId)).toHaveLength(0);
+		expect(
+			await db
+				.select()
+				.from(labelAnalysisJob)
+				.where(eq(labelAnalysisJob.userId, userId)),
+		).toHaveLength(0);
+	});
+
+	it("同時実行の上限を超えたら受け付けない", async () => {
+		const userId = await seedPremiumUser();
+		for (let i = 0; i < MAX_CONCURRENT_LABEL_JOBS; i++) {
+			await submitOne(userId);
+		}
+
+		await expect(submitLabelAnalysisJob(userId, [photo()])).rejects.toThrow(
+			TooManyRequestsError,
+		);
+		// 上限で弾いた回は予約を立てない(立てると残高が予約で埋まる)。
+		const jobs = await db
+			.select()
+			.from(labelAnalysisJob)
+			.where(eq(labelAnalysisJob.userId, userId));
+		expect(jobs).toHaveLength(MAX_CONCURRENT_LABEL_JOBS);
+	});
+});
+
+describe("ジョブの実行", () => {
+	it("解析に成功したら succeeded にして実測で確定し、写真を消す", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const reserved = (await jobRow(jobId))?.reservedCredits ?? 0;
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		stubAiRun(workersAiOk(300));
+
+		await runLabelAnalysisJob(jobId);
+
+		const job = await jobRow(jobId);
+		expect(job).toMatchObject({ status: "succeeded" });
+		expect(job?.suggestions).toMatchObject({ name: "Chablis Les Clos" });
+		expect(job?.actualTokens).toBe(300);
+		expect(job?.finishedAt).not.toBeNull();
+
+		// 予約は settle で閉じる(返却ではない)。
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
+		// 実測ぶんだけ消費し、予約との差分は戻る。
+		expect(await balanceOf(userId)).toBeGreaterThan(
+			MONTHLY_CREDITS_FREE - reserved,
+		);
+
+		// 写真は解析の入力であって成果物ではない。終端で消す(R2に溜め続けない)。
+		expect(job?.photoKeys).toEqual([]);
+		for (const key of keys) {
+			expect(await env.AVATARS.get(key)).toBeNull();
+		}
+	});
+
+	it("推論が失敗したら failed にして予約を全額返却する", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		stubAiRun(() => Promise.reject(new Error("model error")));
+
+		// コンシューマは throw しない(再配信は claim ガードで空振りするため)。
+		await runLabelAnalysisJob(jobId);
+
+		const job = await jobRow(jobId);
+		expect(job).toMatchObject({ status: "failed" });
+		expect(job?.error).toBe("エチケットの解析に失敗しました");
+		// 失敗した推論の料金をユーザに負担させない(#158)。
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
+	});
+
+	it("同じジョブが再配信されても2度は実行しない(at-least-once)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		let calls = 0;
+		stubAiRun(async () => {
+			calls += 1;
+			return await workersAiOk(300)();
+		});
+
+		await runLabelAnalysisJob(jobId);
+		const balanceAfterFirst = await balanceOf(userId);
+		// 再配信(キューは at-least-once)。claim は `queued` の間しか成立しない。
+		await runLabelAnalysisJob(jobId);
+
+		expect(calls).toBe(1);
+		expect(await balanceOf(userId)).toBe(balanceAfterFirst);
+		expect((await jobRow(jobId))?.status).toBe("succeeded");
+	});
+
+	it("写真が読めなければ failed にして予約を返却する", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		// R2 障害・先行する掃除などで入力が消えている状況。
+		for (const key of (await jobRow(jobId))?.photoKeys ?? []) {
+			await env.AVATARS.delete(key);
+		}
+		stubAiRun(() => Promise.reject(new Error("must not be called")));
+
+		await runLabelAnalysisJob(jobId);
+
+		expect((await jobRow(jobId))?.status).toBe("failed");
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+	});
+});
+
+describe("stale の決着", () => {
+	it("running のまま放置されたジョブを failed にして枠を解放する", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		// コンシューマが掴んだ直後に死んだ状態を作る。
+		await db
+			.update(labelAnalysisJob)
+			.set({
+				status: "running",
+				startedAt: new Date(Date.now() - LABEL_JOB_STALE_MS - 1000),
+			})
+			.where(eq(labelAnalysisJob.id, jobId));
+
+		expect(await settleStaleLabelAnalysisJobs(userId)).toBe(1);
+
+		const job = await jobRow(jobId);
+		expect(job).toMatchObject({ status: "failed" });
+		expect(job?.error).toMatch(/時間内に完了しませんでした/);
+		expect(job?.photoKeys).toEqual([]);
+		for (const key of keys) {
+			expect(await env.AVATARS.get(key)).toBeNull();
+		}
+		// UI がポーリングを止められるよう、未終端ジョブから外れる。
+		expect(await listActiveLabelAnalysisJobs(userId)).toHaveLength(0);
+	});
+
+	it("stale 決着ではクレジットを返却しない(回収は reclaimOrphanReservations に任せる)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const balanceWhileReserved = await balanceOf(userId);
+		await db
+			.update(labelAnalysisJob)
+			.set({
+				status: "running",
+				startedAt: new Date(Date.now() - LABEL_JOB_STALE_MS - 1000),
+			})
+			.where(eq(labelAnalysisJob.id, jobId));
+
+		await settleStaleLabelAnalysisJobs(userId);
+
+		// ここで返すと #246 の孤児回収と二重に戻す経路ができる。決着させるのは行だけ。
+		expect(await balanceOf(userId)).toBe(balanceWhileReserved);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
+	});
+
+	it("しきい値内の running は決着させない(生きているジョブを殺さない)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		await db
+			.update(labelAnalysisJob)
+			.set({ status: "running", startedAt: new Date() })
+			.where(eq(labelAnalysisJob.id, jobId));
+
+		expect(await settleStaleLabelAnalysisJobs(userId)).toBe(0);
+		expect((await jobRow(jobId))?.status).toBe("running");
+	});
+
+	it("stale 決着の後に生き延びたコンシューマが結果を上書きしない", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		await db
+			.update(labelAnalysisJob)
+			.set({
+				status: "running",
+				startedAt: new Date(Date.now() - LABEL_JOB_STALE_MS - 1000),
+			})
+			.where(eq(labelAnalysisJob.id, jobId));
+		await settleStaleLabelAnalysisJobs(userId);
+
+		// 決着後に届いた再配信。claim は queued の間しか成立しないので何も起きない。
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+
+		expect((await jobRow(jobId))?.status).toBe("failed");
+	});
+});
+
+describe("状態の取得", () => {
+	it("終端に達したら残高も返す(UI が完了時に残高表示を更新できる)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		stubAiRun(workersAiOk(300));
+
+		const queued = await getLabelAnalysisJob(userId, jobId);
+		// 未終端のポーリングでは残高を引かない(getBalance は月次付与の書き込みを伴う)。
+		expect(queued).toMatchObject({ status: "queued", photoCount: 1 });
+		expect(queued.balance).toBeUndefined();
+
+		await runLabelAnalysisJob(jobId);
+		const done = await getLabelAnalysisJob(userId, jobId);
+
+		expect(done).toMatchObject({ status: "succeeded" });
+		expect(done.suggestions).toMatchObject({ name: "Chablis Les Clos" });
+		expect(done.balance).toBe(await balanceOf(userId));
+	});
+
+	it("他人のジョブは存在しないものとして扱う", async () => {
+		const owner = await seedUser();
+		const other = await seedUser();
+		const { jobId } = await submitOne(owner);
+
+		// 403 ではなく 404。IDの存在有無を漏らさない。
+		await expect(getLabelAnalysisJob(other, jobId)).rejects.toThrow(
+			NotFoundError,
+		);
+	});
+
+	it("未終端のジョブだけを一覧に出す", async () => {
+		const userId = await seedUser();
+		const running = await submitOne(userId);
+		const finished = await submitOne(userId);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(finished.jobId);
+
+		const active = await listActiveLabelAnalysisJobs(userId);
+
+		expect(active.map((job) => job.jobId)).toEqual([running.jobId]);
+	});
+});
+
+describe("実行経路", () => {
+	it("投入時に解決した経路をコンシューマが再解決しない", async () => {
+		// 投入時はキー未設定 = workers-ai で予約する。
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		expect((await jobRow(jobId))?.route).toBe("workers-ai");
+
+		// 実行までの間にシークレットが増えても、予約は workers-ai の見積で立っている。
+		// 経路を再解決すると予約と実行が食い違う(Claude の推論に Llama の予約)。
+		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
+			"sk-ant-test";
+		vi.stubGlobal("fetch", () => {
+			throw new Error("Anthropic must not be called");
+		});
+		stubAiRun(workersAiOk(300));
+
+		await runLabelAnalysisJob(jobId);
+
+		expect((await jobRow(jobId))?.status).toBe("succeeded");
+		// 実行記録・課金も Workers AI の単価。
+		const settle = (await ledgerRowsOf(userId)).find((r) =>
+			r.requestId?.endsWith(SETTLE_SUFFIX),
+		);
+		expect(settle).toBeDefined();
+		expect(AI_LABEL_MODEL).toContain("llama");
+	});
+});

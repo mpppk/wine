@@ -122,10 +122,213 @@ export type MeteredInferenceResult<T> =
 	| { blocked: false; value: T; charge: CreditCharge; balance: number };
 
 /**
+ * 成立した予約。**確定・返却に必要な値の全部**で、これ以外を確定側へ持ち回る必要が
+ * 無いようにしてある(ジョブ経路はこれを D1 に永続化して別リクエストで確定する)。
+ */
+export interface MeteredInferenceReservation {
+	/** 台帳の冪等キー。settle / refund の requestId はここから導出される */
+	readonly requestId: string;
+	/** 予約した表示クレジット */
+	readonly reservedCredits: number;
+	/** 予約した原価(µUSD) */
+	readonly reservedMicroUsd: number;
+}
+
+export type BeginMeteredInferenceResult =
+	/** 残高不足で予約が立たなかった(失敗ではない)。 */
+	| { blocked: true; balance: number; required: number }
+	| { blocked: false; reservation: MeteredInferenceReservation };
+
+/**
+ * 予約だけを立てる(#460)。**推論と同じリクエストで確定しない経路のための入口**。
+ *
+ * 同期経路(runMeteredInference)は begin と finish を続けて呼ぶだけなので、この分割で
+ * 挙動は変わらない。分けているのはジョブ経路のためで、そちらは
+ *
+ *   投入リクエスト: begin → 予約をジョブ行に永続化 → enqueue
+ *   コンシューマ  : ジョブ行から予約を復元 → finish(推論 → 確定 / 失敗なら返却)
+ *
+ * と2つの実行に跨がる。**予約と確定を別々に書き下ろさせない**のがここの役目で、
+ * 「予約したら必ず確定か返却で閉じる」という順序制約(#143〜#147 / #158 / #245〜#247)を
+ * 経路の数だけ書き写す形に戻さないためにある(#392 と同じ動機)。
+ *
+ * **D1 読み・env 解決・入力検証は呼ぶ前に済ませること**(#245)。予約が立った後の失敗は
+ * すべて呼び出し側の責任で返却しなければならず(finish か abandon)、その窓は短いほどよい。
+ *
+ * @param options.estimate 予約する見積。経路が決まってから作る(経路で単価が数十倍違う)
+ * @param options.requestId 台帳の冪等キー。`<feature>:<uuid>` 形式
+ * @param options.logBase blocked の実行記録に載る静的な実行メタデータ
+ */
+export async function beginMeteredInference(
+	userId: string,
+	options: {
+		estimate: CreditCharge;
+		requestId: string;
+		logBase: MeteredInferenceLogBase;
+		/** blocked の durationMs の起点。省略時は呼び出し時刻 */
+		startedAt?: number;
+	},
+): Promise<BeginMeteredInferenceResult> {
+	const { estimate, requestId, logBase, startedAt = Date.now() } = options;
+	const res = await creditService.reserveCredits(userId, estimate, requestId);
+	if (!res.ok) {
+		recordInference({
+			...logBase,
+			userId,
+			requestId,
+			outcome: "blocked",
+			durationMs: Date.now() - startedAt,
+		});
+		return { blocked: true, balance: res.balance, required: res.required };
+	}
+	return {
+		blocked: false,
+		reservation: {
+			requestId,
+			reservedCredits: res.reservedCredits,
+			reservedMicroUsd: res.reservedMicroUsd,
+		},
+	};
+}
+
+/** 予約が成立した後の推論の結末(blocked はここには来ない)。 */
+export interface FinishMeteredInferenceResult<T> {
+	value: T;
+	charge: CreditCharge;
+	balance: number;
+}
+
+/**
+ * 成立済みの予約で推論を1回走らせ、実測で確定する(失敗時は全額返却して再 throw)。
+ *
+ * 予約後の順序制約はすべてここに閉じている:
+ *
+ *  1. **推論の失敗は必ず返却に届く**: infer の throw だけが catch に入る形になっており、
+ *     呼び出し側が予約と try の間に await を挟む余地が無い
+ *  2. **getBalance は try の外**(#144): settle 成功後に残高参照で落ちても、catch の
+ *     全額返却は走らない(走ると消費がネットプラスになる)
+ *  3. **返却失敗が元例外をマスクしない**(#158): 返却は refundReservationOnFailure に
+ *     任せ、catch は必ず元の例外 e を再 throw する
+ *  4. **ok/failed の実行記録**が同じ組み立てで出る(#370)
+ *
+ * @param options.startedAt durationMs の起点。ジョブ経路は「推論を始めた時刻」を渡す
+ *   (投入から完了までの待ち時間を推論時間として記録しない)
+ */
+export async function finishMeteredInference<T>(
+	userId: string,
+	options: {
+		reservation: MeteredInferenceReservation;
+		logBase: MeteredInferenceLogBase;
+		startedAt?: number;
+	},
+	infer: (ctx: MeteredInferenceContext) => Promise<MeteredInferenceOutput<T>>,
+): Promise<FinishMeteredInferenceResult<T>> {
+	const { reservation, logBase, startedAt = Date.now() } = options;
+	const { requestId, reservedCredits, reservedMicroUsd } = reservation;
+	const entryBase = { ...logBase, userId, requestId };
+
+	// 推論中に判明した分。catch でも読むので try の外に置く。
+	let extraFields: MeteredInferenceLogFields = {};
+	const ctx: MeteredInferenceContext = {
+		requestId,
+		reservedMicroUsd,
+		addLogFields(fields) {
+			extraFields = { ...extraFields, ...fields };
+		},
+	};
+
+	let output: MeteredInferenceOutput<T>;
+	try {
+		output = await infer(ctx);
+		await creditService.settleReservation(
+			userId,
+			requestId,
+			reservedCredits,
+			output.charge,
+		);
+	} catch (e) {
+		// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
+		// 潰さず伝播する(#158)。
+		await creditService.refundReservationOnFailure(
+			userId,
+			requestId,
+			reservedCredits,
+		);
+		recordInference({
+			...entryBase,
+			...extraFields,
+			outcome: "failed",
+			durationMs: Date.now() - startedAt,
+			reservedMicroUsd,
+			err: e,
+		});
+		throw e;
+	}
+	recordInference({
+		...entryBase,
+		...extraFields,
+		outcome: "ok",
+		durationMs: Date.now() - startedAt,
+		actualTokens: output.charge.tokens,
+		costMicroUsd: output.charge.microUsd,
+		reservedMicroUsd,
+	});
+	// settle 成功後は消費確定済み。getBalance の失敗で上の catch の全額返却が走ると
+	// 消費がネットプラスになるため、残高参照は**必ず try の外**で行う(#144)。
+	const after = await creditService.getBalance(userId);
+	return {
+		value: output.value,
+		charge: output.charge,
+		balance: after.balance,
+	};
+}
+
+/**
+ * 推論を**走らせずに**予約を返却して打ち切る(#460)。
+ *
+ * ジョブ経路には「予約は成立したが推論に到達できない」結末がある——写真の保存や
+ * enqueue の失敗、コンシューマが死んで `running` のまま放置されたジョブの決着。
+ * finish の catch と**同じ組み立て**(返却 + failed の実行記録)を通し、経路ごとに
+ * 「返却だけして記録を忘れる/記録だけして返却を忘れる」形が生まれないようにする。
+ *
+ * **これは新しい回収機構ではない**。ここで返せなかった予約(プロセスごと死んだ場合)は
+ * credit-service の `reclaimOrphanReservations` が次の予約時に拾う(#246)。ジョブ側に
+ * 別の回収ループを作ると二重回収になるので作らない。
+ */
+export async function abandonMeteredInference(
+	userId: string,
+	options: {
+		reservation: MeteredInferenceReservation;
+		logBase: MeteredInferenceLogBase;
+		startedAt?: number;
+	},
+	err: unknown,
+): Promise<void> {
+	const { reservation, logBase, startedAt = Date.now() } = options;
+	await creditService.refundReservationOnFailure(
+		userId,
+		reservation.requestId,
+		reservation.reservedCredits,
+	);
+	recordInference({
+		...logBase,
+		userId,
+		requestId: reservation.requestId,
+		outcome: "failed",
+		durationMs: Date.now() - startedAt,
+		reservedMicroUsd: reservation.reservedMicroUsd,
+		err,
+	});
+}
+
+/**
  * クレジットを予約して推論を1回走らせ、実測で確定する(失敗時は全額返却)。
  *
  * **D1 読み・env 解決・入力検証は呼ぶ前に済ませること**(#245)。この関数を呼んだ時点から
  * 予約が立ち、以後の失敗は infer の中で起きたものだけが返却される。
+ *
+ * 中身は `beginMeteredInference` → `finishMeteredInference` の合成そのもので、同期経路の
+ * 呼び出し側にその2段階を意識させないための糖衣。
  *
  * @param options.estimate 予約する見積。経路が決まってから作る(経路で単価が数十倍違う)
  * @param options.requestId 台帳の冪等キー。`<feature>:<uuid>` 形式
@@ -141,73 +344,25 @@ export async function runMeteredInference<T>(
 	},
 	infer: (ctx: MeteredInferenceContext) => Promise<MeteredInferenceOutput<T>>,
 ): Promise<MeteredInferenceResult<T>> {
-	const { estimate, requestId, logBase } = options;
+	// 予約前から測る(従来どおり)。予約の待ちも1リクエストの所要時間の一部。
 	const startedAt = Date.now();
-	const entryBase = { ...logBase, userId, requestId };
-
-	const res = await creditService.reserveCredits(userId, estimate, requestId);
-	if (!res.ok) {
-		recordInference({
-			...entryBase,
-			outcome: "blocked",
-			durationMs: Date.now() - startedAt,
-		});
-		return { blocked: true, balance: res.balance, required: res.required };
+	const begun = await beginMeteredInference(userId, { ...options, startedAt });
+	if (begun.blocked) {
+		return { blocked: true, balance: begun.balance, required: begun.required };
 	}
-
-	// 推論中に判明した分。catch でも読むので try の外に置く。
-	let extraFields: MeteredInferenceLogFields = {};
-	const ctx: MeteredInferenceContext = {
-		requestId,
-		reservedMicroUsd: res.reservedMicroUsd,
-		addLogFields(fields) {
-			extraFields = { ...extraFields, ...fields };
+	const done = await finishMeteredInference(
+		userId,
+		{
+			reservation: begun.reservation,
+			logBase: options.logBase,
+			startedAt,
 		},
-	};
-
-	let output: MeteredInferenceOutput<T>;
-	try {
-		output = await infer(ctx);
-		await creditService.settleReservation(
-			userId,
-			requestId,
-			res.reservedCredits,
-			output.charge,
-		);
-	} catch (e) {
-		// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
-		// 潰さず伝播する(#158)。
-		await creditService.refundReservationOnFailure(
-			userId,
-			requestId,
-			res.reservedCredits,
-		);
-		recordInference({
-			...entryBase,
-			...extraFields,
-			outcome: "failed",
-			durationMs: Date.now() - startedAt,
-			reservedMicroUsd: res.reservedMicroUsd,
-			err: e,
-		});
-		throw e;
-	}
-	recordInference({
-		...entryBase,
-		...extraFields,
-		outcome: "ok",
-		durationMs: Date.now() - startedAt,
-		actualTokens: output.charge.tokens,
-		costMicroUsd: output.charge.microUsd,
-		reservedMicroUsd: res.reservedMicroUsd,
-	});
-	// settle 成功後は消費確定済み。getBalance の失敗で上の catch の全額返却が走ると
-	// 消費がネットプラスになるため、残高参照は**必ず try の外**で行う(#144)。
-	const after = await creditService.getBalance(userId);
+		infer,
+	);
 	return {
 		blocked: false,
-		value: output.value,
-		charge: output.charge,
-		balance: after.balance,
+		value: done.value,
+		charge: done.charge,
+		balance: done.balance,
 	};
 }

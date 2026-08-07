@@ -9,7 +9,11 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
-	"main": "@tanstack/react-start/server-entry",
+	// 既定の `@tanstack/react-start/server-entry` ではなく自前のエントリを指す(#460)。
+	// `fetch` と並べてキュー・コンシューマ(`queue`)を export する必要があるため。
+	// 既定エントリの実体は数行(`createStartHandler(defaultStreamHandler)` を包むだけ)で、
+	// src/worker.ts がそれをそのまま写した上で `queue` を併設している。
+	"main": "src/worker.ts",
 	"vars": {
 		// 公開URLの単一情報源。MCP ツールが外部に返す geojson_url / map_url /
 		// 署名付き photo_url と、OAuth の issuer・各エンドポイント(RFC 8414/9728 の
@@ -66,6 +70,35 @@
 	// D1/KV を消費しない。**period は 10 か 60 秒のみ**・カウンタは colo ごと
 	// (全世界で厳密に N 回ではない)という性質は src/lib/rate-limit.ts を参照。
 	// namespace_id はアカウント内で一意な正整数の文字列。
+	// エチケット解析ジョブ(#460)。producer(投入API)と consumer(src/worker.ts の
+	// `queue`)を**同じワーカーに同居**させる。別ワーカーを立てないのは、コンシューマが
+	// 使うのが D1・R2・AI・画像変換とアプリ本体と同じバインディング群で、分けると
+	// 全て二重に設定することになるため。
+	//
+	// **env ごとに再掲が必要**(d1_databases / r2_buckets / ratelimits と同じ扱い)。
+	// キュー自体は本番・preview で別リソースにする(プレビューの試行が本番のジョブを
+	// 消費しない)。
+	"queues": {
+		"producers": [
+			{
+				"binding": "LABEL_JOBS",
+				"queue": "wine-label-jobs"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "wine-label-jobs",
+				// 1メッセージ = 1解析(実測30秒前後)。バッチを大きくしても直列に回すだけ
+				// なので、`max_batch_timeout` で滞留を作らない小さめの値にする。
+				"max_batch_size": 5,
+				"max_batch_timeout": 5,
+				// **リトライしない**。コンシューマ側の claim ガード(`queued` の間だけ掴む)に
+				// より再配信は必ず空振りし、失敗はジョブ行に記録済みで利用者にも見える。
+				// 無駄な再配信で原価と枠を消費しないよう 0 にする。
+				"max_retries": 0
+			}
+		]
+	},
 	"ratelimits": [
 		{
 			// server function の書き込み全般。通常操作(連続保存・一括登録)を妨げない幅を取る。
@@ -118,6 +151,25 @@
 			// 画像変換(zoom_photo)。本番と同じくアカウントレベルのリソース。
 			"images": {
 				"binding": "IMAGES"
+			},
+			// エチケット解析ジョブ(#460)。**キューは本番と別リソース**にする
+			// (プレビューの試行が本番のジョブを消費しない)。全プレビュー環境が共通の
+			// D1 を共有するのと同じく、このキューも全プレビューで共通になる。
+			"queues": {
+				"producers": [
+					{
+						"binding": "LABEL_JOBS",
+						"queue": "wine-label-jobs-preview"
+					}
+				],
+				"consumers": [
+					{
+						"queue": "wine-label-jobs-preview",
+						"max_batch_size": 5,
+						"max_batch_timeout": 5,
+						"max_retries": 0
+					}
+				]
 			},
 			// **env ごとに再掲が必要**(ratelimits はトップレベル設定を継承しない。
 			// d1_databases / r2_buckets / ai と同じ扱い)。namespace_id は本番と

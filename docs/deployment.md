@@ -5,12 +5,13 @@
 
 ## 環境
 
-| Worker | 用途 | URL | D1 | R2 |
-|---|---|---|---|---|
-| `wine` | 本番 | https://wine.nibo.sh （カスタムドメイン。https://wine.niboshi.workers.dev でも可） | `wine-db` | `avatars-wine` |
-| `wine-preview` | プレビュー（PRごと / main のミラー） | `https://<branch>-wine-preview.niboshi.workers.dev`（PR作成後に自動発行。URLはPRコメントに記載） | `wine-preview-db`（プレビュー共通） | `avatars-wine-preview`（プレビュー共通） |
+| Worker | 用途 | URL | D1 | R2 | Queue |
+|---|---|---|---|---|---|
+| `wine` | 本番 | https://wine.nibo.sh （カスタムドメイン。https://wine.niboshi.workers.dev でも可） | `wine-db` | `avatars-wine` | `wine-label-jobs` |
+| `wine-preview` | プレビュー（PRごと / main のミラー） | `https://<branch>-wine-preview.niboshi.workers.dev`（PR作成後に自動発行。URLはPRコメントに記載） | `wine-preview-db`（プレビュー共通） | `avatars-wine-preview`（プレビュー共通） | `wine-label-jobs-preview`（プレビュー共通） |
 
-- プレビューの D1/R2 は全PRで共有されるため、あるプレビュー環境で作成したデータは他のプレビュー環境からも見える。また PR に含まれるマイグレーションは、マージ前でもプレビュー共通DBへ先行適用される。
+- プレビューの D1/R2/Queue は全PRで共有されるため、あるプレビュー環境で作成したデータは他のプレビュー環境からも見える。また PR に含まれるマイグレーションは、マージ前でもプレビュー共通DBへ先行適用される。
+- Queue はエチケット解析のジョブ化（#460）で追加した。**producer と consumer は同じ Worker に同居**しており（`src/worker.ts` が `fetch` と `queue` の両方を export する）、別 Worker は立てていない。キュー自体は Terraform 管理外なので、環境を作り直すときは `wrangler queues create <name>` で先に作る（存在しないキューを参照するとデプロイが失敗する）。
 - ログイン等で origin を検証するため、公開ドメインを追加/変更したら `src/lib/auth.ts` の `trustedOrigins` にも登録する（プレビューはダッシュ連結ホスト名 `https://*-wine-preview.niboshi.workers.dev` 用のワイルドカードが別途必要）。
 
 ## DB マイグレーションの自動実行

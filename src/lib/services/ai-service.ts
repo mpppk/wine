@@ -33,6 +33,7 @@ import {
 	estimateLabelReserveCharge,
 	estimateRegionQaReserveCharge,
 	estimateWineListReserveCharge,
+	type LabelEngineKey,
 	type LabelRoute,
 	type RegionQaModelKey,
 	resolveLabelRoute,
@@ -116,7 +117,15 @@ import { logWarn } from "#/lib/logger";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
-import { runMeteredInference } from "#/lib/services/metered-inference";
+import {
+	type FinishMeteredInferenceResult,
+	finishMeteredInference,
+	type MeteredInferenceContext,
+	type MeteredInferenceLogBase,
+	type MeteredInferenceOutput,
+	type MeteredInferenceReservation,
+	runMeteredInference,
+} from "#/lib/services/metered-inference";
 import * as userService from "#/lib/services/user-service";
 import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
 
@@ -333,12 +342,26 @@ export async function answerRegionQuestion(
 export async function resolveLabelRouteForUser(
 	userId: string,
 ): Promise<LabelRoute> {
+	return (await resolveLabelEngineAndRoute(userId)).route;
+}
+
+/**
+ * ユーザ設定(D1読み)+ env から「選択エンジン」と「実行経路」を解決する。
+ * **経路の解決口はここ1つ**にする——表示用(resolveLabelRouteForUser)と予約用
+ * (resolveLabelPlan)で別々に書くと、片方だけがユーザ設定を読み忘れる形でドリフトする
+ * (#354 の教訓)。
+ */
+async function resolveLabelEngineAndRoute(
+	userId: string,
+): Promise<{ engine: LabelEngineKey; route: LabelRoute }> {
 	const { preferredLabelEngine } = await userService.getCurrentUser(userId);
+	// 書き込み側(auth.ts の validator)と同じ許可リストで照合する。旧データ・不正値は
+	// 既定(高精度)へフォールバックする(resolveModelKey と同じ流儀)。
 	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
-	return resolveLabelRoute(engine, {
-		openai: !!env.OPENAI_API_KEY?.trim(),
-		anthropic: !!env.ANTHROPIC_API_KEY?.trim(),
-	});
+	return {
+		engine,
+		route: resolveLabelRoute(engine, labelProviderAvailability()),
+	};
 }
 
 /** 高精度経路が使える環境か(プロフィールの選択カードに目安消費を出すために使う)。 */
@@ -596,6 +619,302 @@ async function analyzeLabelWithGptResearch(
 }
 
 /**
+ * 予約より前に決めておくものの全部(#460)。
+ *
+ * 経路・見積・requestId・実行記録の静的部分は、どれも**予約が立つ前に確定していなければ
+ * ならない**(#245)。同期経路とジョブ経路でここを別々に書き下ろすと、片方だけが
+ * ユーザ設定を読み忘れる/別の見積で予約する、という形でドリフトする。
+ *
+ * ジョブ経路は `route` / `engine` を D1 に永続化し、コンシューマ側では**経路を再解決しない**
+ * (予約はこの経路の見積で立っているので、再解決した結果が違えば予約と実行が食い違う)。
+ */
+export interface LabelPlan {
+	/** ユーザがプロフィールで選んでいたエンジン。実行記録の `selected` */
+	engine: LabelEngineKey;
+	/** 実際に走らせる経路。キーの設定状況で降格しうる */
+	route: LabelRoute;
+	/** この経路・枚数での予約見積 */
+	estimate: CreditCharge;
+	/** 台帳の冪等キー */
+	requestId: string;
+	/** 全ての結末に載る静的な実行メタデータ */
+	logBase: MeteredInferenceLogBase;
+	photoCount: number;
+}
+
+/** 経路と枚数から、全ての結末に載る静的な実行メタデータを組む。 */
+function buildLabelLogBase(options: {
+	engine: LabelEngineKey;
+	route: LabelRoute;
+	photoCount: number;
+}): MeteredInferenceLogBase {
+	return {
+		feature: "label_analysis",
+		selected: options.engine,
+		route: options.route,
+		photoCount: options.photoCount,
+	};
+}
+
+/**
+ * エチケット解析の経路・見積・requestId を解決する。**予約より前に呼ぶ**(#245)。
+ *
+ * 高精度経路は「対応するシークレット設定あり かつ ユーザが標準を明示選択していない」
+ * 場合のみ有効。env・ユーザ設定(D1読み)の解決をここに閉じ込めることで、呼び出し側は
+ * 「plan を作る → 予約する」の順に並べるだけでよくなる。
+ */
+export async function resolveLabelPlan(
+	userId: string,
+	photoCount: number,
+): Promise<LabelPlan> {
+	const { engine, route } = await resolveLabelEngineAndRoute(userId);
+	// 見積は経路で大きく違う(実費で標準 約3 / Luna 約39 / Claude 約275 クレジット)。
+	// 経路 → 見積の対応は config.ts に寄せてあり、クライアントの必要クレジット表示も
+	// 同じ関数を通る。
+	return {
+		engine,
+		route,
+		estimate: estimateLabelReserveCharge(route, photoCount),
+		requestId: `analyze_label:${crypto.randomUUID()}`,
+		logBase: buildLabelLogBase({ engine, route, photoCount }),
+		photoCount,
+	};
+}
+
+/**
+ * 保存済みのジョブから plan を復元する(#460)。**経路は再解決しない**——予約は投入時の
+ * 経路の見積で立っているため、コンシューマ側で解決し直すと(その間にシークレットが
+ * 変わっていた等で)予約と実行が食い違う。
+ */
+export function restoreLabelPlan(saved: {
+	engine: LabelEngineKey;
+	route: LabelRoute;
+	photoCount: number;
+	requestId: string;
+}): LabelPlan {
+	return {
+		engine: saved.engine,
+		route: saved.route,
+		estimate: estimateLabelReserveCharge(saved.route, saved.photoCount),
+		requestId: saved.requestId,
+		logBase: buildLabelLogBase(saved),
+		photoCount: saved.photoCount,
+	};
+}
+
+/**
+ * エチケット解析の**推論本体**(#460)。同期経路(analyzeWineLabel)とジョブ経路
+ * (label-job-service)が共有する。
+ *
+ * この関数は「予約が既に立っていて、ここでの throw は必ず返却に届く」ことを前提にする
+ * (`runMeteredInference` / `finishMeteredInference` の infer として呼ばれる)。
+ * **D1 読み・env 解決はここに書かない**——書くと予約後の await が増え、#245 の順序制約が
+ * 経路ごとに崩れる余地を作る。必要な材料は plan と引数で渡し切る。
+ */
+async function runLabelInference(
+	userId: string,
+	input: {
+		imageDataUrls: string[];
+		plan: LabelPlan;
+		openaiApiKey?: string;
+		anthropicApiKey?: string;
+	},
+	ctx: MeteredInferenceContext,
+): Promise<MeteredInferenceOutput<LabelSuggestions>> {
+	const { imageDataUrls, plan, openaiApiKey, anthropicApiKey } = input;
+	const { route, requestId } = plan;
+	// 実際に結果を出した経路。高精度経路が失敗すると route と食い違う(=フォールバック)。
+	// route だけを記録すると「GPTで成功」と「GPTが落ちてWorkers AIが拾った」を
+	// 区別できないため、別に持って実行記録に載せる。
+	let executedBy: LabelRoute | undefined;
+	/** 実行経路が確定したら実行記録にも反映する(降格した回も失敗した回も残る)。 */
+	const markExecutedBy = (executed: LabelRoute) => {
+		executedBy = executed;
+		ctx.addLogFields({
+			executedBy: executed,
+			model: AI_LABEL_ROUTE_MODELS[executed],
+		});
+	};
+	// 裏取りの観測情報(webResearch / fieldSources)は**判明した時点で** ctx に積む。
+	// ラッパーが ok と failed の両方の実行記録に載せるので、高精度経路が落ちて
+	// Workers AI へ降格した回や推論そのものが失敗した回にも残る —— 「検索まで
+	// 到達したが結果を使えなかった」ことが分かるのはここだけ(#392)。
+	let usage: AiUsage = {};
+	const extractions: LabelExtraction[] = [];
+
+	// 高精度経路: LLM + web検索で全写真を1リクエスト総合解析する。失敗しても全体を
+	// 落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
+	// **失敗時にもう一方の高精度プロバイダは試さない**: 予約は選んだ経路の見積で
+	// 取ってあり、2つ目の課金と待ち時間を積み増すより確実に応答を返す方を採る
+	// (キー未設定による降格は予約前の resolveLabelRoute が済ませている)。
+	if (route === "gpt-luna" && openaiApiKey) {
+		try {
+			// **見せる版と切る版を分ける**。クライアントは拡大に耐える解像度で
+			// 送ってくるが、それをそのまま会話へ載せると入力トークンが毎ターン
+			// 効いてくる(しかも全体写真は解像度を上げても読めるようにならない
+			// ことが実測で分かっている)。会話には縮小版を載せ、`zoom_photo` は
+			// 元の版から切る。
+			// バインディングが無い環境では拡大を諦めて解析だけ通す。設定漏れで
+			// 機能が丸ごと落ちるより、精度が下がるだけで済むほうが被害が小さい。
+			const canTransform = isImageTransformAvailable();
+			if (!canTransform) {
+				logWarn("image transform unavailable; zoom_photo disabled", {
+					userId,
+					requestId,
+				});
+			}
+			const viewDataUrls = canTransform
+				? await Promise.all(
+						imageDataUrls.map((url) =>
+							downscaleImage(url, AI_LABEL_VIEW_MAX_DIMENSION),
+						),
+					)
+				: imageDataUrls;
+			const gpt = await analyzeLabelWithGptResearch(
+				openaiApiKey,
+				viewDataUrls,
+				canTransform ? imageDataUrls : undefined,
+				(t) => ctx.addLogFields({ webResearch: t }),
+				ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
+			);
+			extractions.push(gpt.extraction);
+			usage = addUsage(usage, gpt.usage);
+			ctx.addLogFields({
+				fieldSources: gpt.fieldSources,
+				verified: gpt.verified,
+				steps: gpt.steps,
+			});
+			markExecutedBy("gpt-luna");
+		} catch (gptErr) {
+			logWarn("label gpt research failed; falling back to Workers AI", {
+				userId,
+				requestId,
+				err: gptErr,
+			});
+		}
+	} else if (route === "web-research" && anthropicApiKey) {
+		try {
+			const web = await analyzeLabelWithWebResearch(
+				anthropicApiKey,
+				imageDataUrls,
+				(t) => ctx.addLogFields({ webResearch: t }),
+			);
+			extractions.push(web.extraction);
+			usage = addUsage(usage, web.usage);
+			ctx.addLogFields({ fieldSources: web.fieldSources });
+			markExecutedBy("web-research");
+		} catch (webErr) {
+			logWarn("label web research failed; falling back to Workers AI", {
+				userId,
+				requestId,
+				err: webErr,
+			});
+		}
+	}
+
+	if (extractions.length === 0) {
+		// Workers AI 経路: 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側)。
+		// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
+		// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
+		// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
+		let anyCallOk = false;
+		let lastPhotoErr: unknown;
+		// 高精度経路が失敗して降格した場合、そこまでの usage は**破棄する**。
+		// 課金は実行したモデル1つの単価で行う(chargeFor に渡せるモデルは1つ)。
+		// 失敗した高精度呼び出しのぶんは原価としては発生しているが、ユーザには
+		// 「失敗した推論の料金」を負担させない(過小請求側=ユーザ有利に倒す)。
+		usage = {};
+		for (const [photoIndex, imageDataUrl] of imageDataUrls.entries()) {
+			try {
+				const raw = await env.AI.run(AI_LABEL_MODEL, {
+					messages: buildLabelMessages(imageDataUrl),
+					// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
+					guided_json: LABEL_JSON_SCHEMA,
+					max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+				});
+				// guided_json 時の response は文字列とパース済みオブジェクトの両方がありうる
+				// (parseLabelResponse が両対応する)
+				const out = raw as {
+					response?: unknown;
+					usage?: { total_tokens?: number };
+				};
+				extractions.push(parseLabelResponse(out.response ?? ""));
+				// Workers AI は内訳を返さないので全量を出力単価で換算する(保守的)。
+				// 写真ごとの usage を足し込むので、欠落した回は 0 として素通しする
+				// (全滅時のみ measured.microUsd === 0 で予約見積の床に落ちる)。
+				usage = addUsage(usage, toWorkersAiUsage(out.usage) ?? {});
+				anyCallOk = true;
+			} catch (photoErr) {
+				// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
+				// モデルエラーとJSONパース失敗を後から切り分けられるよう記録は残す(#156)。
+				lastPhotoErr = photoErr;
+				logWarn("label photo analysis failed", {
+					userId,
+					requestId,
+					photoIndex,
+					err: photoErr,
+				});
+			}
+		}
+		// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(呼び出し側の catch へ)。
+		// 最後の失敗要因を cause に持たせ、全滅時の原因追跡を可能にする(#156)。
+		if (!anyCallOk) {
+			throw new Error("すべての写真の解析に失敗しました", {
+				cause: lastPhotoErr,
+			});
+		}
+		markExecutedBy("workers-ai");
+	}
+	const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
+	// **実際に結果を出した経路のモデル単価で課金する**。意図した経路(route)で換算すると、
+	// Claude が落ちて Workers AI が拾った回に Opus の単価で Llama の推論を課金してしまう。
+	const executedRoute = executedBy ?? route;
+	const executedModel = AI_LABEL_ROUTE_MODELS[executedRoute];
+	const measured = chargeFor(executedModel, usage);
+	let charge: CreditCharge;
+	if (measured.microUsd > 0) {
+		charge = measured;
+	} else {
+		// 実測が取れなかった回の床は**実行された経路の見積**にする(#404)。予約額
+		// (= 意図した経路の見積)を使うと、高精度経路が落ちて Workers AI が拾い、かつ
+		// Workers AI が usage を返さなかった回に、Llama 1回の推論へ高精度経路の予約全量
+		// (例: 275クレジット)を確定課金してしまう。単価換算(chargeFor)を実行経路に
+		// 揃えているのと同じ理由で、フォールバックの床も実行経路に揃える。
+		// 実行経路 = 予約した経路なら値は予約額と一致するので、降格が無い回の挙動は変わらない。
+		charge = fallbackCharge(
+			estimateLabelReserveCharge(executedRoute, imageDataUrls.length).microUsd,
+		);
+		// 実測欠落の頻度を観測できるようにする(Workers AI の usage は任意)。
+		logWarn("label usage missing; charging the executed route estimate", {
+			userId,
+			requestId,
+			route,
+			executedBy: executedRoute,
+			reservedMicroUsd: ctx.reservedMicroUsd,
+			chargedMicroUsd: charge.microUsd,
+		});
+	}
+	return { value: suggestions, charge };
+}
+
+/**
+ * 高精度経路のプロバイダキー(env から読む)。**予約より前に読むこと**(#245)。
+ *
+ * ジョブ経路のコンシューマも同じ関数を通す。キー**そのもの**はジョブ行に持たない
+ * (シークレットを D1 へ書かない)。経路は投入時に確定させて持ち回るので、ここで
+ * 読むのは「その経路を実行するための鍵」だけになる。
+ */
+export function labelProviderApiKeys(): {
+	openaiApiKey?: string;
+	anthropicApiKey?: string;
+} {
+	return {
+		openaiApiKey: env.OPENAI_API_KEY?.trim() || undefined,
+		anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || undefined,
+	};
+}
+
+/**
  * エチケット画像を解析し、マイセラーの自動入力候補を返す。
  * OPENAI_API_KEY / ANTHROPIC_API_KEY 設定時は LLM + web検索の高精度経路(裏取り込みの
  * 総合解析)を使い、キー未設定・実行失敗時は Workers AI(マルチモーダル)へ
@@ -603,6 +922,10 @@ async function analyzeLabelWithGptResearch(
  * ユーザがプロフィールで標準(workers-ai)を選んでいる場合はキー設定時でも高精度を使わない。
  * クレジットの予約→実測確定/失敗時返却は answerRegionQuestion と同じ骨格。
  * 応答のパース失敗も「推論失敗」として予約を全額返却する。
+ *
+ * **同期経路**(1リクエストで完結。フォームが待つ)。ページを離れてよい非同期経路は
+ * label-job-service の `submitLabelAnalysisJob` で、推論本体(`runLabelInference`)は
+ * 両者で共有する(#460)。
  */
 export async function analyzeWineLabel(
 	userId: string,
@@ -611,216 +934,24 @@ export async function analyzeWineLabel(
 	if (input.imageDataUrls.length === 0) {
 		throw new BadRequestError("画像が指定されていません");
 	}
-	// 高精度経路は「対応するシークレット設定あり かつ ユーザが標準を明示選択していない」
-	// 場合のみ有効。env・ユーザ設定(D1読み)の解決は**予約より前**に済ませ、「予約したら
-	// 必ず try で囲まれている」形を保つ(#245 と同じ理由)。
-	// 見積は経路で異なる(web検索の結果取り込みぶん、高精度経路のほうが大きい)。
-	const openaiApiKey = env.OPENAI_API_KEY?.trim() || undefined;
-	const anthropicApiKey = env.ANTHROPIC_API_KEY?.trim() || undefined;
-	const { preferredLabelEngine } = await userService.getCurrentUser(userId);
-	// 書き込み側(auth.ts の validator)と同じ許可リストで照合する。旧データ・不正値は
-	// 既定(高精度)へフォールバックする(resolveModelKey と同じ流儀)。
-	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
-	const route = resolveLabelRoute(engine, {
-		openai: !!openaiApiKey,
-		anthropic: !!anthropicApiKey,
-	});
-	// 見積は経路で大きく違う(実費で標準 約3 / Luna 約39 / Claude 約275 クレジット)。
-	// 経路 → 見積の対応は config.ts に寄せてあり、クライアントの必要クレジット表示も
-	// 同じ関数を通る。
-	const estimate = estimateLabelReserveCharge(
-		route,
-		input.imageDataUrls.length,
-	);
-	const requestId = `analyze_label:${crypto.randomUUID()}`;
-	const logBase = {
-		feature: "label_analysis",
-		selected: engine,
-		route,
-		photoCount: input.imageDataUrls.length,
-	} as const;
+	// env・ユーザ設定(D1読み)の解決は**予約より前**に済ませ、「予約したら必ず try で
+	// 囲まれている」形を保つ(#245 と同じ理由)。
+	const apiKeys = labelProviderApiKeys();
+	const plan = await resolveLabelPlan(userId, input.imageDataUrls.length);
 
 	const result = await runMeteredInference(
 		userId,
-		{ estimate, requestId, logBase },
-		async (ctx) => {
-			// 実際に結果を出した経路。高精度経路が失敗すると route と食い違う(=フォールバック)。
-			// route だけを記録すると「GPTで成功」と「GPTが落ちてWorkers AIが拾った」を
-			// 区別できないため、別に持って実行記録に載せる。
-			let executedBy: LabelRoute | undefined;
-			/** 実行経路が確定したら実行記録にも反映する(降格した回も失敗した回も残る)。 */
-			const markExecutedBy = (executed: LabelRoute) => {
-				executedBy = executed;
-				ctx.addLogFields({
-					executedBy: executed,
-					model: AI_LABEL_ROUTE_MODELS[executed],
-				});
-			};
-			// 裏取りの観測情報(webResearch / fieldSources)は**判明した時点で** ctx に積む。
-			// ラッパーが ok と failed の両方の実行記録に載せるので、高精度経路が落ちて
-			// Workers AI へ降格した回や推論そのものが失敗した回にも残る —— 「検索まで
-			// 到達したが結果を使えなかった」ことが分かるのはここだけ(#392)。
-			let usage: AiUsage = {};
-			const extractions: LabelExtraction[] = [];
-
-			// 高精度経路: LLM + web検索で全写真を1リクエスト総合解析する。失敗しても全体を
-			// 落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
-			// **失敗時にもう一方の高精度プロバイダは試さない**: 予約は選んだ経路の見積で
-			// 取ってあり、2つ目の課金と待ち時間を積み増すより確実に応答を返す方を採る
-			// (キー未設定による降格は予約前の resolveLabelRoute が済ませている)。
-			if (route === "gpt-luna" && openaiApiKey) {
-				try {
-					// **見せる版と切る版を分ける**。クライアントは拡大に耐える解像度で
-					// 送ってくるが、それをそのまま会話へ載せると入力トークンが毎ターン
-					// 効いてくる(しかも全体写真は解像度を上げても読めるようにならない
-					// ことが実測で分かっている)。会話には縮小版を載せ、`zoom_photo` は
-					// 元の版から切る。
-					// バインディングが無い環境では拡大を諦めて解析だけ通す。設定漏れで
-					// 機能が丸ごと落ちるより、精度が下がるだけで済むほうが被害が小さい。
-					const canTransform = isImageTransformAvailable();
-					if (!canTransform) {
-						logWarn("image transform unavailable; zoom_photo disabled", {
-							userId,
-							requestId,
-						});
-					}
-					const viewDataUrls = canTransform
-						? await Promise.all(
-								input.imageDataUrls.map((url) =>
-									downscaleImage(url, AI_LABEL_VIEW_MAX_DIMENSION),
-								),
-							)
-						: input.imageDataUrls;
-					const gpt = await analyzeLabelWithGptResearch(
-						openaiApiKey,
-						viewDataUrls,
-						canTransform ? input.imageDataUrls : undefined,
-						(t) => ctx.addLogFields({ webResearch: t }),
-						ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
-					);
-					extractions.push(gpt.extraction);
-					usage = addUsage(usage, gpt.usage);
-					ctx.addLogFields({
-						fieldSources: gpt.fieldSources,
-						verified: gpt.verified,
-						steps: gpt.steps,
-					});
-					markExecutedBy("gpt-luna");
-				} catch (gptErr) {
-					logWarn("label gpt research failed; falling back to Workers AI", {
-						userId,
-						requestId,
-						err: gptErr,
-					});
-				}
-			} else if (route === "web-research" && anthropicApiKey) {
-				try {
-					const web = await analyzeLabelWithWebResearch(
-						anthropicApiKey,
-						input.imageDataUrls,
-						(t) => ctx.addLogFields({ webResearch: t }),
-					);
-					extractions.push(web.extraction);
-					usage = addUsage(usage, web.usage);
-					ctx.addLogFields({ fieldSources: web.fieldSources });
-					markExecutedBy("web-research");
-				} catch (webErr) {
-					logWarn("label web research failed; falling back to Workers AI", {
-						userId,
-						requestId,
-						err: webErr,
-					});
-				}
-			}
-
-			if (extractions.length === 0) {
-				// Workers AI 経路: 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側)。
-				// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
-				// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
-				// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
-				let anyCallOk = false;
-				let lastPhotoErr: unknown;
-				// 高精度経路が失敗して降格した場合、そこまでの usage は**破棄する**。
-				// 課金は実行したモデル1つの単価で行う(chargeFor に渡せるモデルは1つ)。
-				// 失敗した高精度呼び出しのぶんは原価としては発生しているが、ユーザには
-				// 「失敗した推論の料金」を負担させない(過小請求側=ユーザ有利に倒す)。
-				usage = {};
-				for (const [
-					photoIndex,
-					imageDataUrl,
-				] of input.imageDataUrls.entries()) {
-					try {
-						const raw = await env.AI.run(AI_LABEL_MODEL, {
-							messages: buildLabelMessages(imageDataUrl),
-							// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
-							guided_json: LABEL_JSON_SCHEMA,
-							max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
-						});
-						// guided_json 時の response は文字列とパース済みオブジェクトの両方がありうる
-						// (parseLabelResponse が両対応する)
-						const out = raw as {
-							response?: unknown;
-							usage?: { total_tokens?: number };
-						};
-						extractions.push(parseLabelResponse(out.response ?? ""));
-						// Workers AI は内訳を返さないので全量を出力単価で換算する(保守的)。
-						// 写真ごとの usage を足し込むので、欠落した回は 0 として素通しする
-						// (全滅時のみ measured.microUsd === 0 で予約見積の床に落ちる)。
-						usage = addUsage(usage, toWorkersAiUsage(out.usage) ?? {});
-						anyCallOk = true;
-					} catch (photoErr) {
-						// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
-						// モデルエラーとJSONパース失敗を後から切り分けられるよう記録は残す(#156)。
-						lastPhotoErr = photoErr;
-						logWarn("label photo analysis failed", {
-							userId,
-							requestId,
-							photoIndex,
-							err: photoErr,
-						});
-					}
-				}
-				// 全ての写真で失敗したら「推論失敗」として予約を全額返却する(下の catch へ)。
-				// 最後の失敗要因を cause に持たせ、全滅時の原因追跡を可能にする(#156)。
-				if (!anyCallOk) {
-					throw new Error("すべての写真の解析に失敗しました", {
-						cause: lastPhotoErr,
-					});
-				}
-				markExecutedBy("workers-ai");
-			}
-			const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
-			// **実際に結果を出した経路のモデル単価で課金する**。意図した経路(route)で換算すると、
-			// Claude が落ちて Workers AI が拾った回に Opus の単価で Llama の推論を課金してしまう。
-			const executedRoute = executedBy ?? route;
-			const executedModel = AI_LABEL_ROUTE_MODELS[executedRoute];
-			const measured = chargeFor(executedModel, usage);
-			let charge: CreditCharge;
-			if (measured.microUsd > 0) {
-				charge = measured;
-			} else {
-				// 実測が取れなかった回の床は**実行された経路の見積**にする(#404)。予約額
-				// (= 意図した経路の見積)を使うと、高精度経路が落ちて Workers AI が拾い、かつ
-				// Workers AI が usage を返さなかった回に、Llama 1回の推論へ高精度経路の予約全量
-				// (例: 275クレジット)を確定課金してしまう。単価換算(chargeFor)を実行経路に
-				// 揃えているのと同じ理由で、フォールバックの床も実行経路に揃える。
-				// 実行経路 = 予約した経路なら値は予約額と一致するので、降格が無い回の挙動は変わらない。
-				charge = fallbackCharge(
-					estimateLabelReserveCharge(executedRoute, input.imageDataUrls.length)
-						.microUsd,
-				);
-				// 実測欠落の頻度を観測できるようにする(Workers AI の usage は任意)。
-				logWarn("label usage missing; charging the executed route estimate", {
-					userId,
-					requestId,
-					route,
-					executedBy: executedRoute,
-					reservedMicroUsd: ctx.reservedMicroUsd,
-					chargedMicroUsd: charge.microUsd,
-				});
-			}
-			return { value: suggestions, charge };
+		{
+			estimate: plan.estimate,
+			requestId: plan.requestId,
+			logBase: plan.logBase,
 		},
+		(ctx) =>
+			runLabelInference(
+				userId,
+				{ imageDataUrls: input.imageDataUrls, plan, ...apiKeys },
+				ctx,
+			),
 	);
 	if (result.blocked) {
 		return {
@@ -835,6 +966,44 @@ export async function analyzeWineLabel(
 		actualTokens: result.charge.tokens,
 		balance: result.balance,
 	};
+}
+
+/**
+ * 保存済みのジョブから推論を1回走らせ、実測で確定する(#460)。同期経路と**同じ推論本体**を
+ * 通し、予約の確定・失敗時返却も同じ骨格(`finishMeteredInference`)に載せる。
+ *
+ * 呼ぶのはキュー・コンシューマ(label-job-service)だけ。ここに置いてあるのは
+ * `runLabelInference` を ai-service の外へ公開しないため——推論本体は「予約済みの文脈で
+ * しか呼んではいけない」関数で、単体で export すると予約なしで走らせる経路を作れてしまう。
+ */
+export async function runLabelAnalysisForJob(
+	userId: string,
+	input: {
+		imageDataUrls: string[];
+		plan: LabelPlan;
+		reservation: MeteredInferenceReservation;
+		/** durationMs の起点。投入からの待ち時間を推論時間に含めない */
+		startedAt?: number;
+	},
+): Promise<FinishMeteredInferenceResult<LabelSuggestions>> {
+	if (input.imageDataUrls.length === 0) {
+		throw new BadRequestError("画像が指定されていません");
+	}
+	const apiKeys = labelProviderApiKeys();
+	return finishMeteredInference(
+		userId,
+		{
+			reservation: input.reservation,
+			logBase: input.plan.logBase,
+			...(input.startedAt === undefined ? {} : { startedAt: input.startedAt }),
+		},
+		(ctx) =>
+			runLabelInference(
+				userId,
+				{ imageDataUrls: input.imageDataUrls, plan: input.plan, ...apiKeys },
+				ctx,
+			),
+	);
 }
 
 export interface AnalyzeWineListInput {

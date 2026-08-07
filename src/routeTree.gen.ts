@@ -23,6 +23,7 @@ import { Route as AdminBulkCreditRouteImport } from './routes/admin.bulk-credit'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiImportBatchPhotosRouteImport } from './routes/api/import-batch-photos'
 import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
+import { Route as ApiLabelAnalysisJobsRouteImport } from './routes/api/label-analysis-jobs'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiWineListAnalysisRouteImport } from './routes/api/wine-list-analysis'
@@ -114,6 +115,11 @@ const ApiImportBatchPhotosRoute = ApiImportBatchPhotosRouteImport.update({
 const ApiLabelAnalysisRoute = ApiLabelAnalysisRouteImport.update({
   id: '/api/label-analysis',
   path: '/api/label-analysis',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLabelAnalysisJobsRoute = ApiLabelAnalysisJobsRouteImport.update({
+  id: '/api/label-analysis-jobs',
+  path: '/api/label-analysis-jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpRoute = ApiMcpRouteImport.update({
@@ -231,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/import-batch-photos': typeof ApiImportBatchPhotosRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
+  '/api/label-analysis-jobs': typeof ApiLabelAnalysisJobsRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/import-batch-photos': typeof ApiImportBatchPhotosRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
+  '/api/label-analysis-jobs': typeof ApiLabelAnalysisJobsRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/import-batch-photos': typeof ApiImportBatchPhotosRoute
   '/api/label-analysis': typeof ApiLabelAnalysisRoute
+  '/api/label-analysis-jobs': typeof ApiLabelAnalysisJobsRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
@@ -342,6 +351,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/import-batch-photos'
     | '/api/label-analysis'
+    | '/api/label-analysis-jobs'
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-list-analysis'
@@ -378,6 +388,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/import-batch-photos'
     | '/api/label-analysis'
+    | '/api/label-analysis-jobs'
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-list-analysis'
@@ -414,6 +425,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/import-batch-photos'
     | '/api/label-analysis'
+    | '/api/label-analysis-jobs'
     | '/api/mcp'
     | '/api/upload'
     | '/api/wine-list-analysis'
@@ -451,6 +463,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   ApiImportBatchPhotosRoute: typeof ApiImportBatchPhotosRoute
   ApiLabelAnalysisRoute: typeof ApiLabelAnalysisRoute
+  ApiLabelAnalysisJobsRoute: typeof ApiLabelAnalysisJobsRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
   ApiWineListAnalysisRoute: typeof ApiWineListAnalysisRoute
@@ -572,6 +585,13 @@ declare module '@tanstack/react-router' {
       path: '/api/label-analysis'
       fullPath: '/api/label-analysis'
       preLoaderRoute: typeof ApiLabelAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/label-analysis-jobs': {
+      id: '/api/label-analysis-jobs'
+      path: '/api/label-analysis-jobs'
+      fullPath: '/api/label-analysis-jobs'
+      preLoaderRoute: typeof ApiLabelAnalysisJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp': {
@@ -733,6 +753,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   ApiImportBatchPhotosRoute: ApiImportBatchPhotosRoute,
   ApiLabelAnalysisRoute: ApiLabelAnalysisRoute,
+  ApiLabelAnalysisJobsRoute: ApiLabelAnalysisJobsRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,
   ApiWineListAnalysisRoute: ApiWineListAnalysisRoute,
