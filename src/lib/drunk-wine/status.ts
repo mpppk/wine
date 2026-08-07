@@ -18,7 +18,7 @@ export const WINE_STATUSES = [
 	},
 	{
 		id: "finished",
-		labelJa: "飲み終わった",
+		labelJa: "飲んだ",
 		descriptionJa: "手元にない。飲み切った・譲った",
 	},
 	// 店で見かけただけのワイン(Issue #358)。写真からの一括登録では、写っている
