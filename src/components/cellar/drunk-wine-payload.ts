@@ -140,7 +140,7 @@ export function fieldsValueFromEntry(
 ): DrunkWineFieldsValue {
 	return {
 		name: entry?.name ?? "",
-		// 新規作成の既定は「飲み終わった」(従来どおり飲んだ記録を残す導線が主)
+		// 新規作成の既定は「飲んだ」(従来どおり飲んだ記録を残す導線が主)
 		status: entry?.status ?? DEFAULT_WINE_STATUS,
 		vintage: entry?.vintage != null ? String(entry.vintage) : "",
 		producer: entry?.producer ?? "",

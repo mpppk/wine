@@ -39,7 +39,7 @@ function rowMap(entry: DrunkWineEntry): Map<string, string> {
 describe("buildWineDetailRows", () => {
 	it("値が無い項目は行を作らず、状態だけを返す", () => {
 		expect(buildWineDetailRows(BASE)).toEqual([
-			{ label: "状態", value: "飲み終わった" },
+			{ label: "状態", value: "飲んだ" },
 		]);
 	});
 

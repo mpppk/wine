@@ -174,7 +174,7 @@ function CellarMapPage() {
 		[regionEntries],
 	);
 	// 注記は実データに混在があるときだけ出す(絞り込みチップからは導けない。
-	// "飲んだことがある" は所有状態と直交し、"飲み終わった" のチップは無い)。
+	// "飲んだことがある" は所有状態と直交し、"飲んだ"(finished) のチップは無い)。
 	const mixedStatus = useMemo(
 		() => hasMixedAopStatus(regionEntries),
 		[regionEntries],
