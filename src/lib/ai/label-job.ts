@@ -70,8 +70,14 @@ export const MAX_CONCURRENT_LABEL_JOBS = 3;
  * 値は「エージェントループの実測(30秒前後)+ ステップ上限まで回った場合の余裕」から
  * 取る。短すぎると**生きているジョブを失敗にして**しまい(そのジョブはこの後 succeeded を
  * 書こうとして claim ガードに弾かれる)、長すぎると枠が空かない。
+ *
+ * **credit-service の `ORPHAN_GRACE_MS`(10分)より長くする**。stale 決着はクレジットを
+ * 返さない(回収は `reclaimOrphanReservations` に一本化する #246)ので、決着した時点で
+ * その予約が**既に回収の対象年齢に達している**必要がある。短くすると「ジョブは失敗表示
+ * なのに、予約はまだ猶予期間内で回収されない」窓ができ、利用者の残高が戻るまでの間が
+ * 無用に伸びる。
  */
-export const LABEL_JOB_STALE_MS = 10 * 60 * 1000;
+export const LABEL_JOB_STALE_MS = 15 * 60 * 1000;
 
 /**
  * `queued` のまま配信されなかったジョブを決着させるまでの時間。
