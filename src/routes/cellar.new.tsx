@@ -212,7 +212,6 @@ function CellarNewPage() {
 					<DrunkWineForm
 						initialValues={manual.values}
 						initialPhotoFiles={manual.files}
-						autoAnalyzeLabel={manual.reason === "single_wine"}
 						onSaved={() => {
 							void navigate({ to: "/cellar" });
 						}}
@@ -285,7 +284,7 @@ function ManualNotice({
 			)}
 			{fromSingleWine ? (
 				<p>
-					1本のワインの写真と判定したため、記録フォームに切り替えました。写真から読み取った内容を入力し、エチケットの詳細な解析を実行しています。
+					1本のワインの写真と判定したため、記録フォームに切り替えました。エチケットを解析してweb検索で裏を取った内容を入力しています。
 				</p>
 			) : (
 				start.files.length > 0 && (
