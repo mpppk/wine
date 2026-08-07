@@ -39,5 +39,10 @@ declare namespace Cloudflare {
 		// (ビルド変数)とは投入先が別で、**未設定ならログだけ出して送信しない**。
 		// DSN は公開値だが、ビルド成果物に埋め込まないようシークレットとして扱う。
 		SENTRY_DSN?: string;
+		// Web Push の VAPID 秘密鍵(#466)。対になる公開鍵は wrangler.jsonc の vars。
+		// 未設定なら通知機能ごと無効になる(購読トグルも出さない)。
+		// 投入: `wrangler secret put VAPID_PRIVATE_KEY`(プレビューは `--env preview`)。
+		// **入れ替えると既存の購読は全て無効になる**(購読は公開鍵に紐づく)。
+		VAPID_PRIVATE_KEY?: string;
 	}
 }

@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { AI_MAX_QUESTION_CHARS, chatHistorySchema } from "#/lib/ai/config";
+import { pushSubscriptionInputSchema } from "#/lib/push/notification";
 import * as aiService from "#/lib/services/ai-service";
 import * as labelJobService from "#/lib/services/label-job-service";
+import * as pushService from "#/lib/services/push-service";
 import { authMiddleware } from "./middleware";
 
 // 地域チャットQ&AのRPC。Workers AI で回答し、実測トークンでクレジットを消費する。認証必須。
@@ -87,3 +89,37 @@ export const consumeLabelAnalysisJob = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }) =>
 		labelJobService.consumeLabelAnalysisJob(context.user.id, data.jobId),
 	);
+
+// ---- Web Push の購読(Issue #466) ----
+//
+// エチケット解析の完了通知に使う。**通知は付随物**なので、購読の失敗が解析の導線を
+// 妨げないようにサーバfn側でも例外を投げる範囲を最小にしてある。
+
+/**
+ * この環境で Web Push が使えるか、公開鍵、いま購読済みか。
+ * **UI の出し分けとサーバの送信が同じ判定(`isWebPushConfigured`)を見る**ようにする。
+ */
+export const getPushStatus = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.handler(async ({ context }) => ({
+		publicKey: pushService.webPushPublicKey(),
+		subscribed: await pushService.hasPushSubscription(context.user.id),
+	}));
+
+/** 購読を登録する(同じ endpoint は上書き)。 */
+export const savePushSubscription = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(pushSubscriptionInputSchema)
+	.handler(async ({ data, context }) => {
+		await pushService.savePushSubscription(context.user.id, data);
+		return { ok: true } as const;
+	});
+
+/** 購読を解除する(本人のもののみ)。存在しない endpoint も成功扱い(冪等)。 */
+export const deletePushSubscription = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ endpoint: z.string().min(1).max(2000) }))
+	.handler(async ({ data, context }) => {
+		await pushService.deletePushSubscription(context.user.id, data.endpoint);
+		return { ok: true } as const;
+	});

@@ -23,6 +23,7 @@ import {
 	TooManyRequestsError,
 } from "#/lib/errors";
 import { logError, logInfo, logWarn } from "#/lib/logger";
+import { buildLabelAnalysisDonePayload } from "#/lib/push/notification";
 import {
 	resolveLabelPlan,
 	restoreLabelPlan,
@@ -34,6 +35,7 @@ import {
 	beginMeteredInference,
 	type MeteredInferenceReservation,
 } from "#/lib/services/metered-inference";
+import { sendPushToUser } from "#/lib/services/push-service";
 
 // エチケット解析ジョブのサービス層(Issue #460)。
 //
@@ -595,6 +597,17 @@ async function finishJob(
 	}
 	// 行の更新に負けても写真は掃除する(掴んでいたのはこちらなので、置き去りにしない)。
 	await deletePhotoObjects(photoKeys, { jobId, phase: "finish" });
+
+	// 完了通知(#466)。**この行の更新に勝ったときだけ**送る——負けた回は stale 決着で
+	// 既に失敗として見せているので、そこへ「完了しました」を送ると表示と食い違う。
+	// 失敗した回は送らない: 利用者が取れる行動が無く(クレジットは返却済み)、
+	// 「失敗しました」の通知はロック画面に出るだけの雑音になる。
+	//
+	// **送信は throw しない**(push-service が内部で握る)。通知は付随物で、
+	// 届かないことより届かないせいで終端化が巻き戻るほうが悪い。
+	if (row && !("error" in outcome)) {
+		await sendPushToUser(row.userId, buildLabelAnalysisDonePayload(jobId));
+	}
 }
 
 /** R2 からジョブの写真を読み、AI に渡す data URI へ変換する。 */

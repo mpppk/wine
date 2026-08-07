@@ -566,6 +566,43 @@ export const labelAnalysisJob = sqliteTable(
 );
 
 /**
+ * Web Push の購読(Issue #466)。1ユーザ×複数端末なので 1:N。
+ *
+ * **`endpoint` が購読の同一性**。同じブラウザで再購読すると同じ endpoint が返るので、
+ * ここに unique を張って upsert の衝突先にする(同じ端末へ2通送らない)。
+ *
+ * 鍵(`p256dh` / `auth`)はブラウザの `PushSubscription.getKey()` から取る、その購読へ
+ * 送るためだけの値。他の購読やユーザには流用できない。
+ */
+export const pushSubscription = sqliteTable(
+	"push_subscription",
+	{
+		/** crypto.randomUUID() */
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** プッシュサービスのURL。購読の同一性はこれで決まる */
+		endpoint: text("endpoint").notNull(),
+		/** RFC 8291 の受信側公開鍵(base64url) */
+		p256dh: text("p256dh").notNull(),
+		/** RFC 8291 の共有秘密(base64url) */
+		auth: text("auth").notNull(),
+		/** 購読した端末の目安(User-Agent の抜粋)。複数端末を見分ける表示用 */
+		userAgent: text("user_agent"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		/** 最後に送信が成功した時刻。送れていない購読の棚卸し用 */
+		lastNotifiedAt: integer("last_notified_at", { mode: "timestamp_ms" }),
+	},
+	(table) => [
+		unique("push_subscription_endpoint_uq").on(table.endpoint),
+		index("push_subscription_user_idx").on(table.userId),
+	],
+);
+
+/**
  * ユーザが村・畑・地方・シャトー(AOP)ごとに貼り付ける参考リンク(非公開)。
  * 例: シャンパーニュ「アンボネイ」を見ながら、webで見つけた解説記事のURLを保存する。
  * AOPは静的マスタ(src/lib/wine/)への文字列参照でFKは張れないため、aopIdの存在検証は

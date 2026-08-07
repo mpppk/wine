@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { PushNotificationCard } from "#/components/settings/PushNotificationCard";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
@@ -225,6 +226,7 @@ function ProfilePage() {
 
 			<AiModelCard />
 			<LabelEngineCard />
+			<PushNotificationCard />
 			<PlanCard />
 			<CreditCard />
 		</main>

@@ -31,7 +31,12 @@
 		// 期間延長コード CAMPAIGN_EXTENSION_CODES は推測悪用を防ぐためシークレット扱い
 		// (`wrangler secret put CAMPAIGN_EXTENSION_CODES`)。vars には置かない。
 		"STRIPE_PRICE_ID_MONTHLY": "price_1TrqGhDizKHip7Oq7IEluLkB",
-		"STRIPE_PRICE_ID_ANNUAL": "price_1TrqGhDizKHip7OqMpLZc7wH"
+		"STRIPE_PRICE_ID_ANNUAL": "price_1TrqGhDizKHip7OqMpLZc7wH",
+		// Web Push の VAPID 公開鍵(#466)。**公開情報**——クライアントが購読を作るのに
+		// 要るので、そもそもブラウザまで届く値。対になる秘密鍵は
+		// `wrangler secret put VAPID_PRIVATE_KEY` で投入する(リポジトリに置かない)。
+		// **入れ替えると既存の購読は全て無効になる**(購読はこの公開鍵に紐づく)。
+		"VAPID_PUBLIC_KEY": "BAIdOzTmGSYoxHyFkWdqOsFhbhQgLaPHwsKK9KITlbQVEe2hhVXQ3gkNFtY4nNW93Kx0UaOkLmt_NE-SA3GnmZA"
 	},
 	"observability": {
 		"enabled": true
@@ -66,10 +71,6 @@
 	"images": {
 		"binding": "IMAGES"
 	},
-	// アプリ側エンドポイントのスロットル(#397)。エッジのカウンタで判定するので
-	// D1/KV を消費しない。**period は 10 か 60 秒のみ**・カウンタは colo ごと
-	// (全世界で厳密に N 回ではない)という性質は src/lib/rate-limit.ts を参照。
-	// namespace_id はアカウント内で一意な正整数の文字列。
 	// エチケット解析ジョブ(#460)。producer(投入API)と consumer(src/worker.ts の
 	// `queue`)を**同じワーカーに同居**させる。別ワーカーを立てないのは、コンシューマが
 	// 使うのが D1・R2・AI・画像変換とアプリ本体と同じバインディング群で、分けると
@@ -99,6 +100,10 @@
 			}
 		]
 	},
+	// アプリ側エンドポイントのスロットル(#397)。エッジのカウンタで判定するので
+	// D1/KV を消費しない。**period は 10 か 60 秒のみ**・カウンタは colo ごと
+	// (全世界で厳密に N 回ではない)という性質は src/lib/rate-limit.ts を参照。
+	// namespace_id はアカウント内で一意な正整数の文字列。
 	"ratelimits": [
 		{
 			// server function の書き込み全般。通常操作(連続保存・一括登録)を妨げない幅を取る。
@@ -129,7 +134,9 @@
 				// preview はテストモードの price ID を設定する(本番と分離)。
 				// terraform/preview の apply 出力(Terraform Apply ワークフローの Summary)より。
 				"STRIPE_PRICE_ID_MONTHLY": "price_1TreYADizKHip7Oqhgu3GfeF",
-				"STRIPE_PRICE_ID_ANNUAL": "price_1TreYADizKHip7Oqe42XBh2x"
+				"STRIPE_PRICE_ID_ANNUAL": "price_1TreYADizKHip7Oqe42XBh2x",
+				// preview も本番と同じ鍵ペアを使う(購読は origin ごとに別なので混ざらない)
+				"VAPID_PUBLIC_KEY": "BAIdOzTmGSYoxHyFkWdqOsFhbhQgLaPHwsKK9KITlbQVEe2hhVXQ3gkNFtY4nNW93Kx0UaOkLmt_NE-SA3GnmZA"
 			},
 			"d1_databases": [
 				{
