@@ -11,10 +11,16 @@ import {
 } from "#/lib/ai/label-job";
 import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
 import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
-import { NotFoundError, TooManyRequestsError } from "#/lib/errors";
 import {
+	BadRequestError,
+	NotFoundError,
+	TooManyRequestsError,
+} from "#/lib/errors";
+import {
+	consumeLabelAnalysisJob,
 	getLabelAnalysisJob,
-	listActiveLabelAnalysisJobs,
+	getLabelAnalysisJobBadge,
+	listPendingLabelAnalysisJobs,
 	runLabelAnalysisJob,
 	settleStaleLabelAnalysisJobs,
 	submitLabelAnalysisJob,
@@ -310,7 +316,7 @@ describe("stale の決着", () => {
 			expect(await env.AVATARS.get(key)).toBeNull();
 		}
 		// UI がポーリングを止められるよう、未終端ジョブから外れる。
-		expect(await listActiveLabelAnalysisJobs(userId)).toHaveLength(0);
+		expect(await listPendingLabelAnalysisJobs(userId)).toHaveLength(0);
 	});
 
 	it("stale 決着ではクレジットを返却しない(回収は reclaimOrphanReservations に任せる)", async () => {
@@ -395,16 +401,112 @@ describe("状態の取得", () => {
 		);
 	});
 
-	it("未終端のジョブだけを一覧に出す", async () => {
+	it("未終端と、完了して未受け取りのジョブを一覧に出す", async () => {
 		const userId = await seedUser();
-		const running = await submitOne(userId);
+		const queued = await submitOne(userId);
 		const finished = await submitOne(userId);
 		stubAiRun(workersAiOk(300));
 		await runLabelAnalysisJob(finished.jobId);
 
-		const active = await listActiveLabelAnalysisJobs(userId);
+		// 完了しても**受け取るまでは**一覧に残る(そうしないと結果を渡す先が無くなる)。
+		const pending = await listPendingLabelAnalysisJobs(userId);
+		expect(pending.map((job) => job.jobId).sort()).toEqual(
+			[queued.jobId, finished.jobId].sort(),
+		);
+	});
 
-		expect(active.map((job) => job.jobId)).toEqual([running.jobId]);
+	it("失敗したジョブは一覧に溜めない", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		stubAiRun(() => Promise.reject(new Error("model error")));
+		await runLabelAnalysisJob(jobId);
+
+		// 失敗は投入した画面でその場で見せるもの。後から一覧に出しても利用者が取れる
+		// 行動が無い(クレジットは返却済み)。
+		expect(await listPendingLabelAnalysisJobs(userId)).toHaveLength(0);
+	});
+});
+
+describe("完了の受け取り (#462)", () => {
+	it("受け取ると候補が返り、バッジから消える", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+
+		// 受け取る前: 完了1件としてバッジに出る。
+		expect(await getLabelAnalysisJobBadge(userId)).toMatchObject({
+			activeCount: 0,
+			readyCount: 1,
+			nextReadyJobId: jobId,
+		});
+
+		const { view, alreadyConsumed } = await consumeLabelAnalysisJob(
+			userId,
+			jobId,
+		);
+
+		expect(alreadyConsumed).toBe(false);
+		expect(view.suggestions).toMatchObject({ name: "Chablis Les Clos" });
+		// 受け取った後: バッジからも一覧からも消える(永久に出続けない)。
+		expect(await getLabelAnalysisJobBadge(userId)).toMatchObject({
+			activeCount: 0,
+			readyCount: 0,
+		});
+		expect(await listPendingLabelAnalysisJobs(userId)).toHaveLength(0);
+	});
+
+	it("二重に受け取っても候補は返るが、既読であることが分かる", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		await consumeLabelAnalysisJob(userId, jobId);
+
+		// リロード・戻る操作で2回目が来ても、候補が空になったりしない。
+		const second = await consumeLabelAnalysisJob(userId, jobId);
+		expect(second.alreadyConsumed).toBe(true);
+		expect(second.view.suggestions).toMatchObject({ name: "Chablis Les Clos" });
+	});
+
+	it("未完了のジョブは受け取れない", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+
+		await expect(consumeLabelAnalysisJob(userId, jobId)).rejects.toThrow(
+			BadRequestError,
+		);
+	});
+
+	it("他人のジョブは受け取れない", async () => {
+		const owner = await seedUser();
+		const other = await seedUser();
+		const { jobId } = await submitOne(owner);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+
+		await expect(consumeLabelAnalysisJob(other, jobId)).rejects.toThrow(
+			NotFoundError,
+		);
+		// 他人が触っても持ち主の受け取り待ちは減らない。
+		expect(await getLabelAnalysisJobBadge(owner)).toMatchObject({
+			readyCount: 1,
+		});
+	});
+
+	it("解析中と完了を別々に数える", async () => {
+		const userId = await seedPremiumUser();
+		const done = await submitOne(userId);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(done.jobId);
+		await submitOne(userId);
+		await submitOne(userId);
+
+		expect(await getLabelAnalysisJobBadge(userId)).toMatchObject({
+			activeCount: 2,
+			readyCount: 1,
+			nextReadyJobId: done.jobId,
+		});
 	});
 });
 
