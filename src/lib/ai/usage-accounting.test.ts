@@ -156,25 +156,27 @@ const ROUTE_ACCOUNTING: readonly RouteAccounting[] = [
 		billed: ["outputTokens"],
 	},
 	{
-		// 一括抽出は**web検索を使わない**(#358 の住み分け)ので、同じ GPT 経路でも
-		// 課金対象が1つ少ない。マッパーは共有だが宣言は経路ごとに持つ。
+		// 一括抽出も**web検索で裏を取る**(#474)ので、エチケット解析の GPT 経路と同じ
+		// 課金対象になる。回数は usage に出ないため countGptWebSearchCalls で数えた値を
+		// 渡す——ここが 0 のまま固定されていると原価が静かに過小計上される。
 		name: "一括抽出 / gpt-luna",
 		model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
-		usage: toGptUsage(GPT_WINE_LIST_RAW_USAGE, 0),
-		billed: ["inputTokens", "outputTokens", "cacheReadTokens"],
+		usage: toGptUsage(GPT_WINE_LIST_RAW_USAGE, 4),
+		billed: ["inputTokens", "outputTokens", "cacheReadTokens", "webSearches"],
 	},
 	{
 		name: "一括抽出 / web-research",
 		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
 		usage: toAnthropicUsage({
 			...CLAUDE_LABEL_RAW_USAGE,
-			server_tool_use: { web_search_requests: 0 },
+			server_tool_use: { web_search_requests: 4 },
 		}),
 		billed: [
 			"inputTokens",
 			"outputTokens",
 			"cacheReadTokens",
 			"cacheWriteTokens",
+			"webSearches",
 		],
 	},
 	{

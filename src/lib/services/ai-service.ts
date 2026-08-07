@@ -26,7 +26,10 @@ import {
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
 	AI_WINE_LIST_GPT_REASONING_EFFORT,
+	AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE,
+	AI_WINE_LIST_MAX_CONTINUATIONS,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+	AI_WINE_LIST_MAX_SEARCHES,
 	AI_WINE_LIST_ROUTE_MODELS,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REGION_QA_MODEL,
@@ -95,6 +98,7 @@ import {
 import {
 	buildWineListGptInput,
 	buildWineListGptTextFormat,
+	countGptWebSearchCalls,
 	extractWineListGptText,
 	toGptUsage,
 } from "#/lib/ai/wine-list-gpt";
@@ -1074,21 +1078,44 @@ export function isWineListAnalysisAvailable(): boolean {
  * Claude で全写真を1リクエスト解析し、銘柄配列を取り出す。env 非依存(apiKey を注入)で
  * 失敗は throw する(エチケット解析の高精度経路と同じ契約)。
  *
- * web検索ツールは付けない: 銘柄数 × 検索でコストが発散するため裏取りはしない
- * (裏取りしたい銘柄は登録後に単体のエチケット解析を使う住み分け)。サーバー側
- * ツールループが無いので pause_turn の継続ループも要らない。
+ * **web検索で裏を取る**(#474)。銘柄ごとにリクエストを立てず、1回の推論のサーバー側
+ * ツールループの中でまとめて調べさせる——これが「銘柄数 × 検索でコストが発散する」
+ * (#358 が裏取りを外した理由)への歯止めで、回数自体も `max_uses` で縛る。
+ * 継続(pause_turn)の扱いは `analyzeLabelWithWebResearch` と同じ形。
  */
 async function extractWineListWithClaude(
 	apiKey: string,
 	imageDataUrls: string[],
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new Anthropic({ apiKey });
-	const response = await client.messages.create({
+	const request = {
 		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
 		max_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
-		messages: buildWineListMessages(imageDataUrls),
-	});
-	const usage = toAnthropicUsage(response.usage);
+		tools: [
+			{
+				type: "web_search_20260209",
+				name: "web_search",
+				max_uses: AI_WINE_LIST_MAX_SEARCHES,
+			},
+		],
+	} satisfies Partial<Anthropic.MessageCreateParamsNonStreaming>;
+	const messages = buildWineListMessages(imageDataUrls);
+
+	let response = await client.messages.create({ ...request, messages });
+	// 継続のたびに入力を再送するので、**内訳ごとに**加算する(合算スカラーだと
+	// 入力・出力・web検索回数が混ざって原価を復元できない)。
+	let usage = toAnthropicUsage(response.usage);
+	// サーバー側ツールループが上限に達すると pause_turn で返る。assistant 応答を積んで
+	// 再送すると続きから再開する(継続回数は原価ガードとして上限で打ち切る)。
+	for (
+		let i = 0;
+		i < AI_WINE_LIST_MAX_CONTINUATIONS && response.stop_reason === "pause_turn";
+		i++
+	) {
+		messages.push({ role: "assistant", content: response.content });
+		response = await client.messages.create({ ...request, messages });
+		usage = addUsage(usage, toAnthropicUsage(response.usage));
+	}
 	if (response.stop_reason === "refusal") {
 		throw new Error("Claudeがワインリストの解析の応答を拒否しました");
 	}
@@ -1112,8 +1139,13 @@ async function extractWineListWithClaude(
  * Claude 経路との違い:
  *  - structured outputs(strict)で出力形式を強制する。指示文は共有しているので、
  *    形が保証されるぶんだけ Claude 経路より安全側になる
- *  - web検索ツールは付けない(#358 の住み分け)。エチケット解析の GPT 経路と違い
- *    サーバー側ツールループが無いので、web検索回数の計上も要らない(0件)
+ *  - サーバー側ツールループを OpenAI が回すので pause_turn の継続が要らない
+ *    (`web_search` はプロバイダ実行ツールで、1リクエストの中で完結する)
+ *
+ * **web検索の回数は usage に出ない**($10/1000回 の回数課金)。応答の output に並ぶ
+ * `web_search_call` を数えて計上する——ここを落とすと、この経路の原価の大きい部分が
+ * 静かに漏れる(エチケット解析の GPT 経路が `countProviderExecutedCalls` で
+ * 数えているのと同じ理由)。
  */
 async function extractWineListWithGpt(
 	apiKey: string,
@@ -1126,9 +1158,17 @@ async function extractWineListWithGpt(
 		max_output_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 		reasoning: { effort: AI_WINE_LIST_GPT_REASONING_EFFORT },
 		text: buildWineListGptTextFormat(),
+		tools: [
+			{
+				type: "web_search",
+				search_context_size: AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE,
+			},
+		],
 	});
-	// web検索を使わない経路なので回数は 0(usage に出ないのは同じだが、数える対象が無い)
-	const usage = toGptUsage(response.usage, 0);
+	const usage = toGptUsage(
+		response.usage,
+		countGptWebSearchCalls(response.output),
+	);
 	const parsed = parseWineListResponse(
 		extractWineListGptText(response),
 		imageDataUrls.length,

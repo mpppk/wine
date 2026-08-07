@@ -91,17 +91,11 @@ export interface DrunkWineFormProps {
 	/** 新規作成時にフォームへ添付済みにする写真。`entry` 指定時は無視する。 */
 	initialPhotoFiles?: File[];
 	/**
-	 * マウント直後にエチケット解析を1回だけ自動実行する(#416)。結果は差分ダイアログを
-	 * 挟まずそのまま反映する——ユーザは遷移前の確認ダイアログで既に「解析して記録する」
-	 * を選んでおり、ここでもう一度選ばせるのは同じ意思決定の二度手間になるため。
-	 */
-	autoAnalyzeLabel?: boolean;
-	/**
 	 * 完了したエチケット解析ジョブの結果を、開いた直後に差分ダイアログで提示する(#472)。
 	 *
-	 * 解析中に保存して離脱した回の受け取り口。**`autoAnalyzeLabel` と違って解析は走らせない**
-	 * (結果は既にサーバにある)し、**自動反映もしない**——宛先は保存済みのワインで、利用者が
-	 * その後に手で直している可能性がある。上書きしてよいかは選ばせる。
+	 * 解析中に保存して離脱した回の受け取り口。**解析は走らせない**(結果は既にサーバに
+	 * ある)し、**自動反映もしない**——宛先は保存済みのワインで、利用者がその後に手で
+	 * 直している可能性がある。上書きしてよいかは選ばせる。
 	 */
 	pendingLabelJob?: { jobId: string; suggestions: LabelSuggestions };
 }
@@ -166,7 +160,6 @@ export function DrunkWineForm({
 	tastingSlot,
 	initialValues,
 	initialPhotoFiles,
-	autoAnalyzeLabel,
 	pendingLabelJob,
 }: DrunkWineFormProps) {
 	// 入力項目の state は MCP App のフォームと共有する形(DrunkWineFieldsValue)で持つ
@@ -334,32 +327,23 @@ export function DrunkWineForm({
 	};
 
 	/**
-	 * 解析結果(候補)をフォームに反映する。**同期経路とジョブ経路で共有する**——
+	 * 解析結果(候補)をフォームに反映する。**投入経路と受け取り経路で共有する**——
 	 * 差分の作り方と提示の仕方を経路ごとに書くと、片方だけ産地の排他規則を落とすような
 	 * ドリフトが起きる(#362 でその適用ルールを buildLabelDiffs に寄せたのと同じ理由)。
 	 *
-	 * `auto` は「遷移直後の自動実行」(#416)。ユーザ操作を起点にしないので、ダイアログを
-	 * 挟まずそのまま反映する——遷移前の確認ダイアログで既に「解析して記録する」を選んで
-	 * おり、ここでもう一度選ばせるのは同じ意思決定の二度手間になる。
+	 * **常にダイアログで選ばせる**。自動実行(#416/#464)は #474 で廃止したので、この関数を
+	 * 通る解析はどれも利用者が押して始めたものになった。押していない処理が入力を書き換える
+	 * 経路はもう無い。
 	 */
-	const applyLabelSuggestions = (
-		suggestions: LabelSuggestions,
-		{ auto }: { auto: boolean },
-	) => {
+	const applyLabelSuggestions = (suggestions: LabelSuggestions) => {
 		// 「未入力の項目にしか反映しない」自動適用だと、写真追加やエンジン切替での
 		// 再解析結果が一切伝わらずクレジットだけ消費される(#362)。差分がある項目を
 		// ダイアログで提示し、反映するかどうかをユーザに選ばせる。
 		const diffs = buildLabelDiffs(values, suggestions);
 		if (diffs.length === 0) {
 			setAnalyzeNotice(
-				auto
-					? "エチケットを解析しました(写真から読み取った内容と差はありませんでした)"
-					: "今回の解析結果と現在の入力に差分はありませんでした(クレジットは消費されています)",
+				"今回の解析結果と現在の入力に差分はありませんでした(クレジットは消費されています)",
 			);
-			return;
-		}
-		if (auto) {
-			applySelectedLabelDiffs(diffs);
 			return;
 		}
 		setLabelDiffs(diffs);
@@ -397,20 +381,13 @@ export function DrunkWineForm({
 	// 完了を1回だけ処理する。ポーリングは終端で止まるが、その最後の1件が
 	// 再レンダリングのたびに流れ込まないようにする。
 	const handledJobRef = useRef<string | null>(null);
-	/**
-	 * 走っているジョブが自動実行のものか。**完了まで持ち回る**必要がある——自動と手動で
-	 * 結末の出し方が違う(ダイアログの有無・残高不足の見せ方)のに、判断できるのは
-	 * 投入した時点だけだから。ジョブ行には持たせない: これは「この画面がどう見せるか」
-	 * であってジョブの性質ではない(別の画面が同じジョブを受け取ることもある)。
-	 */
-	const jobAutoRef = useRef(false);
 
 	const { mutate: startAnalysisJob, isPending: isSubmittingJob } = useMutation({
-		mutationFn: async ({ auto: _auto }: { auto: boolean }) => {
+		mutationFn: async () => {
 			if (photos.length === 0) throw new Error("写真を選択してください");
 			return submitLabelAnalysisJob(analysisSources());
 		},
-		onSuccess: (result, { auto }) => {
+		onSuccess: (result) => {
 			// 投入時点で予約が立つ(=残高が動く)ので、ここで残高表示を更新する。
 			void queryClient.invalidateQueries({
 				queryKey: CREDIT_BALANCE_QUERY_KEY,
@@ -419,36 +396,18 @@ export function DrunkWineForm({
 				queryKey: LABEL_JOB_BADGE_QUERY_KEY,
 			});
 			if (result.blocked) {
-				// 自動実行では残高不足のモーダルを出さない。ユーザが押していない処理で
-				// 画面到達直後にモーダルが被さると、引き継いだ入力内容(=一括解析で
-				// 既にクレジットを払って得たもの)が見えないまま驚かせるだけになる。
-				if (auto) {
-					setAnalyzeNotice(
-						"クレジットが不足しているため、詳細なエチケット解析は実行できませんでした。写真から読み取った内容をそのまま入力しています。",
-					);
-					return;
-				}
 				setShowInsufficient(true);
 				return;
 			}
-			jobAutoRef.current = auto;
 			setJobId(result.jobId);
 			// 宛先が既に決まっている(編集中・保存済み)なら、この時点で教えておく。
 			const target = savedRef.current ?? entry;
 			if (target) attachJobToEntry(result.jobId, target.id);
 			setAnalyzeNotice(
-				auto
-					? "写真から読み取った内容を入力しました。エチケットの詳細な解析を実行中です(完了までこのページを離れても構いません)。"
-					: "解析を開始しました。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。",
+				"解析を開始しました。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。",
 			);
 		},
-		onError: (e: Error, { auto }) =>
-			setError(
-				e.message ||
-					(auto
-						? "エチケットの解析に失敗しました"
-						: "解析の受付に失敗しました"),
-			),
+		onError: (e: Error) => setError(e.message || "解析の受付に失敗しました"),
 	});
 
 	// applyLabelSuggestions は values を読むが、**完了時点の入力**に対して差分を出すのが
@@ -477,7 +436,7 @@ export function DrunkWineForm({
 			return;
 		}
 		setAnalyzeNotice("");
-		applyLabelSuggestions(job.suggestions, { auto: jobAutoRef.current });
+		applyLabelSuggestions(job.suggestions);
 	}, [job, queryClient]);
 
 	// 離脱後に完了したジョブの受け取り(#472)。**解析は走らせない**——結果は既にサーバに
@@ -490,7 +449,7 @@ export function DrunkWineForm({
 			return;
 		}
 		handledJobRef.current = pendingLabelJob.jobId;
-		applyLabelSuggestions(pendingLabelJob.suggestions, { auto: false });
+		applyLabelSuggestions(pendingLabelJob.suggestions);
 		void consumeLabelAnalysisJob({ data: { jobId: pendingLabelJob.jobId } })
 			.then(() =>
 				queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY }),
@@ -498,14 +457,11 @@ export function DrunkWineForm({
 			.catch(() => {});
 	}, [pendingLabelJob, queryClient]);
 
-	// 引き継ぎ直後の自動解析は1回だけ。写真が無ければ何もしない(解析対象が無い)。
-	const autoAnalyzedRef = useRef(false);
-	useEffect(() => {
-		if (!autoAnalyzeLabel || autoAnalyzedRef.current) return;
-		if (photos.length === 0) return;
-		autoAnalyzedRef.current = true;
-		startAnalysisJob({ auto: true });
-	}, [autoAnalyzeLabel, photos.length, startAnalysisJob]);
+	// 引き継ぎ直後の自動解析(#416 → #464)は**廃止した**(#474)。写真ウィザードの解析が
+	// web検索で裏を取るようになったので、同じ写真をもう一度解析しても得られるものが
+	// ほぼ無く、クレジットだけを2回消費していた。裏取りの結果はフォームの初期値に既に
+	// 入っている。手動の「エチケットから自動入力」は残す——写真を足した・エンジンを
+	// 変えたときに掛け直す用途があり、そちらは利用者が押して初めて走る。
 
 	/** 解析中(投入待ち + ジョブ実行中)。 */
 	const isAnalyzing =
@@ -658,7 +614,7 @@ export function DrunkWineForm({
 								onClick={() => {
 									setError("");
 									setAnalyzeNotice("");
-									startAnalysisJob({ auto: false });
+									startAnalysisJob();
 								}}
 							>
 								<SparklesIcon className="size-4" aria-hidden />

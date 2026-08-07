@@ -473,8 +473,9 @@ export type WineListRoute = (typeof WINE_LIST_ROUTE_KEYS)[number];
  * **Opus 5 ではなく Sonnet 5 を使う(#355)**。コスト基準の計上に切り替えると、Opus 5
  * ($5/$25 per MTok)では写真1枚の解析が無料会員の月次付与(150クレジット = $0.15)を
  * 超え、無料会員がこの機能を一度も使えなくなる。Sonnet 5($3/$15)なら1枚あたり
- * 約126クレジットで付与内に収まる。web検索を使わない素直な読み取りタスクなので、
- * Llama 4 Scout で問題になった「配列の構造化出力の安定性」は Sonnet 5 でも満たせる。
+ * 約126クレジットで付与内に収まる(#474 で web検索の裏取りが乗ったぶん実費は上がるが、
+ * モデル選定の理由は変わらない)。Llama 4 Scout で問題になった「配列の構造化出力の
+ * 安定性」は Sonnet 5 でも満たせる。
  */
 export const AI_WINE_LIST_CLAUDE_MODEL = "claude-sonnet-5";
 
@@ -502,14 +503,13 @@ export const AI_WINE_LIST_ROUTE_MODELS: Record<WineListRoute, string> = {
 };
 
 /**
- * 経路の表示名。**`AI_LABEL_ENGINES` のラベルを流用しない**——あちらは
- * 「高精度(GPT-5.6 Luna + web検索)」のように web検索を含む名前だが、一括抽出は
- * web検索を使わない(#358 の住み分け)。流用すると、使っていない機能でお金を
- * 取っているかのような表示になる。
+ * 経路の表示名。裏取りを含むことが分かる名前にする(#474)——一括抽出も web検索で
+ * 裏を取るようになったので、`AI_LABEL_ENGINES` と同じ「+ web検索」を付けて、
+ * 消費が読み取りだけの頃より大きいことが名前からも分かるようにする。
  */
 export const AI_WINE_LIST_ROUTE_LABELS: Record<WineListRoute, string> = {
-	"gpt-luna": "GPT-5.6 Luna",
-	"web-research": "Claude Sonnet 5",
+	"gpt-luna": "GPT-5.6 Luna + web検索",
+	"web-research": "Claude Sonnet 5 + web検索",
 };
 
 /**
@@ -611,6 +611,37 @@ export const AI_WINE_LIST_GPT_REASONING_EFFORT = "low";
  */
 export const AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE = 500;
 
+/**
+ * 一括抽出1回で許可する web検索回数の上限(#474)。
+ *
+ * **ここが「銘柄数 × 検索でコストが発散する」への歯止め**(#358 が裏取りを外した理由)。
+ * 銘柄ごとにリクエストを立てず1回の推論の中でまとめて調べさせ、その回数をここで縛る。
+ * エチケット解析(1本で上限8)より大きいのは、対象が最大 `AI_WINE_LIST_MAX_WINES` 銘柄
+ * あるため。**銘柄数に比例はさせない**——比例させると上限の意味が無くなる。
+ */
+export const AI_WINE_LIST_MAX_SEARCHES = 20;
+
+/**
+ * GPT経路の web検索結果をどれだけコンテキストに載せるか。OpenAI は Claude の
+ * `max_uses` にあたる回数の上限を持たないので、原価の上限化はこの値と
+ * `max_output_tokens` で行う(`AI_LABEL_GPT_SEARCH_CONTEXT_SIZE` と同じ考え方)。
+ */
+export const AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE = "medium";
+
+/**
+ * 写真1枚あたりの web検索回数の見積。予約時に銘柄数が分からないための代理指標
+ * (`estimateWineListReserveUsage` のコメント参照)。1枚の写真に複数銘柄が写るので
+ * 1枚 = 1検索より多く見るが、上限 `AI_WINE_LIST_MAX_SEARCHES` でクランプする。
+ */
+export const AI_WINE_LIST_WEB_SEARCH_ESTIMATE_PER_IMAGE = 3;
+
+/**
+ * pause_turn からの再開回数の上限(Claude経路)。エチケット解析
+ * (`AI_LABEL_WEB_MAX_CONTINUATIONS` = 4)より多いのは、検索回数の上限が大きいぶん
+ * ツールループが分割されやすいため。再開ごとに入力を再送するので無制限にはしない。
+ */
+export const AI_WINE_LIST_MAX_CONTINUATIONS = 6;
+
 // ---- 予約見積(コスト単位) ----
 // 各経路の「中心値の使用量」を AiUsage として組み立て、単価表(ai-pricing.ts)で µUSD へ
 // 換算する。**見積と実測が同じ型・同じ換算関数を通る**ので、単価を改定したときに
@@ -629,7 +660,13 @@ export const AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE = 500;
  * トークン数の見込みに差が出る理由が無い(原価の違いは単価表が受け持つ)。出力側だけ
  * 経路で分けるのは、GPT経路の reasoning が出力枠から出るため。
  *
- * どちらの経路も **web検索は使わない**(#358 の住み分け)ので `webSearches` は 0。
+ * **web検索の回数は写真枚数から見積もる**(#474)。裏取りの量は本来「写っている銘柄数」で
+ * 決まるが、**予約は解析の前に立てる**(#245)ので、その時点で銘柄数は分からない。枚数は
+ * 予約時に分かる唯一の代理指標で、銘柄数ともおおむね相関する。
+ *
+ * 中心値であって上限ではない。厚く見積もると残高不足で弾かれやすくなり、薄いと予約が
+ * 実費を下回る——どちらに倒しても実測で確定するので、**押さえすぎない**側を取る
+ * (`AI_LABEL_WEB_SEARCH_ESTIMATE` が上限8に対して6を置いているのと同じ判断)。
  */
 export function estimateWineListReserveUsage(
 	route: WineListRoute,
@@ -645,6 +682,10 @@ export function estimateWineListReserveUsage(
 			AI_WINE_LIST_BASE_TOKEN_ESTIMATE +
 			AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE * photos,
 		outputTokens: baseOutput + AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE * photos,
+		webSearches: Math.min(
+			AI_WINE_LIST_WEB_SEARCH_ESTIMATE_PER_IMAGE * photos,
+			AI_WINE_LIST_MAX_SEARCHES,
+		),
 	};
 }
 

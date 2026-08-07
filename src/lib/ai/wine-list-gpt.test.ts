@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { findGptRefusal, toGptUsage } from "./wine-list-gpt";
+import {
+	countGptWebSearchCalls,
+	findGptRefusal,
+	toGptUsage,
+} from "./wine-list-gpt";
 
 // 一括抽出の GPT 経路は**生の Responses API を直接叩く**(エチケット解析は #455 の実測を
 // 受けて AI SDK へ移行済み)。応答の形が違うので、refusal の判定と usage の変換も
@@ -36,6 +40,29 @@ describe("findGptRefusal", () => {
 				{ type: "message" },
 			]),
 		).toBeUndefined();
+	});
+});
+
+describe("countGptWebSearchCalls (#474)", () => {
+	it("web_search_call の件数を数える", () => {
+		expect(
+			countGptWebSearchCalls([
+				{ type: "reasoning", summary: [] },
+				{ type: "web_search_call", status: "completed" },
+				{ type: "web_search_call", status: "completed" },
+				{ type: "message", content: [{ type: "output_text", text: "{}" }] },
+			]),
+		).toBe(2);
+	});
+
+	it("検索が無ければ 0", () => {
+		expect(countGptWebSearchCalls([{ type: "message" }])).toBe(0);
+		expect(countGptWebSearchCalls([])).toBe(0);
+		expect(countGptWebSearchCalls(undefined)).toBe(0);
+	});
+
+	it("想定外の要素が混ざっても壊れない", () => {
+		expect(countGptWebSearchCalls([null, "x", 1, { type: null }])).toBe(0);
 	});
 });
 
