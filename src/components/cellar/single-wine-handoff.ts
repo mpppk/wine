@@ -26,7 +26,14 @@ export type ManualFormReason =
 	/** 解析結果が1本のワインのエチケットだった(自動で切り替わる) */
 	| "single_wine"
 	/** ユーザが「手動で入力」を選んだ */
-	| "manual_choice";
+	| "manual_choice"
+	/**
+	 * 完了したエチケット解析ジョブを受け取って開いた(#462)。**`single_wine` と分ける**の
+	 * は、あちらが「これから解析する」のに対しこちらは「解析済みの結果を持って来ている」
+	 * ため。混ぜると案内文が嘘になり、`autoAnalyzeLabel` がもう一度クレジットを使う
+	 * 解析を走らせる条件にも入ってしまう。
+	 */
+	| "label_job";
 
 /** 単体の記録フォームへ渡す荷物。 */
 export interface ManualFormStart {

@@ -17,6 +17,7 @@ import {
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { CellarFilterChips } from "#/components/cellar/CellarFilterChips";
+import { LabelAnalysisJobBanner } from "#/components/cellar/LabelAnalysisJobBanner";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
@@ -337,6 +338,13 @@ function CellarPage() {
 					</Button>
 				</div>
 			</div>
+
+			{/*
+			  エチケット解析ジョブの状況(#462)。投入した画面を離れた利用者が完了に
+			  気づける唯一の場所なので、絞り込みより上・一覧の直前に置く。
+			  このルートは requireAuthBeforeLoad を通るので常にログイン済み。
+			*/}
+			<LabelAnalysisJobBanner enabled />
 
 			{selectMode && (
 				<div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">

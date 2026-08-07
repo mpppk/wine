@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { AI_MAX_QUESTION_CHARS, chatHistorySchema } from "#/lib/ai/config";
 import * as aiService from "#/lib/services/ai-service";
+import * as labelJobService from "#/lib/services/label-job-service";
 import { authMiddleware } from "./middleware";
 
 // 地域チャットQ&AのRPC。Workers AI で回答し、実測トークンでクレジットを消費する。認証必須。
@@ -54,3 +55,20 @@ export const getLabelAnalysisPlan = createServerFn({ method: "GET" })
 		route: await aiService.resolveLabelRouteForUser(context.user.id),
 		availability: aiService.labelProviderAvailability(),
 	}));
+
+/**
+ * 完了したエチケット解析ジョブを受け取り、候補を返す(#462)。
+ *
+ * 登録画面(`/cellar/new?labelJob=<jobId>`)の**ローダーから**呼ぶ。クライアントで
+ * 受け取ると、フォームが空でマウントしてから候補が入る一瞬が見えるため、SSR の時点で
+ * 初期値に入っている形にする。
+ *
+ * `method: "POST"` なのは既読化(書き込み)を伴うため。ローダーは再実行されうるが、
+ * 2回目以降は `alreadyConsumed: true` になるだけで候補は同じものが返る(冪等)。
+ */
+export const consumeLabelAnalysisJob = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ jobId: z.string().min(1).max(80) }))
+	.handler(async ({ data, context }) =>
+		labelJobService.consumeLabelAnalysisJob(context.user.id, data.jobId),
+	);
