@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { detachPhotoFiles } from "#/components/cellar/photo-picker";
 import { PushNotificationCard } from "#/components/settings/PushNotificationCard";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
@@ -134,12 +135,21 @@ function ProfilePage() {
 		},
 	});
 
-	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0] ?? null;
 		if (!file) return;
+		// 選んだ瞬間に中身を掴む(#469)。ここは「選ぶ」と「アップロード」が別操作なので、
+		// 間に時間が空くと端末側でファイルが回収され、送信前に落ちることがある。
+		const { accepted, rejectMessage } = await detachPhotoFiles([file]);
+		const detached = accepted[0];
+		if (!detached) {
+			setError(rejectMessage);
+			return;
+		}
 		if (previewUrl) URL.revokeObjectURL(previewUrl);
-		setSelectedFile(file);
-		setPreviewUrl(URL.createObjectURL(file));
+		setError("");
+		setSelectedFile(detached);
+		setPreviewUrl(URL.createObjectURL(detached));
 	};
 
 	const currentAvatarUrl = previewUrl ?? session?.user.image ?? null;
@@ -175,7 +185,7 @@ function ProfilePage() {
 									ref={fileInputRef}
 									type="file"
 									accept={PHOTO_ACCEPT_ATTR}
-									onChange={handleFileChange}
+									onChange={(e) => void handleFileChange(e)}
 									className="max-w-xs"
 								/>
 								<p className="text-xs text-muted-foreground">
