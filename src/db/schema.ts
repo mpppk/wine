@@ -545,6 +545,24 @@ export const labelAnalysisJob = sqliteTable(
 		 * `status = 'succeeded' AND consumed_at IS NULL` を数える。
 		 */
 		consumedAt: integer("consumed_at", { mode: "timestamp_ms" }),
+		/**
+		 * この解析結果が宛てられている既存エントリ(#472)。null = 宛先なし(新規登録向け)。
+		 *
+		 * 解析中に記録フォームを保存して離脱すると、完了の受け取り
+		 * (`/cellar/new?labelJob=<id>`)が新規作成モードで開き、同じワインが2件登録される。
+		 * ここに保存先を残すことで、受け取りを「そのワインを編集」へ振り分けられる。
+		 *
+		 * **`consumedAt` とは別の軸**。あちらは「利用者が結果を画面で見たか」、こちらは
+		 * 「その結果が既存エントリに宛てられているか」。受け取らずに離脱した回は
+		 * `consumedAt` が null のまま `entryId` だけ入り、新規登録として受け取った回は
+		 * `consumedAt` だけが入る。混ぜると受け取り導線の分岐がどちらの意味でも読める。
+		 *
+		 * 宛先が削除されたら参照だけ外れる(ON DELETE set null)。受け取りは新規作成モードへ
+		 * 素直に戻り、解析結果そのものは捨てずに済む。
+		 */
+		entryId: text("entry_id").references(() => drunkWine.id, {
+			onDelete: "set null",
+		}),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
