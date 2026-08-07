@@ -1,7 +1,6 @@
 import { downscaleForAnalysis } from "#/components/cellar/photo-resize";
 import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import { postImageForm } from "#/lib/images/form-client";
-import type { AnalyzeLabelResult } from "#/lib/services/ai-service";
 import type {
 	LabelAnalysisJobBadge,
 	LabelAnalysisJobView,
@@ -13,13 +12,12 @@ import type {
 // トークン(=クレジット)と転送量の削減が目的で、保存用のオリジナル写真
 // (/api/wine-photos)には影響しない。
 //
-// 経路は2本あり、**利用者が押すボタンはジョブ経路**(#462):
+// **UI からの解析はすべてジョブ経路**(#462 / #464)。手動のボタンも、一括登録からの
+// 引き継ぎ直後の自動実行(#416)も `submitLabelAnalysisJob` を通り、結果はポーリング
+// (`fetchLabelAnalysisJob`)か、離脱した場合はマイセラーのバッジから受け取る。
 //
-//  - `submitLabelAnalysisJob` … /api/label-analysis-jobs へ投入して jobId を受け取る。
-//    投入後はページを離れてよく、完了はマイセラーのバッジから受け取れる
-//  - `analyzeLabelPhotos` … /api/label-analysis で完了まで待つ同期経路。**一括登録
-//    ウィザードからの引き継ぎ直後の自動解析だけ**が使う(#416)。あちらは「画面到達と
-//    同時に結果が入っている」ことが体験の要で、ジョブ化すると画面が空のまま出る
+// 同期API(`/api/label-analysis`)はサーバ側に残っているが、この画面からは呼ばない
+// (17〜31秒フォームを拘束するため。#463 の本番実測)。
 
 /** 解析対象の写真ソース。新規はFile、既存はサーバ配信URL(同一オリジン)。 */
 export type AnalysisPhotoSource = File | { url: string };
@@ -66,26 +64,6 @@ async function buildAnalysisForm(
 		);
 	}
 	return form;
-}
-
-/**
- * 添付中の全写真を縮小して**同期**解析APIへ送り、自動入力候補を受け取る。
- * 失敗時はErrorをthrow。sources は表示順。
- *
- * **利用者が押すボタンはこちらではない**(#462)。使うのは一括登録ウィザードからの
- * 引き継ぎ直後の自動解析だけで、そちらは画面到達時に結果が入っていることが要件。
- */
-export async function analyzeLabelPhotos(
-	sources: AnalysisPhotoSource[],
-): Promise<AnalyzeLabelResult> {
-	return postImageForm<AnalyzeLabelResult>(
-		"/api/label-analysis",
-		await buildAnalysisForm(sources),
-		{
-			fallbackMessage: "エチケットの解析に失敗しました",
-			maxPhotos: MAX_PHOTOS_PER_ENTRY,
-		},
-	);
 }
 
 /**
