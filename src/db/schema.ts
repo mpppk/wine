@@ -536,6 +536,15 @@ export const labelAnalysisJob = sqliteTable(
 		startedAt: integer("started_at", { mode: "timestamp_ms" }),
 		/** 終端(succeeded/failed)に到達した時刻 */
 		finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+		/**
+		 * 利用者が結果を画面で受け取った時刻(#462)。null = 未受け取り。
+		 *
+		 * **`status` とは別の軸**。status は「推論がどうなったか」で、こちらは「その結果を
+		 * もう見せなくてよいか」。混ぜると `isTerminalLabelJobStatus` の意味が二重になり、
+		 * ポーリングの停止条件が濁る。マイセラーの完了バッジは
+		 * `status = 'succeeded' AND consumed_at IS NULL` を数える。
+		 */
+		consumedAt: integer("consumed_at", { mode: "timestamp_ms" }),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
