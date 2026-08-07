@@ -90,6 +90,32 @@ export const consumeLabelAnalysisJob = createServerFn({ method: "POST" })
 		labelJobService.consumeLabelAnalysisJob(context.user.id, data.jobId),
 	);
 
+/**
+ * 解析結果の宛先エントリを記録する(#472)。
+ *
+ * 記録フォームが**保存に成功した直後**に呼ぶ。走行中のジョブが完了したとき、その結果を
+ * 新規登録として受け取ると同じワインが2件できるため、保存先をジョブ側に残して受け取りを
+ * 「そのワインを編集」へ振り分けられるようにする。
+ *
+ * 呼び出しは best-effort。失敗しても保存済みのエントリには影響が無く、受け取りが
+ * 従来どおり新規作成モードへ落ちるだけなので、クライアント側は例外を握って構わない。
+ */
+export const attachLabelAnalysisJobEntry = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(
+		z.object({
+			jobId: z.string().min(1).max(80),
+			entryId: z.string().min(1).max(80),
+		}),
+	)
+	.handler(async ({ data, context }) =>
+		labelJobService.attachLabelAnalysisJobEntry(
+			context.user.id,
+			data.jobId,
+			data.entryId,
+		),
+	);
+
 // ---- Web Push の購読(Issue #466) ----
 //
 // エチケット解析の完了通知に使う。**通知は付随物**なので、購読の失敗が解析の導線を

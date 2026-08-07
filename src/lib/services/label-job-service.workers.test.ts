@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { subscription } from "#/db/auth-schema";
-import { creditLedger, labelAnalysisJob } from "#/db/schema";
+import { creditLedger, drunkWine, labelAnalysisJob } from "#/db/schema";
 import { AI_LABEL_MODEL } from "#/lib/ai/config";
 import {
 	LABEL_JOB_STALE_MS,
@@ -17,6 +17,7 @@ import {
 	TooManyRequestsError,
 } from "#/lib/errors";
 import {
+	attachLabelAnalysisJobEntry,
 	consumeLabelAnalysisJob,
 	getLabelAnalysisJob,
 	getLabelAnalysisJobBadge,
@@ -61,6 +62,13 @@ async function seedPremiumUser(): Promise<string> {
 		referenceId: id,
 		status: "active",
 	});
+	return id;
+}
+
+/** 宛先にするマイセラーのエントリ(#472)。名前だけの最小の行で足りる。 */
+async function seedEntry(userId: string): Promise<string> {
+	const id = crypto.randomUUID();
+	await db.insert(drunkWine).values({ id, userId, name: "Chablis" });
 	return id;
 }
 
@@ -492,6 +500,66 @@ describe("完了の受け取り (#462)", () => {
 		expect(await getLabelAnalysisJobBadge(owner)).toMatchObject({
 			readyCount: 1,
 		});
+	});
+
+	it("宛先エントリを紐づけると、受け取り側が編集へ振り分けられる (#472)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const entryId = await seedEntry(userId);
+
+		// 解析中に記録フォームを保存した、の再現。
+		expect(await attachLabelAnalysisJobEntry(userId, jobId, entryId)).toEqual({
+			attached: true,
+		});
+
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+
+		// 受け取り導線はここを見て「新規登録」ではなく「そのワインを編集」を選ぶ。
+		const view = await getLabelAnalysisJob(userId, jobId);
+		expect(view.entryId).toBe(entryId);
+		expect(view.suggestions).toMatchObject({ name: "Chablis Les Clos" });
+	});
+
+	it("宛先は最初に紐づいたエントリが勝つ (#472)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const first = await seedEntry(userId);
+		const second = await seedEntry(userId);
+
+		await attachLabelAnalysisJobEntry(userId, jobId, first);
+		// 同じ解析結果が2つのエントリに宛てられると、開いたときどちらを直すか決まらない。
+		expect(await attachLabelAnalysisJobEntry(userId, jobId, second)).toEqual({
+			attached: false,
+		});
+
+		expect((await jobRow(jobId))?.entryId).toBe(first);
+	});
+
+	it("他人のエントリは宛先にできない (#472)", async () => {
+		const owner = await seedUser();
+		const other = await seedUser();
+		const { jobId } = await submitOne(owner);
+		const othersEntry = await seedEntry(other);
+
+		await expect(
+			attachLabelAnalysisJobEntry(owner, jobId, othersEntry),
+		).rejects.toThrow(NotFoundError);
+		expect((await jobRow(jobId))?.entryId).toBeNull();
+	});
+
+	it("他人のジョブには紐づけられない (#472)", async () => {
+		const owner = await seedUser();
+		const other = await seedUser();
+		const { jobId } = await submitOne(owner);
+		const othersEntry = await seedEntry(other);
+
+		// 宛先は自分のエントリなので所有権チェックは通るが、ジョブが他人のものなので
+		// 条件付き UPDATE が空振りする(存在を漏らさず、書き換えもしない)。
+		expect(
+			await attachLabelAnalysisJobEntry(other, jobId, othersEntry),
+		).toEqual({ attached: false });
+		expect((await jobRow(jobId))?.entryId).toBeNull();
 	});
 
 	it("解析中と完了を別々に数える", async () => {
