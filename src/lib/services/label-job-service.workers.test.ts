@@ -194,6 +194,30 @@ describe("ジョブの投入", () => {
 		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
 	});
 
+	it("画像が空なら予約せずに弾く (#480)", async () => {
+		// 同期APIを消して入力検証がここへ集約された。**予約より前に落ちる**ことは
+		// 台帳が空(月次付与すら走らない)であることで見る。
+		const userId = await seedUser();
+
+		await expect(submitLabelAnalysisJob(userId, [])).rejects.toThrow(
+			BadRequestError,
+		);
+		expect(await ledgerRowsOf(userId)).toHaveLength(0);
+	});
+
+	it("枚数の上限を超えたら予約せずに弾く (#480)", async () => {
+		const userId = await seedUser();
+		const tooMany = Array.from(
+			{ length: MAX_PHOTOS_PER_IMPORT_BATCH + 1 },
+			photo,
+		);
+
+		await expect(
+			submitLabelAnalysisJob(userId, tooMany, "wine_list"),
+		).rejects.toThrow(BadRequestError);
+		expect(await ledgerRowsOf(userId)).toHaveLength(0);
+	});
+
 	it("画像として認識できないファイルは拒否し、予約も立てない", async () => {
 		const userId = await seedUser();
 

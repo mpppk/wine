@@ -22,11 +22,9 @@ import { Route as AdminUserIdRouteImport } from './routes/admin.$userId'
 import { Route as AdminBulkCreditRouteImport } from './routes/admin.bulk-credit'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiImportBatchPhotosRouteImport } from './routes/api/import-batch-photos'
-import { Route as ApiLabelAnalysisRouteImport } from './routes/api/label-analysis'
 import { Route as ApiLabelAnalysisJobsRouteImport } from './routes/api/label-analysis-jobs'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
-import { Route as ApiWineListAnalysisRouteImport } from './routes/api/wine-list-analysis'
 import { Route as ApiWinePhotosRouteImport } from './routes/api/wine-photos'
 import { Route as CellarIndexRouteImport } from './routes/cellar.index'
 import { Route as CellarImportRouteImport } from './routes/cellar.import'
@@ -112,11 +110,6 @@ const ApiImportBatchPhotosRoute = ApiImportBatchPhotosRouteImport.update({
   path: '/api/import-batch-photos',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiLabelAnalysisRoute = ApiLabelAnalysisRouteImport.update({
-  id: '/api/label-analysis',
-  path: '/api/label-analysis',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiLabelAnalysisJobsRoute = ApiLabelAnalysisJobsRouteImport.update({
   id: '/api/label-analysis-jobs',
   path: '/api/label-analysis-jobs',
@@ -130,11 +123,6 @@ const ApiMcpRoute = ApiMcpRouteImport.update({
 const ApiUploadRoute = ApiUploadRouteImport.update({
   id: '/api/upload',
   path: '/api/upload',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWineListAnalysisRoute = ApiWineListAnalysisRouteImport.update({
-  id: '/api/wine-list-analysis',
-  path: '/api/wine-list-analysis',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWinePhotosRoute = ApiWinePhotosRouteImport.update({
@@ -236,11 +224,9 @@ export interface FileRoutesByFullPath {
   '/admin/bulk-credit': typeof AdminBulkCreditRoute
   '/api/health': typeof ApiHealthRoute
   '/api/import-batch-photos': typeof ApiImportBatchPhotosRoute
-  '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/label-analysis-jobs': typeof ApiLabelAnalysisJobsRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
-  '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/import': typeof CellarImportRoute
   '/cellar/map': typeof CellarMapRoute
@@ -273,11 +259,9 @@ export interface FileRoutesByTo {
   '/admin/bulk-credit': typeof AdminBulkCreditRoute
   '/api/health': typeof ApiHealthRoute
   '/api/import-batch-photos': typeof ApiImportBatchPhotosRoute
-  '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/label-analysis-jobs': typeof ApiLabelAnalysisJobsRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
-  '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/import': typeof CellarImportRoute
   '/cellar/map': typeof CellarMapRoute
@@ -311,11 +295,9 @@ export interface FileRoutesById {
   '/admin/bulk-credit': typeof AdminBulkCreditRoute
   '/api/health': typeof ApiHealthRoute
   '/api/import-batch-photos': typeof ApiImportBatchPhotosRoute
-  '/api/label-analysis': typeof ApiLabelAnalysisRoute
   '/api/label-analysis-jobs': typeof ApiLabelAnalysisJobsRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/upload': typeof ApiUploadRoute
-  '/api/wine-list-analysis': typeof ApiWineListAnalysisRoute
   '/api/wine-photos': typeof ApiWinePhotosRoute
   '/cellar/import': typeof CellarImportRoute
   '/cellar/map': typeof CellarMapRoute
@@ -350,11 +332,9 @@ export interface FileRouteTypes {
     | '/admin/bulk-credit'
     | '/api/health'
     | '/api/import-batch-photos'
-    | '/api/label-analysis'
     | '/api/label-analysis-jobs'
     | '/api/mcp'
     | '/api/upload'
-    | '/api/wine-list-analysis'
     | '/api/wine-photos'
     | '/cellar/import'
     | '/cellar/map'
@@ -387,11 +367,9 @@ export interface FileRouteTypes {
     | '/admin/bulk-credit'
     | '/api/health'
     | '/api/import-batch-photos'
-    | '/api/label-analysis'
     | '/api/label-analysis-jobs'
     | '/api/mcp'
     | '/api/upload'
-    | '/api/wine-list-analysis'
     | '/api/wine-photos'
     | '/cellar/import'
     | '/cellar/map'
@@ -424,11 +402,9 @@ export interface FileRouteTypes {
     | '/admin/bulk-credit'
     | '/api/health'
     | '/api/import-batch-photos'
-    | '/api/label-analysis'
     | '/api/label-analysis-jobs'
     | '/api/mcp'
     | '/api/upload'
-    | '/api/wine-list-analysis'
     | '/api/wine-photos'
     | '/cellar/import'
     | '/cellar/map'
@@ -462,11 +438,9 @@ export interface RootRouteChildren {
   AdminBulkCreditRoute: typeof AdminBulkCreditRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiImportBatchPhotosRoute: typeof ApiImportBatchPhotosRoute
-  ApiLabelAnalysisRoute: typeof ApiLabelAnalysisRoute
   ApiLabelAnalysisJobsRoute: typeof ApiLabelAnalysisJobsRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiUploadRoute: typeof ApiUploadRoute
-  ApiWineListAnalysisRoute: typeof ApiWineListAnalysisRoute
   ApiWinePhotosRoute: typeof ApiWinePhotosRoute
   CellarImportRoute: typeof CellarImportRoute
   CellarMapRoute: typeof CellarMapRoute
@@ -580,13 +554,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImportBatchPhotosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/label-analysis': {
-      id: '/api/label-analysis'
-      path: '/api/label-analysis'
-      fullPath: '/api/label-analysis'
-      preLoaderRoute: typeof ApiLabelAnalysisRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/label-analysis-jobs': {
       id: '/api/label-analysis-jobs'
       path: '/api/label-analysis-jobs'
@@ -606,13 +573,6 @@ declare module '@tanstack/react-router' {
       path: '/api/upload'
       fullPath: '/api/upload'
       preLoaderRoute: typeof ApiUploadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/wine-list-analysis': {
-      id: '/api/wine-list-analysis'
-      path: '/api/wine-list-analysis'
-      fullPath: '/api/wine-list-analysis'
-      preLoaderRoute: typeof ApiWineListAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/wine-photos': {
@@ -752,11 +712,9 @@ const rootRouteChildren: RootRouteChildren = {
   AdminBulkCreditRoute: AdminBulkCreditRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiImportBatchPhotosRoute: ApiImportBatchPhotosRoute,
-  ApiLabelAnalysisRoute: ApiLabelAnalysisRoute,
   ApiLabelAnalysisJobsRoute: ApiLabelAnalysisJobsRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiUploadRoute: ApiUploadRoute,
-  ApiWineListAnalysisRoute: ApiWineListAnalysisRoute,
   ApiWinePhotosRoute: ApiWinePhotosRoute,
   CellarImportRoute: CellarImportRoute,
   CellarMapRoute: CellarMapRoute,
