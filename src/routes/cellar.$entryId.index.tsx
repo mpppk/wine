@@ -210,6 +210,20 @@ function CellarDetailPage() {
 				))}
 			</dl>
 
+			{/*
+			 * 銘柄のコメント(#471)。属性の定義リストではなく独立したセクションにするのは、
+			 * 数行の文章で改行を保って読ませたいため(dl の1行に入れると他の属性の行送りに
+			 * 引きずられる)。
+			 */}
+			{entry.note && (
+				<section className="flex flex-col gap-3">
+					<SectionHeading>コメント</SectionHeading>
+					<p className="text-sm whitespace-pre-wrap break-words">
+						{entry.note}
+					</p>
+				</section>
+			)}
+
 			<TastingSection tastings={tastings} />
 			<SightingSection sightings={sightings} version={entry.updatedAt} />
 		</main>

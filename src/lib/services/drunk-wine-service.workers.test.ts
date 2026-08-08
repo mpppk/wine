@@ -159,6 +159,60 @@ describe("createDrunkWine の所有状態と飲用記録", () => {
 	});
 });
 
+// 銘柄のコメント(#471)。飲用記録の memo とは別の列で、飲む前のエントリにも付く。
+describe("銘柄のコメント(note)", () => {
+	let userId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+	});
+
+	it("作成時に保存され、読み取りで返る", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "Chablis",
+			status: "spotted",
+			note: "【香り・味わい】\n柑橘と火打石。",
+		});
+		expect(entry.note).toBe("【香り・味わい】\n柑橘と火打石。");
+		expect((await getDrunkWine(userId, entry.id)).note).toBe(entry.note);
+		// 飲用記録は作らない = 銘柄のコメントは飲用の有無と独立している
+		expect(entry.tastingCount).toBe(0);
+	});
+
+	it("未指定なら null。更新で書き換え、null でクリアできる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "Meursault",
+			status: "owned",
+		});
+		expect(entry.note).toBeNull();
+
+		const written = await updateDrunkWine(userId, {
+			id: entry.id,
+			note: "ナッツと蜂蜜。",
+		});
+		expect(written.note).toBe("ナッツと蜂蜜。");
+
+		const cleared = await updateDrunkWine(userId, { id: entry.id, note: null });
+		expect(cleared.note).toBeNull();
+	});
+
+	it("一括登録で作った銘柄にもコメントが載る", async () => {
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: {
+						name: "Barolo",
+						note: "【生産者】\n家族経営のカンティーナ。",
+					},
+				},
+			],
+		});
+		expect(result.createdCount).toBe(1);
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.note).toBe("【生産者】\n家族経営のカンティーナ。");
+	});
+});
+
 describe("集計キャッシュの再計算", () => {
 	let userId: string;
 	let wineId: string;

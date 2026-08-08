@@ -28,6 +28,7 @@ const filled: DrunkWineFormState = {
 	regionId: undefined,
 	countryId: undefined,
 	grapeVarietyIds: ["chardonnay"],
+	note: "白桃の香り",
 };
 
 const savedEntry = {
@@ -38,6 +39,7 @@ const savedEntry = {
 	price: 3000,
 	aopId: "chablis",
 	grapeVarietyIds: ["chardonnay"],
+	note: "白桃の香り",
 };
 
 // 何も入力していない新規作成フォームの初期 state
@@ -51,6 +53,7 @@ const empty: DrunkWineFormState = {
 	regionId: undefined,
 	countryId: undefined,
 	grapeVarietyIds: [],
+	note: "",
 };
 
 const state = (patch: Partial<DrunkWineFormState>): DrunkWineFormState => ({
@@ -81,6 +84,7 @@ describe("toFormValues", () => {
 			region_id: "",
 			country_id: "",
 			grape_variety_ids: ["chardonnay"],
+			note: "白桃の香り",
 		});
 	});
 });
@@ -100,6 +104,16 @@ describe("buildUpdatePatch", () => {
 		expect(
 			buildUpdatePatch(savedEntry, state({ producer: "Raveneau" })),
 		).toEqual({ producer: "Raveneau" });
+	});
+
+	// 銘柄のコメント(#471)はテキスト項目と同じ規約(空欄→null でクリア)
+	it("コメントは変更を送り、空欄なら null でクリアする", () => {
+		expect(buildUpdatePatch(savedEntry, state({ note: "柑橘。" }))).toEqual({
+			note: "柑橘。",
+		});
+		expect(buildUpdatePatch(savedEntry, state({ note: "  " }))).toEqual({
+			note: null,
+		});
 	});
 
 	it("所有状態の変更を送る", () => {
@@ -190,6 +204,7 @@ describe("buildCreateInput", () => {
 			producer: "Dauvissat",
 			aopId: "chablis",
 			grapeVarietyIds: ["chardonnay"],
+			note: "白桃の香り",
 		});
 	});
 
@@ -271,6 +286,7 @@ describe("fieldsValueFromMcpEntry", () => {
 			regionId: undefined,
 			countryId: undefined,
 			grapeVarietyIds: ["chardonnay"],
+			note: "",
 		});
 	});
 
@@ -303,6 +319,7 @@ describe("fieldsValueFromMcpEntry", () => {
 			regionId: undefined,
 			countryId: undefined,
 			grapeVarietyIds: [],
+			note: "",
 		});
 	});
 });

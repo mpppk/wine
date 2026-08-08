@@ -197,6 +197,7 @@ describe("buildBulkRegisterInput", () => {
 						regionId: undefined,
 						countryId: undefined,
 						grapeVarietyIds: ["nebbiolo"],
+						note: "",
 					},
 					sightingPrice: "28000",
 					photoIndexes: [1],

@@ -69,6 +69,8 @@ export function valuesFromSuggestions(
 				? undefined
 				: suggestions.countryId,
 		grapeVarietyIds: suggestions.grapeVarietyIds ?? [],
+		// 解析が付けたコメント(#471)。一括登録では生産者の説明だけが載る
+		note: suggestions.note ?? "",
 	};
 }
 

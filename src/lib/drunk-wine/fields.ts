@@ -14,6 +14,9 @@ import { PRICE_MAX, PRICE_MIN, VINTAGE_MAX, VINTAGE_MIN } from "./schema";
 
 export type DrunkWineInputKind =
 	| "text"
+	// 複数行のテキスト。差分パッチ規約は "text" と同じ(空欄→null)で、
+	// 違うのは描画に使う要素だけ(input か textarea か)。
+	| "textarea"
 	| "select"
 	| "number"
 	| "grape"
@@ -134,6 +137,17 @@ export const DRUNK_WINE_FIELD_DEFS = [
 		input: "grape",
 		clear: "emptyArray",
 		col: "full",
+	},
+	// 銘柄についてのコメント(#471)。解析が香り・味わい・生産者の説明を書き込み、
+	// 利用者が編集できる。飲用記録のメモ(WINE_TASTING_FIELDS)とは別物。
+	{
+		camelKey: "note",
+		snakeKey: "note",
+		label: "コメント",
+		input: "textarea",
+		clear: "null",
+		col: "full",
+		placeholder: "香り・味わい・生産者について",
 	},
 ] as const satisfies readonly DrunkWineFieldDef[];
 

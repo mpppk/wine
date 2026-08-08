@@ -131,6 +131,9 @@ const REGISTER_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	vintage: "ヴィンテージ (1800〜2100の年)",
 	price: "価格 (円)",
 	producer: "生産者名 (200文字まで)",
+	note:
+		"銘柄についてのコメント (2000文字まで)。香り・味わいや生産者の説明。" +
+		"その回に飲んだ感想は memo(飲用記録)側に書く",
 	aop_id: "紐付けるAOPのID (list_aopsのid。任意)",
 	region_id:
 		"AOPまで特定できない場合に紐付ける地域ID (list_wine_regionsのid。任意。" +
@@ -151,6 +154,7 @@ const UPDATE_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	vintage: "ヴィンテージ (1800〜2100の年)。nullでクリア",
 	price: "価格 (円)。nullでクリア",
 	producer: "生産者名 (200文字まで)。nullでクリア",
+	note: "銘柄についてのコメント (2000文字まで)。香り・味わいや生産者の説明。nullでクリア",
 	aop_id:
 		"紐付けるAOPのID (list_aopsのid)。指定すると地域・国の紐付けは自動クリア。nullでクリア",
 	region_id:

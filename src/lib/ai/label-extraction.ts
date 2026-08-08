@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { NOTE_MAX } from "#/lib/drunk-wine/schema";
 import { WINE_COUNTRIES } from "#/lib/wine/countries";
+import { findProducerInfoByName } from "#/lib/wine/producer-info";
 import {
 	GRAPE_VARIETIES,
 	getRegion,
@@ -110,8 +112,33 @@ const LABEL_FIELD_SOURCE_PROPERTIES = Object.fromEntries(
 ) as Record<LabelFieldKey, typeof LABEL_FIELD_SOURCE_SCHEMA>;
 
 /**
+ * 銘柄のコメント(#471)のフィールド。**高精度経路だけが出す**。
+ *
+ * `LABEL_JSON_SCHEMA`(Workers AI 経路)には足さない。あちらは裏取りをしないので
+ * 「web検索で見つかった表現を踏まえた」コメントを書きようがなく、書かせれば創作に
+ * なるだけで、出力上限(512トークン)を本体JSONと奪い合うことになる。
+ */
+const LABEL_COMMENT_JSON_PROPERTIES = {
+	tasting_comment: {
+		type: ["string", "null"],
+		description:
+			"Aroma and flavour of this wine in Japanese (2-3 sentences), grounded in tasting notes found via web search. null if nothing was found.",
+	},
+	producer_comment: {
+		type: ["string", "null"],
+		description:
+			"Short description of the producer in Japanese (1-2 sentences). null if unknown.",
+	},
+} as const;
+
+/** コメントフィールドのキー。スキーマの required と受け取り側を1箇所から導出する。 */
+const LABEL_COMMENT_KEYS = Object.keys(
+	LABEL_COMMENT_JSON_PROPERTIES,
+) as (keyof typeof LABEL_COMMENT_JSON_PROPERTIES)[];
+
+/**
  * 高精度経路(LLM + web検索)の出力スキーマ。`LABEL_JSON_SCHEMA` に**フィールドごとの
- * 根拠(`sources`)を足したもの**で、GPT経路の structured outputs に渡す。
+ * 根拠(`sources`)とコメント(#471)を足したもの**で、GPT経路の structured outputs に渡す。
  *
  * **Workers AI 経路の `LABEL_JSON_SCHEMA` は変えない**のが要点。あちらは
  * `guided_json` で Llama 4 Scout に形を強制する経路だが、guided_json は完全には
@@ -126,6 +153,7 @@ export const LABEL_WEB_JSON_SCHEMA = {
 	type: "object",
 	properties: {
 		...LABEL_JSON_SCHEMA.properties,
+		...LABEL_COMMENT_JSON_PROPERTIES,
 		sources: {
 			type: "object",
 			description:
@@ -135,7 +163,7 @@ export const LABEL_WEB_JSON_SCHEMA = {
 			additionalProperties: false,
 		},
 	},
-	required: [...LABEL_JSON_SCHEMA.required, "sources"],
+	required: [...LABEL_JSON_SCHEMA.required, ...LABEL_COMMENT_KEYS, "sources"],
 	additionalProperties: false,
 } as const;
 
@@ -218,6 +246,23 @@ const LABEL_OUTPUT_FIELD_RULES = [
 	"     それ以外は null。**URLを創作しない**(実際に開いていないURLを書かない)。",
 ];
 
+/**
+ * コメント(#471)の出力規範。**裏取りをする経路だけが使う**(Workers AI 経路は
+ * このフィールド自体を持たない)。
+ *
+ * 引き写しを避けさせるのは著作権への配慮。テイスティングコメントの表現そのものは
+ * 書き手の著作物になりうるため、「複数の評価に共通する特徴を自分の言葉で1〜3文に
+ * まとめる」形に寄せる(producer-info.ts の解説と同じ方針)。
+ */
+const LABEL_COMMENT_FIELD_RULES = [
+	'   - "tasting_comment": このワインの香り・味わいについての日本語のコメント(1〜3文)。',
+	"     **web検索で見つかった評価・テイスティングコメント・販売ページの説明に現れる表現を踏まえて**書く。",
+	"     複数の評価に共通する特徴(果実味・酸・タンニン・熟成香など)を自分の言葉でまとめること。",
+	"     特定のページの文章をそのまま引き写さない。検索で何も見つからなければ null(推測で書かない)。",
+	'   - "producer_comment": 生産者についての日本語のコメント(1〜2文)。所在地・歴史・造りの特徴など。',
+	"     確認できなければ null。",
+];
+
 /** 写真の枚数と性質の説明。全経路で共通の前置き。 */
 const LABEL_PHOTO_INTRO =
 	"これはワインのボトル/エチケット(ラベル)の写真です(同一ボトルの表・裏ラベルなど複数枚のことがあります)。";
@@ -238,8 +283,10 @@ export function buildWebLabelPrompt(): string {
 		"1. 全ての写真からワイン名・生産者・ヴィンテージ・原産地呼称・地域・品種を読み取る。",
 		"2. web検索で裏取りする。生産者の公式サイト、Wine-Searcher・Vivino等のワインデータベース、輸入元の商品ページ、原産地呼称の公式情報を優先して参照する。",
 		...LABEL_RESEARCH_RULES,
+		"   - **香り・味わいの評価と生産者の紹介も併せて拾う**(コメントの材料。下の tasting_comment / producer_comment)。",
 		"3. 出力するJSONのフィールド:",
 		...LABEL_OUTPUT_FIELD_RULES,
+		...LABEL_COMMENT_FIELD_RULES,
 		"4. 検索しても確認できない項目は null にする。JSONの前後に説明文・コードフェンスを書かない。",
 		"",
 		buildKnownListsSection(),
@@ -278,6 +325,7 @@ export function buildAgentLabelPrompt(): string {
 		"   - マスタは対応地域ぶんしか無いので、**引けなくても誤りとは限らない**。その場合はweb検索の結果を優先してよい。",
 		"4. 確信が持てたら submit_answer で提出する。引数のフィールド:",
 		...LABEL_OUTPUT_FIELD_RULES,
+		...LABEL_COMMENT_FIELD_RULES,
 		"5. submit_answer は検証を行う。問題が返ってきたら、指摘された点を調べ直して再度 submit_answer を呼ぶこと。",
 		"   同じ答えをそのまま再提出しない。確認できない項目は null / 空配列にして提出してよい。",
 		"",
@@ -378,8 +426,21 @@ export const labelExtractionShape = {
 	grape_varieties: grapesField,
 } as const;
 
+/**
+ * コメント(#471)の受け取り側スキーマ。**本体より寛容にする**——コメントは付随情報で、
+ * 形が崩れていても抽出結果は正しいことがある(`sources` と同じ判断)。ここで throw すると
+ * 「コメントが書けなかっただけ」の回まで推論失敗になり、機能を足したせいで可用性が下がる。
+ */
+export const labelCommentShape = {
+	tasting_comment: textField,
+	producer_comment: textField,
+} as const;
+
 /** モデル出力(JSON)の受け取り側スキーマ。型の揺れに寛容な正規化つき。 */
-const labelResponseSchema = z.object(labelExtractionShape);
+const labelResponseSchema = z.object({
+	...labelExtractionShape,
+	...labelCommentShape,
+});
 
 /** モデル出力を正規化した抽出結果。未読取は undefined。 */
 export interface LabelExtraction {
@@ -390,6 +451,13 @@ export interface LabelExtraction {
 	region?: string;
 	country?: string;
 	grapeVarieties: string[];
+	/**
+	 * 香り・味わいのコメント(#471)。web検索で裏取りする経路だけが持つ
+	 * (Workers AI 経路は常に undefined)。
+	 */
+	tastingComment?: string;
+	/** 生産者についてのコメント(#471)。同上。 */
+	producerComment?: string;
 }
 
 /** 空文字・"null"等のプレースホルダを undefined に落とす。 */
@@ -398,6 +466,61 @@ function cleanText(value: string | null | undefined): string | undefined {
 	if (!trimmed) return undefined;
 	if (/^(null|none|unknown|不明)$/i.test(trimmed)) return undefined;
 	return trimmed;
+}
+
+/**
+ * コメント(#471)の正規化。プレースホルダの除去は `cleanText` と共通で、加えて
+ * 「検索で見つからなかった」ことを**文章で**返してきた回を落とす。
+ *
+ * モデルは null を返す代わりに「情報が見つかりませんでした」と書くことがあり、それを
+ * そのまま保存すると、利用者のセラーに中身のないコメントが並ぶ(手で消す手間になる)。
+ */
+function cleanComment(value: string | null | undefined): string | undefined {
+	const text = cleanText(value);
+	if (!text) return undefined;
+	if (
+		/(見つかりません|情報がありません|該当なし|not found|no information)/i.test(
+			text,
+		)
+	) {
+		return undefined;
+	}
+	return text;
+}
+
+/** コメントの見出し。保存されるのは素のテキストなので、Markdown ではなく素の見出しにする。 */
+const NOTE_SECTION_LABELS = {
+	tasting: "【香り・味わい】",
+	producer: "【生産者】",
+} as const;
+
+/**
+ * 銘柄のコメント(`drunk_wine.note`)を組み立てる(#471)。
+ *
+ * **生産者はこのアプリが持っている解説を優先する**。地域情報の生産者ダイアログに出して
+ * いる説明(producer-info.ts)は出典を確認して書いたもので、モデルがその場で書いた文より
+ * 信頼できる。登録の無い生産者のときだけモデルのコメントを使う。
+ *
+ * 上限を超えたぶんは切り詰める。zod(NOTE_MAX)で弾くと「解析はできたのに保存できない」
+ * 袋小路になるため、ここで収める。
+ */
+export function buildWineNote(input: {
+	tasting?: string;
+	producer?: string;
+	/** 追記する注記(一括登録の写真のズレなど #473)。末尾に段落として足す。 */
+	extra?: string;
+}): string | undefined {
+	const sections: string[] = [];
+	if (input.tasting) {
+		sections.push(`${NOTE_SECTION_LABELS.tasting}\n${input.tasting}`);
+	}
+	if (input.producer) {
+		sections.push(`${NOTE_SECTION_LABELS.producer}\n${input.producer}`);
+	}
+	if (input.extra) sections.push(input.extra);
+	if (sections.length === 0) return undefined;
+	const note = sections.join("\n\n");
+	return note.length <= NOTE_MAX ? note : note.slice(0, NOTE_MAX).trimEnd();
 }
 
 /**
@@ -436,6 +559,9 @@ export function toLabelExtraction(d: {
 	region?: string | null;
 	country?: string | null;
 	grape_varieties?: string[] | null;
+	/** 高精度経路のみ(#471)。Workers AI 経路・一括抽出では未指定になる。 */
+	tasting_comment?: string | null;
+	producer_comment?: string | null;
 }): LabelExtraction {
 	return {
 		wineName: cleanText(d.wine_name),
@@ -447,6 +573,8 @@ export function toLabelExtraction(d: {
 		grapeVarieties: (d.grape_varieties ?? [])
 			.map((g) => g.trim())
 			.filter((g) => g.length > 0),
+		tastingComment: cleanComment(d.tasting_comment),
+		producerComment: cleanComment(d.producer_comment),
 	};
 }
 
@@ -557,6 +685,8 @@ export function mergeExtractions(
 		merged.appellation ??= e.appellation;
 		merged.region ??= e.region;
 		merged.country ??= e.country;
+		merged.tastingComment ??= e.tastingComment;
+		merged.producerComment ??= e.producerComment;
 		for (const g of e.grapeVarieties) {
 			if (!merged.grapeVarieties.includes(g)) merged.grapeVarieties.push(g);
 		}
@@ -679,6 +809,11 @@ export interface LabelSuggestions {
 	/** 地域も特定できなかった場合の、国単位の紐付け候補。 */
 	countryId?: string;
 	grapeVarietyIds?: string[];
+	/**
+	 * 銘柄のコメント(#471)。香り・味わい(web検索の裏取り経路のみ)と生産者の説明を
+	 * 畳んだもの。どちらも無ければ持たない。
+	 */
+	note?: string;
 }
 
 /**
@@ -748,6 +883,23 @@ export function buildLabelSuggestions(
 		if (principals.length === 1 && principals[0]) grapeIds = [principals[0]];
 	}
 	if (grapeIds.length > 0) suggestions.grapeVarietyIds = grapeIds;
+
+	// コメント(#471)。**生産者の説明はこのアプリの辞書を優先する**(出典を確認して
+	// 書いたものなので、モデルがその場で書いた文より信頼できる)。辞書に無い生産者の
+	// ときだけモデルのコメントを使う。香り・味わいは裏取り経路のモデル出力しか
+	// 情報源が無いのでそのまま使う。
+	const knownProducer = extraction.producer
+		? findProducerInfoByName(extraction.producer)
+		: undefined;
+	const producerComment =
+		knownProducer?.info.description ?? extraction.producerComment;
+	const note = buildWineNote({
+		...(extraction.tastingComment
+			? { tasting: extraction.tastingComment }
+			: {}),
+		...(producerComment ? { producer: producerComment } : {}),
+	});
+	if (note) suggestions.note = note;
 
 	return suggestions;
 }

@@ -126,6 +126,15 @@ export const drunkWine = sqliteTable(
 			.notNull()
 			.default(sql`'[]'`),
 		producer: text("producer"),
+		/**
+		 * 銘柄についてのコメント(香り・味わい・生産者の説明)。解析が付与し、利用者が
+		 * 編集できる(Issue #471)。
+		 *
+		 * **飲用記録の memo とは別物**。memo は「その回に飲んだ感想」で wine_tasting に
+		 * 属する(Issue #195)。こちらは銘柄そのものの説明なので、まだ飲んでいない
+		 * (spotted / wishlist)エントリにも付く。
+		 */
+		note: text("note"),
 		/** 円 */
 		price: integer("price"),
 		/** R2キーの配列。表示順で、先頭が代表(サムネイル)。空配列=写真なし */

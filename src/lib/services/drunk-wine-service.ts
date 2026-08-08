@@ -97,6 +97,11 @@ export interface DrunkWineEntry {
 	vintage: number | null;
 	grapeVarietyIds: string[];
 	producer: string | null;
+	/**
+	 * 銘柄についてのコメント(香り・味わい・生産者)。解析が付与し、利用者が編集できる
+	 * (#471)。飲用記録の memo(lastMemo)とは別物。
+	 */
+	note: string | null;
 	price: number | null;
 	/** 写真の相対URL(/api/images/...)の配列。表示順で先頭=代表。呼び出し側で必要なら絶対化する */
 	photoUrls: string[];
@@ -205,6 +210,7 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		vintage: row.vintage,
 		grapeVarietyIds: row.grapeVarietyIds,
 		producer: row.producer,
+		note: row.note,
 		price: row.price,
 		photoUrls: row.photoKeys.map(imagePathForKey),
 		thumbUrls: row.photoKeys.map((key) =>
@@ -479,6 +485,7 @@ export async function createDrunkWine(
 		vintage: input.vintage ?? null,
 		grapeVarietyIds: input.grapeVarietyIds ?? [],
 		producer: input.producer ?? null,
+		note: input.note ?? null,
 		price: input.price ?? null,
 	};
 
@@ -521,6 +528,7 @@ export async function updateDrunkWine(
 					vintage: patch.vintage,
 					grapeVarietyIds: patch.grapeVarietyIds,
 					producer: patch.producer,
+					note: patch.note,
 					price: patch.price,
 				})
 				.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId))),
@@ -1654,6 +1662,7 @@ export async function bulkRegisterFromScan(
 					vintage: item.wine.vintage ?? null,
 					grapeVarietyIds: item.wine.grapeVarietyIds ?? [],
 					producer: item.wine.producer ?? null,
+					note: item.wine.note ?? null,
 					price: item.wine.price ?? null,
 					// このバッチで新規作成したエントリだけに付ける(Issue #363 案A)。
 					// 既存一致(item.existingId)はエントリを作らないので付けない

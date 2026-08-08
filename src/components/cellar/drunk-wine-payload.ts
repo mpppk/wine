@@ -50,6 +50,8 @@ export interface DrunkWineFormState {
 	regionId: string | undefined;
 	countryId: string | undefined;
 	grapeVarietyIds: string[];
+	/** 銘柄についてのコメント(香り・味わい・生産者)。解析が埋め、利用者が編集できる */
+	note: string;
 }
 
 /**
@@ -69,6 +71,7 @@ export function toFormValues(s: DrunkWineFormState): DrunkWineFormValues {
 		region_id: s.regionId ?? "",
 		country_id: s.countryId ?? "",
 		grape_variety_ids: s.grapeVarietyIds,
+		note: s.note,
 	} satisfies Record<DrunkWineSnakeKey, string | string[]>;
 }
 
@@ -111,6 +114,7 @@ export function toFormState(value: DrunkWineFieldsValue): DrunkWineFormState {
 		regionId: value.regionId,
 		countryId: value.countryId,
 		grapeVarietyIds: value.grapeVarietyIds,
+		note: value.note,
 	} satisfies Record<keyof DrunkWineFormState, unknown>;
 }
 
@@ -151,6 +155,7 @@ export function fieldsValueFromEntry(
 			countryId: entry?.countryId ?? undefined,
 		}),
 		grapeVarietyIds: entry?.grapeVarietyIds ?? [],
+		note: entry?.note ?? "",
 	} satisfies FieldsValueShape;
 }
 
@@ -178,6 +183,7 @@ export function fieldsValueFromMcpEntry(
 		grapeVarietyIds: Array.isArray(entry.grape_variety_ids)
 			? entry.grape_variety_ids.filter((id) => typeof id === "string")
 			: [],
+		note: text(entry.note),
 	} satisfies FieldsValueShape;
 }
 
@@ -318,6 +324,7 @@ function normalizeFormState(s: DrunkWineFormState) {
 		countryId: s.countryId ?? "",
 		// 並び順は送信内容に影響しないので集合として比較する
 		grapeVarietyIds: [...s.grapeVarietyIds].sort().join(","),
+		note: s.note.trim(),
 	} satisfies Record<keyof DrunkWineFormState, string>;
 }
 
