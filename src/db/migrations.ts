@@ -9,4 +9,4 @@
 // **drizzle/ に連番SQLを足したらこの定数も更新する**(`migrations.test.ts` が強制する)。
 
 /** `drizzle/` の連番マイグレーションのうち、このコードが前提とする最新のファイル名。 */
-export const EXPECTED_LATEST_MIGRATION = "0031_label_analysis_job_entry_id";
+export const EXPECTED_LATEST_MIGRATION = "0032_label_analysis_job_kind";

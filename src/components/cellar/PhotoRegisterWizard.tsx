@@ -13,6 +13,10 @@ import {
 	validateImportCards,
 } from "#/components/cellar/import-candidates";
 import {
+	consumeLabelAnalysisJob,
+	submitLabelAnalysisJob,
+} from "#/components/cellar/label-analysis";
+import {
 	acceptPhotoFiles,
 	detachPhotoFiles,
 	remainingPhotoSlots,
@@ -27,9 +31,10 @@ import {
 } from "#/components/cellar/single-wine-handoff";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
 import {
-	analyzeWineListPhotos,
-	uploadImportBatchPhotos,
-} from "#/components/cellar/wine-list-analysis";
+	LABEL_JOB_BADGE_QUERY_KEY,
+	useLabelAnalysisJob,
+} from "#/components/cellar/use-label-analysis-job";
+import { uploadImportBatchPhotos } from "#/components/cellar/wine-list-analysis";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import {
@@ -69,10 +74,13 @@ import {
 	PHOTO_FORMATS_LABEL_JA,
 } from "#/lib/drunk-wine/photo";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
-import type { WineListAnalysisSummary } from "#/lib/services/ai-service";
+import type {
+	WineListAnalysisOutcome,
+	WineListAnalysisSummary,
+} from "#/lib/services/ai-service";
 import type { PlaceEntry } from "#/lib/services/place-service";
 import { cn } from "#/lib/utils";
-import { getLabelAnalysisPlan } from "#/server/ai";
+import { adoptLabelJobPhotosToBatch, getLabelAnalysisPlan } from "#/server/ai";
 import { bulkRegisterFromScan, undoImportBatch } from "#/server/place";
 
 // 写真からのワイン登録ウィザード(Issue #358)。「ワインを記録」(/cellar/new)の
@@ -151,6 +159,12 @@ export interface PhotoRegisterWizardProps {
 	 * ユーザが戻ってきたときに同じサムネイルを出し直す必要があるため。
 	 */
 	onSwitchToManual: (start: ManualFormStart) => void;
+	/**
+	 * バッジから受け取った完了済みの一括抽出ジョブ(#474)。**投入せずに結果だけを持って
+	 * 始まる**回で、写真は手元に無い(離脱しているので当然)——登録時はサーバに残っている
+	 * 解析用の写真をそのままバッチへ渡す。
+	 */
+	receivedJob?: { jobId: string; result: WineListAnalysisOutcome };
 }
 
 export function PhotoRegisterWizard({
@@ -159,6 +173,7 @@ export function PhotoRegisterWizard({
 	rescan,
 	active,
 	onSwitchToManual,
+	receivedJob,
 }: PhotoRegisterWizardProps) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -305,41 +320,108 @@ export function PhotoRegisterWizard({
 		});
 	};
 
-	const { mutate: analyze, isPending: isAnalyzing } = useMutation({
-		mutationFn: () => analyzeWineListPhotos(photos.map((p) => p.file)),
+	// ---- 解析はジョブ経路(#474) ----
+	//
+	// web検索での裏取りが乗って所要時間が伸びたので、同期で画面を拘束せず「投入したら
+	// 離れてよい」へ揃える(エチケット解析と同じ基盤)。投入が返った時点でサーバに予約と
+	// 写真が載っているので、完了はここでのポーリングか、離脱した場合はマイセラーの
+	// バッジから受け取れる。
+	// 受け取って開いた回は、投入せずに結果だけを持って始まる(#474)。
+	const [jobId, setJobId] = useState<string | null>(receivedJob?.jobId ?? null);
+	const { data: job } = useLabelAnalysisJob(
+		// 受け取り済みの結果は既に手元にあるので引き直さない(ポーリングは投入した回だけ)。
+		receivedJob ? null : jobId,
+	);
+	// 完了を1回だけ処理する(ポーリングは終端で止まるが、その最後の1件が再レンダリングの
+	// たびに流れ込まないようにする)。
+	const handledJobRef = useRef<string | null>(null);
+
+	const { mutate: analyze, isPending: isSubmittingJob } = useMutation({
+		mutationFn: () =>
+			submitLabelAnalysisJob(
+				photos.map((p) => p.file),
+				"wine_list",
+			),
 		onSuccess: (result) => {
-			// クレジットを消費するのでヘッダ等の残高表示を更新する
+			// 投入時点で予約が立つ(=残高が動く)ので、ここで残高表示を更新する。
 			void queryClient.invalidateQueries({
 				queryKey: CREDIT_BALANCE_QUERY_KEY,
+			});
+			void queryClient.invalidateQueries({
+				queryKey: LABEL_JOB_BADGE_QUERY_KEY,
 			});
 			if (result.blocked) {
 				setShowInsufficient(true);
 				return;
 			}
-			setSummary(result.summary);
-			setCards(buildImportCards(result.candidates));
-			if (result.candidates.length === 0) {
-				setError(
-					"写真からワインを読み取れませんでした。ワインリストや棚が写るように撮り直してください。",
-				);
-				return;
-			}
-			// 1本のワインのエチケット等を撮った写真だった場合は、レビューではなく単体の
-			// 記録フォームへ切り替える(#416)。レビュー画面は裏で組み立て済みなので、
-			// 誤判定だった場合はフォームから戻ればそのまま一括登録を続けられる。
-			const single = singleWineCandidate(result.candidates, result.summary);
-			if (single) {
-				onSwitchToManual(
-					buildSingleWineHandoff(
-						single,
-						photos.map((p) => p.file),
-						hasSightingInput(),
-					),
-				);
-			}
+			setJobId(result.jobId);
 		},
-		onError: (e: Error) => setError(e.message || "写真の解析に失敗しました"),
+		onError: (e: Error) => setError(e.message || "解析の受付に失敗しました"),
 	});
+
+	/** 完了した解析結果を画面へ反映する。ポーリングと受け取りの両方が通る。 */
+	const applyWineListResult = (result: WineListAnalysisOutcome) => {
+		setSummary(result.summary);
+		setCards(buildImportCards(result.candidates));
+		if (result.candidates.length === 0) {
+			setError(
+				"写真からワインを読み取れませんでした。ワインリストや棚が写るように撮り直してください。",
+			);
+			return;
+		}
+		// 1本のワインのエチケット等を撮った写真だった場合は、レビューではなく単体の
+		// 記録フォームへ切り替える(#416)。レビュー画面は裏で組み立て済みなので、
+		// 誤判定だった場合はフォームから戻ればそのまま一括登録を続けられる。
+		const single = singleWineCandidate(result.candidates, result.summary);
+		if (single) {
+			onSwitchToManual(
+				buildSingleWineHandoff(
+					single,
+					photos.map((p) => p.file),
+					hasSightingInput(),
+				),
+			);
+		}
+	};
+
+	// 受け取って開いた回(#474)。結果は既に手元にあるので、解析は走らせず反映だけする。
+	// 受け取り済みにするのはここ——ローダーではなく画面がマウントされてから(#462 と同じ、
+	// `defaultPreload: "intent"` でホバーだけでもローダーが走るため)。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 受け取りは1回だけ
+	useEffect(() => {
+		if (!receivedJob || handledJobRef.current === receivedJob.jobId) return;
+		handledJobRef.current = receivedJob.jobId;
+		void consumeLabelAnalysisJob(receivedJob.jobId)
+			.then(() =>
+				queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY }),
+			)
+			.catch(() => {});
+		applyWineListResult(receivedJob.result);
+	}, [receivedJob, queryClient]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 完了の1回だけ処理する
+	useEffect(() => {
+		if (!job || handledJobRef.current === job.jobId) return;
+		if (job.status === "queued" || job.status === "running") return;
+		handledJobRef.current = job.jobId;
+		// 実測での確定が済んでいるので残高を引き直す(予約時との差分が戻っている)。
+		void queryClient.invalidateQueries({ queryKey: CREDIT_BALANCE_QUERY_KEY });
+		void queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY });
+		if (job.status === "failed" || !job.wineList) {
+			setError(job.error || "写真の解析に失敗しました");
+			return;
+		}
+		// **この画面で受け取ったジョブは受け取り済みにする**。しないと、目の前で反映した
+		// 結果がマイセラーのバッジに「解析が完了しました」として並び続ける(#472 と同じ)。
+		void consumeLabelAnalysisJob(job.jobId).catch(() => {});
+		applyWineListResult(job.wineList);
+	}, [job, queryClient]);
+
+	/** 解析中(投入待ち + ジョブ実行中)。 */
+	const isAnalyzing =
+		isSubmittingJob ||
+		(job !== undefined &&
+			(job.status === "queued" || job.status === "running"));
 
 	const goToCellar = async () => {
 		for (const p of photos) URL.revokeObjectURL(p.previewUrl);
@@ -372,10 +454,18 @@ export function PhotoRegisterWizard({
 			// (onError 側で判定すると、この実行で setRegistered した結果がまだ
 			// クロージャに反映されておらず、初回の失敗を「登録に失敗」と誤って出す)。
 			try {
-				await uploadImportBatchPhotos(
-					result.batchId,
-					photos.map((p) => p.file),
-				);
+				if (photos.length > 0) {
+					await uploadImportBatchPhotos(
+						result.batchId,
+						photos.map((p) => p.file),
+					);
+				} else if (jobId) {
+					// ジョブを受け取って開いた回は手元に File が無い(離脱しているので当然)。
+					// 解析に使った写真はサーバに残っているので、そのままバッチへ渡す(#474)。
+					await adoptLabelJobPhotosToBatch({
+						data: { jobId, batchId: result.batchId },
+					});
+				}
 			} catch (e) {
 				const detail = e instanceof Error ? e.message : String(e);
 				throw new Error(
@@ -587,6 +677,13 @@ export function PhotoRegisterWizard({
 								手動で入力
 							</Button>
 						</div>
+						{isAnalyzing && (
+							// 解析はジョブ経路(#474)。投入が返った時点でサーバに予約と写真が
+							// 載っているので、ここから先は離れてよいことを明示する。
+							<p className="text-sm" aria-live="polite">
+								解析には30秒ほどかかります。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。
+							</p>
+						)}
 						<p className="text-xs text-muted-foreground">
 							AIが写真からワインを読み取ります。
 							{photos.length > 0

@@ -33,6 +33,21 @@ export function isTerminalLabelJobStatus(status: LabelJobStatus): boolean {
 }
 
 /**
+ * 解析ジョブの種別(#474)。**同じ器に載せる**理由は 0032 のマイグレーションに書いた。
+ *
+ *  - `label`: エチケット解析。1ジョブ = 1本ぶんの `LabelSuggestions`
+ *  - `wine_list`: 一括抽出。1ジョブ = N銘柄の候補配列 + サマリ
+ *
+ * 違うのは**推論の中身と結果の形だけ**で、予約・写真・状態機械・受け取りは共通。
+ */
+export const LABEL_JOB_KINDS = ["label", "wine_list"] as const;
+
+export type LabelJobKind = (typeof LABEL_JOB_KINDS)[number];
+
+/** 既定の種別。列のデフォルトと一致させる(既存行はこれで埋まっている)。 */
+export const DEFAULT_LABEL_JOB_KIND: LabelJobKind = "label";
+
+/**
  * キューに載せるメッセージ。**ジョブIDだけ**を載せる。
  *
  * 理由は2つ:

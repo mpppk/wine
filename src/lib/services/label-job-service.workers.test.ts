@@ -12,6 +12,7 @@ import {
 } from "#/lib/ai/label-job";
 import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
 import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
+import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import {
 	BadRequestError,
 	NotFoundError,
@@ -714,6 +715,108 @@ describe("完了の受け取り (#462)", () => {
 			readyCount: 1,
 			nextReadyJobId: done.jobId,
 		});
+	});
+});
+
+describe("一括抽出のジョブ (#474)", () => {
+	/** Anthropic の応答をスタブする(SDK が掴む globalThis.fetch を差し替える)。 */
+	function stubAnthropicWineList(wines: Record<string, unknown>[]): void {
+		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
+			"sk-ant-test";
+		vi.stubGlobal("fetch", async () =>
+			Response.json({
+				content: [
+					{ type: "text", text: JSON.stringify({ wines, truncated: false }) },
+				],
+				stop_reason: "end_turn",
+				usage: {
+					input_tokens: 3000,
+					output_tokens: 500,
+					server_tool_use: { web_search_requests: 2 },
+				},
+			}),
+		);
+	}
+
+	it("同じ器で投入・実行され、結果は候補配列として載る", async () => {
+		// 一括抽出は無料枠に収まらない見積になるのでプレミアムで回す。
+		const userId = await seedPremiumUser();
+		stubAnthropicWineList([
+			{
+				wine_name: "Chablis Les Clos",
+				producer: "Vincent Dauvissat",
+				vintage: 2020,
+				grape_varieties: [],
+				photo_indexes: [0],
+			},
+		]);
+
+		const submitted = await submitLabelAnalysisJob(
+			userId,
+			[photo()],
+			"wine_list",
+		);
+		if (submitted.blocked) throw new Error("unexpected blocked");
+		expect((await jobRow(submitted.jobId))?.kind).toBe("wine_list");
+
+		await runLabelAnalysisJob(submitted.jobId);
+
+		const view = await getLabelAnalysisJob(userId, submitted.jobId);
+		expect(view.status).toBe("succeeded");
+		expect(view.kind).toBe("wine_list");
+		// 結果は候補配列 + サマリ。エチケット解析の1件ぶんの形とは列ごと分けてある。
+		expect(view.wineList?.candidates).toHaveLength(1);
+		expect(view.wineList?.candidates[0]?.suggestions).toMatchObject({
+			name: "Chablis Les Clos",
+		});
+		expect(view.suggestions).toBeUndefined();
+	});
+
+	it("バッジ・受け取り・stale の決着は種別によらず共通で効く", async () => {
+		const userId = await seedPremiumUser();
+		stubAnthropicWineList([
+			{
+				wine_name: "Meursault",
+				producer: "Coche-Dury",
+				vintage: 2019,
+				grape_varieties: [],
+				photo_indexes: [0],
+			},
+		]);
+		const submitted = await submitLabelAnalysisJob(
+			userId,
+			[photo()],
+			"wine_list",
+		);
+		if (submitted.blocked) throw new Error("unexpected blocked");
+		await runLabelAnalysisJob(submitted.jobId);
+
+		expect(await getLabelAnalysisJobBadge(userId)).toMatchObject({
+			readyCount: 1,
+			nextReadyJobId: submitted.jobId,
+		});
+		const { alreadyConsumed } = await consumeLabelAnalysisJob(
+			userId,
+			submitted.jobId,
+		);
+		expect(alreadyConsumed).toBe(false);
+		expect(await getLabelAnalysisJobBadge(userId)).toMatchObject({
+			readyCount: 0,
+		});
+	});
+
+	it("枚数の上限は種別で違う(一括抽出のほうが多く受ける)", async () => {
+		const userId = await seedPremiumUser();
+		const photos = Array.from({ length: MAX_PHOTOS_PER_ENTRY + 1 }, photo);
+
+		// エチケット解析ではエントリの上限で弾かれる枚数が、
+		await expect(submitLabelAnalysisJob(userId, photos)).rejects.toThrow(
+			BadRequestError,
+		);
+		// 一括抽出では受け付けられる(リストや棚を分割して撮るため)。
+		stubAnthropicWineList([]);
+		const submitted = await submitLabelAnalysisJob(userId, photos, "wine_list");
+		expect(submitted.blocked).toBe(false);
 	});
 });
 
