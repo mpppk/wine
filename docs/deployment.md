@@ -322,9 +322,19 @@ Workers Logs は **サーバに届いたリクエストしか記録できない*
 | 変数 | 種別 | 役割 |
 |---|---|---|
 | `VITE_SENTRY_DSN` | ビルド変数（公開値） | 収集先。未設定なら収集を無効化する |
-| `VITE_SENTRY_RELEASE` | ビルド変数 | リリース識別子。`WORKERS_CI_COMMIT_SHA` を渡す |
+| `VITE_SENTRY_RELEASE` | **build command 内で渡す** | リリース識別子。下記の注意を参照 |
 | `SENTRY_AUTH_TOKEN` | ビルドシークレット | ソースマップのアップロード用 |
 | `SENTRY_ORG` / `SENTRY_PROJECT` | ビルド変数 | アップロード先 |
+
+> **`VITE_SENTRY_RELEASE` をビルド変数に置いても展開されない**。ビルド変数の値は文字列として
+> そのまま環境変数になるので、`$WORKERS_CI_COMMIT_SHA` と書くとリテラルのその文字列が入る。
+> シェルで展開させるには **build command 側**に書く:
+>
+> ```
+> bun install --frozen-lockfile && VITE_SENTRY_RELEASE=$WORKERS_CI_COMMIT_SHA bun run build
+> ```
+>
+> 未設定でも収集は動く（アップロードしたソースマップとイベントを紐づけられなくなるだけ）。
 
 - **`SENTRY_AUTH_TOKEN` がある環境でだけ**ソースマップの生成・アップロードが走る。トークンの
   有無でビルドの成否は変わらない（CI は未設定のまま `bun run build` / `check:deploy` が通る）。
@@ -340,17 +350,32 @@ Workers Logs は **サーバに届いたリクエストしか記録できない*
 
 ### 初回セットアップ（手作業）
 
-1. Sentry で組織とプロジェクト（platform: `javascript-react`）を作り、**DSN** を控える
-   （Settings > Projects > *project* > Client Keys (DSN)）
+1. Sentry で組織とプロジェクトを作り、**DSN** を控える
+   （Settings > Projects > *project* > Client Keys (DSN)）。
+   **オンボーディングのウィザードはプラットフォームごとに別プロジェクトを作る**ので、
+   TanStack Start 用と Cloudflare 用を両方通すと DSN が2つになる。フロントとサーバの失敗は
+   同じ操作で連鎖する（#379）ため**1プロジェクトにまとめる**。environment
+   （`production` / `preview` / `local`）で分ければ足りる
 2. ソースマップ用の **Organization Auth Token** を発行する（Settings > Auth Tokens）。
    必要なスコープは `project:releases` と `org:read`
 3. Workers Builds のビルド環境変数に設定する。ダッシュボード（*Worker* > Settings > Build >
    Build variables and secrets）か、下記「設定の確認・変更（Workers Builds API）」の
    `build_variables` を PATCH する。**本番 `wine` とプレビュー `wine-preview` の両トリガーに要る**
    - `VITE_SENTRY_DSN` / `SENTRY_ORG` / `SENTRY_PROJECT`（変数）
-   - `VITE_SENTRY_RELEASE` = `$WORKERS_CI_COMMIT_SHA`
    - `SENTRY_AUTH_TOKEN`（**シークレットとして**登録する）
+   - `VITE_SENTRY_RELEASE` は build command 側に書く（上記の注意を参照。省略可）
 4. 空コミット等で再ビルドし、ブラウザの Network タブで `ingest.sentry.io` への送信が出ることを確認する
+5. 収集が届くことの確認は、テスト用のボタンを足さずに**既存の計測点を踏ませる**のが確実:
+   DevTools の Network を Offline にして `/cellar/new` で写真付きエントリを保存 →
+   オンラインに戻すと、オフラインキューから `TypeError: Failed to fetch` が届く
+   （AIクレジットを消費しない経路）
+
+> **Sentry のオンボーディング手順はそのまま使えない。** TanStack Start 版が案内する
+> `@sentry/tanstackstart-react` は `workerd` の export condition が `@sentry/node` に解決され、
+> Worker が "Cannot initialize ExportedHandler" で起動しなくなる
+> （getsentry/sentry-javascript#20038、closed as not planned）。`instrument.server.mjs` /
+> `--import` / `.output/server` といったサーバ側の手順も Node 前提で Workers には無い。
+> **必要なコードは実装済みなので、ウィザードでやることは DSN とトークンの発行だけ**。
 
 > `build_variables` は**丸ごと置き換わる**。既存の `BUN_VERSION` / `CLOUDFLARE_ENV` を含めた
 > 完全な集合を送ること（詳細は下記 API の節）。
