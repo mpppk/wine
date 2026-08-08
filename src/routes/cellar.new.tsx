@@ -203,6 +203,8 @@ function CellarNewPage() {
 									receivedJob: {
 										jobId: labelJob.jobId,
 										result: labelJob.wineList,
+										// 手元に File が無いので、申告枚数は引き継ぎ元から取る(#482)。
+										photoCount: labelJob.photoCount,
 									},
 								}
 							: {})}

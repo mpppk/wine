@@ -164,7 +164,17 @@ export interface PhotoRegisterWizardProps {
 	 * 始まる**回で、写真は手元に無い(離脱しているので当然)——登録時はサーバに残っている
 	 * 解析用の写真をそのままバッチへ渡す。
 	 */
-	receivedJob?: { jobId: string; result: WineListAnalysisOutcome };
+	receivedJob?: {
+		jobId: string;
+		result: WineListAnalysisOutcome;
+		/**
+		 * ジョブが解析に使った写真の枚数。**手元の `File` の枚数では代用できない**——
+		 * 受け取って開いた回はブラウザに実体が無く0枚だが、候補は `photoIndexes` で
+		 * その写真を指しているため、0 を送ると「写真の番号が、送信する写真の枚数を
+		 * 超えています」で登録ごと弾かれる(#482 の本番確認で踏んだ)。
+		 */
+		photoCount: number;
+	};
 }
 
 export function PhotoRegisterWizard({
@@ -445,7 +455,9 @@ export function PhotoRegisterWizard({
 							: {}),
 						...(placeChoice === NEW_PLACE ? { newPlaceName } : {}),
 						...(seenOn ? { seenOn } : {}),
-						photoCount: photos.length,
+						// 受け取って開いた回は手元に File が無く、写真はサーバから引き継ぐ。
+						// 申告枚数はその引き継ぎ元の枚数にする(#482)。
+						photoCount: receivedJob?.photoCount ?? photos.length,
 					}),
 				}));
 			setRegistered(result);

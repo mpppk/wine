@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WineListCandidate } from "#/lib/ai/wine-list-extraction";
+import { bulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import {
 	buildBulkRegisterInput,
 	buildImportCards,
@@ -150,6 +151,29 @@ describe("summarizeImportCards / validateImportCards", () => {
 
 describe("buildBulkRegisterInput", () => {
 	const meta = { photoCount: 2, seenOn: "2026-08-01" };
+
+	// 受け取って開いた回(#474 のジョブ化)は手元に File が無く、写真はサーバから
+	// 引き継ぐ。そこで申告枚数に「手元の File の枚数」= 0 を渡すと、候補が
+	// photoIndexes で写真を指しているぶん検証に落ちて**登録ごと弾かれる**
+	// (#482 の本番確認で実際に踏んだ)。申告枚数と photoIndex の整合を固定する。
+	it("申告枚数が写真番号を下回る入力はスキーマに弾かれる (#482)", () => {
+		const built = buildBulkRegisterInput([card({ localId: "a" })], {
+			...meta,
+			photoCount: 0,
+		});
+		expect(built.items[0]?.sighting?.photoIndex).toBe(0);
+		expect(bulkRegisterFromScanInput.safeParse(built).success).toBe(false);
+
+		// 引き継ぎ元の枚数を渡せば通る(これが修正後の実際の入力)。
+		expect(
+			bulkRegisterFromScanInput.safeParse(
+				buildBulkRegisterInput([card({ localId: "a" })], {
+					...meta,
+					photoCount: 1,
+				}),
+			).success,
+		).toBe(true);
+	});
 
 	it("チェックの外れたカードは送らない", () => {
 		const input = buildBulkRegisterInput(
