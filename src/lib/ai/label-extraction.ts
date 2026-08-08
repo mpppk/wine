@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NOTE_MAX } from "#/lib/drunk-wine/schema";
+import { buildWineNote } from "#/lib/drunk-wine/note";
 import { WINE_COUNTRIES } from "#/lib/wine/countries";
 import { findProducerInfoByName } from "#/lib/wine/producer-info";
 import {
@@ -486,41 +486,6 @@ function cleanComment(value: string | null | undefined): string | undefined {
 		return undefined;
 	}
 	return text;
-}
-
-/** コメントの見出し。保存されるのは素のテキストなので、Markdown ではなく素の見出しにする。 */
-const NOTE_SECTION_LABELS = {
-	tasting: "【香り・味わい】",
-	producer: "【生産者】",
-} as const;
-
-/**
- * 銘柄のコメント(`drunk_wine.note`)を組み立てる(#471)。
- *
- * **生産者はこのアプリが持っている解説を優先する**。地域情報の生産者ダイアログに出して
- * いる説明(producer-info.ts)は出典を確認して書いたもので、モデルがその場で書いた文より
- * 信頼できる。登録の無い生産者のときだけモデルのコメントを使う。
- *
- * 上限を超えたぶんは切り詰める。zod(NOTE_MAX)で弾くと「解析はできたのに保存できない」
- * 袋小路になるため、ここで収める。
- */
-export function buildWineNote(input: {
-	tasting?: string;
-	producer?: string;
-	/** 追記する注記(一括登録の写真のズレなど #473)。末尾に段落として足す。 */
-	extra?: string;
-}): string | undefined {
-	const sections: string[] = [];
-	if (input.tasting) {
-		sections.push(`${NOTE_SECTION_LABELS.tasting}\n${input.tasting}`);
-	}
-	if (input.producer) {
-		sections.push(`${NOTE_SECTION_LABELS.producer}\n${input.producer}`);
-	}
-	if (input.extra) sections.push(input.extra);
-	if (sections.length === 0) return undefined;
-	const note = sections.join("\n\n");
-	return note.length <= NOTE_MAX ? note : note.slice(0, NOTE_MAX).trimEnd();
 }
 
 /**

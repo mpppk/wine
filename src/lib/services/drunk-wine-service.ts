@@ -13,10 +13,12 @@ import {
 	type CellarFilterId,
 	DEFAULT_CELLAR_FILTER,
 } from "#/lib/drunk-wine/filter";
+import { appendWineNote, NOTE_SECTION_LABELS } from "#/lib/drunk-wine/note";
 import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import {
 	buildWinePhotoKey,
 	MAX_PHOTOS_PER_ENTRY,
+	photoExtForMime,
 	resolveStoredPhotoMime,
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
@@ -28,8 +30,12 @@ import type {
 } from "#/lib/drunk-wine/schema";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
+import { fetchRemotePhoto } from "#/lib/images/remote-photo";
 import { imagePathForKey } from "#/lib/images/signed-url";
-import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
+import {
+	type BulkRegisterFromScanInput,
+	MAX_WEB_PHOTOS_PER_IMPORT,
+} from "#/lib/import-batch/schema";
 import { type LogFields, logError, logInfo, logWarn } from "#/lib/logger";
 import { DEFAULT_PLACE_KIND } from "#/lib/place/place";
 import {
@@ -1575,6 +1581,78 @@ function recomputeDrunkWineAggregatesBulk(
  * **全成功か全失敗**なので、ネットワーク都合で再送されても部分的な重複は残らない
  * (同じ入力をユーザが2回確定すれば2バッチできるが、それは意図した操作)。
  */
+/**
+ * web から取り込んだ銘柄写真(#473)。R2 へ書いた後・D1 へ書く前の中間状態。
+ * `noteSuffix` は「画像と実物のズレ」の注記で、**取り込めた銘柄にだけ**付く。
+ */
+interface AdoptedWebPhoto {
+	photoKey: string;
+	noteSuffix?: string;
+}
+
+/** web 写真の同時取得数。外部サイト相手なので直列だと遅く、無制限だと詰まる。 */
+const WEB_PHOTO_FETCH_CONCURRENCY = 4;
+
+/**
+ * 一括登録の各銘柄について、解析が見つけた web 画像を取り込んで R2 に置く(#473)。
+ * キーは呼び出し側が採番済みの `drunkWineId` に紐づくので、**エントリの INSERT より前**に
+ * 呼んで、返ったキーを `photo_keys` に載せる。
+ *
+ * **失敗は握りつぶす**。写真が取れなかった銘柄は `saveImportBatchPhotos` が一括登録の
+ * 写真へ退避する(要件の3段目)ので、ここで例外にすると「写真のせいで登録が失敗する」
+ * ことになる。取得の検証(https のみ・実バイトのMIME判定・サイズ上限)は
+ * `fetchRemotePhoto` が単一の関門として行う。
+ *
+ * 件数は `MAX_WEB_PHOTOS_PER_IMPORT` で打ち切る。80銘柄ぶんの外部取得を確定操作の
+ * 中に積むと、登録が外部サイトの応答時間に引きずられるため。
+ */
+async function adoptWebPhotos(
+	userId: string,
+	requests: { drunkWineId: string; url: string; note?: string }[],
+): Promise<Map<string, AdoptedWebPhoto>> {
+	const adopted = new Map<string, AdoptedWebPhoto>();
+	const targets = requests.slice(0, MAX_WEB_PHOTOS_PER_IMPORT);
+	for (let i = 0; i < targets.length; i += WEB_PHOTO_FETCH_CONCURRENCY) {
+		const chunk = targets.slice(i, i + WEB_PHOTO_FETCH_CONCURRENCY);
+		const results = await Promise.all(
+			chunk.map(async (request) => {
+				const photo = await fetchRemotePhoto(request.url, {
+					userId,
+					drunkWineId: request.drunkWineId,
+				});
+				if (!photo) return undefined;
+				const key = buildWinePhotoKey(
+					userId,
+					request.drunkWineId,
+					crypto.randomUUID(),
+					photo.mimeType,
+				);
+				try {
+					await env.AVATARS.put(key, photo.bytes, {
+						httpMetadata: { contentType: photo.mimeType },
+					});
+				} catch (err) {
+					logWarn("web photo store failed", {
+						userId,
+						drunkWineId: request.drunkWineId,
+						err,
+					});
+					return undefined;
+				}
+				return { drunkWineId: request.drunkWineId, key, note: request.note };
+			}),
+		);
+		for (const result of results) {
+			if (!result) continue;
+			adopted.set(result.drunkWineId, {
+				photoKey: result.key,
+				...(result.note ? { noteSuffix: result.note } : {}),
+			});
+		}
+	}
+	return adopted;
+}
+
 export async function bulkRegisterFromScan(
 	userId: string,
 	input: BulkRegisterFromScanInput,
@@ -1617,6 +1695,29 @@ export async function bulkRegisterFromScan(
 	const batchId = crypto.randomUUID();
 	const statements: BatchStatement[] = [];
 
+	// 新規銘柄の id を**先に**採番する(#473)。web 写真の R2 キーがエントリIDに紐づく
+	// ため、INSERT を組み立てる前に id が要る。
+	const newWineIds = new Map<number, string>();
+	for (const [index, item] of input.items.entries()) {
+		if (item.wine) newWineIds.set(index, crypto.randomUUID());
+	}
+	// 解析が見つけた web 画像を取り込む。D1 へ書く前に済ませて、取れたぶんだけ
+	// photo_keys に載せる(取れなかった銘柄は2段階目でバッチ写真へ退避する)。
+	const webPhotos = await adoptWebPhotos(
+		userId,
+		input.items.flatMap((item, index) => {
+			const drunkWineId = newWineIds.get(index);
+			if (!drunkWineId || !item.wine || !item.webPhoto) return [];
+			return [
+				{
+					drunkWineId,
+					url: item.webPhoto.url,
+					...(item.webPhoto.note ? { note: item.webPhoto.note } : {}),
+				},
+			];
+		}),
+	);
+
 	if (input.newPlace) {
 		statements.push(
 			db.insert(place).values({
@@ -1646,11 +1747,12 @@ export async function bulkRegisterFromScan(
 	const affectedIds: string[] = [];
 	let createdCount = 0;
 	let tastingCount = 0;
-	for (const item of input.items) {
+	for (const [index, item] of input.items.entries()) {
 		let drunkWineId: string;
 		if (item.wine) {
-			drunkWineId = crypto.randomUUID();
+			drunkWineId = newWineIds.get(index) as string;
 			createdCount += 1;
+			const webPhoto = webPhotos.get(drunkWineId);
 			statements.push(
 				db.insert(drunkWine).values({
 					id: drunkWineId,
@@ -1662,8 +1764,17 @@ export async function bulkRegisterFromScan(
 					vintage: item.wine.vintage ?? null,
 					grapeVarietyIds: item.wine.grapeVarietyIds ?? [],
 					producer: item.wine.producer ?? null,
-					note: item.wine.note ?? null,
+					// 取り込んだ画像が別ヴィンテージ等なら、その旨をコメントへ追記する
+					// (#473)。**取り込めたときだけ**追記する——画像が無いのに
+					// 「写真は2019年のものです」だけ残ると意味が通らない。
+					note: appendWineNote(
+						item.wine.note,
+						webPhoto?.noteSuffix
+							? `${NOTE_SECTION_LABELS.photo}\n${webPhoto.noteSuffix}`
+							: undefined,
+					),
 					price: item.wine.price ?? null,
+					...(webPhoto ? { photoKeys: [webPhoto.photoKey] } : {}),
 					// このバッチで新規作成したエントリだけに付ける(Issue #363 案A)。
 					// 既存一致(item.existingId)はエントリを作らないので付けない
 					// (足されるのは目撃記録と、指定があれば試飲記録。どちらも
@@ -1705,7 +1816,23 @@ export async function bulkRegisterFromScan(
 	statements.push(...recomputeDrunkWineAggregatesBulk(userId, affectedIds));
 
 	// items は1件以上(zod)なので statements も必ず1件以上になる
-	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
+	try {
+		await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
+	} catch (e) {
+		// D1 が全失敗したら、先に R2 へ置いた web 写真は誰からも参照されない孤児になる
+		// (#473)。エントリ写真の保存経路(syncDrunkWinePhotos)と同じく、巻き戻しの
+		// 成否に関わらず元例外を投げる(掃除の失敗で真因を隠さない)。
+		await cleanupPhotoObjects(
+			[...webPhotos.values()].map((p) => p.photoKey),
+			{
+				userId,
+				entryId: batchId,
+				phase: "bulk-register-rollback",
+				originalErr: e,
+			},
+		);
+		throw e;
+	}
 
 	return {
 		batchId,
@@ -2096,5 +2223,116 @@ export async function saveImportBatchPhotos(
 		});
 		throw new NotFoundError("Import batch not found");
 	}
+	// 写真がまだ無い銘柄へ、一括登録の写真を複製する(#473 の3段目)。
+	await adoptBatchPhotosForWines(userId, batchId, putKeys);
 	return toImportBatchEntry(row);
+}
+
+/**
+ * このバッチで作った銘柄のうち**まだ写真を持たないもの**へ、バッチ写真を1枚複製する
+ * (#473 の3段目のフォールバック)。
+ *
+ * 優先順の最後に来る手当てで、前2段はここへ来る前に済んでいる:
+ *  1. 手元の写真にその1本だけを写した適切な写真があれば、クライアントがその番号を
+ *     目撃記録の `photoIndex` に載せてくる(import-candidates.ts)
+ *  2. 無ければ web から取り込む(`adoptWebPhotos`。取り込めた銘柄は photo_keys を持つ)
+ *  3. どちらも無い銘柄がここで、目撃記録が指す写真(= リストや棚の全体写真)をそのまま使う
+ *
+ * **参照ではなく複製にする**。バッチ写真はバッチ取り消し(`undoImportBatch`)で消えるが、
+ * 取り消しで消えるのは「そのバッチが作ったもの」だけで、既存エントリに目撃記録を足した
+ * ぶんのエントリは残る。キーを共有していると、残ったエントリの写真が消える。
+ *
+ * **失敗しても写真の保存自体は成功として返す**。ここは付随的な手当てで、例外にすると
+ * 「銘柄の写真が用意できなかったせいでバッチ写真の保存が失敗した」ことになる
+ * (`adoptImportBatchPhotoKeys` が上限超過を捨てるのと同じ流儀)。
+ */
+async function adoptBatchPhotosForWines(
+	userId: string,
+	batchId: string,
+	batchPhotoKeys: string[],
+): Promise<void> {
+	if (batchPhotoKeys.length === 0) return;
+	try {
+		// このバッチが作った銘柄と、その目撃記録が指す写真番号。既存エントリに目撃を
+		// 足しただけのものは batch_id を持たないので、ここには出てこない(#363 案A)。
+		const rows = await db
+			.select({
+				id: drunkWine.id,
+				photoKeys: drunkWine.photoKeys,
+				photoIndex: wineSighting.photoIndex,
+			})
+			.from(drunkWine)
+			.innerJoin(
+				wineSighting,
+				and(
+					eq(wineSighting.drunkWineId, drunkWine.id),
+					eq(wineSighting.batchId, batchId),
+				),
+			)
+			.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)));
+
+		const updates: BatchStatement[] = [];
+		const putKeys: string[] = [];
+		// 同じ写真を指す銘柄が複数あるのが普通(1枚の棚写真に何本も写っている)。
+		// R2 からの読み出しは写真ごとに1回にする。
+		const sources = new Map<
+			string,
+			{ bytes: ArrayBuffer; contentType: string } | null
+		>();
+		const readSource = async (key: string) => {
+			const cached = sources.get(key);
+			if (cached !== undefined) return cached;
+			const object = await env.AVATARS.get(key);
+			// contentType は保存時に実バイトから確定した値(resolveStoredPhotoMime)。
+			// 許可外なら複製先のキーを作れないので、その写真は諦める。
+			const contentType = object?.httpMetadata?.contentType;
+			const loaded =
+				object && contentType && photoExtForMime(contentType)
+					? { bytes: await object.arrayBuffer(), contentType }
+					: null;
+			sources.set(key, loaded);
+			return loaded;
+		};
+
+		for (const row of rows) {
+			// 既に写真がある = 適切な写真か web 画像で手当て済み(前2段)。触らない。
+			if (row.photoKeys.length > 0) continue;
+			const sourceKey =
+				row.photoIndex == null ? undefined : batchPhotoKeys[row.photoIndex];
+			if (!sourceKey) continue;
+			const source = await readSource(sourceKey);
+			if (!source) continue;
+			// **参照ではなく複製**を持たせる(理由はこの関数の JSDoc)。
+			const key = buildWinePhotoKey(
+				userId,
+				row.id,
+				crypto.randomUUID(),
+				source.contentType,
+			);
+			await env.AVATARS.put(key, source.bytes, {
+				httpMetadata: { contentType: source.contentType },
+			});
+			putKeys.push(key);
+			updates.push(
+				db
+					.update(drunkWine)
+					.set({ photoKeys: [key] })
+					.where(and(eq(drunkWine.id, row.id), eq(drunkWine.userId, userId))),
+			);
+		}
+		if (updates.length === 0) return;
+		try {
+			await db.batch(updates as [BatchStatement, ...BatchStatement[]]);
+		} catch (e) {
+			await cleanupPhotoObjects(putKeys, {
+				userId,
+				entryId: batchId,
+				phase: "import-batch-adopt-rollback",
+				originalErr: e,
+			});
+			throw e;
+		}
+	} catch (err) {
+		logWarn("import batch photo adoption failed", { userId, batchId, err });
+	}
 }

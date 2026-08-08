@@ -759,3 +759,120 @@ describe("resolveWineListRoute", () => {
 		}
 	});
 });
+
+// ---- 銘柄ごとの写真の手当て(#473) ----------------------------------------
+
+describe("写真の手当て(bottle_photo_index / image_url / image_note)", () => {
+	it("その1本だけを写した写真の番号を採る", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({
+						wine_name: "Barolo",
+						photo_indexes: [0, 1],
+						bottle_photo_index: 1,
+					}),
+				],
+			}),
+			2,
+		);
+		expect(wines[0]?.bottlePhotoIndex).toBe(1);
+		// 手元に適切な写真があるなら web からは取りに行かない
+		expect(wines[0]?.imageUrl).toBeUndefined();
+	});
+
+	it("適切な写真がある銘柄では image_url を採らない(手元の写真が優先)", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({
+						wine_name: "Barolo",
+						bottle_photo_index: 0,
+						image_url: "https://example.com/barolo.jpg",
+						image_note: "2019年の画像です",
+					}),
+				],
+			}),
+			1,
+		);
+		expect(wines[0]?.bottlePhotoIndex).toBe(0);
+		expect(wines[0]?.imageUrl).toBeUndefined();
+		expect(wines[0]?.imageNote).toBeUndefined();
+	});
+
+	it("枚数の範囲外の番号は落とす(存在しない写真を指したまま残さない)", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					// 1始まりで数えた回。写真は1枚しか渡していない
+					wineJson({ wine_name: "Barolo", bottle_photo_index: 1 }),
+					wineJson({ wine_name: "Chablis", bottle_photo_index: -1 }),
+				],
+			}),
+			1,
+		);
+		expect(wines[0]?.bottlePhotoIndex).toBeUndefined();
+		expect(wines[1]?.bottlePhotoIndex).toBeUndefined();
+	});
+
+	it("https でないURL・作文された相対URLは候補にしない", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({ wine_name: "A", image_url: "http://example.com/a.jpg" }),
+					wineJson({ wine_name: "B", image_url: "/images/b.jpg" }),
+					wineJson({ wine_name: "C", image_url: "  " }),
+				],
+			}),
+			1,
+		);
+		for (const wine of wines) expect(wine.imageUrl).toBeUndefined();
+	});
+
+	it("画像URLが無ければ image_note も持たない(画像なしの注記だけ残さない)", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({ wine_name: "A", image_note: "ヴィンテージが違います" }),
+				],
+			}),
+			1,
+		);
+		expect(wines[0]?.imageNote).toBeUndefined();
+	});
+
+	it("画像URLと注記の組は候補へそのまま運ぶ", () => {
+		const [candidate] = buildWineListCandidates([
+			item({
+				wineName: "Barolo",
+				imageUrl: "https://example.com/barolo.jpg",
+				imageNote: "2019年のラベル画像です",
+			}),
+		]);
+		expect(candidate?.imageUrl).toBe("https://example.com/barolo.jpg");
+		expect(candidate?.imageNote).toBe("2019年のラベル画像です");
+	});
+
+	it("重複統合では写真の手当ても先勝ちで埋める", () => {
+		const { items } = dedupeWineListItems([
+			item({ wineName: "Barolo", producer: "X", photoIndexes: [0] }),
+			item({
+				wineName: "Barolo",
+				producer: "X",
+				photoIndexes: [1],
+				bottlePhotoIndex: 1,
+			}),
+		]);
+		expect(items).toHaveLength(1);
+		expect(items[0]?.bottlePhotoIndex).toBe(1);
+		expect(items[0]?.photoIndexes).toEqual([0, 1]);
+	});
+
+	it("指示文が3段の優先順(手元の写真 → web画像 → 一括登録の写真)を書いている", () => {
+		const prompt = buildWineListPrompt(2);
+		expect(prompt).toContain("bottle_photo_index");
+		expect(prompt).toContain("image_url");
+		expect(prompt).toContain("image_note");
+		expect(prompt).toContain("URLを創作しない");
+	});
+});

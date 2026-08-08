@@ -36,6 +36,15 @@ export interface ImportCardState {
 	sightingPrice: string;
 	/** この銘柄が写っていた写真の番号(0始まり・表示用) */
 	photoIndexes: number[];
+	/**
+	 * 銘柄の写真に使う「適切な写真」の番号(#473)。バッチ写真のうち、その1本だけを
+	 * 写しているもの。あればこれを目撃記録の写真番号にも使い、web からは取りに行かない。
+	 */
+	bottlePhotoIndex?: number;
+	/** web から取り込む銘柄写真のURL(#473)。`bottlePhotoIndex` があるときは持たない。 */
+	imageUrl?: string;
+	/** 取り込む画像と実物のズレの説明(#473)。取り込めたときだけコメントへ追記される。 */
+	imageNote?: string;
 	/** 既存セラーの同一銘柄。ある場合は新規作成せず目撃記録だけを足す */
 	existing?: WineListCandidate["existing"];
 }
@@ -97,6 +106,14 @@ export function buildImportCards(
 		tasting: EMPTY_TASTING_DRAFT,
 		sightingPrice: candidate.price != null ? String(candidate.price) : "",
 		photoIndexes: candidate.photoIndexes,
+		// 写真の手当て(#473)は解析の判断をそのまま持ち回る。カード上で編集はさせない
+		// (「どの写真がこの1本を写しているか」は写真を見ないと決められず、レビュー画面の
+		// 目的=銘柄の内容の確認から外れる)。
+		...(candidate.bottlePhotoIndex !== undefined
+			? { bottlePhotoIndex: candidate.bottlePhotoIndex }
+			: {}),
+		...(candidate.imageUrl ? { imageUrl: candidate.imageUrl } : {}),
+		...(candidate.imageNote ? { imageNote: candidate.imageNote } : {}),
 		existing: candidate.existing,
 	}));
 }
@@ -183,7 +200,10 @@ export function buildBulkRegisterInput(
 		.filter((card) => card.selected)
 		.map((card) => {
 			const sightingPrice = toIntOrUndefined(card.sightingPrice);
-			const photoIndex = card.photoIndexes[0];
+			// 目撃記録に持たせる写真は「その1本だけを写した写真」を優先する(#473)。
+			// この番号は**銘柄の写真の取得元にもなる**(saveImportBatchPhotos が
+			// バッチ写真から複製する)ので、単体の写真があるならそちらを指しておく。
+			const photoIndex = card.bottlePhotoIndex ?? card.photoIndexes[0];
 			const sighting = {
 				...(photoIndex != null ? { photoIndex } : {}),
 				...(sightingPrice != null ? { price: sightingPrice } : {}),
@@ -197,12 +217,22 @@ export function buildBulkRegisterInput(
 				...(tastingInput ? { tasting: tastingInput } : {}),
 			};
 			if (card.existing) {
+				// 既存エントリには web 写真を送らない(#473)。そのエントリの写真は
+				// ユーザのもので、目撃記録を足すだけの操作が差し替えてよいものではない。
 				return { existingId: card.existing.id, ...base };
 			}
 			const { tasting: _unused, ...wine } = buildCreateInput(
 				toFormState(card.values),
 			);
-			return { wine, ...base };
+			const webPhoto = card.imageUrl
+				? {
+						webPhoto: {
+							url: card.imageUrl,
+							...(card.imageNote ? { note: card.imageNote } : {}),
+						},
+					}
+				: {};
+			return { wine, ...webPhoto, ...base };
 		});
 	return {
 		...(meta.placeId ? { placeId: meta.placeId } : {}),

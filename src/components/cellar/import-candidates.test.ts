@@ -275,3 +275,54 @@ describe("buildBulkRegisterInput", () => {
 		).not.toHaveProperty("newPlace");
 	});
 });
+
+// ---- 銘柄ごとの写真の手当て(#473) ----------------------------------------
+
+describe("写真の手当て", () => {
+	const meta = { photoCount: 3 };
+
+	it("その1本だけを写した写真があれば、目撃記録の写真番号にそれを使う", () => {
+		// 目撃記録の photoIndex は**銘柄写真の取得元にもなる**(サーバが複製する)ので、
+		// 単体の写真があるならそちらを指しておく必要がある。
+		const [state] = buildImportCards([
+			candidate({ photoIndexes: [0, 2], bottlePhotoIndex: 2 }),
+		]);
+		if (!state) throw new Error("unreachable");
+		const input = buildBulkRegisterInput([state], meta);
+		expect(input.items[0]?.sighting?.photoIndex).toBe(2);
+		// 手元の写真で足りるので web 画像は送らない
+		expect(input.items[0]?.webPhoto).toBeUndefined();
+	});
+
+	it("適切な写真が無ければ web 画像のURLと注記を送る", () => {
+		const [state] = buildImportCards([
+			candidate({
+				photoIndexes: [1],
+				imageUrl: "https://example.com/barolo.jpg",
+				imageNote: "2019年のラベル画像です",
+			}),
+		]);
+		if (!state) throw new Error("unreachable");
+		const input = buildBulkRegisterInput([state], meta);
+		expect(input.items[0]?.webPhoto).toEqual({
+			url: "https://example.com/barolo.jpg",
+			note: "2019年のラベル画像です",
+		});
+		// 一括登録の写真へのフォールバック用に、写真番号は従来どおり載る
+		expect(input.items[0]?.sighting?.photoIndex).toBe(1);
+		expect(bulkRegisterFromScanInput.safeParse(input).success).toBe(true);
+	});
+
+	it("既存エントリへの目撃追加には web 画像を送らない(ユーザの写真を差し替えない)", () => {
+		const [state] = buildImportCards([
+			candidate({
+				imageUrl: "https://example.com/barolo.jpg",
+				existing: { id: "e1", name: "Barolo", vintage: 2018, status: "owned" },
+			}),
+		]);
+		if (!state) throw new Error("unreachable");
+		const input = buildBulkRegisterInput([state], meta);
+		expect(input.items[0]?.existingId).toBe("e1");
+		expect(input.items[0]?.webPhoto).toBeUndefined();
+	});
+});

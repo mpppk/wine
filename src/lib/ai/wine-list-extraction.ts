@@ -49,7 +49,46 @@ import {
 export const WINE_LIST_TRUNCATED_ERROR_MESSAGE =
 	"写真に写っているワインが多すぎて、解析結果を最後まで受け取れませんでした。写真を分けて解析してください。";
 
-/** モデルが返す銘柄1件の形(labelExtractionShape + 一括抽出に固有の2項目)。 */
+/**
+ * 銘柄ごとの写真の手当て(#473)。**一括抽出だけが持つ**。
+ *
+ * 一括登録で作った銘柄は、これまで自分の写真を持たなかった(バッチ写真=リストや棚の
+ * 全体写真を目撃記録が指すだけ)。一覧に並ぶのが同じ棚の写真ばかりでは銘柄を見分けられない
+ * ので、銘柄ごとに1枚を用意する。優先順は issue の要件どおり:
+ *
+ *  1. `bottle_photo_index`: 撮った写真の中に**その1本だけを写した適切な写真**があれば、それ
+ *  2. `image_url`: 無ければ web で見つけたボトル/エチケットの画像
+ *  3. どちらも無ければ、一括登録の写真(目撃記録が指しているもの)をそのまま使う
+ *
+ * `image_note` は 2 を採ったときの注記。web の画像は別ヴィンテージ・別キュヴェのことが
+ * あり、**写真と実物が違うことを黙って隠さない**ためにコメントへ残す。
+ */
+export const WINE_LIST_PHOTO_JSON_PROPERTIES = {
+	bottle_photo_index: {
+		type: ["integer", "null"],
+		description:
+			"Zero-based index of a photo that shows THIS bottle alone clearly enough to use as its picture (a single-bottle shot or label close-up). null for list/menu/shelf shots where this wine is not pictured on its own.",
+	},
+	image_url: {
+		type: ["string", "null"],
+		description:
+			"Direct URL of a bottle or label image of this wine found via web search (must end in an image resource, e.g. .jpg/.png/.webp). null when bottle_photo_index is set or nothing suitable was found. Never invent a URL.",
+	},
+	image_note: {
+		type: ["string", "null"],
+		description:
+			"Japanese note about how image_url differs from the actual wine (different vintage, different cuvée of the same producer, etc.). null when it matches or no image_url.",
+	},
+} as const;
+
+/** 写真の手当てのキー。スキーマの required と受け取り側を1箇所から導出する。 */
+export const WINE_LIST_PHOTO_KEYS = Object.keys(
+	WINE_LIST_PHOTO_JSON_PROPERTIES,
+) as (keyof typeof WINE_LIST_PHOTO_JSON_PROPERTIES)[];
+
+export type WineListPhotoKey = (typeof WINE_LIST_PHOTO_KEYS)[number];
+
+/** モデルが返す銘柄1件の形(labelExtractionShape + 一括抽出に固有の項目)。 */
 const wineListItemSchema = z.object({
 	...labelExtractionShape,
 	/** リスト記載の価格。数値化できなければ null。 */
@@ -71,6 +110,21 @@ const wineListItemSchema = z.object({
 		.transform((v) => (Array.isArray(v) ? v : [v]))
 		.nullish()
 		.catch([]),
+	/**
+	 * 写真の手当て(#473)。**本体より寛容に受ける**——付随情報なので、形が崩れていても
+	 * 銘柄の抽出結果は正しい。ここで throw すると「写真の推薦が書けなかっただけ」の回まで
+	 * 解析失敗になる(`sources` / コメントと同じ判断)。
+	 */
+	bottle_photo_index: z
+		.union([z.number(), z.string()])
+		.transform((v) => {
+			const n = typeof v === "number" ? v : Number.parseInt(v, 10);
+			return Number.isFinite(n) ? Math.trunc(n) : null;
+		})
+		.nullish()
+		.catch(null),
+	image_url: z.string().nullish().catch(null),
+	image_note: z.string().nullish().catch(null),
 });
 
 /**
@@ -106,6 +160,15 @@ export interface WineListItem extends LabelExtraction {
 	price?: number;
 	/** この銘柄が写っていた写真の番号(0始まり・昇順・重複なし)。 */
 	photoIndexes: number[];
+	/**
+	 * その1本だけを写した「適切な写真」の番号(#473)。範囲外はパース時に落とす。
+	 * これがあれば web からの取得はしない。
+	 */
+	bottlePhotoIndex?: number;
+	/** web で見つけたボトル/エチケット画像のURL(#473)。 */
+	imageUrl?: string;
+	/** `imageUrl` の画像と実物のズレの説明(#473)。 */
+	imageNote?: string;
 }
 
 export interface WineListParseResult {
@@ -151,11 +214,17 @@ export function buildWineListPrompt(photoCount: number): string {
 		'     - "grape_varieties": 品種名の文字列配列。記載が無ければ空配列。下の既知リストに該当があればその表記を使う',
 		'     - "price": リスト記載の価格を整数(日本円)で。グラスとボトルが併記されていればボトルの価格。記載が無ければ null',
 		'     - "photo_indexes": この銘柄が写っていた写真番号(0始まり)の配列',
+		'     - "bottle_photo_index": **その1本だけを写した写真**(ボトル単体・エチケットのクローズアップ)があればその番号。',
+		"       リストやメニュー、棚に並んだ状態しか写っていない銘柄は null。銘柄の写真として使えるかで判断する",
+		'     - "image_url": bottle_photo_index が null の場合のみ、web検索で見つけたこのワインのボトル/エチケット画像の直リンク。',
+		"       画像そのもののURL(.jpg/.png/.webp 等)で、実際に検索結果として見たものだけを書く。**URLを創作しない**。見つからなければ null",
+		'     - "image_note": image_url の画像が実物と違う点(ヴィンテージが別の年、同じ生産者の別キュヴェ 等)。一致していれば null',
 		'   - "subject": 写真群の被写体。**すべての写真が同じ1本のワインだけを写している**場合(ボトル単体・エチケット・裏ラベル・箱・ネックタグのクローズアップなど)は "single_wine"、飲食店のワインリスト・ショップの陳列や棚・複数の銘柄が写っている場合は "wine_list"',
 		'   - "truncated": 列挙しきれなかった銘柄が残っている場合は true、すべて列挙できたなら false',
 		'6. subject の判定は迷ったら "wine_list" にする。1本のワインだと確信できる場合にだけ "single_wine" にする。',
 		"7. 銘柄数が多くても省略・要約しない。どうしても出力が長くなりすぎる場合のみ途中で打ち切り、その場合は truncated を true にする。",
-		"8. JSONの前後に説明文・コードフェンスを書かない。",
+		"8. 写真は銘柄ごとに1枚を用意する。手元の写真で足りるなら bottle_photo_index を優先し、無い銘柄だけ image_url を探す(検索は銘柄をまとめて調べてよい)。",
+		"9. JSONの前後に説明文・コードフェンスを書かない。",
 		"",
 		buildKnownListsSection(),
 	].join("\n");
@@ -213,6 +282,38 @@ function normalizePhotoIndexes(
 }
 
 /**
+ * 写真の手当て(#473)を正規化する。**採用しない情報は落とし切る**のが要点:
+ *
+ *  - `bottle_photo_index` は渡した枚数の範囲だけ。範囲外(1始まりで数えた等)を残すと、
+ *    存在しない写真を指したまま「適切な写真がある」ことになり、web からの取得も
+ *    一括登録写真への退避もされない銘柄が生まれる
+ *  - `image_url` は https の絶対URLだけ。相対URL・作文はサーバ側の取得
+ *    (`fetchRemotePhoto`)でも弾かれるが、**候補として画面に出す前に**落とす
+ *  - `image_note` は `image_url` が残ったときだけ意味を持つ(画像が無いのに
+ *    「ヴィンテージが違います」だけコメントに残るのを防ぐ)
+ *  - `bottle_photo_index` があるときは web の画像を採らない(手元の写真が優先)
+ */
+function normalizeWinePhotoHints(
+	raw: {
+		bottle_photo_index?: number | null;
+		image_url?: string | null;
+		image_note?: string | null;
+	},
+	photoCount: number,
+): Pick<WineListItem, "bottlePhotoIndex" | "imageUrl" | "imageNote"> {
+	const index = raw.bottle_photo_index;
+	const bottlePhotoIndex =
+		index != null && index >= 0 && index < photoCount ? index : undefined;
+	if (bottlePhotoIndex !== undefined) return { bottlePhotoIndex };
+
+	const url = raw.image_url?.trim();
+	const imageUrl = url && /^https:\/\/\S+$/i.test(url) ? url : undefined;
+	if (!imageUrl) return {};
+	const note = raw.image_note?.trim();
+	return { imageUrl, ...(note ? { imageNote: note } : {}) };
+}
+
+/**
  * モデルの生出力を銘柄配列にパースする。件数上限(AI_WINE_LIST_MAX_WINES)を超えた
  * ぶんは切り捨てて truncated を立てる。解釈できない場合は throw(呼び出し側で
  * クレジット返却の上エラー応答にする)。
@@ -237,6 +338,7 @@ export function parseWineListResponse(
 					? w.price
 					: undefined,
 			photoIndexes: normalizePhotoIndexes(w.photo_indexes ?? [], photoCount),
+			...normalizeWinePhotoHints(w, photoCount),
 		}))
 		// 名前も生産者も呼称も読めなかった行は、レビュー画面で編集する取っ掛かりが
 		// 無く、そのまま登録すると名無しのエントリになる。落とす。
@@ -468,6 +570,11 @@ export function dedupeWineListItems(items: WineListItem[]): DedupeResult {
 		existing.region ??= item.region;
 		existing.country ??= item.country;
 		existing.price ??= item.price;
+		// 写真の手当て(#473)も先勝ちで埋める。同じ銘柄が複数の写真に写っていて、
+		// 片方だけがボトル単体のクローズアップというケースを拾う。
+		existing.bottlePhotoIndex ??= item.bottlePhotoIndex;
+		existing.imageUrl ??= item.imageUrl;
+		existing.imageNote ??= item.imageNote;
 		for (const g of item.grapeVarieties) {
 			if (!existing.grapeVarieties.includes(g)) existing.grapeVarieties.push(g);
 		}
@@ -499,6 +606,15 @@ export interface WineListCandidate {
 	/** この銘柄が写っていた写真の番号(0始まり)。 */
 	photoIndexes: number[];
 	/**
+	 * 銘柄の写真に使う「適切な写真」の番号(#473)。バッチ写真の中でその1本だけを
+	 * 写しているもの。無ければ undefined。
+	 */
+	bottlePhotoIndex?: number;
+	/** web で見つけたボトル/エチケット画像のURL(#473)。`bottlePhotoIndex` と排他。 */
+	imageUrl?: string;
+	/** `imageUrl` の画像と実物のズレの説明(#473)。登録時にコメントへ追記する。 */
+	imageNote?: string;
+	/**
 	 * 既存セラーの同一銘柄。**ある場合は新規作成せず、この銘柄に目撃記録を追加する**
 	 * 候補として提示する(distinct の第2段)。
 	 */
@@ -521,6 +637,11 @@ export function buildWineListCandidates(
 		suggestions: buildLabelSuggestions(item),
 		price: item.price,
 		photoIndexes: item.photoIndexes,
+		...(item.bottlePhotoIndex !== undefined
+			? { bottlePhotoIndex: item.bottlePhotoIndex }
+			: {}),
+		...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
+		...(item.imageNote ? { imageNote: item.imageNote } : {}),
 	}));
 }
 
