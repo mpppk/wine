@@ -119,9 +119,11 @@ function CellarNewPage() {
 	// 解析が使えない環境では写真の経路自体が無いので、最初から手入力で開く。
 	const [manual, setManual] = useState<ManualFormStart | null>(() => {
 		// 解析ジョブの受け取り(#462)。候補は既にサーバ側で得ているので、写真ウィザードは
-		// 飛ばして記録フォームを候補入りで開く。**写真は引き継がない**——ジョブの入力写真は
-		// 終端で削除される(解析の入力であって成果物ではない)ので、フォームに載せる実体が
-		// 無い。利用者は必要なら保存用の写真を改めて選ぶ。
+		// 飛ばして記録フォームを候補入りで開く。**写真はフォームに載せない**が、保存すると
+		// サーバ側でこのワインの写真として引き継がれる(#474)。ここで載せないのは、実体が
+		// R2 にあってブラウザの `File` が無く、フォームの写真UIが扱えるのは「既存キー」か
+		// 「新規File」の2つだけだから——キーはエントリ確定後でないとこのワインのものに
+		// ならないので、保存の後にサーバがまとめて移す。
 		if (labelJob?.suggestions) {
 			return {
 				values: valuesFromSuggestions(
@@ -212,6 +214,8 @@ function CellarNewPage() {
 					<DrunkWineForm
 						initialValues={manual.values}
 						initialPhotoFiles={manual.files}
+						// 保存できた時点で、このジョブが解析に使った写真を引き継ぐ(#474)。
+						{...(labelJob?.jobId ? { sourceLabelJobId: labelJob.jobId } : {})}
 						onSaved={() => {
 							void navigate({ to: "/cellar" });
 						}}
@@ -279,7 +283,7 @@ function ManualNotice({
 		<div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-4 text-sm">
 			{fromLabelJob && (
 				<p>
-					エチケットの解析結果を反映しました。内容を確認して保存してください(写真は解析用のもので保存されていないため、残す場合は選び直してください)。
+					エチケットの解析結果を反映しました。内容を確認して保存してください(解析に使った写真も、このワインの写真として一緒に保存されます)。
 				</p>
 			)}
 			{fromSingleWine ? (

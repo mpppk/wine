@@ -1407,6 +1407,56 @@ export async function syncDrunkWinePhotos(
 	return getDrunkWine(userId, id);
 }
 
+/**
+ * 既に R2 にある写真キーをエントリの写真集合の**末尾に足す**(#474)。
+ *
+ * エチケット解析ジョブが解析のために保存した写真を、その結果を記録したワインの写真
+ * として引き継ぐための入口。**`syncDrunkWinePhotos` では出来ない**——あちらは
+ * 「layout の existing キーは対象エントリの現在の集合に属するもののみ許可」して
+ * 任意キーの注入を防いでおり、まだそのエントリのものでないキーは弾かれる。
+ * ここは呼び出し側(label-job-service)がジョブの所有者を確認した上で使う内部経路で、
+ * **クライアントからは到達できない**。
+ *
+ * バイト列をコピーしない。R2キーは `wines/{userId}/…` で、配信の認可も退会時の一括削除も
+ * userId までしか見ていない(`signed-url.ts` / `user-deletion-service.ts`)ので、
+ * 2つ目のセグメントがジョブIDのままでも所有と掃除は成立する。エントリ削除は保存済みキーを
+ * 消す実装なので、引き継いだキーもそのまま消える。
+ *
+ * 上限(`MAX_PHOTOS_PER_ENTRY`)を超えるぶんは**足さずに捨てる**。引き継ぎは付随的な処理で、
+ * ここで例外にすると「記録は出来たのに写真のせいで失敗した」ことになる。捨てたキーは
+ * 呼び出し側が掃除できるよう返す。
+ */
+export async function appendDrunkWinePhotoKeys(
+	userId: string,
+	id: string,
+	keys: string[],
+): Promise<{ entry: DrunkWineEntry; adopted: string[]; dropped: string[] }> {
+	const [existing] = await db
+		.select({ photoKeys: drunkWine.photoKeys })
+		.from(drunkWine)
+		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
+	if (!existing) throw new NotFoundError("Entry not found");
+
+	// 既に持っているキーは足さない(二重に開いた・再送された回で重複させない)。
+	const current = existing.photoKeys;
+	const currentSet = new Set(current);
+	const incoming = keys.filter((key) => !currentSet.has(key));
+	const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - current.length);
+	const adopted = incoming.slice(0, room);
+	const dropped = incoming.slice(room);
+
+	if (adopted.length === 0) {
+		return { entry: await getDrunkWine(userId, id), adopted, dropped };
+	}
+	const [row] = await db
+		.update(drunkWine)
+		.set({ photoKeys: [...current, ...adopted] })
+		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
+		.returning();
+	if (!row) throw new NotFoundError("Entry not found");
+	return { entry: await getDrunkWine(userId, id), adopted, dropped };
+}
+
 // ---- 一括登録(写真からのスキャン。Issue #358) -----------------------------
 // レストランのワインリスト・ショップの棚を撮った写真から抽出した複数銘柄を、
 // 1回の確定でまとめて登録する経路。場所(新規なら)・バッチ・銘柄・目撃記録・

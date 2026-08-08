@@ -6,6 +6,7 @@ import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import {
 	isTerminalLabelJobStatus,
 	LABEL_JOB_FAILED_ERROR_MESSAGE,
+	LABEL_JOB_PHOTO_RETENTION_MS,
 	LABEL_JOB_QUEUE_STALE_MS,
 	LABEL_JOB_STALE_ERROR_MESSAGE,
 	LABEL_JOB_STALE_MS,
@@ -29,6 +30,7 @@ import {
 	runLabelAnalysisForJob,
 } from "#/lib/services/ai-service";
 import * as creditService from "#/lib/services/credit-service";
+import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import {
 	abandonMeteredInference,
 	beginMeteredInference,
@@ -146,6 +148,10 @@ export async function submitLabelAnalysisJob(
 
 	// 死んだコンシューマの残骸が枠を埋めたままにならないよう、数える前に決着させる。
 	await settleStaleLabelAnalysisJobs(userId);
+	// 引き取り手が現れなかった写真もここで回収する(#474)。**投入のときだけ**にするのは、
+	// 状態取得やバッジは解析中3秒ごとに走るため——回収は急がないので、頻度の低い経路に
+	// 相乗りさせる。
+	await sweepConsumedJobPhotos(userId);
 	const active = await countActiveLabelAnalysisJobs(userId);
 	if (active >= MAX_CONCURRENT_LABEL_JOBS) {
 		// 予約は投入時に立つので、連投されると残高が予約で埋まり本人の他のAI機能まで
@@ -485,7 +491,7 @@ export async function attachLabelAnalysisJobEntry(
 	userId: string,
 	jobId: string,
 	entryId: string,
-): Promise<{ attached: boolean }> {
+): Promise<{ attached: boolean; adoptedPhotos: number }> {
 	// 宛先が本人のエントリであることを確かめる。**他人のエントリIDを宛先にできると**、
 	// 受け取り導線がそのIDへ遷移し、存在の有無を漏らす経路になる(所有権チェックは
 	// WHERE id AND user_id の規約 #177)。
@@ -510,7 +516,120 @@ export async function attachLabelAnalysisJobEntry(
 	if (updated) {
 		logInfo("label analysis job attached to entry", { userId, jobId, entryId });
 	}
-	return { attached: !!updated };
+	// **記録できた = 解析に使った写真の行き先が決まった**(#474)。ここを引き継ぎの契機に
+	// するのは、保存の成否と一致する唯一の点だから——受け取って表示しただけの回に足すと、
+	// 記録せずに離脱した利用者のワインに写真だけが増える。
+	//
+	// まだ走っているジョブでは何もしない(`adoptLabelJobPhotos` が succeeded を要求する)。
+	// その回は完了後の受け取りで改めてここを通る。
+	const { adopted } = await adoptLabelJobPhotos(userId, jobId, entryId);
+	return { attached: !!updated, adoptedPhotos: adopted };
+}
+
+/**
+ * 解析に使った写真を、その結果を記録したワインの写真として引き継ぐ(#474)。
+ *
+ * 利用者が撮ったのはそのワインの写真であって、解析のためだけの使い捨てではない。
+ * 従来は終端で消していたため、受け取り画面には「写真は解析用のもので保存されていない
+ * ため、残す場合は選び直してください」と出して撮り直させていた。
+ *
+ * **バイト列はコピーしない**。R2キーの所有と掃除は `wines/{userId}/…` の userId までしか
+ * 見ていないので、キーをエントリの写真集合へ移すだけで所有が移る(詳細は
+ * `appendDrunkWinePhotoKeys`)。
+ *
+ * 順序に意味がある: **エントリへ足してからジョブの所有を外す**。逆にすると、間で失敗した
+ * ときに「どこからも参照されない写真」が残る。エントリ側が先なら、最悪ジョブとエントリの
+ * 両方が同じキーを指すだけで、実体は生きている(次の引き継ぎは重複を足さない)。
+ *
+ * 冪等。写真を持たないジョブ・既に引き継ぎ済みのジョブは何もせず返す。
+ */
+export async function adoptLabelJobPhotos(
+	userId: string,
+	jobId: string,
+	entryId: string,
+): Promise<{ adopted: number }> {
+	const [job] = await db
+		.select()
+		.from(labelAnalysisJob)
+		.where(
+			and(eq(labelAnalysisJob.id, jobId), eq(labelAnalysisJob.userId, userId)),
+		)
+		.limit(1);
+	// **他人のジョブ・存在しないIDは黙って何もしない**。呼び出し元(`attachLabelAnalysisJobEntry`)
+	// はそれらを条件付き UPDATE の空振りとして扱い、IDの存在有無を漏らさない設計なので、
+	// ここだけ 404 を投げると同じ入力で挙動が割れる(存在するジョブだけが例外になる = 漏れる)。
+	if (!job) return { adopted: 0 };
+	if (job.status !== "succeeded" || job.photoKeys.length === 0) {
+		return { adopted: 0 };
+	}
+
+	const { adopted, dropped } = await drunkWineService.appendDrunkWinePhotoKeys(
+		userId,
+		entryId,
+		job.photoKeys,
+	);
+
+	// 所有を手放す。**エントリが取らなかったぶん(上限超過)はここで消す**——ジョブから
+	// 外した後は誰も参照しないため。
+	await db
+		.update(labelAnalysisJob)
+		.set({ photoKeys: [] })
+		.where(
+			and(eq(labelAnalysisJob.id, jobId), eq(labelAnalysisJob.userId, userId)),
+		);
+	await deletePhotoObjects(dropped, { userId, jobId, phase: "adopt-overflow" });
+
+	logInfo("label analysis job photos adopted", {
+		userId,
+		jobId,
+		entryId,
+		adopted: adopted.length,
+		dropped: dropped.length,
+	});
+	return { adopted: adopted.length };
+}
+
+/**
+ * 引き継がれないまま受け取り済みになったジョブの写真を回収する(#474)。
+ *
+ * 成功した回の写真を終端で消さなくなったぶん、**引き取り手が現れなかった回の逃げ道**が
+ * 要る。受け取り済み(`consumed_at`)= 利用者は結果を画面で見た、の意なので、そこから
+ * `LABEL_JOB_PHOTO_RETENTION_MS` 経っても引き継がれていなければ、記録には使われなかった
+ * と判断してよい。
+ *
+ * 呼ぶのは投入・状態取得と同じ「次に来た誰かが片付ける」流儀(`settleStaleLabelAnalysisJobs`
+ * と同じ理由: 定期実行の口を新設せずに済む)。
+ */
+export async function sweepConsumedJobPhotos(userId: string): Promise<number> {
+	const cutoff = new Date(Date.now() - LABEL_JOB_PHOTO_RETENTION_MS);
+	const rows = await db
+		.select({ id: labelAnalysisJob.id, photoKeys: labelAnalysisJob.photoKeys })
+		.from(labelAnalysisJob)
+		.where(
+			and(
+				eq(labelAnalysisJob.userId, userId),
+				eq(labelAnalysisJob.status, "succeeded"),
+				isNull(labelAnalysisJob.entryId),
+				lt(labelAnalysisJob.consumedAt, cutoff),
+			),
+		);
+	let swept = 0;
+	for (const row of rows) {
+		if (row.photoKeys.length === 0) continue;
+		// 先に所有を外してから消す。逆順だと、消した後に更新が失敗した回で
+		// 「行はキーを指しているのに実体が無い」状態になり、引き継ぎが壊れた写真を渡す。
+		await db
+			.update(labelAnalysisJob)
+			.set({ photoKeys: [] })
+			.where(eq(labelAnalysisJob.id, row.id));
+		await deletePhotoObjects(row.photoKeys, {
+			userId,
+			jobId: row.id,
+			phase: "retention",
+		});
+		swept += 1;
+	}
+	return swept;
 }
 
 /** 未終端(queued/running)のジョブ件数。同時実行上限の判定に使う。 */
@@ -613,8 +732,11 @@ export async function settleStaleLabelAnalysisJobs(
  * (「失敗した」と表示した後に結果が現れるより、失敗のまま見せるほうが一貫する。
  * クレジットは既に返却済みなので、上書きを許すと返却済みの結果を渡すことにもなる)。
  *
- * 写真は終端に到達した時点で消す。解析の**入力**であって成果物ではなく、残すと
- * R2 に解析回数ぶん溜まり続ける(退会時の一括削除は効くが、それまで消えない)。
+ * **成功した回の写真は残す**(#474)。解析の入力であると同時に、その結果を記録する
+ * ワインの写真になる——利用者が撮ったのはそのワインの写真であって、解析のためだけの
+ * 使い捨てではない。引き継ぎ(`adoptLabelJobPhotos`)がエントリへ渡した時点でジョブは
+ * 所有を手放し、引き継がれないまま受け取り済みになった回は `sweepConsumedJobPhotos`
+ * が回収する。**失敗した回は残さない**: 記録する結果が無いので、渡す先が無い。
  */
 async function finishJob(
 	jobId: string,
@@ -623,10 +745,11 @@ async function finishJob(
 		| { error: string },
 	photoKeys: string[],
 ): Promise<void> {
+	const failed = "error" in outcome;
 	const [row] = await db
 		.update(labelAnalysisJob)
 		.set({
-			...("error" in outcome
+			...(failed
 				? { status: "failed" as const, error: outcome.error }
 				: {
 						status: "succeeded" as const,
@@ -634,7 +757,8 @@ async function finishJob(
 						actualTokens: outcome.actualTokens,
 					}),
 			finishedAt: new Date(),
-			photoKeys: [],
+			// 成功した回は引き継ぎ先が決まるまで持ち続ける。
+			...(failed ? { photoKeys: [] } : {}),
 		})
 		.where(
 			and(
@@ -646,8 +770,11 @@ async function finishJob(
 	if (!row) {
 		logWarn("label analysis job already terminal; result discarded", { jobId });
 	}
-	// 行の更新に負けても写真は掃除する(掴んでいたのはこちらなので、置き去りにしない)。
-	await deletePhotoObjects(photoKeys, { jobId, phase: "finish" });
+	// 行の更新に負けた回は、この実行が掴んでいた写真を置き去りにしない。勝った成功回は
+	// 引き継ぎのために残す。
+	if (failed || !row) {
+		await deletePhotoObjects(photoKeys, { jobId, phase: "finish" });
+	}
 
 	// 完了通知(#466)。**この行の更新に勝ったときだけ**送る——負けた回は stale 決着で
 	// 既に失敗として見せているので、そこへ「完了しました」を送ると表示と食い違う。

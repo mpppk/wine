@@ -6,6 +6,7 @@ import { subscription } from "#/db/auth-schema";
 import { creditLedger, drunkWine, labelAnalysisJob } from "#/db/schema";
 import { AI_LABEL_MODEL } from "#/lib/ai/config";
 import {
+	LABEL_JOB_PHOTO_RETENTION_MS,
 	LABEL_JOB_STALE_MS,
 	MAX_CONCURRENT_LABEL_JOBS,
 } from "#/lib/ai/label-job";
@@ -25,6 +26,7 @@ import {
 	runLabelAnalysisJob,
 	settleStaleLabelAnalysisJobs,
 	submitLabelAnalysisJob,
+	sweepConsumedJobPhotos,
 } from "./label-job-service";
 
 // エチケット解析ジョブのライフサイクルを実D1 + 実R2(miniflare)で検証する(Issue #460)。
@@ -157,7 +159,7 @@ describe("ジョブの投入", () => {
 	});
 
 	it("残高不足なら blocked を返し、ジョブ行を作らない", async () => {
-		// 高精度経路(Claude)は写真1枚でも無料枠(150)を超える見積になる。
+		// 高精度経路(Claude)は写真1枚でも無料枠を超える見積になる。
 		const userId = await seedUser();
 		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
 			"sk-ant-test";
@@ -214,7 +216,7 @@ describe("ジョブの投入", () => {
 });
 
 describe("ジョブの実行", () => {
-	it("解析に成功したら succeeded にして実測で確定し、写真を消す", async () => {
+	it("解析に成功したら succeeded にして実測で確定し、写真は残す", async () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
 		const reserved = (await jobRow(jobId))?.reservedCredits ?? 0;
@@ -238,10 +240,11 @@ describe("ジョブの実行", () => {
 			MONTHLY_CREDITS_FREE - reserved,
 		);
 
-		// 写真は解析の入力であって成果物ではない。終端で消す(R2に溜め続けない)。
-		expect(job?.photoKeys).toEqual([]);
+		// 写真は記録するワインの写真として引き継ぐので終端では消さない(#474)。
+		// 引き継ぎと回収の詳細は「完了の受け取り」の節が見ている。
+		expect(job?.photoKeys).toEqual(keys);
 		for (const key of keys) {
-			expect(await env.AVATARS.get(key)).toBeNull();
+			expect(await env.AVATARS.get(key)).not.toBeNull();
 		}
 	});
 
@@ -508,9 +511,9 @@ describe("完了の受け取り (#462)", () => {
 		const entryId = await seedEntry(userId);
 
 		// 解析中に記録フォームを保存した、の再現。
-		expect(await attachLabelAnalysisJobEntry(userId, jobId, entryId)).toEqual({
-			attached: true,
-		});
+		expect(
+			await attachLabelAnalysisJobEntry(userId, jobId, entryId),
+		).toMatchObject({ attached: true });
 
 		stubAiRun(workersAiOk(300));
 		await runLabelAnalysisJob(jobId);
@@ -529,9 +532,9 @@ describe("完了の受け取り (#462)", () => {
 
 		await attachLabelAnalysisJobEntry(userId, jobId, first);
 		// 同じ解析結果が2つのエントリに宛てられると、開いたときどちらを直すか決まらない。
-		expect(await attachLabelAnalysisJobEntry(userId, jobId, second)).toEqual({
-			attached: false,
-		});
+		expect(
+			await attachLabelAnalysisJobEntry(userId, jobId, second),
+		).toMatchObject({ attached: false });
 
 		expect((await jobRow(jobId))?.entryId).toBe(first);
 	});
@@ -558,8 +561,144 @@ describe("完了の受け取り (#462)", () => {
 		// 条件付き UPDATE が空振りする(存在を漏らさず、書き換えもしない)。
 		expect(
 			await attachLabelAnalysisJobEntry(other, jobId, othersEntry),
-		).toEqual({ attached: false });
+		).toMatchObject({ attached: false });
 		expect((await jobRow(jobId))?.entryId).toBeNull();
+	});
+
+	it("成功したジョブの写真は残り、記録したワインの写真になる (#474)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId, 2);
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+
+		// 終端でも消えない(従来は解析の入力として捨てていた)。
+		expect((await jobRow(jobId))?.photoKeys).toEqual(keys);
+		for (const key of keys) {
+			expect(await env.AVATARS.get(key)).not.toBeNull();
+		}
+
+		const entryId = await seedEntry(userId);
+		await attachLabelAnalysisJobEntry(userId, jobId, entryId);
+
+		// エントリが所有し、ジョブは手放す(二重に消されないための単一所有)。
+		const [entry] = await db
+			.select({ photoKeys: drunkWine.photoKeys })
+			.from(drunkWine)
+			.where(eq(drunkWine.id, entryId));
+		expect(entry?.photoKeys).toEqual(keys);
+		expect((await jobRow(jobId))?.photoKeys).toEqual([]);
+		for (const key of keys) {
+			expect(await env.AVATARS.get(key)).not.toBeNull();
+		}
+	});
+
+	it("失敗したジョブの写真は残さない (#474)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		stubAiRun(() => Promise.reject(new Error("model error")));
+
+		await runLabelAnalysisJob(jobId);
+
+		// 記録する結果が無い = 渡す先が無いので、従来どおり終端で消す。
+		expect((await jobRow(jobId))?.photoKeys).toEqual([]);
+		for (const key of keys) {
+			expect(await env.AVATARS.get(key)).toBeNull();
+		}
+	});
+
+	it("引き継ぎは冪等で、二重に足さない (#474)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId, 2);
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		const entryId = await seedEntry(userId);
+
+		expect(
+			(await attachLabelAnalysisJobEntry(userId, jobId, entryId)).adoptedPhotos,
+		).toBe(keys.length);
+		// 2回目(再送信・リロード)は所有が既に外れているので何もしない。
+		expect(
+			(await attachLabelAnalysisJobEntry(userId, jobId, entryId)).adoptedPhotos,
+		).toBe(0);
+
+		const [entry] = await db
+			.select({ photoKeys: drunkWine.photoKeys })
+			.from(drunkWine)
+			.where(eq(drunkWine.id, entryId));
+		expect(entry?.photoKeys).toEqual(keys);
+	});
+
+	it("走っているジョブでは引き継がない(解析がまだ写真を読む) (#474)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const entryId = await seedEntry(userId);
+
+		// 解析中に記録フォームを保存した回。宛先は記録するが写真はまだ渡さない。
+		const result = await attachLabelAnalysisJobEntry(userId, jobId, entryId);
+		expect(result).toMatchObject({ attached: true, adoptedPhotos: 0 });
+		expect((await jobRow(jobId))?.photoKeys).not.toEqual([]);
+
+		// 完了後に受け取って保存すると、そこで引き継がれる。
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		expect(
+			(await attachLabelAnalysisJobEntry(userId, jobId, entryId)).adoptedPhotos,
+		).toBeGreaterThan(0);
+	});
+
+	it("引き取り手が現れなかった写真は保持期間を過ぎたら回収する (#474)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		await consumeLabelAnalysisJob(userId, jobId);
+
+		// 受け取った直後は消さない(候補を見てから翌日入力する使い方を潰さない)。
+		expect(await sweepConsumedJobPhotos(userId)).toBe(0);
+
+		await db
+			.update(labelAnalysisJob)
+			.set({
+				consumedAt: new Date(Date.now() - LABEL_JOB_PHOTO_RETENTION_MS - 1000),
+			})
+			.where(eq(labelAnalysisJob.id, jobId));
+
+		expect(await sweepConsumedJobPhotos(userId)).toBe(1);
+		expect((await jobRow(jobId))?.photoKeys).toEqual([]);
+		for (const key of keys) {
+			expect(await env.AVATARS.get(key)).toBeNull();
+		}
+	});
+
+	it("記録に使われたジョブは保持期間を過ぎても回収しない (#474)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		const entryId = await seedEntry(userId);
+		await attachLabelAnalysisJobEntry(userId, jobId, entryId);
+		await consumeLabelAnalysisJob(userId, jobId);
+		await db
+			.update(labelAnalysisJob)
+			.set({
+				consumedAt: new Date(Date.now() - LABEL_JOB_PHOTO_RETENTION_MS - 1000),
+			})
+			.where(eq(labelAnalysisJob.id, jobId));
+
+		// 所有はエントリへ移っているので、掃除の対象にしてはいけない
+		// (対象にすると、記録したワインの写真が翌日消える)。
+		expect(await sweepConsumedJobPhotos(userId)).toBe(0);
+		const [entry] = await db
+			.select({ photoKeys: drunkWine.photoKeys })
+			.from(drunkWine)
+			.where(eq(drunkWine.id, entryId));
+		for (const key of entry?.photoKeys ?? []) {
+			expect(await env.AVATARS.get(key)).not.toBeNull();
+		}
 	});
 
 	it("解析中と完了を別々に数える", async () => {
