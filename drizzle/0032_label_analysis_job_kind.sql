@@ -1,0 +1,22 @@
+-- Issue #474: 解析ジョブに種別を持たせ、一括抽出も同じ基盤へ載せる。
+--
+-- 一括抽出は同期(画面が待つ)のまま残っていたが、web検索での裏取りが乗って所要時間が
+-- 伸びた。エチケット解析と同じ「投入したら離れてよい・完了はバッジと Web Push で
+-- 受け取る」へ揃えるため、`label_analysis_job` を解析ジョブ一般の器に広げる。
+--
+-- **専用テーブルを新設しない**。投入(予約・R2保存・同時実行上限)、stale の決着、
+-- 受け取り(consumed_at)、宛先エントリ(entry_id)、写真の引き継ぎと回収は、どちらの
+-- 種別でも同じ不変条件で動く。テーブルを分けると、この5つの関門を2組に複製することに
+-- なり、片方だけ直す形のドリフトが確実に起きる(CLAUDE.md の「同種の定義が2箇所以上に
+-- 現れたら SSOT 化する」)。
+--
+-- `kind` は NOT NULL + 定数デフォルトで足す。既存行は 'label' で埋まり、この列を書かない
+-- 旧コードの INSERT も通るので expand-and-contract の対象ではない(destructive.ts の
+-- ADD_WITH_CONSTANT_DEFAULT が許す形)。値の SSOT は src/lib/ai/label-job.ts。
+--
+-- 結果の置き場を `suggestions` と分けるのは、形が違うため。エチケット解析は1件ぶんの
+-- LabelSuggestions、一括抽出は候補の配列 + サマリで、同じ列に両方入れると読む側が
+-- 毎回種別で分岐しながら unknown を絞ることになる。列を分ければ型で分かれる。
+ALTER TABLE `label_analysis_job` ADD COLUMN `kind` text NOT NULL DEFAULT 'label';
+--> statement-breakpoint
+ALTER TABLE `label_analysis_job` ADD COLUMN `wine_list_result` text;

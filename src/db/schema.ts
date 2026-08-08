@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import type { AdminAuditAction } from "#/lib/admin/audit";
 import type { LabelEngineKey, LabelRoute } from "#/lib/ai/config";
-import type { LabelJobStatus } from "#/lib/ai/label-job";
+import type { LabelJobKind, LabelJobStatus } from "#/lib/ai/label-job";
 import type { CreditLedgerType } from "#/lib/credit/types";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { DEFAULT_PLACE_KIND, type PlaceKind } from "#/lib/place/place";
@@ -503,6 +503,13 @@ export const labelAnalysisJob = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		/** 状態。値のSSOTは src/lib/ai/label-job.ts の LABEL_JOB_STATUSES */
 		status: text("status").notNull().$type<LabelJobStatus>().default("queued"),
+		/**
+		 * 解析の種別(#474)。値のSSOTは src/lib/ai/label-job.ts の LABEL_JOB_KINDS。
+		 * `label` = エチケット解析(1本)、`wine_list` = 一括抽出(N銘柄)。
+		 * 予約・写真・状態機械・受け取りは種別によらず共通で、違うのは推論の中身と
+		 * 結果の置き場(`suggestions` / `wineListResult`)だけ。
+		 */
+		kind: text("kind").notNull().$type<LabelJobKind>().default("label"),
 		/** 解析対象のR2キー(撮影順)。終端に到達した時点で削除するので、その後は空配列 */
 		photoKeys: text("photo_keys", { mode: "json" })
 			.$type<string[]>()
@@ -526,8 +533,17 @@ export const labelAnalysisJob = sqliteTable(
 		selectedEngine: text("selected_engine").notNull().$type<LabelEngineKey>(),
 		/** 予約時に解決した実行経路。**コンシューマは再解決せずこれを使う**(予約と食い違わせない) */
 		route: text("route").notNull().$type<LabelRoute>(),
-		/** 成功時の自動入力候補(LabelSuggestions)。未完了・失敗なら null */
+		/**
+		 * 成功時の自動入力候補(LabelSuggestions)。未完了・失敗なら null。
+		 * **`kind = 'label'` のときだけ入る**(一括抽出は `wineListResult` 側)。
+		 */
 		suggestions: text("suggestions", { mode: "json" }).$type<unknown>(),
+		/**
+		 * 一括抽出の結果(候補配列 + サマリ)。**`kind = 'wine_list'` のときだけ入る**(#474)。
+		 * `suggestions` と列を分けるのは形が違うため——同じ列に両方入れると、読む側が
+		 * 毎回種別で分岐しながら unknown を絞ることになる。
+		 */
+		wineListResult: text("wine_list_result", { mode: "json" }).$type<unknown>(),
 		/** 成功時の実測トークン。観測値で課金の根拠ではない */
 		actualTokens: integer("actual_tokens"),
 		/** 失敗時の利用者向け文言。詳細(モデル都合の例外)はサーバ側のログにだけ残す */
