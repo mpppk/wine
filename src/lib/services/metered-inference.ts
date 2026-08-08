@@ -1,5 +1,5 @@
 import { type AiInferenceLog, logAiInference } from "#/lib/ai/inference-log";
-import type { CreditCharge } from "#/lib/billing/ai-pricing";
+import type { AiUsage, CreditCharge } from "#/lib/billing/ai-pricing";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import * as creditService from "#/lib/services/credit-service";
 
@@ -114,6 +114,21 @@ export interface MeteredInferenceContext {
 export interface MeteredInferenceOutput<T> {
 	value: T;
 	charge: CreditCharge;
+	/**
+	 * 実測の使用量の**内訳**。実行記録に残すために要る。
+	 *
+	 * `charge` はトークン数と µUSD に畳んだ後の値なので、**原価に効くのにトークンに
+	 * 現れない項目がここで消える**——web検索は $10/1000回 の回数課金で、高精度経路では
+	 * 原価の大半を占めるのに `charge.tokens` には1つも現れない。#474 の本番確認で
+	 * 「予約41 / 実測13クレジット」の差が出たとき、検索が何回走ったのかをログから
+	 * 復元できず、見積が厚いのか検索が少なかったのかを切り分けられなかった。
+	 *
+	 * **必須にしてある**。省略可にすると、経路を足した人が渡し忘れても型が通り、
+	 * その経路だけ観測が欠ける(CLAUDE.md の「横断的な規約は共通チョークポイントに
+	 * 寄せる」)。実測が取れない経路は空オブジェクトを渡す——「取れなかった」ことが
+	 * 記録に残るほうが、黙って欠けるより良い。
+	 */
+	usage: AiUsage;
 }
 
 export type MeteredInferenceResult<T> =
@@ -272,6 +287,12 @@ export async function finishMeteredInference<T>(
 		actualTokens: output.charge.tokens,
 		costMicroUsd: output.charge.microUsd,
 		reservedMicroUsd,
+		// 回数課金の web検索はトークンに現れないので、内訳から明示的に載せる。
+		// **0回も記録する**(undefined と 0 は別物——前者は「経路が渡していない」、
+		// 後者は「検索しなかった」で、見積の評価では意味が正反対になる)。
+		...(output.usage.webSearches === undefined
+			? {}
+			: { webSearches: output.usage.webSearches }),
 	});
 	// settle 成功後は消費確定済み。getBalance の失敗で上の catch の全額返却が走ると
 	// 消費がネットプラスになるため、残高参照は**必ず try の外**で行う(#144)。
