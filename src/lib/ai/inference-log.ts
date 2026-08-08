@@ -81,6 +81,15 @@ export interface AiInferenceLog {
 	/** 予約した原価(µUSD)。実測と並べて中心値見積の妥当性を評価する。 */
 	reservedMicroUsd?: number;
 	/**
+	 * 実測の web検索回数。**トークンに現れないのに原価に効く**($10/1000回)ため、
+	 * `actualTokens` とは別に載せる。見積(`estimateLabelReserveUsage` /
+	 * `estimateWineListReserveUsage` の `webSearches`)の妥当性はこの値で評価する。
+	 *
+	 * 検索を使わない経路では `undefined`。**0 とは意味が違う**——0 は「検索できたのに
+	 * しなかった」で、見積が厚すぎるサインになる。
+	 */
+	webSearches?: number;
+	/**
 	 * web検索の軌跡(高精度エチケット解析のみ)。何を検索し、どのURLを参照したか。
 	 *
 	 * **推論が失敗してフォールバックした回にも載せる**のが要点。「検索まで到達したが

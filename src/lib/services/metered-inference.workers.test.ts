@@ -81,7 +81,7 @@ describe("runMeteredInference", () => {
 		const result = await runMeteredInference(
 			userId,
 			{ estimate: ESTIMATE, requestId: id, logBase: LOG_BASE },
-			async () => ({ value: "answer", charge }),
+			async () => ({ value: "answer", charge, usage: { webSearches: 3 } }),
 		);
 
 		expect(result).toMatchObject({
@@ -167,6 +167,7 @@ describe("runMeteredInference", () => {
 				return {
 					value: null,
 					charge: { microUsd: ctx.reservedMicroUsd, tokens: 0 },
+					usage: {},
 				};
 			},
 		);
@@ -176,6 +177,53 @@ describe("runMeteredInference", () => {
 	});
 
 	describe("実行記録", () => {
+		it("web検索の回数を実測の内訳から載せる (#474)", async () => {
+			// 回数課金の web検索はトークンに現れないので、charge だけを見ていると
+			// 「予約が厚いのか検索が少なかったのか」を切り分けられない(本番で実際に
+			// 起きた)。0回も記録する——検索できる経路が使わなかった、は見積が厚い証拠。
+			const userId = await seedUser();
+			const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+			try {
+				for (const webSearches of [5, 0]) {
+					await runMeteredInference(
+						userId,
+						{ estimate: ESTIMATE, requestId: requestId(), logBase: LOG_BASE },
+						async () => ({
+							value: null,
+							charge: { microUsd: MICRO_USD_PER_CREDIT, tokens: 7 },
+							usage: { webSearches },
+						}),
+					);
+				}
+				const logs = captureInferenceLogs(spy);
+				expect(logs.map((l) => l.webSearches)).toEqual([5, 0]);
+			} finally {
+				spy.mockRestore();
+			}
+		});
+
+		it("検索を使わない経路では web検索の回数を載せない (#474)", async () => {
+			// undefined と 0 は意味が違う。前者は「そもそも検索しない経路」で、
+			// 見積の評価対象ですらない。
+			const userId = await seedUser();
+			const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+			try {
+				await runMeteredInference(
+					userId,
+					{ estimate: ESTIMATE, requestId: requestId(), logBase: LOG_BASE },
+					async () => ({
+						value: null,
+						charge: { microUsd: MICRO_USD_PER_CREDIT, tokens: 7 },
+						usage: {},
+					}),
+				);
+				const logs = captureInferenceLogs(spy);
+				expect(logs[0]).not.toHaveProperty("webSearches");
+			} finally {
+				spy.mockRestore();
+			}
+		});
+
 		it("成功時に1行出し、addLogFields の内容を載せる", async () => {
 			const userId = await seedUser();
 			const spy = vi.spyOn(console, "info").mockImplementation(() => {});
@@ -188,6 +236,7 @@ describe("runMeteredInference", () => {
 						return {
 							value: null,
 							charge: { microUsd: MICRO_USD_PER_CREDIT, tokens: 7 },
+							usage: {},
 						};
 					},
 				);

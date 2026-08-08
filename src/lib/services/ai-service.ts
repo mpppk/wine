@@ -318,7 +318,9 @@ export async function answerRegionQuestion(
 					: chargeFor(model.id, measured);
 			// 単経路なので実行経路は選択経路と常に一致する。
 			ctx.addLogFields({ executedBy: modelKey });
-			return { value: answer, charge };
+			// Workers AI は内訳を返さない(usage が無い回は空)。web検索も使わないので
+			// `webSearches` は載らない——「検索できたのにしなかった 0」とは意味が違う。
+			return { value: answer, charge, usage: measured ?? {} };
 		},
 	);
 	if (result.blocked) {
@@ -899,7 +901,7 @@ async function runLabelInference(
 			chargedMicroUsd: charge.microUsd,
 		});
 	}
-	return { value: suggestions, charge };
+	return { value: suggestions, charge, usage };
 }
 
 /**
@@ -1226,7 +1228,7 @@ async function runWineListInference(
 		measured.microUsd > 0 ? measured : fallbackCharge(ctx.reservedMicroUsd);
 	// フォールバックが無いので実行経路は常に選択経路と一致する。
 	ctx.addLogFields({ executedBy: input.route });
-	return { value: { candidates, summary }, charge };
+	return { value: { candidates, summary }, charge, usage };
 }
 
 /** 一括抽出ジョブの実行計画(#474)。`LabelPlan` と同じ役割・同じ使われ方。 */
