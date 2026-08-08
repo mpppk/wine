@@ -1,4 +1,9 @@
-import { ChevronDownIcon, ChevronUpIcon, LinkIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	ChevronUpIcon,
+	ImageIcon,
+	LinkIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { DrunkWineFields } from "#/components/cellar/DrunkWineFields";
 import type {
@@ -73,6 +78,17 @@ export function ImportCandidateCard({
 							{card.photoIndexes.length > 0 && (
 								<span className="rounded bg-muted px-1.5 py-0.5">
 									{card.photoIndexes.map((i) => `${i + 1}枚目`).join("・")}
+								</span>
+							)}
+							{/*
+							 * 銘柄の写真をどう用意するか(#473)。撮った写真にこの1本だけを写した
+							 * ものが無い銘柄は web から取りに行くので、**登録前に分かる形にする**
+							 * (知らないうちに外部の画像が自分のセラーに入るのは避ける)。
+							 */}
+							{card.imageUrl && (
+								<span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
+									<ImageIcon className="size-3" aria-hidden />
+									web画像を取得
 								</span>
 							)}
 							<span className="rounded bg-muted px-1.5 py-0.5">

@@ -4,6 +4,7 @@ import { calendarDateSchema } from "#/lib/date/calendar-date";
 import {
 	createWineTastingInput,
 	drunkWineFields,
+	NOTE_MAX,
 } from "#/lib/drunk-wine/schema";
 import {
 	createPlaceInput,
@@ -22,6 +23,18 @@ import {
  * ここが小さいと「解析はできたのに登録で弾かれる」袋小路になる。
  */
 export const MAX_ITEMS_PER_IMPORT = AI_WINE_LIST_MAX_WINES;
+
+/**
+ * 1回の一括登録で web から取りに行く銘柄写真の上限(#473)。
+ *
+ * 件数上限(80銘柄)ぶん全部を取りに行くと、登録の確定が外部サイトの応答時間 × 80 に
+ * 引きずられ、Workers のサブリクエスト数にも触れる。上限を超えたぶんは web 画像を諦めて
+ * 一括登録の写真へ退避する(要件の3段目)ので、**登録そのものは必ず成立する**。
+ */
+export const MAX_WEB_PHOTOS_PER_IMPORT = 20;
+
+/** 取り込む画像URLの長さ上限。クエリ付きのCDN URLでも収まる長さ。 */
+export const WEB_PHOTO_URL_MAX = 2048;
 
 /** 新規作成する銘柄の属性(飲用記録は item.tasting 側で受ける)。 */
 export const importWineInput = z.object(drunkWineFields);
@@ -52,6 +65,24 @@ export const importItemInput = z
 			.optional(),
 		/** 「飲んだ」トグルで入力された飲用記録。未指定なら作らない */
 		tasting: createWineTastingInput.optional(),
+		/**
+		 * web から取り込む銘柄写真(#473)。解析が「手元の写真にこの1本だけを写した
+		 * 適切な写真が無い」と判断した銘柄にだけ付く。
+		 *
+		 * **新規作成(`wine`)のときだけ意味を持つ**。既存エントリへの目撃追加では
+		 * 無視する——そのエントリは既に自分の写真を持っている(か、持たないことを
+		 * ユーザが選んでいる)ので、一括登録が勝手に足すものではない。
+		 *
+		 * 取得先の検証(https のみ・実バイトのMIME判定・サイズ上限)はサーバの
+		 * `fetchRemotePhoto` が単一の関門として行う。ここは形の検証だけ。
+		 */
+		webPhoto: z
+			.object({
+				url: z.string().min(1).max(WEB_PHOTO_URL_MAX),
+				/** 画像と実物のズレ(ヴィンテージ違い等)。取り込めたときだけコメントへ追記する */
+				note: z.string().max(NOTE_MAX).optional(),
+			})
+			.optional(),
 	})
 	.refine((v) => !!v.existingId !== !!v.wine, {
 		error: "既存エントリの指定と新規銘柄はどちらか一方を指定してください",

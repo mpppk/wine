@@ -1672,6 +1672,199 @@ describe("bulkRegisterFromScan", () => {
 	});
 });
 
+// ---- 銘柄ごとの写真の手当て(Issue #473) -----------------------------------
+// 優先順は「手元の適切な写真 → web画像 → 一括登録の写真」。1段目はクライアントが
+// 目撃記録の photoIndex に載せてくるので、サーバ側で見えるのは2段目と3段目。
+
+describe("一括登録の銘柄写真", () => {
+	const JPEG_1X1_BYTES = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	/** web の画像取得を差し替える。呼ばれたURLも記録して、取りに行った/行かなかったを見る。 */
+	function stubImageFetch(response: () => Response): string[] {
+		const requested: string[] = [];
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (input: RequestInfo | URL) => {
+				requested.push(
+					typeof input === "string"
+						? input
+						: input instanceof URL
+							? input.href
+							: input.url,
+				);
+				return response();
+			},
+		);
+		return requested;
+	}
+
+	function jpegResponse(): Response {
+		return new Response(JPEG_1X1_BYTES, {
+			headers: { "content-type": "image/jpeg" },
+		});
+	}
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("web画像を取り込んで銘柄の写真にし、ズレの注記をコメントへ追記する", async () => {
+		const userId = await freshUser();
+		const requested = stubImageFetch(jpegResponse);
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "Barolo", note: "【香り・味わい】\nタール。" },
+					webPhoto: {
+						url: "https://example.com/barolo.jpg",
+						note: "写真は2019年のものです。",
+					},
+				},
+			],
+		});
+
+		expect(requested).toEqual(["https://example.com/barolo.jpg"]);
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toHaveLength(1);
+		// 取り込めた銘柄にだけ注記が付く
+		expect(entries[0]?.note).toContain("タール。");
+		expect(entries[0]?.note).toContain("【写真について】");
+		expect(entries[0]?.note).toContain("写真は2019年のものです。");
+	});
+
+	it("取得に失敗しても登録は成立し、写真も注記も付かない", async () => {
+		const userId = await freshUser();
+		stubImageFetch(() => new Response("nope", { status: 404 }));
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "Barolo" },
+					webPhoto: {
+						url: "https://example.com/missing.jpg",
+						note: "写真は2019年のものです。",
+					},
+				},
+			],
+		});
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries).toHaveLength(1);
+		expect(entries[0]?.photoUrls).toEqual([]);
+		// 画像が無いのに「写真は2019年のものです」だけ残ると意味が通らない
+		expect(entries[0]?.note).toBeNull();
+	});
+
+	it("画像を装ったHTMLは保存しない(実バイトで判定する)", async () => {
+		const userId = await freshUser();
+		stubImageFetch(
+			() =>
+				new Response("<html>404</html>", {
+					headers: { "content-type": "image/jpeg" },
+				}),
+		);
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "Barolo" },
+					webPhoto: { url: "https://example.com/notreally.jpg" },
+				},
+			],
+		});
+		expect((await listDrunkWines(userId)).entries[0]?.photoUrls).toEqual([]);
+	});
+
+	it("https でないURLは取りに行かない", async () => {
+		const userId = await freshUser();
+		const requested = stubImageFetch(jpegResponse);
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "Barolo" },
+					webPhoto: { url: "http://example.com/barolo.jpg" },
+				},
+			],
+		});
+		expect(requested).toEqual([]);
+		expect((await listDrunkWines(userId)).entries[0]?.photoUrls).toEqual([]);
+	});
+
+	it("写真が無い銘柄には一括登録の写真を複製する(3段目のフォールバック)", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [{ wine: { name: "棚の1本" }, sighting: { photoIndex: 0 } }],
+		});
+		const batch = await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+
+		const { entries } = await listDrunkWines(userId);
+		const photoUrl = entries[0]?.photoUrls[0];
+		expect(photoUrl).toBeTruthy();
+		// **参照ではなく複製**。共有していると、銘柄1件を消しただけでバッチ写真や
+		// 他の銘柄の写真まで消える。
+		expect(photoUrl).not.toBe(batch.photoUrls[0]);
+		expect(
+			await env.AVATARS.head(imageKeyFromPath(photoUrl as string)),
+		).not.toBeNull();
+		expect(
+			await env.AVATARS.head(imageKeyFromPath(batch.photoUrls[0] as string)),
+		).not.toBeNull();
+	});
+
+	it("既に写真がある銘柄(web画像で手当て済み)は上書きしない", async () => {
+		const userId = await freshUser();
+		stubImageFetch(jpegResponse);
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{
+					wine: { name: "web画像あり" },
+					webPhoto: { url: "https://example.com/a.jpg" },
+					sighting: { photoIndex: 0 },
+				},
+			],
+		});
+		const before = (await listDrunkWines(userId)).entries[0]?.photoUrls;
+		expect(before).toHaveLength(1);
+
+		await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+		expect((await listDrunkWines(userId)).entries[0]?.photoUrls).toEqual(
+			before,
+		);
+	});
+
+	it("既存エントリに目撃を足しただけの銘柄には写真を足さない", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, {
+			name: "以前飲んだシャブリ",
+			status: "finished",
+		});
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [{ existingId: existing.id, sighting: { photoIndex: 0 } }],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+		expect((await getDrunkWine(userId, existing.id)).photoUrls).toEqual([]);
+	});
+});
+
 // ---- undoImportBatch(バッチ単位の取り消し, Issue #363 案A) -----------------
 
 describe("undoImportBatch", () => {

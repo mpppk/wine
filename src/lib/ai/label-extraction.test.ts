@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildWineNote } from "#/lib/drunk-wine/note";
 import { NOTE_MAX } from "#/lib/drunk-wine/schema";
 import { findProducerInfoByName } from "#/lib/wine/producer-info";
 import { AI_LABEL_PROMPT_TOKEN_ESTIMATE } from "./config";
@@ -7,7 +8,6 @@ import {
 	buildLabelMessages,
 	buildLabelSuggestions,
 	buildWebLabelPrompt,
-	buildWineNote,
 	estimateLabelPromptTokens,
 	LABEL_JSON_SCHEMA,
 	LABEL_PROMPT,
