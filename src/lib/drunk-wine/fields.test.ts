@@ -32,7 +32,7 @@ describe("DRUNK_WINE_FIELD_DEFS", () => {
 		expect(camelKeys).toEqual(schemaKeys);
 	});
 
-	it("snakeKey 集合が期待の9件と一致する(飲んだ日/評価/メモは飲用記録へ移動済み)", () => {
+	it("snakeKey 集合が期待の10件と一致する(飲んだ日/評価/メモは飲用記録へ移動済み)", () => {
 		const snakeKeys = DRUNK_WINE_FIELD_DEFS.map((d) => d.snakeKey).sort();
 		expect(snakeKeys).toEqual(
 			[
@@ -40,6 +40,8 @@ describe("DRUNK_WINE_FIELD_DEFS", () => {
 				"country_id",
 				"grape_variety_ids",
 				"name",
+				// 銘柄のコメント(#471)。飲用記録の memo とは別物
+				"note",
 				"price",
 				"producer",
 				"region_id",

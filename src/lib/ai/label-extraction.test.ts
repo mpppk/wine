@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { NOTE_MAX } from "#/lib/drunk-wine/schema";
+import { findProducerInfoByName } from "#/lib/wine/producer-info";
 import { AI_LABEL_PROMPT_TOKEN_ESTIMATE } from "./config";
 import {
+	buildAgentLabelPrompt,
 	buildLabelMessages,
 	buildLabelSuggestions,
 	buildWebLabelPrompt,
+	buildWineNote,
 	estimateLabelPromptTokens,
 	LABEL_JSON_SCHEMA,
 	LABEL_PROMPT,
@@ -531,5 +535,146 @@ describe("parseLabelSources", () => {
 				sources: { vintage: { origin: "photo" }, 悪意: { origin: "web" } },
 			}),
 		).toEqual({ vintage: { origin: "photo" } });
+	});
+});
+
+// ---- 銘柄のコメント(#471) -------------------------------------------------
+
+describe("コメント(tasting_comment / producer_comment)", () => {
+	it("裏取り経路の応答からコメントを取り出す", () => {
+		const parsed = parseLabelResponse({
+			wine_name: "Chablis",
+			producer: "Domaine Testut",
+			vintage: 2020,
+			appellation: "Chablis",
+			region: "Bourgogne",
+			grape_varieties: ["Chardonnay"],
+			tasting_comment: "柑橘と火打石。シャープな酸。",
+			producer_comment: "シャブリの家族経営ドメーヌ。",
+		});
+		expect(parsed.tastingComment).toBe("柑橘と火打石。シャープな酸。");
+		expect(parsed.producerComment).toBe("シャブリの家族経営ドメーヌ。");
+	});
+
+	it("コメントを持たない応答(Workers AI 経路)も従来どおりパースできる", () => {
+		const parsed = parseLabelResponse({
+			wine_name: "Chablis",
+			producer: null,
+			vintage: null,
+			appellation: null,
+			region: null,
+			country: null,
+			grape_varieties: [],
+		});
+		expect(parsed.tastingComment).toBeUndefined();
+		expect(parsed.producerComment).toBeUndefined();
+	});
+
+	it("「見つかりませんでした」の作文はコメントとして採らない", () => {
+		// モデルは null の代わりに文章で返すことがある。そのまま保存すると
+		// 中身のないコメントが利用者のセラーに並ぶ。
+		const parsed = parseLabelResponse({
+			wine_name: "Chablis",
+			grape_varieties: [],
+			tasting_comment: "web検索では評価が見つかりませんでした。",
+			producer_comment: "  ",
+		});
+		expect(parsed.tastingComment).toBeUndefined();
+		expect(parsed.producerComment).toBeUndefined();
+	});
+
+	it("コメントの形が壊れていても抽出結果は落とさない(付随情報は throw しない)", () => {
+		const parsed = parseLabelResponse({
+			wine_name: "Chablis",
+			grape_varieties: [],
+			tasting_comment: { unexpected: true },
+		});
+		expect(parsed.wineName).toBe("Chablis");
+		expect(parsed.tastingComment).toBeUndefined();
+	});
+
+	it("複数写真のマージでは最初に得られたコメントを採る", () => {
+		const merged = mergeExtractions([
+			extraction({ wineName: "Chablis" }),
+			extraction({ tastingComment: "白桃の香り", producerComment: "老舗" }),
+			extraction({ tastingComment: "別の写真のコメント" }),
+		]);
+		expect(merged.tastingComment).toBe("白桃の香り");
+		expect(merged.producerComment).toBe("老舗");
+	});
+});
+
+describe("buildWineNote", () => {
+	it("香り・味わいと生産者を見出し付きの段落に畳む", () => {
+		expect(
+			buildWineNote({ tasting: "柑橘と火打石。", producer: "老舗。" }),
+		).toBe("【香り・味わい】\n柑橘と火打石。\n\n【生産者】\n老舗。");
+	});
+
+	it("片方だけでも組み立てる / どちらも無ければ undefined", () => {
+		expect(buildWineNote({ tasting: "柑橘。" })).toBe(
+			"【香り・味わい】\n柑橘。",
+		);
+		expect(buildWineNote({})).toBeUndefined();
+	});
+
+	it("上限を超えたら切り詰める(保存で弾かれる袋小路を作らない)", () => {
+		const note = buildWineNote({ tasting: "あ".repeat(NOTE_MAX + 100) });
+		expect(note?.length).toBeLessThanOrEqual(NOTE_MAX);
+	});
+});
+
+describe("buildLabelSuggestions のコメント", () => {
+	it("香り・味わいと生産者のコメントを note に畳む", () => {
+		const s = buildLabelSuggestions(
+			extraction({
+				wineName: "Chablis",
+				producer: "名も知らぬ生産者",
+				tastingComment: "柑橘と火打石。",
+				producerComment: "1950年創業の家族経営。",
+			}),
+		);
+		expect(s.note).toContain("【香り・味わい】");
+		expect(s.note).toContain("柑橘と火打石。");
+		expect(s.note).toContain("1950年創業の家族経営。");
+	});
+
+	it("アプリが解説を持っている生産者は、その解説を流用する(モデルの作文より優先)", () => {
+		// producer-info.ts の実データを使う。辞書から解説が消えたらこのテストは落ちる。
+		const known = findProducerInfoByName("Domaine de la Romanée-Conti");
+		expect(known?.info.description).toBeTruthy();
+		const s = buildLabelSuggestions(
+			extraction({
+				wineName: "Romanée-Conti",
+				// 表記揺れ(アクセント無し・小文字)でも辞書を引けること
+				producer: "domaine de la romanee conti",
+				producerComment: "モデルがその場で書いた説明",
+			}),
+		);
+		expect(s.note).toContain(known?.info.description as string);
+		expect(s.note).not.toContain("モデルがその場で書いた説明");
+	});
+
+	it("コメントが無ければ note を持たない", () => {
+		const s = buildLabelSuggestions(extraction({ wineName: "Chablis" }));
+		expect(s.note).toBeUndefined();
+	});
+});
+
+describe("コメントの指示文", () => {
+	it("裏取り経路の指示文はコメントの出力を求め、引き写しを禁じる", () => {
+		for (const prompt of [buildWebLabelPrompt(), buildAgentLabelPrompt()]) {
+			expect(prompt).toContain("tasting_comment");
+			expect(prompt).toContain("producer_comment");
+			expect(prompt).toContain("引き写さない");
+		}
+	});
+
+	it("Workers AI 経路の指示文・スキーマにはコメントを載せない(裏取りが無く創作になる)", () => {
+		expect(LABEL_PROMPT).not.toContain("tasting_comment");
+		expect(LABEL_JSON_SCHEMA.properties).not.toHaveProperty("tasting_comment");
+		expect(LABEL_WEB_JSON_SCHEMA.properties).toHaveProperty("tasting_comment");
+		expect(LABEL_WEB_JSON_SCHEMA.required).toContain("tasting_comment");
+		expect(LABEL_WEB_JSON_SCHEMA.required).toContain("producer_comment");
 	});
 });

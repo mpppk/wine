@@ -1,3 +1,5 @@
+import { normalizeLabelText } from "#/lib/wine/text-normalize";
+
 // 生産者に関する簡単な解説・掲載元・公式サイト。生産者名クリック時の購入リンク
 // ダイアログ(AopDetailPanel の ProducerPurchaseDialog)で表示する。
 //
@@ -1298,6 +1300,42 @@ export const PRODUCER_INFO: Record<string, ProducerInfo> = {
 /** 生産者名から解説・受賞・公式サイトを引く。未登録なら undefined */
 export function getProducerInfo(name: string): ProducerInfo | undefined {
 	return PRODUCER_INFO[name];
+}
+
+/**
+ * 正規化した生産者名 → 辞書のエントリ。**表記揺れのある外部入力から引くための索引**
+ * (#471)。`getProducerInfo` は aops.json の name と一字一句一致する前提の完全一致だが、
+ * エチケット解析が読み取る生産者名は "Château Recougne" / "Chateau Recougne" のように
+ * アクセント・大小文字が揺れる。
+ *
+ * plain object への添字アクセスにしないのも要点で、外部入力の名前が `constructor` /
+ * `__proto__` に解決して継承プロパティを掴むのを構造的に防ぐ(`photoExtForMime` が
+ * `Object.hasOwn` で守っているのと同じ懸念)。
+ */
+const PRODUCER_INFO_BY_NORMALIZED_NAME: Map<
+	string,
+	{ name: string; info: ProducerInfo }
+> = new Map(
+	Object.entries(PRODUCER_INFO).map(([name, info]) => [
+		normalizeLabelText(name),
+		{ name, info },
+	]),
+);
+
+/**
+ * 表記揺れに耐える生産者の逆引き(#471)。解析が読み取った生産者名から、このアプリが
+ * 既に持っている解説(地域情報の生産者ダイアログに出しているもの)を引く。
+ *
+ * **部分一致では引かない**。"Château Margaux" と "Margaux" のような包含関係は別の
+ * 生産者を指しうるため、誤った解説をコメントとして付けるより引けないほうがよい
+ * (`lookupProducer` はモデルに候補を見せる探索なので緩い一致でよい、というのと逆の判断)。
+ */
+export function findProducerInfoByName(
+	name: string,
+): { name: string; info: ProducerInfo } | undefined {
+	const normalized = normalizeLabelText(name);
+	if (!normalized) return undefined;
+	return PRODUCER_INFO_BY_NORMALIZED_NAME.get(normalized);
 }
 
 /**

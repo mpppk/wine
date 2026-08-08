@@ -11,6 +11,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/ui/select";
+import { Textarea } from "#/components/ui/textarea";
+import { NOTE_MAX } from "#/lib/drunk-wine/schema";
 import { WINE_STATUSES, type WineStatus } from "#/lib/drunk-wine/status";
 
 export interface DrunkWineFieldsProps {
@@ -168,6 +170,27 @@ export function DrunkWineFields({
 					onChange={(ids) => onChange({ grapeVarietyIds: ids })}
 				/>
 			</FormSection>
+
+			{/*
+			 * 銘柄についてのコメント(#471)。エチケット解析・一括抽出の高精度経路が
+			 * 香り・味わい(web検索で見つかった表現を踏まえたもの)と生産者の説明を
+			 * 書き込む。飲用記録のメモ(TastingFields)とは別で、まだ飲んでいない
+			 * ワインにも付く。
+			 */}
+			<FormField
+				label="コメント"
+				htmlFor={`${idPrefix}-note`}
+				description="香り・味わいや生産者について。エチケット解析で自動入力されます。"
+			>
+				<Textarea
+					id={`${idPrefix}-note`}
+					value={value.note}
+					onChange={(e) => onChange({ note: e.target.value })}
+					placeholder="例: 白桃や洋梨の香り。生産者は…"
+					maxLength={NOTE_MAX}
+					rows={4}
+				/>
+			</FormField>
 
 			{photoSlot}
 

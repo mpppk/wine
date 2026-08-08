@@ -24,6 +24,7 @@ const BASE: DrunkWineEntry = {
 	vintage: null,
 	grapeVarietyIds: [],
 	producer: null,
+	note: null,
 	price: null,
 	photoUrls: [],
 	thumbUrls: [],

@@ -32,6 +32,12 @@ export const PRICE_MAX = 10_000_000;
 export const NAME_MAX = 200;
 export const MEMO_MAX = 2000;
 export const PRODUCER_MAX = 200;
+/**
+ * 銘柄のコメント(#471)の文字数上限。飲用記録のメモ(MEMO_MAX)と同じ値だが
+ * **別の定数として持つ**。属する対象が違う(銘柄 / 飲用記録)ので、片方だけを
+ * 伸ばしたくなったときに定数の共有が制約にならないようにする。
+ */
+export const NOTE_MAX = 2000;
 
 /** エントリID(crypto.randomUUID)。長さだけの緩い検証で、存在確認はサービス層。 */
 export const entryIdSchema = z.string().min(1).max(80);
@@ -81,6 +87,8 @@ export const drunkWineFields = {
 	grapeVarietyIds: z.array(z.string().max(80)).max(20).optional(),
 	producer: z.string().max(PRODUCER_MAX).optional(),
 	price: z.number().int().min(PRICE_MIN).max(PRICE_MAX).optional(),
+	// 銘柄についてのコメント(香り・味わい・生産者)。解析が付与し、利用者が編集できる
+	note: z.string().max(NOTE_MAX).optional(),
 };
 
 /** 飲用記録(1銘柄に複数持てる) */
@@ -113,6 +121,7 @@ export const updateDrunkWineInput = z.object({
 	grapeVarietyIds: drunkWineFields.grapeVarietyIds.optional(),
 	producer: drunkWineFields.producer.nullable().optional(),
 	price: drunkWineFields.price.nullable().optional(),
+	note: drunkWineFields.note.nullable().optional(),
 });
 
 export const updateWineTastingInput = z.object({

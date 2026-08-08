@@ -50,7 +50,13 @@ function sameIds(a: string[], b: string[]): boolean {
 }
 
 export interface LabelDiffItem {
-	key: "name" | "producer" | "vintage" | "provenance" | "grapeVarietyIds";
+	key:
+		| "name"
+		| "producer"
+		| "vintage"
+		| "provenance"
+		| "grapeVarietyIds"
+		| "note";
 	label: string;
 	/** 表示用。未入力は EMPTY_DISPLAY 文字列 */
 	current: string;
@@ -144,6 +150,19 @@ export function buildLabelDiffs(
 			current: grapeNamesDisplay(values.grapeVarietyIds),
 			suggested: grapeNamesDisplay(s.grapeVarietyIds),
 			patch: { grapeVarietyIds: s.grapeVarietyIds },
+		});
+	}
+
+	// 解析が書いたコメント(#471)。**既存のコメントを黙って置き換えない**ので、
+	// 他の項目と同じく差分として提示して選ばせる(自分で書いた文を上書きされるのは
+	// 名前やヴィンテージを書き換えられるより取り返しがつかない)。
+	if (s.note && s.note !== values.note.trim()) {
+		diffs.push({
+			key: "note",
+			label: "コメント",
+			current: values.note.trim() || EMPTY_DISPLAY,
+			suggested: s.note,
+			patch: { note: s.note },
 		});
 	}
 

@@ -20,6 +20,7 @@ const EMPTY_VALUES: DrunkWineFieldsValue = {
 	regionId: undefined,
 	countryId: undefined,
 	grapeVarietyIds: [],
+	note: "",
 };
 
 const FILLED_VALUES: DrunkWineFieldsValue = {
@@ -32,6 +33,7 @@ const FILLED_VALUES: DrunkWineFieldsValue = {
 	regionId: undefined,
 	countryId: undefined,
 	grapeVarietyIds: ["chardonnay"],
+	note: "白桃の香り",
 };
 
 describe("buildLabelDiffs", () => {
