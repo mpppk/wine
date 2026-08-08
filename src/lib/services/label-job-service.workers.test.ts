@@ -3,7 +3,12 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { subscription } from "#/db/auth-schema";
-import { creditLedger, drunkWine, labelAnalysisJob } from "#/db/schema";
+import {
+	creditLedger,
+	drunkWine,
+	importBatch,
+	labelAnalysisJob,
+} from "#/db/schema";
 import { AI_LABEL_MODEL } from "#/lib/ai/config";
 import {
 	LABEL_JOB_PHOTO_RETENTION_MS,
@@ -15,10 +20,13 @@ import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
 import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import {
 	BadRequestError,
+	ConflictError,
 	NotFoundError,
 	TooManyRequestsError,
 } from "#/lib/errors";
+import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import {
+	adoptLabelJobPhotosToBatch,
 	attachLabelAnalysisJobEntry,
 	consumeLabelAnalysisJob,
 	getLabelAnalysisJob,
@@ -65,6 +73,13 @@ async function seedPremiumUser(): Promise<string> {
 		referenceId: id,
 		status: "active",
 	});
+	return id;
+}
+
+/** 宛先にする一括登録バッチ(#474)。写真はまだ無い状態で作る。 */
+async function seedBatch(userId: string): Promise<string> {
+	const id = crypto.randomUUID();
+	await db.insert(importBatch).values({ id, userId });
 	return id;
 }
 
@@ -700,6 +715,126 @@ describe("完了の受け取り (#462)", () => {
 		for (const key of entry?.photoKeys ?? []) {
 			expect(await env.AVATARS.get(key)).not.toBeNull();
 		}
+	});
+
+	it("バッチへ写真を引き継ぎ、ジョブは所有を手放す (#482)", async () => {
+		const userId = await seedPremiumUser();
+		const { jobId } = await submitOne(userId, 2);
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		const batchId = await seedBatch(userId);
+
+		expect(
+			await adoptLabelJobPhotosToBatch(userId, jobId, batchId),
+		).toMatchObject({ adopted: keys.length });
+
+		const [batch] = await db
+			.select({ photoKeys: importBatch.photoKeys })
+			.from(importBatch)
+			.where(eq(importBatch.id, batchId));
+		expect(batch?.photoKeys).toEqual(keys);
+		// 単一所有にする(両方が同じキーを指すと、片方の掃除でもう片方が壊れる)。
+		expect((await jobRow(jobId))?.photoKeys).toEqual([]);
+		for (const key of keys) {
+			expect(await env.AVATARS.get(key)).not.toBeNull();
+		}
+	});
+
+	it("写真が保存済みのバッチには渡さない (#482)", async () => {
+		// 目撃記録が photoIndex でバッチの写真配列を指すので、後から足すと添字がずれる
+		// (`saveImportBatchPhotos` と同じ排他)。
+		const userId = await seedPremiumUser();
+		const { jobId } = await submitOne(userId);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		const batchId = await seedBatch(userId);
+		await db
+			.update(importBatch)
+			.set({ photoKeys: ["wines/existing/photo.jpg"] })
+			.where(eq(importBatch.id, batchId));
+
+		await expect(
+			adoptLabelJobPhotosToBatch(userId, jobId, batchId),
+		).rejects.toThrow(ConflictError);
+
+		// 弾かれた回はジョブが写真を持ったまま = 引き取り手はまだ現れていない。
+		expect((await jobRow(jobId))?.photoKeys).not.toEqual([]);
+	});
+
+	it("上限を超えるぶんは足さずに捨て、R2からも消す (#482)", async () => {
+		const userId = await seedPremiumUser();
+		const { jobId } = await submitOne(userId);
+		const batchId = await seedBatch(userId);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+
+		// 上限より1枚多いキーをジョブに持たせる(投入の上限は別途 API 側で効くので、
+		// ここは引き継ぎ側の切り詰めだけを見る)。
+		const extra = Array.from(
+			{ length: MAX_PHOTOS_PER_IMPORT_BATCH + 1 },
+			(_v, i) => `wines/${userId}/${jobId}/overflow-${i}.jpg`,
+		);
+		for (const key of extra) {
+			await env.AVATARS.put(key, JPEG_BYTES, {
+				httpMetadata: { contentType: "image/jpeg" },
+			});
+		}
+		await db
+			.update(labelAnalysisJob)
+			.set({ photoKeys: extra })
+			.where(eq(labelAnalysisJob.id, jobId));
+
+		expect(
+			await adoptLabelJobPhotosToBatch(userId, jobId, batchId),
+		).toMatchObject({ adopted: MAX_PHOTOS_PER_IMPORT_BATCH });
+
+		const [batch] = await db
+			.select({ photoKeys: importBatch.photoKeys })
+			.from(importBatch)
+			.where(eq(importBatch.id, batchId));
+		expect(batch?.photoKeys).toHaveLength(MAX_PHOTOS_PER_IMPORT_BATCH);
+		// 溢れたぶんはジョブからも外れる = どこからも参照されないので実体を消す。
+		const droppedKey = extra[MAX_PHOTOS_PER_IMPORT_BATCH];
+		expect(droppedKey).toBeDefined();
+		expect(await env.AVATARS.get(droppedKey as string)).toBeNull();
+		expect(await env.AVATARS.get(extra[0] as string)).not.toBeNull();
+	});
+
+	it("他人のジョブ・他人のバッチには渡さない (#482)", async () => {
+		const owner = await seedPremiumUser();
+		const other = await seedPremiumUser();
+		const { jobId } = await submitOne(owner);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		const othersBatch = await seedBatch(other);
+
+		// 他人のジョブ: 存在を漏らさず黙って何もしない(adoptLabelJobPhotos と同じ)。
+		expect(
+			await adoptLabelJobPhotosToBatch(other, jobId, othersBatch),
+		).toMatchObject({ adopted: 0 });
+		// 他人のバッチ: 自分のジョブでも宛先が他人なら 404。
+		await expect(
+			adoptLabelJobPhotosToBatch(owner, jobId, othersBatch),
+		).rejects.toThrow(NotFoundError);
+
+		expect((await jobRow(jobId))?.photoKeys).not.toEqual([]);
+		const [batch] = await db
+			.select({ photoKeys: importBatch.photoKeys })
+			.from(importBatch)
+			.where(eq(importBatch.id, othersBatch));
+		expect(batch?.photoKeys).toEqual([]);
+	});
+
+	it("走っているジョブでは渡さない(解析がまだ写真を読む) (#482)", async () => {
+		const userId = await seedPremiumUser();
+		const { jobId } = await submitOne(userId);
+		const batchId = await seedBatch(userId);
+
+		expect(
+			await adoptLabelJobPhotosToBatch(userId, jobId, batchId),
+		).toMatchObject({ adopted: 0 });
+		expect((await jobRow(jobId))?.photoKeys).not.toEqual([]);
 	});
 
 	it("解析中と完了を別々に数える", async () => {
