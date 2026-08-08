@@ -197,6 +197,15 @@ function CellarNewPage() {
 						places={places}
 						route={wineListPlan.route}
 						rescan={rescan}
+						// バッジから受け取った一括抽出の結果(#474)。投入せずレビューから始まる。
+						{...(labelJob?.kind === "wine_list" && labelJob.wineList
+							? {
+									receivedJob: {
+										jobId: labelJob.jobId,
+										result: labelJob.wineList,
+									},
+								}
+							: {})}
 						active={manual === null}
 						onSwitchToManual={setManual}
 					/>

@@ -642,6 +642,52 @@ export async function adoptLabelJobPhotos(
 }
 
 /**
+ * 一括抽出に使った写真を、その結果から作った一括登録バッチへ引き継ぐ(#474)。
+ *
+ * エントリ向けの `adoptLabelJobPhotos` と同じ形。ジョブ化でレビュー画面へ戻ってきた
+ * 利用者の手元に `File` が無いため、アップロードし直させずサーバ側で渡す。
+ */
+export async function adoptLabelJobPhotosToBatch(
+	userId: string,
+	jobId: string,
+	batchId: string,
+): Promise<{ adopted: number }> {
+	const [job] = await db
+		.select()
+		.from(labelAnalysisJob)
+		.where(
+			and(eq(labelAnalysisJob.id, jobId), eq(labelAnalysisJob.userId, userId)),
+		)
+		.limit(1);
+	// 他人のジョブ・存在しないIDは黙って何もしない(adoptLabelJobPhotos と同じ理由)。
+	if (!job) return { adopted: 0 };
+	if (job.status !== "succeeded" || job.photoKeys.length === 0) {
+		return { adopted: 0 };
+	}
+
+	const { adopted, dropped } = await drunkWineService.adoptImportBatchPhotoKeys(
+		userId,
+		batchId,
+		job.photoKeys,
+	);
+	// エントリ側と同じ順序: 宛先へ渡してから所有を外す。
+	await db
+		.update(labelAnalysisJob)
+		.set({ photoKeys: [] })
+		.where(
+			and(eq(labelAnalysisJob.id, jobId), eq(labelAnalysisJob.userId, userId)),
+		);
+	await deletePhotoObjects(dropped, { userId, jobId, phase: "adopt-overflow" });
+	logInfo("label analysis job photos adopted by batch", {
+		userId,
+		jobId,
+		batchId,
+		adopted: adopted.length,
+	});
+	return { adopted: adopted.length };
+}
+
+/**
  * 引き継がれないまま受け取り済みになったジョブの写真を回収する(#474)。
  *
  * 成功した回の写真を終端で消さなくなったぶん、**引き取り手が現れなかった回の逃げ道**が

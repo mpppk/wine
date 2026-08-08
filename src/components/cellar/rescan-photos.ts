@@ -10,7 +10,7 @@ import {
 // アプリ内のログイン済み画面から走るので、same-origin の fetch がそのまま通る。
 // 署名URLはCookieが乗らない経路(MCP・埋め込みビュー)のためのもので、ここでは要らない。
 //
-// 取り出した File はそのまま既存の解析経路(analyzeWineListPhotos → downscaleForAnalysis)
+// 取り出した File はそのまま既存の解析経路(submitLabelAnalysisJob → downscaleForAnalysis)
 // と登録後の写真アップロードに渡す。**新しいバッチは自分の写真の実体を持つ**
 // (元バッチと共有しない)ので、どちらを取り消してももう一方の写真は残る。
 

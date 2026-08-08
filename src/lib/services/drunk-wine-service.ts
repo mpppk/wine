@@ -1426,6 +1426,43 @@ export async function syncDrunkWinePhotos(
  * ここで例外にすると「記録は出来たのに写真のせいで失敗した」ことになる。捨てたキーは
  * 呼び出し側が掃除できるよう返す。
  */
+/**
+ * 既に R2 にある写真キーを一括登録バッチへ渡す(#474)。エントリ側の
+ * `appendDrunkWinePhotoKeys` と同じ役割で、宛先がバッチになったもの。
+ *
+ * 一括抽出をジョブ化すると、レビュー画面へ戻ってきた利用者の手元に `File` が無い
+ * (ブラウザを離れているので当然)。解析に使った写真はサーバに残っているので、
+ * アップロードし直させずそのまま渡す。
+ *
+ * **写真が保存済みのバッチには渡さない**(`saveImportBatchPhotos` と同じ排他)。
+ * 目撃記録が `photoIndex` でこの配列を指しているため、後から足すと添字がずれる。
+ */
+export async function adoptImportBatchPhotoKeys(
+	userId: string,
+	batchId: string,
+	keys: string[],
+): Promise<{ adopted: string[]; dropped: string[] }> {
+	const [existing] = await db
+		.select()
+		.from(importBatch)
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+	if (!existing) throw new NotFoundError("Import batch not found");
+	if (existing.photoKeys.length > 0) {
+		throw new ConflictError("このバッチの写真は保存済みです");
+	}
+	// 上限を超えるぶんは足さずに捨てる(引き継ぎは付随的な処理で、ここで例外にすると
+	// 「登録は出来たのに写真のせいで失敗した」ことになる)。捨てたキーは呼び出し側が掃除する。
+	const adopted = keys.slice(0, MAX_PHOTOS_PER_IMPORT_BATCH);
+	const dropped = keys.slice(MAX_PHOTOS_PER_IMPORT_BATCH);
+	if (adopted.length > 0) {
+		await db
+			.update(importBatch)
+			.set({ photoKeys: adopted })
+			.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+	}
+	return { adopted, dropped };
+}
+
 export async function appendDrunkWinePhotoKeys(
 	userId: string,
 	id: string,

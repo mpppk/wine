@@ -116,6 +116,29 @@ export const attachLabelAnalysisJobEntry = createServerFn({ method: "POST" })
 		),
 	);
 
+/**
+ * 一括抽出に使った写真を、その結果から作ったバッチへ引き継ぐ(#474)。
+ *
+ * レビュー画面が**登録に成功した直後**に呼ぶ。ジョブ化で離脱・復帰した回は手元に
+ * `File` が無いので、アップロードの代わりにこれを通る。best-effort(失敗しても登録
+ * そのものは済んでいる)。
+ */
+export const adoptLabelJobPhotosToBatch = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(
+		z.object({
+			jobId: z.string().min(1).max(80),
+			batchId: z.string().min(1).max(80),
+		}),
+	)
+	.handler(async ({ data, context }) =>
+		labelJobService.adoptLabelJobPhotosToBatch(
+			context.user.id,
+			data.jobId,
+			data.batchId,
+		),
+	);
+
 // ---- Web Push の購読(Issue #466) ----
 //
 // エチケット解析の完了通知に使う。**通知は付随物**なので、購読の失敗が解析の導線を
