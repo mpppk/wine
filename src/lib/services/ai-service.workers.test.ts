@@ -24,14 +24,16 @@ import {
 import { costToCredits } from "#/lib/credit/credit-math";
 import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
-import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import {
-	analyzeWineLabel,
-	analyzeWineList,
 	answerRegionQuestion,
 	isWineListAnalysisAvailable,
+	resolveLabelPlan,
+	resolveWineListPlan,
+	runLabelAnalysisForJob,
+	runWineListAnalysisForJob,
 } from "./ai-service";
 import { bulkRegisterFromScan, createDrunkWine } from "./drunk-wine-service";
+import { beginMeteredInference } from "./metered-inference";
 
 // ai-service のクレジット予約まわりを実D1で検証する。vitest.config.ts は AI バインディングを
 // 用意しない(ローカルでもリモート接続を張るため)ので、env.AI はテスト内で差し替える。
@@ -327,6 +329,75 @@ const balanceAfter = (
 const balanceAfterWorkersAi = (model: string, totalTokens: number) =>
 	balanceAfter(model, { outputTokens: totalTokens });
 
+// 同期APIは #480 で削除した。これらのテストが見ているのは**共有の推論本体**
+// (runLabelInference / runWineListInference)の挙動——経路の選択とフォールバック、
+// 予約の確定と返却、実行記録——で、そこは同期経路が消えても変わらない。
+// ジョブ経路の入口(予約 → 実行)を同期経路と同じ戻り値の形に畳んで、テストの本体は
+// そのまま使う。**消してしまうと高精度経路の網が丸ごと無くなる**。
+
+/** 予約 → エチケット解析1回。旧 `analyzeWineLabel` と同じ形を返す。 */
+async function runLabelViaJob(
+	userId: string,
+	input: { imageDataUrls: string[] },
+) {
+	const plan = await resolveLabelPlan(userId, input.imageDataUrls.length);
+	const begun = await beginMeteredInference(userId, {
+		estimate: plan.estimate,
+		requestId: plan.requestId,
+		logBase: plan.logBase,
+	});
+	if (begun.blocked) {
+		return {
+			blocked: true as const,
+			balance: begun.balance,
+			required: begun.required,
+		};
+	}
+	const done = await runLabelAnalysisForJob(userId, {
+		imageDataUrls: input.imageDataUrls,
+		plan,
+		reservation: begun.reservation,
+	});
+	return {
+		blocked: false as const,
+		suggestions: done.value,
+		actualTokens: done.charge.tokens,
+		balance: done.balance,
+	};
+}
+
+/** 予約 → 一括抽出1回。旧 `analyzeWineList` と同じ形を返す。 */
+async function runWineListViaJob(
+	userId: string,
+	input: { imageDataUrls: string[] },
+) {
+	const plan = await resolveWineListPlan(userId, input.imageDataUrls.length);
+	const begun = await beginMeteredInference(userId, {
+		estimate: plan.estimate,
+		requestId: plan.requestId,
+		logBase: plan.logBase,
+	});
+	if (begun.blocked) {
+		return {
+			blocked: true as const,
+			balance: begun.balance,
+			required: begun.required,
+		};
+	}
+	const done = await runWineListAnalysisForJob(userId, {
+		imageDataUrls: input.imageDataUrls,
+		plan,
+		reservation: begun.reservation,
+	});
+	return {
+		blocked: false as const,
+		candidates: done.value.candidates,
+		summary: done.value.summary,
+		actualTokens: done.charge.tokens,
+		balance: done.balance,
+	};
+}
+
 describe("answerRegionQuestion のモデル解決順序 (#245)", () => {
 	it("モデル解決の失敗で予約が無記録で消えない", async () => {
 		// preferredAiModel の解決は userService.getCurrentUser 経由で D1 を読む。
@@ -420,14 +491,14 @@ describe("answerRegionQuestion の予約 → 確定/返却", () => {
 	});
 });
 
-describe("analyzeWineLabel の予約 → 返却", () => {
+describe("エチケット解析の予約 → 返却", () => {
 	it("全ての写真の解析に失敗したら予約を全額返却する", async () => {
 		const userId = await seedUser();
 		stubAiRun(() => Promise.reject(new Error("model error")));
 
 		// 個々の写真の失敗はスキップされるが、全滅なら推論失敗として throw する
 		await expect(
-			analyzeWineLabel(userId, { imageDataUrls: [PHOTO, PHOTO] }),
+			runLabelViaJob(userId, { imageDataUrls: [PHOTO, PHOTO] }),
 		).rejects.toThrow("すべての写真の解析に失敗しました");
 
 		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
@@ -454,7 +525,7 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 		// Claude経路が成功する限り Workers AI には触れない(触れたら失敗として検出される)
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
-		const result = await analyzeWineLabel(userId, {
+		const result = await runLabelViaJob(userId, {
 			imageDataUrls: [PHOTO, PHOTO],
 		});
 
@@ -516,7 +587,7 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 			usage: { total_tokens: 60 },
 		}));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		// Workers AI 経路の実測(60)で確定 = Claude経路のトークンが混ざっていない
 		expect(result).toMatchObject({ blocked: false, actualTokens: 60 });
@@ -546,7 +617,7 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 			usage: { total_tokens: 55 },
 		}));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
 		if (result.blocked) throw new Error("unreachable");
@@ -589,7 +660,7 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 			}),
 		}));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false });
 		const workersAi = costToCredits(
@@ -615,7 +686,7 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 			),
 		);
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false });
 		expect(await balanceOf(userId)).toBe(
@@ -624,21 +695,13 @@ describe("analyzeWineLabel の予約 → 返却", () => {
 		);
 	});
 
-	it("画像が空なら予約せずに 400 で弾く", async () => {
-		const userId = await seedUser();
-
-		await expect(
-			analyzeWineLabel(userId, { imageDataUrls: [] }),
-		).rejects.toThrow();
-
-		// 予約前に落ちるので台帳は空(月次付与すら走らない)
-		expect(await ledgerRowsOf(userId)).toHaveLength(0);
-	});
+	// 入力検証(空・枚数超過)は #480 で投入(`submitLabelAnalysisJob`)の責務になった。
+	// 「予約せずに弾く」の回帰は label-job-service.workers.test.ts が見ている。
 });
 
 // GPT-5.6 Luna 経路。既定エンジンなので「キーがあれば黙って走る」ことと、
 // 「キーが無いときに何へ降格するか」の両方を固定する。
-describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
+describe("エチケット解析のGPT-5.6 Luna経路", () => {
 	it("OPENAI_API_KEY 設定時はGPT経路で解析し、usage内訳とweb検索回数で確定する", async () => {
 		const userId = await seedPremiumUser();
 		stubOpenAi(async () =>
@@ -658,7 +721,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		// GPT経路が成功する限り Workers AI には触れない(触れたら失敗として検出される)
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
-		const result = await analyzeWineLabel(userId, {
+		const result = await runLabelViaJob(userId, {
 			imageDataUrls: [PHOTO, PHOTO],
 		});
 
@@ -712,7 +775,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 			usage: { total_tokens: 55 },
 		}));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
 		if (result.blocked) throw new Error("unreachable");
@@ -756,7 +819,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 			usage: { total_tokens: 55 },
 		}));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
 	});
@@ -781,7 +844,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		// Workers AI へ落ちたらここで失敗する
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 900 });
 	});
@@ -815,7 +878,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		});
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 770 });
 	});
@@ -843,7 +906,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		});
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 1234 });
 	});
@@ -875,7 +938,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 		});
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
-		const result = await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false });
 		// 1回目のリクエストに zoom_photo がツールとして載る
@@ -889,7 +952,7 @@ describe("analyzeWineLabel のGPT-5.6 Luna経路", () => {
 // 複数写真からのワイン一括抽出(Issue #358)。Claude 専用・フォールバック無しの経路なので、
 // 見るのは「予約 → 実測確定 / 失敗時返却」に加えて、**失敗の種類ごとにクレジットが
 // どう扱われるか**(キー未設定は予約前に拒否、出力の打ち切りは返却)。
-describe("analyzeWineList の予約 → 確定/返却", () => {
+describe("一括抽出の予約 → 確定/返却", () => {
 	/** モデルが返す銘柄1件のJSON(省略項目は null / 空配列)。 */
 	function wineJson(partial: Record<string, unknown>): Record<string, unknown> {
 		return {
@@ -936,7 +999,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 			),
 		);
 
-		const result = await analyzeWineList(userId, {
+		const result = await runWineListViaJob(userId, {
 			imageDataUrls: [PHOTO, PHOTO],
 		});
 
@@ -1002,7 +1065,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		// 一括抽出は Workers AI へ降格しない(触れたら失敗として検出される)
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
-		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 3500 });
 		if (result.blocked) throw new Error("unreachable");
@@ -1039,7 +1102,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 				),
 		});
 
-		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 120 });
 		if (result.blocked) throw new Error("unreachable");
@@ -1063,7 +1126,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		);
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
-		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 120 });
 	});
@@ -1088,7 +1151,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		);
 
 		await expect(
-			analyzeWineList(userId, { imageDataUrls: [PHOTO] }),
+			runWineListViaJob(userId, { imageDataUrls: [PHOTO] }),
 		).rejects.toBeInstanceOf(BadRequestError);
 
 		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
@@ -1121,7 +1184,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 			),
 		);
 
-		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		if (result.blocked) throw new Error("unreachable");
 		expect(result.summary.matchedExisting).toBe(1);
@@ -1172,7 +1235,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 			),
 		);
 
-		const result = await analyzeWineList(userId, { imageDataUrls: [PHOTO] });
+		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		if (result.blocked) throw new Error("unreachable");
 		expect(result.summary.matchedExisting).toBe(2);
@@ -1197,7 +1260,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		);
 
 		await expect(
-			analyzeWineList(userId, { imageDataUrls: [PHOTO] }),
+			runWineListViaJob(userId, { imageDataUrls: [PHOTO] }),
 		).rejects.toBeInstanceOf(BadRequestError);
 
 		// 解析結果を受け取れていないので課金しない(予約は全額返却)
@@ -1222,7 +1285,7 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		await expect(
-			analyzeWineList(userId, { imageDataUrls: [PHOTO] }),
+			runWineListViaJob(userId, { imageDataUrls: [PHOTO] }),
 		).rejects.toThrow();
 
 		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
@@ -1237,45 +1300,21 @@ describe("analyzeWineList の予約 → 確定/返却", () => {
 		expect(isWineListAnalysisAvailable()).toBe(false);
 
 		await expect(
-			analyzeWineList(userId, { imageDataUrls: [PHOTO] }),
+			runWineListViaJob(userId, { imageDataUrls: [PHOTO] }),
 		).rejects.toMatchObject({ status: 503 });
 
 		// 予約前に落ちるので台帳は空(月次付与すら走らない)
 		expect(await ledgerRowsOf(userId)).toHaveLength(0);
 	});
 
-	it("画像が空/上限超過なら予約せずに 400 で弾く", async () => {
-		const userId = await seedUser();
-		stubAnthropic(async () =>
-			anthropicMessage(
-				{ wines: [] },
-				{
-					input_tokens: 1,
-					output_tokens: 1,
-				},
-			),
-		);
-
-		await expect(
-			analyzeWineList(userId, { imageDataUrls: [] }),
-		).rejects.toBeInstanceOf(BadRequestError);
-		await expect(
-			analyzeWineList(userId, {
-				imageDataUrls: Array.from(
-					{ length: MAX_PHOTOS_PER_IMPORT_BATCH + 1 },
-					() => PHOTO,
-				),
-			}),
-		).rejects.toBeInstanceOf(BadRequestError);
-
-		expect(await ledgerRowsOf(userId)).toHaveLength(0);
-	});
+	// 入力検証(空・枚数超過)は #480 で投入(`submitLabelAnalysisJob`)の責務になった。
+	// 「予約せずに弾く」の回帰は label-job-service.workers.test.ts が見ている。
 });
 
 // 実行記録(#357 の振り返り)。GPT-5.6 Luna 導入時の本番確認では成功ログが無く、
 // 「警告が出ていない」という失敗の不在からしか成否を判断できなかった。
 // ここでは「成功時に1行出ること」と「フォールバックが成功ログ上で判別できること」を固定する。
-describe("analyzeWineLabel の実行記録ログ", () => {
+describe("エチケット解析の実行記録ログ", () => {
 	/** console.info の JSON 行から ai inference の実行記録だけを拾う。 */
 	function captureInferenceLogs(spy: {
 		mock: { calls: unknown[][] };
@@ -1311,7 +1350,7 @@ describe("analyzeWineLabel の実行記録ログ", () => {
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 
 		try {
-			await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+			await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 			const logs = captureInferenceLogs(spy);
 			expect(logs).toHaveLength(1);
 			expect(logs[0]).toMatchObject({
@@ -1352,7 +1391,7 @@ describe("analyzeWineLabel の実行記録ログ", () => {
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 
 		try {
-			await analyzeWineLabel(userId, { imageDataUrls: [PHOTO] });
+			await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 			const logs = captureInferenceLogs(spy);
 			expect(logs).toHaveLength(1);
 			// route(意図)は gpt-luna のまま、executedBy(実際)が workers-ai になる。
@@ -1389,7 +1428,7 @@ describe("analyzeWineLabel の実行記録ログ", () => {
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 
 		try {
-			const result = await analyzeWineLabel(userId, { imageDataUrls: photos });
+			const result = await runLabelViaJob(userId, { imageDataUrls: photos });
 			expect(result.blocked).toBe(true);
 			const logs = captureInferenceLogs(spy);
 			expect(logs).toHaveLength(1);

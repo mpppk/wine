@@ -119,7 +119,6 @@ import {
 } from "#/lib/images/transform";
 import { logWarn } from "#/lib/logger";
 import { alertOperator } from "#/lib/observability/operator-alert";
-import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import {
@@ -381,23 +380,6 @@ export function labelProviderAvailability(): {
 		anthropic: !!env.ANTHROPIC_API_KEY?.trim(),
 	};
 }
-
-export interface AnalyzeLabelInput {
-	/**
-	 * エチケット画像の data URI(data:image/...;base64,...)の配列。HTTP URLは不可。
-	 * 同一ワインの複数写真を総合判断させる。最低1枚必要。
-	 */
-	imageDataUrls: string[];
-}
-
-export type AnalyzeLabelResult =
-	| { blocked: true; balance: number; required: number }
-	| {
-			blocked: false;
-			suggestions: LabelSuggestions;
-			actualTokens: number;
-			balance: number;
-	  };
 
 /** 高精度経路が返す、抽出結果と観測情報。 */
 interface LabelResearchResult {
@@ -922,60 +904,6 @@ export function labelProviderApiKeys(): {
 }
 
 /**
- * エチケット画像を解析し、マイセラーの自動入力候補を返す。
- * OPENAI_API_KEY / ANTHROPIC_API_KEY 設定時は LLM + web検索の高精度経路(裏取り込みの
- * 総合解析)を使い、キー未設定・実行失敗時は Workers AI(マルチモーダル)へ
- * フォールバックする。どの経路を走らせるかの判断は resolveLabelRoute が SSOT。
- * ユーザがプロフィールで標準(workers-ai)を選んでいる場合はキー設定時でも高精度を使わない。
- * クレジットの予約→実測確定/失敗時返却は answerRegionQuestion と同じ骨格。
- * 応答のパース失敗も「推論失敗」として予約を全額返却する。
- *
- * **同期経路**(1リクエストで完結。フォームが待つ)。ページを離れてよい非同期経路は
- * label-job-service の `submitLabelAnalysisJob` で、推論本体(`runLabelInference`)は
- * 両者で共有する(#460)。
- */
-export async function analyzeWineLabel(
-	userId: string,
-	input: AnalyzeLabelInput,
-): Promise<AnalyzeLabelResult> {
-	if (input.imageDataUrls.length === 0) {
-		throw new BadRequestError("画像が指定されていません");
-	}
-	// env・ユーザ設定(D1読み)の解決は**予約より前**に済ませ、「予約したら必ず try で
-	// 囲まれている」形を保つ(#245 と同じ理由)。
-	const apiKeys = labelProviderApiKeys();
-	const plan = await resolveLabelPlan(userId, input.imageDataUrls.length);
-
-	const result = await runMeteredInference(
-		userId,
-		{
-			estimate: plan.estimate,
-			requestId: plan.requestId,
-			logBase: plan.logBase,
-		},
-		(ctx) =>
-			runLabelInference(
-				userId,
-				{ imageDataUrls: input.imageDataUrls, plan, ...apiKeys },
-				ctx,
-			),
-	);
-	if (result.blocked) {
-		return {
-			blocked: true,
-			balance: result.balance,
-			required: result.required,
-		};
-	}
-	return {
-		blocked: false,
-		suggestions: result.value,
-		actualTokens: result.charge.tokens,
-		balance: result.balance,
-	};
-}
-
-/**
  * 保存済みのジョブから推論を1回走らせ、実測で確定する(#460)。同期経路と**同じ推論本体**を
  * 通し、予約の確定・失敗時返却も同じ骨格(`finishMeteredInference`)に載せる。
  *
@@ -1013,14 +941,6 @@ export async function runLabelAnalysisForJob(
 	);
 }
 
-export interface AnalyzeWineListInput {
-	/**
-	 * ワインリスト/棚の写真の data URI(data:image/...;base64,...)の配列。HTTP URL は不可。
-	 * 最低1枚・最大 MAX_PHOTOS_PER_IMPORT_BATCH 枚。
-	 */
-	imageDataUrls: string[];
-}
-
 /** レビュー画面のサマリ(「23銘柄を検出(重複3件を統合・既存と2件一致)」)の材料。 */
 export interface WineListAnalysisSummary {
 	/** 統合後の銘柄数(= candidates.length)。 */
@@ -1037,16 +957,6 @@ export interface WineListAnalysisSummary {
 	/** 列挙しきれなかった銘柄が残っているか。UI は写真を分けての再解析を案内する。 */
 	truncated: boolean;
 }
-
-export type AnalyzeWineListResult =
-	| { blocked: true; balance: number; required: number }
-	| {
-			blocked: false;
-			candidates: WineListCandidate[];
-			summary: WineListAnalysisSummary;
-			actualTokens: number;
-			balance: number;
-	  };
 
 /**
  * 一括抽出でユーザに対して**実際に走る経路**。返せる経路が無ければ `null`(#426)。
@@ -1345,91 +1255,4 @@ export async function runWineListAnalysisForJob(
 				ctx,
 			),
 	);
-}
-
-/**
- * 複数写真からワインの銘柄を一括抽出し、レビュー画面に出す候補を返す(Issue #358)。
- *
- * distinct は2段階:
- *  1. バッチ内の重複統合(モデルにも指示しているが、その取りこぼしの保険)
- *  2. 既存セラーとの突合(一致したものは新規作成ではなく目撃記録の追加候補にする)
- *
- * クレジットは他のAI経路と同じ 予約 → 実測確定 / 失敗時返却 の骨格。既存セラーの
- * 読み出しは**予約より前**に済ませ、「予約したら必ず try で囲まれている」形を保つ(#245)。
- */
-export async function analyzeWineList(
-	userId: string,
-	input: AnalyzeWineListInput,
-): Promise<AnalyzeWineListResult> {
-	if (input.imageDataUrls.length === 0) {
-		throw new BadRequestError("画像が指定されていません");
-	}
-	if (input.imageDataUrls.length > MAX_PHOTOS_PER_IMPORT_BATCH) {
-		throw new BadRequestError(
-			`写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです`,
-		);
-	}
-	// 経路の解決(env + ユーザ設定の D1 読み)は**予約より前**に済ませ、「予約したら
-	// 必ず try で囲まれている」形を保つ(#245)。
-	const route = await resolveWineListRouteForUser(userId);
-	if (!route) {
-		// UI 側は isWineListAnalysisAvailable で導線ごと隠すので、ここに来るのは
-		// 直接APIを叩かれた場合。機能が無効な環境であることを 503 で明示する。
-		throw new HttpError(
-			503,
-			"この環境では写真からの一括登録を利用できません。管理者にお問い合わせください。",
-		);
-	}
-	const apiKey = (
-		route === "gpt-luna" ? env.OPENAI_API_KEY : env.ANTHROPIC_API_KEY
-	)?.trim();
-	// resolveWineListRoute はキーの設定状況から経路を選ぶので、ここが空になるのは
-	// 解決とキーの読み出しがズレたときだけ。型を絞るためのガード。
-	if (!apiKey) {
-		throw new HttpError(
-			503,
-			"この環境では写真からの一括登録を利用できません。管理者にお問い合わせください。",
-		);
-	}
-
-	// 既存セラーとの突合材料。D1 読みなので予約より前に済ませる(#245)。
-	const { entries } = await drunkWineService.listDrunkWines(userId);
-	const estimate = estimateWineListReserveCharge(
-		route,
-		input.imageDataUrls.length,
-	);
-	const model = AI_WINE_LIST_ROUTE_MODELS[route];
-	const requestId = `scan_list:${crypto.randomUUID()}`;
-	const logBase = {
-		feature: "wine_list_analysis",
-		// 一括抽出はフォールバックを持たない(#358)ので、選択と実行経路は常に一致する。
-		selected: route,
-		route,
-		model,
-		photoCount: input.imageDataUrls.length,
-	} as const;
-
-	const result = await runMeteredInference(
-		userId,
-		{ estimate, requestId, logBase },
-		(ctx) =>
-			runWineListInference(
-				{ imageDataUrls: input.imageDataUrls, route, apiKey, entries },
-				ctx,
-			),
-	);
-	if (result.blocked) {
-		return {
-			blocked: true,
-			balance: result.balance,
-			required: result.required,
-		};
-	}
-	return {
-		blocked: false,
-		candidates: result.value.candidates,
-		summary: result.value.summary,
-		actualTokens: result.charge.tokens,
-		balance: result.balance,
-	};
 }
