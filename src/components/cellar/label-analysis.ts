@@ -1,6 +1,8 @@
 import { downscaleForAnalysis } from "#/components/cellar/photo-resize";
+import { DEFAULT_LABEL_JOB_KIND, type LabelJobKind } from "#/lib/ai/label-job";
 import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import { postImageForm } from "#/lib/images/form-client";
+import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import type {
 	LabelAnalysisJobBadge,
 	LabelAnalysisJobView,
@@ -74,13 +76,22 @@ async function buildAnalysisForm(
  */
 export async function submitLabelAnalysisJob(
 	sources: AnalysisPhotoSource[],
+	/** 解析の種別(#474)。既定はエチケット解析(1本)。 */
+	kind: LabelJobKind = DEFAULT_LABEL_JOB_KIND,
 ): Promise<SubmitLabelAnalysisJobResult> {
+	const form = await buildAnalysisForm(sources);
+	// 既定と同じでも送る(サーバ側の分岐が「省略 = label」に依存し続けないように)。
+	form.append("kind", kind);
 	return postImageForm<SubmitLabelAnalysisJobResult>(
 		"/api/label-analysis-jobs",
-		await buildAnalysisForm(sources),
+		form,
 		{
 			fallbackMessage: "解析の受付に失敗しました",
-			maxPhotos: MAX_PHOTOS_PER_ENTRY,
+			// 枚数の上限は種別で違う(一括抽出はリストや棚を分割して撮るぶん多い)。
+			maxPhotos:
+				kind === "wine_list"
+					? MAX_PHOTOS_PER_IMPORT_BATCH
+					: MAX_PHOTOS_PER_ENTRY,
 		},
 	);
 }

@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { DEFAULT_LABEL_JOB_KIND, LABEL_JOB_KINDS } from "#/lib/ai/label-job";
+import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import { HttpError } from "#/lib/errors";
 import {
 	apiJson,
@@ -8,6 +10,7 @@ import {
 	requireApiSession,
 } from "#/lib/images/form-api";
 import { logError } from "#/lib/logger";
+import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import { buildPendingNotification } from "#/lib/push/notification";
 import {
 	consumeLabelAnalysisJob,
@@ -43,10 +46,33 @@ export const Route = createFileRoute("/api/label-analysis-jobs")({
 				const session = await requireApiSession(request);
 				if (session instanceof Response) return session;
 
-				const formData = await readImageFormData(request);
+				// **ボディの上限は多いほうの種別で取る**(#474)。種別は formData の中にあり、
+				// 読む前には分からない。ここを枚数の上限として使うのではなく、枚数は種別が
+				// 分かってから `readPhotoFiles` で締める。
+				const formData = await readImageFormData(
+					request,
+					MAX_PHOTOS_PER_IMPORT_BATCH,
+				);
 				if (formData instanceof Response) return formData;
 
-				const files = readPhotoFiles(formData);
+				// 解析の種別(#474)。既定はエチケット解析で、一括抽出は明示指定する。
+				// **許可リストで照合する**(未知の値は 400)——素通しにすると、枚数の上限や
+				// 見積の分岐に想定外の値が流れる。
+				const rawKind = formData.get("kind");
+				const kind =
+					typeof rawKind === "string" && rawKind.length > 0
+						? LABEL_JOB_KINDS.find((k) => k === rawKind)
+						: DEFAULT_LABEL_JOB_KIND;
+				if (!kind) return apiJsonError("対応していない解析種別です", 400);
+
+				// 枚数の上限は種別で違う。サービス層も同じ判定を持つが、**大きすぎる
+				// リクエストをバイト列に展開する前に**ここで落とす。
+				const files = readPhotoFiles(
+					formData,
+					kind === "wine_list"
+						? MAX_PHOTOS_PER_IMPORT_BATCH
+						: MAX_PHOTOS_PER_ENTRY,
+				);
 				if (files instanceof Response) return files;
 
 				try {
@@ -56,7 +82,9 @@ export const Route = createFileRoute("/api/label-analysis-jobs")({
 							mimeType: file.type,
 						})),
 					);
-					return apiJson(await submitLabelAnalysisJob(session.user.id, photos));
+					return apiJson(
+						await submitLabelAnalysisJob(session.user.id, photos, kind),
+					);
 				} catch (e) {
 					// 入力起因(枚数超過・画像偽装・同時実行上限)は本人が行動できるので
 					// そのまま返す。それ以外は固定文言にして文脈をサーバ側にだけ残す(#156)。
