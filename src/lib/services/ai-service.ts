@@ -120,6 +120,7 @@ import {
 import { logWarn } from "#/lib/logger";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
+import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import {
 	type FinishMeteredInferenceResult,
@@ -1176,6 +1177,174 @@ async function extractWineListWithGpt(
 	return { parsed, usage };
 }
 
+/** 一括抽出の結果。ジョブ行にもこの形で載る(#474)。 */
+export interface WineListAnalysisOutcome {
+	candidates: WineListCandidate[];
+	summary: WineListAnalysisSummary;
+}
+
+/**
+ * 一括抽出の**推論本体**(#474)。同期経路(`analyzeWineList`)とジョブ経路
+ * (`runWineListAnalysisForJob`)が共有する。エチケット解析の `runLabelInference` と
+ * 同じ役割で、**予約済みの文脈でしか呼んではいけない**ためモジュール外へ出さない。
+ *
+ * 既存セラー(`entries`)を引数で受け取るのは、同期経路が**予約より前**に読む必要が
+ * あるため(#245)。ジョブ経路は予約が投入時に済んでいるので、呼び出し側が読んでから渡す。
+ */
+async function runWineListInference(
+	input: {
+		imageDataUrls: string[];
+		route: WineListRoute;
+		apiKey: string;
+		entries: DrunkWineEntry[];
+	},
+	ctx: MeteredInferenceContext,
+): Promise<MeteredInferenceOutput<WineListAnalysisOutcome>> {
+	// **フォールバックは持たない**。片方の失敗でもう一方を叩くと、失敗した推論の
+	// 原価に加えてもう1回ぶんの消費が乗る(#404 と同種の問題を作らない)。
+	const { parsed, usage } =
+		input.route === "gpt-luna"
+			? await extractWineListWithGpt(input.apiKey, input.imageDataUrls)
+			: await extractWineListWithClaude(input.apiKey, input.imageDataUrls);
+	const deduped = dedupeWineListItems(parsed.wines);
+	const candidates = matchExistingEntries(
+		buildWineListCandidates(deduped.items),
+		input.entries,
+	);
+	const summary: WineListAnalysisSummary = {
+		detected: candidates.length,
+		subject: parsed.subject,
+		mergedDuplicates: deduped.mergedCount,
+		matchedExisting: candidates.filter((c) => !!c.existing).length,
+		truncated: parsed.truncated,
+	};
+	// 実測が取れなければ予約全量を実測とみなす。経路はユーザ設定で変わるが
+	// **経路間のフォールバックが無い**(#426)ので、予約はこの推論を実行した経路の
+	// 見積そのものであり、そのまま「実行された経路の見積」でもある(#404)。
+	const measured = chargeFor(AI_WINE_LIST_ROUTE_MODELS[input.route], usage);
+	const charge =
+		measured.microUsd > 0 ? measured : fallbackCharge(ctx.reservedMicroUsd);
+	// フォールバックが無いので実行経路は常に選択経路と一致する。
+	ctx.addLogFields({ executedBy: input.route });
+	return { value: { candidates, summary }, charge };
+}
+
+/** 一括抽出ジョブの実行計画(#474)。`LabelPlan` と同じ役割・同じ使われ方。 */
+export interface WineListPlan {
+	route: WineListRoute;
+	estimate: CreditCharge;
+	requestId: string;
+	logBase: MeteredInferenceLogBase;
+	photoCount: number;
+}
+
+/** 経路と枚数から、全ての結末に載る静的な実行メタデータを組む。 */
+function buildWineListLogBase(options: {
+	route: WineListRoute;
+	photoCount: number;
+}): MeteredInferenceLogBase {
+	return {
+		feature: "wine_list_analysis",
+		// 一括抽出はフォールバックを持たない(#358)ので、選択と実行経路は常に一致する。
+		selected: options.route,
+		route: options.route,
+		model: AI_WINE_LIST_ROUTE_MODELS[options.route],
+		photoCount: options.photoCount,
+	};
+}
+
+/**
+ * 一括抽出ジョブの計画を立てる(#474)。**予約より前**に呼ぶ(D1読み + env 解決。#245)。
+ * 使える経路が無い環境は 503——この機能は Workers AI へ降格しない(#358)。
+ */
+export async function resolveWineListPlan(
+	userId: string,
+	photoCount: number,
+): Promise<WineListPlan> {
+	const route = await resolveWineListRouteForUser(userId);
+	if (!route) {
+		throw new HttpError(
+			503,
+			"この環境では写真からの一括登録を利用できません。管理者にお問い合わせください。",
+		);
+	}
+	return {
+		route,
+		estimate: estimateWineListReserveCharge(route, photoCount),
+		requestId: `scan_list:${crypto.randomUUID()}`,
+		logBase: buildWineListLogBase({ route, photoCount }),
+		photoCount,
+	};
+}
+
+/**
+ * 保存済みのジョブから計画を復元する。**経路は再解決しない**——予約は投入時の経路の
+ * 見積で立っているため、コンシューマ側で解決し直すと予約と実行が食い違う
+ * (`restoreLabelPlan` と同じ理由)。
+ */
+export function restoreWineListPlan(saved: {
+	route: WineListRoute;
+	photoCount: number;
+	requestId: string;
+}): WineListPlan {
+	return {
+		route: saved.route,
+		estimate: estimateWineListReserveCharge(saved.route, saved.photoCount),
+		requestId: saved.requestId,
+		logBase: buildWineListLogBase(saved),
+		photoCount: saved.photoCount,
+	};
+}
+
+/**
+ * 保存済みのジョブから一括抽出を1回走らせ、実測で確定する(#474)。
+ * 同期経路と**同じ推論本体**を通す(`runLabelAnalysisForJob` と同じ形)。
+ */
+export async function runWineListAnalysisForJob(
+	userId: string,
+	input: {
+		imageDataUrls: string[];
+		plan: WineListPlan;
+		reservation: MeteredInferenceReservation;
+		startedAt?: number;
+	},
+): Promise<FinishMeteredInferenceResult<WineListAnalysisOutcome>> {
+	if (input.imageDataUrls.length === 0) {
+		throw new BadRequestError("画像が指定されていません");
+	}
+	const apiKey = (
+		input.plan.route === "gpt-luna" ? env.OPENAI_API_KEY : env.ANTHROPIC_API_KEY
+	)?.trim();
+	// 投入から実行までの間にシークレットが外れた場合。経路は再解決しない規約なので、
+	// 実行できないことを失敗として扱う(予約は finishMeteredInference が返却する)。
+	if (!apiKey) {
+		throw new HttpError(
+			503,
+			"この環境では写真からの一括登録を利用できません。管理者にお問い合わせください。",
+		);
+	}
+	// 既存セラーとの突合材料。予約は投入時に済んでいるので、ここで読んでよい。
+	const { entries } = await drunkWineService.listDrunkWines(userId);
+	return finishMeteredInference(
+		userId,
+		{
+			reservation: input.reservation,
+			logBase: input.plan.logBase,
+			...(input.startedAt === undefined ? {} : { startedAt: input.startedAt }),
+		},
+		(ctx) =>
+			runWineListInference(
+				{
+					imageDataUrls: input.imageDataUrls,
+					route: input.plan.route,
+					apiKey,
+					entries,
+				},
+				ctx,
+			),
+	);
+}
+
 /**
  * 複数写真からワインの銘柄を一括抽出し、レビュー画面に出す候補を返す(Issue #358)。
  *
@@ -1241,35 +1410,11 @@ export async function analyzeWineList(
 	const result = await runMeteredInference(
 		userId,
 		{ estimate, requestId, logBase },
-		async (ctx) => {
-			// **フォールバックは持たない**。片方の失敗でもう一方を叩くと、失敗した推論の
-			// 原価に加えてもう1回ぶんの消費が乗る(#404 と同種の問題を作らない)。
-			const { parsed, usage } =
-				route === "gpt-luna"
-					? await extractWineListWithGpt(apiKey, input.imageDataUrls)
-					: await extractWineListWithClaude(apiKey, input.imageDataUrls);
-			const deduped = dedupeWineListItems(parsed.wines);
-			const candidates = matchExistingEntries(
-				buildWineListCandidates(deduped.items),
-				entries,
-			);
-			const summary: WineListAnalysisSummary = {
-				detected: candidates.length,
-				subject: parsed.subject,
-				mergedDuplicates: deduped.mergedCount,
-				matchedExisting: candidates.filter((c) => !!c.existing).length,
-				truncated: parsed.truncated,
-			};
-			// 実測が取れなければ予約全量を実測とみなす。経路はユーザ設定で変わるが
-			// **経路間のフォールバックが無い**(#426)ので、予約はこの推論を実行した経路の
-			// 見積そのものであり、そのまま「実行された経路の見積」でもある(#404)。
-			const measured = chargeFor(model, usage);
-			const charge =
-				measured.microUsd > 0 ? measured : fallbackCharge(ctx.reservedMicroUsd);
-			// フォールバックが無いので実行経路は常に選択経路と一致する。
-			ctx.addLogFields({ executedBy: route });
-			return { value: { candidates, summary }, charge };
-		},
+		(ctx) =>
+			runWineListInference(
+				{ imageDataUrls: input.imageDataUrls, route, apiKey, entries },
+				ctx,
+			),
 	);
 	if (result.blocked) {
 		return {

@@ -2,14 +2,17 @@ import { env } from "cloudflare:workers";
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { drunkWine, labelAnalysisJob } from "#/db/schema";
+import type { WineListRoute } from "#/lib/ai/config";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import {
+	DEFAULT_LABEL_JOB_KIND,
 	isTerminalLabelJobStatus,
 	LABEL_JOB_FAILED_ERROR_MESSAGE,
 	LABEL_JOB_PHOTO_RETENTION_MS,
 	LABEL_JOB_QUEUE_STALE_MS,
 	LABEL_JOB_STALE_ERROR_MESSAGE,
 	LABEL_JOB_STALE_MS,
+	type LabelJobKind,
 	type LabelJobStatus,
 	MAX_CONCURRENT_LABEL_JOBS,
 } from "#/lib/ai/label-job";
@@ -24,10 +27,17 @@ import {
 	TooManyRequestsError,
 } from "#/lib/errors";
 import { logError, logInfo, logWarn } from "#/lib/logger";
+import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import {
+	type LabelPlan,
 	resolveLabelPlan,
+	resolveWineListPlan,
 	restoreLabelPlan,
+	restoreWineListPlan,
 	runLabelAnalysisForJob,
+	runWineListAnalysisForJob,
+	type WineListAnalysisOutcome,
+	type WineListPlan,
 } from "#/lib/services/ai-service";
 import * as creditService from "#/lib/services/credit-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
@@ -90,6 +100,13 @@ export interface LabelAnalysisJobView {
 	 * 「新規登録」と「そのワインを編集」を振り分ける。
 	 */
 	entryId?: string;
+	/**
+	 * 解析の種別(#474)。受け取り導線がここを見て行き先を決める——`label` なら記録
+	 * フォーム、`wine_list` なら一括登録のレビュー画面。
+	 */
+	kind: LabelJobKind;
+	/** 一括抽出の結果。`kind === "wine_list"` の成功時だけ入る(#474)。 */
+	wineList?: WineListAnalysisOutcome;
 }
 
 /** 未終端(= まだ枠を占有している)状態。 */
@@ -125,12 +142,18 @@ export interface LabelAnalysisJobBadge {
 export async function submitLabelAnalysisJob(
 	userId: string,
 	photos: LabelJobPhotoInput[],
+	/** 解析の種別(#474)。既定はエチケット解析(1本)。 */
+	kind: LabelJobKind = DEFAULT_LABEL_JOB_KIND,
 ): Promise<SubmitLabelAnalysisJobResult> {
 	if (photos.length === 0) {
 		throw new BadRequestError("画像が指定されていません");
 	}
-	if (photos.length > MAX_PHOTOS_PER_ENTRY) {
-		throw new BadRequestError(`写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`);
+	// **枚数の上限は種別で違う**。エチケット解析は1本ぶんの写真(表・裏など)で
+	// エントリの上限に揃え、一括抽出はリストや棚を分割して撮るぶん多く受ける。
+	const maxPhotos =
+		kind === "wine_list" ? MAX_PHOTOS_PER_IMPORT_BATCH : MAX_PHOTOS_PER_ENTRY;
+	if (photos.length > maxPhotos) {
+		throw new BadRequestError(`写真は最大${maxPhotos}枚までです`);
 	}
 	// 保存する Content-Type は申告値ではなく実バイト(マジックバイト)から確定する。
 	// 中身がHTML/スクリプト等の画像偽装や、申告と実フォーマットの食い違いを拒否する(#150)。
@@ -162,7 +185,10 @@ export async function submitLabelAnalysisJob(
 	}
 
 	// D1読み・env解決は**予約より前**(#245)。
-	const plan = await resolveLabelPlan(userId, photos.length);
+	const plan =
+		kind === "wine_list"
+			? await resolveWineListPlan(userId, photos.length)
+			: await resolveLabelPlan(userId, photos.length);
 	const begun = await beginMeteredInference(userId, {
 		estimate: plan.estimate,
 		requestId: plan.requestId,
@@ -201,8 +227,10 @@ export async function submitLabelAnalysisJob(
 			requestId: reservation.requestId,
 			reservedCredits: reservation.reservedCredits,
 			reservedMicroUsd: reservation.reservedMicroUsd,
-			selectedEngine: plan.engine,
+			// 一括抽出は経路のフォールバックを持たない(#358)ので、選択 = 実行経路。
+			selectedEngine: "engine" in plan ? plan.engine : plan.route,
 			route: plan.route,
+			kind,
 		});
 		// **行を作ってから enqueue する**。逆にするとコンシューマが行の無いジョブIDを
 		// 受け取りうる(キューは配信が速い)。行があって未配信なら stale で決着できるが、
@@ -273,12 +301,20 @@ export async function runLabelAnalysisJob(jobId: string): Promise<void> {
 		return;
 	}
 
-	const plan = restoreLabelPlan({
-		engine: job.selectedEngine,
-		route: job.route,
-		photoCount: job.photoCount,
-		requestId: job.requestId,
-	});
+	// **経路は再解決しない**(投入時の見積で予約が立っているため)。種別で復元先が違う。
+	const isWineList = job.kind === "wine_list";
+	const plan = isWineList
+		? restoreWineListPlan({
+				route: job.route as WineListRoute,
+				photoCount: job.photoCount,
+				requestId: job.requestId,
+			})
+		: restoreLabelPlan({
+				engine: job.selectedEngine,
+				route: job.route,
+				photoCount: job.photoCount,
+				requestId: job.requestId,
+			});
 	const reservation: MeteredInferenceReservation = {
 		requestId: job.requestId,
 		reservedCredits: job.reservedCredits,
@@ -310,17 +346,33 @@ export async function runLabelAnalysisJob(jobId: string): Promise<void> {
 	}
 
 	try {
-		const done = await runLabelAnalysisForJob(job.userId, {
-			imageDataUrls,
-			plan,
-			reservation,
-			startedAt,
-		});
-		await finishJob(
-			jobId,
-			{ suggestions: done.value, actualTokens: done.charge.tokens },
-			job.photoKeys,
-		);
+		// 種別で違うのは**推論の中身と結果の置き場だけ**。予約の確定・失敗時返却も、
+		// ジョブ行の終端化も、この後は共通の経路を通る。
+		if (isWineList) {
+			const done = await runWineListAnalysisForJob(job.userId, {
+				imageDataUrls,
+				plan: plan as WineListPlan,
+				reservation,
+				startedAt,
+			});
+			await finishJob(
+				jobId,
+				{ wineList: done.value, actualTokens: done.charge.tokens },
+				job.photoKeys,
+			);
+		} else {
+			const done = await runLabelAnalysisForJob(job.userId, {
+				imageDataUrls,
+				plan: plan as LabelPlan,
+				reservation,
+				startedAt,
+			});
+			await finishJob(
+				jobId,
+				{ suggestions: done.value, actualTokens: done.charge.tokens },
+				job.photoKeys,
+			);
+		}
 	} catch (e) {
 		// 予約の返却と failed の実行記録は runLabelAnalysisForJob(finishMeteredInference)が
 		// 済ませている。ここでやるのはジョブ行の終端化だけ。
@@ -742,6 +794,7 @@ async function finishJob(
 	jobId: string,
 	outcome:
 		| { suggestions: LabelSuggestions; actualTokens: number }
+		| { wineList: WineListAnalysisOutcome; actualTokens: number }
 		| { error: string },
 	photoKeys: string[],
 ): Promise<void> {
@@ -753,7 +806,11 @@ async function finishJob(
 				? { status: "failed" as const, error: outcome.error }
 				: {
 						status: "succeeded" as const,
-						suggestions: outcome.suggestions,
+						// 結果の置き場は種別で分ける(同じ列に両方入れると読む側が毎回
+						// 種別で分岐しながら unknown を絞ることになる)。
+						...("wineList" in outcome
+							? { wineListResult: outcome.wineList }
+							: { suggestions: outcome.suggestions }),
 						actualTokens: outcome.actualTokens,
 					}),
 			finishedAt: new Date(),
@@ -842,8 +899,12 @@ function toJobView(job: LabelAnalysisJobRow): LabelAnalysisJobView {
 		status: job.status,
 		photoCount: job.photoCount,
 		route: job.route,
+		kind: job.kind,
 		...(job.suggestions
 			? { suggestions: job.suggestions as LabelSuggestions }
+			: {}),
+		...(job.wineListResult
+			? { wineList: job.wineListResult as WineListAnalysisOutcome }
 			: {}),
 		...(job.actualTokens === null ? {} : { actualTokens: job.actualTokens }),
 		...(job.error ? { error: job.error } : {}),
