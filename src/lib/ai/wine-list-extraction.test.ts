@@ -876,3 +876,77 @@ describe("写真の手当て(bottle_photo_index / image_url / image_note)", () =
 		expect(prompt).toContain("URLを創作しない");
 	});
 });
+
+// ---- 銘柄ごとのコメント(#493) ---------------------------------------------
+// 写真から1本を登録する主要導線はこの一括抽出しか通らないため、#471 のコメントを
+// 全銘柄ぶんここでも出す。
+
+describe("一括抽出のコメント", () => {
+	it("銘柄ごとに香り・味わいと生産者のコメントを取り出す", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({
+						wine_name: "Barolo",
+						tasting_comment: "タールと薔薇。堅牢なタンニン。",
+						producer_comment: "家族経営のカンティーナ。",
+					}),
+				],
+			}),
+			1,
+		);
+		expect(wines[0]?.tastingComment).toBe("タールと薔薇。堅牢なタンニン。");
+		expect(wines[0]?.producerComment).toBe("家族経営のカンティーナ。");
+	});
+
+	it("コメントは候補の note に畳まれる(エチケット解析と同じ組み立て)", () => {
+		const [candidate] = buildWineListCandidates([
+			item({
+				wineName: "Barolo",
+				tastingComment: "タールと薔薇。",
+				producerComment: "家族経営のカンティーナ。",
+			}),
+		]);
+		expect(candidate?.suggestions.note).toContain("【香り・味わい】");
+		expect(candidate?.suggestions.note).toContain("タールと薔薇。");
+		expect(candidate?.suggestions.note).toContain("【生産者】");
+	});
+
+	it("コメントを持たない応答も従来どおりパースできる", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({ wines: [wineJson({ wine_name: "Barolo" })] }),
+			1,
+		);
+		expect(wines[0]?.tastingComment).toBeUndefined();
+		expect(wines[0]?.producerComment).toBeUndefined();
+	});
+
+	it("コメントの形が壊れていても銘柄は落とさない(付随情報は throw しない)", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [wineJson({ wine_name: "Barolo", tasting_comment: 42 })],
+			}),
+			1,
+		);
+		expect(wines).toHaveLength(1);
+		expect(wines[0]?.wineName).toBe("Barolo");
+	});
+
+	it("重複統合ではコメントも先勝ちで埋める", () => {
+		const { items } = dedupeWineListItems([
+			item({ wineName: "Barolo", producer: "X" }),
+			item({ wineName: "Barolo", producer: "X", tastingComment: "タール。" }),
+		]);
+		expect(items).toHaveLength(1);
+		expect(items[0]?.tastingComment).toBe("タール。");
+	});
+
+	it("指示文は全銘柄ぶんのコメントを求めつつ、簡潔さを要求する", () => {
+		const prompt = buildWineListPrompt(2);
+		expect(prompt).toContain("tasting_comment");
+		expect(prompt).toContain("producer_comment");
+		// 80銘柄ぶん積むと出力上限に触れるので、短く保たせるのが歯止め
+		expect(prompt).toContain("1〜2文");
+		expect(prompt).toContain("引き写さない");
+	});
+});

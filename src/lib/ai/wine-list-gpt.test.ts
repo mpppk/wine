@@ -3,6 +3,7 @@ import {
 	countGptWebSearchCalls,
 	findGptRefusal,
 	toGptUsage,
+	WINE_LIST_JSON_SCHEMA,
 } from "./wine-list-gpt";
 
 // 一括抽出の GPT 経路は**生の Responses API を直接叩く**(エチケット解析は #455 の実測を
@@ -104,5 +105,35 @@ describe("toGptUsage", () => {
 			0,
 		);
 		expect(usage.cacheWriteTokens ?? 0).toBe(0);
+	});
+});
+
+describe("WINE_LIST_JSON_SCHEMA", () => {
+	it("strict の要件(全 properties が required + 追加禁止)を銘柄1件でも満たす", () => {
+		// strict:true は満たさないとリクエストごと 400 になる。フィールドを足したときに
+		// required への追加を忘れると、ここで落ちる。
+		const item = WINE_LIST_JSON_SCHEMA.properties.wines.items;
+		expect(item.additionalProperties).toBe(false);
+		expect([...item.required].sort()).toEqual(
+			Object.keys(item.properties).sort(),
+		);
+		expect(WINE_LIST_JSON_SCHEMA.additionalProperties).toBe(false);
+		expect([...WINE_LIST_JSON_SCHEMA.required].sort()).toEqual(
+			Object.keys(WINE_LIST_JSON_SCHEMA.properties).sort(),
+		);
+	});
+
+	it("銘柄ごとのコメント(#493)と写真の手当て(#473)を載せる", () => {
+		const item = WINE_LIST_JSON_SCHEMA.properties.wines.items;
+		for (const key of [
+			"tasting_comment",
+			"producer_comment",
+			"bottle_photo_index",
+			"image_url",
+			"image_note",
+		]) {
+			expect(item.properties).toHaveProperty(key);
+			expect(item.required).toContain(key);
+		}
 	});
 });

@@ -10,6 +10,7 @@ import {
 	extractJsonPayload,
 	type LabelExtraction,
 	type LabelSuggestions,
+	labelCommentShape,
 	labelExtractionShape,
 	matchAop,
 	normalizeLabelText,
@@ -88,9 +89,47 @@ export const WINE_LIST_PHOTO_KEYS = Object.keys(
 
 export type WineListPhotoKey = (typeof WINE_LIST_PHOTO_KEYS)[number];
 
+/**
+ * 銘柄ごとのコメント(#493)。**一括抽出でも全銘柄に出す**。
+ *
+ * #471 はコメントをエチケット解析の経路にだけ載せた(80銘柄 × 2〜3文で出力上限を
+ * 圧迫するのを避けるため)が、写真から1本を登録する主要導線は
+ * `subject: single_wine` の判定を経てもこの一括抽出しか通らない。結果として
+ * 機能が主要導線に届いていなかった。
+ *
+ * **文量を1〜2文に絞る**のがここでの歯止め。`AI_WINE_LIST_MAX_OUTPUT_TOKENS`
+ * (20,000)は Anthropic の非ストリーミング上限(約21,000)が天井で、これ以上は
+ * 枠を広げられない(config.ts の同定数のコメント参照)。溢れた回は従来どおり
+ * `truncated` として「写真を分けて再解析」を案内する。
+ *
+ * 受け取りは `toLabelExtraction` がエチケット解析と共有する(キー名を合わせてある
+ * ので、パースの揺れ吸収も1箇所のまま)。
+ */
+export const WINE_LIST_COMMENT_JSON_PROPERTIES = {
+	tasting_comment: {
+		type: ["string", "null"],
+		description:
+			"Aroma and flavour of this wine in Japanese, 1-2 short sentences, grounded in what web search turned up. null if nothing was found. Keep it brief: this is repeated for every wine.",
+	},
+	producer_comment: {
+		type: ["string", "null"],
+		description:
+			"One short sentence about the producer in Japanese. null if unknown. Keep it brief: this is repeated for every wine.",
+	},
+} as const;
+
+/** コメントのキー。スキーマの required と受け取り側を1箇所から導出する。 */
+export const WINE_LIST_COMMENT_KEYS = Object.keys(
+	WINE_LIST_COMMENT_JSON_PROPERTIES,
+) as (keyof typeof WINE_LIST_COMMENT_JSON_PROPERTIES)[];
+
+export type WineListCommentKey = (typeof WINE_LIST_COMMENT_KEYS)[number];
+
 /** モデルが返す銘柄1件の形(labelExtractionShape + 一括抽出に固有の項目)。 */
 const wineListItemSchema = z.object({
 	...labelExtractionShape,
+	// コメント(#493)。揺れの吸収はエチケット解析と共有する(labelCommentShape)
+	...labelCommentShape,
 	/** リスト記載の価格。数値化できなければ null。 */
 	price: z
 		.union([z.number(), z.string()])
@@ -219,12 +258,16 @@ export function buildWineListPrompt(photoCount: number): string {
 		'     - "image_url": bottle_photo_index が null の場合のみ、web検索で見つけたこのワインのボトル/エチケット画像の直リンク。',
 		"       画像そのもののURL(.jpg/.png/.webp 等)で、実際に検索結果として見たものだけを書く。**URLを創作しない**。見つからなければ null",
 		'     - "image_note": image_url の画像が実物と違う点(ヴィンテージが別の年、同じ生産者の別キュヴェ 等)。一致していれば null',
+		'     - "tasting_comment": 香り・味わいの日本語コメント。**1〜2文で簡潔に**。web検索で見つかった評価・販売ページの説明に現れる表現を踏まえ、',
+		"       複数の評価に共通する特徴を自分の言葉でまとめる。特定のページの文章をそのまま引き写さない。見つからなければ null(推測で書かない)",
+		'     - "producer_comment": 生産者についての日本語コメント。**1文で簡潔に**。確認できなければ null',
 		'   - "subject": 写真群の被写体。**すべての写真が同じ1本のワインだけを写している**場合(ボトル単体・エチケット・裏ラベル・箱・ネックタグのクローズアップなど)は "single_wine"、飲食店のワインリスト・ショップの陳列や棚・複数の銘柄が写っている場合は "wine_list"',
 		'   - "truncated": 列挙しきれなかった銘柄が残っている場合は true、すべて列挙できたなら false',
 		'6. subject の判定は迷ったら "wine_list" にする。1本のワインだと確信できる場合にだけ "single_wine" にする。',
 		"7. 銘柄数が多くても省略・要約しない。どうしても出力が長くなりすぎる場合のみ途中で打ち切り、その場合は truncated を true にする。",
-		"8. 写真は銘柄ごとに1枚を用意する。手元の写真で足りるなら bottle_photo_index を優先し、無い銘柄だけ image_url を探す(検索は銘柄をまとめて調べてよい)。",
-		"9. JSONの前後に説明文・コードフェンスを書かない。",
+		"8. コメント(tasting_comment / producer_comment)は**全銘柄ぶん書く**。ただし銘柄数が多いほど出力が膨らむので、1銘柄あたりは必ず短く保つこと。",
+		"9. 写真は銘柄ごとに1枚を用意する。手元の写真で足りるなら bottle_photo_index を優先し、無い銘柄だけ image_url を探す(検索は銘柄をまとめて調べてよい)。",
+		"10. JSONの前後に説明文・コードフェンスを書かない。",
 		"",
 		buildKnownListsSection(),
 	].join("\n");
@@ -570,6 +613,10 @@ export function dedupeWineListItems(items: WineListItem[]): DedupeResult {
 		existing.region ??= item.region;
 		existing.country ??= item.country;
 		existing.price ??= item.price;
+		// コメント(#493)も先勝ち。同じ銘柄が複数の写真に写っていて、片方でしか
+		// 書けなかった回を拾う。
+		existing.tastingComment ??= item.tastingComment;
+		existing.producerComment ??= item.producerComment;
 		// 写真の手当て(#473)も先勝ちで埋める。同じ銘柄が複数の写真に写っていて、
 		// 片方だけがボトル単体のクローズアップというケースを拾う。
 		existing.bottlePhotoIndex ??= item.bottlePhotoIndex;

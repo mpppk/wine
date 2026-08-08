@@ -8,9 +8,12 @@ import {
 } from "./label-extraction";
 import {
 	buildWineListPrompt,
+	WINE_LIST_COMMENT_JSON_PROPERTIES,
+	WINE_LIST_COMMENT_KEYS,
 	WINE_LIST_PHOTO_JSON_PROPERTIES,
 	WINE_LIST_PHOTO_KEYS,
 	WINE_LIST_TRUNCATED_ERROR_MESSAGE,
+	type WineListCommentKey,
 	type WineListPhotoKey,
 } from "./wine-list-extraction";
 
@@ -55,12 +58,14 @@ const WINE_LIST_ITEM_SCHEMA = {
 				"Zero-based indexes of the photos this wine appears in (the number written just before each image)",
 		},
 		...WINE_LIST_PHOTO_JSON_PROPERTIES,
+		...WINE_LIST_COMMENT_JSON_PROPERTIES,
 	},
 	required: [
 		...LABEL_JSON_SCHEMA.required,
 		"price",
 		"photo_indexes",
 		...WINE_LIST_PHOTO_KEYS,
+		...WINE_LIST_COMMENT_KEYS,
 	],
 	additionalProperties: false,
 } as const satisfies {
@@ -71,6 +76,7 @@ const WINE_LIST_ITEM_SCHEMA = {
 		| "price"
 		| "photo_indexes"
 		| WineListPhotoKey
+		| WineListCommentKey
 	)[];
 	additionalProperties: false;
 };
