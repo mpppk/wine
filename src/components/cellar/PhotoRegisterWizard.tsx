@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { PencilIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -24,7 +24,6 @@ import {
 import { fetchBatchPhotoFiles } from "#/components/cellar/rescan-photos";
 import {
 	buildSingleWineHandoff,
-	MAX_HANDOFF_PHOTOS,
 	type ManualFormStart,
 	singleWineCandidate,
 	takePhotosForEntry,
@@ -57,7 +56,6 @@ import {
 } from "#/components/ui/select";
 import { TAP_TARGET_44 } from "#/lib/a11y";
 import {
-	estimateLabelReserveCharge,
 	estimateWineListReserveCharge,
 	type WineListRoute,
 } from "#/lib/ai/config";
@@ -80,7 +78,7 @@ import type {
 } from "#/lib/services/ai-service";
 import type { PlaceEntry } from "#/lib/services/place-service";
 import { cn } from "#/lib/utils";
-import { adoptLabelJobPhotosToBatch, getLabelAnalysisPlan } from "#/server/ai";
+import { adoptLabelJobPhotosToBatch } from "#/server/ai";
 import { bulkRegisterFromScan, undoImportBatch } from "#/server/place";
 
 // 写真からのワイン登録ウィザード(Issue #358)。「ワインを記録」(/cellar/new)の
@@ -232,21 +230,8 @@ export function PhotoRegisterWizard({
 	const canFixByFewerPhotos =
 		balance !== null && balance >= creditsForPhotos(route, 1);
 
-	// 単一ワイン判定で自動実行するエチケット解析の見積。経路(標準/Luna/Claude)で消費が
-	// 2桁変わるので、解析を押す前に額を出す(切り替え後に黙って消費させない #355)。
-	const { data: labelPlan } = useQuery({
-		queryKey: ["label-analysis-plan"],
-		queryFn: () => getLabelAnalysisPlan(),
-		staleTime: 5 * 60 * 1000,
-	});
-	const labelAnalysisCredits = labelPlan
-		? costToCredits(
-				estimateLabelReserveCharge(
-					labelPlan.route,
-					Math.max(1, Math.min(photos.length, MAX_HANDOFF_PHOTOS)),
-				).microUsd,
-			)
-		: null;
+	// 単一ワイン判定後のエチケット解析の見積は**もう要らない**(#493)。2回目の解析を
+	// やめた(#474)ので消費は増えず、見積のためだけに毎回 server fn を叩いていた。
 
 	// 再解析の元写真を読み込む。**1回だけ**走らせる(依存は batchId)——ユーザが
 	// 写真を消した後に再取得すると、消したはずの写真が戻ってくる。
@@ -722,15 +707,13 @@ export function PhotoRegisterWizard({
 									解析には最大で数分かかります。完了するまで画面を閉じないでください。
 								</p>
 								{/*
-								  単一ワインと判定したときは記録フォームへ自動で切り替わり、
-								  そこでエチケット解析も自動実行する。追加のクレジットを使うので、
-								  解析を押す前に額を知らせておく(#355)。
+								  単一ワインと判定したときは記録フォームへ自動で切り替わる(#416)。
+								  **2回目の解析は走らない**——#474 で一括抽出にも web検索での裏取りが
+								  乗り、「解析を2回する」住み分けをやめたため。以前の文言は追加クレジットの
+								  消費を予告していたが、実際には消費しない(#493)。
 								*/}
 								<p className="text-xs text-muted-foreground">
-									1本のワインのエチケットだけが写っていた場合は、そのまま記録フォームに切り替えて、より詳しいエチケット解析を自動で実行します
-									{labelAnalysisCredits !== null &&
-										`(追加で約${labelAnalysisCredits.toLocaleString("ja-JP")}クレジットを消費)`}
-									。
+									1本のワインのエチケットだけが写っていた場合は、そのまま記録フォームに切り替えて、読み取った内容を入力しておきます(追加のクレジットは消費しません)。
 								</p>
 							</>
 						)}
