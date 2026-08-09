@@ -183,7 +183,7 @@ secret は GitHub 上で手動設定する(ワークフロー側は環境を参�
 - **state ロックは無効**: R2 に DynamoDB 相当のロック機構がないため、同時に複数人が apply しない運用とする
   (現状は単独運用のため許容。必要になったら Terraform 1.10+ の `use_lockfile` の R2 対応状況を確認して導入する)
 
-## state ドリフトの復旧(#183)
+## state ドリフトの復旧(#183, #408)
 
 state を作り直した・Stripe 側で手動作成したなどで **実体は Stripe に在るのに state に無い** 状態になると、
 plan は「create」を出し、apply は Stripe の一意制約(プロモコードの `code` など)で 400 になって
@@ -205,6 +205,26 @@ terraform import 'module.stripe.stripe_promotion_code.new_member' 'promo_xxxxxxx
 
 terraform plan   # 差分が消える(または in-place のみ)ことを確認する
 ```
+
+**この復旧に apply は要らない**。import は state を書き換えるだけで、Stripe には GET しか投げない。
+`terraform plan` が `No changes.` になった時点で復旧は完了しており、あとは `terraform.yml` の
+次の run が緑になる。よって **Stripe 側は読み取り専用の制限付きキー(`rk_live_...`)で足りる**
+(#408 の production 復旧はこれで実施した)。ライブの書き込みキーを持ち出さずに済み、
+取り違えで apply が走る事故も防げる。
+
+**R2 の S3互換認証情報は Cloudflare API トークンから導出できる**。`TF_R2_*` の値が手元になくても、
+Workers 等で使っている API トークンがあれば `terraform init` できる:
+
+```bash
+# Access Key ID = トークンID、Secret Access Key = トークン値の SHA-256
+export AWS_ACCESS_KEY_ID="$(curl -sS https://api.cloudflare.com/client/v4/user/tokens/verify \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result.id')"
+export AWS_SECRET_ACCESS_KEY="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | sha256sum | cut -d' ' -f1)"
+```
+
+**復旧を確認する run は手で起こす**。`terraform.yml` は `terraform/**` への push でしか
+トリガーされないため、state を直しただけでは main の赤い check は赤のまま残る。
+Actions → Terraform → Run workflow(`workflow_dispatch`、main)で緑を確認すること。
 
 > **import 後は plan が「replace」になっていないか必ず確認する**。この provider は create の
 > 直後にも Read で API 値を state に書き戻すため、「Stripe が自動で埋める値」を設定に書いていないと
