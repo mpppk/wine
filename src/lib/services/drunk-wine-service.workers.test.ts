@@ -159,6 +159,89 @@ describe("createDrunkWine の所有状態と飲用記録", () => {
 	});
 });
 
+// 銘柄と同時に作る目撃記録(#495)。写真から登録して単体の記録フォームへ切り替えた回の
+// 「見かけた場所・見かけた日」がここを通る。飲用記録と同じ db.batch に載るので、
+// 集計(sighting_count / last_seen_on)まで1回で整う。
+describe("createDrunkWine の目撃記録", () => {
+	let userId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+	});
+
+	it("目撃記録を指定しなければ作らない", async () => {
+		const entry = await createDrunkWine(userId, { name: "Chablis" });
+		expect(entry.sightingCount).toBe(0);
+		expect(entry.lastSeenOn).toBeNull();
+	});
+
+	it("既存の場所を指定すると目撃記録が1件でき、集計に載る", async () => {
+		const place = await createPlace(userId, { name: "エノテカ 渋谷" });
+		const entry = await createDrunkWine(userId, {
+			name: "Chablis",
+			status: "spotted",
+			sighting: {
+				placeId: place.id,
+				seenOn: "2026-08-09",
+				price: 4800,
+				memo: "棚の下段",
+			},
+		});
+		expect(entry.sightingCount).toBe(1);
+		expect(entry.lastSeenOn).toBe("2026-08-09");
+
+		const sightings = await listWineSightings(userId, entry.id);
+		expect(sightings).toHaveLength(1);
+		expect(sightings[0]?.placeId).toBe(place.id);
+		expect(sightings[0]?.placeName).toBe("エノテカ 渋谷");
+		expect(sightings[0]?.price).toBe(4800);
+		expect(sightings[0]?.memo).toBe("棚の下段");
+		// 由来の列は付かない(この経路にバッチは無い)
+		expect(sightings[0]?.batchId).toBeNull();
+		expect(sightings[0]?.photoIndex).toBeNull();
+	});
+
+	it("新規の場所は同じ登録で作られ、その場所に紐づく", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "Morgon",
+			status: "spotted",
+			sighting: {
+				newPlace: { name: "ビストロ・ド・パリ" },
+				seenOn: "2026-08-09",
+			},
+		});
+		const places = await listPlaces(userId);
+		expect(places.map((p) => p.name)).toEqual(["ビストロ・ド・パリ"]);
+
+		const sightings = await listWineSightings(userId, entry.id);
+		expect(sightings[0]?.placeId).toBe(places[0]?.id);
+		expect(entry.lastSeenOn).toBe("2026-08-09");
+	});
+
+	it("飲用記録と目撃記録は同時に作れる(その店で見かけて飲んだ回)", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "Meursault",
+			status: "finished",
+			tasting: { drankOn: "2026-08-09", rating: 4 },
+			sighting: { seenOn: "2026-08-09" },
+		});
+		expect(entry.tastingCount).toBe(1);
+		expect(entry.sightingCount).toBe(1);
+	});
+
+	it("他人の場所は指定できない(存在しないIDと同じ扱い)", async () => {
+		const otherUserId = await freshUser();
+		const place = await createPlace(otherUserId, { name: "他人の店" });
+		await expect(
+			createDrunkWine(userId, {
+				name: "Sancerre",
+				sighting: { placeId: place.id },
+			}),
+		).rejects.toThrow(NotFoundError);
+		// 銘柄ごと作られない(場所の確認は INSERT の前)
+		expect(await countEntries(userId)).toBe(0);
+	});
+});
+
 // 銘柄のコメント(#471)。飲用記録の memo とは別の列で、飲む前のエントリにも付く。
 describe("銘柄のコメント(note)", () => {
 	let userId: string;

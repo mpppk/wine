@@ -1,5 +1,9 @@
-import type { WineSightingDraft } from "#/components/cellar/SightingFields";
+import {
+	NEW_PLACE_VALUE,
+	type WineSightingDraft,
+} from "#/components/cellar/SightingFields";
 import type {
+	CreateEntrySightingInput,
 	CreateWineSightingInput,
 	UpdateWineSightingInput,
 } from "#/lib/place/schema";
@@ -16,6 +20,8 @@ import type { WineSightingEntry } from "#/lib/services/drunk-wine-service";
 export function draftFromSighting(entry: WineSightingEntry): WineSightingDraft {
 	return {
 		placeId: entry.placeId ?? "",
+		// 既存の記録は場所が確定しているので、新規作成の入力は常に空
+		newPlaceName: "",
 		seenOn: entry.seenOn ?? "",
 		price: entry.price != null ? String(entry.price) : "",
 		memo: entry.memo ?? "",
@@ -30,7 +36,12 @@ function toIntOrUndefined(value: string): number | undefined {
 	return Number.isFinite(n) ? n : undefined;
 }
 
-/** 追加時の入力。空欄のフィールドは送らない(= サーバ側で null になる)。 */
+/**
+ * 追加時の入力。空欄のフィールドは送らない(= サーバ側で null になる)。
+ *
+ * 新規作成の場所は扱わない(この経路は `allowNewPlace` を開いていないので、
+ * `placeId` が NEW_PLACE_VALUE になることは無い)。
+ */
 export function buildAddSightingInput(
 	draft: WineSightingDraft,
 ): CreateWineSightingInput {
@@ -43,6 +54,38 @@ export function buildAddSightingInput(
 			: {}),
 		...(memo ? { memo } : {}),
 	};
+}
+
+/**
+ * 銘柄の新規作成に添える目撃記録(#495)。**全欄が空なら undefined**(記録を作らない)
+ * ——飲用記録の `buildTastingInput` と同じ規約で、写真から登録した回に場所も日付も
+ * 入れていなければ目撃記録は生まれない。
+ *
+ * 新規作成の場所は名前が空なら「場所の指定なし」に倒す。選択だけして名前を書かずに
+ * 保存した回で登録ごと弾くより、見かけた事実を残すほうが記録の敷居が低い
+ * (place は名前必須なので、空のまま送ればサーバの zod で落ちる)。
+ */
+export function buildCreateEntrySightingInput(
+	draft: WineSightingDraft,
+): CreateEntrySightingInput | undefined {
+	const memo = draft.memo.trim();
+	const newPlaceName = draft.newPlaceName.trim();
+	const creatingPlace = draft.placeId === NEW_PLACE_VALUE;
+	const price = toIntOrUndefined(draft.price);
+	const place = creatingPlace
+		? newPlaceName
+			? { newPlace: { name: newPlaceName } }
+			: {}
+		: draft.placeId
+			? { placeId: draft.placeId }
+			: {};
+	const input = {
+		...place,
+		...(draft.seenOn ? { seenOn: draft.seenOn } : {}),
+		...(price != null ? { price } : {}),
+		...(memo ? { memo } : {}),
+	};
+	return Object.keys(input).length > 0 ? input : undefined;
 }
 
 /**

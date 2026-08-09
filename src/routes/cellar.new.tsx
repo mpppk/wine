@@ -225,6 +225,10 @@ function CellarNewPage() {
 					<DrunkWineForm
 						initialValues={manual.values}
 						initialPhotoFiles={manual.files}
+						// 「見かけた記録」の入力欄を出す(#495)。写真ウィザードで場所・
+						// 撮影日を入力していれば、その内容が初期値に入っている。
+						places={places}
+						{...(manual.sighting ? { initialSighting: manual.sighting } : {})}
 						// 保存できた時点で、このジョブが解析に使った写真を引き継ぐ(#474)。
 						{...(labelJob?.jobId ? { sourceLabelJobId: labelJob.jobId } : {})}
 						onSaved={() => {
@@ -313,9 +317,9 @@ function ManualNotice({
 					枚は1件のワインに保存できる上限を超えたため対象外)。
 				</p>
 			)}
-			{start.discardedSightingInput && (
+			{start.sighting && (
 				<p className="text-muted-foreground">
-					写真の場所・撮影日は記録フォームには引き継がれません。見かけた記録として残す場合は、写真からの登録に戻ってください。
+					写真の場所・撮影日は「見かけた記録」に引き継いでいます。
 				</p>
 			)}
 			{onBack && (

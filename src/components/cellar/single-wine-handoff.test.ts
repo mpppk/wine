@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WineListCandidate } from "#/lib/ai/wine-list-extraction";
 import { DEFAULT_WINE_STATUS } from "#/lib/drunk-wine/status";
 import type { WineListAnalysisSummary } from "#/lib/services/ai-service";
+import type { WineSightingDraft } from "./SightingFields";
 import {
 	buildSingleWineHandoff,
 	MAX_HANDOFF_PHOTOS,
@@ -145,10 +146,25 @@ describe("buildSingleWineHandoff", () => {
 	});
 
 	it("自動切り替えの荷物として印を付ける", () => {
-		const handoff = buildSingleWineHandoff(candidate(), [], true);
+		const handoff = buildSingleWineHandoff(candidate(), []);
 		expect(handoff.reason).toBe("single_wine");
-		// 写真の場所・撮影日は記録フォームに引き継げないので、その旨を持ち回る
-		expect(handoff.discardedSightingInput).toBe(true);
+		// 場所・撮影日を触っていない回は目撃記録の下書きを持たない
+		expect(handoff.sighting).toBeUndefined();
+	});
+
+	// ウィザードで入力した場所・撮影日を記録フォームの「見かけた記録」へ渡す(#495)。
+	// 以前はここで捨て、引き継げない旨を画面で案内していた。
+	it("写真の場所・撮影日を目撃記録の下書きとして引き継ぐ", () => {
+		const sighting: WineSightingDraft = {
+			placeId: "p1",
+			newPlaceName: "",
+			seenOn: "2026-08-09",
+			price: "",
+			memo: "",
+		};
+		expect(buildSingleWineHandoff(candidate(), [], sighting).sighting).toEqual(
+			sighting,
+		);
 	});
 });
 

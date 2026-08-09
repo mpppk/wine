@@ -1,5 +1,6 @@
 import type { DrunkWineFieldsValue } from "#/components/cellar/drunk-wine-payload";
 import { valuesFromSuggestions } from "#/components/cellar/import-candidates";
+import type { WineSightingDraft } from "#/components/cellar/SightingFields";
 import type { WineListCandidate } from "#/lib/ai/wine-list-extraction";
 import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import { DEFAULT_WINE_STATUS } from "#/lib/drunk-wine/status";
@@ -47,10 +48,13 @@ export interface ManualFormStart {
 	droppedPhotoCount: number;
 	reason: ManualFormReason;
 	/**
-	 * 写真の場所・撮影日を入力済みのまま切り替えたか。記録フォームには目撃記録の
-	 * 入力欄が無く引き継げないので、true のときはその旨を画面で知らせる。
+	 * ウィザードで入力した写真の場所・撮影日(#495)。記録フォームの「見かけた記録」
+	 * セクションの初期値になる。
+	 *
+	 * **以前はここで捨てていた**(引き継げない旨を画面で知らせるだけだった)。同じ機会に
+	 * 見かけた記録なので、単体登録へ切り替えたからといって失う理由が無い。
 	 */
-	discardedSightingInput: boolean;
+	sighting?: WineSightingDraft;
 }
 
 /**
@@ -100,7 +104,8 @@ export function takePhotosForEntry(files: File[]): {
 export function buildSingleWineHandoff(
 	candidate: WineListCandidate,
 	files: File[],
-	discardedSightingInput = false,
+	/** ウィザードで入力した場所・撮影日(#495)。入力が無ければ未指定 */
+	sighting?: WineSightingDraft,
 	// 解析を経た経路なので values は必ず入る(呼び出し側で undefined を考えずに済む)
 ): ManualFormStart & { values: DrunkWineFieldsValue } {
 	return {
@@ -111,6 +116,6 @@ export function buildSingleWineHandoff(
 		),
 		...takePhotosForEntry(files),
 		reason: "single_wine",
-		discardedSightingInput,
+		...(sighting ? { sighting } : {}),
 	};
 }

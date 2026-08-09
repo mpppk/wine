@@ -32,6 +32,11 @@ export interface DrunkWineFieldsProps {
 	 */
 	tastingSlot?: React.ReactNode;
 	/**
+	 * 飲用記録の後に差し込む目撃記録UI(#495)。新規作成のときだけ Web版フォームが渡す
+	 * (編集画面の目撃記録は SightingList が銘柄の外で担当する)。
+	 */
+	sightingSlot?: React.ReactNode;
+	/**
 	 * 入力欄の DOM id の接頭辞(既定 "wine")。**同じ画面にこのフォームを複数置く
 	 * 場合は必ずカードごとに変える**。一括登録のレビュー画面(/cellar/import)は
 	 * 銘柄の数だけこのフォームを描画するため、固定 id のままだと label の
@@ -64,6 +69,7 @@ export function DrunkWineFields({
 	onChange,
 	photoSlot,
 	tastingSlot,
+	sightingSlot,
 	idPrefix = "wine",
 }: DrunkWineFieldsProps) {
 	return (
@@ -195,6 +201,8 @@ export function DrunkWineFields({
 			{photoSlot}
 
 			{tastingSlot}
+
+			{sightingSlot}
 		</>
 	);
 }

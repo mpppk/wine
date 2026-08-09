@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { WineSightingEntry } from "#/lib/services/drunk-wine-service";
-import type { WineSightingDraft } from "./SightingFields";
+import { NEW_PLACE_VALUE, type WineSightingDraft } from "./SightingFields";
 import {
 	buildAddSightingInput,
+	buildCreateEntrySightingInput,
 	buildUpdateSightingInput,
 	draftFromSighting,
 } from "./sighting-payload";
@@ -25,13 +26,21 @@ function sighting(partial: Partial<WineSightingEntry> = {}): WineSightingEntry {
 }
 
 function draft(partial: Partial<WineSightingDraft> = {}): WineSightingDraft {
-	return { placeId: "", seenOn: "", price: "", memo: "", ...partial };
+	return {
+		placeId: "",
+		newPlaceName: "",
+		seenOn: "",
+		price: "",
+		memo: "",
+		...partial,
+	};
 }
 
 describe("draftFromSighting", () => {
 	it("null をフォームの空欄に写す", () => {
 		expect(draftFromSighting(sighting())).toEqual({
 			placeId: "",
+			newPlaceName: "",
 			seenOn: "",
 			price: "",
 			memo: "",
@@ -50,10 +59,58 @@ describe("draftFromSighting", () => {
 			),
 		).toEqual({
 			placeId: "p1",
+			newPlaceName: "",
 			seenOn: "2026-08-01",
 			price: "12000",
 			memo: "グラスでも提供",
 		});
+	});
+});
+
+// 銘柄の新規作成に添える目撃記録(#495)。写真から登録した回の「見かけた場所・
+// 見かけた日」がここを通ってサーバへ渡る。
+describe("buildCreateEntrySightingInput", () => {
+	it("全欄が空なら記録を作らない(undefined)", () => {
+		expect(buildCreateEntrySightingInput(draft())).toBeUndefined();
+	});
+
+	it("既存の場所と見かけた日を送る", () => {
+		expect(
+			buildCreateEntrySightingInput(
+				draft({ placeId: "p1", seenOn: "2026-08-09" }),
+			),
+		).toEqual({ placeId: "p1", seenOn: "2026-08-09" });
+	});
+
+	it("新規の場所は newPlace として送る(placeId は送らない)", () => {
+		const input = buildCreateEntrySightingInput(
+			draft({ placeId: NEW_PLACE_VALUE, newPlaceName: " ビストロ " }),
+		);
+		expect(input).toEqual({ newPlace: { name: "ビストロ" } });
+		expect(input).not.toHaveProperty("placeId");
+	});
+
+	it("新規の場所を選んで名前が空なら、場所なしの記録にする", () => {
+		expect(
+			buildCreateEntrySightingInput(
+				draft({ placeId: NEW_PLACE_VALUE, seenOn: "2026-08-09" }),
+			),
+		).toEqual({ seenOn: "2026-08-09" });
+	});
+
+	it("場所を選ばずに名前だけ残っていても新規作成しない", () => {
+		expect(
+			buildCreateEntrySightingInput(draft({ newPlaceName: "消し忘れ" })),
+		).toBeUndefined();
+	});
+
+	it("価格・メモも送る(数値にできない価格は送らない)", () => {
+		expect(
+			buildCreateEntrySightingInput(draft({ price: "12000", memo: " 一杯 " })),
+		).toEqual({ price: 12000, memo: "一杯" });
+		expect(
+			buildCreateEntrySightingInput(draft({ price: "abc" })),
+		).toBeUndefined();
 	});
 });
 

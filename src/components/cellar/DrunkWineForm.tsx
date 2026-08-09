@@ -32,6 +32,12 @@ import {
 	detachPhotoFiles,
 } from "#/components/cellar/photo-picker";
 import { downscaleImage } from "#/components/cellar/photo-resize";
+import {
+	EMPTY_SIGHTING_DRAFT,
+	SightingFields,
+	type WineSightingDraft,
+} from "#/components/cellar/SightingFields";
+import { buildCreateEntrySightingInput } from "#/components/cellar/sighting-payload";
 import { TastingFields } from "#/components/cellar/TastingFields";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
 import {
@@ -64,6 +70,7 @@ import {
 import { postImageForm } from "#/lib/images/form-client";
 import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
+import type { PlaceEntry } from "#/lib/services/place-service";
 import { cn } from "#/lib/utils";
 import {
 	attachLabelAnalysisJobEntry,
@@ -90,6 +97,16 @@ export interface DrunkWineFormProps {
 	initialValues?: DrunkWineFieldsValue;
 	/** 新規作成時にフォームへ添付済みにする写真。`entry` 指定時は無視する。 */
 	initialPhotoFiles?: File[];
+	/**
+	 * 目撃記録の入力に出す場所の候補(#495)。**渡すと新規作成時に「見かけた記録」の
+	 * セクションが出る**。編集時は SightingList が銘柄の外で担当するので渡さない。
+	 */
+	places?: PlaceEntry[];
+	/**
+	 * 新規作成時の目撃記録の初期値(写真ウィザードからの引き継ぎ #495)。
+	 * `places` を渡していないときは意味を持たない。
+	 */
+	initialSighting?: WineSightingDraft;
 	/**
 	 * 完了したエチケット解析ジョブの結果を、開いた直後に差分ダイアログで提示する(#472)。
 	 *
@@ -170,6 +187,8 @@ export function DrunkWineForm({
 	tastingSlot,
 	initialValues,
 	initialPhotoFiles,
+	places,
+	initialSighting,
 	pendingLabelJob,
 	sourceLabelJobId,
 }: DrunkWineFormProps) {
@@ -183,6 +202,11 @@ export function DrunkWineForm({
 	// が担当するので触らない。
 	const [tastingDraft, setTastingDraft] =
 		useState<WineTastingDraft>(EMPTY_TASTING_DRAFT);
+	// 新規作成時にだけ使う「見かけた記録」1件(#495)。写真ウィザードで入力した場所・
+	// 見かけた日が引き継がれてくる。編集時は SightingList が担当するので触らない。
+	const [sightingDraft, setSightingDraft] = useState<WineSightingDraft>(
+		() => (entry ? undefined : initialSighting) ?? EMPTY_SIGHTING_DRAFT,
+	);
 	// 写真は複数枚。表示順=配列順、先頭が代表(サムネイル)。既存写真はキーで保持する
 	const [photos, setPhotos] = useState<PhotoItem[]>(() => {
 		if (entry) {
@@ -226,6 +250,7 @@ export function DrunkWineForm({
 			initial: fieldsValueFromEntry(baseline),
 			values,
 			tasting: tastingDraft,
+			sighting: sightingDraft,
 			initialPhotoKeys: (baseline?.photoUrls ?? []).map(imageKeyFromPath),
 			photoKeys: photos.map((p) => (p.kind === "existing" ? p.key : null)),
 		});
@@ -494,10 +519,17 @@ export function DrunkWineForm({
 					? await updateDrunkWine({ data: { id: existing.id, ...patch } })
 					: existing;
 			} else {
-				// 新規作成は銘柄と飲用記録を1リクエストで作る(サービス層が db.batch で
-				// 原子化する)。写真だけは R2 キーが entryId 依存なので2段階のまま。
+				// 新規作成は銘柄・飲用記録・目撃記録を1リクエストで作る(サービス層が
+				// db.batch で原子化する)。写真だけは R2 キーが entryId 依存なので
+				// 2段階のまま。
 				saved = await createDrunkWine({
-					data: buildCreateInput(state, buildTastingInput(tastingDraft)),
+					data: buildCreateInput(
+						state,
+						buildTastingInput(tastingDraft),
+						// 目撃記録の入力欄を出していない画面(編集)では下書きが空のままなので
+						// undefined になり、記録は作られない
+						buildCreateEntrySightingInput(sightingDraft),
+					),
 				});
 			}
 			savedRef.current = saved;
@@ -684,6 +716,27 @@ export function DrunkWineForm({
 									setTastingDraft((d) => ({ ...d, ...patch }))
 								}
 								idPrefix="wine-tasting"
+							/>
+						</FormSection>
+					)
+				}
+				sightingSlot={
+					// 新規作成で場所の候補を渡されたときだけ。編集画面の目撃記録は
+					// SightingList(銘柄の外)が担当する。
+					!entry &&
+					places && (
+						<FormSection
+							title="見かけた記録(任意)"
+							description="お店で見かけた場所や日付を入れると、見かけた記録として保存されます。写真から登録した場合は、そこで入力した内容が入っています。"
+						>
+							<SightingFields
+								value={sightingDraft}
+								onChange={(patch) =>
+									setSightingDraft((d) => ({ ...d, ...patch }))
+								}
+								places={places}
+								idPrefix="wine-sighting"
+								allowNewPlace
 							/>
 						</FormSection>
 					)
