@@ -15,6 +15,7 @@ import {
 	toFormValues,
 	type WineTastingDraft,
 } from "./drunk-wine-payload";
+import { EMPTY_SIGHTING_DRAFT, NEW_PLACE_VALUE } from "./SightingFields";
 
 // フォームで一通り入力済みの state と、それに対応する既存エントリ
 const filled: DrunkWineFormState = {
@@ -450,6 +451,7 @@ describe("hasUnsavedDrunkWineChanges", () => {
 		initial,
 		values: initial,
 		tasting: EMPTY_TASTING_DRAFT,
+		sighting: EMPTY_SIGHTING_DRAFT,
 		initialPhotoKeys: [] as string[],
 		photoKeys: [] as (string | null)[],
 	};
@@ -524,6 +526,20 @@ describe("hasUnsavedDrunkWineChanges", () => {
 			{ ...EMPTY_TASTING_DRAFT, memo: "good" },
 		]) {
 			expect(hasUnsavedDrunkWineChanges({ ...base, tasting })).toBe(true);
+		}
+	});
+
+	// 写真ウィザードから引き継いだ場所・見かけた日もここで拾う(#495)。拾わないと
+	// 「引き継いだのに、戻る操作で黙って消える」ことになる。
+	it("目撃記録の下書き(場所・見かけた日・価格・メモ)も未保存として扱う", () => {
+		for (const sighting of [
+			{ ...EMPTY_SIGHTING_DRAFT, placeId: "place-1" },
+			{ ...EMPTY_SIGHTING_DRAFT, placeId: NEW_PLACE_VALUE, newPlaceName: "店" },
+			{ ...EMPTY_SIGHTING_DRAFT, seenOn: "2026-08-09" },
+			{ ...EMPTY_SIGHTING_DRAFT, price: "12000" },
+			{ ...EMPTY_SIGHTING_DRAFT, memo: "グラスでも提供" },
+		]) {
+			expect(hasUnsavedDrunkWineChanges({ ...base, sighting })).toBe(true);
 		}
 	});
 

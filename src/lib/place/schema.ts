@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { calendarDateSchema } from "#/lib/date/calendar-date";
-import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
+import {
+	createDrunkWineInput,
+	PRICE_MAX,
+	PRICE_MIN,
+} from "#/lib/drunk-wine/schema";
 import { PLACE_KIND_IDS } from "./place";
 
 // 場所(place)と目撃記録(wine_sighting)の入力バリデーション。Web の server fn と
@@ -71,6 +75,29 @@ export const updatePlaceInput = z.object({
 
 export const createWineSightingInput = z.object(wineSightingFields);
 
+/**
+ * 銘柄の新規作成に添える目撃記録(Issue #495)。
+ *
+ * `createWineSightingInput` と分けるのは**由来の列(batchId / photoIndex)を持たない**
+ * ため。この経路にバッチは無く、写真は銘柄側(drunk_wine.photo_keys)に付く。
+ *
+ * 場所は一括登録と同じく「既存の選択」と「その場で新規作成」の排他にする。写真1本ぶんの
+ * 登録しか通らない利用者(1本のエチケットを撮った回)がここで場所を作れないと、
+ * 場所は一括登録を経由しないと永久に作れない——`/cellar/import` が `/cellar/new` へ
+ * 転送されるようになった今、単体登録は一括登録の下位経路ではないため。
+ */
+export const createEntrySightingInput = z
+	.object({
+		placeId: wineSightingFields.placeId,
+		newPlace: createPlaceInput.optional(),
+		seenOn: wineSightingFields.seenOn,
+		price: wineSightingFields.price,
+		memo: wineSightingFields.memo,
+	})
+	.refine((v) => !(v.placeId && v.newPlace), {
+		error: "場所は既存の選択か新規作成のどちらか一方にしてください",
+	});
+
 export const updateWineSightingInput = z.object({
 	id: z.string().min(1).max(80),
 	placeId: wineSightingFields.placeId.nullable().optional(),
@@ -95,7 +122,24 @@ const _updateCoversSightingFields: Record<
 void _updateCoversPlaceFields;
 void _updateCoversSightingFields;
 
+/**
+ * 銘柄 + 飲用記録 + 目撃記録をまとめて作る入力(#495)。
+ *
+ * **`createDrunkWineInput` の隣(drunk-wine/schema.ts)には置けない**。目撃記録の
+ * フィールド定義はこのファイルにあり、こちらは PRICE_MIN/MAX を drunk-wine/schema から
+ * 取っているので、逆向きに import すると循環する。両方を必要とする合成は import する
+ * 側に置く(一括登録の `import-batch/schema.ts` が第3のモジュールとして両方を
+ * import しているのと同じ形)。
+ */
+export const createDrunkWineWithSightingInput = createDrunkWineInput.extend({
+	sighting: createEntrySightingInput.optional(),
+});
+
 export type CreatePlaceInput = z.infer<typeof createPlaceInput>;
 export type UpdatePlaceInput = z.infer<typeof updatePlaceInput>;
 export type CreateWineSightingInput = z.infer<typeof createWineSightingInput>;
 export type UpdateWineSightingInput = z.infer<typeof updateWineSightingInput>;
+export type CreateEntrySightingInput = z.infer<typeof createEntrySightingInput>;
+export type CreateDrunkWineWithSightingInput = z.infer<
+	typeof createDrunkWineWithSightingInput
+>;

@@ -23,6 +23,11 @@ import {
 } from "#/components/cellar/photo-picker";
 import { fetchBatchPhotoFiles } from "#/components/cellar/rescan-photos";
 import {
+	EMPTY_SIGHTING_DRAFT,
+	NEW_PLACE_VALUE,
+	type WineSightingDraft,
+} from "#/components/cellar/SightingFields";
+import {
 	buildSingleWineHandoff,
 	type ManualFormStart,
 	singleWineCandidate,
@@ -269,11 +274,29 @@ export function PhotoRegisterWizard({
 	}, [rescan?.batchId]);
 
 	/**
-	 * 目撃記録側の入力(写真の場所・撮影日)をユーザが触ったか。記録フォームには
-	 * これらの入力欄が無いので、触っていたときだけ「引き継がれない」と知らせる。
+	 * 記録フォームへ渡す目撃記録の下書き(#495)。ユーザが場所・撮影日に触っていなければ
+	 * undefined(フォームは空の「見かけた記録」で開く)。
+	 *
+	 * 撮影日は既定で今日が入っているので、**触っていない既定値は引き継がない**。
+	 * 引き継ぐと、1本のエチケットを撮っただけの回にも「今日そこで見かけた」という
+	 * 記録が黙って付く。
 	 */
-	const hasSightingInput = () =>
-		placeChoice !== NO_PLACE || seenOn !== defaultSeenOnRef.current;
+	const sightingHandoff = (): WineSightingDraft | undefined => {
+		const touchedPlace = placeChoice !== NO_PLACE;
+		const touchedSeenOn = seenOn !== defaultSeenOnRef.current;
+		if (!touchedPlace && !touchedSeenOn) return undefined;
+		return {
+			...EMPTY_SIGHTING_DRAFT,
+			...(placeChoice === NEW_PLACE
+				? { placeId: NEW_PLACE_VALUE, newPlaceName }
+				: touchedPlace
+					? { placeId: placeChoice }
+					: {}),
+			// 場所を選んだ回は、既定のままの撮影日も一緒に渡す(「今日そこで見かけた」が
+			// この回の記録として意味を持つため)
+			seenOn,
+		};
+	};
 
 	const updateCard = (localId: string, patch: Partial<ImportCardState>) => {
 		setCards(
@@ -373,7 +396,7 @@ export function PhotoRegisterWizard({
 				buildSingleWineHandoff(
 					single,
 					photos.map((p) => p.file),
-					hasSightingInput(),
+					sightingHandoff(),
 				),
 			);
 		}
@@ -662,13 +685,14 @@ export function PhotoRegisterWizard({
 								type="button"
 								variant="ghost"
 								disabled={isAnalyzing}
-								onClick={() =>
+								onClick={() => {
+									const sighting = sightingHandoff();
 									onSwitchToManual({
 										...takePhotosForEntry(photos.map((p) => p.file)),
 										reason: "manual_choice",
-										discardedSightingInput: hasSightingInput(),
-									})
-								}
+										...(sighting ? { sighting } : {}),
+									});
+								}}
 							>
 								<PencilIcon className="size-4" aria-hidden />
 								手動で入力
