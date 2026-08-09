@@ -1,4 +1,5 @@
 import {
+	EMPTY_SIGHTING_DRAFT,
 	NEW_PLACE_VALUE,
 	type WineSightingDraft,
 } from "#/components/cellar/SightingFields";
@@ -8,6 +9,7 @@ import type {
 	UpdateWineSightingInput,
 } from "#/lib/place/schema";
 import type { WineSightingEntry } from "#/lib/services/drunk-wine-service";
+import type { LabelJobSighting } from "#/lib/services/label-job-service";
 
 // 目撃記録フォームの送信ペイロード生成。コンポーネント本体(SightingList)は
 // server fn 経由で cloudflare:workers に到達するため unit テストできないので、
@@ -25,6 +27,26 @@ export function draftFromSighting(entry: WineSightingEntry): WineSightingDraft {
 		seenOn: entry.seenOn ?? "",
 		price: entry.price != null ? String(entry.price) : "",
 		memo: entry.memo ?? "",
+	};
+}
+
+/**
+ * 解析ジョブに残っていた「どこで・いつ撮ったか」をフォーム値へ写す(#498)。
+ *
+ * 新規作成の場所は place 行がまだ無いので、名前を持ったまま「新しい場所を追加…」の
+ * 選択状態にする(投入時と同じ見え方で復元する)。
+ */
+export function draftFromLabelJobSighting(
+	sighting: LabelJobSighting,
+): WineSightingDraft {
+	return {
+		...EMPTY_SIGHTING_DRAFT,
+		...(sighting.newPlaceName
+			? { placeId: NEW_PLACE_VALUE, newPlaceName: sighting.newPlaceName }
+			: sighting.placeId
+				? { placeId: sighting.placeId }
+				: {}),
+		...(sighting.seenOn ? { seenOn: sighting.seenOn } : {}),
 	};
 }
 

@@ -25,6 +25,7 @@ import {
 	TooManyRequestsError,
 } from "#/lib/errors";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
+import { createPlace, listPlaces } from "#/lib/services/place-service";
 import {
 	adoptLabelJobPhotosToBatch,
 	attachLabelAnalysisJobEntry,
@@ -192,6 +193,70 @@ describe("ジョブの投入", () => {
 				.where(eq(labelAnalysisJob.userId, userId)),
 		).toHaveLength(0);
 		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+	});
+
+	// 投入時に入力された「どこで・いつ撮ったか」(#498)。完了を待たずに離脱した回の
+	// 受け取りで、記録フォームの目撃記録へ復元するための唯一の手掛かり。
+	describe("見かけた場所・見かけた日の保存", () => {
+		it("既存の場所と見かけた日をジョブに残し、受け取り時に返す", async () => {
+			const userId = await seedUser();
+			const place = await createPlace(userId, { name: "エノテカ 渋谷" });
+
+			const result = await submitLabelAnalysisJob(userId, [photo()], "label", {
+				placeId: place.id,
+				seenOn: "2026-08-09",
+			});
+			if (result.blocked) throw new Error("unexpected blocked");
+
+			const row = await jobRow(result.jobId);
+			expect(row?.placeId).toBe(place.id);
+			expect(row?.newPlaceName).toBeNull();
+			expect(row?.seenOn).toBe("2026-08-09");
+
+			const view = await getLabelAnalysisJob(userId, result.jobId);
+			expect(view.sighting).toEqual({
+				placeId: place.id,
+				seenOn: "2026-08-09",
+			});
+		});
+
+		it("新しい場所は名前のまま残す(この時点では place を作らない)", async () => {
+			const userId = await seedUser();
+
+			const result = await submitLabelAnalysisJob(userId, [photo()], "label", {
+				newPlaceName: "ビストロ・ド・パリ",
+				seenOn: "2026-08-09",
+			});
+			if (result.blocked) throw new Error("unexpected blocked");
+
+			expect((await jobRow(result.jobId))?.newPlaceName).toBe(
+				"ビストロ・ド・パリ",
+			);
+			// 記録せずに離脱した回のぶんだけ空の場所が増えないこと
+			expect(await listPlaces(userId)).toHaveLength(0);
+		});
+
+		it("何も入力していない回は sighting を返さない", async () => {
+			const userId = await seedUser();
+			const result = await submitOne(userId);
+
+			const view = await getLabelAnalysisJob(userId, result.jobId);
+			expect(view.sighting).toBeUndefined();
+		});
+
+		it("他人の場所は指定できず、予約も立てない", async () => {
+			const userId = await seedUser();
+			const otherUserId = await seedUser();
+			const place = await createPlace(otherUserId, { name: "他人の店" });
+
+			await expect(
+				submitLabelAnalysisJob(userId, [photo()], "label", {
+					placeId: place.id,
+				}),
+			).rejects.toThrow(NotFoundError);
+			// 場所の確認は予約より前(台帳が空 = 月次付与にも到達していない)
+			expect(await ledgerRowsOf(userId)).toHaveLength(0);
+		});
 	});
 
 	it("画像が空なら予約せずに弾く (#480)", async () => {
@@ -618,6 +683,11 @@ describe("完了の受け取り (#462)", () => {
 			expect(await env.AVATARS.get(key)).not.toBeNull();
 		}
 
+		// 引き継ぐ前は受け取り画面がプレビューできるようURLを返す(#498)。
+		expect((await getLabelAnalysisJob(userId, jobId)).photoUrls).toHaveLength(
+			2,
+		);
+
 		const entryId = await seedEntry(userId);
 		await attachLabelAnalysisJobEntry(userId, jobId, entryId);
 
@@ -631,6 +701,10 @@ describe("完了の受け取り (#462)", () => {
 		for (const key of keys) {
 			expect(await env.AVATARS.get(key)).not.toBeNull();
 		}
+		// 引き継いだ後はジョブのものではないので出さない(#498)
+		expect(
+			(await getLabelAnalysisJob(userId, jobId)).photoUrls,
+		).toBeUndefined();
 	});
 
 	it("失敗したジョブの写真は残さない (#474)", async () => {

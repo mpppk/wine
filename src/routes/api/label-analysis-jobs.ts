@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DEFAULT_LABEL_JOB_KIND, LABEL_JOB_KINDS } from "#/lib/ai/label-job";
+import { calendarDateSchema } from "#/lib/date/calendar-date";
 import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import { HttpError } from "#/lib/errors";
 import {
@@ -10,12 +11,16 @@ import {
 	requireApiSession,
 } from "#/lib/images/form-api";
 import { logError } from "#/lib/logger";
-import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
+import {
+	MAX_PHOTOS_PER_IMPORT_BATCH,
+	PLACE_NAME_MAX,
+} from "#/lib/place/schema";
 import { buildPendingNotification } from "#/lib/push/notification";
 import {
 	consumeLabelAnalysisJob,
 	getLabelAnalysisJob,
 	getLabelAnalysisJobBadge,
+	type LabelJobSighting,
 	listPendingLabelAnalysisJobs,
 	submitLabelAnalysisJob,
 } from "#/lib/services/label-job-service";
@@ -38,6 +43,33 @@ import {
 // **受け取り(PATCH)を GET と分けている**のは、既読化が書き込みだからで、
 // `requireApiSession` のなりすまし拒否・スロットルが書き込みメソッドにだけ効く(#116/#397)
 // のもこの分離に乗っている。
+
+/**
+ * 投入時に入力された「どこで・いつ撮ったか」を FormData から読む(#498)。
+ *
+ * **形の検証だけ**にとどめ、場所の所有権はサービス層が確認する(認可の関門を経路ごとに
+ * 書かない規約)。見かけた日は暦日スキーマで弾く——不正な文字列をそのまま列に入れると、
+ * 受け取り時に date input が空になるだけで原因が分からない。
+ */
+function readSighting(formData: FormData): LabelJobSighting | undefined {
+	const text = (key: string, max: number): string | undefined => {
+		const v = formData.get(key);
+		return typeof v === "string" && v.length > 0 && v.length <= max
+			? v
+			: undefined;
+	};
+	const seenOn = text("seenOn", 10);
+	const sighting: LabelJobSighting = {
+		...(text("placeId", 80) ? { placeId: text("placeId", 80) as string } : {}),
+		...(text("newPlaceName", PLACE_NAME_MAX)
+			? { newPlaceName: text("newPlaceName", PLACE_NAME_MAX) as string }
+			: {}),
+		...(seenOn && calendarDateSchema.safeParse(seenOn).success
+			? { seenOn }
+			: {}),
+	};
+	return Object.keys(sighting).length > 0 ? sighting : undefined;
+}
 
 export const Route = createFileRoute("/api/label-analysis-jobs")({
 	server: {
@@ -83,7 +115,12 @@ export const Route = createFileRoute("/api/label-analysis-jobs")({
 						})),
 					);
 					return apiJson(
-						await submitLabelAnalysisJob(session.user.id, photos, kind),
+						await submitLabelAnalysisJob(
+							session.user.id,
+							photos,
+							kind,
+							readSighting(formData),
+						),
 					);
 				} catch (e) {
 					// 入力起因(枚数超過・画像偽装・同時実行上限)は本人が行動できるので

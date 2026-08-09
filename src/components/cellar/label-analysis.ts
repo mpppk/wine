@@ -6,6 +6,7 @@ import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import type {
 	LabelAnalysisJobBadge,
 	LabelAnalysisJobView,
+	LabelJobSighting,
 	SubmitLabelAnalysisJobResult,
 } from "#/lib/services/label-job-service";
 
@@ -78,10 +79,19 @@ export async function submitLabelAnalysisJob(
 	sources: AnalysisPhotoSource[],
 	/** 解析の種別(#474)。既定はエチケット解析(1本)。 */
 	kind: LabelJobKind = DEFAULT_LABEL_JOB_KIND,
+	/**
+	 * 写真ウィザードで入力した「どこで・いつ撮ったか」(#498)。ジョブに残しておかないと、
+	 * 完了を待たずに離脱した回の受け取りで場所・見かけた日が復元できない。
+	 */
+	sighting?: LabelJobSighting,
 ): Promise<SubmitLabelAnalysisJobResult> {
 	const form = await buildAnalysisForm(sources);
 	// 既定と同じでも送る(サーバ側の分岐が「省略 = label」に依存し続けないように)。
 	form.append("kind", kind);
+	if (sighting?.placeId) form.append("placeId", sighting.placeId);
+	if (sighting?.newPlaceName)
+		form.append("newPlaceName", sighting.newPlaceName);
+	if (sighting?.seenOn) form.append("seenOn", sighting.seenOn);
 	return postImageForm<SubmitLabelAnalysisJobResult>(
 		"/api/label-analysis-jobs",
 		form,
