@@ -3,7 +3,6 @@ import { z } from "zod";
 import { CELLAR_FILTER_IDS } from "#/lib/drunk-wine/filter";
 import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import {
-	createDrunkWineInput,
 	deleteDrunkWinesInput,
 	drunkWineFields,
 	entryIdSchema,
@@ -12,6 +11,7 @@ import {
 	wineTastingFields,
 } from "#/lib/drunk-wine/schema";
 import {
+	createDrunkWineWithSightingInput,
 	updateWineSightingInput,
 	wineSightingFields,
 } from "#/lib/place/schema";
@@ -24,9 +24,11 @@ import { authMiddleware } from "./middleware";
 
 const entryId = entryIdSchema;
 
+// 作成は銘柄・飲用記録・目撃記録を1リクエストで受ける(#495)。写真から登録した回の
+// 「見かけた場所・見かけた日」が、記録フォームへ切り替えた時点で捨てられていた。
 export const createDrunkWine = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
-	.inputValidator(createDrunkWineInput)
+	.inputValidator(createDrunkWineWithSightingInput)
 	.handler(({ data, context }) =>
 		drunkWineService.createDrunkWine(context.user.id, data),
 	);

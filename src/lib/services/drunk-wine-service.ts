@@ -23,7 +23,6 @@ import {
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
 import type {
-	CreateDrunkWineInput,
 	CreateWineTastingInput,
 	UpdateDrunkWineInput,
 	UpdateWineTastingInput,
@@ -39,6 +38,8 @@ import {
 import { type LogFields, logError, logInfo, logWarn } from "#/lib/logger";
 import { DEFAULT_PLACE_KIND } from "#/lib/place/place";
 import {
+	type CreateDrunkWineWithSightingInput,
+	type CreateEntrySightingInput,
 	type CreateWineSightingInput,
 	MAX_PHOTOS_PER_IMPORT_BATCH,
 	type UpdateWineSightingInput,
@@ -466,11 +467,12 @@ function provenanceUpdateValues(patch: {
 type CreateDrunkWineData = Omit<UpdateDrunkWineInput, "id"> & {
 	name: string;
 	tasting?: CreateWineTastingInput;
+	sighting?: CreateEntrySightingInput;
 };
 
 export async function createDrunkWine(
 	userId: string,
-	input: CreateDrunkWineInput | CreateDrunkWineData,
+	input: CreateDrunkWineWithSightingInput | CreateDrunkWineData,
 ): Promise<DrunkWineEntry> {
 	assertValidRefs(input);
 	const id = crypto.randomUUID();
@@ -481,6 +483,9 @@ export async function createDrunkWine(
 	const tasting =
 		input.tasting ??
 		(status === "finished" ? ({} as CreateWineTastingInput) : undefined);
+	// 写真から登録した回の「見かけた場所・見かけた日」(#495)。飲用記録と対称で、
+	// 入力があったときだけ1件作る。
+	const sighting = input.sighting;
 
 	const values = {
 		id,
@@ -495,22 +500,56 @@ export async function createDrunkWine(
 		price: input.price ?? null,
 	};
 
-	if (!tasting) {
+	if (!tasting && !sighting) {
 		const [row] = await db.insert(drunkWine).values(values).returning();
 		if (!row) throw new Error("Failed to insert drunk wine");
 		// 飲用記録が無いので最新1件も無い。読み直さずに null で組み立てる。
 		return toEntry({ ...row, lastRating: null, lastMemo: null });
 	}
 
-	// 銘柄と飲用記録を1トランザクションで作る(写真と違いR2キーの物理制約が無い)。
-	// 最後の SELECT から最終状態を得る。
-	return entryFromBatch(
-		await db.batch([
-			db.insert(drunkWine).values(values),
+	// 場所: 既存の指定は所有権を確認し、新規は同じ batch で作る(一括登録と同じ形)。
+	if (sighting?.placeId) {
+		await assertOwnsSightingRefs(userId, { placeId: sighting.placeId });
+	}
+	const newPlaceId = sighting?.newPlace ? crypto.randomUUID() : null;
+
+	// 銘柄・飲用記録・目撃記録を1トランザクションで作る(写真と違いR2キーの物理制約が
+	// 無い)。最後の SELECT から最終状態を得る。
+	const statements: BatchStatement[] = [];
+	if (sighting?.newPlace) {
+		statements.push(
+			db.insert(place).values({
+				id: newPlaceId as string,
+				userId,
+				name: sighting.newPlace.name,
+				kind: sighting.newPlace.kind ?? DEFAULT_PLACE_KIND,
+				memo: sighting.newPlace.memo ?? null,
+			}),
+		);
+	}
+	statements.push(db.insert(drunkWine).values(values));
+	if (tasting) {
+		statements.push(
 			db.insert(wineTasting).values(buildTastingValues(userId, id, tasting)),
-			recomputeDrunkWineAggregates(userId, id),
-			selectEntry(userId, id),
-		]),
+		);
+	}
+	if (sighting) {
+		const placeId = sighting.placeId ?? newPlaceId;
+		statements.push(
+			db.insert(wineSighting).values(
+				buildSightingValues(userId, id, {
+					...(placeId ? { placeId } : {}),
+					...(sighting.seenOn ? { seenOn: sighting.seenOn } : {}),
+					...(sighting.price != null ? { price: sighting.price } : {}),
+					...(sighting.memo ? { memo: sighting.memo } : {}),
+				}),
+			),
+		);
+	}
+	statements.push(recomputeDrunkWineAggregates(userId, id));
+	statements.push(selectEntry(userId, id));
+	return entryFromBatch(
+		await db.batch(statements as [BatchStatement, ...BatchStatement[]]),
 	);
 }
 
