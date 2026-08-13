@@ -519,7 +519,15 @@ export const labelAnalysisJob = sqliteTable(
 		 * 結果の置き場(`suggestions` / `wineListResult`)だけ。
 		 */
 		kind: text("kind").notNull().$type<LabelJobKind>().default("label"),
-		/** 解析対象のR2キー(撮影順)。終端に到達した時点で削除するので、その後は空配列 */
+		/**
+		 * 解析対象のR2キー(撮影順)。
+		 *
+		 * **成功した回は終端でも残す**(#474)。利用者が撮ったのはそのワインの写真で、
+		 * 解析のためだけの使い捨てではないため、記録の確定時に
+		 * `adoptLabelJobPhotos` がエントリ/バッチへ引き継ぐ(引き継いだ時点で空配列)。
+		 * 失敗した回は終端で削除するので空配列になる。引き取り手が現れないまま
+		 * 受け取り済みになった回は `sweepConsumedJobPhotos` が回収する。
+		 */
 		photoKeys: text("photo_keys", { mode: "json" })
 			.$type<string[]>()
 			.notNull()
@@ -588,6 +596,25 @@ export const labelAnalysisJob = sqliteTable(
 		entryId: text("entry_id").references(() => drunkWine.id, {
 			onDelete: "set null",
 		}),
+		/**
+		 * 投入時に写真ウィザードで入力された「見かけた場所」(#498)。完了を待たずに
+		 * 離脱した回でも、受け取った記録フォームの目撃記録へ復元するために持つ。
+		 *
+		 * 場所を消してもジョブと解析結果は残す(受け取りが「場所の指定なし」に落ちる
+		 * だけ)ので ON DELETE set null。
+		 */
+		placeId: text("place_id").references(() => place.id, {
+			onDelete: "set null",
+		}),
+		/**
+		 * 「その場で新しい場所を作る」を選んで入力された名前(#498)。**`placeId` と
+		 * 排他**で、この時点では place 行を作らない——記録せずに離脱した回のぶんだけ
+		 * 空の場所がマスタに増えるため、名前のまま持ち回って記録の確定時に作る
+		 * (一括登録が確定時に作るのと同じ流儀)。
+		 */
+		newPlaceName: text("new_place_name"),
+		/** 投入時に入力された撮影日 "YYYY-MM-DD"。目撃記録の見かけた日になる(#498) */
+		seenOn: text("seen_on"),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),

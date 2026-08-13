@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { drunkWine, labelAnalysisJob } from "#/db/schema";
+import { drunkWine, labelAnalysisJob, place } from "#/db/schema";
 import type { WineListRoute } from "#/lib/ai/config";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import {
@@ -26,6 +26,7 @@ import {
 	NotFoundError,
 	TooManyRequestsError,
 } from "#/lib/errors";
+import { imagePathForKey } from "#/lib/images/signed-url";
 import { logError, logInfo, logWarn } from "#/lib/logger";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import {
@@ -107,6 +108,33 @@ export interface LabelAnalysisJobView {
 	kind: LabelJobKind;
 	/** 一括抽出の結果。`kind === "wine_list"` の成功時だけ入る(#474)。 */
 	wineList?: WineListAnalysisOutcome;
+	/**
+	 * 投入時に入力された「どこで・いつ撮ったか」(#498)。受け取り画面が目撃記録の
+	 * 初期値に使う。何も入力されていなかった回は未指定。
+	 */
+	sighting?: LabelJobSighting;
+	/**
+	 * 解析に使った写真の表示URL(撮影順)。**引き継ぎ前の成功ジョブだけ入る**——
+	 * 記録の確定で `adoptLabelJobPhotos` がエントリへ渡すと空になる(#474)。
+	 *
+	 * 受け取り画面が「この写真ごと保存される」ことを見せるために要る(#498)。
+	 * 手元に `File` が無いので**フォームの写真UIでは扱えない**(削除・並べ替えは
+	 * エントリの写真集合に対する操作で、まだこのワインのキーではない)。読み取り専用の
+	 * プレビューとして出す。
+	 */
+	photoUrls?: string[];
+}
+
+/**
+ * 投入時に写真ウィザードで入力された目撃記録の文脈(#498)。
+ *
+ * `placeId`(既存の場所)と `newPlaceName`(その場で作る場所の名前)は排他。後者で
+ * place 行を作らないのは、記録せずに離脱した回のぶんだけ空の場所が増えるため。
+ */
+export interface LabelJobSighting {
+	placeId?: string;
+	newPlaceName?: string;
+	seenOn?: string;
 }
 
 /** 未終端(= まだ枠を占有している)状態。 */
@@ -144,6 +172,11 @@ export async function submitLabelAnalysisJob(
 	photos: LabelJobPhotoInput[],
 	/** 解析の種別(#474)。既定はエチケット解析(1本)。 */
 	kind: LabelJobKind = DEFAULT_LABEL_JOB_KIND,
+	/**
+	 * 投入時に入力された「どこで・いつ撮ったか」(#498)。完了を待たずに離脱した回の
+	 * 受け取りで、記録フォームの目撃記録へ復元する。
+	 */
+	sighting?: LabelJobSighting,
 ): Promise<SubmitLabelAnalysisJobResult> {
 	if (photos.length === 0) {
 		throw new BadRequestError("画像が指定されていません");
@@ -167,6 +200,16 @@ export async function submitLabelAnalysisJob(
 			);
 		}
 		resolved.push({ bytes: photo.bytes, mime });
+	}
+
+	// 場所の所有権は**予約より前**に確認する(#245 の順序制約。ここで弾くぶんには
+	// クレジットが動いていない)。他人の場所・存在しないIDは区別せず 404。
+	if (sighting?.placeId) {
+		const [row] = await db
+			.select({ id: place.id })
+			.from(place)
+			.where(and(eq(place.id, sighting.placeId), eq(place.userId, userId)));
+		if (!row) throw new NotFoundError("Place not found");
 	}
 
 	// 死んだコンシューマの残骸が枠を埋めたままにならないよう、数える前に決着させる。
@@ -231,6 +274,11 @@ export async function submitLabelAnalysisJob(
 			selectedEngine: "engine" in plan ? plan.engine : plan.route,
 			route: plan.route,
 			kind,
+			// 「どこで・いつ撮ったか」(#498)。既存の場所と新規の名前は排他で、
+			// 排他はウィザードの選択が保証する(片方しか選べない)。
+			placeId: sighting?.placeId ?? null,
+			newPlaceName: sighting?.placeId ? null : (sighting?.newPlaceName ?? null),
+			seenOn: sighting?.seenOn ?? null,
 		});
 		// **行を作ってから enqueue する**。逆にするとコンシューマが行の無いジョブIDを
 		// 受け取りうる(キューは配信が速い)。行があって未配信なら stale で決着できるが、
@@ -940,12 +988,22 @@ async function deletePhotoObjects(
 type LabelAnalysisJobRow = typeof labelAnalysisJob.$inferSelect;
 
 function toJobView(job: LabelAnalysisJobRow): LabelAnalysisJobView {
+	const sighting: LabelJobSighting = {
+		...(job.placeId ? { placeId: job.placeId } : {}),
+		...(job.newPlaceName ? { newPlaceName: job.newPlaceName } : {}),
+		...(job.seenOn ? { seenOn: job.seenOn } : {}),
+	};
 	return {
 		jobId: job.id,
 		status: job.status,
 		photoCount: job.photoCount,
 		route: job.route,
 		kind: job.kind,
+		...(Object.keys(sighting).length > 0 ? { sighting } : {}),
+		// 引き継ぎ済み・失敗した回は空配列なので載せない
+		...(job.photoKeys.length > 0
+			? { photoUrls: job.photoKeys.map(imagePathForKey) }
+			: {}),
 		...(job.suggestions
 			? { suggestions: job.suggestions as LabelSuggestions }
 			: {}),

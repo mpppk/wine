@@ -125,6 +125,12 @@ export interface DrunkWineFormProps {
 	 * 出すと差分ゼロになり、「クレジットは消費されています」という無関係な案内が出る。
 	 */
 	sourceLabelJobId?: string;
+	/**
+	 * そのジョブが解析に使った写真の表示URL(#498)。**読み取り専用のプレビュー**として
+	 * 出す。写真UI(追加・削除・並べ替え)には載せられない——実体は R2 にあってブラウザに
+	 * `File` が無く、キーがこのワインのものになるのは保存の後だから。
+	 */
+	sourceLabelJobPhotoUrls?: string[];
 }
 
 // フォームが扱う写真1枚。既存はR2キー保持、新規はローカルFile+プレビューURL。
@@ -191,6 +197,7 @@ export function DrunkWineForm({
 	initialSighting,
 	pendingLabelJob,
 	sourceLabelJobId,
+	sourceLabelJobPhotoUrls,
 }: DrunkWineFormProps) {
 	// 入力項目の state は MCP App のフォームと共有する形(DrunkWineFieldsValue)で持つ
 	const [values, setValues] = useState<DrunkWineFieldsValue>(
@@ -631,6 +638,38 @@ export function DrunkWineForm({
 							</li>
 						))}
 					</ul>
+				)}
+
+				{/*
+				  解析に使った写真(#498)。**この写真UIでは扱えない**——実体は R2 にあり、
+				  ブラウザに File が無く、キーがこのワインのものになるのは保存の後
+				  (サーバが adoptLabelJobPhotos で移す)。削除・並べ替えは保存後の編集で
+				  できるので、ここでは「保存すると一緒に残る」ことだけを見せる。
+				*/}
+				{sourceLabelJobPhotoUrls && sourceLabelJobPhotoUrls.length > 0 && (
+					<div className="flex flex-col gap-2">
+						<p className="text-xs text-muted-foreground">
+							解析に使った写真です。記録するとこのワインの写真として一緒に保存されます(保存後に削除・並べ替えできます)。
+						</p>
+						<ul className="flex flex-wrap gap-3">
+							{sourceLabelJobPhotoUrls.map((url, index) => (
+								<li
+									key={url}
+									className="h-24 w-24 rounded-md border border-dashed border-border"
+								>
+									<img
+										src={url}
+										alt={`解析に使った写真${index + 1}`}
+										className="h-full w-full rounded-md object-cover"
+										loading="lazy"
+										decoding="async"
+										width={96}
+										height={96}
+									/>
+								</li>
+							))}
+						</ul>
+					</div>
 				)}
 
 				<div className="flex flex-col gap-2">

@@ -5,6 +5,7 @@ import {
 	buildAddSightingInput,
 	buildCreateEntrySightingInput,
 	buildUpdateSightingInput,
+	draftFromLabelJobSighting,
 	draftFromSighting,
 } from "./sighting-payload";
 
@@ -64,6 +65,40 @@ describe("draftFromSighting", () => {
 			price: "12000",
 			memo: "グラスでも提供",
 		});
+	});
+});
+
+// 解析を投げて離脱した回の復元(#498)。ジョブに残した内容をフォーム値へ戻す。
+describe("draftFromLabelJobSighting", () => {
+	it("既存の場所と見かけた日を戻す", () => {
+		expect(
+			draftFromLabelJobSighting({ placeId: "p1", seenOn: "2026-08-09" }),
+		).toEqual(draft({ placeId: "p1", seenOn: "2026-08-09" }));
+	});
+
+	it("新しい場所は「新しい場所を追加…」の選択状態で戻す(place はまだ無い)", () => {
+		expect(draftFromLabelJobSighting({ newPlaceName: "ビストロ" })).toEqual(
+			draft({ placeId: NEW_PLACE_VALUE, newPlaceName: "ビストロ" }),
+		);
+	});
+
+	it("見かけた日だけの回も戻せる", () => {
+		expect(draftFromLabelJobSighting({ seenOn: "2026-08-09" })).toEqual(
+			draft({ seenOn: "2026-08-09" }),
+		);
+	});
+
+	// 復元 → 送信で往復しても同じ内容になること(ここがズレると、受け取った回だけ
+	// 場所が落ちる・二重に場所が増える、が静かに起きる)
+	it("復元した下書きは、そのまま作成入力へ戻せる", () => {
+		expect(
+			buildCreateEntrySightingInput(
+				draftFromLabelJobSighting({
+					newPlaceName: "ビストロ",
+					seenOn: "2026-08-09",
+				}),
+			),
+		).toEqual({ newPlace: { name: "ビストロ" }, seenOn: "2026-08-09" });
 	});
 });
 

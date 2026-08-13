@@ -11,6 +11,7 @@ import { z } from "zod";
 import { DrunkWineForm } from "#/components/cellar/DrunkWineForm";
 import { valuesFromSuggestions } from "#/components/cellar/import-candidates";
 import { PhotoRegisterWizard } from "#/components/cellar/PhotoRegisterWizard";
+import { draftFromLabelJobSighting } from "#/components/cellar/sighting-payload";
 import {
 	MAX_HANDOFF_PHOTOS,
 	type ManualFormStart,
@@ -119,11 +120,15 @@ function CellarNewPage() {
 	// 解析が使えない環境では写真の経路自体が無いので、最初から手入力で開く。
 	const [manual, setManual] = useState<ManualFormStart | null>(() => {
 		// 解析ジョブの受け取り(#462)。候補は既にサーバ側で得ているので、写真ウィザードは
-		// 飛ばして記録フォームを候補入りで開く。**写真はフォームに載せない**が、保存すると
-		// サーバ側でこのワインの写真として引き継がれる(#474)。ここで載せないのは、実体が
-		// R2 にあってブラウザの `File` が無く、フォームの写真UIが扱えるのは「既存キー」か
-		// 「新規File」の2つだけだから——キーはエントリ確定後でないとこのワインのものに
-		// ならないので、保存の後にサーバがまとめて移す。
+		// 飛ばして記録フォームを候補入りで開く。**写真はフォームの写真UIには載せない**が、
+		// 解析に使った写真は読み取り専用のプレビューで見せ(#498)、保存するとサーバ側で
+		// このワインの写真として引き継がれる(#474)。写真UIに載せられないのは、実体が
+		// R2 にあってブラウザの `File` が無く、フォームが扱えるのは「このエントリの既存
+		// キー」か「新規File」の2つだけだから——キーはエントリ確定後でないとこのワインの
+		// ものにならないので、保存の後にサーバがまとめて移す。
+		//
+		// 投入時に入力された場所・撮影日はジョブに残っているので、目撃記録として復元する
+		// (#498)。
 		if (labelJob?.suggestions) {
 			return {
 				values: valuesFromSuggestions(
@@ -133,7 +138,9 @@ function CellarNewPage() {
 				files: [],
 				droppedPhotoCount: 0,
 				reason: "label_job",
-				discardedSightingInput: false,
+				...(labelJob.sighting
+					? { sighting: draftFromLabelJobSighting(labelJob.sighting) }
+					: {}),
 			};
 		}
 		return wineListPlan.route
@@ -142,7 +149,6 @@ function CellarNewPage() {
 					files: [],
 					droppedPhotoCount: 0,
 					reason: "manual_choice",
-					discardedSightingInput: false,
 				};
 	});
 	const [confirmBackOpen, setConfirmBackOpen] = useState(false);
@@ -205,6 +211,10 @@ function CellarNewPage() {
 										result: labelJob.wineList,
 										// 手元に File が無いので、申告枚数は引き継ぎ元から取る(#482)。
 										photoCount: labelJob.photoCount,
+										// 投入時に入力した場所・撮影日を選び直させない(#498)。
+										...(labelJob.sighting
+											? { sighting: labelJob.sighting }
+											: {}),
 									},
 								}
 							: {})}
@@ -231,6 +241,11 @@ function CellarNewPage() {
 						{...(manual.sighting ? { initialSighting: manual.sighting } : {})}
 						// 保存できた時点で、このジョブが解析に使った写真を引き継ぐ(#474)。
 						{...(labelJob?.jobId ? { sourceLabelJobId: labelJob.jobId } : {})}
+						// その写真を保存前に見せる(#498)。読み取り専用——実体は R2 にあり、
+						// このワインのキーになるのは保存の後。
+						{...(labelJob?.photoUrls?.length
+							? { sourceLabelJobPhotoUrls: labelJob.photoUrls }
+							: {})}
 						onSaved={() => {
 							void navigate({ to: "/cellar" });
 						}}
@@ -297,8 +312,10 @@ function ManualNotice({
 	return (
 		<div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-4 text-sm">
 			{fromLabelJob && (
+				// 写真の扱いはフォームの写真欄に出す(#498)。ここで重ねて書くと、
+				// プレビューのすぐ上と下で同じことを2回言うことになる。
 				<p>
-					エチケットの解析結果を反映しました。内容を確認して保存してください(解析に使った写真も、このワインの写真として一緒に保存されます)。
+					エチケットの解析結果を反映しました。内容を確認して保存してください。
 				</p>
 			)}
 			{fromSingleWine ? (

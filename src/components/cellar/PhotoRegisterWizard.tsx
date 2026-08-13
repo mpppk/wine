@@ -81,6 +81,7 @@ import type {
 	WineListAnalysisOutcome,
 	WineListAnalysisSummary,
 } from "#/lib/services/ai-service";
+import type { LabelJobSighting } from "#/lib/services/label-job-service";
 import type { PlaceEntry } from "#/lib/services/place-service";
 import { cn } from "#/lib/utils";
 import { adoptLabelJobPhotosToBatch } from "#/server/ai";
@@ -177,6 +178,11 @@ export interface PhotoRegisterWizardProps {
 		 * 超えています」で登録ごと弾かれる(#482 の本番確認で踏んだ)。
 		 */
 		photoCount: number;
+		/**
+		 * 投入時に入力されていた「どこで・いつ撮ったか」(#498)。ジョブに残してあるので、
+		 * 受け取って開いた回でも場所・撮影日を選び直させずに復元する。
+		 */
+		sighting?: LabelJobSighting;
 	};
 }
 
@@ -192,14 +198,21 @@ export function PhotoRegisterWizard({
 	const queryClient = useQueryClient();
 
 	const [photos, setPhotos] = useState<PhotoItem[]>([]);
-	// 再解析なら元バッチの場所・見かけた日を引き継ぐ(同じ機会の記録なので、
-	// 選び直させる意味が無い)。写真の読み込みだけは非同期なので effect で入れる。
-	const [placeChoice, setPlaceChoice] = useState<string>(
-		rescan?.placeId ?? NO_PLACE,
+	// 再解析なら元バッチの場所・見かけた日を、受け取って開いた回(#498)なら投入時の
+	// 入力を引き継ぐ(どちらも同じ機会の記録なので、選び直させる意味が無い)。
+	// 写真の読み込みだけは非同期なので effect で入れる。
+	const [placeChoice, setPlaceChoice] = useState<string>(() => {
+		if (rescan?.placeId) return rescan.placeId;
+		if (receivedJob?.sighting?.placeId) return receivedJob.sighting.placeId;
+		if (receivedJob?.sighting?.newPlaceName) return NEW_PLACE;
+		return NO_PLACE;
+	});
+	const [newPlaceName, setNewPlaceName] = useState(
+		() => receivedJob?.sighting?.newPlaceName ?? "",
 	);
-	const [newPlaceName, setNewPlaceName] = useState("");
 	const [seenOn, setSeenOn] = useState(
-		() => rescan?.seenOn ?? todayCalendarDate(),
+		() =>
+			rescan?.seenOn ?? receivedJob?.sighting?.seenOn ?? todayCalendarDate(),
 	);
 	// 保存済み写真の読み込み状態。再解析でないときは常に false / 空。
 	const [loadingRescanPhotos, setLoadingRescanPhotos] = useState(!!rescan);
@@ -219,8 +232,12 @@ export function PhotoRegisterWizard({
 	const newIdRef = useRef(0);
 	const doneRef = useRef(false);
 	// 撮影日の初期値(今日)。「ユーザが触ったか」の判定に使う——既定のままなら
-	// 記録フォームへ切り替えても失うものは無いので、引き継げない旨を出さない。
-	const defaultSeenOnRef = useRef(seenOn);
+	// 記録フォームへ切り替えても失うものは無いので、目撃記録として引き継がない。
+	//
+	// **復元した値は既定として扱わない**(#498)。再解析の元バッチ・受け取ったジョブから
+	// 入った日付は利用者が一度入力したものなので、`todayCalendarDate()` を基準に置いて
+	// 「触られた」側に倒す(基準を復元値にすると、同じ日付が黙って落ちる)。
+	const defaultSeenOnRef = useRef(todayCalendarDate());
 
 	// 解析を押す前に「この枚数でいくら要るか」を出す。押してから残高不足で弾かれると、
 	// 写真を選び直す手間だけが無駄になる(サーバ側の予約 estimateWineListReserveTokens と
@@ -298,6 +315,26 @@ export function PhotoRegisterWizard({
 		};
 	};
 
+	/**
+	 * 解析ジョブに残す「どこで・いつ撮ったか」(#498)。判定は記録フォームへの引き継ぎと
+	 * 同じ(`sightingHandoff`)にする——投入して離脱した回と、留まって切り替えた回で
+	 * 残る内容が違うと、同じ操作なのに結果が変わる。
+	 */
+	const sightingForJob = (): LabelJobSighting | undefined => {
+		const draft = sightingHandoff();
+		if (!draft) return undefined;
+		return {
+			...(draft.placeId === NEW_PLACE_VALUE
+				? draft.newPlaceName.trim()
+					? { newPlaceName: draft.newPlaceName.trim() }
+					: {}
+				: draft.placeId
+					? { placeId: draft.placeId }
+					: {}),
+			...(draft.seenOn ? { seenOn: draft.seenOn } : {}),
+		};
+	};
+
 	const updateCard = (localId: string, patch: Partial<ImportCardState>) => {
 		setCards(
 			(prev) =>
@@ -359,6 +396,8 @@ export function PhotoRegisterWizard({
 			submitLabelAnalysisJob(
 				photos.map((p) => p.file),
 				"wine_list",
+				// 完了を待たずに離脱しても場所・撮影日を復元できるようジョブに残す(#498)
+				sightingForJob(),
 			),
 		onSuccess: (result) => {
 			// 投入時点で予約が立つ(=残高が動く)ので、ここで残高表示を更新する。
