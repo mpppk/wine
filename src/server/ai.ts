@@ -93,9 +93,9 @@ export const consumeLabelAnalysisJob = createServerFn({ method: "POST" })
 /**
  * 解析結果の宛先エントリを記録する(#472)。
  *
- * 記録フォームが**保存に成功した直後**に呼ぶ。走行中のジョブが完了したとき、その結果を
- * 新規登録として受け取ると同じワインが2件できるため、保存先をジョブ側に残して受け取りを
- * 「そのワインを編集」へ振り分けられるようにする。
+ * 記録フォームが**保存に成功した直後**(と、解析の投入直後 #490)に呼ぶ。走行中のジョブが
+ * 完了したとき、その結果を新規登録として受け取ると同じワインが2件できるため、保存先を
+ * ジョブ側に残して受け取りを「そのワインを編集」へ振り分けられるようにする。
  *
  * 呼び出しは best-effort。失敗しても保存済みのエントリには影響が無く、受け取りが
  * 従来どおり新規作成モードへ落ちるだけなので、クライアント側は例外を握って構わない。
@@ -106,6 +106,11 @@ export const attachLabelAnalysisJobEntry = createServerFn({ method: "POST" })
 		z.object({
 			jobId: z.string().min(1).max(80),
 			entryId: z.string().min(1).max(80),
+			/**
+			 * 解析に使った写真をこのエントリへ引き継ぐか(既定 true)。フォームが同じ写真を
+			 * 既に保存している回だけ false を渡す(#490。詳細はサービス層のコメント)。
+			 */
+			adoptPhotos: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ data, context }) =>
@@ -113,6 +118,11 @@ export const attachLabelAnalysisJobEntry = createServerFn({ method: "POST" })
 			context.user.id,
 			data.jobId,
 			data.entryId,
+			{
+				...(data.adoptPhotos === undefined
+					? {}
+					: { adoptPhotos: data.adoptPhotos }),
+			},
 		),
 	);
 

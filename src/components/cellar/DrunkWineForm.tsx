@@ -52,6 +52,7 @@ import { LiveRegion } from "#/components/ui/live-region";
 import { TAP_TARGET_44 } from "#/lib/a11y";
 import { estimateLabelReserveCharge } from "#/lib/ai/config";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
+import { isTerminalLabelJobStatus } from "#/lib/ai/label-job";
 import { costToCredits } from "#/lib/credit/credit-math";
 import {
 	CREDIT_BALANCE_QUERY_KEY,
@@ -110,7 +111,8 @@ export interface DrunkWineFormProps {
 	/**
 	 * 完了したエチケット解析ジョブの結果を、開いた直後に差分ダイアログで提示する(#472)。
 	 *
-	 * 解析中に保存して離脱した回の受け取り口。**解析は走らせない**(結果は既にサーバに
+	 * 解析を開始した時点で記録され(#490)、完了を待たずに離脱した回の受け取り口。
+	 * **解析は走らせない**(結果は既にサーバに
 	 * ある)し、**自動反映もしない**——宛先は保存済みのワインで、利用者がその後に手で
 	 * 直している可能性がある。上書きしてよいかは選ばせる。
 	 */
@@ -245,6 +247,9 @@ export function DrunkWineForm({
 	//    保存成功後の再送信ではこちらを優先しないと「一度保存した値に戻す」変更が
 	//    差分ゼロと判定されて反映されない
 	const savedRef = useRef<DrunkWineEntry | null>(null);
+	// 同じものを描画の出し分けに使うための state(#490)。解析の投入で保存した後は
+	// この画面に留まり続けるので、「もう記録済みか」が表示に効くようになった。
+	const [savedEntry, setSavedEntry] = useState<DrunkWineEntry | null>(null);
 	// 保存が完了して呼び出し側が遷移する間だけ離脱ガードを黙らせる。state ではなく ref
 	// なのは、保存成功と遷移が同じ tick で起きるため(再レンダリングが間に合わない)。
 	const leavingAfterSaveRef = useRef(false);
@@ -262,17 +267,22 @@ export function DrunkWineForm({
 			photoKeys: photos.map((p) => (p.kind === "existing" ? p.key : null)),
 		});
 
+	// キャッシュバスタは**直近に保存した内容**を基準にする。解析の投入で保存した回
+	// (#490)は entry prop のまま画面に留まるので、初期表示時のスナップショットだけを
+	// 見ていると保存で入れ替わった写真が古いまま出る。
+	const photoVersion = savedEntry?.updatedAt ?? entry?.updatedAt ?? "";
+
 	// 既存写真の表示URL(キャッシュバスタ付き)。解析時のfetchにも使う
 	const photoSrc = (p: PhotoItem): string =>
 		p.kind === "new"
 			? p.previewUrl
-			: `${imagePathForKey(p.key)}?v=${entry?.updatedAt ?? ""}`;
+			: `${imagePathForKey(p.key)}?v=${photoVersion}`;
 
 	// 一覧と同じく、表示用には縮小版を読む(#237)。実体が無ければ配信側が原寸を返す。
 	const photoThumbSrc = (p: PhotoItem): string =>
 		p.kind === "new"
 			? p.previewUrl
-			: `${imagePathForKey(thumbKeyForPhotoKey(p.key))}?v=${entry?.updatedAt ?? ""}`;
+			: `${imagePathForKey(thumbKeyForPhotoKey(p.key))}?v=${photoVersion}`;
 
 	const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(e.target.files ?? []);
@@ -396,6 +406,76 @@ export function DrunkWineForm({
 	const analysisSources = (): AnalysisPhotoSource[] =>
 		photos.map((p) => (p.kind === "new" ? p.file : { url: photoSrc(p) }));
 
+	/**
+	 * いまの入力をサーバへ保存する(新規なら作成、既存なら差分更新)。写真は entryId が
+	 * 決まってからでないと R2 キーが作れないので、確定後に集合を同期する。
+	 *
+	 * 「記録する/更新する」と、解析の投入時の自動記録(#490)が共有する。保存の組み立てを
+	 * 経路ごとに書くと、片方だけ目撃記録や写真の同期を落とす形でドリフトする。
+	 */
+	const persistForm = async (): Promise<DrunkWineEntry> => {
+		const state = toFormState(values);
+
+		let saved: DrunkWineEntry;
+		const existing = savedRef.current ?? entry;
+		if (existing) {
+			// 更新: 変更したフィールドだけを送る(null=クリア)。
+			// 全キー未指定のパッチは空UPDATEになるので送信自体をスキップする
+			const patch = buildUpdatePatch(existing, state);
+			saved = hasDrunkWinePatch(patch)
+				? await updateDrunkWine({ data: { id: existing.id, ...patch } })
+				: existing;
+		} else {
+			// 新規作成は銘柄・飲用記録・目撃記録を1リクエストで作る(サービス層が
+			// db.batch で原子化する)。写真だけは R2 キーが entryId 依存なので
+			// 2段階のまま。
+			saved = await createDrunkWine({
+				data: buildCreateInput(
+					state,
+					buildTastingInput(tastingDraft),
+					// 目撃記録の入力欄を出していない画面(編集)では下書きが空のままなので
+					// undefined になり、記録は作られない
+					buildCreateEntrySightingInput(sightingDraft),
+				),
+			});
+		}
+		savedRef.current = saved;
+		// 写真集合を同期する。新規追加も既存の削除・並べ替えもここで反映される。
+		// 新規作成で写真が無い場合はスキップ(不要なリクエストを避ける)
+		const hadPhotos = (entry?.photoUrls.length ?? 0) > 0;
+		if (photos.length > 0 || hadPhotos) {
+			saved = await syncPhotos(saved.id, photos);
+			savedRef.current = saved;
+		}
+		return saved;
+	};
+
+	/**
+	 * 保存で確定した内容をフォームへ写す(#490)。保存後もこの画面に留まる経路
+	 * (解析の投入時の自動記録)があるので、**保存直後のフォームは「保存済みの状態」を
+	 * 映していなければならない**——さもないと離脱ガードが「未保存の変更あり」と言い続け、
+	 * 次の保存で同じ写真をもう一度アップロードすることになる。
+	 *
+	 * 飲用記録・目撃記録の下書きは作成時に1件として保存済みなので空へ戻す。以降の保存は
+	 * 差分更新の経路に入り下書きを送らないため、残したままにすると「入力欄に見えているのに
+	 * 保存されない」欄になる(入力欄自体もここから出さなくなる)。
+	 */
+	const applySavedEntry = (saved: DrunkWineEntry) => {
+		for (const p of photos) {
+			if (p.kind === "new") URL.revokeObjectURL(p.previewUrl);
+		}
+		setPhotos(
+			saved.photoUrls.map((url, i) => ({
+				localId: `s${i}`,
+				kind: "existing" as const,
+				key: imageKeyFromPath(url),
+			})),
+		);
+		setTastingDraft(EMPTY_TASTING_DRAFT);
+		setSightingDraft(EMPTY_SIGHTING_DRAFT);
+		setSavedEntry(saved);
+	};
+
 	// ---- 解析はすべてジョブ経路(#462 / #464) ----
 	//
 	// 投入が返った時点でサーバに予約と写真が載っているので、**ここから先はページを
@@ -407,7 +487,7 @@ export function DrunkWineForm({
 	// 一括抽出の候補が既に初期値として入っているので空にはならない。エチケット解析は
 	// それを精緻化するものなので、17〜31秒(#463 の本番実測)拘束する必要が無い。
 	const [jobId, setJobId] = useState<string | null>(null);
-	const { data: job } = useLabelAnalysisJob(jobId);
+	const { data: job, isError: jobUnavailable } = useLabelAnalysisJob(jobId);
 	/**
 	 * 走っているジョブに保存先を教える(#472)。**best-effort**——保存は既に成功して
 	 * おり、紐づけの失敗で利用者の操作を止める理由が無い(受け取りが従来どおり新規作成
@@ -416,21 +496,47 @@ export function DrunkWineForm({
 	 * 保存の直後だけでなく、既存エントリの編集中に投入した回もここを通す。「この解析結果が
 	 * どのワインに宛てられているか」は投入と保存のどちらが先でも同じ意味を持つ。
 	 */
-	const attachJobToEntry = (targetJobId: string, targetEntryId: string) => {
+	const attachJobToEntry = (
+		targetJobId: string,
+		targetEntryId: string,
+		/**
+		 * 解析に使った写真をそのエントリへ引き継がせるか(#490)。**このフォームが投入した
+		 * ジョブでは引き継がせない**——投入と同時に同じ写真をエントリへ保存しており、
+		 * 引き継ぐと同じ写真が2枚並ぶ。引き継ぐのは、写真を持たずに結果だけを受け取った
+		 * 回(`sourceLabelJobId`)だけ。
+		 */
+		adoptPhotos: boolean,
+	) => {
 		void attachLabelAnalysisJobEntry({
-			data: { jobId: targetJobId, entryId: targetEntryId },
+			data: { jobId: targetJobId, entryId: targetEntryId, adoptPhotos },
 		}).catch(() => {});
 	};
 	// 完了を1回だけ処理する。ポーリングは終端で止まるが、その最後の1件が
 	// 再レンダリングのたびに流れ込まないようにする。
 	const handledJobRef = useRef<string | null>(null);
 
+	// 解析の投入は「投入 → その時点の内容を記録」の2段(#490)。順序に意味がある:
+	//
+	//  - **投入が先**。残高不足(`blocked`)で解析が始まらない回に、押しただけで記録が
+	//    増えるのはおかしい。投入が通った回だけ記録する
+	//  - **記録の失敗で投入を巻き戻さない**。予約は既に立っており、結果はマイセラーの
+	//    バッジから受け取れる。名前が空のまま解析させる使い方(AIに名前を読ませる)も
+	//    ここに落ちる——保存できないだけで、解析そのものは成立する
 	const { mutate: startAnalysisJob, isPending: isSubmittingJob } = useMutation({
 		mutationFn: async () => {
 			if (photos.length === 0) throw new Error("写真を選択してください");
-			return submitLabelAnalysisJob(analysisSources());
+			const result = await submitLabelAnalysisJob(analysisSources());
+			if (result.blocked) return { result, saved: null, saveError: null };
+			return await persistForm().then(
+				(saved) => ({ result, saved, saveError: null }),
+				(e: unknown) => ({
+					result,
+					saved: null,
+					saveError: e instanceof Error ? e.message : String(e),
+				}),
+			);
 		},
-		onSuccess: (result) => {
+		onSuccess: ({ result, saved, saveError }) => {
 			// 投入時点で予約が立つ(=残高が動く)ので、ここで残高表示を更新する。
 			void queryClient.invalidateQueries({
 				queryKey: CREDIT_BALANCE_QUERY_KEY,
@@ -443,11 +549,20 @@ export function DrunkWineForm({
 				return;
 			}
 			setJobId(result.jobId);
-			// 宛先が既に決まっている(編集中・保存済み)なら、この時点で教えておく。
-			const target = savedRef.current ?? entry;
-			if (target) attachJobToEntry(result.jobId, target.id);
+			if (saved) applySavedEntry(saved);
+			// 宛先が決まったので、この時点で教えておく。解析中に離脱しても、完了の
+			// 受け取りが新規登録ではなく「このワインを編集」へ向く(#472)。
+			const target = saved ?? savedRef.current ?? entry;
+			if (target) attachJobToEntry(result.jobId, target.id, false);
+			if (saveError) {
+				setError(
+					`解析は開始しましたが、この時点の内容を記録できませんでした(${saveError})。解析の完了後にもう一度保存してください。`,
+				);
+				setAnalyzeNotice("");
+				return;
+			}
 			setAnalyzeNotice(
-				"解析を開始しました。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。",
+				"解析を開始しました。この時点の内容は記録済みです。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。",
 			);
 		},
 		onError: (e: Error) => setError(e.message || "解析の受付に失敗しました"),
@@ -506,59 +621,45 @@ export function DrunkWineForm({
 	// 入っている。手動の「エチケットから自動入力」は残す——写真を足した・エンジンを
 	// 変えたときに掛け直す用途があり、そちらは利用者が押して初めて走る。
 
-	/** 解析中(投入待ち + ジョブ実行中)。 */
+	/**
+	 * 解析中(投入待ち + 状態が分かる前 + ジョブ実行中)。保存を止める判定でもある(#490)。
+	 *
+	 * **状態をまだ引けていない間(`job === undefined`)も解析中として扱う**。投入が返って
+	 * から最初のポーリングが返るまでの数百ミリ秒だけ「解析中なのに保存できる」窓ができ、
+	 * 実機ではそこを踏んだ(投入直後に保存ボタンが「更新する」に戻る)。
+	 *
+	 * 状態取得が失敗し続ける回だけは解除する。開かないボタンを押し続けさせるより、
+	 * 保存できるほうがまし(離脱ガードも同じ流儀で「保存の道を塞がない」を採る)。
+	 */
 	const isAnalyzing =
 		isSubmittingJob ||
-		(job !== undefined &&
-			(job.status === "queued" || job.status === "running"));
+		(jobId !== null &&
+			!jobUnavailable &&
+			(job === undefined || !isTerminalLabelJobStatus(job.status)));
 
 	const { mutate: save, isPending } = useMutation({
-		mutationFn: async () => {
-			const state = toFormState(values);
-
-			let saved: DrunkWineEntry;
-			const existing = savedRef.current ?? entry;
-			if (existing) {
-				// 更新: 変更したフィールドだけを送る(null=クリア)。
-				// 全キー未指定のパッチは空UPDATEになるので送信自体をスキップする
-				const patch = buildUpdatePatch(existing, state);
-				saved = hasDrunkWinePatch(patch)
-					? await updateDrunkWine({ data: { id: existing.id, ...patch } })
-					: existing;
-			} else {
-				// 新規作成は銘柄・飲用記録・目撃記録を1リクエストで作る(サービス層が
-				// db.batch で原子化する)。写真だけは R2 キーが entryId 依存なので
-				// 2段階のまま。
-				saved = await createDrunkWine({
-					data: buildCreateInput(
-						state,
-						buildTastingInput(tastingDraft),
-						// 目撃記録の入力欄を出していない画面(編集)では下書きが空のままなので
-						// undefined になり、記録は作られない
-						buildCreateEntrySightingInput(sightingDraft),
-					),
-				});
-			}
-			savedRef.current = saved;
-			// 写真集合を同期する。新規追加も既存の削除・並べ替えもここで反映される。
-			// 新規作成で写真が無い場合はスキップ(不要なリクエストを避ける)
-			const hadPhotos = (entry?.photoUrls.length ?? 0) > 0;
-			if (photos.length > 0 || hadPhotos) {
-				saved = await syncPhotos(saved.id, photos);
-				savedRef.current = saved;
-			}
-			return saved;
-		},
+		mutationFn: persistForm,
 		onSuccess: async (saved) => {
-			for (const p of photos) {
-				if (p.kind === "new") URL.revokeObjectURL(p.previewUrl);
-			}
 			// 解析結果の行き先をジョブに教える(#472)。この直後に画面を離れても、完了の
 			// 受け取りが新規登録ではなく「このワインを編集」へ向くようになる。
-			// **受け取って開いた回(`pendingLabelJob`)も通す**——そちらは完了済みなので、
-			// この保存で解析に使った写真がこのワインの写真として引き継がれる(#474)。
-			const targetJobId = jobId ?? pendingLabelJob?.jobId ?? sourceLabelJobId;
-			if (targetJobId) attachJobToEntry(targetJobId, saved.id);
+			//
+			// **写真を引き継がせるのは `sourceLabelJobId` だけ**(#490)。この画面で投入した
+			// 回(`jobId`)と、宛先が既にこのワインのジョブ(`pendingLabelJob`)は、解析に
+			// 使った写真と同じものをフォームが保存済みなので、引き継ぐと2枚に増える。
+			// `sourceLabelJobId` は手元に File が無い受け取り経路(#474)で、サーバ側の
+			// 写真だけが頼り。
+			//
+			// 関係するジョブが複数ある回(受け取った結果を見てから解析し直した等)は
+			// **どれも宛先を記録する**。1件しか記録しないと、残りの完了が新規登録の口を
+			// 開いたままになる。
+			if (jobId) attachJobToEntry(jobId, saved.id, false);
+			if (pendingLabelJob) {
+				attachJobToEntry(pendingLabelJob.jobId, saved.id, false);
+			}
+			if (sourceLabelJobId && sourceLabelJobId !== jobId) {
+				attachJobToEntry(sourceLabelJobId, saved.id, true);
+			}
+			applySavedEntry(saved);
 			// 保存済みなので、この後の遷移は警告しない(onSaved が遷移することが多い)
 			leavingAfterSaveRef.current = true;
 			await onSaved(saved);
@@ -744,7 +845,11 @@ export function DrunkWineForm({
 				onChange={update}
 				photoSlot={photoSection}
 				tastingSlot={
-					tastingSlot ?? (
+					// 記録済み(解析の投入で保存した回 #490)になったら下書きの入力欄は出さない。
+					// 以降の保存は差分更新の経路に入り下書きを送らないので、出したままにすると
+					// 「入力できるのに保存されない」欄になる。追加は保存後の編集画面から。
+					tastingSlot ??
+					(savedEntry ? null : (
 						<FormSection
 							title="飲んだ記録(任意)"
 							description="飲んだ日や感想を入れると、飲用記録として保存されます。まだ飲んでいない場合は空のままで構いません。"
@@ -757,12 +862,14 @@ export function DrunkWineForm({
 								idPrefix="wine-tasting"
 							/>
 						</FormSection>
-					)
+					))
 				}
 				sightingSlot={
 					// 新規作成で場所の候補を渡されたときだけ。編集画面の目撃記録は
-					// SightingList(銘柄の外)が担当する。
+					// SightingList(銘柄の外)が担当する。記録済みになったら出さないのは
+					// 飲んだ記録と同じ理由。
 					!entry &&
+					!savedEntry &&
 					places && (
 						<FormSection
 							title="見かけた記録(任意)"
@@ -787,12 +894,31 @@ export function DrunkWineForm({
 				{error && <p className="text-sm text-destructive">{error}</p>}
 			</LiveRegion>
 
+			{/*
+			  解析中は保存させない(#490)。投入した時点の内容はそこで記録済みで、完了すると
+			  差分ダイアログから反映できる。ここで保存できると、同じ写真を解析ジョブとフォームの
+			  両方から足す・完了の受け取りが宛先を見失うといった取り違えが起きる。
+			*/}
+			<LiveRegion className="empty:-mt-6">
+				{isAnalyzing && (
+					<p className="text-sm text-muted-foreground">
+						エチケット解析中です。開始した時点の内容は記録済みなので、完了するまで保存できません。
+					</p>
+				)}
+			</LiveRegion>
+
 			<Button
 				type="submit"
-				disabled={isPending || !values.name.trim()}
+				disabled={isPending || isAnalyzing || !values.name.trim()}
 				className="self-start"
 			>
-				{isPending ? "保存中..." : entry ? "更新する" : "記録する"}
+				{isPending
+					? "保存中..."
+					: isAnalyzing
+						? "解析の完了待ち..."
+						: entry || savedEntry
+							? "更新する"
+							: "記録する"}
 			</Button>
 
 			<InsufficientCreditsDialog
