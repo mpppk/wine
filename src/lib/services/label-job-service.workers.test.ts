@@ -763,6 +763,58 @@ describe("完了の受け取り (#462)", () => {
 		).toBeGreaterThan(0);
 	});
 
+	it("フォームが同じ写真を保存済みなら引き継がない (#490)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId, 2);
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		const entryId = await seedEntry(userId);
+
+		// 記録フォームからの投入は、投入と同時にその写真をエントリへ保存している。
+		// 引き継ぐと同じ写真が2枚並ぶので、宛先だけを記録する。
+		expect(
+			await attachLabelAnalysisJobEntry(userId, jobId, entryId, {
+				adoptPhotos: false,
+			}),
+		).toMatchObject({ attached: true, adoptedPhotos: 0 });
+
+		const [entry] = await db
+			.select({ photoKeys: drunkWine.photoKeys })
+			.from(drunkWine)
+			.where(eq(drunkWine.id, entryId));
+		expect(entry?.photoKeys).toEqual([]);
+		// 所有はジョブに残る(回収は保持期間の掃除に任せる)。
+		expect((await jobRow(jobId))?.photoKeys).toEqual(keys);
+	});
+
+	it("引き継がなかった写真も保持期間を過ぎたら回収する (#490)", async () => {
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		const keys = (await jobRow(jobId))?.photoKeys ?? [];
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		const entryId = await seedEntry(userId);
+		await attachLabelAnalysisJobEntry(userId, jobId, entryId, {
+			adoptPhotos: false,
+		});
+		await consumeLabelAnalysisJob(userId, jobId);
+		await db
+			.update(labelAnalysisJob)
+			.set({
+				consumedAt: new Date(Date.now() - LABEL_JOB_PHOTO_RETENTION_MS - 1000),
+			})
+			.where(eq(labelAnalysisJob.id, jobId));
+
+		// 宛先はあるが引き取り手はいない(エントリは自前の写真を持っている)。
+		// 宛先の有無で除外すると、この写真が誰からも参照されないまま R2 に残る。
+		expect(await sweepConsumedJobPhotos(userId)).toBe(1);
+		expect((await jobRow(jobId))?.photoKeys).toEqual([]);
+		for (const key of keys) {
+			expect(await env.AVATARS.get(key)).toBeNull();
+		}
+	});
+
 	it("引き取り手が現れなかった写真は保持期間を過ぎたら回収する (#474)", async () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);

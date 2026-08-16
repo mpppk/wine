@@ -591,6 +591,19 @@ export async function attachLabelAnalysisJobEntry(
 	userId: string,
 	jobId: string,
 	entryId: string,
+	options?: {
+		/**
+		 * 解析に使った写真をこのエントリへ引き継ぐか(既定 true)。
+		 *
+		 * **記録フォームから投入した回は false を渡す**(#490)。そちらは投入と同時に
+		 * フォームの内容を保存しており、解析に使ったのと同じ写真を既にエントリが持って
+		 * いる。引き継ぐと同じ写真が2枚並ぶ(縮小版が増えるだけで情報は増えない)。
+		 *
+		 * 渡さなかった(= 引き継がなかった)写真はジョブが持ったままになるが、
+		 * `sweepConsumedJobPhotos` が受け取りから保持期間を過ぎたぶんを回収する。
+		 */
+		adoptPhotos?: boolean;
+	},
 ): Promise<{ attached: boolean; adoptedPhotos: number }> {
 	// 宛先が本人のエントリであることを確かめる。**他人のエントリIDを宛先にできると**、
 	// 受け取り導線がそのIDへ遷移し、存在の有無を漏らす経路になる(所有権チェックは
@@ -622,6 +635,11 @@ export async function attachLabelAnalysisJobEntry(
 	//
 	// まだ走っているジョブでは何もしない(`adoptLabelJobPhotos` が succeeded を要求する)。
 	// その回は完了後の受け取りで改めてここを通る。
+	//
+	// **呼び出し側が同じ写真を既に保存しているなら引き継がない**(#490)。
+	if (options?.adoptPhotos === false) {
+		return { attached: !!updated, adoptedPhotos: 0 };
+	}
 	const { adopted } = await adoptLabelJobPhotos(userId, jobId, entryId);
 	return { attached: !!updated, adoptedPhotos: adopted };
 }
@@ -743,6 +761,11 @@ export async function adoptLabelJobPhotosToBatch(
  * `LABEL_JOB_PHOTO_RETENTION_MS` 経っても引き継がれていなければ、記録には使われなかった
  * と判断してよい。
  *
+ * **引き取られたかどうかは `photo_keys` が空かどうかで見る**(宛先エントリの有無ではない)。
+ * 記録フォームから投入した回は投入時点でエントリに紐づくが、同じ写真をエントリが既に
+ * 持っているため引き継がない(#490)。宛先で除外すると、その回の写真が誰にも参照されない
+ * まま R2 に残り続ける。所有を手放したジョブは `photo_keys` が空なので対象にならない。
+ *
  * 呼ぶのは投入・状態取得と同じ「次に来た誰かが片付ける」流儀(`settleStaleLabelAnalysisJobs`
  * と同じ理由: 定期実行の口を新設せずに済む)。
  */
@@ -755,7 +778,6 @@ export async function sweepConsumedJobPhotos(userId: string): Promise<number> {
 			and(
 				eq(labelAnalysisJob.userId, userId),
 				eq(labelAnalysisJob.status, "succeeded"),
-				isNull(labelAnalysisJob.entryId),
 				lt(labelAnalysisJob.consumedAt, cutoff),
 			),
 		);
