@@ -52,6 +52,7 @@ import { LiveRegion } from "#/components/ui/live-region";
 import { TAP_TARGET_44 } from "#/lib/a11y";
 import { estimateLabelReserveCharge } from "#/lib/ai/config";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
+import { isTerminalLabelJobStatus } from "#/lib/ai/label-job";
 import { costToCredits } from "#/lib/credit/credit-math";
 import {
 	CREDIT_BALANCE_QUERY_KEY,
@@ -486,7 +487,7 @@ export function DrunkWineForm({
 	// 一括抽出の候補が既に初期値として入っているので空にはならない。エチケット解析は
 	// それを精緻化するものなので、17〜31秒(#463 の本番実測)拘束する必要が無い。
 	const [jobId, setJobId] = useState<string | null>(null);
-	const { data: job } = useLabelAnalysisJob(jobId);
+	const { data: job, isError: jobUnavailable } = useLabelAnalysisJob(jobId);
 	/**
 	 * 走っているジョブに保存先を教える(#472)。**best-effort**——保存は既に成功して
 	 * おり、紐づけの失敗で利用者の操作を止める理由が無い(受け取りが従来どおり新規作成
@@ -620,11 +621,21 @@ export function DrunkWineForm({
 	// 入っている。手動の「エチケットから自動入力」は残す——写真を足した・エンジンを
 	// 変えたときに掛け直す用途があり、そちらは利用者が押して初めて走る。
 
-	/** 解析中(投入待ち + ジョブ実行中)。 */
+	/**
+	 * 解析中(投入待ち + 状態が分かる前 + ジョブ実行中)。保存を止める判定でもある(#490)。
+	 *
+	 * **状態をまだ引けていない間(`job === undefined`)も解析中として扱う**。投入が返って
+	 * から最初のポーリングが返るまでの数百ミリ秒だけ「解析中なのに保存できる」窓ができ、
+	 * 実機ではそこを踏んだ(投入直後に保存ボタンが「更新する」に戻る)。
+	 *
+	 * 状態取得が失敗し続ける回だけは解除する。開かないボタンを押し続けさせるより、
+	 * 保存できるほうがまし(離脱ガードも同じ流儀で「保存の道を塞がない」を採る)。
+	 */
 	const isAnalyzing =
 		isSubmittingJob ||
-		(job !== undefined &&
-			(job.status === "queued" || job.status === "running"));
+		(jobId !== null &&
+			!jobUnavailable &&
+			(job === undefined || !isTerminalLabelJobStatus(job.status)));
 
 	const { mutate: save, isPending } = useMutation({
 		mutationFn: persistForm,
