@@ -322,9 +322,30 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 bun run traces                            # 本番(wine)の直近1時間
 bun run traces --env preview --since 3h   # プレビュー(wine-preview)の直近3時間
 bun run traces --grep ai_inference        # スパン名の部分一致
+bun run traces --trace <trace-id>         # そのトレースのスパンを親子で表示(属性つき)
 bun run traces --version <version-id>     # 特定バージョンに限定
 bun run traces --json                     # 生JSON(jq で加工する場合)
 ```
+
+一覧は「1リクエスト = 1行」で、そこから `--trace` で中身に降りる:
+
+```
+$ bun run traces --since 30m
+2026-08-17 09:11:40.061Z POST https://wine.nibo.sh/api/mcp 783ms spans=4 trace=df94454ed334…
+
+$ bun run traces --trace df94454ed3341035b077cf8d8fc3fd17
+# trace df94454ed3341035b077cf8d8fc3fd17 / 4スパン
+  POST 783ms
+    d1_all 591ms
+    d1_all 192ms
+    mcp_tool 0ms  wine.mcp.tool=list_aops
+```
+
+> [!IMPORTANT]
+> **トレースのデータセットはログと別で `otel`**（`scripts/traces.mjs` の `DATASETS`）。ログの
+> `cloudflare-workers` を渡すと **API は 200 と 0 件を返す**——データセット名は検証されないため、
+> 「指定が違う」と「その期間にトラフィックが無い」を区別できない。#505 の CLI はこれで常に0件を
+> 返していた（#506）。0件が続くときは、まずデータセットとフィルタのキーを疑う。
 
 ### 何が計装されるか
 

@@ -45,6 +45,17 @@ const REPO_ROOT = path.resolve(
 	"..",
 );
 
+/**
+ * トレース(スパン)のデータセット。**ログの `cloudflare-workers` とは別**(#506)。
+ *
+ * ここを間違えると **API は 200 と 0件を返す**。データセット名は検証されないため、
+ * 「データセット指定が違う」と「その期間にトラフィックが無い」が区別できない
+ * ——#505 のCLIはログと同じ `cloudflare-workers` を渡していて、トレースは正しく
+ * 記録されているのに常に0件だった。空配列(=全データセット)でも引けるが、明示して
+ * おかないと同じ取り違えを次にやる。
+ */
+const DATASETS = ["otel"];
+
 const USAGE = `使い方: bun run traces [オプション]
 
   --env <production|preview>  対象環境(既定: production)。wrangler.jsonc の worker 名を引く
@@ -54,6 +65,7 @@ const USAGE = `使い方: bun run traces [オプション]
   --since <30m|2h|3d>         遡る期間(既定: 1h)
   --limit <n>                 最大取得件数(既定: 20)
   --grep <text>               スパン名の部分一致で絞る(例: ai_inference / label_job / mcp_tool)
+  --trace <trace-id>          そのトレースのスパンを親子付きで表示する(属性も出す)
   --version <version-id>      特定の worker バージョンに限定
   --json                      整形せず生JSONを出力する
   -h, --help                  このヘルプ
@@ -72,6 +84,7 @@ export function parseArgs(argv) {
 		since: "1h",
 		limit: 20,
 		grep: null,
+		trace: null,
 		version: null,
 		json: false,
 		help: false,
@@ -98,6 +111,9 @@ export function parseArgs(argv) {
 				break;
 			case "--grep":
 				opts.grep = value();
+				break;
+			case "--trace":
+				opts.trace = value();
 				break;
 			case "--version":
 				opts.version = value();
@@ -126,10 +142,7 @@ export function parseArgs(argv) {
 	return opts;
 }
 
-/**
- * トレース検索のクエリ parameters を組み立てる。データセットはログと同一で
- * (`cloudflare-workers`)、`view` の指定でトレースが返る。
- */
+/** トレース検索のクエリ parameters を組み立てる(`view: "traces"` と併せて使う)。 */
 export function buildParameters({ worker, grep, version }) {
 	const filters = [
 		{
@@ -155,7 +168,27 @@ export function buildParameters({ worker, grep, version }) {
 			type: "string",
 		});
 	}
-	return { datasets: ["cloudflare-workers"], filters };
+	return { datasets: DATASETS, filters };
+}
+
+/**
+ * 1トレースのスパンを引く parameters(`view: "events"` と併せて使う)。
+ *
+ * トレース一覧は「1リクエスト = 1行」で、その中のどの操作が遅かったかは持たない。
+ * スパン単位の行はこちらで引く——`otel` データセットでは1イベント = 1スパンになる。
+ */
+export function buildSpanParameters({ traceId }) {
+	return {
+		datasets: DATASETS,
+		filters: [
+			{
+				key: "$metadata.traceId",
+				operation: "eq",
+				value: traceId,
+				type: "string",
+			},
+		],
+	};
 }
 
 function formatDuration(ms) {
@@ -168,34 +201,88 @@ function formatTime(timestamp) {
 }
 
 /**
- * 1トレースを1行(+子スパンはインデント)に整形する。
+ * 1トレースを1行に整形する。
  *
- * **キーの取り方に複数の候補を持たせてある**。ログの `events` と違い traces ビューの
- * 行の形は API ドキュメントに載っておらず、`$metadata` 側に来るか行の直下に来るかを
- * 実データで確認するまで確定できなかったため。想定外の形なら**加工せず生JSONを出す**
- * ——整形に失敗して空行を出すより、読める形で全部見せるほうが調査の役に立つ。
- * 生の値が要るときは `--json` を使う。
+ * `spans` は**スパン数**(数値)で、スパンの配列ではない。中身に降りるには `--trace`
+ * (= `buildSpanParameters`)を使う。想定外の形なら加工せず生JSONを出す——整形に失敗して
+ * 空行を出すより、読める形で全部見せるほうが調査の役に立つ。
  */
 export function formatTrace(trace) {
-	const meta = trace?.$metadata ?? {};
-	const traceId = meta.traceId ?? trace?.traceId;
-	const name = meta.spanName ?? trace?.spanName ?? trace?.name;
-	const duration =
-		meta.traceDuration ?? trace?.traceDuration ?? trace?.duration;
-	if (traceId === undefined && name === undefined) return JSON.stringify(trace);
+	if (trace?.traceId === undefined) return JSON.stringify(trace);
+	const errors = Array.isArray(trace.errors) ? trace.errors : [];
+	// rootTransactionName は "POST https://…/api/mcp" で、rootSpanName("POST")を含む。
+	// 一覧で欲しいのは経路が分かる前者。
+	const name = trace.rootTransactionName ?? trace.rootSpanName ?? "-";
+	return (
+		`${formatTime(trace.traceStartMs)} ${name}` +
+		`${formatDuration(trace.traceDurationMs)}` +
+		` spans=${trace.spans ?? "?"} trace=${trace.traceId}` +
+		(errors.length > 0 ? ` ERR=${JSON.stringify(errors)}` : "")
+	);
+}
 
-	const head =
-		`${formatTime(trace?.timestamp ?? meta.timestamp)} ` +
-		`${name ?? "-"}${formatDuration(duration)}` +
-		`${traceId ? ` trace=${traceId}` : ""}`;
-	const spans = Array.isArray(trace?.spans) ? trace.spans : [];
-	const lines = [head];
+/**
+ * カスタムスパンの属性を `wine.mcp.tool=list_aops` の形に平坦化する。
+ *
+ * スパンの属性は行の `source` 直下にドット区切りのオブジェクトとして入る
+ * (`source.wine.mcp.tool`)。プラットフォーム側の属性(`cloudflare.*` / `faas.*` 等)は
+ * 量が多く調査の役に立たないので、**このアプリが付けた `wine.*` だけを出す**。
+ */
+export function formatSpanAttributes(source) {
+	const out = [];
+	const walk = (value, prefix) => {
+		if (value === null || typeof value !== "object") {
+			out.push(`${prefix}=${value}`);
+			return;
+		}
+		for (const [key, child] of Object.entries(value)) {
+			walk(child, `${prefix}.${key}`);
+		}
+	};
+	if (source?.wine !== undefined) walk(source.wine, "wine");
+	return out.join(" ");
+}
+
+/**
+ * 1トレースのスパンを親子の入れ子で整形する。
+ *
+ * 深さは `parentSpanId` から辿る。**自動計装のスパン(D1・外向きfetch)とカスタムスパンが
+ * 同じ木に並ぶ**のが要点で、「MCPツールの中で走った2本のD1クエリのどちらが遅いか」は
+ * この形でしか読めない。
+ */
+export function formatSpanTree(rows) {
+	const spans = rows
+		.map((row) => row?.source)
+		.filter((s) => s?.spanId !== undefined);
+	const children = new Map();
 	for (const span of spans) {
-		const spanMeta = span?.$metadata ?? {};
-		const spanName = span?.name ?? spanMeta.spanName ?? "-";
-		const spanDuration =
-			span?.duration ?? span?.durationMs ?? spanMeta.traceDuration;
-		lines.push(`  ${spanName}${formatDuration(spanDuration)}`);
+		const key = span.parentSpanId ?? "__root__";
+		children.set(key, [...(children.get(key) ?? []), span]);
+	}
+	// 親がこのトレースに無いスパン(取得件数で切れた場合)も根として拾う。取り違えて
+	// 「1件も出ない」より、親が欠けたまま出すほうがよい。
+	const ids = new Set(spans.map((s) => s.spanId));
+	const roots = [
+		...(children.get("__root__") ?? []),
+		...spans.filter((s) => s.parentSpanId && !ids.has(s.parentSpanId)),
+	];
+	const lines = [];
+	const emit = (span, depth) => {
+		const attrs = formatSpanAttributes(span);
+		lines.push(
+			`${"  ".repeat(depth + 1)}${span.name ?? "-"}` +
+				`${formatDuration(span.durationMS)}${attrs ? `  ${attrs}` : ""}`,
+		);
+		for (const child of (children.get(span.spanId) ?? []).sort(
+			(a, b) => (a.startTime ?? 0) - (b.startTime ?? 0),
+		)) {
+			emit(child, depth + 1);
+		}
+	};
+	for (const root of roots.sort(
+		(a, b) => (a.startTime ?? 0) - (b.startTime ?? 0),
+	)) {
+		emit(root, 0);
 	}
 	return lines.join("\n");
 }
@@ -232,25 +319,52 @@ async function main(argv) {
 	const accountId = await resolveAccountId(token);
 	const to = Date.now();
 	const from = to - parseSince(opts.since) * 1000;
+	const queryUrl = `${API_BASE}/accounts/${accountId}/workers/observability/telemetry/query`;
 
-	const result = await callApi(
-		`${API_BASE}/accounts/${accountId}/workers/observability/telemetry/query`,
-		token,
-		{
+	// --trace: 1トレースのスパンを親子で出す(一覧ではなくこちらを出して終わる)
+	if (opts.trace) {
+		const spanResult = await callApi(queryUrl, token, {
 			method: "POST",
 			body: JSON.stringify({
-				queryId: "wine-traces-cli",
-				limit: opts.limit,
-				view: "traces",
+				queryId: "wine-trace-spans-cli",
+				// 1トレースのスパンは通常数十件。取り漏らすと木が欠けるので一覧より多く取る
+				limit: 200,
+				view: "events",
 				timeframe: { from, to },
-				parameters: buildParameters({
-					worker,
-					grep: opts.grep,
-					version: opts.version,
-				}),
+				parameters: buildSpanParameters({ traceId: opts.trace }),
 			}),
-		},
-	);
+		});
+		const rows = spanResult?.events?.events ?? [];
+		if (opts.json) {
+			console.log(JSON.stringify(rows, null, 2));
+			return 0;
+		}
+		console.log(`# trace ${opts.trace} / ${rows.length}スパン`);
+		if (rows.length === 0) {
+			console.log(
+				"\nスパンがありません。trace ID が正しいか、--since の期間に入っているかを\n" +
+					"確認してください(既定は直近1時間)。",
+			);
+			return 0;
+		}
+		console.log(formatSpanTree(rows));
+		return 0;
+	}
+
+	const result = await callApi(queryUrl, token, {
+		method: "POST",
+		body: JSON.stringify({
+			queryId: "wine-traces-cli",
+			limit: opts.limit,
+			view: "traces",
+			timeframe: { from, to },
+			parameters: buildParameters({
+				worker,
+				grep: opts.grep,
+				version: opts.version,
+			}),
+		}),
+	});
 
 	const traces = result?.traces ?? [];
 	if (opts.json) {
@@ -264,6 +378,12 @@ async function main(argv) {
 			(opts.version ? ` / version=${opts.version}` : ""),
 	);
 	for (const trace of traces) console.log(formatTrace(trace));
+	if (traces.length > 0) {
+		console.log(
+			"\n個々のスパン(D1クエリ・カスタムスパン)に降りるには:" +
+				` bun run traces --trace ${traces[0].traceId}`,
+		);
+	}
 
 	if (traces.length === 0) {
 		console.log(
