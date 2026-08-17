@@ -1,7 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { PencilIcon, SparklesIcon, XIcon } from "lucide-react";
+import { ListChecksIcon, PencilIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import {
+	analyzeBlockReason,
+	photoSetKey,
+} from "#/components/cellar/analysis-gate";
 import type { DrunkWineFieldsValue } from "#/components/cellar/drunk-wine-payload";
 import { ImportCandidateCard } from "#/components/cellar/ImportCandidateCard";
 import {
@@ -217,6 +221,12 @@ export function PhotoRegisterWizard({
 	// 保存済み写真の読み込み状態。再解析でないときは常に false / 空。
 	const [loadingRescanPhotos, setLoadingRescanPhotos] = useState(!!rescan);
 	const [cards, setCards] = useState<ImportCardState[] | null>(null);
+	// いま出している画面。**`cards` の有無から導出しない**。以前は「写真の選択に戻る」で
+	// `cards` を捨てていたため、戻ると同じ写真のまま解析ボタンが押せて、同じ結果に
+	// クレジットをもう一度払えた。結果は残したまま画面だけ切り替える。
+	const [step, setStep] = useState<"photos" | "review">("photos");
+	// 解析済みの写真の印(`photoSetKey`)。同じ写真での解析の押し直しを止める。
+	const [analyzedPhotoKey, setAnalyzedPhotoKey] = useState<string | null>(null);
 	const [summary, setSummary] = useState<WineListAnalysisSummary | null>(null);
 	const [error, setError] = useState("");
 	const [showInsufficient, setShowInsufficient] = useState(false);
@@ -245,6 +255,8 @@ export function PhotoRegisterWizard({
 	const requiredCredits = creditsForPhotos(route, photos.length);
 	// あと何枚足せるか。再解析では元バッチの写真を含めた残りになる(#428)
 	const remainingSlots = remainingPhotoSlots(photos.length);
+	// いま選んでいる写真の印。解析済みの印と一致する間は「同じ解析」なので押させない。
+	const photoKey = photoSetKey(photos.map((p) => p.localId));
 	// null = 未ログイン・取得中・取得失敗。残高0と区別できないので不足判定には使わない
 	const balance = useCreditBalanceValue();
 	const insufficientCredits = balance !== null && balance < requiredCredits;
@@ -383,13 +395,25 @@ export function PhotoRegisterWizard({
 	// バッジから受け取れる。
 	// 受け取って開いた回は、投入せずに結果だけを持って始まる(#474)。
 	const [jobId, setJobId] = useState<string | null>(receivedJob?.jobId ?? null);
-	const { data: job } = useLabelAnalysisJob(
-		// 受け取り済みの結果は既に手元にあるので引き直さない(ポーリングは投入した回だけ)。
-		receivedJob ? null : jobId,
+	/**
+	 * 投入済みで結果待ちのジョブ。**解析中かどうかをポーリングの `job` から導出しない**。
+	 * 投入が返ってから最初のポーリングが返るまで `job` は `undefined` で、その窓だけ
+	 * ボタンが有効に戻り、同じ写真の解析を二重に投入できた(記録フォーム側で #490 が
+	 * 塞いだのと同じ穴)。通信が一時的に失敗して状態を引けない間も同じ。
+	 */
+	const [awaitingJobId, setAwaitingJobId] = useState<string | null>(null);
+	const { data: job, error: jobError } = useLabelAnalysisJob(
+		// 受け取り済みの結果は既に手元にあるので引き直さない。ただし**この画面から
+		// 投入し直したジョブは別物**なので、受け取って開いた回でもポーリングする——
+		// 「receivedJob があれば常に引かない」にしていたため、受け取ってから解析し直すと
+		// 完了が永久に届かず、ボタンだけが有効なまま何度でも投入できた。
+		jobId !== null && jobId !== receivedJob?.jobId ? jobId : null,
 	);
-	// 完了を1回だけ処理する(ポーリングは終端で止まるが、その最後の1件が再レンダリングの
-	// たびに流れ込まないようにする)。
-	const handledJobRef = useRef<string | null>(null);
+	// 反映済みのジョブID。**集合で持つ**——1つのrefだと、解析し直して新しいIDを覚えた
+	// 時点で受け取り側の effect の番人が外れ、古い受け取り結果で上書きされる。
+	const handledJobIdsRef = useRef<Set<string>>(new Set());
+	// 投入した時点の写真の印。完了時に「この写真は解析済み」として覚えるのに使う。
+	const analyzingPhotoKeyRef = useRef("");
 
 	const { mutate: analyze, isPending: isSubmittingJob } = useMutation({
 		mutationFn: () =>
@@ -412,20 +436,38 @@ export function PhotoRegisterWizard({
 				return;
 			}
 			setJobId(result.jobId);
+			// ここから完了を反映するまでが「解析中」。ポーリングの状態が引けるより先に
+			// 立てる(投入直後にボタンが有効へ戻る窓を作らない)。
+			setAwaitingJobId(result.jobId);
 		},
 		onError: (e: Error) => setError(e.message || "解析の受付に失敗しました"),
 	});
 
-	/** 完了した解析結果を画面へ反映する。ポーリングと受け取りの両方が通る。 */
-	const applyWineListResult = (result: WineListAnalysisOutcome) => {
-		setSummary(result.summary);
-		setCards(buildImportCards(result.candidates));
+	/**
+	 * 完了した解析結果を画面へ反映する。ポーリングと受け取りの両方が通る。
+	 *
+	 * `analyzedKey` は**その結果を得た写真の印**(投入時に控えたもの)。ここで覚えて、
+	 * 同じ写真での解析の押し直しを止める。
+	 */
+	const applyWineListResult = (
+		result: WineListAnalysisOutcome,
+		analyzedKey: string,
+	) => {
+		setAnalyzedPhotoKey(analyzedKey);
 		if (result.candidates.length === 0) {
+			// **空のレビュー画面へは進めない**。読み取れなかった回に要るのは撮り直しの
+			// 導線であって、0件のカード一覧ではない。写真の画面に留めたまま理由を出す
+			// (この写真は解析済みとして印が付くので、変えるまで押し直せない)。
 			setError(
 				"写真からワインを読み取れませんでした。ワインリストや棚が写るように撮り直してください。",
 			);
 			return;
 		}
+		setSummary(result.summary);
+		setCards(buildImportCards(result.candidates));
+		// 完了したら結果の画面へ自動で進む。押した本人が見ている回に、写真の画面へ
+		// 留まったままにしない。
+		setStep("review");
 		// 1本のワインのエチケット等を撮った写真だった場合は、レビューではなく単体の
 		// 記録フォームへ切り替える(#416)。レビュー画面は裏で組み立て済みなので、
 		// 誤判定だった場合はフォームから戻ればそのまま一括登録を続けられる。
@@ -446,39 +488,50 @@ export function PhotoRegisterWizard({
 	// `defaultPreload: "intent"` でホバーだけでもローダーが走るため)。
 	// biome-ignore lint/correctness/useExhaustiveDependencies: 受け取りは1回だけ
 	useEffect(() => {
-		if (!receivedJob || handledJobRef.current === receivedJob.jobId) return;
-		handledJobRef.current = receivedJob.jobId;
+		if (!receivedJob || handledJobIdsRef.current.has(receivedJob.jobId)) return;
+		handledJobIdsRef.current.add(receivedJob.jobId);
 		void consumeLabelAnalysisJob(receivedJob.jobId)
 			.then(() =>
 				queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY }),
 			)
 			.catch(() => {});
-		applyWineListResult(receivedJob.result);
+		// 受け取った回は手元に写真が無い(離脱しているので当然)。いまの選択(空)を
+		// 解析済みの印にしておくと、写真を足すまで解析ボタンが開かない。
+		applyWineListResult(receivedJob.result, photoKey);
 	}, [receivedJob, queryClient]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: 完了の1回だけ処理する
 	useEffect(() => {
-		if (!job || handledJobRef.current === job.jobId) return;
+		if (!job || handledJobIdsRef.current.has(job.jobId)) return;
 		if (job.status === "queued" || job.status === "running") return;
-		handledJobRef.current = job.jobId;
+		handledJobIdsRef.current.add(job.jobId);
+		setAwaitingJobId(null);
 		// 実測での確定が済んでいるので残高を引き直す(予約時との差分が戻っている)。
 		void queryClient.invalidateQueries({ queryKey: CREDIT_BALANCE_QUERY_KEY });
 		void queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY });
 		if (job.status === "failed" || !job.wineList) {
+			// 失敗した回は解析済みの印を付けない(同じ写真でもう一度試せる)。
 			setError(job.error || "写真の解析に失敗しました");
 			return;
 		}
 		// **この画面で受け取ったジョブは受け取り済みにする**。しないと、目の前で反映した
 		// 結果がマイセラーのバッジに「解析が完了しました」として並び続ける(#472 と同じ)。
 		void consumeLabelAnalysisJob(job.jobId).catch(() => {});
-		applyWineListResult(job.wineList);
+		applyWineListResult(job.wineList, analyzingPhotoKeyRef.current);
 	}, [job, queryClient]);
 
-	/** 解析中(投入待ち + ジョブ実行中)。 */
-	const isAnalyzing =
-		isSubmittingJob ||
-		(job !== undefined &&
-			(job.status === "queued" || job.status === "running"));
+	/** 解析中(投入待ち + 結果待ち)。結果を反映するまで下がらない。 */
+	const isAnalyzing = isSubmittingJob || awaitingJobId !== null;
+	/** 解析を始められない理由。null なら押せる。 */
+	const analyzeBlocked = analyzeBlockReason({
+		photoKey,
+		analyzedPhotoKey,
+		photoCount: photos.length,
+		analyzing: isAnalyzing,
+		loadingPhotos: loadingRescanPhotos,
+		insufficientCredits,
+		missingPlaceName: placeChoice === NEW_PLACE && !newPlaceName.trim(),
+	});
 
 	const goToCellar = async () => {
 		for (const p of photos) URL.revokeObjectURL(p.previewUrl);
@@ -503,8 +556,13 @@ export function PhotoRegisterWizard({
 						...(placeChoice === NEW_PLACE ? { newPlaceName } : {}),
 						...(seenOn ? { seenOn } : {}),
 						// 受け取って開いた回は手元に File が無く、写真はサーバから引き継ぐ。
-						// 申告枚数はその引き継ぎ元の枚数にする(#482)。
-						photoCount: receivedJob?.photoCount ?? photos.length,
+						// 申告枚数はその引き継ぎ元の枚数にする(#482)。**手元に写真が
+						// あるならそちらを優先する**——受け取った後にこの画面で解析し直した
+						// 回は、候補の写真番号が新しく選んだ写真を指しているため。
+						photoCount:
+							photos.length > 0
+								? photos.length
+								: (receivedJob?.photoCount ?? 0),
 					}),
 				}));
 			setRegistered(result);
@@ -563,7 +621,7 @@ export function PhotoRegisterWizard({
 					onUndo={() => setUndoOpen(true)}
 					onProceed={() => void goToCellar()}
 				/>
-			) : cards === null ? (
+			) : step === "photos" || cards === null ? (
 				<div className="flex flex-col gap-6">
 					{rescan && (
 						<div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
@@ -617,6 +675,9 @@ export function PhotoRegisterWizard({
 										<button
 											type="button"
 											aria-label={`写真${index + 1}を削除`}
+											// 解析中は写真を触らせない。走っているのは投入した時点の
+											// 写真なので、途中で増減すると結果と手元の写真がずれる。
+											disabled={isAnalyzing}
 											onClick={() => removePhoto(p.localId)}
 											className={cn(
 												"absolute right-1 top-1 rounded-full bg-foreground/70 p-1 text-background transition-colors hover:bg-foreground",
@@ -635,7 +696,9 @@ export function PhotoRegisterWizard({
 							accept={PHOTO_ACCEPT_ATTR}
 							multiple
 							onChange={(e) => void handleFileChange(e)}
-							disabled={photos.length >= MAX_PHOTOS_PER_IMPORT_BATCH}
+							disabled={
+								isAnalyzing || photos.length >= MAX_PHOTOS_PER_IMPORT_BATCH
+							}
 							className="max-w-xs"
 						/>
 						<p className="text-xs text-muted-foreground">
@@ -699,22 +762,39 @@ export function PhotoRegisterWizard({
 
 					<div className="flex flex-col gap-1">
 						<div className="flex flex-wrap items-center gap-2">
+							{/*
+							  解析結果は「写真の選択に戻る」でも捨てないので、いつでも見に戻れる。
+							  結果があるときはこちらが本筋なので、解析ボタンより前・主ボタンで出す。
+							*/}
+							{cards && (
+								<Button
+									type="button"
+									onClick={() => {
+										setError("");
+										setStep("review");
+									}}
+								>
+									<ListChecksIcon className="size-4" aria-hidden />
+									解析結果を見る({cards.length}件)
+								</Button>
+							)}
 							<Button
 								type="button"
-								disabled={
-									photos.length === 0 ||
-									isAnalyzing ||
-									loadingRescanPhotos ||
-									insufficientCredits ||
-									(placeChoice === NEW_PLACE && !newPlaceName.trim())
-								}
+								variant={cards ? "outline" : "default"}
+								disabled={analyzeBlocked !== null}
 								onClick={() => {
 									setError("");
+									// 完了時に「この写真は解析済み」と覚えるための控え。
+									analyzingPhotoKeyRef.current = photoKey;
 									analyze();
 								}}
 							>
 								<SparklesIcon className="size-4" aria-hidden />
-								{isAnalyzing ? "解析中…" : "写真を解析する"}
+								{isAnalyzing
+									? "解析中…"
+									: analyzedPhotoKey !== null
+										? "写真を解析し直す"
+										: "写真を解析する"}
 							</Button>
 							{/*
 							  写真を使わずに全部自分で書きたい場合の逃げ道。選択済みの写真は
@@ -741,7 +821,25 @@ export function PhotoRegisterWizard({
 							// 解析はジョブ経路(#474)。投入が返った時点でサーバに予約と写真が
 							// 載っているので、ここから先は離れてよいことを明示する。
 							<p className="text-sm" aria-live="polite">
-								解析には30秒ほどかかります。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。
+								解析には1〜3分ほどかかります。完了したらこの画面が解析結果に切り替わります。完了までこのページを離れても構いません(マイセラーから結果を受け取れます)。
+							</p>
+						)}
+						{isAnalyzing && jobError && (
+							// 状態を引けない間もボタンは開けない(二重投入のほうが高くつく)。
+							// 完了はバッジからも受け取れるので、詰みではないことを伝える。
+							<p className="text-sm text-muted-foreground">
+								解析状況を取得できませんでした(再試行しています)。完了した結果はマイセラーからも受け取れます。
+							</p>
+						)}
+						{analyzeBlocked === "already_analyzed" && (
+							// なぜ押せないのかを言わずに disabled にしない。同じ写真の解析は
+							// クレジットを払って同じ結果を得るだけなので、行き先を示して止める。
+							<p className="text-sm text-muted-foreground">
+								この写真は解析済みです。
+								{cards
+									? "「解析結果を見る」から続けるか、"
+									: "同じ写真を解析し直しても結果は変わりません。"}
+								写真を追加・削除すると解析し直せます。
 							</p>
 						)}
 						<p className="text-xs text-muted-foreground">
@@ -767,7 +865,12 @@ export function PhotoRegisterWizard({
 						) : (
 							<>
 								<p className="text-xs text-muted-foreground">
-									解析には最大で数分かかります。完了するまで画面を閉じないでください。
+									{/*
+									  所要時間はプレビュー実測で 87秒〜5分(web検索での裏取りを挟むぶん
+									  振れる)。以前の「30秒ほど」「最大で数分・画面を閉じないでください」は
+									  どちらも実態と合っていない。
+									*/}
+									解析には1〜3分ほどかかります。完了すると解析結果の画面に切り替わります。
 								</p>
 								{/*
 								  単一ワインと判定したときは記録フォームへ自動で切り替わる(#416)。
@@ -887,9 +990,11 @@ export function PhotoRegisterWizard({
 									variant="ghost"
 									disabled={isRegistering}
 									onClick={() => {
-										setCards(null);
-										setSummary(null);
+										// **解析結果は捨てない**。捨てると、戻った先で同じ写真の
+										// 解析ボタンがそのまま押せて、同じ結果にクレジットを
+										// もう一度払える(それがこの導線の元の姿だった)。
 										setError("");
+										setStep("photos");
 									}}
 								>
 									写真の選択に戻る
