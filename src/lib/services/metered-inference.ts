@@ -1,6 +1,7 @@
 import { type AiInferenceLog, logAiInference } from "#/lib/ai/inference-log";
 import type { AiUsage, CreditCharge } from "#/lib/billing/ai-pricing";
 import { alertOperator } from "#/lib/observability/operator-alert";
+import { withSpan } from "#/lib/observability/span";
 import * as creditService from "#/lib/services/credit-service";
 
 // クレジットを消費するAI推論の共通骨格(#392)。
@@ -252,56 +253,88 @@ export async function finishMeteredInference<T>(
 		},
 	};
 
-	let output: MeteredInferenceOutput<T>;
-	try {
-		output = await infer(ctx);
-		await creditService.settleReservation(
-			userId,
-			requestId,
-			reservedCredits,
-			output.charge,
-		);
-	} catch (e) {
-		// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
-		// 潰さず伝播する(#158)。
-		await creditService.refundReservationOnFailure(
-			userId,
-			requestId,
-			reservedCredits,
-		);
-		recordInference({
-			...entryBase,
-			...extraFields,
-			outcome: "failed",
-			durationMs: Date.now() - startedAt,
-			reservedMicroUsd,
-			err: e,
-		});
-		throw e;
-	}
-	recordInference({
-		...entryBase,
-		...extraFields,
-		outcome: "ok",
-		durationMs: Date.now() - startedAt,
-		actualTokens: output.charge.tokens,
-		costMicroUsd: output.charge.microUsd,
-		reservedMicroUsd,
-		// 回数課金の web検索はトークンに現れないので、内訳から明示的に載せる。
-		// **0回も記録する**(undefined と 0 は別物——前者は「経路が渡していない」、
-		// 後者は「検索しなかった」で、見積の評価では意味が正反対になる)。
-		...(output.usage.webSearches === undefined
-			? {}
-			: { webSearches: output.usage.webSearches }),
-	});
-	// settle 成功後は消費確定済み。getBalance の失敗で上の catch の全額返却が走ると
-	// 消費がネットプラスになるため、残高参照は**必ず try の外**で行う(#144)。
-	const after = await creditService.getBalance(userId);
-	return {
-		value: output.value,
-		charge: output.charge,
-		balance: after.balance,
-	};
+	// **Workers AI は自動計装の対象外**なので、ここでスパンを張る(#504)。範囲を
+	// 「推論だけ」ではなく確定・返却まで含めた finish 全体にしてあるのは、遅さや失敗が
+	// 推論の外側(settle の D1 書き込み、返却の再試行)で起きることがあり、そこを外すと
+	// 「推論は速いのにレスポンスが遅い」がトレースから消えるため。
+	// userId は載せない(理由は observability/span.ts の冒頭)。requestId でログと繋がる。
+	return withSpan(
+		"ai_inference",
+		{
+			"wine.ai.feature": logBase.feature,
+			"wine.ai.request_id": requestId,
+			"wine.ai.selected": logBase.selected,
+			"wine.ai.route": logBase.route,
+			"wine.ai.reserved_micro_usd": reservedMicroUsd,
+		},
+		async (span) => {
+			let output: MeteredInferenceOutput<T>;
+			try {
+				output = await infer(ctx);
+				await creditService.settleReservation(
+					userId,
+					requestId,
+					reservedCredits,
+					output.charge,
+				);
+			} catch (e) {
+				// 返却を試み、成否をログに残す。返却自体が失敗しても元の推論失敗例外 e を握り
+				// 潰さず伝播する(#158)。
+				await creditService.refundReservationOnFailure(
+					userId,
+					requestId,
+					reservedCredits,
+				);
+				// 降格した実行経路(executedBy)は失敗した回にも残す——実行記録と同じ理由で、
+				// 「どのモデルで落ちたか」が無いとトレース側だけ経路が分からなくなる(#370)。
+				span.set({
+					"wine.ai.outcome": "failed",
+					"wine.ai.executed_by": extraFields.executedBy,
+					"wine.ai.model": extraFields.model,
+				});
+				recordInference({
+					...entryBase,
+					...extraFields,
+					outcome: "failed",
+					durationMs: Date.now() - startedAt,
+					reservedMicroUsd,
+					err: e,
+				});
+				throw e;
+			}
+			span.set({
+				"wine.ai.outcome": "ok",
+				"wine.ai.executed_by": extraFields.executedBy,
+				"wine.ai.model": extraFields.model,
+				"wine.ai.tokens": output.charge.tokens,
+				"wine.ai.cost_micro_usd": output.charge.microUsd,
+				"wine.ai.web_searches": output.usage.webSearches,
+			});
+			recordInference({
+				...entryBase,
+				...extraFields,
+				outcome: "ok",
+				durationMs: Date.now() - startedAt,
+				actualTokens: output.charge.tokens,
+				costMicroUsd: output.charge.microUsd,
+				reservedMicroUsd,
+				// 回数課金の web検索はトークンに現れないので、内訳から明示的に載せる。
+				// **0回も記録する**(undefined と 0 は別物——前者は「経路が渡していない」、
+				// 後者は「検索しなかった」で、見積の評価では意味が正反対になる)。
+				...(output.usage.webSearches === undefined
+					? {}
+					: { webSearches: output.usage.webSearches }),
+			});
+			// settle 成功後は消費確定済み。getBalance の失敗で上の catch の全額返却が走ると
+			// 消費がネットプラスになるため、残高参照は**必ず try の外**で行う(#144)。
+			const after = await creditService.getBalance(userId);
+			return {
+				value: output.value,
+				charge: output.charge,
+				balance: after.balance,
+			};
+		},
+	);
 }
 
 /**

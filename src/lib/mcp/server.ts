@@ -6,6 +6,7 @@ import {
 	buildDrunkWineAppHtml,
 	DRUNK_WINE_RESOURCE_URI,
 } from "./apps";
+import { traceToolCalls } from "./tool-tracing";
 import { registerReadTools, registerWriteTools } from "./tools";
 
 // Build a per-request MCP server bound to the authenticated user. The SDK
@@ -13,6 +14,9 @@ import { registerReadTools, registerWriteTools } from "./tools";
 // instances are what make the stateless transport safe on Workers.
 export function buildMcpServer(userId: string): McpServer {
 	const server = new McpServer({ name: "wine", version: "1.0.0" });
+	// ツール登録より**前**に呼ぶ(以後の registerTool を包む形なので、後から呼んでも
+	// 既に登録されたツールには乗らない)。
+	traceToolCalls(server);
 	registerReadTools(server, userId);
 	registerWriteTools(server, userId);
 	registerApps(server);

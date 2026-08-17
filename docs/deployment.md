@@ -307,6 +307,65 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 | `https://wine.nibo.sh/api/auth/ok?probe=...` | ✅ 約30秒後にログ取得 |
 | `https://claude-...-wine-preview.niboshi.workers.dev/api/auth/ok?probe=...` | ❌ 0件（5分待っても出ず） |
 
+## ランタイムトレースの確認
+
+`wrangler.jsonc` の `observability.traces.enabled: true` により、本番・プレビューとも
+**Workers Traces** にトレースが蓄積される（#504）。`observability` は env 継承されるため、
+設定はトップレベルの1箇所だけで両環境に効く（`ratelimits` や `d1_databases` のように env ごとへ
+書き直す必要はない）。
+
+**ログとの使い分け**: ログは「その時点で何が起きたか」の点の記録で、トレースは「1リクエストの
+中で何がどの順にどれだけ掛かったか」の構造。`bun run logs` で失敗を見つけ、同じ操作のトレースを
+`bun run traces` で見て、どの D1 クエリ・どの外部 fetch・どの推論が原因かまで降りる。
+
+```bash
+bun run traces                            # 本番(wine)の直近1時間
+bun run traces --env preview --since 3h   # プレビュー(wine-preview)の直近3時間
+bun run traces --grep ai_inference        # スパン名の部分一致
+bun run traces --version <version-id>     # 特定バージョンに限定
+bun run traces --json                     # 生JSON(jq で加工する場合)
+```
+
+### 何が計装されるか
+
+コード変更なしで自動計装されるのは、**ハンドラ**（`fetch` / `queue`）・**バインディング**
+（D1・R2・Images・Queues・Rate limiting）・**外向き `fetch`** の呼び出し。
+
+**`env.AI`（Workers AI）は自動計装の対象外**で、このアプリで最も遅く最も壊れる経路が
+トレースに現れない。そこはカスタムスパン（`src/lib/observability/span.ts` の `withSpan`）で
+補っている。**スパンを張るのはこの3箇所だけ**で、`tracing.enterSpan` を経路ごとに直書きしない
+（経路が増えたときに後発の経路で必ず漏れるため。#166 / #174 と同じ失敗の形）。
+
+| スパン名 | 張っている場所 | 主な属性 |
+|---|---|---|
+| `ai_inference` | `finishMeteredInference`（全AI経路が通る） | `wine.ai.feature` / `wine.ai.request_id` / `wine.ai.route` / `wine.ai.executed_by` / `wine.ai.model` / `wine.ai.outcome` / `wine.ai.cost_micro_usd` |
+| `label_job` | キューコンシューマの1メッセージ処理（`src/worker.ts`） | `wine.job.id` / `wine.queue.message_id` |
+| `mcp_tool` | MCPツール登録の入口（`src/lib/mcp/tool-tracing.ts`） | `wine.mcp.tool` |
+
+> [!IMPORTANT]
+> **スパンの属性に載せてよいのは実行メタデータだけ。** userId・ワイン名・検索クエリのような
+> 「誰が何をしたか」が復元できる値は載せない。同種の値が Workers Logs には載っているが、
+> あれは保持7日・閲覧に `CLOUDFLARE_API_TOKEN` が要るという前提での判断（上記「AI 推論の実行記録」
+> 参照）で、**スパンは OTLP エクスポートを1つ設定した時点で外部の別基盤へ出ていく**。
+> ログ側と突き合わせたいときは `wine.ai.request_id` を使う（台帳・実行記録と同じキー）。
+
+### 課金とサンプリング
+
+ベータ期間中は無料だが、**2026-10-01 から span 1件 = observability event 1件**として
+Workers Logs と同じ枠で課金される（Workers Paid: 2000万/月込み、超過 $0.60/百万、保持7日）。
+
+`head_sampling_rate` は**指定していない**（既定 1.0 = 全件）。全リクエストが追えるほうが
+「再現しない不具合」の切り分けに効くため。超過が見えたら wrangler.jsonc の `observability.traces`
+に `"head_sampling_rate": 0.1` を足して絞る（ログ側の `observability.logs` とは独立に設定できる）。
+
+> [!IMPORTANT]
+> **PRごとのプレビューURLのトレースは、ログと同じく取得できない。** Preview URLs の制約は
+> トレースにも同じく掛かる（上記のログの項を参照）。`--env preview` で見えるのはデプロイ済み
+> `wine-preview`（main ミラー）への分のみ。
+>
+> また **設定を含むデプロイより前のリクエストには遡れない**。`observability.traces` を有効に
+> した時点以降のリクエストだけがトレースに残る。
+
 ## クライアント側のエラー収集（Sentry）
 
 Workers Logs は **サーバに届いたリクエストしか記録できない**。fetch がレスポンスを受け取る前に

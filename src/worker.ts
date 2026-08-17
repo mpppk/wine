@@ -4,6 +4,7 @@ import {
 } from "@tanstack/react-start/server";
 import { labelJobMessageSchema } from "#/lib/ai/label-job";
 import { logError, logInfo } from "#/lib/logger";
+import { withSpan } from "#/lib/observability/span";
 import { runLabelAnalysisJob } from "#/lib/services/label-job-service";
 
 // Worker のエントリ(Issue #460)。
@@ -55,7 +56,19 @@ export default {
 				continue;
 			}
 			try {
-				await runLabelAnalysisJob(parsed.data.jobId);
+				// **1メッセージ = 1スパン**にする(#504)。自動計装の queue ハンドラスパンは
+				// バッチ全体(最大5件)で1つなので、それだけでは「どのジョブが遅かったか」
+				// 「何件目で落ちたか」が出ない。直列に回している以上、ここが分からないと
+				// バッチ全体の所要時間から個々の推論を推測することになる。
+				await withSpan(
+					"label_job",
+					{
+						"wine.job.id": parsed.data.jobId,
+						"wine.queue.message_id": message.id,
+						"wine.queue.attempt": message.attempts,
+					},
+					() => runLabelAnalysisJob(parsed.data.jobId),
+				);
 			} catch (e) {
 				// runLabelAnalysisJob は失敗を行に書いて返る想定なので、ここに来るのは
 				// D1 障害などジョブ行にすら書けなかった場合。再配信は claim ガードで
