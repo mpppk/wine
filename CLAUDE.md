@@ -6,7 +6,8 @@
 * ローカルDB: 初回・スキーマ変更後は `bun run db:migrate:local` してから `bun run dev`
 * OAuth/MCP をローカル検証する場合は `.dev.vars` に `BETTER_AUTH_URL=http://localhost:3000` を設定（`.dev.vars.example` 参照）
 * デプロイ済み環境のランタイムログは `bun run logs`（本番 `wine`）/ `bun run logs --env preview`（デプロイ済み `wine-preview` = main ミラー）で検索する。`--level error,warn` / `--grep <text>` / `--since 3h` で絞り込む。CIは緑なのに実機で壊れる類の切り分けに使う（`wrangler tail` はライブのみで後追いできない）。
-* **PRごとのプレビューURL（`<branch>-wine-preview.*`）のログは取得できない**。Cloudflare の Preview URLs の制約で Workers Logs・`wrangler tail`・Logpush のいずれからも見えず、回避策はない。PR段階の不具合はローカル（`bun run dev`）で再現するか、ブラウザから観測できる形にして切り分ける。実機ログはマージ後に確認する。詳細は `docs/deployment.md` の「ランタイムログの確認」を参照。
+* デプロイ済み環境のランタイムトレースは `bun run traces`（`--env preview` / `--grep ai_inference` / `--since 3h`）で検索する。ログが「その時点で何が起きたか」の点の記録なのに対し、トレースは「1リクエストの中で何がどの順にどれだけ掛かったか」の構造で、遅さ・どのD1クエリが失敗したかの切り分けに使う。自動計装（ハンドラ・D1・R2・Images・Queues・Rate limiting・外向き fetch）に加え、**Workers AI は自動計装の対象外**なのでカスタムスパンで補っている（`src/lib/observability/span.ts` の `withSpan` が唯一の入口。経路ごとに `tracing.enterSpan` を直書きしない）。詳細は `docs/deployment.md` の「ランタイムトレースの確認」を参照。
+* **PRごとのプレビューURL（`<branch>-wine-preview.*`）のログ・トレースは取得できない**。Cloudflare の Preview URLs の制約で Workers Logs・`wrangler tail`・Logpush のいずれからも見えず、回避策はない。PR段階の不具合はローカル（`bun run dev`）で再現するか、ブラウザから観測できる形にして切り分ける。実機ログ・トレースはマージ後に確認する。詳細は `docs/deployment.md` の「ランタイムログの確認」を参照。
 
 ## 実装プランの作成
 

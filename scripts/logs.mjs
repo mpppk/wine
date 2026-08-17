@@ -262,8 +262,13 @@ export function buildParameters({ worker, levels = [], grep, version }) {
 	return { datasets: ["cloudflare-workers"], filters };
 }
 
-/** Cloudflare API を叩いて JSON を返す。success:false は例外にする。 */
-async function callApi(url, token, init = {}) {
+/**
+ * Cloudflare API を叩いて JSON を返す。success:false は例外にする。
+ *
+ * traces.mjs からも使う(同じ Observability API を叩く)。認証・エラー形の扱いを
+ * 2箇所に書くと、片方だけ直る形になるのでここを共有する。
+ */
+export async function callApi(url, token, init = {}) {
 	const res = await fetch(url, {
 		...init,
 		headers: {
@@ -284,7 +289,7 @@ async function callApi(url, token, init = {}) {
 }
 
 /** account id を解決する。環境変数が無ければアカウント一覧から一意に定まる場合のみ採用。 */
-async function resolveAccountId(token) {
+export async function resolveAccountId(token) {
 	const fromEnv = process.env.CLOUDFLARE_ACCOUNT_ID;
 	if (fromEnv) return fromEnv;
 	const accounts = await callApi(`${API_BASE}/accounts`, token);

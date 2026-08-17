@@ -38,8 +38,27 @@
 		// **入れ替えると既存の購読は全て無効になる**(購読はこの公開鍵に紐づく)。
 		"VAPID_PUBLIC_KEY": "BAIdOzTmGSYoxHyFkWdqOsFhbhQgLaPHwsKK9KITlbQVEe2hhVXQ3gkNFtY4nNW93Kx0UaOkLmt_NE-SA3GnmZA"
 	},
+	// ランタイムの可観測性。`enabled` が Workers Logs(構造化ログの蓄積・検索)で、
+	// `traces` が自動トレース(#504)。**`enabled: true` だけではトレースは付かない**——
+	// 将来は enabled 側に含める予定だが、ベータの間は traces を明示したときだけ有効になる。
+	//
+	// これを入れると fetch/queue ハンドラ・D1・R2・Images・Queues・Rate limiting・
+	// 外向き fetch が、コード変更なしでスパンになる。**Workers AI(env.AI)は自動計装の
+	// 対象外**なので、AI推論・解析ジョブ・MCPツールは src/lib/observability/span.ts の
+	// カスタムスパンで補っている。
+	//
+	// **env ごとの再掲は不要**(observability は継承される。ratelimits や d1_databases の
+	// ような「env ごとに書き直す」種類の設定ではない)。preview もこの設定で有効になる。
+	//
+	// `head_sampling_rate` は**指定しない**(既定 1.0 = 全件)。span 1件が observability
+	// event 1件として Workers Logs と同じ枠を食い、2026-10-01 から課金される
+	// (Paid: 2000万/月込み・超過 $0.60/百万)。このアプリの規模なら全件で収まる想定だが、
+	// 超過が見えたらここに `"head_sampling_rate": 0.1` を足して絞る(docs/deployment.md)。
 	"observability": {
-		"enabled": true
+		"enabled": true,
+		"traces": {
+			"enabled": true
+		}
 	},
 	"upload_source_maps": true,
 	"preview_urls": true,
