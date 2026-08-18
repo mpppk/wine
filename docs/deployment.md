@@ -479,14 +479,21 @@ Stripe リソースは Terraform 管理だが、**Sentry は当面ダッシュ�
 **運用者が手を動かさないと直らない事象**だけを、Workers から Sentry へ直接送る。クライアント側の
 収集（上記 `VITE_SENTRY_DSN`）とは投入先が別で、**サーバは `SENTRY_DSN` シークレット**を使う。
 
-| | クライアント | サーバ |
-|---|---|---|
-| 変数 | `VITE_SENTRY_DSN`（ビルド変数） | `SENTRY_DSN`（Worker シークレット） |
-| 送信 | `@sentry/react`（動的 import） | `fetch` で envelope を1本（SDK なし） |
-| 入口 | `reportClientError`（#381） | `alertOperator`（`src/lib/observability/operator-alert.ts`） |
+| | クライアント | サーバ（operator-alert） | サーバ（withSentry） |
+|---|---|---|---|
+| 変数 | `VITE_SENTRY_DSN`（ビルド変数） | `SENTRY_DSN`（Worker シークレット） | `SENTRY_DSN`（Worker シークレット） |
+| 送信 | `@sentry/react`（動的 import） | `fetch` で envelope を1本（SDK なし） | `@sentry/cloudflare`（#486） |
+| 入口 | `reportClientError`（#381） | `alertOperator`（`src/lib/observability/operator-alert.ts`） | `withSentry` による自動計装（`src/worker.ts`） |
+| 対象 | クライアントの予期しない例外 | 意図して選んだ少数の事象（決済の宙吊り等） | サーバの予期しない例外（SSR / server function / キューコンシューマ） |
 
 同じプロジェクトへ送ってよい。イベントには `logger: "worker"` と `runtime: "workers"` タグが付く
 ので、Sentry 側で `logger:worker` で絞れる。分けたければサーバ用プロジェクトを作って DSN を変える。
+
+> [!NOTE]
+> `withSentry`（#486）は fetch / scheduled / queue / email / tail を自動計装し、ハンドラが
+> throw した例外をキャプチャする。`alertOperator` は置き換えず補完の関係で、
+> 「意図して選んだ少数の事象」は従来どおり `logger:worker` タグ付きで届く。トレースは
+> 入れていない（`tracesSampleRate` 未設定）ので、トランザクション/スパンは送られない。
 
 ### 投入
 
