@@ -33,9 +33,10 @@ declare namespace Cloudflare {
 		// エチケット解析の高精度経路(GPT-5.6 Luna + web検索)を有効にする OpenAI APIキー。
 		// 未設定でもアプリは動作し、Claude経路→従来の Workers AI 経路の順に引き継がれる。
 		OPENAI_API_KEY?: string;
-		// **サーバ側**の Sentry DSN(#395)。運用者が手を動かす必要がある事象
+		// **サーバ側**の Sentry DSN(#395 / #486)。運用者が手を動かす必要がある事象
 		// (決済の宙吊り・返金失敗・監査記録の欠落・AI原価の異常)を Workers から
-		// 直接 envelope で送るために使う。クライアントの `VITE_SENTRY_DSN`
+		// 送る operator-alert と、予期しない例外を自動で拾う @sentry/cloudflare
+		// (withSentry)の両方が読む。クライアントの `VITE_SENTRY_DSN`
 		// (ビルド変数)とは投入先が別で、**未設定ならログだけ出して送信しない**。
 		// DSN は公開値だが、ビルド成果物に埋め込まないようシークレットとして扱う。
 		SENTRY_DSN?: string;
