@@ -98,6 +98,15 @@ jobs:
       - name: Lint & Format check (Biome)
         run: bun run check
 
+      # コピペコードの増加を防ぐ。jscpd はトークンベースなので構造が似ただけの
+      # コード(Drizzle のテーブル定義・React フォームの hooks 群など)も拾うため、
+      # 誤検知の調整は --min-lines / --min-tokens で行う(コメント除外なら --mode weak)。
+      # threshold は重複行%で、超過すると exit 1 になる。現状は 1.99% (#507 時点) なので
+      # 2.5 から始めて、重複を潰しながら徐々に下げる(ratchet-down)。
+      # 生成物(routeTree.gen.ts / worker-configuration.d.ts)は除外する。
+      - name: Check duplicate code (jscpd)
+        run: bun run check:duplicate
+
       - name: Build
         run: bun run build
 
