@@ -57,6 +57,7 @@
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
         "@vitejs/plugin-react": "^6.0.1",
+        "jscpd": "^5.0.15",
         "jsdom": "^30.0.0",
         "mapshaper": "^0.7.39",
         "tsx": "^4.21.0",
@@ -1264,6 +1265,20 @@
     "js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
 
     "js-yaml": ["js-yaml@4.3.0", "", { "dependencies": { "argparse": "^2.0.1" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q=="],
+
+    "jscpd": ["jscpd@5.0.15", "", { "optionalDependencies": { "jscpd-darwin-arm64": "5.0.15", "jscpd-darwin-x64": "5.0.15", "jscpd-linux-arm64-gnu": "5.0.15", "jscpd-linux-x64-gnu": "5.0.15", "jscpd-linux-x64-musl": "5.0.15", "jscpd-windows-x64-msvc": "5.0.15" }, "bin": { "jscpd": "run-jscpd.js" } }, "sha512-PJF3ALlPVJGiMoCtSHg6Ln3/dnRVd27sD/UTUv62MAS5I0jdhvqI0x0p8D1LP8xJ35GLTgHzCMSQvjoa/JNZkg=="],
+
+    "jscpd-darwin-arm64": ["jscpd-darwin-arm64@5.0.15", "", { "os": "darwin", "cpu": "arm64" }, "sha512-7UIRxKkvqN7bVIl2nXYsTOs7a2M6Y1Ll58KehquQbI6gUC3I7AAd/vz2HNWIdo+f5lJB0tiN1E9B/i6CUM4WHQ=="],
+
+    "jscpd-darwin-x64": ["jscpd-darwin-x64@5.0.15", "", { "os": "darwin", "cpu": "x64" }, "sha512-ifknlGR2xW9yZ5BCeUBkBOrOFBAFMQmugpzFnx1y8/BDve0pyBLjxIOVnN/bqeqLDV+sd/zxkx5Gf/xD9UlRKA=="],
+
+    "jscpd-linux-arm64-gnu": ["jscpd-linux-arm64-gnu@5.0.15", "", { "os": "linux", "cpu": "arm64" }, "sha512-JrlE0Nk2NRt9EmGD+5ZjMI0il5t/zxj3uwcintnugJumRmbKy2ncr2MALJLeulUTHLT7uYMEveLK2b79DLtDAQ=="],
+
+    "jscpd-linux-x64-gnu": ["jscpd-linux-x64-gnu@5.0.15", "", { "os": "linux", "cpu": "x64" }, "sha512-Hb37UrME4X3tAyw4EYNTuSOeet0uq2UYwyeWUphdjTY8Z9GB4qzniDyCClvNjzAbz9EZ47LXHYvZSP6hlzhgIw=="],
+
+    "jscpd-linux-x64-musl": ["jscpd-linux-x64-musl@5.0.15", "", { "os": "linux", "cpu": "x64" }, "sha512-dFHCSfL+h3irvmkRCn8MojdA5R1NuUPswVUrr3vrCI+3v5VjBBrERWfq1rpnFdKOgK7T/4Fvkj4L04vnWPTRiQ=="],
+
+    "jscpd-windows-x64-msvc": ["jscpd-windows-x64-msvc@5.0.15", "", { "os": "win32", "cpu": "x64" }, "sha512-OJ5F5qePxS9EVyw5pdCOAAR7SRm02LJyCMAHXB5bSUfo4mOZrEKkhgO+EUHgK4p7Blpovw9acpgf1/R2o1Z4Ig=="],
 
     "jsdom": ["jsdom@30.0.0", "", { "dependencies": { "@asamuzakjp/css-color": "^6.0.5", "@asamuzakjp/dom-selector": "^8.2.5", "@bramus/specificity": "^2.4.2", "@csstools/css-syntax-patches-for-csstree": "^1.1.6", "@exodus/bytes": "^1.15.1", "css-tree": "^3.2.1", "data-urls": "^7.0.0", "decimal.js": "^10.6.0", "html-encoding-sniffer": "^6.0.0", "is-potential-custom-element-name": "^1.0.1", "lru-cache": "^11.5.2", "parse5": "^8.0.1", "saxes": "^6.0.0", "symbol-tree": "^3.2.4", "tough-cookie": "^6.0.2", "undici": "^8.7.0", "w3c-xmlserializer": "^5.0.0", "webidl-conversions": "^8.0.1", "whatwg-mimetype": "^5.0.0", "whatwg-url": "^17.1.0", "xml-name-validator": "^5.0.0" }, "peerDependencies": { "canvas": "^3.2.3" }, "optionalPeers": ["canvas"] }, "sha512-JQHfRGmmKmaZoUAvIgff5jjG/0SzTQlGz8c7t72KzBzo8ZULEjAjnYE0sNwBOUA4QtWwYE2xoYitg8NFsmiYxA=="],
 
