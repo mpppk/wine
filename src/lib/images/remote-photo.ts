@@ -26,7 +26,7 @@ import { logWarn } from "#/lib/logger";
 // ことになる。
 
 /** 1枚あたりの取得のタイムアウト。登録の確定を長く待たせない。 */
-export const REMOTE_PHOTO_TIMEOUT_MS = 8_000;
+const REMOTE_PHOTO_TIMEOUT_MS = 8_000;
 
 /** 取り込んだ画像。保存する Content-Type は実バイトから確定済み。 */
 export interface RemotePhoto {

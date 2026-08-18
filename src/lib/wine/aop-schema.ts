@@ -27,7 +27,7 @@ const producerSchema = z.union([
 	}),
 ]);
 
-export const aopSchema = z
+const aopSchema = z
 	.object({
 		id: z.string().regex(/^[a-z0-9-]+$/),
 		idApp: z.number().int().positive(),

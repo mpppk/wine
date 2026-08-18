@@ -39,7 +39,7 @@ import type { WebResearchTrace } from "./web-research-trace";
  * 経路ごとに msg 文字列を変えると横断で見られなくなるため、msg は共通にして
  * この値で絞る。
  */
-export type AiFeature = "label_analysis" | "region_qa" | "wine_list_analysis";
+type AiFeature = "label_analysis" | "region_qa" | "wine_list_analysis";
 
 /**
  * 推論の結末。
@@ -47,7 +47,7 @@ export type AiFeature = "label_analysis" | "region_qa" | "wine_list_analysis";
  *  - blocked: クレジット残高不足で推論せず返した(失敗ではない)
  *  - failed: 推論またはクレジット確定に失敗し、予約を返却した
  */
-export type AiOutcome = "ok" | "blocked" | "failed";
+type AiOutcome = "ok" | "blocked" | "failed";
 
 export interface AiInferenceLog {
 	feature: AiFeature;

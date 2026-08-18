@@ -50,7 +50,7 @@ function decodeVapidKey(base64url: string): ArrayBuffer {
 }
 
 /** `PushSubscription` をサーバへ送る形へ。鍵が取れなければ null(購読として使えない)。 */
-export function toSubscriptionInput(
+function toSubscriptionInput(
 	subscription: PushSubscription,
 ): PushSubscriptionInput | null {
 	const p256dh = subscription.getKey("p256dh");

@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-	CALENDAR_DATE_PATTERN,
-	calendarDateSchema,
-} from "#/lib/date/calendar-date";
+import { calendarDateSchema } from "#/lib/date/calendar-date";
 import { WINE_STATUS_IDS } from "./status";
 
 // マイセラーの入力バリデーション。Webのserver fnと MCPツールの両方から使うため、
@@ -13,25 +10,18 @@ import { WINE_STATUS_IDS } from "./status";
 // メモは「同じワインを複数回飲む」を扱うため飲用記録側に属する(Issue #195)。
 // 暦日検証と評価・メモの上限を共有するため同じファイルに置く。
 
-/**
- * 飲んだ日の形式。zone を持たない暦日の規約は #/lib/date/calendar-date が
- * 単一情報源で、ここは飲用記録ドメインからの別名。目撃記録(wine_sighting.seenOn)も
- * 同じ規約を使う(検証がドリフトしないよう実装は共有する)。
- */
-export const DRANK_ON_PATTERN = CALENDAR_DATE_PATTERN;
-
 // フィールドの数値・文字数の上限下限。zod と UI(Web の DrunkWineForm /
 // MCP App の編集フォーム)で同じ値を使うため、ここを単一情報源にする
 // (docs/architecture.md「上限値などの数値定数はドメイン lib に置き…」)。
-export const RATING_MIN = 1;
-export const RATING_MAX = 5;
+const RATING_MIN = 1;
+const RATING_MAX = 5;
 export const VINTAGE_MIN = 1800;
 export const VINTAGE_MAX = 2100;
 export const PRICE_MIN = 0;
 export const PRICE_MAX = 10_000_000;
-export const NAME_MAX = 200;
-export const MEMO_MAX = 2000;
-export const PRODUCER_MAX = 200;
+const NAME_MAX = 200;
+const MEMO_MAX = 2000;
+const PRODUCER_MAX = 200;
 /**
  * 銘柄のコメント(#471)の文字数上限。飲用記録のメモ(MEMO_MAX)と同じ値だが
  * **別の定数として持つ**。属する対象が違う(銘柄 / 飲用記録)ので、片方だけを

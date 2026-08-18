@@ -22,7 +22,7 @@ import {
  * 同じ値にする——レビュー画面に出せた候補は全部登録できる、が期待される挙動で、
  * ここが小さいと「解析はできたのに登録で弾かれる」袋小路になる。
  */
-export const MAX_ITEMS_PER_IMPORT = AI_WINE_LIST_MAX_WINES;
+const MAX_ITEMS_PER_IMPORT = AI_WINE_LIST_MAX_WINES;
 
 /**
  * 1回の一括登録で web から取りに行く銘柄写真の上限(#473)。
@@ -34,10 +34,10 @@ export const MAX_ITEMS_PER_IMPORT = AI_WINE_LIST_MAX_WINES;
 export const MAX_WEB_PHOTOS_PER_IMPORT = 20;
 
 /** 取り込む画像URLの長さ上限。クエリ付きのCDN URLでも収まる長さ。 */
-export const WEB_PHOTO_URL_MAX = 2048;
+const WEB_PHOTO_URL_MAX = 2048;
 
 /** 新規作成する銘柄の属性(飲用記録は item.tasting 側で受ける)。 */
-export const importWineInput = z.object(drunkWineFields);
+const importWineInput = z.object(drunkWineFields);
 
 /**
  * 銘柄1件ぶんの登録指示。
@@ -46,7 +46,7 @@ export const importWineInput = z.object(drunkWineFields);
  * どちらか一方が必須**。レビュー画面の「既存『シャブリ 2020』に目撃を追加」と
  * 「新規登録」の2択がそのままこの形になる。
  */
-export const importItemInput = z
+const importItemInput = z
 	.object({
 		/** 既存エントリのID。指定時は銘柄を作らず目撃記録だけを足す */
 		existingId: z.string().min(1).max(80).optional(),
@@ -124,7 +124,6 @@ export const bulkRegisterFromScanInput = z
 		{ error: "写真の番号が、送信する写真の枚数を超えています" },
 	);
 
-export type ImportItemInput = z.infer<typeof importItemInput>;
 export type BulkRegisterFromScanInput = z.infer<
 	typeof bulkRegisterFromScanInput
 >;

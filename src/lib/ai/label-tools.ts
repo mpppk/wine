@@ -121,7 +121,7 @@ export const SUBMIT_ANSWER_SCHEMA = jsonSchema<Record<string, unknown>>(
 );
 
 /** 提出された回答と、その検証結果。 */
-export interface SubmittedAnswer {
+interface SubmittedAnswer {
 	extraction: LabelExtraction;
 	fieldSources?: LabelFieldSources;
 	/** 検証を通ったか。通らなかった回答も「最後の手段」として保持する。 */
@@ -143,7 +143,7 @@ export interface AnswerCollector {
 }
 
 /** 検証の文脈(軌跡)は毎ターン更新されるので、参照時に取りに行く。 */
-export type VerifyContextProvider = () => LabelVerifyContext;
+type VerifyContextProvider = () => LabelVerifyContext;
 
 /**
  * 写真の一部を切り出す関数。**env 依存を注入する**(`env.IMAGES` を使うので、

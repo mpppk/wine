@@ -1,0 +1,22 @@
+{
+	"$schema": "https://unpkg.com/knip@6/schema.json",
+	// 手動実行のオペレーション用スクリプト(package.json の scripts に載せない方針)。
+	// spike-label-usage.ts は src/ を import するので、グラフに入れないと
+	// ai/config.ts 等の export が誤って「未使用」になる。
+	"entry": [
+		"scripts/spike-label-usage.ts",
+		"scripts/generate-vapid-keys.mjs",
+	],
+	// 誤検知の除外:
+	//  - public/sw.js … push/client.ts が文字列定数("/sw.js")で参照するため knip に見えない
+	//  - scripts/geo-bands.d.mts … geo-bands.mjs の型宣言。JS からの型解決で使われる
+	"ignore": ["public/sw.js", "scripts/geo-bands.d.mts"],
+	// cloudflare:workers は Cloudflare ランタイムの仮想モジュール
+	"ignoreDependencies": ["cloudflare"],
+	// auth-schema の export は better-auth の drizzleAdapter が schema オブジェクト全体を
+	// 構造的に参照する(rateLimit テーブル・relations)。knip には個別メンバーの参照として
+	// 見えないため、このファイルの export/type 指摘だけ除外する
+	"ignoreIssues": {
+		"src/db/auth-schema.ts": ["exports", "types"],
+	},
+}

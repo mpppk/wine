@@ -55,10 +55,7 @@ const ENUMERATORS: Record<QuizType, (regionId: RegionId) => string[]> = {
 /** 地域×形式ごとの候補キー(静的データ由来なのでプロセス内でメモ化) */
 const candidatesCache = new Map<string, string[]>();
 
-export function listCandidateKeys(
-	regionId: RegionId,
-	quizType: QuizType,
-): string[] {
+function listCandidateKeys(regionId: RegionId, quizType: QuizType): string[] {
 	const cacheKey = `${regionId}:${quizType}`;
 	let keys = candidatesCache.get(cacheKey);
 	if (!keys) {

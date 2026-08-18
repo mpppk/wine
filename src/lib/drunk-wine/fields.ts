@@ -12,7 +12,7 @@ import { PRICE_MAX, PRICE_MIN, VINTAGE_MAX, VINTAGE_MIN } from "./schema";
 // (schemas.ts)も同じ定義から生成するため、本モジュールはランタイム非依存に保つ
 // (cloudflare:workers を import しない)。
 
-export type DrunkWineInputKind =
+type DrunkWineInputKind =
 	| "text"
 	// 複数行のテキスト。差分パッチ規約は "text" と同じ(空欄→null)で、
 	// 違うのは描画に使う要素だけ(input か textarea か)。
@@ -28,7 +28,7 @@ export type DrunkWineInputKind =
 // - "null": 空欄→null でクリア(大半のフィールド)
 // - "emptyArray": 空(全解除)→[] でクリア(品種)
 // - "never": クリア不可(name。空/未変更なら送らない)
-export type ClearConvention = "null" | "emptyArray" | "never";
+type ClearConvention = "null" | "emptyArray" | "never";
 
 export interface DrunkWineFieldDef {
 	// 値スキーマ(drunkWineFields)・サービス層の camelCase キー。値スキーマとの
@@ -167,8 +167,7 @@ export type WineTastingCamelKey =
 export type WineTastingSnakeKey =
 	(typeof WINE_TASTING_FIELDS)[number]["snakeKey"];
 
-export type DrunkWineCamelKey =
-	(typeof DRUNK_WINE_FIELD_DEFS)[number]["camelKey"];
+type DrunkWineCamelKey = (typeof DRUNK_WINE_FIELD_DEFS)[number]["camelKey"];
 export type DrunkWineSnakeKey =
 	(typeof DRUNK_WINE_FIELD_DEFS)[number]["snakeKey"];
 
@@ -182,17 +181,6 @@ export type DrunkWinePatch = Record<string, string | number | string[] | null>;
 // toCamelPatch の入力に使う。値スキーマの clear 規約から型を導出する:
 // clear:"null" のフィールドだけ null 許容、grape は string[]、数値系は number。
 // 全フィールド optional(register の name は上位スキーマで非 optional に絞られる)。
-export type DrunkWineFieldArgs = {
-	[D in (typeof DRUNK_WINE_FIELD_DEFS)[number] as D["snakeKey"]]?: D["input"] extends "grape"
-		? string[]
-		: D["input"] extends "number"
-			? D["clear"] extends "null"
-				? number | null
-				: number
-			: D["clear"] extends "null"
-				? string | null
-				: string;
-};
 
 // 差分パッチ規約の唯一の実装。Web版フォームも MCP App のフォームもこれを
 // 直接呼ぶ(ミラー実装は無い)。規約は fields.test.ts が固定する。

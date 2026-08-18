@@ -23,7 +23,7 @@ import type { WineListAnalysisSummary } from "#/lib/services/ai-service";
 export const MAX_HANDOFF_PHOTOS = MAX_PHOTOS_PER_ENTRY;
 
 /** 単体の記録フォームへ切り替えた理由。案内文とエチケット解析の自動実行を分ける。 */
-export type ManualFormReason =
+type ManualFormReason =
 	/** 解析結果が1本のワインのエチケットだった(自動で切り替わる) */
 	| "single_wine"
 	/** ユーザが「手動で入力」を選んだ */

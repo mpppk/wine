@@ -7,8 +7,8 @@ import { z } from "zod";
 // 黙って落ちる(送っているのに表示されない、という最も気づきにくい壊れ方をする)。
 
 /** 購読タグ。将来べつの通知を足すとき、Service Worker 側の出し分けの軸になる。 */
-export const PUSH_NOTIFICATION_KINDS = ["label_analysis_done"] as const;
-export type PushNotificationKind = (typeof PUSH_NOTIFICATION_KINDS)[number];
+const PUSH_NOTIFICATION_KINDS = ["label_analysis_done"] as const;
+type PushNotificationKind = (typeof PUSH_NOTIFICATION_KINDS)[number];
 
 /**
  * 表示する通知の中身。

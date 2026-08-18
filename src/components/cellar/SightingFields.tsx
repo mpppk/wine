@@ -35,7 +35,7 @@ export const EMPTY_SIGHTING_DRAFT: WineSightingDraft = {
 };
 
 /** 場所を選ばない選択肢の値。空文字は Select が「未選択」と解釈するため使えない。 */
-export const NO_PLACE_VALUE = "__none__";
+const NO_PLACE_VALUE = "__none__";
 
 /** その場で場所を作る選択肢の値(#495)。実IDと衝突しない形にする。 */
 export const NEW_PLACE_VALUE = "__new__";

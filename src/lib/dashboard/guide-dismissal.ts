@@ -6,8 +6,8 @@
 // __root.tsx の THEME_INIT_SCRIPT)と同じ手法で「ペイント前に html へ属性を立て、
 // CSS で隠す」形にする。SSR とハイドレーション初期描画は常に一致する(隠すのは CSS 側)。
 
-export const STARTER_GUIDE_DISMISSED_KEY = "starter-guide-dismissed";
-export const STARTER_GUIDE_DISMISSED_ATTR = "data-starter-guide-dismissed";
+const STARTER_GUIDE_DISMISSED_KEY = "starter-guide-dismissed";
+const STARTER_GUIDE_DISMISSED_ATTR = "data-starter-guide-dismissed";
 
 /**
  * ペイント前に実行するブートストラップスクリプト。__root.tsx が inline script として

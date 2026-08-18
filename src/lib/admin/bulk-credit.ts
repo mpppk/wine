@@ -14,7 +14,7 @@ import { ADMIN_CREDIT_GRANT_MAX, ADMIN_CREDIT_GRANT_MIN } from "./credit-grant";
 export const ADMIN_BULK_GRANT_MAX_USERS = 200;
 
 /** Workers の1リクエストあたりサブリクエスト上限。D1 呼び出しも計上される */
-export const WORKERS_SUBREQUEST_LIMIT = 1000;
+const WORKERS_SUBREQUEST_LIMIT = 1000;
 
 /**
  * 一括付与が使うサブリクエスト数の見積もり。`perUserD1Calls` は実装が1ユーザあたりに

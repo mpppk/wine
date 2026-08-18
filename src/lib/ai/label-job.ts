@@ -18,7 +18,7 @@ import { z } from "zod";
  * 遷移は `queued → running → succeeded | failed` の一方向のみ。`succeeded` / `failed`
  * が終端で、そこから戻ることはない(再実行は新しいジョブになる)。
  */
-export const LABEL_JOB_STATUSES = [
+const LABEL_JOB_STATUSES = [
 	"queued",
 	"running",
 	"succeeded",
@@ -46,18 +46,6 @@ export type LabelJobKind = (typeof LABEL_JOB_KINDS)[number];
 
 /** 既定の種別。列のデフォルトと一致させる(既存行はこれで埋まっている)。 */
 export const DEFAULT_LABEL_JOB_KIND: LabelJobKind = "label";
-
-/**
- * キューに載せるメッセージ。**ジョブIDだけ**を載せる。
- *
- * 理由は2つ:
- *  1. 写真はキューのメッセージ上限(128KB)に収まらない
- *  2. キューは at-least-once なので同じメッセージが再配信されうる。本体をメッセージに
- *     載せると、再配信で**古い内容が復活する**。常に D1 の最新行から読めばその窓が無い
- */
-export interface LabelJobMessage {
-	jobId: string;
-}
 
 /**
  * 受信したメッセージの検証。キューの本文は「以前のデプロイが積んだ古い形」でも届きうる

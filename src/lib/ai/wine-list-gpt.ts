@@ -32,7 +32,7 @@ import {
 // buildWineListPrompt のコメント参照)。
 
 /** structured outputs のスキーマ名(a-zA-Z0-9_- のみ・64文字以内)。 */
-export const GPT_WINE_LIST_SCHEMA_NAME = "wine_list_extraction";
+const GPT_WINE_LIST_SCHEMA_NAME = "wine_list_extraction";
 
 /**
  * 銘柄1件のスキーマ。**エチケット解析の `LABEL_JSON_SCHEMA` から展開して derive する**

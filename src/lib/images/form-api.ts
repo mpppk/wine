@@ -15,9 +15,6 @@ import { TOO_MANY_REQUESTS_MESSAGE } from "#/lib/errors";
 import { withinRateLimit } from "#/lib/rate-limit";
 
 // formData() はボディ全体をメモリに載せるため、明らかに大きいリクエストはパース前に弾く。
-// 上限の式はクライアント側の送信前ガードと共有する(photo.ts の maxFormDataBytes)。
-export { maxFormDataBytes };
-
 // FormData で画像を受け取る API ルート(アバター / ワイン写真 / エチケット解析)の共通関門(#260)。
 //
 // 3ルートは「セッション確認 → サイズ前チェック → formData パース → MIME/サイズ検証」という
@@ -30,7 +27,7 @@ export { maxFormDataBytes };
 // 共有しない。
 
 /** エラー応答の本文形。3ルートで同一(クライアントは body.error を読む)。 */
-export interface ApiErrorBody {
+interface ApiErrorBody {
 	error: string;
 }
 
@@ -50,7 +47,7 @@ export function apiJsonError(message: string, status: number): Response {
  * MAX_PHOTOS_PER_ENTRY、一括登録の解析は MAX_PHOTOS_PER_IMPORT_BATCH)ので、
  * 文言だけを共有して枚数は引数で受ける。
  */
-export function tooManyPhotosMessage(limit: number): string {
+function tooManyPhotosMessage(limit: number): string {
 	return `写真は最大${limit}枚までです`;
 }
 
@@ -263,12 +260,3 @@ export function readPhotoFiles(
  * **申告 MIME をそのまま載せる**のは、この先が R2 への保存ではなく AI への入力に限られる
  * ため(保存する Content-Type は resolveStoredPhotoMime が実バイトから確定する #150)。
  */
-export async function fileToDataUrl(file: File): Promise<string> {
-	const bytes = new Uint8Array(await file.arrayBuffer());
-	const chunkSize = 0x8000;
-	let binary = "";
-	for (let i = 0; i < bytes.length; i += chunkSize) {
-		binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-	}
-	return `data:${file.type};base64,${btoa(binary)}`;
-}

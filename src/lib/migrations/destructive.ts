@@ -13,7 +13,7 @@ export interface MigrationFinding {
 }
 
 /** 意図的に破壊的変更を通すためのマーカー(参照コードの削除を先行デプロイ済みの場合など)。 */
-export const ALLOW_DESTRUCTIVE_MARKER = "allow-destructive-migration";
+const ALLOW_DESTRUCTIVE_MARKER = "allow-destructive-migration";
 
 export function hasAllowDestructiveMarker(sql: string): boolean {
 	return new RegExp(`--\\s*${ALLOW_DESTRUCTIVE_MARKER}`, "i").test(sql);

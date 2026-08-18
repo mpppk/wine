@@ -58,10 +58,9 @@ export const AOP_TAG_LABELS_JA: Record<AopTagId, string> = Object.fromEntries(
 ) as Record<AopTagId, string>;
 
 /** ツリー行の右端に出す短縮バッジ。badgeJa の無いタグ(docg/doc等)はバッジ無し */
-export const AOP_TAG_BADGES_JA: Partial<Record<AopTagId, string>> =
-	Object.fromEntries(
-		AOP_TAGS.flatMap((t) => ("badgeJa" in t ? [[t.id, t.badgeJa]] : [])),
-	);
+const AOP_TAG_BADGES_JA: Partial<Record<AopTagId, string>> = Object.fromEntries(
+	AOP_TAGS.flatMap((t) => ("badgeJa" in t ? [[t.id, t.badgeJa]] : [])),
+);
 
 /**
  * リスト行に出す格付けバッジの文言。格付けタグを持たない AOP は undefined。
@@ -111,7 +110,7 @@ export function classificationPanelBadgeJa(aop: Aop): string | undefined {
  * 格付けの序列(小さいほど上位)。同一村内でシャトーを格付け順に並べるのに使う。
  * 制度をまたぐ絶対比較には使わない(1855の第1級とサンテミリオンAは別制度)。
  */
-export const CLASSIFICATION_TAG_RANK: Partial<Record<AopTagId, number>> = {
+const CLASSIFICATION_TAG_RANK: Partial<Record<AopTagId, number>> = {
 	"grand-cru": 0,
 	"premier-cru": 1,
 	"premier-cru-superieur-1855": 0,

@@ -2,7 +2,7 @@
 // ここで一元管理する(QUIZ_TYPES と同じ as-const パターン)。schema.ts の action カラムの
 // .$type()、recordAudit 等の書き込み側、UIのラベル表(admin.$userId.tsx)はすべて
 // この union/レコードから導出し、新しい action の追加漏れをコンパイラが検出できるようにする。
-export const ADMIN_AUDIT_ACTIONS = [
+const ADMIN_AUDIT_ACTIONS = [
 	{ id: "credit_grant", labelJa: "クレジット付与" },
 	{ id: "premium_extension", labelJa: "プレミアム期間延長" },
 	{ id: "bulk_credit_grant", labelJa: "一括クレジット付与" },
@@ -17,7 +17,7 @@ export const ADMIN_AUDIT_ACTIONS = [
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number]["id"];
 
 /** 操作種別 → 日本語ラベル。UI表示はこのレコードから引く(全 action の網羅を型が保証する)。 */
-export const ADMIN_AUDIT_ACTION_LABELS_JA: Record<AdminAuditAction, string> =
+const ADMIN_AUDIT_ACTION_LABELS_JA: Record<AdminAuditAction, string> =
 	Object.fromEntries(
 		ADMIN_AUDIT_ACTIONS.map((a) => [a.id, a.labelJa]),
 	) as Record<AdminAuditAction, string>;

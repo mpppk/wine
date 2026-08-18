@@ -83,7 +83,3 @@ export function legacyAopIdsFor(aopId: string): string[] {
 		(retired) => getAop(retired)?.id === aopId,
 	);
 }
-
-export function getAopByIdApp(idApp: number): Aop | undefined {
-	return AOPS.find((a) => a.idApp === idApp);
-}

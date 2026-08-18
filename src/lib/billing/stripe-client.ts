@@ -9,7 +9,7 @@ import Stripe from "stripe";
 // Stripe API 呼び出し時に初めて失敗するので、ログイン等の既存機能には影響しない
 // (ローカル開発・CI ビルドは未設定で動く前提)。
 export const stripeClient = new Stripe(
-	env.STRIPE_SECRET_KEY || "sk_test_placeholder",
+	env.STRIPE_SECRET_KEY || "sk_test_placeholder", // gitleaks:allow(未設定時のプレースホルダ)
 	{
 		// Workers では Node の http エージェントではなく fetch ベースのクライアントを使う。
 		httpClient: Stripe.createFetchHttpClient(),

@@ -29,7 +29,7 @@ export const SIGHTING_MEMO_MAX = 1000;
 export const MAX_PHOTOS_PER_IMPORT_BATCH = 10;
 
 /** 場所(ユーザ単位のマスタ)の属性 */
-export const placeFields = {
+const placeFields = {
 	name: z.string().trim().min(1).max(PLACE_NAME_MAX),
 	// 未指定は DEFAULT_PLACE_KIND(other)としてサービス層が埋める
 	kind: z.enum(PLACE_KIND_IDS).optional(),
@@ -86,7 +86,7 @@ export const createWineSightingInput = z.object(wineSightingFields);
  * 場所は一括登録を経由しないと永久に作れない——`/cellar/import` が `/cellar/new` へ
  * 転送されるようになった今、単体登録は一括登録の下位経路ではないため。
  */
-export const createEntrySightingInput = z
+const createEntrySightingInput = z
 	.object({
 		placeId: wineSightingFields.placeId,
 		newPlace: createPlaceInput.optional(),

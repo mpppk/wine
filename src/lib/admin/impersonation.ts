@@ -54,7 +54,7 @@ export function isImpersonatedSession(
  * - `/sign-out`: なりすましセッション自身を捨てるだけで、対象ユーザのデータにも
  *   本人の他セッションにも影響しない。閉じ込めを避けるため許可する。
  */
-export const IMPERSONATION_ALLOWED_AUTH_PATHS: ReadonlySet<string> = new Set([
+const IMPERSONATION_ALLOWED_AUTH_PATHS: ReadonlySet<string> = new Set([
 	"/admin/stop-impersonating",
 	"/sign-out",
 ]);

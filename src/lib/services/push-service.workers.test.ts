@@ -32,14 +32,14 @@ import {
 
 /** 実在の形式を持つ VAPID 鍵ペア(このテスト専用に生成したもの)。 */
 const TEST_VAPID_PUBLIC =
-	"BDE48t-TAG4btM4wIJqbb9ooz-n4VjJXAF8IjNoCoTzlYWtF7l9rAIq57GceUM2aWL98Ckq6PaVo2TXJDSZJMPU";
+	"BDE48t-TAG4btM4wIJqbb9ooz-n4VjJXAF8IjNoCoTzlYWtF7l9rAIq57GceUM2aWL98Ckq6PaVo2TXJDSZJMPU"; // gitleaks:allow(テスト専用の生成キー)
 
 /** ブラウザが返す形の購読鍵(P-256 の生の公開鍵と16バイトの共有秘密)。 */
 const SUB = {
 	endpoint: "https://fcm.googleapis.com/fcm/send/test-endpoint",
 	p256dh:
 		"BDW6GYofjHUah10yVVsE46Kuv8ymEDTKdmCWbbx8fuCU44iszSq_WZ4ssHAc0zmdXC_4izIpe3d4fbtZufD624U",
-	auth: "_uUrYO9c6_VfLfLJD7KRQg",
+	auth: "_uUrYO9c6_VfLfLJD7KRQg", // gitleaks:allow(テスト専用の購読鍵)
 };
 
 async function seedUser(): Promise<string> {

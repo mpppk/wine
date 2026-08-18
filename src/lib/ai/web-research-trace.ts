@@ -18,7 +18,7 @@
 // 痩せるだけで解析そのものは壊れない、という失敗の仕方に倒す。
 
 /** 1操作ぶんの軌跡。 */
-export interface WebResearchStep {
+interface WebResearchStep {
 	/** 操作の種類。search=検索、open=ページを開いた、find=ページ内検索。 */
 	action: "search" | "open" | "find";
 	/** 検索語(search)/ページ内の検索パターン(find)。open では持たない。 */
@@ -55,7 +55,7 @@ export const WEB_RESEARCH_MAX_STEPS = 20;
 export const WEB_RESEARCH_MAX_URLS_PER_STEP = 5;
 
 /** `hosts` に載せる一意ホストの上限。 */
-export const WEB_RESEARCH_MAX_HOSTS = 30;
+const WEB_RESEARCH_MAX_HOSTS = 30;
 
 /** 収集した操作列を、上限を適用した `WebResearchTrace` に畳む。 */
 function toTrace(steps: WebResearchStep[]): WebResearchTrace {

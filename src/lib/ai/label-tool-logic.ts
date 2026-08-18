@@ -61,10 +61,10 @@ export interface ProducerHit {
 export const APPELLATION_SEARCH_LIMIT = 8;
 
 /** 詳細で返す生産者名の上限(有名呼称は数十件登録されている)。 */
-export const APPELLATION_DETAIL_PRODUCER_LIMIT = 20;
+const APPELLATION_DETAIL_PRODUCER_LIMIT = 20;
 
 /** 生産者の逆引きで返す呼称数の上限。 */
-export const PRODUCER_APPELLATION_LIMIT = 10;
+const PRODUCER_APPELLATION_LIMIT = 10;
 
 /** 呼称1件を検索結果の形へ畳む。 */
 function toHit(aop: Aop): AppellationHit {

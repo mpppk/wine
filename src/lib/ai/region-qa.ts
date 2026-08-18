@@ -98,7 +98,7 @@ export function buildRegionContext(input: RegionContextInput): string {
 }
 
 /** system プロンプト(ガードレール + 地域情報)を組み立てる。 */
-export function buildSystemPrompt(input: RegionContextInput): string {
+function buildSystemPrompt(input: RegionContextInput): string {
 	return [
 		"あなたはワインに関する学習を助ける日本語アシスタントです。",
 		"ユーザからの質問に対して簡潔(3〜5文程度)な日本語で答えてください。",
@@ -144,7 +144,7 @@ export function stripReasoning(text: string): string {
 }
 
 /** テキストの粗いトークン見積(日本語混在を保守的に)。 */
-export function estimatePromptTokens(text: string): number {
+function estimatePromptTokens(text: string): number {
 	return Math.ceil(text.length / CHARS_PER_TOKEN_ESTIMATE);
 }
 

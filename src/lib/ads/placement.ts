@@ -23,7 +23,7 @@ export function isAdBannerPath(pathname: string): boolean {
 }
 
 /** クイズでインタースティシャル広告を挟む回答数の間隔。 */
-export const QUIZ_AD_INTERVAL = 10;
+const QUIZ_AD_INTERVAL = 10;
 
 /**
  * クイズの「次へ」でインタースティシャル広告を挟むべきか判定する。

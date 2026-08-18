@@ -661,7 +661,7 @@ export async function attachLabelAnalysisJobEntry(
  *
  * 冪等。写真を持たないジョブ・既に引き継ぎ済みのジョブは何もせず返す。
  */
-export async function adoptLabelJobPhotos(
+async function adoptLabelJobPhotos(
 	userId: string,
 	jobId: string,
 	entryId: string,

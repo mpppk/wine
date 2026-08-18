@@ -83,7 +83,7 @@ const ORPHAN_SCAN_WINDOW_MS = 40 * 24 * 60 * 60 * 1000;
 const BATCH_STATEMENT_CHUNK = 100;
 
 type BatchStatements = Parameters<typeof db.batch>[0];
-export type BatchStatement = BatchStatements[number];
+type BatchStatement = BatchStatements[number];
 
 /** 同一トランザクションで完結させたいステートメントのまとまり(例: 1ユーザぶんの付与)。 */
 export type BatchUnit = readonly BatchStatement[];

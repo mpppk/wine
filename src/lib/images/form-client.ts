@@ -27,7 +27,7 @@ export const NETWORK_ERROR_MESSAGE =
 	"通信に失敗しました。写真の枚数を減らすか、電波の良い場所で再試行してください。";
 
 /** 送信前のサイズガードに引っかかったときの文言。 */
-export function payloadTooLargeMessage(maxPhotos: number): string {
+function payloadTooLargeMessage(maxPhotos: number): string {
 	return `写真の合計サイズが大きすぎて送信できません。枚数を減らす(最大${maxPhotos}枚)か、1枚${MAX_PHOTO_SIZE_LABEL}以下の写真を選んでください。`;
 }
 
