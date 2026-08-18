@@ -63,7 +63,7 @@ async function toDataUrl(response: Response): Promise<string> {
 }
 
 /** 画像のピクセルサイズを得る。正規化座標をピクセルへ落とすのに要る。 */
-export async function imageSize(
+async function imageSize(
 	dataUrl: string,
 ): Promise<{ width: number; height: number }> {
 	const info = await env.IMAGES.info(toStream(dataUrl));

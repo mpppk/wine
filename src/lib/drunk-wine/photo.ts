@@ -15,7 +15,7 @@ const PHOTO_FORMATS = {
 	"image/gif": { ext: "gif", label: "GIF" },
 } as const;
 
-export const PHOTO_EXT_MAP: Record<string, string> = Object.fromEntries(
+const PHOTO_EXT_MAP: Record<string, string> = Object.fromEntries(
 	Object.entries(PHOTO_FORMATS).map(([mime, f]) => [mime, f.ext]),
 );
 
@@ -179,7 +179,7 @@ export function decodePhotoBase64(
 // 配信ルート側で原寸へフォールバックでき、移行のためのバックフィルが要らない。
 
 /** サムネイルのキー接尾辞。常に JPEG で保存する。 */
-export const PHOTO_THUMB_SUFFIX = ".thumb.jpg";
+const PHOTO_THUMB_SUFFIX = ".thumb.jpg";
 
 /** サムネイルの長辺(px)。一覧の表示サイズ(最大200px程度)の2倍を上限にする。 */
 export const PHOTO_THUMB_MAX_DIMENSION = 400;

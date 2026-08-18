@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { bulkRegisterFromScanInput } from "#/lib/import-batch/schema";
-import { createPlaceInput, updatePlaceInput } from "#/lib/place/schema";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import * as placeService from "#/lib/services/place-service";
 import { authMiddleware } from "./middleware";
@@ -13,27 +12,6 @@ import { authMiddleware } from "./middleware";
 export const listPlaces = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.handler(({ context }) => placeService.listPlaces(context.user.id));
-
-export const createPlace = createServerFn({ method: "POST" })
-	.middleware([authMiddleware])
-	.inputValidator(createPlaceInput)
-	.handler(({ data, context }) =>
-		placeService.createPlace(context.user.id, data),
-	);
-
-export const updatePlace = createServerFn({ method: "POST" })
-	.middleware([authMiddleware])
-	.inputValidator(updatePlaceInput)
-	.handler(({ data, context }) =>
-		placeService.updatePlace(context.user.id, data),
-	);
-
-export const deletePlace = createServerFn({ method: "POST" })
-	.middleware([authMiddleware])
-	.inputValidator(z.object({ id: z.string().min(1).max(80) }))
-	.handler(({ data, context }) =>
-		placeService.deletePlace(context.user.id, data.id),
-	);
 
 /**
  * 写真からの一括登録の確定。場所(新規なら)・バッチ・銘柄・目撃記録・飲用記録を

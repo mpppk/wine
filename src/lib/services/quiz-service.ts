@@ -331,7 +331,7 @@ export async function revertAnswer(
 	]);
 }
 
-export interface QuizTypeProgress {
+interface QuizTypeProgress {
 	quizType: QuizType;
 	/** 現データから生成できる問題数 */
 	candidateCount: number;

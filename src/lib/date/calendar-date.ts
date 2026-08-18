@@ -11,7 +11,7 @@ import { z } from "zod";
 // MCP ツール・フォームのどこからでも同じ規約で使えるようにするため。
 
 /** "YYYY-MM-DD" の形式。 */
-export const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const CALENDAR_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * 形式だけでなく暦として実在する日付か(2026-02-31 等を弾く)。

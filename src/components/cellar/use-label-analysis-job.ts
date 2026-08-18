@@ -12,7 +12,7 @@ import type {
 // エチケット解析ジョブのポーリング(#462)。`use-credit.ts` と同じ流儀で、クエリキーと
 // フックをここに集める(画面ごとに useQuery を書くとキーがずれて無効化が効かなくなる)。
 
-export const LABEL_JOB_QUERY_KEY = ["label-analysis-job"] as const;
+const LABEL_JOB_QUERY_KEY = ["label-analysis-job"] as const;
 export const LABEL_JOB_BADGE_QUERY_KEY = ["label-analysis-job-badge"] as const;
 
 /**

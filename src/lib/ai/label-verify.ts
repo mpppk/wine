@@ -20,7 +20,7 @@ import type { WebResearchTrace } from "./web-research-trace";
 // 判定は「間違っていると断定できるか」で書き、「確認できない」は通す。
 
 /** 検証で見つかった問題。モデルへそのまま返して次のターンの手がかりにする。 */
-export interface LabelProblem {
+interface LabelProblem {
 	/** 問題のあるフィールド。 */
 	field: string;
 	/** モデルに返す説明(日本語)。何をすれば直るかまで書く。 */

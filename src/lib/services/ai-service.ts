@@ -893,7 +893,7 @@ async function runLabelInference(
  * (シークレットを D1 へ書かない)。経路は投入時に確定させて持ち回るので、ここで
  * 読むのは「その経路を実行するための鍵」だけになる。
  */
-export function labelProviderApiKeys(): {
+function labelProviderApiKeys(): {
 	openaiApiKey?: string;
 	anthropicApiKey?: string;
 } {

@@ -118,7 +118,7 @@ function creditsForPhotos(route: WineListRoute, count: number): number {
 }
 
 /** 再解析の元になる一括登録バッチ(#427)。 */
-export interface RescanSource {
+interface RescanSource {
 	batchId: string;
 	/** 保存済み写真の相対URL。**この順が目撃記録の photoIndex の順**。 */
 	photoUrls: string[];

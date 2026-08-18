@@ -19,7 +19,7 @@ import type { Aop, AopKind } from "./types";
 // 動的に導出する。
 
 /** 格付けタグを持たないメンバーを表す facet(マルチセレクトの「格付けなし」選択肢)。 */
-export const NO_CLASS_FACET = "__none__";
+const NO_CLASS_FACET = "__none__";
 export type Facet = AopTagId | typeof NO_CLASS_FACET;
 
 /** AOP_TAGS 内の並び(サブ選択肢の表示順を安定させる) */

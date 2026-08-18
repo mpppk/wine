@@ -9,7 +9,7 @@
 //  - refund        : 失敗時などの返却。実測確定(`:settle`)の差分返却も同じ種別で記録し、
 //                    差分が0でも「確定済み」の証跡として amount=0 の行を残す(#246)
 //  - admin_grant   : 管理画面からの手動/一括付与(月次付与と区別する)
-export const CREDIT_LEDGER_TYPES = [
+const CREDIT_LEDGER_TYPES = [
 	{ id: "grant", labelJa: "付与" },
 	{ id: "grant_upgrade", labelJa: "アップグレード付与" },
 	{ id: "consume", labelJa: "消費" },
@@ -20,7 +20,7 @@ export const CREDIT_LEDGER_TYPES = [
 export type CreditLedgerType = (typeof CREDIT_LEDGER_TYPES)[number]["id"];
 
 /** 台帳種別 → 日本語ラベル。UI表示はこのレコードから引く(全種別の網羅を型が保証する)。 */
-export const CREDIT_LEDGER_TYPE_LABELS_JA: Record<CreditLedgerType, string> =
+const CREDIT_LEDGER_TYPE_LABELS_JA: Record<CreditLedgerType, string> =
 	Object.fromEntries(
 		CREDIT_LEDGER_TYPES.map((t) => [t.id, t.labelJa]),
 	) as Record<CreditLedgerType, string>;

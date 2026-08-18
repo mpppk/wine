@@ -441,7 +441,7 @@ export async function stopImpersonation(params: {
  * 管理操作の証跡を admin_audit_log に1行記録する。破壊的操作の共通後処理。
  * targetUserId は特定ユーザに紐づかない操作(一括付与など)では null を渡す。
  */
-export async function recordAudit(params: {
+async function recordAudit(params: {
 	actorUserId: string;
 	targetUserId: string | null;
 	action: AdminAuditAction;
@@ -463,7 +463,7 @@ export async function recordAudit(params: {
  * 事故に対応する。oauth_access_token / oauth_consent の該当ユーザ行を削除する。
  * better-auth の mcp プラグインには失効APIが無いため直接削除する。
  */
-export async function revokeMcpConnections(
+async function revokeMcpConnections(
 	userId: string,
 ): Promise<{ tokensDeleted: number; consentsDeleted: number }> {
 	const [tokens, consents] = await db.batch([

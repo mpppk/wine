@@ -19,7 +19,7 @@ import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 // 漏れ」(#185)と同じドリフトが、今度は一括登録の経路で再演する。
 
 /** 見かけただけのワインの既定ステータス。一括登録の主要ケース(Issue #358)。 */
-export const IMPORT_DEFAULT_STATUS: WineStatus = "spotted";
+const IMPORT_DEFAULT_STATUS: WineStatus = "spotted";
 
 /** レビュー画面のカード1件ぶんの状態。 */
 export interface ImportCardState {

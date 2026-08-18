@@ -52,7 +52,7 @@ import {
 import type { Aop, Region } from "#/lib/wine/types";
 import { getVariety } from "#/lib/wine/varieties";
 
-export function KindBadge({ aop }: { aop: Aop }) {
+function KindBadge({ aop }: { aop: Aop }) {
 	// 特級タグ持ちは地図と同じく最濃色のドットで示す
 	const color = aop.tags?.includes("grand-cru")
 		? GRAND_CRU_TAG_COLOR

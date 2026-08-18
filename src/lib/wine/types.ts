@@ -54,7 +54,7 @@ export interface GrapeVariety {
 	color: "red" | "white";
 }
 
-export interface AopGrape {
+interface AopGrape {
 	varietyId: string;
 	/** cahier des charges の主要品種(principaux)か補助品種(accessoires)か */
 	role: "principal" | "accessory";

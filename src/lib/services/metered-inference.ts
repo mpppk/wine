@@ -40,7 +40,7 @@ import * as creditService from "#/lib/services/credit-service";
  * **見たいのは頻度**——推論が落ち続ければプロバイダへの原価だけが出ていくので、
  * 閾値はコード側で発明せず Sentry のアラートルール(件数/期間)に委ねる。
  */
-export function recordInference(entry: AiInferenceLog): void {
+function recordInference(entry: AiInferenceLog): void {
 	logAiInference(entry);
 	if (entry.outcome !== "failed") return;
 	alertOperator(
@@ -82,7 +82,7 @@ export type MeteredInferenceLogBase = Omit<
 >;
 
 /** 推論中に判明し、**ok と failed の両方**の実行記録に載せたいフィールド。 */
-export type MeteredInferenceLogFields = Pick<
+type MeteredInferenceLogFields = Pick<
 	AiInferenceLog,
 	"executedBy" | "model" | "webResearch" | "fieldSources" | "verified" | "steps"
 >;

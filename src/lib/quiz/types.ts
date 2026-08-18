@@ -35,7 +35,7 @@ export const QUIZ_TYPE_LABELS_JA: Record<QuizType, string> = Object.fromEntries(
 	QUIZ_TYPES.map((t) => [t.id, t.labelJa]),
 ) as Record<QuizType, string>;
 
-export interface QuizOption {
+interface QuizOption {
 	/** 回答判定に使う選択肢ID(AOP選択肢は aopId、色コンボは "red+white" 等) */
 	id: string;
 	label: string;

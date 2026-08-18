@@ -12,7 +12,7 @@ import { type Rng, sample } from "../rng";
 // 特級リュー・ディ等)へ広げる場合は「地区スコープの妥当性」「選択肢が試験として
 // 成立するか」を地域ごとに検証する必要があるため、ここで明示的にゲートしている。
 // この集合を緩めれば拡張できる。
-export const GRAND_CRU_QUIZ_REGIONS: ReadonlySet<RegionId> = new Set<RegionId>([
+const GRAND_CRU_QUIZ_REGIONS: ReadonlySet<RegionId> = new Set<RegionId>([
 	"bourgogne",
 ]);
 

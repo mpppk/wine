@@ -18,7 +18,7 @@ export interface ProvenanceValue {
 	countryId?: string;
 }
 
-export type ProvenanceOptionKind = "country" | "region" | "aop";
+type ProvenanceOptionKind = "country" | "region" | "aop";
 
 /** ピッカーの候補1件。ドリルダウンの行と検索結果の行の両方がこの形。 */
 export interface ProvenanceOption {

@@ -3,10 +3,6 @@ import type { Aop, WineColor } from "#/lib/wine/types";
 import { GRAPE_VARIETY_IDS, getVariety } from "#/lib/wine/varieties";
 
 // クイズの設問・選択肢・解説で使う日本語ラベル。
-// 色ラベル(COLOR_LABELS_JA)はドメイン語彙として terminology に集約し、後方互換の
-// ため再エクスポートする(地図の詳細パネルと表記を共有する。#42)。
-export { COLOR_LABELS_JA };
-
 /** 色の正規順(選択肢ラベルとコンボIDの並びを安定させる) */
 export const COLOR_ORDER: WineColor[] = [
 	"red",
@@ -26,7 +22,7 @@ export const COLOR_WINE_LABELS_JA: Record<WineColor, string> = {
 };
 
 /** 色の組み合わせを正規順に並べる */
-export function sortColors(colors: readonly WineColor[]): WineColor[] {
+function sortColors(colors: readonly WineColor[]): WineColor[] {
 	return COLOR_ORDER.filter((c) => colors.includes(c));
 }
 

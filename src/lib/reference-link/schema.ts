@@ -14,7 +14,7 @@ function isHttpUrl(u: string): boolean {
 	}
 }
 
-export const referenceLinkFields = {
+const referenceLinkFields = {
 	aopId: z
 		.string()
 		.regex(/^[a-z0-9-]+$/)

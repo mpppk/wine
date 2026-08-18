@@ -339,7 +339,7 @@ function normalizeFormState(s: DrunkWineFormState) {
 }
 
 /** 送信対象のフィールドが同値か(前後空白と品種の並び順は無視する)。 */
-export function drunkWineFormStateEquals(
+function drunkWineFormStateEquals(
 	a: DrunkWineFormState,
 	b: DrunkWineFormState,
 ): boolean {

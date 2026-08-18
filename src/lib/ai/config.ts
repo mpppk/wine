@@ -112,7 +112,7 @@ export const AI_LABEL_MAX_OUTPUT_TOKENS = 512;
  * 実測に幅があるが、予約が実測を必ず上回るよう大きめに取る(クライアントは長辺1280pxに
  * 縮小してから送る前提)。
  */
-export const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
+const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
 
 /**
  * Workers AI 経路の指示文(LABEL_PROMPT)の入力トークン見積。
@@ -225,10 +225,10 @@ export const AI_LABEL_WEB_MAX_CONTINUATIONS = 4;
  * web検索結果 + ループ再送ぶん)。検索結果の量は事前に読めないため実測の中心値に置き、
  * 上振れは settle で取りこぼす(過小請求側)。
  */
-export const AI_LABEL_WEB_BASE_TOKEN_ESTIMATE = 30_000;
+const AI_LABEL_WEB_BASE_TOKEN_ESTIMATE = 30_000;
 
 /** Claude経路の画像1枚あたりの入力トークン見積(長辺1280px前提 + ループ再送ぶん)。 */
-export const AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE = 3_000;
+const AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE = 3_000;
 
 /**
  * Claude経路の出力トークン見積(thinking + JSON)。**入力と分けて持つ**のは
@@ -238,14 +238,14 @@ export const AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE = 3_000;
  * 出力JSONにフィールドごとの根拠(`sources`: 7フィールド × origin + 参照URL)を
  * 載せるようにしたぶん、中心値を引き上げてある(実応答で計測した増分は約250)。
  */
-export const AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE = 2_300;
+const AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE = 2_300;
 
 /**
  * Claude経路の web検索回数の見積。**上限(`AI_LABEL_WEB_MAX_SEARCHES` = 8)ではなく
  * 中心値**を置く。web検索は $10/1000回 の回数課金で、上限で予約すると1回の予約が
  * 付与枠を不必要に押さえてしまう。
  */
-export const AI_LABEL_WEB_SEARCH_ESTIMATE = 6;
+const AI_LABEL_WEB_SEARCH_ESTIMATE = 6;
 
 /**
  * 高精度エチケット解析に使う OpenAI のモデルID。マルチモーダル + サーバーサイドweb検索
@@ -283,16 +283,14 @@ export const AI_LABEL_GPT_SEARCH_CONTEXT_SIZE = "medium";
  * web検索結果)。トークン数の見込みは Claude経路と同水準だが、**原価は単価表で
  * 決まる**ので消費クレジットは大きく違う(Luna の入力単価は Opus 5 の 1/25)。
  */
-export const AI_LABEL_GPT_BASE_TOKEN_ESTIMATE = 30_000;
 
 /** GPT経路の画像1枚あたりの入力トークン見積(長辺1280px前提)。 */
-export const AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE = 3_000;
+const AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE = 3_000;
 
 /**
  * GPT経路の出力トークン見積(reasoning + JSON)。上限ではなく実測の中心値。
  * Claude経路と同じく、根拠(`sources`)を出力させるぶんを織り込んである。
  */
-export const AI_LABEL_GPT_OUTPUT_TOKEN_ESTIMATE = 2_300;
 
 /**
  * GPT経路の web検索回数の見積。
@@ -301,7 +299,6 @@ export const AI_LABEL_GPT_OUTPUT_TOKEN_ESTIMATE = 2_300;
  * `max_uses` に相当する指定が無い)。Luna は原価の8割が web検索の回数課金なので、
  * 上振れした回は予約を超えたぶんを取りこぼす(過小請求)。回数の上限化は別Issueで扱う。
  */
-export const AI_LABEL_GPT_SEARCH_ESTIMATE = 3;
 
 // ---- エージェントループ(GPT経路) ----
 // 1回で答えを出させず、ツール(呼称検索・生産者逆引き・検証つき提出)で裏を取りながら
@@ -338,14 +335,14 @@ export const AI_LABEL_AGENT_BUDGET_RATIO = 0.85;
  * 約4,900トークン)を指示文から外し、`search_appellation` で必要な数件だけ引く形に
  * 変えたため(label-extraction.ts の `buildAgentLabelPrompt` を参照)。
  */
-export const AI_LABEL_AGENT_BASE_TOKEN_ESTIMATE = 9_000;
+const AI_LABEL_AGENT_BASE_TOKEN_ESTIMATE = 9_000;
 
 /**
  * 2ステップ目以降で1ステップあたりに増える**非キャッシュ**入力トークンの見積。
  * 積み上がるツール結果・検索結果のぶん。再送される先頭部分は下の
  * `AI_LABEL_AGENT_CACHE_READ_PER_STEP` 側で数える。
  */
-export const AI_LABEL_AGENT_TOKEN_PER_STEP = 3_000;
+const AI_LABEL_AGENT_TOKEN_PER_STEP = 3_000;
 
 /**
  * 2ステップ目以降で1ステップあたりに読まれるキャッシュのトークン見積。
@@ -355,16 +352,16 @@ export const AI_LABEL_AGENT_TOKEN_PER_STEP = 3_000;
  * 全量を非キャッシュ入力として見積ると予約が実費の数倍になり、無料枠を無駄に圧迫する。
  * 実測(写真1枚・2ステップ)でキャッシュ読みは約25,000トークンだった。
  */
-export const AI_LABEL_AGENT_CACHE_READ_PER_STEP = 12_000;
+const AI_LABEL_AGENT_CACHE_READ_PER_STEP = 12_000;
 
 /** 予約見積で仮定するステップ数(実測の中心値)。上限ではない。 */
-export const AI_LABEL_AGENT_STEP_ESTIMATE = 3;
+const AI_LABEL_AGENT_STEP_ESTIMATE = 3;
 
 /**
  * エージェントループの出力トークン見積(全ステップ合計。reasoning + ツール引数 + 提出)。
  * ツール呼び出しの引数を毎ステップ書くぶん、1リクエスト完結の頃(2,300)より大きい。
  */
-export const AI_LABEL_AGENT_OUTPUT_TOKEN_ESTIMATE = 4_000;
+const AI_LABEL_AGENT_OUTPUT_TOKEN_ESTIMATE = 4_000;
 
 /**
  * モデルへ**最初に見せる**版の長辺(px)。クライアントはこれより大きい解像度で送ってくる
@@ -384,7 +381,7 @@ export const AI_LABEL_VIEW_MAX_DIMENSION = 1280;
  * 回数そのものに課金は無い(web検索と違いプロバイダのツールではない)が、
  * 画像ぶんのトークンは実測に乗る。
  */
-export const AI_LABEL_AGENT_ZOOM_ESTIMATE = 2;
+const AI_LABEL_AGENT_ZOOM_ESTIMATE = 2;
 
 /**
  * エージェントループの web検索回数の見積。
@@ -393,7 +390,7 @@ export const AI_LABEL_AGENT_ZOOM_ESTIMATE = 2;
  * 原価(実測で 5,000µUSD 前後)より桁が大きい。1リクエスト完結の頃(3回)より増えるのは、
  * 検証で差し戻されたときに調べ直すぶん。実測(写真1枚・収束まで)は4回だった。
  */
-export const AI_LABEL_AGENT_SEARCH_ESTIMATE = 5;
+const AI_LABEL_AGENT_SEARCH_ESTIMATE = 5;
 
 /**
  * エンジンキーの解決先(実際に走る経路)。ユーザ選択(LabelEngineKey)と1対1ではなく、
@@ -477,7 +474,7 @@ export type WineListRoute = (typeof WINE_LIST_ROUTE_KEYS)[number];
  * モデル選定の理由は変わらない)。Llama 4 Scout で問題になった「配列の構造化出力の
  * 安定性」は Sonnet 5 でも満たせる。
  */
-export const AI_WINE_LIST_CLAUDE_MODEL = "claude-sonnet-5";
+const AI_WINE_LIST_CLAUDE_MODEL = "claude-sonnet-5";
 
 /**
  * 一括抽出に使う OpenAI のモデルID(#426)。エチケット解析の GPT 経路
@@ -490,7 +487,7 @@ export const AI_WINE_LIST_CLAUDE_MODEL = "claude-sonnet-5";
  *  - structured outputs(strict)で出力形式を強制できる。Claude 経路は形を
  *    `buildWineListPrompt` の指示文でしか担保できず、銘柄配列は壊れると全滅する。
  */
-export const AI_WINE_LIST_GPT_MODEL = "gpt-5.6-luna";
+const AI_WINE_LIST_GPT_MODEL = "gpt-5.6-luna";
 
 /**
  * 経路 → 実際に呼ぶモデルID。**予約見積・実測換算・実行記録のログがすべてここを引く**
@@ -575,27 +572,27 @@ export const AI_WINE_LIST_MAX_WINES = 80;
  * 課金しない = 過小請求側に倒れる)。**この「中心値で予約する」方針は #355 で
  * 全経路の既定になった**(コスト基準では最悪値予約が付与額を超えるため)。
  */
-export const AI_WINE_LIST_BASE_TOKEN_ESTIMATE = 21_000;
+const AI_WINE_LIST_BASE_TOKEN_ESTIMATE = 21_000;
 
 /**
  * 画像1枚あたりの入力トークン見積。リストの小さい文字を読ませるためクライアントは
  * 長辺 1600px へ縮小して送る(エチケットの 1280px より大きい)ので、その前提で
  * エチケット経路(3,000)より大きめに取る。
  */
-export const AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE = 3_500;
+const AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE = 3_500;
 
 /**
  * 一括抽出の基礎出力トークン見積(thinking + JSON の骨格)。入力と分けて持つのは
  * 出力単価が入力の5倍あるため。
  */
-export const AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE = 3_000;
+const AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE = 3_000;
 
 /**
  * GPT経路の基礎出力トークン見積。**reasoning トークンも出力枠から出る**ぶん、
  * Claude経路(3,000)より大きく取る。エチケット解析の GPT 経路と同じ事情
  * (`AI_LABEL_GPT_MAX_OUTPUT_TOKENS` のコメント参照)。
  */
-export const AI_WINE_LIST_GPT_BASE_OUTPUT_TOKEN_ESTIMATE = 4_000;
+const AI_WINE_LIST_GPT_BASE_OUTPUT_TOKEN_ESTIMATE = 4_000;
 
 /**
  * GPT経路の推論の深さ(Responses API の reasoning.effort)。この経路の精度は
@@ -609,7 +606,7 @@ export const AI_WINE_LIST_GPT_REASONING_EFFORT = "low";
  * 画像1枚あたりの追加出力トークン見積。**この経路だけ出力が銘柄数に比例して伸びる**
  * (エチケット解析は1枚でも複数枚でも出力は1件ぶん)ので、枚数に連動させる。
  */
-export const AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE = 500;
+const AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE = 500;
 
 /**
  * 一括抽出1回で許可する web検索回数の上限(#474)。
@@ -633,7 +630,7 @@ export const AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE = "medium";
  * (`estimateWineListReserveUsage` のコメント参照)。1枚の写真に複数銘柄が写るので
  * 1枚 = 1検索より多く見るが、上限 `AI_WINE_LIST_MAX_SEARCHES` でクランプする。
  */
-export const AI_WINE_LIST_WEB_SEARCH_ESTIMATE_PER_IMAGE = 3;
+const AI_WINE_LIST_WEB_SEARCH_ESTIMATE_PER_IMAGE = 3;
 
 /**
  * pause_turn からの再開回数の上限(Claude経路)。エチケット解析
@@ -762,7 +759,7 @@ export function estimateLabelReserveCharge(
  * 地域Q&Aの中心値使用量。入力は会話履歴の実長から見積り、出力は上限を置く
  * (1回の回答は短く、上限に張り付きやすいため中心値 ≒ 上限)。
  */
-export function estimateRegionQaReserveUsage(promptTokens: number): AiUsage {
+function estimateRegionQaReserveUsage(promptTokens: number): AiUsage {
 	return { inputTokens: promptTokens, outputTokens: AI_MAX_OUTPUT_TOKENS };
 }
 

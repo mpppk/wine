@@ -71,7 +71,7 @@ export const LABEL_JSON_SCHEMA = {
 export type LabelFieldKey = (typeof LABEL_JSON_SCHEMA.required)[number];
 
 /** フィールド値の出どころ。 */
-export type LabelFieldOrigin = "photo" | "web" | "photo_and_web" | "unknown";
+type LabelFieldOrigin = "photo" | "web" | "photo_and_web" | "unknown";
 
 const LABEL_FIELD_ORIGINS: readonly LabelFieldOrigin[] = [
 	"photo",
@@ -189,7 +189,7 @@ export function buildKnownListsSection(): string {
  * `search_appellation` に置き換える。品種は84件・約560トークンと軽く、
  * 閉じた語彙なので同梱したほうが往復が減る)。
  */
-export function buildKnownGrapesSection(): string {
+function buildKnownGrapesSection(): string {
 	const grapeNames = GRAPE_VARIETIES.map((v) => v.nameLocal);
 	return [
 		"## 既知の品種リスト(該当があればこの表記を使う)",
@@ -353,7 +353,7 @@ export function parseImageDataUrl(dataUrl: string): {
 }
 
 /** Workers AI(マルチモーダル)に渡すメッセージのcontent要素。 */
-export interface LabelContentPart {
+interface LabelContentPart {
 	type: "text" | "image_url";
 	text?: string;
 	image_url?: { url: string };
@@ -544,7 +544,7 @@ export function toLabelExtraction(d: {
 }
 
 /** 1フィールドぶんの根拠(アプリ側の表現)。 */
-export interface LabelFieldSource {
+interface LabelFieldSource {
 	origin: LabelFieldOrigin;
 	/** origin が web を含むときの参照元URL。 */
 	url?: string;
@@ -725,7 +725,7 @@ const COUNTRY_ALIASES: Record<string, string> = {
 };
 
 /** 国テキスト群から国マスタの id を解決する。 */
-export function matchCountryId(texts: string[]): string | undefined {
+function matchCountryId(texts: string[]): string | undefined {
 	for (const rawText of texts) {
 		const text = normalizeLabelText(rawText);
 		if (!text) continue;

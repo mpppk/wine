@@ -9,7 +9,7 @@ export function resolveInitialMode(): ThemeMode {
 		: "light";
 }
 
-export function applyTheme(mode: ThemeMode) {
+function applyTheme(mode: ThemeMode) {
 	const root = document.documentElement;
 	root.classList.remove("light", "dark");
 	root.classList.add(mode);

@@ -14,7 +14,7 @@ import {
 // 非制御(自前で開閉 state を持つ)にしていないのは、開いた位置=タップした写真の
 // index を呼び出し側が決めるため。閉じたら null を返して呼び出し側の state も畳む。
 
-export interface LightboxPhoto {
+interface LightboxPhoto {
 	/** 原寸の画像URL(サムネイルではなく拡大用) */
 	src: string;
 	alt: string;

@@ -28,12 +28,35 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # ワークフローYAML自体の検証。actionlint は Go 製の単体バイナリをダウンロードする
+      # composite action で、依存インストール不要のため一番最初に置く。
+      # 設定ミス(YAMLの型違い・on の typo・存在しない式)は他のステップが全部緑でも
+      # ワークフローが実行されず気づけない。workflows 全体(terraform・deploy含む)を検査する。
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # マイグレーション差分検出(下記 Check migrations)がベースブランチとの
           # merge-base を必要とするため全履歴を取得する(fetch-depth:0 で origin/<base> が引ける)。
           fetch-depth: 0
+
+      # ワークフローYAML自体の検証。actionlint は Go 製の単体バイナリをダウンロードする
+      # composite action で、依存インストール不要のため Checkout 直後に置く。
+      # 設定ミス(YAMLの型違い・on の typo・存在しない式)は他のステップが全部緑でも
+      # ワークフローが実行されず気づけない。workflows 全体(terraform・deploy含む)を検査する。
+      - name: Validate workflow files (actionlint)
+        uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
+
+      # コミットに秘密鍵・トークンが混入していないかを git 履歴の差分単位で検査する。
+      # gitleaks-action は PR では base..head、push では直前コミットの追加行をスキャンする
+      # (過去の全履歴は対象外。既知の誤検知は各ソースに gitleaks:allow コメントを付けてある)。
+      # リポジトリ所有者が個人アカウントのためライセンスキーは不要(action 側が自動判定)。
+      # 検出時は exit 1 で失敗する(プレビュー環境への反映前に関門として機能する)。
+      - name: Scan for secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          # PR の diff 範囲(base..head)を取得するために必要。workflow 全体の
+          # permissions は contents: read のまま最小権限を保つ。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -56,6 +79,7 @@ jobs:
       # 固定が効かなくなったことに気づけるよう、実際に動いている bun を突き合わせる(#339)。
       - name: Verify pinned bun version
         run: |
+          # shellcheck disable=SC2016 # bun -e の中身は JS。$ はシェル展開ではなくテンプレートリテラル
           bun -e '
             const want = (await Bun.file("package.json").json()).packageManager.replace("bun@", "");
             if (Bun.version !== want) {
@@ -67,6 +91,19 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # 依存パッケージの既知の脆弱性を検査する。--audit-level=high は high 以上の
+      # advisory があると exit 1 になる。
+      #
+      # 現状の high 7件は全て推移的依存で、--ignore で明示的に許可している:
+      #  - adm-zip / image-size×2: mapshaper(geodata ビルド専用の dev 依存)経由。
+      #    修正版が存在せず、親の mapshaper が更新されるまで解消しない。
+      #  - fast-uri / js-yaml / nanoid / undici: 修正版は存在するが親パッケージの
+      #    range 内で bun が拾わない(lockfile 再生成で拾うと better-auth 等の
+      #    breaking bump が混入する)。親の更新で解消するため Renovate 任せ。
+      # ignore に載っていない**新しい** high advisory はここで fail する。
+      - name: Check dependency vulnerabilities (bun audit)
+        run: bun run check:audit
 
       # コミット済みの worker-configuration.d.ts が wrangler.jsonc と揃っているかを見る(#401)。
       # バインディングを足して再生成を忘れると `Env` 型が古いまま **typecheck は緑になり**、
@@ -97,6 +134,14 @@ jobs:
 
       - name: Lint & Format check (Biome)
         run: bun run check
+
+      # 未使用の export / 依存パッケージを検出する。knip はエントリポイントから
+      # 到達不能な export(export キーワードだけ取った未使用関数含む)と、宣言だけして
+      # どこからも参照されない devDependencies を報告する。発見は削除するのが基本で、
+      # やむを得ないもの(文字列参照・better-auth の namespace 参照等)は knip.jsonc に
+      # ignore として理由付きで登録する。削除し忘れの蓄積を防ぐ(#228 以前の放置状況に戻さない)。
+      - name: Check unused exports & dependencies (knip)
+        run: bun run check:unused
 
       # コピペコードの増加を防ぐ。jscpd はトークンベースなので構造が似ただけの
       # コード(Drizzle のテーブル定義・React フォームの hooks 群など)も拾うため、

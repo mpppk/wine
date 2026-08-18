@@ -199,8 +199,7 @@ export STRIPE_API_KEY=<Stripeのシークレットキー>   # preview は sk_tes
 terraform init
 
 # 例: プロモコード。ID(promo_...)は Stripe から引く
-curl -s https://api.stripe.com/v1/promotion_codes -u "$STRIPE_API_KEY:" \
-  | jq -r '.data[] | select(.code=="WELCOME90") | .id'
+curl -s https://api.stripe.com/v1/promotion_codes -u "$STRIPE_API_KEY:" | jq -r '.data[] | select(.code=="WELCOME90") | .id' # gitleaks:allow(環境変数の利用例)
 terraform import 'module.stripe.stripe_promotion_code.new_member' 'promo_xxxxxxxxxxxx'
 
 terraform plan   # 差分が消える(または in-place のみ)ことを確認する

@@ -16,12 +16,7 @@ export interface RegionStat {
 }
 
 /** おすすめの理由。UIの見出し・説明の出し分けに使う */
-export type RecommendationReason =
-	| "starter"
-	| "weak"
-	| "unseen"
-	| "mastery"
-	| "empty";
+type RecommendationReason = "starter" | "weak" | "unseen" | "mastery" | "empty";
 
 /**
  * まだ何も解いていないユーザに最初に薦める地域。収録数の多寡で決まる "unseen" に

@@ -15,7 +15,7 @@ import type { QuizType } from "./types";
 //   variety:{varietyId}:{aopId}
 //   location:{direction}:{subregionId}:{aopId}   direction = north | south | east | west
 
-export const ODD_ONE_OUT_AXES = ["color", "grape", "subregion", "tag"] as const;
+const ODD_ONE_OUT_AXES = ["color", "grape", "subregion", "tag"] as const;
 export type OddOneOutAxis = (typeof ODD_ONE_OUT_AXES)[number];
 
 export const LOCATION_DIRECTIONS = ["north", "south", "east", "west"] as const;

@@ -18,13 +18,13 @@ import type { ReceivedDrunkWineEntry } from "./entry";
 // window に直接触らないのは、ブラウザ無しで全分岐をテストできるようにするため。
 // 実際の window への接続は connectHostBridge が行う。
 
-export const TOOL_CALL_TIMEOUT_MS = 60_000;
+const TOOL_CALL_TIMEOUT_MS = 60_000;
 
 export type ToolCallOutcome =
 	| { ok: true; entry: ReceivedDrunkWineEntry | null }
 	| { ok: false; message: string };
 
-export interface ToolCallHandlers {
+interface ToolCallHandlers {
 	/**
 	 * ホストからツール応答が届いた。タイムアウト後に遅れて届くこともあるため、
 	 * onTimeout の後に呼ばれうる。

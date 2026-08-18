@@ -23,9 +23,3 @@ export const PLACE_KIND_IDS = PLACE_KINDS.map((k) => k.id) as [
  * マイグレーションの DEFAULT と必ず同じ値にする。
  */
 export const DEFAULT_PLACE_KIND: PlaceKind = "other";
-
-export const PLACE_KIND_LABELS_JA: Record<PlaceKind, string> =
-	Object.fromEntries(PLACE_KINDS.map((k) => [k.id, k.labelJa])) as Record<
-		PlaceKind,
-		string
-	>;

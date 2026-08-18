@@ -3,7 +3,7 @@
 // (クレジット種別は credit/types、監査 action は admin/audit に既存の SSOT がある)。
 
 /** Stripe サブスクリプションの status → 日本語ラベル。 */
-export const SUBSCRIPTION_STATUS_LABELS_JA: Record<string, string> = {
+const SUBSCRIPTION_STATUS_LABELS_JA: Record<string, string> = {
 	active: "有効",
 	trialing: "トライアル中",
 	canceled: "解約済み",

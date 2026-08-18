@@ -30,8 +30,6 @@ export const WINE_COUNTRIES = [
 	},
 ] as const satisfies readonly WineCountry[];
 
-export type CountryId = (typeof WINE_COUNTRIES)[number]["id"];
-
 export function getCountry(countryId: string): WineCountry | undefined {
 	return WINE_COUNTRIES.find((c) => c.id === countryId);
 }
