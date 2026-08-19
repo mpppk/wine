@@ -4,8 +4,16 @@
 #   - webhook: /api/auth/stripe/webhook (better-auth ハンドラが受ける)
 #   - Billing Portal: 解約(期間末)・支払い方法更新を許可 (profile ページの導線)
 
+# statement_descriptor は「カード明細に何と表示されるか」を Product 単位で上書きする。
+# サブスクの請求は Stripe が自動で作るため PaymentIntent 側では指定できず、明細名の
+# 優先順位は Invoice > Product > アカウント既定 になる(Stripe の statement descriptors)。
+# Invoice はサブスク請求書が finalize 済みで後から編集できない(collection_method を
+# send_invoice にする必要がある)ので、**Product に置くのが唯一の宣言的な手段**。
+# 未設定だとアカウント既定(屋号ベースの "NIBOSHI")が出て、利用者が何の支払いか
+# 判別できなかった。
 resource "stripe_product" "premium" {
-  name = var.product_name
+  name                 = var.product_name
+  statement_descriptor = var.statement_descriptor
 }
 
 resource "stripe_price" "premium_monthly" {

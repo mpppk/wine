@@ -14,6 +14,32 @@ variable "product_name" {
   default     = "プレミアム"
 }
 
+variable "statement_descriptor" {
+  description = "カード・銀行明細に表示される名称(サブスク請求の明細名)。Stripe は表示時に大文字化するため、恒久差分を避けて大文字で書く。"
+  type        = string
+  default     = "WINE.NIBO.SH"
+
+  validation {
+    condition     = length(var.statement_descriptor) >= 5 && length(var.statement_descriptor) <= 22
+    error_message = "statement_descriptor は 5〜22 文字で指定してください(Stripe の要件)。"
+  }
+
+  validation {
+    condition     = can(regex("[A-Za-z]", var.statement_descriptor))
+    error_message = "statement_descriptor は英字を1文字以上含めてください(Stripe の要件)。"
+  }
+
+  validation {
+    condition     = can(regex("^[ -~]+$", var.statement_descriptor))
+    error_message = "statement_descriptor は ASCII の印字可能文字のみで指定してください(非ASCIIは Stripe 側で除去される)。"
+  }
+
+  validation {
+    condition     = alltrue([for c in ["<", ">", "\\", "'", "\"", "*"] : !strcontains(var.statement_descriptor, c)])
+    error_message = "statement_descriptor に < > \\ ' \" * は使えません(Stripe の要件)。"
+  }
+}
+
 variable "monthly_amount" {
   description = "月額料金(円)。JPY はゼロデシマル通貨なので円単位の整数をそのまま指定する。"
   type        = number
