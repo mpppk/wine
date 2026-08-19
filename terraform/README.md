@@ -4,7 +4,7 @@
 
 | リソース | 内容 |
 |---|---|
-| `stripe_product` | Product「プレミアム」 |
+| `stripe_product` | Product「プレミアム」(カード明細に出る statement descriptor もここ) |
 | `stripe_price` ×2 | 月額 ¥300 / 年額 ¥3,000(月額10ヶ月分) |
 | `stripe_coupon` | 新規入会クーポン(既定: 90%OFF・6ヶ月・repeating) |
 | `stripe_promotion_code` | 上記クーポンの入力コード(既定: `WELCOME90`。初回入会のみ) |
@@ -34,6 +34,41 @@ Checkout の標準プロモコード欄(`allow_promotion_codes`, `src/lib/auth.t
 プロバイダはコミュニティの [lukasaron/stripe](https://registry.terraform.io/providers/lukasaron/stripe/latest/docs) を使用する。
 公式プロバイダ(stripe/stripe)は webhook 署名シークレットを出力できず、Billing Portal 設定も
 未対応のため採用していない。
+
+## カード明細に表示される名称(statement descriptor)
+
+`stripe_product.premium` の `statement_descriptor` が、プレミアム会員の引き落としでカード明細に
+出る名称になる。既定は **`WINE.NIBO.SH`**(module 変数 `statement_descriptor` で変更可)。
+
+**なぜ Product に置くのか**。Stripe がサブスクの明細名を決める優先順位は
+**Invoice > Product > アカウント既定** の3段で、サブスクの請求は Stripe が自動で作るため
+PaymentIntent の `statement_descriptor` / `statement_descriptor_suffix` は指定できない。Invoice 側は
+サブスク請求書が finalize 済みで後から編集できず、書き換えるには `collection_method` を
+`send_invoice` にする必要がある(自動課金をやめることになる)。したがって
+**Product に置くのが唯一の宣言的な手段**で、Terraform 管理にも乗る。
+
+未設定のときはアカウント既定(ダッシュボードの屋号ベース。このアカウントでは `NIBOSHI`)が
+出るため、利用者からは何の支払いか判別できなかった。
+
+- **大文字で書く**。Stripe は明細名を常に大文字で表示し、API も大文字化した値を返しうる。
+  provider の Read は create/update 直後も含めて API 値を state に書き戻すので、設定を小文字で
+  書くと「実体は大文字 / 設定は小文字」の恒久差分になる(プロモコードの `expires_at` と同じ罠)。
+- **既存サブスクにも次回請求から効く**。明細名は請求(charge)のたびに解決されるので、
+  会員側の再契約や移行は不要。
+- **Product の in-place 更新で済む**(`statement_descriptor` は provider 上 `ForceNew` ではない)。
+  Product は作り直されないので、`prevent_destroy` を付けた Price には触れない。
+- **Stripe の制約**は変数の `validation` で弾く: 5〜22文字 / 英字を1文字以上含む /
+  `< > \ ' " *` を含まない / ASCII の印字可能文字のみ(非ASCIIは Stripe 側で除去される)。
+
+> **日本語(漢字・カナ)の明細名はここでは変えられない**。漢字・カナの明細名はアカウント単位の
+> 設定で、ダッシュボード(Settings → Business details)からしか変更できず API・Terraform には
+> 出てこない。日本発行の Visa / Mastercard では発行会社が Latin ではなく漢字・カナの明細名を
+> 優先することがあるため、**日本語で表示されている場合はダッシュボード側も直す必要がある**。
+> ここで設定できるのは Latin の明細名のみ。
+
+反映は他のリソースと同じで、preview(テストモード)は main へのマージで自動 apply、
+production(ライブモード)は Actions → Terraform Apply の手動実行(`environment=production`)。
+**production を apply しないと本番の明細名は変わらない**(plan が差分ありで赤くなる)。
 
 ## ディレクトリ構成
 
