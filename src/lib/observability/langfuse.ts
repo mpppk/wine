@@ -1,7 +1,11 @@
 import { env, waitUntil } from "cloudflare:workers";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
-import { createTraceId, startObservation } from "@langfuse/tracing";
-import { TraceFlags, trace } from "@opentelemetry/api";
+import {
+	createTraceId,
+	setLangfuseTracerProvider,
+	startObservation,
+} from "@langfuse/tracing";
+import { TraceFlags } from "@opentelemetry/api";
 import { BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
 import { langfuseMask } from "./langfuse-mask";
 import { resolveServerEnvironment } from "./sentry-envelope";
@@ -67,7 +71,14 @@ function ensureProvider(): BasicTracerProvider | null {
 		spanProcessors: [langfuseProcessor],
 	});
 	processor = langfuseProcessor;
-	trace.setGlobalTracerProvider(provider);
+	// **グローバルには登録しない**。Langfuse 側の隔離スロットに差す。
+	// `trace.setGlobalTracerProvider` は「プロセスで1回だけ」であり、vite dev では
+	// 依存解決の分岐で `@opentelemetry/api` が2コピーになり、片方が登録した
+	// グローバルを他方の `getTracerProvider()` が見えない(バージョン不一致で
+	// duplicate registration エラーになり、span が no-op tracer へ流れて黙って消える)。
+	// `setLangfuseTracerProvider` は Langfuse 自身の Symbol スロット経由で
+	// provider を直接差すため、API のコピー数に依存しない。
+	setLangfuseTracerProvider(provider);
 	return provider;
 }
 
@@ -77,7 +88,7 @@ function flushLangfuse(): void {
 	try {
 		waitUntil(p);
 	} catch {
-		// リクエスト文脈の外（テスト等）。fetch は走っているので素通しする。
+		// リクエスト文脈の外(テスト等)。fetch は走っているので素通しする。
 	}
 }
 
@@ -242,8 +253,9 @@ export async function startLangfuseTrace(options: {
 	}
 }
 
-/** テストから provider をリセットする（isolate 内の singleton をクリア）。 */
+/** テストから provider をリセットする(isolate 内の singleton をクリア)。 */
 export function __resetLangfuseForTests(): void {
+	setLangfuseTracerProvider(null);
 	provider = null;
 	processor = null;
 }
