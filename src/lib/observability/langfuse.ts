@@ -24,8 +24,26 @@ let processor: LangfuseSpanProcessor | null = null;
 
 function langfuseKeys(): { publicKey: string; secretKey: string } | null {
 	const e = env as unknown as Record<string, string | undefined>;
-	const publicKey = e.LANGFUSE_PUBLIC_KEY?.trim();
-	const secretKey = e.LANGFUSE_SECRET_KEY?.trim();
+	// ローカル開発では `process.env`（.env）や `globalThis` からも読めるようにする。
+	// workerd 本番/プレビューでは `env`（wrangler secret / .dev.vars）が正だが、
+	// テストや一部ツールでは process.env に載ることがあるためフォールバックする。
+	const g = globalThis as unknown as Record<string, string | undefined>;
+	const p =
+		typeof process !== "undefined"
+			? (process as unknown as { env?: Record<string, string | undefined> }).env
+			: undefined;
+	const publicKey = (
+		e.LANGFUSE_PUBLIC_KEY ??
+		p?.LANGFUSE_PUBLIC_KEY ??
+		g.LANGFUSE_PUBLIC_KEY ??
+		""
+	).trim();
+	const secretKey = (
+		e.LANGFUSE_SECRET_KEY ??
+		p?.LANGFUSE_SECRET_KEY ??
+		g.LANGFUSE_SECRET_KEY ??
+		""
+	).trim();
 	if (!publicKey || !secretKey) return null;
 	return { publicKey, secretKey };
 }
