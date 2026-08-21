@@ -45,5 +45,12 @@ declare namespace Cloudflare {
 		// 投入: `wrangler secret put VAPID_PRIVATE_KEY`(プレビューは `--env preview`)。
 		// **入れ替えると既存の購読は全て無効になる**(購読は公開鍵に紐づく)。
 		VAPID_PRIVATE_KEY?: string;
+		// Langfuse の API キー(#512)。AI 推論の入出力を追う LLM 可観測性。
+		// 未設定なら計装は no-op（アプリは壊れない）。
+		// 投入: `wrangler secret put LANGFUSE_PUBLIC_KEY` /
+		// `wrangler secret put LANGFUSE_SECRET_KEY`（プレビューは `--env preview`）。
+		// ローカルは `.dev.vars` に記載。
+		LANGFUSE_PUBLIC_KEY?: string;
+		LANGFUSE_SECRET_KEY?: string;
 	}
 }

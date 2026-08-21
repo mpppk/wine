@@ -19,6 +19,11 @@ import { tracing } from "cloudflare:workers";
 // 閲覧に `CLOUDFLARE_API_TOKEN` が要るという前提の上での判断で(docs/deployment.md)、
 // **スパンは OTLP エクスポートを1つ設定した時点で外部の別基盤へ出ていく**。ログ側と
 // 突き合わせたいときは `requestId` を載せておけば繋がる(台帳・実行記録と同じキー)。
+//
+// **Langfuse は別基準**。テキストの入出力を載せることが価値の中心なので、
+// `src/lib/observability/langfuse.ts` が唯一の入口として、写真を除いたテキスト入出力を
+// `mask` 関門を通して送る。保持30日・キー必須という別の前提に依る。詳細は
+// `docs/deployment.md` の「Langfuse でのAI推論トレース」を参照。
 
 /** スパンに付ける属性。`undefined` の値は捨てる(「渡していない」を属性にしない)。 */
 export type SpanAttributes = Record<

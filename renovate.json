@@ -30,6 +30,20 @@
       ],
       "groupName": "vite build toolchain",
       "automerge": false
+    },
+    {
+      "description": "Langfuse / OpenTelemetry 群は CI が緑でもランタイムで壊れうる依存(#512)。Node 組込への依存が混入すると workerd で 500 になるが typecheck/build では検出できないため、人手でレビューする。",
+      "matchPackageNames": [
+        "@langfuse/otel",
+        "@langfuse/tracing",
+        "@langfuse/core",
+        "@opentelemetry/api",
+        "@opentelemetry/core",
+        "@opentelemetry/sdk-trace-base",
+        "@opentelemetry/exporter-trace-otlp-http"
+      ],
+      "groupName": "langfuse opentelemetry",
+      "automerge": false
     }
   ],
   "lockFileMaintenance": {

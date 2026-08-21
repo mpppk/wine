@@ -274,6 +274,20 @@ R2 の削除範囲は `privateImagePrefixForUser()` / `avatarPrefixForUser()`（
 - **公開ドメインを追加・変更したら `src/lib/auth.ts` の `trustedOrigins` に登録する**（プレビューはダッシュ連結ホスト名用のワイルドカード `https://*-wine-preview...` が別途必要）。
 - binding や vars を wrangler.jsonc に追加したら `bun run cf-typegen`、wrangler types が生成しないシークレットは `src/env-secrets.d.ts` に型を足す。**`cf-typegen` は `--env-file=/dev/null` 付きで実行する**（`wrangler types` は素で実行するとローカルの `.dev.vars` も型に取り込み、生成結果が開発者の手元の設定次第で変わるため。シークレットの型宣言は `env-secrets.d.ts` に一本化する。#261）。
 
+## 観測基盤の役割分担
+
+| 基盤 | 実装 | 見えるもの | 見えないもの |
+|---|---|---|---|
+| Workers Logs（`logAiInference`） | `src/lib/ai/inference-log.ts` / `src/lib/services/metered-inference.ts` | 経路・モデル・トークン・実原価・結末・web検索の軌跡 | プロンプト、モデルの応答そのもの |
+| Workers Traces（`withSpan`） | `src/lib/observability/span.ts` | 1リクエスト内の所要時間の構造 | 同上（規約で入出力を載せない） |
+| Sentry | `src/lib/observability/*` / `src/worker.ts` の `withSentry` | 失敗の頻度と例外 | 成功した推論の中身 |
+| **Langfuse** | `src/lib/observability/langfuse.ts`（唯一の入口） | **プロンプト/応答そのもの**（テキストのみ、写真は除く） | 写真そのもの（枚数・MIMEのみ） |
+
+Langfuse の traceId は `createTraceId(requestId)` で決定的に導出し、Workers Logs の `requestId`・
+クレジット台帳の `request_id` と直結する。新AI経路を追加したら `ctx.recordGeneration()` で
+Langfuse へも報告すること（`src/lib/observability/langfuse.ts` が唯一の入口。経路ごとに
+`startObservation` を直書きしない）。詳細は `docs/deployment.md` の「Langfuse でのAI推論トレース」を参照。
+
 ## 横断規約
 
 - **import**: エイリアスは `#/*` = `./src/*`（package.json の Node subpath imports）。tsconfig に `@/*` も残っているが使用 0 件のデッドエントリで、新規コードは `#/` を使う。相対 import は同一ドメインディレクトリ内のみ（`../../` 越えは禁止相当。現状 0 件）。

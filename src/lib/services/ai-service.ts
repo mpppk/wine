@@ -109,6 +109,7 @@ import {
 	type CreditCharge,
 	getModelPricing,
 	toCharge,
+	totalTokens,
 	usageToMicroUsd,
 } from "#/lib/billing/ai-pricing";
 import { BadRequestError, HttpError } from "#/lib/errors";
@@ -317,6 +318,19 @@ export async function answerRegionQuestion(
 					: chargeFor(model.id, measured);
 			// 単経路なので実行経路は選択経路と常に一致する。
 			ctx.addLogFields({ executedBy: modelKey });
+			ctx.recordGeneration({
+				name: `region_qa:${model.id}`,
+				model: model.id,
+				input: messages,
+				output: answer,
+				usage: measured
+					? {
+							inputTokens: measured.inputTokens,
+							outputTokens: measured.outputTokens,
+							totalTokens: totalTokens(measured),
+						}
+					: undefined,
+			});
 			// Workers AI は内訳を返さない(usage が無い回は空)。web検索も使わないので
 			// `webSearches` は載らない——「検索できたのにしなかった 0」とは意味が違う。
 			return { value: answer, charge, usage: measured ?? {} };
