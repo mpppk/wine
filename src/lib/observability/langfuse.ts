@@ -87,6 +87,11 @@ export interface LangfuseGenerationInput {
 	model: string;
 	input: unknown;
 	output?: unknown;
+	/**
+	 * 写真インベントリなどの構造的な付帯情報。**入力テキストとは別の属性になる**ため、
+	 * 入力が長くて mask に切り詰められてもここは生きる(#514)。
+	 */
+	metadata?: Record<string, unknown>;
 	/** トークン内訳。Workers AI のように内訳が無い場合は total のみにしてよい。 */
 	usage?: {
 		inputTokens?: number;
@@ -95,9 +100,25 @@ export interface LangfuseGenerationInput {
 	};
 }
 
+/** `ctx.recordSpan()` に渡す1回ぶんのツール実行・web検索(#514)。 */
+export interface LangfuseSpanInput {
+	name: string;
+	input?: unknown;
+	output?: unknown;
+	metadata?: Record<string, unknown>;
+	/** 失敗したツール呼び出しは ERROR にして、トレース上で失敗が見えるようにする。 */
+	level?: "DEFAULT" | "WARNING" | "ERROR";
+	statusMessage?: string;
+}
+
 export interface LangfuseTraceHandle {
 	readonly traceId: string;
 	recordGeneration(input: LangfuseGenerationInput): void;
+	/**
+	 * ツール実行・web検索1回ぶんを span として報告する(#514)。
+	 * generation と同じく root の直下に並べる(実行順が時刻で読めるので十分)。
+	 */
+	recordSpan(input: LangfuseSpanInput): void;
 	/**
 	 * trace の結末を書いて閉じる。`outcome` は実行記録と同じ値。
 	 * `output` は trace 全体の出力（成功時は回答、失敗時は未設定）。
@@ -165,6 +186,7 @@ export async function startLangfuseTrace(options: {
 							input: input.input,
 							output: input.output,
 							model: input.model,
+							...(input.metadata ? { metadata: input.metadata } : {}),
 							...(details && Object.keys(details).length > 0
 								? { usageDetails: details }
 								: {}),
@@ -172,6 +194,26 @@ export async function startLangfuseTrace(options: {
 						{ asType: "generation" as const },
 					);
 					gen.end();
+				} catch {
+					// 計装の失敗で推論を壊さない
+				}
+			},
+			recordSpan(input: LangfuseSpanInput) {
+				try {
+					const span = root.startObservation(
+						input.name,
+						{
+							input: input.input,
+							output: input.output,
+							metadata: input.metadata,
+							...(input.level ? { level: input.level } : {}),
+							...(input.statusMessage
+								? { statusMessage: input.statusMessage }
+								: {}),
+						},
+						{ asType: "tool" as const },
+					);
+					span.end();
 				} catch {
 					// 計装の失敗で推論を壊さない
 				}

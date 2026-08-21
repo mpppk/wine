@@ -114,11 +114,19 @@ import {
 } from "#/lib/billing/ai-pricing";
 import { BadRequestError, HttpError } from "#/lib/errors";
 import {
+	createPhotoRedactor,
+	describePhotoSummaries,
+} from "#/lib/images/photo-redact";
+import {
 	cropImage,
 	downscaleImage,
 	isImageTransformAvailable,
 } from "#/lib/images/transform";
 import { logWarn } from "#/lib/logger";
+import type {
+	LangfuseGenerationInput,
+	LangfuseSpanInput,
+} from "#/lib/observability/langfuse";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
@@ -419,6 +427,36 @@ interface LabelResearchResult {
 type WebResearchTraceSink = (trace: WebResearchTrace) => void;
 
 /**
+ * Langfuse への報告口(#514)。`MeteredInferenceContext` の recordGeneration /
+ * recordSpan をそのまま差す。**ai-service は `startObservation` を直書きしない**
+ * (唯一の入口は `src/lib/observability/langfuse.ts`。#166/#174 と同じ失敗の形を避ける)。
+ */
+interface LabelInferenceObserver {
+	recordGeneration(input: LangfuseGenerationInput): void;
+	recordSpan(input: LangfuseSpanInput): void;
+}
+
+/**
+ * AI SDK の応答 content を、Langfuse に載せてよい形へ畳む。
+ * テキスト・ツール呼び出し(名前と引数)は残し、**バイナリを含いうる部分(file など)は
+ * 種別だけ**を残す。写真の方針(docs/deployment.md)の裏返しで、モデル応答側にも
+ * 同じ規律を適用する。
+ */
+function toSafeContentParts(content: readonly unknown[]): unknown {
+	return content.map((part) => {
+		if (!part || typeof part !== "object") return part;
+		const p = part as Record<string, unknown>;
+		if (p.type === "text" || p.type === "reasoning") {
+			return { type: p.type, text: p.text };
+		}
+		if (p.type === "tool-call") {
+			return { type: p.type, toolName: p.toolName, input: p.input };
+		}
+		return { type: p.type };
+	});
+}
+
+/**
  * 高精度経路: Claude(マルチモーダル + サーバーサイドweb検索)で全写真を1リクエスト
  * 解析し、生産者公式サイト・ワインDBでの裏取り込みの抽出結果を返す。
  * env 非依存(apiKey を注入)で、失敗は throw する(フォールバック判断は呼び出し側)。
@@ -427,6 +465,7 @@ async function analyzeLabelWithWebResearch(
 	apiKey: string,
 	imageDataUrls: string[],
 	onTrace: WebResearchTraceSink,
+	obs?: LabelInferenceObserver,
 ): Promise<LabelResearchResult> {
 	const client = new Anthropic({ apiKey });
 	const request = {
@@ -441,11 +480,40 @@ async function analyzeLabelWithWebResearch(
 		],
 	} satisfies Partial<Anthropic.MessageCreateParamsNonStreaming>;
 	const messages = buildWebLabelMessages(imageDataUrls);
+	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#514)。ハッシュ計算の非同期は
+	// ここで済ませてあるので、以降の置き換えは同期で済む。継続で積まれる assistant
+	// 応答には写真が無いので、同じ写像で全体を畳める。
+	const redact = await createPhotoRedactor(imageDataUrls);
+	// 写真インベントリはメタデータとして送る(入力が切り詰められても生きる)。
+	const photoSummaries = await describePhotoSummaries(imageDataUrls);
+	let callCount = 0;
+	/** 1リクエストぶんを generation として報告する(pause_turn の継続も1件ずつ)。 */
+	const reportGeneration = (
+		response: Anthropic.Message,
+		usage: AiUsage,
+	): void => {
+		if (!obs) return;
+		callCount += 1;
+		obs.recordGeneration({
+			name: `label_analysis:web-research#${callCount}`,
+			model: AI_LABEL_WEB_MODEL,
+			input: redact([...messages]),
+			output: response.content,
+			metadata: { photos: photoSummaries, continuation: callCount - 1 },
+			usage: {
+				inputTokens: usage.inputTokens,
+				outputTokens: usage.outputTokens,
+				totalTokens:
+					(usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) || undefined,
+			},
+		});
+	};
 
 	let response = await client.messages.create({ ...request, messages });
 	// 継続のたびに入力を再送するので、**内訳ごとに**加算する(合算スカラーだと
 	// 入力・出力・web検索回数が混ざって原価を復元できない)。
 	let usage = toAnthropicUsage(response.usage);
+	reportGeneration(response, usage);
 	// 検索の軌跡は継続をまたいで積む。各レスポンスは新しいブロックだけを含むので、
 	// 全レスポンスぶんを連結すれば重複せず実行順のまま並ぶ。
 	const blocks: unknown[] = [...response.content];
@@ -462,6 +530,7 @@ async function analyzeLabelWithWebResearch(
 		usage = addUsage(usage, toAnthropicUsage(response.usage));
 		blocks.push(...response.content);
 		onTrace(extractAnthropicTrace(blocks));
+		reportGeneration(response, toAnthropicUsage(response.usage));
 	}
 	// claude-opus-5 はセーフティ分類器が HTTP 200 + stop_reason: "refusal" で応答を
 	// 拒否しうる。content が空/不完全なので通常の失敗として扱う(Workers AI へフォールバック)。
@@ -510,6 +579,7 @@ async function analyzeLabelWithGptResearch(
 	sourceDataUrls: string[] | undefined,
 	onTrace: WebResearchTraceSink,
 	budgetMicroUsd: number,
+	obs?: LabelInferenceObserver,
 ): Promise<LabelResearchResult> {
 	const openai = createOpenAI({ apiKey });
 	// クロージャで使うので、undefined の可能性を先に畳んでおく。
@@ -531,6 +601,15 @@ async function analyzeLabelWithGptResearch(
 		webSearchToolName: GPT_WEB_SEARCH_TOOL_NAME,
 		webSearches: 0,
 	};
+	// Langfuse への報告(#514)。**報告点は onLanguageModelCallEnd**——ここなら
+	// パースや finishReason 検査で失敗して Workers AI へ降格する回にも、降格前の
+	// モデルが何を返していたかが残る(この Phase の主眼)。ハッシュ計算の非同期は
+	// ループ前に済ませてあるので、コールバックの中は同期で報告できる。
+	const redact = await createPhotoRedactor(imageDataUrls);
+	// 写真インベントリはメタデータとして送る(入力が切り詰められても生きる)。
+	const photoSummaries = await describePhotoSummaries(imageDataUrls);
+	let callCount = 0;
+	let reportedSearchSteps = 0;
 
 	const result = await generateText({
 		model: openai(AI_LABEL_GPT_MODEL),
@@ -560,6 +639,27 @@ async function analyzeLabelWithGptResearch(
 							},
 						}
 					: {}),
+				// ツール実行を span として報告する(#514)。`submit_answer` の検証結果
+				// (problems)は「どのステップで何を考えて収束しなかったか」の切り分けに
+				// 直結する。失敗した呼び出しは ERROR にして目立たせる。
+				...(obs
+					? {
+							observe: (event: {
+								tool: string;
+								input: unknown;
+								result?: unknown;
+								error?: string;
+							}) =>
+								obs.recordSpan({
+									name: event.tool,
+									input: event.input,
+									output: event.result ?? event.error,
+									...(event.error
+										? { level: "ERROR" as const, statusMessage: event.error }
+										: {}),
+								}),
+						}
+					: {}),
 			}),
 		},
 		stopWhen: [
@@ -587,10 +687,43 @@ async function analyzeLabelWithGptResearch(
 		// 未処理として記録される)。OpenTelemetry の連携は使っておらず、観測は
 		// logAiInference と Sentry で足りているので、切って困るものが無い。
 		telemetry: { isEnabled: false },
-		onLanguageModelCallEnd: ({ content }) => {
+		onLanguageModelCallEnd: ({ content, usage: callUsage }) => {
 			contentParts.push(...content);
 			trace = extractAiSdkWebSearchTrace(contentParts);
 			onTrace(trace);
+			if (!obs) return;
+			// モデル呼び出し1回 = generation 1件(#514)。usage は**この呼び出しぶん**
+			// (エージェントループの合算は result.usage の担当で、確定処理が使う)。
+			callCount += 1;
+			obs.recordGeneration({
+				name: `label_analysis:gpt-luna#${callCount}`,
+				model: AI_LABEL_GPT_MODEL,
+				// 入力は最初の呼び出しだけ(以降は蓄積した会話で、応答の連なりから読める)。
+				input:
+					callCount === 1
+						? redact(buildGptLabelMessages(imageDataUrls))
+						: { step: callCount },
+				output: toSafeContentParts(content),
+				metadata: { photos: photoSummaries, step: callCount },
+				usage: {
+					inputTokens: callUsage.inputTokens,
+					outputTokens: callUsage.outputTokens,
+					totalTokens: callUsage.totalTokens,
+				},
+			});
+			// web検索はプロバイダ実行ツールなので span の取り得ない代わりに、
+			// **この呼び出しで新しく走った分**を1本の span に畳んで出す。
+			const newSteps = trace.steps.slice(
+				Math.min(reportedSearchSteps, trace.steps.length),
+			);
+			reportedSearchSteps = trace.steps.length;
+			if (newSteps.length > 0) {
+				obs.recordSpan({
+					name: "web_search",
+					input: newSteps.map((s) => ({ action: s.action, query: s.query })),
+					output: newSteps,
+				});
+			}
 		},
 	});
 	assertGptLabelFinished(result.finishReason);
@@ -744,6 +877,12 @@ async function runLabelInference(
 	// 到達したが結果を使えなかった」ことが分かるのはここだけ(#392)。
 	let usage: AiUsage = {};
 	const extractions: LabelExtraction[] = [];
+	// Langfuse への報告口(#514)。キー未設定なら ctx 側が no-op するので、
+	// ここは常に定義してよい。経路ごとの計装はこの口だけを通る。
+	const obs: LabelInferenceObserver = {
+		recordGeneration: (input) => ctx.recordGeneration(input),
+		recordSpan: (input) => ctx.recordSpan(input),
+	};
 
 	// 高精度経路: LLM + web検索で全写真を1リクエスト総合解析する。失敗しても全体を
 	// 落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
@@ -779,6 +918,7 @@ async function runLabelInference(
 				canTransform ? imageDataUrls : undefined,
 				(t) => ctx.addLogFields({ webResearch: t }),
 				ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
+				obs,
 			);
 			extractions.push(gpt.extraction);
 			usage = addUsage(usage, gpt.usage);
@@ -801,6 +941,7 @@ async function runLabelInference(
 				anthropicApiKey,
 				imageDataUrls,
 				(t) => ctx.addLogFields({ webResearch: t }),
+				obs,
 			);
 			extractions.push(web.extraction);
 			usage = addUsage(usage, web.usage);
@@ -827,6 +968,12 @@ async function runLabelInference(
 		// 失敗した高精度呼び出しのぶんは原価としては発生しているが、ユーザには
 		// 「失敗した推論の料金」を負担させない(過小請求側=ユーザ有利に倒す)。
 		usage = {};
+		// Langfuse へ送る入力の写真を要約へ置き換える写像(#514)。降格した回も
+		// 「降格前の generation → 降格先の generation」が同じ trace に並ぶのが
+		// この Phase の主眼なので、ここでの報告も欠かさない。
+		const redact = await createPhotoRedactor(imageDataUrls);
+		// 写真インベントリはメタデータとして送る(入力が切り詰められても生きる)。
+		const photoSummaries = await describePhotoSummaries(imageDataUrls);
 		for (const [photoIndex, imageDataUrl] of imageDataUrls.entries()) {
 			try {
 				const raw = await env.AI.run(AI_LABEL_MODEL, {
@@ -841,6 +988,26 @@ async function runLabelInference(
 					response?: unknown;
 					usage?: { total_tokens?: number };
 				};
+				// **パースより先に報告する**。モデルが変な JSON を返した回こそ
+				// 「モデルの応答が悪いのか・パース側が悪いのか」の切り分け材料で、
+				// パース失敗で消えると写真1枚ぶんの推論が観測から漏れる。
+				const measured = toWorkersAiUsage(out.usage);
+				ctx.recordGeneration({
+					name: `label_analysis:workers-ai#photo${photoIndex + 1}`,
+					model: AI_LABEL_MODEL,
+					input: redact(buildLabelMessages(imageDataUrl)),
+					output: out.response,
+					metadata: {
+						photos: photoSummaries.slice(photoIndex, photoIndex + 1),
+					},
+					usage: measured
+						? {
+								inputTokens: measured.inputTokens,
+								outputTokens: measured.outputTokens,
+								totalTokens: totalTokens(measured),
+							}
+						: undefined,
+				});
 				extractions.push(parseLabelResponse(out.response ?? ""));
 				// Workers AI は内訳を返さないので全量を出力単価で換算する(保守的)。
 				// 写真ごとの usage を足し込むので、欠落した回は 0 として素通しする
