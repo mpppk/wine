@@ -387,6 +387,73 @@ Workers Logs と同じ枠で課金される（Workers Paid: 2000万/月込み、
 > また **設定を含むデプロイより前のリクエストには遡れない**。`observability.traces` を有効に
 > した時点以降のリクエストだけがトレースに残る。
 
+## Langfuse でのAI推論トレース（#512）
+
+AI 推論の **入出力（プロンプト/応答）そのもの**を追うための観測。Workers Logs / Traces / Sentry では
+入出力を載せない規約だったため、「プロンプトが悪いのか・モデル応答が悪いのか・パースが悪いのか」を
+切り分けられなかった穴を埋める。実装は `src/lib/observability/langfuse.ts`（唯一の入口）と
+`src/lib/observability/langfuse-mask.ts`（マスクの関門）。
+
+### 観測先ごとのPII方針の書き分け
+
+| 観測先 | 入出力 | 根拠 |
+|---|---|---|
+| Workers Traces（`withSpan`） | 載せない（実行メタデータのみ） | 全スパンが対象で、OTLPエクスポートを1つ足すと無条件に外へ出る |
+| Workers Logs（`logAiInference`） | 検索クエリ・参照URLのみ | 保持7日・`CLOUDFLARE_API_TOKEN` 必須 |
+| **Langfuse（新規）** | **テキストの入出力を載せる／写真は載せない** | 意図的に選んだ経路だけを送る。保持30日・キー必須 |
+
+写真を含む経路は、写真そのものではなく**枚数・MIME・寸法・ハッシュ**だけを載せる。
+`mediaUploadEnabled: false` を明示し、写真がメディアストレージへ上がる経路を塞ぐ。
+`mask` フック（`langfuse-mask.ts`）が `data:` URI・base64らしき長大文字列・認証情報らしき値を
+機械的に落とす唯一の関門（純関数として unit テストで固定）。
+
+### 相関
+
+`requestId`（`credit_ledger.request_id` と同値。`createTraceId(requestId)` で決定的に導出）で
+Workers Logs の `ai inference` 行・クレジット台帳・Langfuse のトレースURLが直結する。
+
+```bash
+bun run logs --grep "ai inference" --since 1d   # requestId を拾う
+# → Langfuse ダッシュボードで traceId = createTraceId(requestId) を検索
+```
+
+### ホスティングとコスト
+
+Langfuse Cloud **JPリージョン**（`https://jp.cloud.langfuse.com`）を使う。
+1 observation = 1 unit。Hobby 無料枠は 50,000 units/月・保持30日・**超過課金なしのハードキャップ**
+（枠を超えるとトレースが黙って止まる）。
+
+| 機能 | 1回あたりの observation（Phase 1 時点） |
+|---|---|
+| 地域Q&A | 2（trace + generation） |
+| エチケット解析（Workers AI） | 2〜3（Phase 2 で確定） |
+| エチケット解析（GPTエージェントループ） | 10〜20（Phase 2 で確定） |
+| ワインリスト解析 | 2〜3（Phase 3 で確定） |
+
+全環境（本番・デプロイ済みpreview・PRプレビュー・ローカル）から送る方針なので、開発中の試行も枠を食う。
+
+### 無料枠が枯渇したときの間引き手順
+
+超過課金は無いが、枠を超えるとトレースが黙って止まる。次の順で間引く:
+
+1. `src/lib/observability/langfuse.ts` の `shouldExportSpan` でツールspanだけ落とす（generation は残す）
+2. それでも足りなければ Langfuse Cloud を Core $29/月に上げる
+
+### セットアップ
+
+1. Langfuse Cloud JP でプロジェクト作成 → `pk-lf-…` / `sk-lf-…` を発行
+2. `wrangler secret put LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` を**本番 `wine` と `--env preview` の両方**へ
+3. ローカル用に `.dev.vars` へ同じ2つを記載（`.dev.vars.example` 参照）
+
+未設定でもアプリは壊れない（no-op）。`wrangler secret put` 前でもマージ・デプロイは可能。
+
+### PRプレビューでもトレースが見えることの価値
+
+`docs/deployment.md` の「ランタイムログの確認」にあるとおり、**PRごとのプレビューURLは Workers Logs も
+Traces も一切取得できない**（Cloudflare Preview URLs の制約）。Langfuse はアプリが自前で
+`fetch` で OTLP を送るため、この制約を受けず、**PRプレビューからもトレースが届く**。
+Phase 1 で地域Q&Aを実行して到達することを確認する。
+
 ## クライアント側のエラー収集（Sentry）
 
 Workers Logs は **サーバに届いたリクエストしか記録できない**。fetch がレスポンスを受け取る前に

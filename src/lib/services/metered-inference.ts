@@ -1,5 +1,10 @@
 import { type AiInferenceLog, logAiInference } from "#/lib/ai/inference-log";
 import type { AiUsage, CreditCharge } from "#/lib/billing/ai-pricing";
+import {
+	type LangfuseGenerationInput,
+	type LangfuseTraceHandle,
+	startLangfuseTrace,
+} from "#/lib/observability/langfuse";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import { withSpan } from "#/lib/observability/span";
 import * as creditService from "#/lib/services/credit-service";
@@ -105,6 +110,14 @@ export interface MeteredInferenceContext {
 	 * ok の両方で読む形を再発明することになる(その形の崩れが #370 のログ欠落だった)。
 	 */
 	addLogFields(fields: MeteredInferenceLogFields): void;
+	/**
+	 * モデル呼び出し1回を Langfuse の generation として報告する(#512)。
+	 *
+	 * `addLogFields` と同じく「推論中に判明したものを積む」形にし、呼び出し側に
+	 * `startObservation` を書かせない（構造化ログが新ドメインで未適用になった #166 と
+	 * 同じ失敗の形を避ける）。キー未設定なら no-op。
+	 */
+	recordGeneration(input: LangfuseGenerationInput): void;
 }
 
 /**
@@ -245,11 +258,33 @@ export async function finishMeteredInference<T>(
 
 	// 推論中に判明した分。catch でも読むので try の外に置く。
 	let extraFields: MeteredInferenceLogFields = {};
+	// Langfuse trace（root observation）。キー未設定なら null（no-op）。
+	// `createTraceId(requestId)` で決定的に導出し、ログの requestId・台帳の
+	// request_id・Langfuse のトレースURLが同じキーで直結する(#512)。
+	let langfuseTrace: LangfuseTraceHandle | null = null;
+	try {
+		langfuseTrace = await startLangfuseTrace({
+			name: `ai:${logBase.feature}`,
+			requestId,
+			feature: logBase.feature,
+			metadata: {
+				route: logBase.route,
+				selected: logBase.selected,
+				model: logBase.model,
+				photoCount: logBase.photoCount,
+			},
+		});
+	} catch {
+		// 計装の失敗で推論を壊さない
+	}
 	const ctx: MeteredInferenceContext = {
 		requestId,
 		reservedMicroUsd,
 		addLogFields(fields) {
 			extraFields = { ...extraFields, ...fields };
+		},
+		recordGeneration(input) {
+			langfuseTrace?.recordGeneration(input);
 		},
 	};
 
@@ -292,6 +327,10 @@ export async function finishMeteredInference<T>(
 					"wine.ai.executed_by": extraFields.executedBy,
 					"wine.ai.model": extraFields.model,
 				});
+				langfuseTrace?.end({
+					outcome: "failed",
+					errorMessage: e instanceof Error ? e.message : String(e),
+				});
 				recordInference({
 					...entryBase,
 					...extraFields,
@@ -310,6 +349,7 @@ export async function finishMeteredInference<T>(
 				"wine.ai.cost_micro_usd": output.charge.microUsd,
 				"wine.ai.web_searches": output.usage.webSearches,
 			});
+			langfuseTrace?.end({ outcome: "ok", output: output.value });
 			recordInference({
 				...entryBase,
 				...extraFields,
