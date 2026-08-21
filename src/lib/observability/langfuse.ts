@@ -84,11 +84,25 @@ function ensureProvider(): BasicTracerProvider | null {
 
 function flushLangfuse(): void {
 	if (!processor) return;
-	const p = processor.forceFlush().catch(() => {});
+	const started = Date.now();
+	const p = processor.forceFlush();
+	const report = (line: string): void => {
+		try {
+			const avatars = (env as unknown as { AVATARS?: { put(k: string, v: string): Promise<unknown> } }).AVATARS;
+			void avatars?.put(`debug-langfuse/${started}-${Math.random().toString(36).slice(2, 6)}.txt`, line);
+		} catch {
+			// デバッグ書き込みの失敗は無視
+		}
+	};
+	const p2 = p.then(
+		() => report(`resolved after ${Date.now() - started}ms`),
+		(e) => report(`rejected after ${Date.now() - started}ms: ${String(e)}`),
+	);
 	try {
-		waitUntil(p);
-	} catch {
-		// リクエスト文脈の外(テスト等)。fetch は走っているので素通しする。
+		waitUntil(p2);
+		report(`waitUntil accepted at ${Date.now() - started}ms`);
+	} catch (e) {
+		report(`waitUntil threw: ${String(e)}`);
 	}
 }
 
