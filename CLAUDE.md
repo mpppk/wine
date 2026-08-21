@@ -18,9 +18,16 @@
 
 `issue-claim-protocol` skill に従う。リポジトリ固有設定:
 
+- CLAIM_SCOPE: `user:mpppk`
 - CLAIM_LABEL: `in-progress`
-- CLAIM_SCHEMA_DIRS: `drizzle/`
-- CLAIM_HOT_FILES: `src/data/aops.json`, `src/db/schema.ts`
+- CLAIM_RESOURCES:
+  - `db-schema`: `drizzle/**`, `src/db/schema.ts`, `src/db/auth-schema.ts`
+  - `aops-data`: `src/lib/wine/aops.json`
+  - `terraform`: `terraform/**`
+  - `lockfile`: `bun.lock`
+  - `ci-config`: `.github/workflows/**`
+
+`db-schema` は下記「スキーマ変更を含むPRは同時に複数オープンしない」（Issue #54）を、claim時に機械的に効かせるためのもの。全プレビュー環境が共通D1を共有する以上 `drizzle/` と Drizzle 実行時クエリ層は常に一緒に変わるので、1つのリソースとしてまとめて排他する。
 
 ## MCPサーバー変更時の動作確認
 
