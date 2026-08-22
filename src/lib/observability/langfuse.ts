@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import {
 	createTraceId,
@@ -82,6 +82,30 @@ function ensureProvider(): BasicTracerProvider | null {
 	return provider;
 }
 
+function flushLangfuse(): void {
+	if (!processor) return;
+	const started = Date.now();
+	const p = processor.forceFlush();
+	const report = (line: string): void => {
+		try {
+			const avatars = (env as unknown as { AVATARS?: { put(k: string, v: string): Promise<unknown> } }).AVATARS;
+			void avatars?.put(`debug-langfuse/${started}-${Math.random().toString(36).slice(2, 6)}.txt`, line);
+		} catch {
+			// デバッグ書き込みの失敗は無視
+		}
+	};
+	const p2 = p.then(
+		() => report(`resolved after ${Date.now() - started}ms`),
+		(e) => report(`rejected after ${Date.now() - started}ms: ${String(e)}`),
+	);
+	try {
+		waitUntil(p2);
+		report(`waitUntil accepted at ${Date.now() - started}ms`);
+	} catch (e) {
+		report(`waitUntil threw: ${String(e)}`);
+	}
+}
+
 /** `ctx.recordGeneration()` に渡す1回ぶんのモデル呼び出し。 */
 export interface LangfuseGenerationInput {
 	name: string;
@@ -123,31 +147,12 @@ export interface LangfuseTraceHandle {
 	/**
 	 * trace の結末を書いて閉じる。`outcome` は実行記録と同じ値。
 	 * `output` は trace 全体の出力（成功時は回答、失敗時は未設定）。
-	 * TEMP DEBUG: flush と R2 記録を待つ(検証後に元に戻す)。
 	 */
 	end(options: {
 		outcome: "ok" | "failed";
 		output?: unknown;
 		errorMessage?: string;
-	}): Promise<void>;
-}
-
-// TEMP DEBUG(#518 検証用。検証後に必ず削除): 各段階を R2 に記録する。
-async function debugMark(requestId: string, step: string, detail = ""): Promise<void> {
-	try {
-		const avatars = (
-			env as unknown as {
-				AVATARS?: { put(key: string, value: string): Promise<unknown> };
-			}
-		).AVATARS;
-		if (!avatars) return;
-		await avatars.put(
-			`debug-langfuse/${requestId}-${step}.txt`,
-			`${new Date().toISOString()} ${step} ${detail}`,
-		);
-	} catch (e) {
-		console.warn("[langfuse-debug] mark failed", step, String(e));
-	}
+	}): void;
 }
 
 /**
@@ -165,10 +170,7 @@ export async function startLangfuseTrace(options: {
 	metadata?: Record<string, unknown>;
 }): Promise<LangfuseTraceHandle | null> {
 	try {
-		await debugMark(options.requestId, "0-start");
-		const p = ensureProvider();
-		await debugMark(options.requestId, "1-provider", String(!!p));
-		if (!p) return null;
+		if (!ensureProvider()) return null;
 		const traceId = await createTraceId(options.requestId);
 		// 決定的 traceId を root span に持たせるため、ダミーの親 SpanContext を渡す。
 		// traceId は32 hex、spanId は16 hex（all-zero は無効なので 000...001 を使う）。
@@ -241,7 +243,7 @@ export async function startLangfuseTrace(options: {
 					// 計装の失敗で推論を壊さない
 				}
 			},
-			async end(endOptions) {
+			end(endOptions) {
 				try {
 					if (endOptions.outcome === "failed") {
 						root.update({
@@ -256,21 +258,7 @@ export async function startLangfuseTrace(options: {
 				} catch {
 					// 計装の失敗で推論を壊さない
 				} finally {
-					const t0 = Date.now();
-					let status = "no-processor";
-					if (processor) {
-						try {
-							await processor.forceFlush();
-							status = `resolved in ${Date.now() - t0}ms`;
-						} catch (e) {
-							status = `rejected: ${String(e)}`;
-						}
-					}
-					await debugMark(
-						options.requestId,
-						"9-end",
-						`outcome=${endOptions.outcome} flush=${status}`,
-					);
+					flushLangfuse();
 				}
 			},
 		};

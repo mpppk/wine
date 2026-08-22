@@ -336,8 +336,7 @@ export async function finishMeteredInference<T>(
 					"wine.ai.executed_by": extraFields.executedBy,
 					"wine.ai.model": extraFields.model,
 				});
-				// TEMP DEBUG: flush を待つ(検証後に元に戻す)
-				await langfuseTrace?.end({
+				langfuseTrace?.end({
 					outcome: "failed",
 					errorMessage: e instanceof Error ? e.message : String(e),
 				});
@@ -359,8 +358,7 @@ export async function finishMeteredInference<T>(
 				"wine.ai.cost_micro_usd": output.charge.microUsd,
 				"wine.ai.web_searches": output.usage.webSearches,
 			});
-			// TEMP DEBUG: flush を待つ(検証後に元に戻す)
-			await langfuseTrace?.end({ outcome: "ok", output: output.value });
+			langfuseTrace?.end({ outcome: "ok", output: output.value });
 			recordInference({
 				...entryBase,
 				...extraFields,
