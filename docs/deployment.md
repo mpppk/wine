@@ -426,9 +426,9 @@ Langfuse Cloud **JPリージョン**（`https://jp.cloud.langfuse.com`）を使�
 | 機能 | 1回あたりの observation |
 |---|---|
 | 地域Q&A | 2（trace + generation） |
-| エチケット解析（Workers AI） | 2〜6（trace + 写真枚数ぶんの generation。#514） |
+| エチケット解析（Workers AI） | 2〜7（trace + 写真枚数ぶんの generation。最大6枚） |
 | エチケット解析（Claude 経路） | 2〜4（trace + リクエストごとの generation。pause_turn の継続も1件ずつ） |
-| エチケット解析（GPTエージェントループ） | 4〜30（trace + ステップごとの generation + `zoom_photo` / `submit_answer` / マスタ参照ツール / web検索の span。`AI_LABEL_AGENT_MAX_STEPS = 8` のとき最大） |
+| エチケット解析（GPTエージェントループ） | **実測 4件（1ステップで収束）〜 11件（3ステップ: generation×3 + `submit_answer`×2 + web検索×3 + マスタ参照×2 + trace）**。`AI_LABEL_AGENT_MAX_STEPS = 8` まで回しきると 30 前後に達しうる |
 
 写真は generation の**メタデータ**(`photos`: MIME・寸法・バイト数・SHA-256)と、入力テキスト内の
 要約オブジェクト(`$photo`)として載せる。入力テキストは mask の上限(8,000字)で切り詰められる
