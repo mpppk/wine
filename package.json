@@ -43,7 +43,7 @@
 	],
 	"dependencies": {
 		"@ai-sdk/openai": "^4.0.32",
-		"@anthropic-ai/sdk": "^0.115.0",
+		"@anthropic-ai/sdk": "^0.120.0",
 		"@better-auth/stripe": "^1.6.23",
 		"@cloudflare/vite-plugin": "^1.45.0",
 		"@langfuse/otel": "^5.10.1",
