@@ -2,6 +2,7 @@ import { type AiInferenceLog, logAiInference } from "#/lib/ai/inference-log";
 import type { AiUsage, CreditCharge } from "#/lib/billing/ai-pricing";
 import {
 	type LangfuseGenerationInput,
+	type LangfuseSpanInput,
 	type LangfuseTraceHandle,
 	startLangfuseTrace,
 } from "#/lib/observability/langfuse";
@@ -118,6 +119,11 @@ export interface MeteredInferenceContext {
 	 * 同じ失敗の形を避ける）。キー未設定なら no-op。
 	 */
 	recordGeneration(input: LangfuseGenerationInput): void;
+	/**
+	 * ツール実行・web検索1回ぶんを Langfuse の span として報告する(#514)。
+	 * `recordGeneration` と同じ理由で、呼び出し側に `startObservation` を書かせない。
+	 */
+	recordSpan(input: LangfuseSpanInput): void;
 }
 
 /**
@@ -285,6 +291,9 @@ export async function finishMeteredInference<T>(
 		},
 		recordGeneration(input) {
 			langfuseTrace?.recordGeneration(input);
+		},
+		recordSpan(input) {
+			langfuseTrace?.recordSpan(input);
 		},
 	};
 

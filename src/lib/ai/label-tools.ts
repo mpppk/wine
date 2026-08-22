@@ -166,6 +166,72 @@ export interface LabelToolsOptions {
 	photoCount: number;
 	/** 写真の一部を切り出す。省略すると `zoom_photo` を出さない。 */
 	cropPhoto?: CropPhoto;
+	/**
+	 * ツール実行の観測口(#514)。execute が正常に終わったら `result`、
+	 * throw したら `error` を載せて呼ぶ。**結果はここでサニタイズする**: `zoom_photo`
+	 * の結果には切り出し画像の data URI が乗るので、範囲(`applied`)だけを残して落とす。
+	 * 省略時は何も報告しない。
+	 */
+	observe?: (event: {
+		tool: string;
+		input: unknown;
+		result?: unknown;
+		error?: string;
+	}) => void;
+}
+
+/** execute を観測つきへ包む。失敗は観測してから再 throw する(挙動は変えない)。 */
+function withObservation<A, R>(
+	toolName: string,
+	execute: (input: A) => R,
+	observe: LabelToolsOptions["observe"],
+): (input: A) => R | Promise<R> {
+	if (!observe) return execute;
+	return async (input: A): Promise<R> => {
+		try {
+			const result = await execute(input);
+			observe({ tool: toolName, input, result });
+			return result;
+		} catch (e) {
+			observe({
+				tool: toolName,
+				input,
+				error: e instanceof Error ? e.message : String(e),
+			});
+			throw e;
+		}
+	};
+}
+
+/**
+ * `cropPhoto` を観測つきへ包む。**切り出し画像そのものは載せない**——結果には
+ * 範囲(`applied`)だけを残す(#514 の写真方針)。切り出しの入出力は引数が
+ * オブジェクト1つの他ツールと形が違うため、専用の包みにする。
+ */
+function observeCropPhoto(
+	cropPhoto: CropPhoto,
+	observe: LabelToolsOptions["observe"],
+): CropPhoto {
+	if (!observe) return cropPhoto;
+	return async (photoIndex, box) => {
+		const input = { photoIndex, ...box };
+		try {
+			const cropped = await cropPhoto(photoIndex, box);
+			observe({
+				tool: ZOOM_PHOTO_TOOL_NAME,
+				input,
+				result: { applied: cropped.applied },
+			});
+			return cropped;
+		} catch (e) {
+			observe({
+				tool: ZOOM_PHOTO_TOOL_NAME,
+				input,
+				error: e instanceof Error ? e.message : String(e),
+			});
+			throw e;
+		}
+	};
 }
 
 /**
@@ -176,10 +242,16 @@ export function buildLabelTools({
 	getVerifyContext,
 	photoCount,
 	cropPhoto,
+	observe,
 }: LabelToolsOptions) {
 	return {
 		...(cropPhoto
-			? { [ZOOM_PHOTO_TOOL_NAME]: buildZoomTool(photoCount, cropPhoto) }
+			? {
+					[ZOOM_PHOTO_TOOL_NAME]: buildZoomTool(
+						photoCount,
+						observeCropPhoto(cropPhoto, observe),
+					),
+				}
 			: {}),
 		search_appellation: tool({
 			description:
@@ -190,10 +262,14 @@ export function buildLabelTools({
 					.min(1)
 					.describe("呼称名の一部または全体(原語・日本語のどちらでもよい)"),
 			}),
-			execute: ({ query }) => {
-				const hits = searchAppellations(query, APPELLATION_SEARCH_LIMIT);
-				return { hits, count: hits.length };
-			},
+			execute: withObservation(
+				"search_appellation",
+				({ query }) => {
+					const hits = searchAppellations(query, APPELLATION_SEARCH_LIMIT);
+					return { hits, count: hits.length };
+				},
+				observe,
+			),
 		}),
 
 		get_appellation: tool({
@@ -202,10 +278,14 @@ export function buildLabelTools({
 			inputSchema: z.object({
 				id: z.string().min(1).describe("呼称のid(例: chablis-grand-cru)"),
 			}),
-			execute: ({ id }) => {
-				const detail = getAppellationDetail(id);
-				return detail ?? { error: `呼称 ${id} はマスタにありません` };
-			},
+			execute: withObservation(
+				"get_appellation",
+				({ id }) => {
+					const detail = getAppellationDetail(id);
+					return detail ?? { error: `呼称 ${id} はマスタにありません` };
+				},
+				observe,
+			),
 		}),
 
 		lookup_producer: tool({
@@ -217,41 +297,49 @@ export function buildLabelTools({
 					.min(1)
 					.describe("生産者名の一部または全体(例: Recougne)"),
 			}),
-			execute: ({ name }) => {
-				const hits = lookupProducer(name);
-				return { hits, count: hits.length };
-			},
+			execute: withObservation(
+				"lookup_producer",
+				({ name }) => {
+					const hits = lookupProducer(name);
+					return { hits, count: hits.length };
+				},
+				observe,
+			),
 		}),
 
 		[SUBMIT_ANSWER_TOOL_NAME]: tool({
 			description:
 				"特定した情報を最終回答として提出する。提出された内容は検証され、問題があれば指摘が返る。指摘が返ったら調べ直して再度呼ぶこと。問題が無ければこれで完了。",
 			inputSchema: SUBMIT_ANSWER_SCHEMA,
-			execute: (answer) => {
-				// パースは他経路と共通の関門を通す(型の揺れの吸収も含めて挙動を揃える)。
-				const extraction = parseLabelResponse(answer);
-				const fieldSources = parseLabelSources(answer);
-				const context = getVerifyContext();
-				const result = verifyLabelAnswer(extraction, {
-					...context,
-					fieldSources,
-				});
-				const submitted: SubmittedAnswer = {
-					extraction,
-					...(fieldSources ? { fieldSources } : {}),
-					verified: result.ok,
-				};
-				collector.last = submitted;
-				if (result.ok) {
-					collector.accepted = submitted;
-					return { accepted: true as const };
-				}
-				return {
-					accepted: false as const,
-					problems: result.problems,
-					hint: "指摘された点を調べ直して、修正した内容で再度 submit_answer を呼んでください。確認できない項目は null / 空配列にして構いません。",
-				};
-			},
+			execute: withObservation(
+				SUBMIT_ANSWER_TOOL_NAME,
+				(answer) => {
+					// パースは他経路と共通の関門を通す(型の揺れの吸収も含めて挙動を揃える)。
+					const extraction = parseLabelResponse(answer);
+					const fieldSources = parseLabelSources(answer);
+					const context = getVerifyContext();
+					const result = verifyLabelAnswer(extraction, {
+						...context,
+						fieldSources,
+					});
+					const submitted: SubmittedAnswer = {
+						extraction,
+						...(fieldSources ? { fieldSources } : {}),
+						verified: result.ok,
+					};
+					collector.last = submitted;
+					if (result.ok) {
+						collector.accepted = submitted;
+						return { accepted: true as const };
+					}
+					return {
+						accepted: false as const,
+						problems: result.problems,
+						hint: "指摘された点を調べ直して、修正した内容で再度 submit_answer を呼んでください。確認できない項目は null / 空配列にして構いません。",
+					};
+				},
+				observe,
+			),
 		}),
 	};
 }

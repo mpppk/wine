@@ -249,4 +249,34 @@ describe("zoom_photo", () => {
 		expect(modelOutput.type).toBe("error-text");
 		expect(modelOutput.value).toContain("写真 5 はありません");
 	});
+
+	// Langfuse への報告(#514)。**切り出し画像そのものは載せない**——観測口には
+	// 範囲(applied)だけを渡し、data URI が外へ出る経路を作らない。
+	it("observe には範囲だけを渡し、data URI は渡さない", async () => {
+		const events: Array<{ tool: string; input?: unknown; result?: unknown }> =
+			[];
+		const tools = buildLabelTools({
+			collector: {},
+			getVerifyContext: () => ({}),
+			photoCount: 1,
+			cropPhoto: crop,
+			observe: (event) => events.push(event),
+		});
+		const tool = tools[ZOOM_PHOTO_TOOL_NAME] as unknown as {
+			execute: (input: unknown) => unknown;
+		};
+		await tool.execute({
+			photoIndex: 0,
+			x: 0.3,
+			y: 0.4,
+			width: 0.2,
+			height: 0.2,
+		});
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ tool: "zoom_photo" });
+		expect(JSON.stringify(events[0])).not.toContain("base64");
+		expect(events[0]?.result).toEqual({
+			applied: { x: 0.31, y: 0.4, width: 0.2, height: 0.2 },
+		});
+	});
 });
