@@ -45,6 +45,7 @@ import {
 	toRegionQaModelKey,
 	type WineListRoute,
 } from "#/lib/ai/config";
+import { AI_FEATURE_GENERATION_PREFIXES } from "#/lib/ai/inference-log";
 import {
 	buildLabelMessages,
 	buildLabelSuggestions,
@@ -427,11 +428,12 @@ interface LabelResearchResult {
 type WebResearchTraceSink = (trace: WebResearchTrace) => void;
 
 /**
- * Langfuse への報告口(#514)。`MeteredInferenceContext` の recordGeneration /
+ * Langfuse への報告口(#514/#515)。`MeteredInferenceContext` の recordGeneration /
  * recordSpan をそのまま差す。**ai-service は `startObservation` を直書きしない**
  * (唯一の入口は `src/lib/observability/langfuse.ts`。#166/#174 と同じ失敗の形を避ける)。
+ * エチケット解析(#514)と一括抽出(#515)の両経路で使う。
  */
-interface LabelInferenceObserver {
+interface InferenceObserver {
 	recordGeneration(input: LangfuseGenerationInput): void;
 	recordSpan(input: LangfuseSpanInput): void;
 }
@@ -465,7 +467,7 @@ async function analyzeLabelWithWebResearch(
 	apiKey: string,
 	imageDataUrls: string[],
 	onTrace: WebResearchTraceSink,
-	obs?: LabelInferenceObserver,
+	obs?: InferenceObserver,
 ): Promise<LabelResearchResult> {
 	const client = new Anthropic({ apiKey });
 	const request = {
@@ -579,7 +581,7 @@ async function analyzeLabelWithGptResearch(
 	sourceDataUrls: string[] | undefined,
 	onTrace: WebResearchTraceSink,
 	budgetMicroUsd: number,
-	obs?: LabelInferenceObserver,
+	obs?: InferenceObserver,
 ): Promise<LabelResearchResult> {
 	const openai = createOpenAI({ apiKey });
 	// クロージャで使うので、undefined の可能性を先に畳んでおく。
@@ -879,7 +881,7 @@ async function runLabelInference(
 	const extractions: LabelExtraction[] = [];
 	// Langfuse への報告口(#514)。キー未設定なら ctx 側が no-op するので、
 	// ここは常に定義してよい。経路ごとの計装はこの口だけを通る。
-	const obs: LabelInferenceObserver = {
+	const obs: InferenceObserver = {
 		recordGeneration: (input) => ctx.recordGeneration(input),
 		recordSpan: (input) => ctx.recordSpan(input),
 	};
@@ -1180,6 +1182,7 @@ export function isWineListAnalysisAvailable(): boolean {
 async function extractWineListWithClaude(
 	apiKey: string,
 	imageDataUrls: string[],
+	obs?: InferenceObserver,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new Anthropic({ apiKey });
 	const request = {
@@ -1194,11 +1197,39 @@ async function extractWineListWithClaude(
 		],
 	} satisfies Partial<Anthropic.MessageCreateParamsNonStreaming>;
 	const messages = buildWineListMessages(imageDataUrls);
+	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#515)。写像の構築時に
+	// ハッシュ計算(非同期)を済ませるのはエチケット解析と同じ。継続で積まれる
+	// assistant 応答に写真は無いので、同じ写像で全体を畳める。
+	const redact = await createPhotoRedactor(imageDataUrls);
+	const photoSummaries = await describePhotoSummaries(imageDataUrls);
+	let callCount = 0;
+	/** 1リクエストぶんを generation として報告する(pause_turn の継続も1件ずつ)。 */
+	const reportGeneration = (
+		response: Anthropic.Message,
+		usage: AiUsage,
+	): void => {
+		if (!obs) return;
+		callCount += 1;
+		obs.recordGeneration({
+			name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}web-research#${callCount}`,
+			model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
+			input: redact([...messages]),
+			output: response.content,
+			metadata: { photos: photoSummaries, continuation: callCount - 1 },
+			usage: {
+				inputTokens: usage.inputTokens,
+				outputTokens: usage.outputTokens,
+				totalTokens:
+					(usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) || undefined,
+			},
+		});
+	};
 
 	let response = await client.messages.create({ ...request, messages });
 	// 継続のたびに入力を再送するので、**内訳ごとに**加算する(合算スカラーだと
 	// 入力・出力・web検索回数が混ざって原価を復元できない)。
 	let usage = toAnthropicUsage(response.usage);
+	reportGeneration(response, usage);
 	// サーバー側ツールループが上限に達すると pause_turn で返る。assistant 応答を積んで
 	// 再送すると続きから再開する(継続回数は原価ガードとして上限で打ち切る)。
 	for (
@@ -1209,6 +1240,7 @@ async function extractWineListWithClaude(
 		messages.push({ role: "assistant", content: response.content });
 		response = await client.messages.create({ ...request, messages });
 		usage = addUsage(usage, toAnthropicUsage(response.usage));
+		reportGeneration(response, toAnthropicUsage(response.usage));
 	}
 	if (response.stop_reason === "refusal") {
 		throw new Error("Claudeがワインリストの解析の応答を拒否しました");
@@ -1244,8 +1276,13 @@ async function extractWineListWithClaude(
 async function extractWineListWithGpt(
 	apiKey: string,
 	imageDataUrls: string[],
+	obs?: InferenceObserver,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new OpenAI({ apiKey });
+	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#515)。ハッシュ計算の非同期は
+	// ここで済ませてあるので、置き換えは同期で済む。
+	const redact = await createPhotoRedactor(imageDataUrls);
+	const photoSummaries = await describePhotoSummaries(imageDataUrls);
 	const response = await client.responses.create({
 		model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
 		input: buildWineListGptInput(imageDataUrls),
@@ -1263,6 +1300,23 @@ async function extractWineListWithGpt(
 		response.usage,
 		countGptWebSearchCalls(response.output),
 	);
+	if (obs) {
+		// モデル呼び出し1回 = generation 1件。**パースより先に報告する**(エチケット解析の
+		// Workers AI 経路と同じ理由で、応答の解釈に失敗してもモデルが何を返したかを残す)。
+		obs.recordGeneration({
+			name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}gpt-luna#1`,
+			model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
+			input: redact(buildWineListGptInput(imageDataUrls)),
+			output: response.output,
+			metadata: { photos: photoSummaries },
+			usage: {
+				inputTokens: usage.inputTokens,
+				outputTokens: usage.outputTokens,
+				totalTokens:
+					(usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) || undefined,
+			},
+		});
+	}
 	const parsed = parseWineListResponse(
 		extractWineListGptText(response),
 		imageDataUrls.length,
@@ -1295,10 +1349,15 @@ async function runWineListInference(
 ): Promise<MeteredInferenceOutput<WineListAnalysisOutcome>> {
 	// **フォールバックは持たない**。片方の失敗でもう一方を叩くと、失敗した推論の
 	// 原価に加えてもう1回ぶんの消費が乗る(#404 と同種の問題を作らない)。
+	// Langfuse への報告口(#515)。キー未設定なら ctx 側が no-op するので常に定義してよい。
+	const obs: InferenceObserver = {
+		recordGeneration: (gen) => ctx.recordGeneration(gen),
+		recordSpan: (span) => ctx.recordSpan(span),
+	};
 	const { parsed, usage } =
 		input.route === "gpt-luna"
-			? await extractWineListWithGpt(input.apiKey, input.imageDataUrls)
-			: await extractWineListWithClaude(input.apiKey, input.imageDataUrls);
+			? await extractWineListWithGpt(input.apiKey, input.imageDataUrls, obs)
+			: await extractWineListWithClaude(input.apiKey, input.imageDataUrls, obs);
 	const deduped = dedupeWineListItems(parsed.wines);
 	const candidates = matchExistingEntries(
 		buildWineListCandidates(deduped.items),

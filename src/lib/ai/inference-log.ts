@@ -39,7 +39,26 @@ import type { WebResearchTrace } from "./web-research-trace";
  * 経路ごとに msg 文字列を変えると横断で見られなくなるため、msg は共通にして
  * この値で絞る。
  */
-type AiFeature = "label_analysis" | "region_qa" | "wine_list_analysis";
+export type AiFeature = "label_analysis" | "region_qa" | "wine_list_analysis";
+
+/**
+ * 各機能の Langfuse generation 名の**接頭辞**(#515)。
+ *
+ * 全AI経路が `ctx.recordGeneration()` でモデル呼び出しを報告する規約のもと、
+ * 「機能を足したのに計装を忘れる」漏れを2段で塞ぐ:
+ *
+ *  1. **型**: 新しい `AiFeature` を足すとこの Record の網羅性チェックで型エラーになり、
+ *     対応表への追加が強制される(`ai-pricing.test.ts` の「モデルを足したら単価も足す」と同じ発想)
+ *  2. **ランタイム**: 対応する workers テストが、実際に推論を走らせたときの generation 名が
+ *     ここで登録した接頭辞で始まることを OTLP ボディから検証する
+ *     (`langfuse.workers.test.ts` / `langfuse-label.workers.test.ts` /
+ *     `langfuse-wine-list.workers.test.ts`)。表だけ埋めて計装しなければこちらが落ちる。
+ */
+export const AI_FEATURE_GENERATION_PREFIXES: Record<AiFeature, string> = {
+	label_analysis: "label_analysis:",
+	region_qa: "region_qa:",
+	wine_list_analysis: "wine_list_analysis:",
+};
 
 /**
  * 推論の結末。

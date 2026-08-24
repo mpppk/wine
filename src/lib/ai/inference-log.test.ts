@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	AI_FEATURE_GENERATION_PREFIXES,
 	AI_INFERENCE_LOG_MESSAGE,
+	type AiFeature,
 	buildAiInferenceFields,
 	logAiInference,
 } from "./inference-log";
@@ -251,6 +253,29 @@ describe("logAiInference", () => {
 			expect(msgs).toEqual(Array(3).fill(AI_INFERENCE_LOG_MESSAGE));
 		} finally {
 			spy.mockRestore();
+		}
+	});
+});
+
+describe("AI_FEATURE_GENERATION_PREFIXES(#515)", () => {
+	it("全AI機能を網羅する(足し忘れると型エラーで落ちる)", () => {
+		// ここは**リテラルで列挙する**: AiFeature の値が増えたとき、この配列と
+		// Record の両方を更新させるため。片方だけの更新は下の一致テストが拾う。
+		const features = [
+			"label_analysis",
+			"region_qa",
+			"wine_list_analysis",
+		] as const satisfies readonly AiFeature[];
+		expect(Object.keys(AI_FEATURE_GENERATION_PREFIXES).sort()).toEqual(
+			[...features].sort(),
+		);
+	});
+
+	it("接頭辞はコロンで終わり、互いに重ならない(名前の取り違え防止)", () => {
+		const prefixes = Object.values(AI_FEATURE_GENERATION_PREFIXES);
+		for (const prefix of prefixes) {
+			expect(prefix.endsWith(":")).toBe(true);
+			expect(prefixes.filter((p) => p === prefix)).toHaveLength(1);
 		}
 	});
 });
