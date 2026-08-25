@@ -429,6 +429,20 @@ Langfuse Cloud **JPリージョン**（`https://jp.cloud.langfuse.com`）を使�
 | エチケット解析（Workers AI） | 2〜7（trace + 写真枚数ぶんの generation。最大6枚） |
 | エチケット解析（Claude 経路） | 2〜4（trace + リクエストごとの generation。pause_turn の継続も1件ずつ） |
 | エチケット解析（GPTエージェントループ） | **実測 4件（1ステップで収束）〜 11件（3ステップ: generation×3 + `submit_answer`×2 + web検索×3 + マスタ参照×2 + trace）**。`AI_LABEL_AGENT_MAX_STEPS = 8` まで回しきると 30 前後に達しうる |
+| 一括抽出（GPT経路） | 2（trace + generation） |
+| 一括抽出（Claude経路） | 2〜5（trace + リクエストごとの generation。pause_turn の継続も1件ずつ） |
+
+**Phase 3(#515) で全AI経路の計装が揃った。** 新しい `AiFeature` を足すときは
+`AI_FEATURE_GENERATION_PREFIXES`（`src/lib/ai/inference-log.ts`）への登録が型で強制され、
+対応する workers テストが generation の名前接頭辞を OTLP から検証する。
+
+### 月間 units の見通し（全経路載せた状態）
+
+1推論あたりの中央値を「地域Q&A 2 / エチケット解析 4〜11 / 一括抽出 2〜3」とすると、
+**1,000回のAI推論で約 3,000〜5,000 units**。Hobby 無料枠（50,000 units/月）なら
+**月1万回前後の推論**までは吸収できる計算で、現行の利用規模（クレジット消費から見て
+月数百回程度）に対しては十分な headroom。枯渇の兆候（トレースが止まる）は
+Langfuse ダッシュボードの usage で月次を確認する。
 
 写真は generation の**メタデータ**(`photos`: MIME・寸法・バイト数・SHA-256)と、入力テキスト内の
 要約オブジェクト(`$photo`)として載せる。入力テキストは mask の上限(8,000字)で切り詰められる
