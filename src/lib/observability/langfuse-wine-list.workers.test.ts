@@ -151,7 +151,11 @@ function openaiResponse(fields: Record<string, unknown>): Response {
 				role: "assistant",
 				status: "completed",
 				content: [
-					{ type: "output_text", text: JSON.stringify(fields), annotations: [] },
+					{
+						type: "output_text",
+						text: JSON.stringify(fields),
+						annotations: [],
+					},
 				],
 			},
 		],
