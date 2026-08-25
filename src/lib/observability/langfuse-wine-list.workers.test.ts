@@ -126,7 +126,8 @@ async function seedUser(): Promise<string> {
 
 /**
  * OpenAI Responses API の成功応答(structured outputs の message アイテム)。
- * 一括抽出の GPT 経路は生の Responses API を使う。
+ * 一括抽出の GPT 経路は生の Responses API を使う。**reasoning の encrypted_content
+ * も返してくる**実態に合わせた形にして、サニタイズで落ちることを確かめる。
  */
 function openaiResponse(fields: Record<string, unknown>): Response {
 	return Response.json({
@@ -139,16 +140,18 @@ function openaiResponse(fields: Record<string, unknown>): Response {
 		incomplete_details: null,
 		output: [
 			{
+				type: "reasoning",
+				id: "rs_test",
+				content: [],
+				encrypted_content: "gAAAAABsuperlongencryptedblob",
+			},
+			{
 				type: "message",
 				id: "msg_test",
 				role: "assistant",
 				status: "completed",
 				content: [
-					{
-						type: "output_text",
-						text: JSON.stringify(fields),
-						annotations: [],
-					},
+					{ type: "output_text", text: JSON.stringify(fields), annotations: [] },
 				],
 			},
 		],
@@ -261,6 +264,10 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 			.map((c) => c.body)
 			.join("\n");
 		expect(allBodies).not.toContain("data:image/jpeg;base64");
+		// reasoning の暗号化ブロック(encrypted_content)はサニタイズで落ちる
+		expect(allBodies).not.toContain("gAAAAAB");
+		// 本文(message の output_text)は残る
+		expect(allBodies).toContain("output_text");
 	});
 
 	it("Claude経路はpause_turn継続ごとにgenerationを出す", async () => {

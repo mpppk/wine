@@ -1307,7 +1307,7 @@ async function extractWineListWithGpt(
 			name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}gpt-luna#1`,
 			model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
 			input: redact(buildWineListGptInput(imageDataUrls)),
-			output: response.output,
+			output: toSafeResponseOutput(response.output),
 			metadata: { photos: photoSummaries },
 			usage: {
 				inputTokens: usage.inputTokens,
@@ -1328,6 +1328,26 @@ async function extractWineListWithGpt(
 export interface WineListAnalysisOutcome {
 	candidates: WineListCandidate[];
 	summary: WineListAnalysisSummary;
+}
+
+/**
+ * OpenAI Responses API の output を、Langfuse に載せてよい形へ畳む。
+ * 本文(`message` の output_text)と web検索の呼び出しは残し、**`encrypted_content`
+ * (reasoning の暗号化ブロック)などの不可読ペイロードは落とす**——トレースの可読性の
+ * ためで、載せても観測上の価値が無い(#515)。
+ */
+function toSafeResponseOutput(output: readonly unknown[]): unknown {
+	return output.map((item) => {
+		if (!item || typeof item !== "object") return item;
+		const o = item as Record<string, unknown>;
+		if (o.type === "message") {
+			return { type: o.type, role: o.role, content: o.content };
+		}
+		if (o.type === "web_search_call") {
+			return { type: o.type, status: o.status };
+		}
+		return { type: o.type };
+	});
 }
 
 /**
