@@ -68,13 +68,22 @@ Workers Builds の build / deploy command はダッシュボード（Settings > 
   `smoke:preview` = 同スクリプトを `https://wine-preview.niboshi.workers.dev --shared-db` で叩く。
   **URL とオプションを `package.json` 側に置いてある**のは、ダッシュボードにしか保存できない
   deploy command を短く保ち、対象URLの変更をリポジトリで追えるようにするため（#396）
-- **bun のバージョンは `package.json` の `packageManager` が真実の源**（#339）。CI（`setup-bun` の
-  `bun-version-file: package.json`）とローカル（`bun` 本体が読む）はこれで揃うが、**Workers Builds の
-  ビルドイメージはこのフィールドを見ない**。ビルド環境変数 `BUN_VERSION` を同じ値に設定して揃える
-  （未設定だとイメージ既定の bun が使われ、更新時に予告なく変わる。
-  [build image の既定値と上書き](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/#overriding-default-versions)）。
-  設定は下記の Workers Builds API か、ダッシュボードの Settings > Build > Build variables から行う。
-  **`packageManager` を上げたら `BUN_VERSION` も同じ値に上げる**（Renovate は前者しか更新しない）。
+- **bun のバージョンは `package.json` の `packageManager` が真実の源**（#339）。CI は `setup-bun` の
+  `bun-version-file: package.json` で揃え、**Workers Builds もこのフィールドを読む**。ビルドログ冒頭の
+  `Detected the following tools from environment: bun@<version>` がコミットの `packageManager` と一致し、
+  同一トリガー（`wine-preview` の `*`）の9分違いの2ビルドで、commit の `packageManager` に応じて
+  1.3.11 / 1.4.0 と変わることを実測している（2026-08-26。`.bun-version` 等のファイルは置いていない）。
+  ただし**この自動検出は Cloudflare の公開ドキュメントに無い**（[build image](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/#overriding-default-versions)
+  の bun の行に載っているのは `BUN_VERSION` だけ）ので、これ頼みにはしない。
+- **ローカルの `bun` は `packageManager` を強制しない**。corepack と違い、版が違っても警告なく動く
+  （bun 1.3.11 が `packageManager: bun@1.4.0` のまま `bun install --frozen-lockfile` を通すことを実測）。
+  手元やコンテナで何が動いているかは `bun --version` を見る。
+- **ビルド環境変数 `BUN_VERSION` は明示ピンとして設定してある**（未設定だとイメージ既定 or 上記の
+  未文書な自動検出頼みになり、どちらも予告なく変わりうるため）。**環境変数は自動検出より優先されるので、
+  `packageManager` を上げたら `BUN_VERSION` も同じ値に上げる**（Renovate は前者しか更新しない。
+  食い違うと `BUN_VERSION` 側が勝ち、CI だけ新しく**デプロイビルドは古い bun のまま**になる）。
+  設定はダッシュボードの Settings > Build > Build variables and secrets から行う
+  （API では現在値を読み出せない。下記「設定の確認・変更（Workers Builds API）」を参照）。
 - **`wine-preview` の2トリガーは `CLOUDFLARE_ENV=preview` が効いていることが前提**。上表の
   build / deploy command 自体には現れないので、ダッシュボードのビルド環境変数として設定されている
   （`wrangler.jsonc` の `env.preview` を選ばせるスイッチで、無いとトップレベル設定＝本番 `wine` を
@@ -648,8 +657,9 @@ Workers Logs は **サーバに届いたリクエストしか記録できない*
 > `--import` / `.output/server` といったサーバ側の手順も Node 前提で Workers には無い。
 > **必要なコードは実装済みなので、ウィザードでやることは DSN とトークンの発行だけ**。
 
-> `build_variables` は**丸ごと置き換わる**。既存の `BUN_VERSION` / `CLOUDFLARE_ENV` を含めた
-> 完全な集合を送ること（詳細は下記 API の節）。
+> `build_variables` は**丸ごと置き換わる**。API では現在値を読み出せないので、
+> `BUN_VERSION` / `CLOUDFLARE_ENV` を巻き添えで消さないよう**ダッシュボードで編集する**
+> （詳細は下記 API の節）。
 
 ### Terraform 管理にしない理由
 
@@ -794,9 +804,19 @@ curl -sS -X PATCH "$API/accounts/$ACC/builds/triggers/<trigger_uuid>" -H "$AUTH"
 curl -sS -X PATCH "$API/accounts/$ACC/builds/triggers/<trigger_uuid>" -H "$AUTH" \
   -H "Content-Type: application/json" \
   --data '{"build_variables":{"BUN_VERSION":"1.4.0"}}'
+
+# 直近のビルド一覧(build_outcome / commit / 時刻)
+curl -sS "$API/accounts/$ACC/builds/workers/<script_tag>/builds" -H "$AUTH" | jq
+
+# ビルドログ。どの bun / Node で走ったかは冒頭の "Detected the following tools" 行で分かる
+curl -sS "$API/accounts/$ACC/builds/builds/<build_uuid>/logs" -H "$AUTH" \
+  | jq -r '.result.lines[][1]' | head -20
 ```
 
-> `build_variables` は**丸ごと置き換わる**。既存の変数（`wine-preview` の `CLOUDFLARE_ENV=preview` など）が
-> あるトリガーでは、先に GET した内容へ追記した完全な集合を送る。
+> `build_variables` は**丸ごと置き換わる**うえ、**現在値は API から読み出せない**（トリガー一覧の
+> レスポンスに `build_variables` は含まれず、`GET /builds/triggers/<uuid>` は `Not found` を返す）。
+> 部分的に PATCH すると `wine-preview` の `CLOUDFLARE_ENV=preview` や Sentry 系の変数を巻き添えで消すため、
+> **ビルド環境変数の変更は現在値が見えるダッシュボードで行う**。API を使うのは、既存の集合を把握していて
+> 完全な形で送れる場合だけにする。
 
 > 設定変更は「次回以降のビルド」に適用される。既存の実行中ビルドには影響しない。
