@@ -288,6 +288,13 @@ Langfuse の traceId は `createTraceId(requestId)` で決定的に導出し、W
 Langfuse へも報告すること（`src/lib/observability/langfuse.ts` が唯一の入口。経路ごとに
 `startObservation` を直書きしない）。詳細は `docs/deployment.md` の「Langfuse でのAI推論トレース」を参照。
 
+**プロンプト本文の正（SSOT）も Langfuse 側にある**（#512 Phase 4）。コードの
+`src/lib/ai/managed-prompts.ts` が持つ `template` は fallback と初期登録の種で、取得は
+`getManagedPrompt`（`src/lib/observability/langfuse-prompt.ts`）が唯一の入口。**デプロイと
+無関係に本番プロンプトが変わることを許容する**代わりに、ラベル（`production` / `preview`）で
+本番と評価中を分け、変数の食い違いを実行時ガードで弾く。詳細は `docs/deployment.md` の
+「プロンプト管理」を参照。
+
 ## 横断規約
 
 - **import**: エイリアスは `#/*` = `./src/*`（package.json の Node subpath imports）。tsconfig に `@/*` も残っているが使用 0 件のデッドエントリで、新規コードは `#/` を使う。相対 import は同一ドメインディレクトリ内のみ（`../../` 越えは禁止相当。現状 0 件）。

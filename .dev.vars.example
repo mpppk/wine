@@ -34,8 +34,10 @@ OPENAI_API_KEY=
 # 例: CAMPAIGN_EXTENSION_CODES=WINE7=7,SUMMER=14
 CAMPAIGN_EXTENSION_CODES=
 
-# Langfuse（任意）。AI 推論の入出力（プロンプト/応答）を追う LLM 可観測性。
-# 未設定なら計装は no-op（アプリは壊れない）。ローカルで試す場合は
+# Langfuse（任意）。AI 推論の入出力（プロンプト/応答）を追う LLM 可観測性と、
+# プロンプト管理（#512 Phase 4。`region-qa-system` の本文の正は Langfuse 側）。
+# 未設定なら計装もプロンプト取得も no-op（アプリは壊れず、コードの fallback で動く）。
+# ローカルで試す場合は
 # https://jp.cloud.langfuse.com でプロジェクトを作り、pk-lf-... / sk-lf-... を入れる。
 # 本番/プレビューは `wrangler secret put LANGFUSE_PUBLIC_KEY` /
 # `wrangler secret put LANGFUSE_SECRET_KEY`（プレビューは --env preview）。

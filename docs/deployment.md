@@ -465,6 +465,112 @@ Langfuse ダッシュボードの usage で月次を確認する。
 
 未設定でもアプリは壊れない（no-op）。`wrangler secret put` 前でもマージ・デプロイは可能。
 
+### プロンプト管理（#512 Phase 4）
+
+**本番プロンプトの正（SSOT）は Langfuse にある。** コードの
+`src/lib/ai/managed-prompts.ts`（`MANAGED_PROMPTS`）が持つ `template` は
+「Langfuse が使えないときの fallback」と「初期登録の種」であって、正ではない。
+
+これは #512 本文の「Langfuse Prompts は使わない」を意図的に覆した決定で、
+**デプロイと無関係にモデルの挙動が変わることを許容する**代わりに、評価のループ
+（編集 → 試す → 比較 → 採用/巻き戻し）がデプロイ待ちで分断されない状態を取っている。
+CI がプロンプトの網でなくなるぶんは、下記のラベル運用と実行時ガードで御する。
+
+取得の唯一の入口は `src/lib/observability/langfuse-prompt.ts` の `getManagedPrompt`。
+`ai-service.ts` に `LangfuseClient` を直書きしない（`startObservation` を直書きしないのと同じ理由）。
+
+対象は現時点で **地域Q&A の system プロンプト（`region-qa-system`）だけ**。
+
+#### ラベルで本番と評価中を分ける
+
+| 実行環境 | 引くラベル |
+|---|---|
+| 本番 `wine` | `production` |
+| デプロイ済みプレビュー / PRプレビュー / ローカル | `preview` |
+
+判定は `resolveServerEnvironment()`（Langfuse の `environment` と同じ導出）。評価はこう回す:
+
+1. Langfuse UI でプロンプトを編集して新しい版を作り、**`preview` ラベル**を張る
+2. プレビューURL（またはローカル）で実行し、トレースで応答・latency・コストを版ごとに比べる
+3. 良ければ `production` ラベルを張り替える（**デプロイ不要**）
+4. 悪ければラベルを元の版へ戻すだけ（版履歴は Langfuse が保つ）
+
+`preview` ラベルの版が無ければ Langfuse は 404 を返し、コードの fallback で動く。
+つまり**ラベルを張ったときだけ本番と違う挙動になる**。
+
+**ラベルを張り替えても即座には反映されない。** SDK のキャッシュは stale-while-revalidate で、
+TTL(60秒)が切れた後の**最初のリクエストは古い版をそのまま返し**、裏で取得し直す。新しい版が
+出るのは**その次のリクエストから**。実機で確認するときは「変わらない」と早合点せず、
+TTL ぶん待ってから2回試すこと(実測でこの挙動を確認済み)。Workers は isolate が短命なので
+本番では冷えた isolate が新しい版を直接引くことが多いが、温まっている間はこのラグが乗る。
+
+#### 実行時ガード（型とテストを失ったぶんの代替）
+
+取得した版は、次のどれかに当たると**使わずにコードの fallback へ落ちる**。理由は
+generation の `metadata.promptSource` に残るので、トレースから必ず追える。
+
+| `promptSource` | 意味 |
+|---|---|
+| `langfuse` | Langfuse の版で動いた（prompt link に版番号が載る） |
+| `code-no-keys` | 鍵が未設定。外向き fetch を1本も出していない |
+| `code-fetch-failed` | Langfuse に届かなかった / タイムアウト（`fetchTimeoutMs: 2000`） |
+| `code-invalid-template` | **版の変数がコードと食い違う**（下記） |
+
+`code-invalid-template` になるのは2方向:
+
+- **必須変数が消された**（`{{region_context}}` を消すとグラウンディング無しで推論が走る）
+- **コードが渡さない変数が足された**（mustache は未知の変数を空文字に畳むので、書いた本人の
+  意図した文面にならないまま本番へ出る）
+
+後者の結果として、**変数を増やす版はコード側が追随するまで効かない**。それが狙いで、
+効かなかったことは Workers Logs の `op: langfuse_prompt` の warn と `promptSource` から分かる。
+
+`isFallback` の版には Langfuse SDK が prompt 属性を付けないので、**fallback で動いた回が
+版ごとの指標を汚さない**。
+
+**Langfuse に届かなかった回は Workers Logs にも warn を出す。** その状況では
+トレース自体が Langfuse へ届かないので、`promptSource` は当てにできない —— 一番知りたい
+ときに唯一届く信号が Workers Logs になる:
+
+```bash
+bun run logs --grep langfuse_prompt --since 1d
+# {"msg":"langfuse prompt fetch fell back to code","op":"langfuse_prompt",
+#  "prompt":"region-qa-system","label":"preview"}
+```
+
+取得は**リトライしない**（`maxRetries: 0` / `fetchTimeoutMs: 2000`）。地域Q&Aは同期経路で
+この fetch が推論の前に直列で入る上、**失敗はキャッシュされない**（キャッシュに入るのは
+成功した取得だけ）ので、Langfuse が落ちている間は毎リクエストがこの待ちを払う。1回で
+諦めることで上乗せの最悪値を `fetchTimeoutMs` 1回ぶんに抑える。
+
+#### 初期登録と差分の確認
+
+```bash
+bun run sync:prompts             # 未登録があれば production / preview ラベル付きで登録
+bun run sync:prompts --dry-run   # 書き込まず、やることだけ表示
+bun run sync:prompts --check      # 差分・未登録があれば非ゼロ終了
+```
+
+**上書きはしない。** 登録済みなら本文を比べて差分を表示するだけ。差分は異常ではなく
+「Langfuse 側で改善した版が育っている」という意味なので、離れすぎたら fallback を
+コードへ取り込み直す（取り込みは手で書く）。**CI からは実行しない**（Langfuse の鍵を
+GitHub Actions へ置かない。鍵の投入は Sentry / Stripe と同じく手作業）。
+
+#### Playground / Datasets / Experiments
+
+Langfuse Playground の LLM Connection に **Cloudflare Workers AI のプリセットは無い**。
+Cloudflare AI Gateway の OpenAI 互換エンドポイントを通す:
+
+1. Cloudflare で AI Gateway を作る
+2. Langfuse の Project Settings → LLM Connections → Add new LLM API key
+3. Provider は **OpenAI**、Advanced Settings の Base URL に
+   `https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/compat` を入れる
+   （Langfuse が `/chat/completions` を付けるので**末尾に付けない**）
+4. モデル名は `workers-ai/@cf/google/gemma-4-26b-a4b-it` の形で指定する
+
+Dataset は既存トレースから作れる（Traces の一覧で選択 → Add to dataset）。地域Q&Aの実リクエストを
+数十件拾って回帰用にしておくと、プロンプトを変えたときに Experiments で前後比較できる。
+
 ### PRプレビューでもトレースが見えることの価値
 
 `docs/deployment.md` の「ランタイムログの確認」にあるとおり、**PRごとのプレビューURLは Workers Logs も

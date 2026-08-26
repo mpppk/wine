@@ -22,11 +22,24 @@ import { resolveServerEnvironment } from "./sentry-envelope";
 // - `mediaUploadEnabled: false` を明示（写真がメディアストレージへ上がる経路を塞ぐ）
 // - `mask` フックが唯一の関門（data URI / base64 / 認証情報を機械的に落とす）
 
+/**
+ * 送信先。**プロンプト取得(`langfuse-prompt.ts`)と共有する**ため export する。
+ * 2箇所目のリテラルを作ると、リージョンを移したときに片方だけ古いまま残る。
+ */
+export const LANGFUSE_BASE_URL = "https://jp.cloud.langfuse.com";
+
 // Cloudflare Workers の isolate 内で1回だけ初期化する。
 let provider: BasicTracerProvider | null = null;
 let processor: LangfuseSpanProcessor | null = null;
 
-function langfuseKeys(): { publicKey: string; secretKey: string } | null {
+/**
+ * Langfuse の鍵を読む。**プロンプト取得側と共有する**(#512 Phase 4)。
+ * どちらか空なら `null` を返し、呼び出し側は丸ごと no-op にする。
+ */
+export function readLangfuseKeys(): {
+	publicKey: string;
+	secretKey: string;
+} | null {
 	const e = env as unknown as Record<string, string | undefined>;
 	// ローカル開発では `process.env`（.env）や `globalThis` からも読めるようにする。
 	// workerd 本番/プレビューでは `env`（wrangler secret / .dev.vars）が正だが、
@@ -53,13 +66,13 @@ function langfuseKeys(): { publicKey: string; secretKey: string } | null {
 }
 
 function ensureProvider(): BasicTracerProvider | null {
-	const keys = langfuseKeys();
+	const keys = readLangfuseKeys();
 	if (!keys) return null;
 	if (provider) return provider;
 	const langfuseProcessor = new LangfuseSpanProcessor({
 		publicKey: keys.publicKey,
 		secretKey: keys.secretKey,
-		baseUrl: "https://jp.cloud.langfuse.com",
+		baseUrl: LANGFUSE_BASE_URL,
 		environment: resolveServerEnvironment(
 			(env as unknown as { BETTER_AUTH_URL?: string }).BETTER_AUTH_URL,
 		),
@@ -109,6 +122,16 @@ export interface LangfuseGenerationInput {
 		outputTokens?: number;
 		totalTokens?: number;
 	};
+	/**
+	 * Langfuse のプロンプト管理で取得した版へのリンク(#512 Phase 4)。
+	 *
+	 * **SDK が受け取るのは素のオブジェクト**(`{name, version, isFallback}`)なので、
+	 * `@langfuse/client` の型がこの層より上へ漏れない。`getManagedPrompt` が
+	 * fallback を使った回は `undefined` を渡す —— `@langfuse/tracing` は
+	 * `isFallback` が真のとき prompt 属性を丸ごと落とすので、fallback で動いた回が
+	 * 版ごとの指標を汚さない(なぜ fallback だったかは `metadata.promptSource` が持つ)。
+	 */
+	prompt?: { name: string; version: number; isFallback: boolean };
 }
 
 /** `ctx.recordSpan()` に渡す1回ぶんのツール実行・web検索(#514)。 */
@@ -201,6 +224,7 @@ export async function startLangfuseTrace(options: {
 							...(details && Object.keys(details).length > 0
 								? { usageDetails: details }
 								: {}),
+							...(input.prompt ? { prompt: input.prompt } : {}),
 						},
 						{ asType: "generation" as const },
 					);
