@@ -133,7 +133,7 @@ initialize → 401 (WWW-Authenticate: Bearer resource_metadata="…")
 
 ## 証跡
 
-スクショは **Gyazo に curl API でアップ**（CLI は proxy 経由で socket 失敗する。curl は CA バンドルで通る）:
+スクショは **Gyazo に curl API でアップ**（CLI は `#!/usr/bin/env bun` で、bun 1.3.13 以下の `fetch` が付ける ECH GREASE を agent プロキシが落とすため socket エラーになる。詳細は `verify` skill。curl は CA バンドルで通る）:
 
 ```bash
 curl -sS -X POST https://upload.gyazo.com/api/upload \
