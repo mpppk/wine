@@ -26,10 +26,10 @@ bun run dev                 # http://localhost:3000 (バックグラウンド起
 ## プレビュー環境(Cloudflare Workers)の検証
 
 - Chromiumにプロキシを直接設定すると外部HTTPSのCONNECTが切られる。代わりにプロキシなしで起動し、`context.route("**/*")` で全リクエストを `request.newContext({ proxy: { server: process.env.HTTPS_PROXY }, ignoreHTTPSErrors: true })` の `api.fetch(route.request())` → `route.fulfill({ response })` で代行する
-- このときスクリプトは **Bun ではなく Node で実行する**(この環境の bun 1.3.11 は `fetch` の ClientHello に ECH GREASE(`encrypted_client_hello` 拡張)を付け、agentプロキシのTLS終端がそのハンドシェイクを黙って捨てるため "The socket connection was closed unexpectedly"(ECONNRESET) になる)。gyazo CLI も `#!/usr/bin/env bun` で同じ理由で失敗するため、アップロードは `curl -X POST https://upload.gyazo.com/api/upload -H "Authorization: Bearer $GYAZO_ACCESS_TOKEN" -F "imagedata=@file.png"` を使う
+- このときスクリプトは、**`bun --version` が 1.3.13 以下なら Bun ではなく Node で実行する**(1.3.13 以下の bun は `fetch` の ClientHello に ECH GREASE(`encrypted_client_hello` 拡張)を付け、agentプロキシのTLS終端がそのハンドシェイクを黙って捨てるため "The socket connection was closed unexpectedly"(ECONNRESET) になる)。gyazo CLI も `#!/usr/bin/env bun` で同じ理由で失敗するため、アップロードは `curl -X POST https://upload.gyazo.com/api/upload -H "Authorization: Bearer $GYAZO_ACCESS_TOKEN" -F "imagedata=@file.png"` を使う
   - **HTTPS_PROXY 非対応が原因ではない**。bun は HTTPS_PROXY を読んでおり `CONNECT <host>:443` → `200 Connection Established` までは正常に進む。落ちるのはその先のTLSハンドシェイクで、ECH拡張だけを取り除いた同一の ClientHello はそのトンネルで ServerHello が返る。bun でも `node:net`+`node:tls` を直接使う経路(ECHを付けない)なら通る
-  - Bun 側は **v1.3.14 で修正済み**(fetch の ECH GREASE を無効化し curl / Node / `node:tls` と揃えた)。`bun --version` が 1.3.14 以上の環境なら bun の `fetch` も playwright の `api.fetch` もそのまま通るので Node への切り替えは不要。1.3.13 以下ならこの回避が必要(リポジトリは `packageManager` で 1.3.11 を固定している)
-  - `api.github.com` は bun 1.3.11 でも通る(トークン注入のためプロキシ側の別経路でTLS終端されており ECH を許容する)。「bun の fetch が全部落ちる」わけではないので切り分け時に注意
+  - Bun 側は **v1.3.14 で修正済み**(fetch の ECH GREASE を無効化し curl / Node / `node:tls` と揃えた)。1.3.14 以上なら bun の `fetch` も playwright の `api.fetch` もそのまま通るので Node への切り替えは不要。リポジトリは `packageManager` で 1.4.0 を固定しているが、**実行コンテナに入っている bun はイメージ側の版で `packageManager` には追従しない**ので、毎回 `bun --version` を見て判断する(古ければ Node で代替するか、`curl -fsSL https://bun.com/install | BUN_INSTALL=<scratchpad>/bun bash -s bun-v1.4.0` で新しい bun をスクラッチパッドに入れて使う)
+  - `api.github.com` は 1.3.13 以下の bun でも通る(トークン注入のためプロキシ側の別経路でTLS終端されており ECH を許容する)。「bun の fetch が全部落ちる」わけではないので切り分け時に注意
 - MapLibreの地図をスクリーンショットに写すには `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader` で起動し、描画を数秒待つ
 
 ## プレビューに到達できない場合の代替手順
