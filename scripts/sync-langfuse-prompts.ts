@@ -21,8 +21,17 @@
  * 鍵は環境変数か `.dev.vars` から読む。**CI からは実行しない** —— Langfuse の鍵を
  * GitHub Actions へ置かない方針(Sentry / Stripe と同じく、鍵の投入は手作業)。
  *
- * HTTPS_PROXY 越しの環境では bun の fetch が外へ出られない(`verify` skill 参照)。その場合は
- * `NODE_USE_ENV_PROXY=1 npx tsx scripts/sync-langfuse-prompts.ts` で代替する。
+ * agentプロキシ下の環境(Claude Code on the web 等)で `bun --version` が **1.3.13 以下**なら、
+ * このスクリプトは Node で実行する:
+ *
+ *   NODE_USE_ENV_PROXY=1 npx tsx scripts/sync-langfuse-prompts.ts
+ *
+ * 1.3.13 以下の bun は `fetch` の ClientHello に ECH GREASE を付け、プロキシのTLS終端が
+ * それを落とすため TLS ハンドシェイクで ECONNRESET になる(**HTTPS_PROXY 非対応が原因では
+ * ない**。bun は HTTPS_PROXY を読んでおり CONNECT は 200 まで進む)。v1.3.14 で修正済み。
+ *
+ * **`packageManager` の版で判断しない。** 実行コンテナに入っている bun はイメージ側の版で
+ * `packageManager` に追従しないため、両者は食い違う。詳細は `verify` skill。
  */
 
 import { readFileSync } from "node:fs";
