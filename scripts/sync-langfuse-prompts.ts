@@ -21,7 +21,10 @@
  * 鍵は環境変数か `.dev.vars` から読む。**CI からは実行しない** —— Langfuse の鍵を
  * GitHub Actions へ置かない方針(Sentry / Stripe と同じく、鍵の投入は手作業)。
  *
- * HTTPS_PROXY 越しの環境では bun の fetch が外へ出られない(`verify` skill 参照)。その場合は
+ * agentプロキシ下の環境(Claude Code on the web 等)では、bun 1.3.13 以下の `fetch` が
+ * ClientHello に付ける ECH GREASE をプロキシのTLS終端が落とすため、TLSハンドシェイクで
+ * ECONNRESET になる。**HTTPS_PROXY 非対応が原因ではない**(詳細は `verify` skill)。
+ * リポジトリは `packageManager` で bun 1.3.11 を固定しているので、その環境では
  * `NODE_USE_ENV_PROXY=1 npx tsx scripts/sync-langfuse-prompts.ts` で代替する。
  */
 
