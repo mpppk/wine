@@ -20,6 +20,9 @@
  *
  * 鍵は環境変数か `.dev.vars` から読む。**CI からは実行しない** —— Langfuse の鍵を
  * GitHub Actions へ置かない方針(Sentry / Stripe と同じく、鍵の投入は手作業)。
+ *
+ * HTTPS_PROXY 越しの環境では bun の fetch が外へ出られない(`verify` skill 参照)。その場合は
+ * `NODE_USE_ENV_PROXY=1 npx tsx scripts/sync-langfuse-prompts.ts` で代替する。
  */
 
 import { readFileSync } from "node:fs";
@@ -51,7 +54,13 @@ function readKey(name: string): string {
 	return "";
 }
 
-/** 登録済みの本文を引く。未登録(404 等)なら `null`。 */
+/**
+ * 登録済みの本文を引く。**未登録(404)だけを `null` にする。**
+ *
+ * ここで通信エラーまで `null` に畳むと「未登録」と区別が付かず、一時的な失敗の回に
+ * `create` が走って既存プロンプトへ重複バージョンを積む。判断材料が取れなかったときは
+ * 黙って進めずに throw して、呼び出し側で止める。
+ */
 async function fetchText(
 	client: LangfuseClient,
 	name: string,
@@ -65,9 +74,18 @@ async function fetchText(
 			maxRetries: 0,
 		});
 		return { text: prompt.prompt, version: prompt.version };
-	} catch {
-		return null;
+	} catch (e) {
+		if (isNotFound(e)) return null;
+		throw new Error(`${name} (label=${label}) の取得に失敗しました`, {
+			cause: e,
+		});
 	}
+}
+
+/** Langfuse の 404(その名前/ラベルの版が無い)か。それ以外は取得失敗として扱う。 */
+function isNotFound(e: unknown): boolean {
+	const status = (e as { statusCode?: unknown } | null)?.statusCode;
+	return status === 404;
 }
 
 /** コード側の定義が自己矛盾していないか(宣言した変数がテンプレートに全部あるか)。 */
