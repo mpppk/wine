@@ -687,7 +687,7 @@ curl -sS -X PATCH "$API/accounts/$ACC/builds/triggers/<trigger_uuid>" -H "$AUTH"
 # ビルド環境変数に bun のバージョンを固定する(#339。package.json の packageManager と同じ値にする)
 curl -sS -X PATCH "$API/accounts/$ACC/builds/triggers/<trigger_uuid>" -H "$AUTH" \
   -H "Content-Type: application/json" \
-  --data '{"build_variables":{"BUN_VERSION":"1.3.11"}}'
+  --data '{"build_variables":{"BUN_VERSION":"1.4.0"}}'
 ```
 
 > `build_variables` は**丸ごと置き換わる**。既存の変数（`wine-preview` の `CLOUDFLARE_ENV=preview` など）が
