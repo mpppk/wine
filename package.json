@@ -36,7 +36,8 @@
 		"db:migrate:remote": "wrangler d1 migrations apply DB --remote",
 		"db:migrate:preview": "wrangler d1 migrations apply DB --remote --env preview",
 		"cf-typegen": "wrangler types --env-file=/dev/null --strict-vars=false",
-		"check:types": "wrangler types --env-file=/dev/null --strict-vars=false --check"
+		"check:types": "wrangler types --env-file=/dev/null --strict-vars=false --check",
+		"sync:prompts": "bun scripts/sync-langfuse-prompts.ts"
 	},
 	"trustedDependencies": [
 		"@sentry/cli"
@@ -46,6 +47,7 @@
 		"@anthropic-ai/sdk": "^0.120.0",
 		"@better-auth/stripe": "^1.6.23",
 		"@cloudflare/vite-plugin": "^1.45.0",
+		"@langfuse/client": "^5.10.1",
 		"@langfuse/otel": "^5.10.1",
 		"@langfuse/tracing": "^5.10.1",
 		"@mcp-ui/server": "^6.1.0",

@@ -73,8 +73,10 @@ import {
 	joinResponseText,
 	toAnthropicUsage,
 } from "#/lib/ai/label-web-research";
+import { REGION_QA_SYSTEM_PROMPT } from "#/lib/ai/managed-prompts";
 import {
 	buildRegionChatMessages,
+	buildRegionContext,
 	type ChatMessage,
 	estimateInputTokens,
 	type RegionContextInput,
@@ -128,6 +130,7 @@ import type {
 	LangfuseGenerationInput,
 	LangfuseSpanInput,
 } from "#/lib/observability/langfuse";
+import { getManagedPrompt } from "#/lib/observability/langfuse-prompt";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
@@ -265,11 +268,20 @@ export async function answerRegionQuestion(
 	input: AskRegionInput,
 ): Promise<AskRegionResult> {
 	const context = buildContext(input.regionId, input.aopId);
+	// system プロンプトは Langfuse が正(#512 Phase 4)。地域情報は変数として注入する。
+	// **予約より前**に取る: 予約の後・try の外で await すると、その throw が下の
+	// catch(refundReservationOnFailure)へ届かない(モデル解決を先に済ませるのと同じ理由)。
+	// `getManagedPrompt` は throw しない設計だが、順序の意味はここに残す。
+	const managedPrompt = await getManagedPrompt(REGION_QA_SYSTEM_PROMPT, {
+		region_context: buildRegionContext(context),
+	});
 	const messages = buildRegionChatMessages({
-		context,
+		system: managedPrompt.text,
 		history: input.history ?? [],
 		question: input.question,
 	});
+	// 見積は組み上がったメッセージの実長から出るので、Langfuse 側でプロンプトが
+	// 伸び縮みしても予約が自動で追随する。
 	const promptTokens = estimateInputTokens(messages);
 	const requestId = `ask_region:${crypto.randomUUID()}`;
 
@@ -332,6 +344,10 @@ export async function answerRegionQuestion(
 				model: model.id,
 				input: messages,
 				output: answer,
+				// どの版で答えたかを残す。fallback で動いた回は ref が null になり
+				// prompt 属性が載らないので、版ごとの指標が汚れない。
+				...(managedPrompt.ref ? { prompt: managedPrompt.ref } : {}),
+				metadata: { promptSource: managedPrompt.source },
 				usage: measured
 					? {
 							inputTokens: measured.inputTokens,

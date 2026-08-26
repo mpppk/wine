@@ -77,12 +77,13 @@ describe("buildRegionChatMessages", () => {
 			{ role: "assistant", content: "はい" },
 		];
 		const messages = buildRegionChatMessages({
-			context: baseContext,
+			system: `ガードレール\n# 地域情報\n${buildRegionContext(baseContext)}`,
 			history,
 			question: "土壌は?",
 		});
 		expect(messages[0]?.role).toBe("system");
 		expect(messages[0]?.content).toContain("地域情報");
+		expect(messages[0]?.content).toContain("ブルゴーニュ");
 		expect(messages[messages.length - 1]).toEqual({
 			role: "user",
 			content: "土壌は?",

@@ -97,34 +97,26 @@ export function buildRegionContext(input: RegionContextInput): string {
 		: text;
 }
 
-/** system プロンプト(ガードレール + 地域情報)を組み立てる。 */
-function buildSystemPrompt(input: RegionContextInput): string {
-	return [
-		"あなたはワインに関する学習を助ける日本語アシスタントです。",
-		"ユーザからの質問に対して簡潔(3〜5文程度)な日本語で答えてください。",
-		"- ワインの学習に無関係な質問には丁寧に断る。",
-		"- 事実を創作しない。",
-		"",
-		"なお、以下はユーザが現在閲覧しているページの情報です。これを踏まえた回答を行なってください",
-		"# 地域情報",
-		buildRegionContext(input),
-	].join("\n");
-}
-
 /** 会話履歴を直近 AI_MAX_HISTORY_MESSAGES 件に切り詰める(古い順に落とす)。 */
 export function clampHistory(history: ChatMessage[]): ChatMessage[] {
 	if (history.length <= AI_MAX_HISTORY_MESSAGES) return history;
 	return history.slice(history.length - AI_MAX_HISTORY_MESSAGES);
 }
 
-/** Workers AI に渡す messages(system + 直近履歴 + 新規質問)を組み立てる。 */
+/**
+ * Workers AI に渡す messages(system + 直近履歴 + 新規質問)を組み立てる。
+ *
+ * **system は組み上がった文字列を受け取る**(#512 Phase 4)。本文のSSOTは Langfuse 側へ
+ * 移り、取得は `getManagedPrompt`(async)が担うため、この純ロジック層には持ち込まない。
+ * 地域情報は `buildRegionContext` が組み立て、呼び出し側が変数として注入する。
+ */
 export function buildRegionChatMessages(args: {
-	context: RegionContextInput;
+	system: string;
 	history: ChatMessage[];
 	question: string;
 }): AiMessage[] {
 	return [
-		{ role: "system", content: buildSystemPrompt(args.context) },
+		{ role: "system", content: args.system },
 		...clampHistory(args.history),
 		{ role: "user", content: args.question },
 	];

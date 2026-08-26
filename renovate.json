@@ -37,6 +37,7 @@
         "@langfuse/otel",
         "@langfuse/tracing",
         "@langfuse/core",
+        "@langfuse/client",
         "@opentelemetry/api",
         "@opentelemetry/core",
         "@opentelemetry/sdk-trace-base",
