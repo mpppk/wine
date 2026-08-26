@@ -522,6 +522,21 @@ generation の `metadata.promptSource` に残るので、トレースから必�
 `isFallback` の版には Langfuse SDK が prompt 属性を付けないので、**fallback で動いた回が
 版ごとの指標を汚さない**。
 
+**Langfuse に届かなかった回は Workers Logs にも warn を出す。** その状況では
+トレース自体が Langfuse へ届かないので、`promptSource` は当てにできない —— 一番知りたい
+ときに唯一届く信号が Workers Logs になる:
+
+```bash
+bun run logs --grep langfuse_prompt --since 1d
+# {"msg":"langfuse prompt fetch fell back to code","op":"langfuse_prompt",
+#  "prompt":"region-qa-system","label":"preview"}
+```
+
+取得は**リトライしない**（`maxRetries: 0` / `fetchTimeoutMs: 2000`）。地域Q&Aは同期経路で
+この fetch が推論の前に直列で入る上、**失敗はキャッシュされない**（キャッシュに入るのは
+成功した取得だけ）ので、Langfuse が落ちている間は毎リクエストがこの待ちを払う。1回で
+諦めることで上乗せの最悪値を `fetchTimeoutMs` 1回ぶんに抑える。
+
 #### 初期登録と差分の確認
 
 ```bash

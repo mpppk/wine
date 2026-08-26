@@ -117,11 +117,24 @@ export async function getManagedPrompt(
 			fallback: definition.template,
 			// isolate が短命な Workers ではキャッシュがヒットしにくい。毎回1本 fetch が
 			// 出る前提で、粘らずに早く諦める(fallback がコード側にあるので粘る価値がない)。
+			//
+			// **リトライしない**のが要点。地域Q&Aは同期経路で、この fetch は推論の前に
+			// 直列で入る。しかも**失敗はキャッシュされない**（キャッシュに入るのは成功した
+			// 取得だけ）ので、Langfuse が落ちている間は毎リクエストがこの待ちを払う。
+			// 1回で諦めれば、上乗せの最悪値が `fetchTimeoutMs` 1回ぶんで頭打ちになる。
 			cacheTtlSeconds: 60,
-			maxRetries: 1,
+			maxRetries: 0,
 			fetchTimeoutMs: 2_000,
 		});
 		if (prompt.isFallback) {
+			// **ここは必ずログに出す。** Langfuse が落ちているときはトレースも届かないので、
+			// `promptSource` は当てにできない —— 一番知りたい状況で唯一届く信号が
+			// Workers Logs になる。
+			logWarn("langfuse prompt fetch fell back to code", {
+				op: "langfuse_prompt",
+				prompt: definition.name,
+				label: resolvePromptLabel(),
+			});
 			return fallbackResult(definition, variables, "code-fetch-failed");
 		}
 
