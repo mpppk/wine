@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { LABEL_WEB_JSON_SCHEMA } from "./label-extraction";
+import { buildAgentLabelPrompt } from "./label-extraction";
 import {
 	assertGptLabelFinished,
 	buildGptLabelMessages,
-	buildGptLabelOutput,
-	GPT_LABEL_OUTPUT_SCHEMA,
-	GPT_LABEL_SCHEMA_NAME,
 	GPT_WEB_SEARCH_TOOL_NAME,
 } from "./label-gpt-research";
 
@@ -52,21 +49,30 @@ describe("buildGptLabelMessages", () => {
 			buildGptLabelMessages(["data:image/jpeg,notbase64"]),
 		).toThrow();
 	});
-});
 
-describe("buildGptLabelOutput", () => {
-	it("高精度経路の出力スキーマ(根拠つき)を structured outputs に渡す", () => {
-		// 出力フィールドの SSOT は LABEL_WEB_JSON_SCHEMA(経路ごとに書き分けない)。
-		// 本体フィールドは LABEL_JSON_SCHEMA から derive されている。
-		expect(GPT_LABEL_OUTPUT_SCHEMA.jsonSchema).toBe(LABEL_WEB_JSON_SCHEMA);
+	it("エージェントループ用の指示文を使う（1リクエスト完結用の指示文ではない）", () => {
+		// #524 の回帰防止: 本番経路が `buildAgentLabelPrompt` を使うことを固定する。
+		// テストが `buildAgentLabelPrompt()` を直接呼んでいたため、本番から
+		// 呼ばれていないことに気づけなかったのが原因。
+		const messages = buildGptLabelMessages(["data:image/jpeg;base64,AAAA"]);
+		const text = (messages[0] as { content: { type: string; text?: string }[] })
+			.content[0]?.text;
+		expect(text).toBeDefined();
+		// エージェント固有の指示が含まれている
+		expect(text).toContain("zoom_photo");
+		expect(text).toContain("submit_answer");
+		expect(text).toContain("search_appellation");
+		expect(text).toContain("既知の品種リスト");
+		// 1リクエスト完結用の指示は含まれていない
+		expect(text).not.toContain("最後にJSONオブジェクトだけを出力してください");
+		expect(text).not.toContain("既知の原産地呼称リスト");
 	});
 
-	it("Output として組み立てられる", () => {
-		expect(buildGptLabelOutput()).toBeDefined();
-	});
-
-	it("スキーマ名は structured outputs の命名制約(a-zA-Z0-9_-, 64文字以内)を満たす", () => {
-		expect(GPT_LABEL_SCHEMA_NAME).toMatch(/^[a-zA-Z0-9_-]{1,64}$/);
+	it("指示文が buildAgentLabelPrompt と一致する", () => {
+		const messages = buildGptLabelMessages(["data:image/jpeg;base64,AAAA"]);
+		const text = (messages[0] as { content: { text?: string }[] }).content[0]
+			?.text;
+		expect(text).toBe(buildAgentLabelPrompt());
 	});
 });
 
