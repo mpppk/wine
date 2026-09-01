@@ -19,7 +19,7 @@ import type { RegionId } from "#/lib/wine/types";
  * 地域が公開済みか)が表示の都合ではなくデータの性質だから。表示側は link の有無だけ
  * を見ればよく、条件は単体テストで固定できる。
  */
-export interface WineDetailMapLink {
+interface WineDetailMapLink {
 	regionId: RegionId;
 	/** 省略時は地域全体を開く */
 	aopId?: string;
