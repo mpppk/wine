@@ -20,6 +20,6 @@ describe("WINE_COUNTRIES", () => {
 
 	it("getCountry は未知の id に undefined を返す", () => {
 		expect(getCountry("france")?.nameJa).toBe("フランス");
-		expect(getCountry("spain")).toBeUndefined();
+		expect(getCountry("portugal")).toBeUndefined();
 	});
 });

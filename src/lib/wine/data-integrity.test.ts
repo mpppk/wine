@@ -13,6 +13,7 @@ import {
 } from "./producer-info";
 import { REGION_IDS, REGIONS } from "./regions";
 import { getAop } from "./service";
+import { isLegalAppellation } from "./tags";
 import type { Aop } from "./types";
 import { POLYGONLESS_IDAPP_MIN, REGION_ID_LIST } from "./types";
 
@@ -179,9 +180,11 @@ describe("AOPメタデータの整合性", () => {
 		// 個別クリマ(Chablis GC 7 + Chablis 1er 17 + Corton 8)と合成総称ノード
 		// (Chablis Premier Cru)を畑として追加したぶん、件数を更新している。
 		const vineyards = AOPS.filter((a) => a.kind === "vineyard");
-		expect(vineyards.length).toBe(117);
+		// +4: スペインの Vino de Pago(単一のぶどう畑に与えられる呼称)
+		expect(vineyards.length).toBe(121);
 		expect(vineyards.filter((a) => a.region === "bourgogne").length).toBe(66);
 		expect(vineyards.filter((a) => a.region === "alsace").length).toBe(51);
+		expect(vineyards.filter((a) => a.region === "rioja").length).toBe(4);
 		// grand-cru: ブルゴーニュ+アルザス116 + ロワール唯一のGCケール・ド・ショーム1
 		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(117);
 		expect(AOPS.filter((a) => a.tags?.includes("premier-cru")).length).toBe(91);
@@ -776,6 +779,86 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 	it("区分は regional / village のみ(畑・ワイナリーは無し)", () => {
 		for (const aop of piemonte) {
 			expect(["regional", "village"]).toContain(aop.kind);
+		}
+	});
+});
+
+describe("リオハ/エブロ川流域(スペイン)の整合性", () => {
+	const rioja = AOPS.filter((a) => a.region === "rioja");
+	const SPANISH_TAGS = ["doca", "do", "vino-de-pago"] as const;
+
+	it("件数スナップショット(DOCa1 / DO5 / VP4 / 計10)", () => {
+		expect(rioja.length).toBe(10);
+		expect(rioja.filter((a) => a.tags?.includes("doca")).length).toBe(1);
+		expect(rioja.filter((a) => a.tags?.includes("do")).length).toBe(5);
+		expect(rioja.filter((a) => a.tags?.includes("vino-de-pago")).length).toBe(
+			4,
+		);
+	});
+
+	it("各レコードは doca / do / vino-de-pago のちょうど一つを持つ", () => {
+		for (const aop of rioja) {
+			const tags = aop.tags ?? [];
+			const n = SPANISH_TAGS.filter((t) => tags.includes(t)).length;
+			expect(n, aop.id).toBe(1);
+		}
+	});
+
+	it("スペインのDOP階層タグはスペイン以外の地域に付かない", () => {
+		for (const aop of AOPS.filter((a) => a.region !== "rioja")) {
+			const tags = aop.tags ?? [];
+			for (const tag of SPANISH_TAGS) {
+				expect(tags.includes(tag), `${aop.id}: ${tag}`).toBe(false);
+			}
+		}
+	});
+
+	// 件数だけのスナップショットは中身の取り違えを検出できない(#216 の教訓)ため、
+	// 顔ぶれを固定する。出典は EU公式登録簿 eAmbrosia の fileNumber と、各呼称の
+	// 官報 single document / pliego de condiciones。
+	it("収録した呼称の顔ぶれが地区ごとに一致する", () => {
+		const idsIn = (subregionId: string) =>
+			rioja
+				.filter((a) => a.subregionId === subregionId)
+				.map((a) => a.id)
+				.sort();
+		expect(idsIn("rioja")).toEqual(["rioja"]);
+		expect(idsIn("navarra")).toEqual([
+			"navarra",
+			"pago-de-arinzano",
+			"pago-de-otazu",
+			"prado-de-irache",
+		]);
+		expect(idsIn("aragon")).toEqual([
+			"ayles",
+			"calatayud",
+			"campo-de-borja",
+			"carinena",
+			"somontano",
+		]);
+	});
+
+	// Cava(全国区DO)は境界ポリゴンがスペイン全土に及び、アラバ・チャコリは
+	// カンタブリア海側の水系で流域外。どちらも意図して外している。足し戻さないこと。
+	it("全国区DOのCavaと流域外のチャコリは収録しない", () => {
+		const ids = new Set(rioja.map((a) => a.id));
+		expect(ids.has("cava")).toBe(false);
+		expect(ids.has("arabako-txakolina")).toBe(false);
+	});
+
+	it("Vino de Pago は単一のぶどう畑の呼称なので畑(vineyard)区分・法的呼称", () => {
+		for (const aop of rioja.filter((a) => a.tags?.includes("vino-de-pago"))) {
+			expect(aop.kind, aop.id).toBe("vineyard");
+			expect(isLegalAppellation(aop), aop.id).toBe(true);
+			// 村を持たない独立DOPなので、村名AOCへの参照は持たない
+			expect(aop.villageAopIds, aop.id).toBeUndefined();
+			expect(aop.parentAopId, aop.id).toBeUndefined();
+		}
+	});
+
+	it("DOCa/DO は広域(regional)区分", () => {
+		for (const aop of rioja.filter((a) => !a.tags?.includes("vino-de-pago"))) {
+			expect(aop.kind, aop.id).toBe("regional");
 		}
 	});
 });

@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-// イタリアのDOP境界GeoJSON(public/data/aop/<region>.geojson)を生成する。
+// EU PDO データセット由来の地域(イタリア・スペイン)の境界GeoJSON
+// (public/data/aop/<region>.geojson)を生成する。
 //
-//   bun run build:geodata:italy                       # 全イタリア地域を生成(figshareからDL、キャッシュあり)
-//   bun run build:geodata:italy -- --region toscana   # 特定地域のみ生成
-//   bun run build:geodata:italy -- --source /path/to/EU_PDO.gpkg   # ローカルのgpkgを使う
+//   bun run build:geodata:eu                       # 対象地域すべてを生成(figshareからDL、キャッシュあり)
+//   bun run build:geodata:eu -- --region toscana   # 特定地域のみ生成
+//   bun run build:geodata:eu -- --source /path/to/EU_PDO.gpkg   # ローカルのgpkgを使う
+//
+// フランス(INAO)だけは公式の区画GISがあるため別スクリプト(build-aop-geodata.mjs)を使う。
+// それ以外の収録国はこのスクリプトに地域設定(REGION_CONFIGS)を足して対応する。
 //
 // データソース:
 //  EU Wine PDO 境界データセット(コミューン単位のポリゴン)
@@ -11,9 +15,13 @@
 //    protected designations of origin in Europe." Sci Data 9, 394 (2022).
 //    figshare: doi:10.6084/m9.figshare.19312094 (EU_PDO.gpkg, ライセンス CC0)
 //
-//  イタリアにはフランスINAOのような公式の区画GISが存在しないため、上記の学術
-//  データセット(各PDOをeAmbrosia登録のコムーネ一覧から集約した境界)を用いる。
-//  したがって粒度はコミューン単位で、フランスの村名/畑AOC(区画単位)より粗い。
+//  イタリア・スペインにはフランスINAOのような公式の区画GISが存在しないため、上記の学術
+//  データセット(各PDOをeAmbrosia登録の自治体一覧から集約した境界)を用いる。
+//  したがって粒度はコミューン(自治体)単位で、フランスの村名/畑AOC(区画単位)より粗い。
+//
+//  aopId → PDOid の対応表(REGION_CONFIGS の pdo)は、EU公式登録簿 eAmbrosia の
+//  fileNumber(https://webgate.ec.europa.eu/eambrosia-api/api/v1/geographical-indications)
+//  と突き合わせて作る。
 //
 // 仕組み(フランス版 build-aop-geodata.mjs との違い):
 //  - gpkg は 1行 = 1 PDO の MultiPolygon。dissolve/split は不要(そのまま使う)。
@@ -32,7 +40,7 @@ import { fileURLToPath } from "node:url";
 import mapshaper from "mapshaper";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CACHE_DIR = path.join(ROOT, ".cache", "italy-geodata");
+const CACHE_DIR = path.join(ROOT, ".cache", "eu-geodata");
 const OUT_DIR = path.join(ROOT, "public", "data", "aop");
 
 // figshare "Wine PDO map" の EU_PDO.gpkg(約44MB)。生成物はコミットするので
@@ -127,6 +135,29 @@ const REGION_CONFIGS = {
 			montecarlo: "PDO-IT-A1421",
 			"candia-dei-colli-apuani": "PDO-IT-A1377",
 			pomino: "PDO-IT-A1453",
+		},
+	},
+	rioja: {
+		out: "rioja.geojson",
+		// エブロ川上流〜中流(ラ・リオハ/ナバーラ/アラゴン)。同名自治体由来の
+		// 飛び地を除くための bbox。西端はDOCaリオハのブルゴス県飛び地(エル・テルネロ)、
+		// 東端はソモンターノ(ウエスカ県)まで含む。
+		clipBbox: "-3.4,40.9,0.8,43.1",
+		pdo: {
+			rioja: "PDO-ES-A0117",
+			navarra: "PDO-ES-A0127",
+			"pago-de-arinzano": "PDO-ES-A0183",
+			"pago-de-otazu": "PDO-ES-A0184",
+			"prado-de-irache": "PDO-ES-A0182",
+			"campo-de-borja": "PDO-ES-A0180",
+			calatayud: "PDO-ES-A0247",
+			carinena: "PDO-ES-A0043",
+			somontano: "PDO-ES-A0534",
+			ayles: "PDO-ES-A1522",
+			// 注: Cava(PDO-ES-A0735)はエブロ川流域でも造られるが、境界ポリゴンが
+			// スペイン全土(西経6.5度〜東経3.1度)に及ぶ全国区DOなので、この地方の
+			// 地図には載せない。バスクのアラバ・チャコリ(PDO-ES-A0732)は
+			// アラバ県にあるがカンタブリア海側の水系で、エブロ川流域ではないため外す。
 		},
 	},
 };

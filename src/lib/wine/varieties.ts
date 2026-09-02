@@ -410,6 +410,55 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Vermentino",
 		color: "white",
 	},
+	// --- スペイン(リオハ/エブロ川流域) ---
+	// ガルナッチャ(Garnacha Tinta)・マスエロ(Mazuelo/Cariñena)・ガルナッチャ・ブランカは
+	// それぞれ grenache / carignan / grenache-blanc と同一品種なので新設せず既存IDを再利用する
+	// (同じ品種が別IDに割れると品種クイズ・品種フィルタが分断されるため)。現地名は
+	// 各AOPの解説に併記する。
+	{
+		id: "tempranillo",
+		nameJa: "テンプラニーリョ",
+		nameLocal: "Tempranillo",
+		color: "red",
+	},
+	{
+		id: "graciano",
+		nameJa: "グラシアーノ",
+		nameLocal: "Graciano",
+		color: "red",
+	},
+	{
+		id: "maturana-tinta",
+		nameJa: "マトゥラナ・ティンタ",
+		nameLocal: "Maturana Tinta",
+		color: "red",
+	},
+	{ id: "moristel", nameJa: "モリステル", nameLocal: "Moristel", color: "red" },
+	{
+		id: "parraleta",
+		nameJa: "パラレタ",
+		nameLocal: "Parraleta",
+		color: "red",
+	},
+	{
+		id: "viura",
+		nameJa: "ビウラ(マカベオ)",
+		nameLocal: "Viura",
+		color: "white",
+	},
+	{
+		id: "tempranillo-blanco",
+		nameJa: "テンプラニーリョ・ブランコ",
+		nameLocal: "Tempranillo Blanco",
+		color: "white",
+	},
+	{
+		id: "alcanon",
+		nameJa: "アルカニョン",
+		nameLocal: "Alcañón",
+		color: "white",
+	},
+	{ id: "verdejo", nameJa: "ベルデホ", nameLocal: "Verdejo", color: "white" },
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);

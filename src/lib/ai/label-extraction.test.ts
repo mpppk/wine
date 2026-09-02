@@ -309,11 +309,18 @@ describe("buildLabelSuggestions", () => {
 
 	it("国が対応外なら産地は候補に含めない", () => {
 		const s = buildLabelSuggestions(
-			extraction({ wineName: "Rioja Reserva", country: "Spain" }),
+			extraction({ wineName: "Barca Velha", country: "Portugal" }),
 		);
 		expect(s.aopId).toBeUndefined();
 		expect(s.regionId).toBeUndefined();
 		expect(s.countryId).toBeUndefined();
+	});
+
+	it("スペインの呼称は収録後にAOP候補として解決される", () => {
+		const s = buildLabelSuggestions(
+			extraction({ wineName: "Rioja Reserva", appellation: "Rioja" }),
+		);
+		expect(s.aopId).toBe("rioja");
 	});
 
 	it("品種が無記載でもAOPの主要品種が1種ならそれを候補にする", () => {

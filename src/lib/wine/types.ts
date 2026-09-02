@@ -42,6 +42,7 @@ export const REGION_ID_LIST = [
 	"alsace",
 	"loire",
 	"rhone",
+	"rioja",
 ] as const;
 
 export type RegionId = (typeof REGION_ID_LIST)[number];
@@ -97,9 +98,11 @@ export interface Aop {
 	 *   - シャンパーニュの格付け村: 900001〜
 	 *   - ボルドー: 地区/村AOC 910001〜、格付けシャトー 911001〜
 	 *   - ピエモンテ(EU PDO由来): 920001〜 の連番。PDOid との対応は
-	 *     scripts/build-italy-geodata.mjs の PIEMONTE_PDO 表が真実の源(追記のみ)。
+	 *     scripts/build-eu-geodata.mjs の REGION_CONFIGS が真実の源(追記のみ)。
 	 *   - トスカーナ(EU PDO由来): 921001〜 の連番。PDOid との対応は
-	 *     scripts/build-italy-geodata.mjs の TOSCANA_PDO 表が真実の源(追記のみ)。
+	 *     scripts/build-eu-geodata.mjs の REGION_CONFIGS が真実の源(追記のみ)。
+	 *   - リオハ/エブロ川流域(スペイン, EU PDO由来): 922001〜 の連番。対応表の
+	 *     置き場所はイタリアと同じ(scripts/build-eu-geodata.mjs)。
 	 *   - ロワール: 大半はINAOの id_app 実値を使うが、区画データに独立ポリゴンが
 	 *     無く aire géographique から生成するAOC(カベルネ・ド・ソーミュール等)は
 	 *     912001〜 の合成IDを割り当てる。
