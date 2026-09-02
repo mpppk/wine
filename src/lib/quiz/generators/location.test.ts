@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
 import { getCentroid } from "#/lib/wine/centroids";
-import { REGION_IDS } from "#/lib/wine/regions";
+import { getRegion, REGION_IDS } from "#/lib/wine/regions";
+import { listAops } from "#/lib/wine/service";
 import { parseKey } from "../keys";
 import { mulberry32 } from "../rng";
 import { enumerateLocationKeys, materializeLocationQuestion } from "./location";
@@ -70,12 +71,32 @@ describe("位置関係クイズ", () => {
 		}
 	});
 
-	it("各地域で1件以上生成される(MIN_GAP調整の回帰チェック)", () => {
-		for (const regionId of REGION_IDS) {
+	// 位置関係クイズは同一地区の村名AOP(無ければ畑名AOP)を4件以上必要とする。
+	// スペインのようにDO(=地方名AOP)が呼称の単位になる地域はこの条件を満たさず、
+	// 構造的に出題されない。地方名AOP同士は入れ子(ミュスカデ ⊃ ミュスカデ・
+	// セーヴル・エ・メーヌ)になりうるため代替の出題対象にもできない。
+	// そこで「対象になりうる地域だけ」を対象にしてMIN_GAPの回帰を見る。
+	const regionsWithLocationPool = REGION_IDS.filter((regionId) =>
+		getRegion(regionId)?.subregions.some(
+			(s) =>
+				listAops({ regionId, subregionId: s.id, kind: "village" }).length >=
+					4 ||
+				listAops({ regionId, subregionId: s.id, kind: "vineyard" }).length >= 4,
+		),
+	);
+
+	it("出題対象になりうる地域では1件以上生成される(MIN_GAP調整の回帰チェック)", () => {
+		expect(regionsWithLocationPool.length).toBeGreaterThan(0);
+		for (const regionId of regionsWithLocationPool) {
 			expect(enumerateLocationKeys(regionId).length, regionId).toBeGreaterThan(
 				0,
 			);
 		}
+	});
+
+	it("村名/畑名AOPを4件持つ地区が無い地域では生成されない(スペイン)", () => {
+		expect(regionsWithLocationPool).not.toContain("rioja");
+		expect(enumerateLocationKeys("rioja")).toEqual([]);
 	});
 
 	it("コート・ド・ニュイ最北の代表問題が生成される", () => {

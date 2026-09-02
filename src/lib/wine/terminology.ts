@@ -15,9 +15,16 @@ export const COLOR_LABELS_JA: Record<WineColor, string> = {
 };
 
 // 地域の国(Region.country)に応じてUI表記を切り替えるヘルパー。
-// フランスは「AOP/AOC」、イタリアは「DOC/DOCG」と、原産地呼称制度の呼び名が
-// 異なるため、地域スコープの画面ではこの関数を通して総称を出す。
-// アプリ名など国に依らないグローバルな見出しは従来どおり "AOP" のまま。
+// フランスは「AOP/AOC」、イタリアは「DOC/DOCG」、スペインは「DO/DOCa」と、
+// 原産地呼称制度の呼び名が異なるため、地域スコープの画面ではこの関数を通して
+// 総称を出す。アプリ名など国に依らないグローバルな見出しは従来どおり "AOP" のまま。
+
+/**
+ * 境界データをEU PDOデータセット(Candiago et al. 2022)から生成している国。
+ * フランス(INAO)以外の収録国はこのデータセットに依存しており、出典注記も
+ * 生成スクリプト(scripts/build-eu-geodata.mjs)もこの集合で分岐する。
+ */
+const EU_PDO_COUNTRIES = new Set(["Italy", "Spain"]);
 
 /**
  * 地域IDに対応する原産地呼称の総称(日本語UI用)。
@@ -28,11 +35,21 @@ export const COLOR_LABELS_JA: Record<WineColor, string> = {
  */
 export function getAppellationTermJa(regionId: string): string {
 	const region = getRegion(regionId);
-	if (region?.country !== "Italy") return "AOP";
-	const hasIgt = AOPS.some(
-		(a) => a.region === regionId && a.tags?.includes("igt"),
-	);
-	return hasIgt ? "DOC/DOCG/IGT" : "DOC/DOCG";
+	if (region?.country === "Italy") {
+		const hasIgt = AOPS.some(
+			(a) => a.region === regionId && a.tags?.includes("igt"),
+		);
+		return hasIgt ? "DOC/DOCG/IGT" : "DOC/DOCG";
+	}
+	if (region?.country === "Spain") {
+		// Vino de Pago は DO の階層の外にある独立したDOPなので、収録している州では
+		// 総称にも並べる(でないとVPの件数をDOとして数えることになる。IGTと同じ理由)。
+		const hasPago = AOPS.some(
+			(a) => a.region === regionId && a.tags?.includes("vino-de-pago"),
+		);
+		return hasPago ? "DO/DOCa/VP" : "DO/DOCa";
+	}
+	return "AOP";
 }
 
 /**
@@ -47,8 +64,13 @@ export function getAppellationTermJa(regionId: string): string {
  */
 export function getAppellationBadgeJa(aop: Aop): string {
 	if (aop.tags?.includes("igt")) return "IGT";
+	// スペインのDOP階層はAOP単位で等級が決まる(DOCa/DO/VP)。イタリアのIGTと同じく
+	// 判定はここに閉じ、呼び出し側でタグを見て出し分けない。
+	if (aop.tags?.includes("vino-de-pago")) return "VP";
+	if (aop.tags?.includes("doca")) return "DOCa";
 	const region = getRegion(aop.region);
 	if (region?.country === "Italy") return "DOC/DOCG";
+	if (region?.country === "Spain") return "DO";
 	return "AOC";
 }
 
@@ -84,11 +106,12 @@ export function getAopKindLabelJa(kind: AopKind, regionId: string): string {
 
 /**
  * 詳細パネル等に出す、境界データの出典・粒度の注記。
- * フランスはINAO(区画/コミューン)、イタリアはEU PDOデータセット(コミューン単位)。
+ * フランスはINAO(区画/コミューン)、イタリア・スペインはEU PDOデータセット
+ * (コミューン単位)。
  */
 export function getBoundarySourceNoteJa(aop: Aop): string {
 	const region = getRegion(aop.region);
-	if (region?.country === "Italy") {
+	if (region && EU_PDO_COUNTRIES.has(region.country)) {
 		return "地図はEU PDO境界データ(コミューン単位, Candiago et al. 2022)を簡略化して表示しています。";
 	}
 	if (aop.kind === "winery") {

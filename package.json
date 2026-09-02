@@ -28,7 +28,7 @@
 		"deploy": "bun run build && wrangler deploy",
 		"deploy:preview": "CLOUDFLARE_ENV=preview vite build && CLOUDFLARE_ENV=preview wrangler versions upload",
 		"build:geodata": "node scripts/build-aop-geodata.mjs",
-		"build:geodata:italy": "node scripts/build-italy-geodata.mjs",
+		"build:geodata:eu": "node scripts/build-eu-geodata.mjs",
 		"build:centroids": "node scripts/build-aop-centroids.mjs",
 		"sync:aop-ids": "node scripts/sync-aop-ids.mjs",
 		"build:boundaries": "bun scripts/build-region-boundaries.mjs",

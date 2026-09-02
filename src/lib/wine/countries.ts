@@ -28,6 +28,12 @@ export const WINE_COUNTRIES = [
 		nameLocal: "Italia",
 		countryNameEn: "Italy",
 	},
+	{
+		id: "spain",
+		nameJa: "スペイン",
+		nameLocal: "España",
+		countryNameEn: "Spain",
+	},
 ] as const satisfies readonly WineCountry[];
 
 export function getCountry(countryId: string): WineCountry | undefined {

@@ -77,7 +77,7 @@ export const REGIONS: Region[] = [
 		country: "Italy",
 		countryJa: "イタリア",
 		enabled: true,
-		// build:geodata:italy の出力値を反映(トスカーナ本土＋エルバ島を含む)。
+		// build:geodata:eu の出力値を反映(トスカーナ本土＋エルバ島を含む)。
 		bounds: [10.01877, 42.23824, 12.22372, 44.23988],
 		geojsonPath: "/data/aop/toscana.geojson",
 		boundariesPath: "/data/aop/toscana-boundaries.geojson",
@@ -214,6 +214,36 @@ export const REGIONS: Region[] = [
 			"急斜面でシラー単一の力強い赤とヴィオニエ/マルサンヌ/ルーサンヌの白を生む北ローヌと、" +
 			"グルナッシュを主体にシラー・ムールヴェードルを混ぜるGSMブレンドの南ローヌ(シャトーヌフ・" +
 			"デュ・パプ等)という、同じ川筋で対照的な二つの世界を軸に、単一品種とブレンドの学習に最適。",
+	},
+	{
+		id: "rioja",
+		nameJa: "リオハ / エブロ川流域",
+		nameLocal: "Rioja / Valle del Ebro",
+		country: "Spain",
+		countryJa: "スペイン",
+		enabled: true,
+		// build:geodata:eu の出力値を反映。
+		bounds: [-3.13429, 41.082, 0.51572, 42.89239],
+		geojsonPath: "/data/aop/rioja.geojson",
+		boundariesPath: "/data/aop/rioja-boundaries.geojson",
+		boundaryAttribution:
+			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
+		// 地区はエブロ川上流から中流にかけての行政区分(ラ・リオハ州/ナバーラ州/
+		// アラゴン州)で切る。DOCaリオハはラ・リオハ州・アラバ県・ナバーラ州の
+		// 3州にまたがるが、呼称としては1つなので rioja 地区に置く。
+		subregions: [
+			{ id: "rioja", nameJa: "リオハ" },
+			{ id: "navarra", nameJa: "ナバーラ" },
+			{ id: "aragon", nameJa: "アラゴン" },
+		],
+		description:
+			"スペイン最上級の格付けDOCaを持つリオハを筆頭に、エブロ川に沿って" +
+			"ナバーラ・アラゴンへと連なるスペイン随一の銘醸地帯。テンプラニーリョと" +
+			"ガルナッチャ(=グルナッシュ)という2大品種の対比に加え、州全域を覆う" +
+			"DO・DOCaと、単一のぶどう畑だけに与えられる最上位のVino de Pago" +
+			"(パゴ・デ・アリンサノ等)が同居する、スペイン独自のDOP階層を" +
+			"地図で学べる。境界はイタリア同様、コミューン単位で集約された学術" +
+			"データセット(Candiago et al. 2022, CC0)に基づく概略値。",
 	},
 ];
 

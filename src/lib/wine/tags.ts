@@ -44,6 +44,14 @@ export const AOP_TAGS = [
 	// スーパートスカーナ(Tignanello / Masseto / Le Pergole Torte 等)は DOC(G) の
 	// 規定に縛られないためこの呼称を名乗る。#212
 	{ id: "igt", labelJa: "IGT" },
+	// スペインのDOP階層(区分ではなく法的等級なのでタグで表現する。イタリアの
+	// docg/doc/igt と同じ扱い)。DOCa(Denominación de Origen Calificada)は
+	// カタルーニャ語圏では DOQ を名乗るため、ラベルに両方を出す。
+	// Vino de Pago は単一のぶどう畑・所有地に与えられる最上位の呼称で、
+	// DO の階層の外にある独立したDOPなので別タグにする。
+	{ id: "doca", labelJa: "DOCa/DOQ" },
+	{ id: "do", labelJa: "DO" },
+	{ id: "vino-de-pago", labelJa: "VP(Vino de Pago)" },
 ] as const;
 
 export type AopTagId = (typeof AOP_TAGS)[number]["id"];
@@ -88,14 +96,22 @@ export function classificationBadgeJa(aop: Aop): string | undefined {
  * 格付けを持たないため undefined(バッジを出さない)。classificationBadgeJa /
  * formatAopTagJa と同じドメイン規則。
  *
- * igt も undefined。IGT は「呼称そのもの」であり格付けの階級ではないため、
- * 呼称バッジ(getAppellationBadgeJa)が既に "IGT" を出す。両方返すと詳細パネルに
- * 「IGT」が2つ並ぶ。呼称名の表示は呼称バッジ側を唯一の担当とする。
+ * igt とスペインのDOP階層(doca/do/vino-de-pago)も undefined。これらは
+ * 「呼称そのもの」であり格付けの階級ではないため、呼称バッジ
+ * (getAppellationBadgeJa)が既に "IGT" / "DOCa" / "DO" / "VP" を出す。両方返すと
+ * 詳細パネルに同じ文字列が2つ並ぶ。呼称名の表示は呼称バッジ側を唯一の担当とする。
  */
+const APPELLATION_NAME_TAGS: readonly AopTagId[] = [
+	"igt",
+	"doca",
+	"do",
+	"vino-de-pago",
+];
+
 export function classificationPanelBadgeJa(aop: Aop): string | undefined {
 	const tag = primaryClassificationTag(aop);
 	if (!tag) return undefined;
-	if (tag === "igt") return undefined;
+	if (APPELLATION_NAME_TAGS.includes(tag)) return undefined;
 	if (
 		tag === "premier-cru" &&
 		aop.kind === "village" &&

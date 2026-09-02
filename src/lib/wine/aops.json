@@ -17710,5 +17710,318 @@
 			{ "name": "Marchesi Antinori", "note": "Tignanello / Solaia" }
 		],
 		"description": "トスカーナ州全域をカバーする広域呼称。DOC(G)より下位の等級だが、生産規約が品種と製法をほとんど縛らないため、キャンティの規定に収まらないサンジョヴェーゼ100%やボルドー品種主体のワイン(いわゆるスーパートスカーナ)の受け皿になった。等級は下でも価格と評価は州の最上位という逆転が起きているのがこの呼称の特徴。"
+	},
+	{
+		"id": "rioja",
+		"idApp": 922001,
+		"name": "Rioja",
+		"shortName": "Rioja",
+		"nameJa": "リオハ",
+		"region": "rioja",
+		"subregionId": "rioja",
+		"kind": "regional",
+		"tags": ["doca"],
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{ "varietyId": "tempranillo", "role": "principal" },
+			{ "varietyId": "grenache", "role": "principal" },
+			{ "varietyId": "graciano", "role": "principal" },
+			{ "varietyId": "carignan", "role": "principal" },
+			{ "varietyId": "viura", "role": "principal" },
+			{ "varietyId": "maturana-tinta", "role": "accessory" },
+			{ "varietyId": "tempranillo-blanco", "role": "accessory" },
+			{ "varietyId": "grenache-blanc", "role": "accessory" },
+			{ "varietyId": "verdejo", "role": "accessory" }
+		],
+		"soil": "北部(リオハ・アルタ/アラベサ)は粘土石灰質、東部(リオハ・オリエンタル)は沖積土と鉄分を含む赤い粘土質。北の大西洋性気候から東の地中海性気候へ移るにつれ、酸が落ちてアルコールが上がる。",
+		"producers": [
+			{
+				"name": "R. López de Heredia Viña Tondonia",
+				"searchKeyword": "ロペス・デ・エレディア"
+			},
+			{ "name": "La Rioja Alta", "searchKeyword": "ラ・リオハ・アルタ" },
+			{
+				"name": "Marqués de Murrieta",
+				"searchKeyword": "マルケス・デ・ムリエタ"
+			},
+			{
+				"name": "Marqués de Riscal",
+				"searchKeyword": "マルケス・デ・リスカル"
+			},
+			{ "name": "Bodegas Muga", "searchKeyword": "ムガ" },
+			{ "name": "CVNE", "searchKeyword": "クネ" },
+			{ "name": "Bodegas Roda", "searchKeyword": "ロダ" },
+			{ "name": "Viñedos del Contino", "searchKeyword": "コンティノ" },
+			{ "name": "Bodegas Olarra", "searchKeyword": "オラーラ" },
+			{ "name": "Bodega Miguel Merino", "searchKeyword": "ミゲル・メリーノ" }
+		],
+		"description": "スペインで最も早く(1925年)原産地呼称を得て、1991年に最上級のDOCa(特選原産地呼称)へ昇格した筆頭産地。畑ではなく樽と瓶での熟成期間で名乗るCrianza/Reserva/Gran Reservaの階層が特徴で、テンプラニーリョ主体にガルナッチャ・グラシアーノ・マスエロ(=カリニャン)をブレンドする。リオハ・アルタ/アラベサ/オリエンタルの3地区に分かれる。"
+	},
+	{
+		"id": "navarra",
+		"idApp": 922002,
+		"name": "Navarra",
+		"shortName": "Navarra",
+		"nameJa": "ナバーラ",
+		"region": "rioja",
+		"subregionId": "navarra",
+		"kind": "regional",
+		"tags": ["do"],
+		"colors": ["red", "white", "rose", "sweet-white"],
+		"grapes": [
+			{ "varietyId": "grenache", "role": "principal" },
+			{ "varietyId": "tempranillo", "role": "principal" },
+			{ "varietyId": "cabernet-sauvignon", "role": "accessory" },
+			{ "varietyId": "merlot", "role": "accessory" },
+			{ "varietyId": "chardonnay", "role": "accessory" },
+			{ "varietyId": "viura", "role": "accessory" },
+			{ "varietyId": "muscat-blanc-a-petits-grains", "role": "accessory" }
+		],
+		"soil": "石灰分に富み礫を程よく含む粘土ローム質。大西洋の影響を受けた地中海性気候で年間降水量400〜500mm、酸が中〜高くミネラル感のあるワインになる。",
+		"producers": [
+			{ "name": "Bodegas Ochoa", "searchKeyword": "オチョア" },
+			{
+				"name": "Bodegas Príncipe de Viana",
+				"searchKeyword": "プリンシペ・デ・ビアナ"
+			},
+			{
+				"name": "Bodegas Castillo Monjardín",
+				"searchKeyword": "カスティージョ・デ・モンハルディン"
+			},
+			{ "name": "Bodega Inurrieta", "searchKeyword": "イヌリエータ" },
+			{
+				"name": "Señorío de Sarría",
+				"searchKeyword": "セニョリオ・デ・サリア"
+			},
+			{ "name": "Bodegas Marco Real", "searchKeyword": "マルコ・レアル" },
+			{
+				"name": "Bodega Pago de Cirsus",
+				"searchKeyword": "パゴ・デ・シルスス"
+			},
+			{ "name": "Viña Zorzal Wines", "searchKeyword": "ビーニャ・ソルサル" },
+			{ "name": "Bodegas Piedemonte", "searchKeyword": "ピエデモンテ" }
+		],
+		"description": "リオハの北東に隣接し、ガルナッチャから造る辛口ロゼで名を上げたDO。州内は5つの地区に分かれ、標高と気候の幅が大きい。ボルドー品種やシャルドネを早くから受け入れた実験的な産地でもあり、モスカテル・デ・グラノ・メヌードの甘口白まで造る。"
+	},
+	{
+		"id": "pago-de-arinzano",
+		"idApp": 922003,
+		"name": "Pago de Arínzano",
+		"shortName": "Pago de Arínzano",
+		"nameJa": "パゴ・デ・アリンサノ",
+		"region": "rioja",
+		"subregionId": "navarra",
+		"kind": "vineyard",
+		"tags": ["vino-de-pago"],
+		"isAppellation": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{ "varietyId": "tempranillo", "role": "principal" },
+			{ "varietyId": "cabernet-sauvignon", "role": "principal" },
+			{ "varietyId": "merlot", "role": "principal" },
+			{ "varietyId": "chardonnay", "role": "principal" }
+		],
+		"soil": "エガ川が流れるモンテフーラ山麓の礫質土壌。炭酸塩は中程度で粘土が少なく、ローム〜砂質ローム。昼夜の寒暖差が大きく色調が濃く酸のしっかりしたワインになる。",
+		"producers": [{ "name": "Bodega Arínzano", "searchKeyword": "アリンサノ" }],
+		"description": "ナバーラ州アベリンにある単一のぶどう畑だけに与えられたVino de Pago。ナバーラで最初にこの最上位呼称を認められた区画で、DOの下位ではなく独立したDOPとして扱われる。醸造所はプリツカー賞建築家ラファエル・モネオの設計。"
+	},
+	{
+		"id": "pago-de-otazu",
+		"idApp": 922004,
+		"name": "Pago de Otazu",
+		"shortName": "Pago de Otazu",
+		"nameJa": "パゴ・デ・オタス",
+		"region": "rioja",
+		"subregionId": "navarra",
+		"kind": "vineyard",
+		"tags": ["vino-de-pago"],
+		"isAppellation": true,
+		"colors": ["red", "white"],
+		"grapes": [
+			{ "varietyId": "cabernet-sauvignon", "role": "principal" },
+			{ "varietyId": "merlot", "role": "principal" },
+			{ "varietyId": "tempranillo", "role": "principal" },
+			{ "varietyId": "chardonnay", "role": "principal" }
+		],
+		"soil": "アルガ川の南、ペルドン山地とサルビル山地に挟まれたパンプローナ盆地。深く礫の多い土壌で石灰分が非常に多くアルカリ性、有機物に乏しい。",
+		"producers": [{ "name": "Bodega Otazu", "searchKeyword": "オタス" }],
+		"description": "パンプローナ近郊、スペインで最も北に位置するVino de Pagoのひとつ。大西洋の影響が強い地中海性気候のもと、酸を保った辛口の赤と白だけを造る。"
+	},
+	{
+		"id": "prado-de-irache",
+		"idApp": 922005,
+		"name": "Prado de Irache",
+		"shortName": "Prado de Irache",
+		"nameJa": "プラド・デ・イラチェ",
+		"region": "rioja",
+		"subregionId": "navarra",
+		"kind": "vineyard",
+		"tags": ["vino-de-pago"],
+		"isAppellation": true,
+		"colors": ["red"],
+		"grapes": [
+			{ "varietyId": "tempranillo", "role": "principal" },
+			{ "varietyId": "grenache", "role": "principal" },
+			{ "varietyId": "graciano", "role": "accessory" },
+			{ "varietyId": "carignan", "role": "accessory" },
+			{ "varietyId": "merlot", "role": "accessory" },
+			{ "varietyId": "cabernet-sauvignon", "role": "accessory" }
+		],
+		"soil": "石灰質で緩く、肥沃度は中〜低。有機物に乏しい。大西洋の影響を強く受けた地中海性気候で、涼しく降水量が多め、寒暖差が大きい。",
+		"producers": [{ "name": "Bodegas Irache", "searchKeyword": "イラチェ" }],
+		"description": "サンティアゴ巡礼路沿い、ナバーラ州アイエギの単一ぶどう畑に与えられたVino de Pago。辛口の赤のみを名乗れる。"
+	},
+	{
+		"id": "campo-de-borja",
+		"idApp": 922006,
+		"name": "Campo de Borja",
+		"shortName": "Campo de Borja",
+		"nameJa": "カンポ・デ・ボルハ",
+		"region": "rioja",
+		"subregionId": "aragon",
+		"kind": "regional",
+		"tags": ["do"],
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{ "varietyId": "grenache", "role": "principal" },
+			{ "varietyId": "tempranillo", "role": "accessory" },
+			{ "varietyId": "syrah", "role": "accessory" },
+			{ "varietyId": "cabernet-sauvignon", "role": "accessory" },
+			{ "varietyId": "viura", "role": "accessory" },
+			{ "varietyId": "chardonnay", "role": "accessory" }
+		],
+		"soil": "モンカヨ山塊の裾野。降水量が少なくシエルソと呼ばれる北西風が吹き抜けるため蒸散が激しく、水ストレスがフェノールの熟成を遅らせて色濃く香りの強いワインを生む。",
+		"producers": [
+			{ "name": "Bodegas Borsao", "searchKeyword": "ボルサオ" },
+			{ "name": "Bodegas Aragonesas", "searchKeyword": "アラゴネサス" },
+			{ "name": "Bodegas Alto Moncayo", "searchKeyword": "アルト・モンカヨ" },
+			{ "name": "Bodegas Ruberte", "searchKeyword": "ルベルテ" },
+			{
+				"name": "Bodega Pagos del Moncayo",
+				"searchKeyword": "パゴス・デル・モンカヨ"
+			},
+			{ "name": "Bodegas Morca", "searchKeyword": "モルカ" }
+		],
+		"description": "サラゴサ県北西、モンカヨ山の麓に16の自治体が広がるガルナッチャの一大産地。「ガルナッチャ帝国」を掲げ、樹齢の高い古樹から濃密で果実味の豊かな赤を安価に供給することで知られる。"
+	},
+	{
+		"id": "calatayud",
+		"idApp": 922007,
+		"name": "Calatayud",
+		"shortName": "Calatayud",
+		"nameJa": "カラタユド",
+		"region": "rioja",
+		"subregionId": "aragon",
+		"kind": "regional",
+		"tags": ["do"],
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{ "varietyId": "grenache", "role": "principal" },
+			{ "varietyId": "tempranillo", "role": "accessory" },
+			{ "varietyId": "syrah", "role": "accessory" },
+			{ "varietyId": "viura", "role": "accessory" },
+			{ "varietyId": "grenache-blanc", "role": "accessory" },
+			{ "varietyId": "chardonnay", "role": "accessory" }
+		],
+		"soil": "エブロ川の支流が刻む標高の高い斜面。北向き斜面は石灰と粘土、低地は粘土質。極端な大陸性気候で冬は長く寒く、夏は暑く降水量が非常に少ない。",
+		"producers": [{ "name": "Bodegas Ateca", "searchKeyword": "アテカ" }],
+		"description": "サラゴサ県南西、エブロ川支流沿いの高標高産地。樹齢50年超の古樹のガルナッチャ・ティンタを85%以上使ったものだけが名乗れる「Calatayud Superior」という独自の上級表示を持つ。"
+	},
+	{
+		"id": "carinena",
+		"idApp": 922008,
+		"name": "Cariñena",
+		"shortName": "Cariñena",
+		"nameJa": "カリニェナ",
+		"region": "rioja",
+		"subregionId": "aragon",
+		"kind": "regional",
+		"tags": ["do"],
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{ "varietyId": "grenache", "role": "principal" },
+			{ "varietyId": "carignan", "role": "principal" },
+			{ "varietyId": "tempranillo", "role": "accessory" },
+			{ "varietyId": "syrah", "role": "accessory" },
+			{ "varietyId": "cabernet-sauvignon", "role": "accessory" },
+			{ "varietyId": "viura", "role": "accessory" },
+			{ "varietyId": "chardonnay", "role": "accessory" }
+		],
+		"soil": "石灰質土壌。降水量が少なく気温の較差が大きい上、シエルソ(北西風)が常に吹く。石が多い畑から「石のワイン」を名乗る。",
+		"producers": [
+			{ "name": "Grandes Vinos", "searchKeyword": "グランデス・ビノス" },
+			{ "name": "Bodegas Paniza", "searchKeyword": "パニサ" },
+			{ "name": "CARE", "searchKeyword": "カレ" },
+			{ "name": "Ignacio Marín", "searchKeyword": "イグナシオ・マリン" },
+			{
+				"name": "Bodegas Esteban Martín",
+				"searchKeyword": "エステバン・マルティン"
+			},
+			{
+				"name": "Bodega Familia Navascués",
+				"searchKeyword": "ファミリア・ナバスクエス"
+			}
+		],
+		"description": "サラゴサ県の16自治体からなる、アラゴンで最も古い1932年設立のDO。カリニャン種(マスエラ)の名の由来となった土地でありながら、現在の主役はガルナッチャ。スペインで唯一「Cariñena」が地名でも品種名でもあるDOとして知られる。"
+	},
+	{
+		"id": "somontano",
+		"idApp": 922009,
+		"name": "Somontano",
+		"shortName": "Somontano",
+		"nameJa": "ソモンターノ",
+		"region": "rioja",
+		"subregionId": "aragon",
+		"kind": "regional",
+		"tags": ["do"],
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{ "varietyId": "cabernet-sauvignon", "role": "principal" },
+			{ "varietyId": "merlot", "role": "principal" },
+			{ "varietyId": "chardonnay", "role": "principal" },
+			{ "varietyId": "moristel", "role": "principal" },
+			{ "varietyId": "parraleta", "role": "accessory" },
+			{ "varietyId": "alcanon", "role": "accessory" },
+			{ "varietyId": "gewurztraminer", "role": "accessory" },
+			{ "varietyId": "grenache", "role": "accessory" }
+		],
+		"soil": "ピレネー山脈の南麓、標高350〜1000m。北のグアラ山地から続く白亜紀〜始新世の石灰質を主体に、南へ行くほど砂岩と泥岩の互層になる。年平均気温11〜15℃、降水量は山地の800mmから南の400mmまで下がる。",
+		"producers": [
+			{ "name": "Viñas del Vero", "searchKeyword": "ビニャス・デル・ベロ" },
+			{ "name": "Enate", "searchKeyword": "エナテ" },
+			{ "name": "Bodega Pirineos", "searchKeyword": "ピリネオス" },
+			{ "name": "Blecua", "searchKeyword": "ブレクア" },
+			{ "name": "Bodega Sommos", "searchKeyword": "ソモス" },
+			{ "name": "Laus", "searchKeyword": "ラウス" },
+			{ "name": "Otto Bestué", "searchKeyword": "オット・ベストゥエ" },
+			{ "name": "Bodegas Osca", "searchKeyword": "オスカ" }
+		],
+		"description": "ウエスカ県の43自治体、ピレネー山麓に広がる冷涼なDO。国際品種を早くから導入した近代的な産地として知られる一方、モリステル・パラレタ・アルカニョンという土着品種を守っており、スペインでは珍しくゲヴュルツトラミネールやリースリングも認可されている。"
+	},
+	{
+		"id": "ayles",
+		"idApp": 922010,
+		"name": "Aylés",
+		"shortName": "Aylés",
+		"nameJa": "アイレス",
+		"region": "rioja",
+		"subregionId": "aragon",
+		"kind": "vineyard",
+		"tags": ["vino-de-pago"],
+		"isAppellation": true,
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{ "varietyId": "grenache", "role": "principal" },
+			{ "varietyId": "tempranillo", "role": "principal" },
+			{ "varietyId": "cabernet-sauvignon", "role": "principal" },
+			{ "varietyId": "merlot", "role": "principal" },
+			{ "varietyId": "syrah", "role": "accessory" },
+			{ "varietyId": "chardonnay", "role": "accessory" }
+		],
+		"soil": "ウエルバ川流域。炭酸カルシウムに富み有機物と窒素に乏しい土壌で、石灰分は程よく粘土は45%未満。エキス分に富み色濃く香り高いワインになる。",
+		"producers": [
+			{ "name": "Bodegas Pago Aylés", "searchKeyword": "パゴ・アイレス" }
+		],
+		"description": "サラゴサ県メサロチャにある単一所有地のVino de Pago。DOカリニェナに囲まれた立地ながら独立したDOPで、20世紀初頭から続くぶどう畑を有機栽培で維持している。"
 	}
 ]
