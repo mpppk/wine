@@ -3,6 +3,7 @@ import {
 	cloudflareTest,
 	readD1Migrations,
 } from "@cloudflare/vitest-pool-workers";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -72,11 +73,15 @@ export default defineConfig({
 				extends: true,
 				resolve: { tsconfigPaths: true },
 				plugins: [
+					tanstackStart(),
 					cloudflareTest({
+						// Run the real application Worker so requests exercise the same
+						// Start handler and server-function transport as production.
+						main: "src/worker.ts",
 						// wrangler.jsonc は流用せずバインディングを明示する。理由:
-						//  - `main`(@tanstack/react-start/server-entry)は Start プラグイン前提で
-						//    テストプールでは解決できない。テストはモジュールを直接 import して
-						//    関数を呼ぶだけなので Worker エントリは不要。
+						//  - Worker エントリは Start プラグインでコンパイルする必要があり、
+						//    ここでは上の `tanstackStart()` と `main` を組み合わせて本番と同じ
+						//    Start handler を実行する。
 						//  - AI バインディングはローカルでもリモート接続を張るため、DBアクセスの
 						//    テストには不要かつ避けたい。ここでは D1/R2 のみをローカルに用意する。
 						// テスト用D1は実行ごとに分離され、本番/プレビューには一切触れない。
@@ -87,10 +92,10 @@ export default defineConfig({
 							d1Databases: ["DB"],
 							r2Buckets: ["AVATARS"],
 							// エチケット解析ジョブ(#460)の producer。**consumer は用意しない**:
-							// テストプールは Worker エントリ(src/worker.ts)を読まないので配信先が
-							// 無く、「キューが確実に配信すること」はこちらの検証対象でもない。
-							// 見たいのはコンシューマ本体(runLabelAnalysisJob)の状態遷移なので、
-							// テストはそれを直接呼ぶ。ここに producer が要るのは、投入 API が
+							// この統合テストは Start の fetch 経路を対象にし、キューの consumer 配信は
+							// 検証対象にしない。配信先が無くても、consumer 本体(runLabelAnalysisJob)の
+							// 状態遷移は各テストから直接呼んで検証できる。
+							// ここに producer が要るのは、投入 API が
 							// `env.LABEL_JOBS.send()` を通ること自体を経路として通すため。
 							queueProducers: { LABEL_JOBS: "wine-label-jobs" },
 							// スロットル(#397)。**本番の上限値はあえて再現しない**。
