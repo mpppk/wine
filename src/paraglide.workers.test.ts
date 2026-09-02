@@ -16,6 +16,9 @@ async function callLocaleProbe(cookie: string): Promise<Response> {
 				Cookie: cookie,
 				// This is the header emitted by TanStack Start's serverFnFetcher.
 				"x-tsr-serverFn": "true",
+				// Match the same-origin browser request accepted by Start's CSRF
+				// middleware (SELF.fetch does not synthesize Origin for us).
+				Origin: "http://localhost",
 				Accept:
 					"application/x-tss-framed, application/x-ndjson, application/json",
 			},
