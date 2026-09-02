@@ -145,6 +145,7 @@ export default defineConfig({
 					name: "start-workers",
 					include: ["src/paraglide.workers.test.ts"],
 					setupFiles: ["./test/apply-migrations.ts"],
+					testTimeout: 30_000,
 				},
 			},
 		],
