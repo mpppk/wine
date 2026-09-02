@@ -54,6 +54,53 @@ const {
 	compatibility_flags: compatibilityFlags = [],
 } = wranglerConfig;
 
+const workerMiniflare = {
+	// wrangler.jsonc から読む(二重管理しない・#268)
+	compatibilityDate,
+	compatibilityFlags,
+	d1Databases: ["DB"],
+	r2Buckets: ["AVATARS"],
+	// エチケット解析ジョブ(#460)の producer。**consumer は用意しない**:
+	// キューの consumer 配信はこのテスト構成の検証対象にしない。配信先が無くても、
+	// consumer 本体(runLabelAnalysisJob)の状態遷移は各テストから直接呼んで検証できる。
+	// ここに producer が要るのは、投入 API が `env.LABEL_JOBS.send()` を通ること自体を
+	// 経路として通すため。
+	queueProducers: { LABEL_JOBS: "wine-label-jobs" },
+	// スロットル(#397)。**本番の上限値はあえて再現しない**。
+	// 上限そのものは wrangler.jsonc の設定値であって、テストで
+	// 数値を書き写しても設定を二重管理するだけになる。ここで
+	// 検証したいのは「上限に達したら false を返し、経路がそれを
+	// 拒否に写すか」なので、少ない回数で使い切れる値にする。
+	// miniflare 側はバインディング名をキーにしたレコードで受ける
+	// (wrangler.jsonc の配列形式とは形が違う)。
+	ratelimits: {
+		RATE_LIMIT_WRITE: {
+			namespace_id: "9001",
+			simple: { limit: 3, period: 10 as const },
+		},
+		RATE_LIMIT_UPLOAD: {
+			namespace_id: "9002",
+			simple: { limit: 3, period: 10 as const },
+		},
+		RATE_LIMIT_FETCH_TITLE: {
+			namespace_id: "9003",
+			simple: { limit: 3, period: 10 as const },
+		},
+	},
+	bindings: {
+		// setup(test/apply-migrations.ts)で適用するマイグレーション本体
+		TEST_MIGRATIONS: migrations,
+		// ハンドラが絶対URL(geojson_url/map_url等)を組むのに使う
+		BETTER_AUTH_URL: "http://localhost:3000",
+		// tools.ts の buildAffiliateConfig が参照(未設定なら素の検索URL)
+		RAKUTEN_AFFILIATE_ID: "",
+		MOSHIMO_AMAZON_A_ID: "",
+		// 期間延長コード(billing-service の引換テスト用)。本番の値とは
+		// 無関係で、書式(CODE=days)だけ合わせてある
+		CAMPAIGN_EXTENSION_CODES: "TESTCODE=7",
+	},
+};
+
 export default defineConfig({
 	test: {
 		projects: [
@@ -72,71 +119,31 @@ export default defineConfig({
 			{
 				extends: true,
 				resolve: { tsconfigPaths: true },
+				plugins: [cloudflareTest({ miniflare: workerMiniflare })],
+				test: {
+					name: "workers",
+					include: ["src/**/*.workers.test.ts"],
+					exclude: ["src/paraglide.workers.test.ts"],
+					setupFiles: ["./test/apply-migrations.ts"],
+				},
+			},
+			{
+				extends: true,
+				resolve: { tsconfigPaths: true },
 				plugins: [
 					tanstackStart(),
 					cloudflareTest({
 						// Run the real application Worker so requests exercise the same
 						// Start handler and server-function transport as production.
 						main: "src/worker.ts",
-						// wrangler.jsonc は流用せずバインディングを明示する。理由:
-						//  - Worker エントリは Start プラグインでコンパイルする必要があり、
-						//    ここでは上の `tanstackStart()` と `main` を組み合わせて本番と同じ
-						//    Start handler を実行する。
-						//  - AI バインディングはローカルでもリモート接続を張るため、DBアクセスの
-						//    テストには不要かつ避けたい。ここでは D1/R2 のみをローカルに用意する。
-						// テスト用D1は実行ごとに分離され、本番/プレビューには一切触れない。
-						miniflare: {
-							// wrangler.jsonc から読む(二重管理しない・#268)
-							compatibilityDate,
-							compatibilityFlags,
-							d1Databases: ["DB"],
-							r2Buckets: ["AVATARS"],
-							// エチケット解析ジョブ(#460)の producer。**consumer は用意しない**:
-							// この統合テストは Start の fetch 経路を対象にし、キューの consumer 配信は
-							// 検証対象にしない。配信先が無くても、consumer 本体(runLabelAnalysisJob)の
-							// 状態遷移は各テストから直接呼んで検証できる。
-							// ここに producer が要るのは、投入 API が
-							// `env.LABEL_JOBS.send()` を通ること自体を経路として通すため。
-							queueProducers: { LABEL_JOBS: "wine-label-jobs" },
-							// スロットル(#397)。**本番の上限値はあえて再現しない**。
-							// 上限そのものは wrangler.jsonc の設定値であって、テストで
-							// 数値を書き写しても設定を二重管理するだけになる。ここで
-							// 検証したいのは「上限に達したら false を返し、経路がそれを
-							// 拒否に写すか」なので、少ない回数で使い切れる値にする。
-							// miniflare 側はバインディング名をキーにしたレコードで受ける
-							// (wrangler.jsonc の配列形式とは形が違う)。
-							ratelimits: {
-								RATE_LIMIT_WRITE: {
-									namespace_id: "9001",
-									simple: { limit: 3, period: 10 },
-								},
-								RATE_LIMIT_UPLOAD: {
-									namespace_id: "9002",
-									simple: { limit: 3, period: 10 },
-								},
-								RATE_LIMIT_FETCH_TITLE: {
-									namespace_id: "9003",
-									simple: { limit: 3, period: 10 },
-								},
-							},
-							bindings: {
-								// setup(test/apply-migrations.ts)で適用するマイグレーション本体
-								TEST_MIGRATIONS: migrations,
-								// ハンドラが絶対URL(geojson_url/map_url等)を組むのに使う
-								BETTER_AUTH_URL: "http://localhost:3000",
-								// tools.ts の buildAffiliateConfig が参照(未設定なら素の検索URL)
-								RAKUTEN_AFFILIATE_ID: "",
-								MOSHIMO_AMAZON_A_ID: "",
-								// 期間延長コード(billing-service の引換テスト用)。本番の値とは
-								// 無関係で、書式(CODE=days)だけ合わせてある
-								CAMPAIGN_EXTENSION_CODES: "TESTCODE=7",
-							},
-						},
+						// This project is intentionally isolated from the direct service tests
+						// above: only the locale integration test needs Start's app entry.
+						miniflare: workerMiniflare,
 					}),
 				],
 				test: {
-					name: "workers",
-					include: ["src/**/*.workers.test.ts"],
+					name: "start-workers",
+					include: ["src/paraglide.workers.test.ts"],
 					setupFiles: ["./test/apply-migrations.ts"],
 				},
 			},
