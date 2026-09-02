@@ -40,11 +40,13 @@ describe("Paraglide request context through the application Worker (#536)", () =
 			callLocaleProbe("wine_locale=ja"),
 			callLocaleProbe("wine_locale=en"),
 		]);
+		const jaRpcBody = await jaResponse.clone().text();
+		const enRpcBody = await enResponse.clone().text();
 
 		// The request went through the actual Start `/_serverFn/<id>` dispatcher,
 		// rather than a callback that merely resembles a server function.
-		expect(jaResponse.status).toBe(200);
-		expect(enResponse.status).toBe(200);
+		expect(jaResponse.status, jaRpcBody).toBe(200);
+		expect(enResponse.status, enRpcBody).toBe(200);
 		expect(jaResponse.headers.get("x-tss-serialized")).toBe("true");
 		expect(enResponse.headers.get("x-tss-serialized")).toBe("true");
 		expect(await jaResponse.json()).toEqual({ locale: "ja", label: "言語" });
