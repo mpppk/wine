@@ -12,9 +12,12 @@ export const getAffiliateConfig = createServerFn({ method: "GET" }).handler(
 	async (): Promise<AffiliateConfig> => buildAffiliateConfig(),
 );
 
-// Keep a tiny localized server function in the application graph so the Workers
-// integration test can exercise the real Start server-function transport and
-// assert the request-scoped Paraglide context at the handler boundary.
+/**
+ * @public
+ * Keep a tiny localized server function in the application graph so the Workers
+ * integration test can exercise the real Start server-function transport and
+ * assert the request-scoped Paraglide context at the handler boundary.
+ */
 export const getLocaleProbe = createServerFn({ method: "GET" }).handler(
 	async (): Promise<{ locale: string; label: string }> => ({
 		locale: getLocale(),
