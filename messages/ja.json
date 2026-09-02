@@ -1,0 +1,16 @@
+{
+	"$schema": "https://inlang.com/schema/inlang-message-format",
+	"header_dark_mode": "ダークモード",
+	"header_profile": "プロフィールを編集",
+	"header_pricing": "料金プラン",
+	"header_admin": "ユーザー管理",
+	"header_sign_in": "Sign in",
+	"header_sign_out": "Sign out",
+	"header_locale": "言語",
+	"locale_ja": "日本語",
+	"locale_en": "English",
+	"locale_save": "言語を保存",
+	"locale_saving": "保存中...",
+	"app_title": "ワインAOP学習アプリ",
+	"app_description": "ワインのAOP(原産地呼称)を地図で学ぶアプリ"
+}

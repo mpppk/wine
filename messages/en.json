@@ -1,0 +1,16 @@
+{
+	"$schema": "https://inlang.com/schema/inlang-message-format",
+	"header_dark_mode": "Dark mode",
+	"header_profile": "Edit profile",
+	"header_pricing": "Pricing",
+	"header_admin": "User management",
+	"header_sign_in": "Sign in",
+	"header_sign_out": "Sign out",
+	"header_locale": "Language",
+	"locale_ja": "日本語",
+	"locale_en": "English",
+	"locale_save": "Save language",
+	"locale_saving": "Saving...",
+	"app_title": "Wine AOP Learning App",
+	"app_description": "Learn wine AOPs (appellations of origin) on a map"
+}

@@ -12,6 +12,7 @@ export const authClient = createAuthClient({
 			user: {
 				preferredAiModel: { type: "string", required: false },
 				preferredLabelEngine: { type: "string", required: false },
+				locale: { type: "string", required: false },
 			},
 		}),
 		// session.user.role / banned の型付けと、将来の authClient.admin.* 用。

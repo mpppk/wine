@@ -50,7 +50,10 @@ import {
 	PHOTO_FORMATS_LABEL_JA,
 } from "#/lib/drunk-wine/photo";
 import { postImageForm } from "#/lib/images/form-client";
+import { BASE_LOCALE, type Locale, toLocale } from "#/lib/locale";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
+import { m } from "#/paraglide/messages.js";
+import { setLocale as setParaglideLocale } from "#/paraglide/runtime.js";
 import { getLabelAnalysisPlan } from "#/server/ai";
 import { redeemExtensionCode } from "#/server/billing";
 
@@ -234,12 +237,78 @@ function ProfilePage() {
 				</CardContent>
 			</Card>
 
+			<LocaleCard />
 			<AiModelCard />
 			<LabelEngineCard />
 			<PushNotificationCard />
 			<PlanCard />
 			<CreditCard />
 		</main>
+	);
+}
+
+/** ユーザのUIロケールを保存し、Cookieにも反映して次のSSRから同じ表示にする。 */
+function LocaleCard() {
+	const { data: session, refetch: refetchSession } = authClient.useSession();
+	const [locale, setLocale] = useState<Locale>(BASE_LOCALE);
+	const [error, setError] = useState("");
+
+	useEffect(() => {
+		const pref = toLocale(session?.user.locale);
+		if (pref) setLocale(pref);
+	}, [session?.user.locale]);
+
+	const { mutate: saveLocale, isPending } = useMutation({
+		mutationFn: async () => {
+			const result = await authClient.updateUser({ locale });
+			if (result.error)
+				throw new Error(result.error.message ?? "Update failed");
+		},
+		onSuccess: async () => {
+			await refetchSession();
+			// setLocale は wine_locale Cookie を更新してから full reload するため、
+			// SSR のメッセージ・html lang・head metadata が同時に切り替わる。
+			await setParaglideLocale(locale);
+		},
+		onError: (err: Error) => setError(err.message),
+	});
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle>{m.header_locale()}</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="profile-locale">{m.header_locale()}</Label>
+					<Select
+						value={locale}
+						onValueChange={(value) => setLocale(value as Locale)}
+					>
+						<SelectTrigger id="profile-locale" className="max-w-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="ja">{m.locale_ja()}</SelectItem>
+							<SelectItem value="en">{m.locale_en()}</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+
+				{error && <p className="text-sm text-destructive">{error}</p>}
+				<Button
+					type="button"
+					disabled={isPending || !session?.user}
+					onClick={() => {
+						setError("");
+						saveLocale();
+					}}
+					className="self-start"
+				>
+					{isPending ? m.locale_saving() : m.locale_save()}
+				</Button>
+			</CardContent>
+		</Card>
 	);
 }
 

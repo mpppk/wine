@@ -8,6 +8,7 @@ import { logError, logInfo } from "#/lib/logger";
 import { resolveServerEnvironment } from "#/lib/observability/sentry-envelope";
 import { withSpan } from "#/lib/observability/span";
 import { runLabelAnalysisJob } from "#/lib/services/label-job-service";
+import { paraglideMiddleware } from "./paraglide/server.js";
 
 // Worker のエントリ(Issue #460)。
 //
@@ -29,9 +30,11 @@ const startFetch = createStartHandler(defaultStreamHandler);
 // Start のハンドラは `(request, opts?)` という独自シグネチャ(上記 #460 コメント)で、
 // workerd の `(request, env, ctx)` と型が噛み合わない。`withSentry`(後述)がハンドラに
 // `ExportedHandler` の型を要求するため、ここで一度だけ workerd のシグネチャに合わせる。
-// 実行時の挙動は変わらない(env / ctx は使われない)。
+// 実行時の挙動は変わらない(env / ctx は使われない)。ロケール middleware は
+// Start の fetch 全体を包み、SSR・server function・API の同一リクエスト文脈を
+// AsyncLocalStorage へ載せる。
 const fetch: ExportedHandlerFetchHandler<Cloudflare.Env> = (request) =>
-	startFetch(request);
+	paraglideMiddleware(request, () => startFetch(request));
 
 // サーバ側の予期しない例外を Sentry に自動送信する(Issue #486)。
 // `withSentry` は fetch / scheduled / queue / email / tail を自動計装し、ハンドラが

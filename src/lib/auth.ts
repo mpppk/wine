@@ -20,6 +20,7 @@ import { labelEngineKeySchema, regionQaModelKeySchema } from "#/lib/ai/config";
 import { authSecretProblem, authSecretProblemMessage } from "#/lib/auth-secret";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
+import { localeSchema, toLocale } from "#/lib/locale";
 import { logError, logInfo, logWarn } from "#/lib/logger";
 import {
 	cleanupAfterUserDelete,
@@ -48,6 +49,28 @@ const secretProblem = authSecretProblem(env.BETTER_AUTH_SECRET);
 if (secretProblem) {
 	logError(authSecretProblemMessage(secretProblem), {
 		problem: secretProblem,
+	});
+}
+
+const LOCALE_COOKIE_NAME = "wine_locale";
+const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 400;
+type LocaleCookieContext = {
+	setCookie: (
+		name: string,
+		value: string,
+		options?: { path?: string; maxAge?: number },
+	) => string;
+};
+
+function syncLocaleCookie(
+	context: LocaleCookieContext | null,
+	value: unknown,
+): void {
+	const locale = toLocale(value);
+	if (!context || !locale) return;
+	context.setCookie(LOCALE_COOKIE_NAME, locale, {
+		path: "/",
+		maxAge: LOCALE_COOKIE_MAX_AGE,
 	});
 }
 
@@ -136,6 +159,33 @@ export const auth = betterAuth({
 				message: IMPERSONATION_READONLY_MESSAGE,
 			});
 		}),
+		// `databaseHooks.*.after` はトランザクションの完了後に実行されるため、
+		// そのコンテキストへ追加したヘッダーが HTTP レスポンスへ引き継がれない
+		// 経路がある。HTTP endpoint の after hook なら Better Auth の dispatch が
+		// `ctx.setCookie` の結果をレスポンスへマージするので、ログインとプロフィール
+		// 更新の両方でブラウザへ確実に書き戻せる。
+		after: createAuthMiddleware(async (ctx) => {
+			if (ctx.path === "/update-user") {
+				syncLocaleCookie(ctx, ctx.body?.locale);
+				return;
+			}
+
+			// サインイン/サインアップのレスポンスには parseUserOutput 済みの
+			// `user.locale` が含まれる。保存済みロケールがある場合だけ同期し、
+			// 未設定ユーザの Cookie は baseLocale 解決へ委ねる。
+			if (
+				ctx.path === "/sign-in/email" ||
+				ctx.path === "/sign-in/social" ||
+				ctx.path === "/sign-up/email"
+			) {
+				const user = (ctx.context.returned as { user?: unknown } | undefined)
+					?.user;
+				syncLocaleCookie(
+					ctx,
+					(user as Record<string, unknown> | undefined)?.locale,
+				);
+			}
+		}),
 	},
 	// ユーザ削除時に D1 の外(Stripe・R2)へ残るものを後始末する(#252)。
 	//
@@ -160,7 +210,7 @@ export const auth = betterAuth({
 	},
 	// user テーブルの独自カラム。better-auth に宣言することで getSession /
 	// updateUser / useSession が本フィールドを読み書きできる(物理カラムは
-	// drizzle/0012_user_preferred_ai_model.sql で追加)。
+	// drizzle/0012_user_preferred_ai_model.sql / 0021 / 0035 で追加)。
 	user: {
 		additionalFields: {
 			// 地域Q&Aチャットのモデル選択(プロフィール画面で変更)。input:true で
@@ -185,6 +235,15 @@ export const auth = betterAuth({
 				required: false,
 				input: true,
 				validator: { input: labelEngineKeySchema },
+			},
+			// UI のロケール選択。Cookie を主たる解決元にしつつ、ログインユーザの
+			// 選択値を保存する。validator は better-auth の update-user 直結経路にも
+			// 必ず適用されるため、許可リスト外の値を D1 に保存できない。
+			locale: {
+				type: "string",
+				required: false,
+				input: true,
+				validator: { input: localeSchema },
 			},
 		},
 	},
