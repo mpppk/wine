@@ -1,11 +1,12 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-// `getLocaleProbe` is a real GET server function in the application graph. Its
-// generated ID is deterministic (relative source path + exported function name) and
-// is the URL used by the client RPC stub in the built Worker.
+// `getLocaleProbe` is a real GET server function in the application graph. The
+// integration project runs Vite's dev-mode Start compiler, whose ID is a
+// deterministic base64url encoding of the relative provider module and the
+// generated handler export name.
 const LOCALE_PROBE_SERVER_FN_URL =
-	"http://localhost/_serverFn/70b21c14ef4f75a586f301f122ef2fc219e78d252689026164d665ffbc06575d";
+	"http://localhost/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvYWZmaWxpYXRlLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6ImdldExvY2FsZVByb2JlX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ";
 
 async function callLocaleProbe(cookie: string): Promise<Response> {
 	return SELF.fetch(
@@ -15,7 +16,8 @@ async function callLocaleProbe(cookie: string): Promise<Response> {
 				Cookie: cookie,
 				// This is the header emitted by TanStack Start's serverFnFetcher.
 				"x-tsr-serverFn": "true",
-				Accept: "application/json",
+				Accept:
+					"application/x-tss-framed, application/x-ndjson, application/json",
 			},
 		}),
 	);
@@ -59,7 +61,7 @@ describe("Paraglide request context through the application Worker (#536)", () =
 		expect(htmlResponse.headers.get("vary")).toBe("Cookie");
 		const html = await htmlResponse.text();
 		expect(html).toContain('<html lang="en"');
-		expect(html).toContain("Language");
+		expect(html).toContain("<title>Wine AOP Learning App</title>");
 	});
 
 	it("uses ja for a missing or unsupported cookie on the real application handler", async () => {
@@ -75,8 +77,8 @@ describe("Paraglide request context through the application Worker (#536)", () =
 			unsupportedResponse.text(),
 		]);
 		expect(missing).toContain('<html lang="ja"');
-		expect(missing).toContain("言語");
+		expect(missing).toContain("<title>ワインAOP学習アプリ</title>");
 		expect(unsupported).toContain('<html lang="ja"');
-		expect(unsupported).toContain("言語");
+		expect(unsupported).toContain("<title>ワインAOP学習アプリ</title>");
 	});
 });

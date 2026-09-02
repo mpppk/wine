@@ -13,13 +13,15 @@ import { defineConfig } from "vitest/config";
 // plugin's validation when Vite resolves the config in a dev-server-like flow,
 // which is exactly what Vitest does on startup.
 //
-// テストは2プロジェクト構成:
+// テストは3プロジェクト構成:
 //  - unit  : jsdom 上の純関数・スキーマ・コンポーネントのテスト(従来分)。
 //            `cloudflare:workers` を import するモジュールは読めないため、
 //            純ロジック層(src/lib/<domain>/)のみを対象にする(docs/architecture.md)。
 //  - workers: workerd(miniflare) 上で D1 / env バインディングを与えて動かすテスト
 //            (`*.workers.test.ts`)。quiz-service の実D1アクセスや MCP ツールの
 //            ハンドラなど、`cloudflare:workers` 依存のコードを実機に近い形で検証する。
+//  - start-workers: 実際のアプリ Worker(src/worker.ts)とTanStack Startの
+//                  server-function transportをworkerd上で検証する統合テスト。
 // どちらも `vitest run` の1コマンドで実行される。
 
 // D1 マイグレーションは Node 側(設定読み込み時)で読み、テスト用の分離D1へ
