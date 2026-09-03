@@ -6,6 +6,7 @@
 	"entry": [
 		"scripts/spike-label-usage.ts",
 		"scripts/generate-vapid-keys.mjs",
+		"test/start-worker.ts",
 	],
 	// 誤検知の除外:
 	//  - public/sw.js … push/client.ts が文字列定数("/sw.js")で参照するため knip に見えない

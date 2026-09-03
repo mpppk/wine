@@ -22,7 +22,7 @@ import { defineConfig } from "vitest/config";
 //            ハンドラなど、`cloudflare:workers` 依存のコードを実機に近い形で検証する。
 //  - start-workers: 実際のアプリ Worker(src/worker.ts)とTanStack Startの
 //                  server-function transportをworkerd上で検証する統合テスト。
-// どちらも `vitest run` の1コマンドで実行される。
+// いずれも `vitest run` の1コマンドで実行される。
 
 // D1 マイグレーションは Node 側(設定読み込み時)で読み、テスト用の分離D1へ
 // setup で適用する(workerd 側は fs を持たないため、バインディング経由で渡す)。
@@ -132,18 +132,12 @@ export default defineConfig({
 			{
 				extends: true,
 				resolve: { tsconfigPaths: true },
-				// `src/worker.ts` is imported through cloudflare:test rather than
-				// TanStack's named server environment, so repeat the server-function
-				// base define for the source Worker used by this integration project.
-				define: {
-					"process.env.TSS_SERVER_FN_BASE": JSON.stringify("/_serverFn/"),
-				},
 				plugins: [
 					tanstackStart(),
 					cloudflareTest({
 						// Run the real application Worker so requests exercise the same
 						// Start handler and server-function transport as production.
-						main: "src/worker.ts",
+						main: "test/start-worker.ts",
 						// This project is intentionally isolated from the direct service tests
 						// above: only the locale integration test needs Start's app entry.
 						miniflare: workerMiniflare,
