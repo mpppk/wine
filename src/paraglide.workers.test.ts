@@ -1,5 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { createClientRpc } from "@tanstack/react-start/client-rpc";
+import { runWithStartContext } from "@tanstack/start-storage-context";
 import { describe, expect, it } from "vitest";
 
 // `getLocaleProbe` is a real GET server function in the application graph. The
@@ -25,25 +26,38 @@ async function callLocaleProbe(cookie: string): Promise<{
 }> {
 	let status = 0;
 	let serialized: string | null = null;
-	const envelope = await localeProbeRpc({
-		method: "GET",
-		headers: {
-			Cookie: cookie,
-			// Match the same-origin browser request accepted by Start's CSRF
-			// middleware (SELF.fetch does not synthesize Origin for us).
-			Origin: "http://localhost",
+	const envelope = await runWithStartContext(
+		{
+			getRouter: async () => {
+				throw new Error("router is not used by this transport test");
+			},
+			request: new Request("http://localhost/_serverFn/"),
+			startOptions: {},
+			contextAfterGlobalMiddlewares: {},
+			executedRequestMiddlewares: new Set(),
+			handlerType: "serverFn",
 		},
-		// Use Start's actual client transport/decoder, but route its fetch through
-		// the application Worker's real service binding in workerd.
-		fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-			const response = await SELF.fetch(
-				new Request(new URL(String(input), "http://localhost"), init),
-			);
-			status = response.status;
-			serialized = response.headers.get("x-tss-serialized");
-			return response;
-		},
-	});
+		() =>
+			localeProbeRpc({
+				method: "GET",
+				headers: {
+					Cookie: cookie,
+					// Match the same-origin browser request accepted by Start's CSRF
+					// middleware (SELF.fetch does not synthesize Origin for us).
+					Origin: "http://localhost",
+				},
+				// Use Start's actual client transport/decoder, but route its fetch through
+				// the application Worker's real service binding in workerd.
+				fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+					const response = await SELF.fetch(
+						new Request(new URL(String(input), "http://localhost"), init),
+					);
+					status = response.status;
+					serialized = response.headers.get("x-tss-serialized");
+					return response;
+				},
+			}),
+	);
 
 	return {
 		status,
