@@ -39,10 +39,11 @@ async function renderHome(cookie: string): Promise<Response> {
 
 describe("Paraglide request context through the application Worker (#536)", () => {
 	it("runs a real Start server-function RPC and resolves its request locale", async () => {
-		const [jaResponse, enResponse] = await Promise.all([
-			callLocaleProbe("wine_locale=ja"),
-			callLocaleProbe("wine_locale=en"),
-		]);
+		// The Sentry wrapper around the application Worker keeps request-scoped I/O
+		// objects, which workerd does not allow to be used across concurrent
+		// requests. Keep the two locale assertions deterministic and sequential.
+		const jaResponse = await callLocaleProbe("wine_locale=ja");
+		const enResponse = await callLocaleProbe("wine_locale=en");
 		const jaRpcBody = await jaResponse.clone().text();
 		const enRpcBody = await enResponse.clone().text();
 
@@ -70,17 +71,13 @@ describe("Paraglide request context through the application Worker (#536)", () =
 	});
 
 	it("uses ja for a missing or unsupported cookie on the real application handler", async () => {
-		const [missingResponse, unsupportedResponse] = await Promise.all([
-			renderHome(""),
-			renderHome("wine_locale=fr"),
-		]);
+		const missingResponse = await renderHome("");
+		const unsupportedResponse = await renderHome("wine_locale=fr");
 		expect(missingResponse.status).toBe(200);
 		expect(unsupportedResponse.status).toBe(200);
 
-		const [missing, unsupported] = await Promise.all([
-			missingResponse.text(),
-			unsupportedResponse.text(),
-		]);
+		const missing = await missingResponse.text();
+		const unsupported = await unsupportedResponse.text();
 		expect(missing).toContain('<html lang="ja"');
 		expect(missing).toContain("<title>ワインAOP学習アプリ</title>");
 		expect(unsupported).toContain('<html lang="ja"');
