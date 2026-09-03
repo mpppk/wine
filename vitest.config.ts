@@ -132,6 +132,12 @@ export default defineConfig({
 			{
 				extends: true,
 				resolve: { tsconfigPaths: true },
+				// `src/worker.ts` is imported through cloudflare:test rather than
+				// TanStack's named server environment, so repeat the server-function
+				// base define for the source Worker used by this integration project.
+				define: {
+					"process.env.TSS_SERVER_FN_BASE": JSON.stringify("/_serverFn/"),
+				},
 				plugins: [
 					tanstackStart(),
 					cloudflareTest({
