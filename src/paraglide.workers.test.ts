@@ -1,29 +1,55 @@
 import { SELF } from "cloudflare:test";
+import { createClientRpc } from "@tanstack/react-start/client-rpc";
 import { describe, expect, it } from "vitest";
 
 // `getLocaleProbe` is a real GET server function in the application graph. The
 // integration project runs Vite's dev-mode Start compiler, whose ID is a
 // deterministic base64url encoding of the relative provider module and the
 // generated handler export name.
-const LOCALE_PROBE_SERVER_FN_URL =
-	"http://localhost/_serverFn/eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvYWZmaWxpYXRlLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6ImdldExvY2FsZVByb2JlX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ";
+const LOCALE_PROBE_SERVER_FN_ID =
+	"eyJmaWxlIjoiL3NyYy9zZXJ2ZXIvYWZmaWxpYXRlLnRzP3Rzcy1zZXJ2ZXJmbi1zcGxpdCIsImV4cG9ydCI6ImdldExvY2FsZVByb2JlX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ";
 
-async function callLocaleProbe(cookie: string): Promise<Response> {
-	return SELF.fetch(
-		new Request(LOCALE_PROBE_SERVER_FN_URL, {
-			method: "GET",
-			headers: {
-				Cookie: cookie,
-				// This is the header emitted by TanStack Start's serverFnFetcher.
-				"x-tsr-serverFn": "true",
-				// Match the same-origin browser request accepted by Start's CSRF
-				// middleware (SELF.fetch does not synthesize Origin for us).
-				Origin: "http://localhost",
-				Accept:
-					"application/x-tss-framed, application/x-ndjson, application/json",
-			},
-		}),
-	);
+const processLike = (
+	globalThis as typeof globalThis & {
+		process: { env: Record<string, string | undefined> };
+	}
+).process;
+processLike.env.TSS_SERVER_FN_BASE = "/_serverFn/";
+
+const localeProbeRpc = createClientRpc(LOCALE_PROBE_SERVER_FN_ID);
+
+async function callLocaleProbe(cookie: string): Promise<{
+	status: number;
+	serialized: string | null;
+	result: { locale: string; label: string };
+}> {
+	let status = 0;
+	let serialized: string | null = null;
+	const envelope = await localeProbeRpc({
+		method: "GET",
+		headers: {
+			Cookie: cookie,
+			// Match the same-origin browser request accepted by Start's CSRF
+			// middleware (SELF.fetch does not synthesize Origin for us).
+			Origin: "http://localhost",
+		},
+		// Use Start's actual client transport/decoder, but route its fetch through
+		// the application Worker's real service binding in workerd.
+		fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+			const response = await SELF.fetch(
+				new Request(new URL(String(input), "http://localhost"), init),
+			);
+			status = response.status;
+			serialized = response.headers.get("x-tss-serialized");
+			return response;
+		},
+	});
+
+	return {
+		status,
+		serialized,
+		result: envelope.result as { locale: string; label: string },
+	};
 }
 
 async function renderHome(cookie: string): Promise<Response> {
@@ -44,17 +70,15 @@ describe("Paraglide request context through the application Worker (#536)", () =
 		// requests. Keep the two locale assertions deterministic and sequential.
 		const jaResponse = await callLocaleProbe("wine_locale=ja");
 		const enResponse = await callLocaleProbe("wine_locale=en");
-		const jaRpcBody = await jaResponse.clone().text();
-		const enRpcBody = await enResponse.clone().text();
 
 		// The request went through the actual Start `/_serverFn/<id>` dispatcher,
-		// rather than a callback that merely resembles a server function.
-		expect(jaResponse.status, jaRpcBody).toBe(200);
-		expect(enResponse.status, enRpcBody).toBe(200);
-		expect(jaResponse.headers.get("x-tss-serialized")).toBe("true");
-		expect(enResponse.headers.get("x-tss-serialized")).toBe("true");
-		expect(await jaResponse.json()).toEqual({ locale: "ja", label: "言語" });
-		expect(await enResponse.json()).toEqual({
+		// and Start's own client transport decoder unwrapped the result envelope.
+		expect(jaResponse.status).toBe(200);
+		expect(enResponse.status).toBe(200);
+		expect(jaResponse.serialized).toBe("true");
+		expect(enResponse.serialized).toBe("true");
+		expect(jaResponse.result).toEqual({ locale: "ja", label: "言語" });
+		expect(enResponse.result).toEqual({
 			locale: "en",
 			label: "Language",
 		});
