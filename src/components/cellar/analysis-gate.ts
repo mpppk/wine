@@ -1,4 +1,5 @@
-// 写真ウィザードの「写真を解析する」を押せるかの判定。
+// 写真からの解析ボタン(写真ウィザードの「写真を解析する」・記録フォームの
+// 「エチケットから自動入力」)を押せるかの判定。
 //
 // **押せる条件をボタンのJSXに散らばらせない**。解析はAIクレジットを消費するので、
 // 「押せてしまう窓」がそのまま二重消費になる。実際に2つの窓が同時に空いていた:
@@ -17,6 +18,60 @@
  */
 export function photoSetKey(localIds: readonly string[]): string {
 	return localIds.join("\n");
+}
+
+/**
+ * 記録フォームの写真1枚の識別材料。構造的部分型で受ける——フォーム側の
+ * `PhotoItem` (localId・previewUrl 付き) をそのまま渡せる。
+ */
+export type FormPhotoIdentity =
+	| { kind: "existing"; key: string }
+	| {
+			kind: "new";
+			file: Pick<File, "name" | "size" | "lastModified">;
+	  };
+
+/**
+ * 新規 `File` の安定識別子。`localId` は保存(`applySavedEntry`)で振り直されるため、
+ * ファイルの中身由来で作る——保存の前後で同じ写真を指し続けられる。
+ */
+function newPhotoFingerprint(
+	file: Pick<File, "name" | "size" | "lastModified">,
+): string {
+	return `f:${file.name}:${file.size}:${file.lastModified}`;
+}
+
+/** 既存写真の識別子。R2 キーは保存で変わらないためそのまま使う。 */
+function existingPhotoId(key: string): string {
+	return `k:${key}`;
+}
+
+/**
+ * 記録フォーム用の写真集合の印。既存写真は R2 キー、新規写真は安定識別子で
+ * `photoSetKey` に載せる。**順序も含めて**同じなら同じ解析になる
+ * (`photoIndexes` が順序依存のため)。
+ */
+export function formPhotoSetKey(photos: readonly FormPhotoIdentity[]): string {
+	return photoSetKey(
+		photos.map((p) =>
+			p.kind === "existing"
+				? existingPhotoId(p.key)
+				: newPhotoFingerprint(p.file),
+		),
+	);
+}
+
+/**
+ * 保存直後の写真集合に対応する解析済みの印(R2キー基準)。
+ *
+ * 記録フォーム(`DrunkWineForm`)は解析の投入時にその時点の内容を保存し(#490)、
+ * 新規写真はそこで R2 キーを持つ既存写真になる。投入時点の印(新規は `f:…`)の
+ * まま覚えると、完了時には既に別の印になっているため「解析済み」と一致しなく
+ * なり、同じ写真で押し直せてしまう。保存後の写真キーの並びから組み立て直す。
+ * **順序は保存前後で保たれる**ことが前提。
+ */
+export function savedEntryPhotoSetKey(photoKeys: readonly string[]): string {
+	return photoSetKey(photoKeys.map(existingPhotoId));
 }
 
 /** 解析ボタンを押せない理由。null なら押せる。 */
