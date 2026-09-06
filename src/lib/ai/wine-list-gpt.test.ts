@@ -136,4 +136,12 @@ describe("WINE_LIST_JSON_SCHEMA", () => {
 			expect(item.required).toContain(key);
 		}
 	});
+
+	it("参考サイト・価格(IMPL-3)を載せる(エチケット解析と同一定義)", () => {
+		const item = WINE_LIST_JSON_SCHEMA.properties.wines.items;
+		for (const key of ["reference_links", "prices"]) {
+			expect(item.properties).toHaveProperty(key);
+			expect(item.required).toContain(key);
+		}
+	});
 });

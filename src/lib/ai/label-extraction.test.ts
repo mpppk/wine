@@ -5,12 +5,16 @@ import { findProducerInfoByName } from "#/lib/wine/producer-info";
 import { AI_LABEL_PROMPT_TOKEN_ESTIMATE } from "./config";
 import {
 	buildAgentLabelPrompt,
+	buildKnownGrapesSection,
+	buildKnownListsSection,
 	buildLabelMessages,
 	buildLabelSuggestions,
 	buildWebLabelPrompt,
 	estimateLabelPromptTokens,
 	LABEL_JSON_SCHEMA,
+	LABEL_PRICES_MAX,
 	LABEL_PROMPT,
+	LABEL_REFERENCE_LINKS_MAX,
 	LABEL_WEB_JSON_SCHEMA,
 	type LabelExtraction,
 	matchAop,
@@ -18,10 +22,18 @@ import {
 	matchRegionId,
 	mergeExtractions,
 	normalizeLabelText,
+	normalizePrices,
+	normalizeReferenceLinks,
 	parseImageDataUrl,
 	parseLabelResponse,
 	parseLabelSources,
+	toLabelExtraction,
 } from "./label-extraction";
+import {
+	compileFallbackTemplate,
+	LABEL_AGENT_RESEARCH_PROMPT,
+	LABEL_WEB_RESEARCH_PROMPT,
+} from "./managed-prompts";
 
 function extraction(partial: Partial<LabelExtraction>): LabelExtraction {
 	return { grapeVarieties: [], ...partial };
@@ -683,5 +695,257 @@ describe("コメントの指示文", () => {
 		expect(LABEL_WEB_JSON_SCHEMA.properties).toHaveProperty("tasting_comment");
 		expect(LABEL_WEB_JSON_SCHEMA.required).toContain("tasting_comment");
 		expect(LABEL_WEB_JSON_SCHEMA.required).toContain("producer_comment");
+	});
+});
+
+describe("normalizeReferenceLinks", () => {
+	it("http/https のURLだけを残し、タイトルを整える", () => {
+		expect(
+			normalizeReferenceLinks([
+				{ title: " Domaine Testut ", url: "https://example.com/a" },
+				{ title: null, url: "http://example.com/b" },
+			]),
+		).toEqual([
+			{ url: "https://example.com/a", title: "Domaine Testut" },
+			{ url: "http://example.com/b" },
+		]);
+	});
+
+	it("URLが無い行・http/https でない行・作文URLを落とす", () => {
+		expect(
+			normalizeReferenceLinks([
+				{ title: "URLなし", url: null },
+				{ title: "JS", url: "javascript:alert(1)" },
+				{ title: "相対", url: "/wines/123" },
+				{ title: "空白", url: "  " },
+				{ title: "data", url: "data:text/plain,hi" },
+				"文字列だけ",
+				null,
+				42,
+			]),
+		).toEqual([]);
+	});
+
+	it("同じURLの重複を潰し、上限で切り捨てる", () => {
+		const input = Array.from({ length: 5 }, (_, i) => ({
+			title: `t${i}`,
+			url: i < 2 ? "https://example.com/dup" : `https://example.com/${i}`,
+		}));
+		const out = normalizeReferenceLinks(input);
+		expect(out).toHaveLength(LABEL_REFERENCE_LINKS_MAX);
+		expect(out.map((l) => l.url)).toEqual([
+			"https://example.com/dup",
+			"https://example.com/2",
+			"https://example.com/3",
+		]);
+	});
+
+	it("配列でなく単一オブジェクトでも受ける", () => {
+		expect(
+			normalizeReferenceLinks({ title: "t", url: "https://example.com/a" }),
+		).toEqual([{ url: "https://example.com/a", title: "t" }]);
+	});
+
+	it("決して throw しない", () => {
+		expect(normalizeReferenceLinks(undefined)).toEqual([]);
+		expect(normalizeReferenceLinks("https://example.com/a")).toEqual([]);
+	});
+});
+
+describe("normalizePrices", () => {
+	it("店名と金額を整え、URLは http/https だけ残す", () => {
+		expect(
+			normalizePrices([
+				{
+					source: " shop-a.com ",
+					amount_jpy: 2000,
+					url: "https://shop-a.com/w/1",
+				},
+				{ source: "shop-b", amount_jpy: "3,800円", url: "ftp://x/y" },
+				{ source: "shop-c", amount_jpy: null, url: null },
+			]),
+		).toEqual([
+			{
+				source: "shop-a.com",
+				amountJpy: 2000,
+				url: "https://shop-a.com/w/1",
+			},
+			{ source: "shop-b", amountJpy: 3800 },
+		]);
+	});
+
+	it("source が無い行・金額が読めない行を落とす", () => {
+		expect(
+			normalizePrices([
+				{ source: "", amount_jpy: 1000 },
+				{ source: "s", amount_jpy: 0 },
+				{ source: "s", amount_jpy: -500 },
+				{ source: "s", amount_jpy: "不明" },
+				{ source: "s", amount_jpy: 99_999_999_999 },
+				null,
+			]),
+		).toEqual([]);
+	});
+
+	it("同じ店・同じ金額の重複を潰し、上限で切り捨てる", () => {
+		const input = Array.from({ length: 5 }, (_, i) => ({
+			source: i === 0 ? "dup" : `s${i}`,
+			amount_jpy: i === 1 ? 1000 : 2000,
+			url: null,
+		}));
+		// i=0 と i=1 は別キー(dup|2000 vs s1|1000)。5件目は切り捨て。
+		const out = normalizePrices(input);
+		expect(out).toHaveLength(LABEL_PRICES_MAX);
+	});
+
+	it("決して throw しない", () => {
+		expect(normalizePrices(undefined)).toEqual([]);
+		expect(normalizePrices(42)).toEqual([]);
+	});
+});
+
+describe("参考サイト・価格の受け取り", () => {
+	it("parseLabelResponse が reference_links/prices を正規化して載せる", () => {
+		const parsed = parseLabelResponse({
+			wine_name: "Chablis",
+			producer: null,
+			vintage: 2020,
+			appellation: "Chablis",
+			region: "Bourgogne",
+			grape_varieties: [],
+			tasting_comment: null,
+			producer_comment: null,
+			reference_links: [
+				{ title: "t", url: "https://example.com/a" },
+				{ title: "bad", url: "javascript:alert(1)" },
+			],
+			prices: [{ source: "aaa.com", amount_jpy: 2000, url: null }],
+			sources: {},
+		});
+		expect(parsed.referenceLinks).toEqual([
+			{ url: "https://example.com/a", title: "t" },
+		]);
+		expect(parsed.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
+	});
+
+	it("書かれていなければ持たない(Workers AI 経路は常に undefined)", () => {
+		const parsed = parseLabelResponse({
+			wine_name: "Chablis",
+			producer: null,
+			vintage: null,
+			appellation: null,
+			region: null,
+			country: null,
+			grape_varieties: [],
+		});
+		expect(parsed.referenceLinks).toBeUndefined();
+		expect(parsed.prices).toBeUndefined();
+	});
+
+	it("形が崩れていても抽出結果は捨てない(付随情報の欠落に留める)", () => {
+		const parsed = parseLabelResponse({
+			wine_name: "Chablis",
+			producer: null,
+			vintage: null,
+			appellation: null,
+			region: null,
+			country: null,
+			grape_varieties: [],
+			reference_links: "https://example.com/a",
+			prices: [{ source: null, amount_jpy: null, url: null }],
+		});
+		expect(parsed.wineName).toBe("Chablis");
+		expect(parsed.referenceLinks).toBeUndefined();
+		expect(parsed.prices).toBeUndefined();
+	});
+
+	it("mergeExtractions は参考サイト・価格を和集合で束ねる", () => {
+		const merged = mergeExtractions([
+			extraction({
+				referenceLinks: [{ url: "https://example.com/a", title: "a" }],
+				prices: [{ source: "s", amountJpy: 1000 }],
+			}),
+			extraction({
+				referenceLinks: [
+					{ url: "https://example.com/a", title: "a2" },
+					{ url: "https://example.com/b" },
+				],
+				prices: [
+					{ source: "s", amountJpy: 1000 },
+					{ source: "s2", amountJpy: 2000 },
+				],
+			}),
+		]);
+		expect(merged.referenceLinks).toEqual([
+			{ url: "https://example.com/a", title: "a" },
+			{ url: "https://example.com/b" },
+		]);
+		expect(merged.prices).toEqual([
+			{ source: "s", amountJpy: 1000 },
+			{ source: "s2", amountJpy: 2000 },
+		]);
+	});
+
+	it("buildLabelSuggestions は参考サイト・価格を持ち回る(フォームには流し込まない)", () => {
+		const s = buildLabelSuggestions(
+			extraction({
+				wineName: "Chablis",
+				referenceLinks: [{ url: "https://example.com/a" }],
+				prices: [{ source: "aaa.com", amountJpy: 2000 }],
+			}),
+		);
+		expect(s.referenceLinks).toEqual([{ url: "https://example.com/a" }]);
+		expect(s.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
+	});
+
+	it("toLabelExtraction が空なら持たせない", () => {
+		const e = toLabelExtraction({
+			grape_varieties: [],
+			reference_links: [],
+			prices: [],
+		});
+		expect(e.referenceLinks).toBeUndefined();
+		expect(e.prices).toBeUndefined();
+	});
+});
+
+describe("参考サイト・価格のスキーマ配置", () => {
+	it("裏取り経路の指示文は reference_links/prices の出力を求める", () => {
+		for (const prompt of [buildWebLabelPrompt(), buildAgentLabelPrompt()]) {
+			expect(prompt).toContain("reference_links");
+			expect(prompt).toContain("prices");
+			expect(prompt).toContain("創作しない");
+		}
+	});
+
+	it("Workers AI 経路の指示文・スキーマには載せない(裏取りが無く創作になる)", () => {
+		expect(LABEL_PROMPT).not.toContain("reference_links");
+		expect(LABEL_JSON_SCHEMA.properties).not.toHaveProperty("reference_links");
+		expect(LABEL_JSON_SCHEMA.properties).not.toHaveProperty("prices");
+		expect(LABEL_WEB_JSON_SCHEMA.properties).toHaveProperty("reference_links");
+		expect(LABEL_WEB_JSON_SCHEMA.properties).toHaveProperty("prices");
+		expect(LABEL_WEB_JSON_SCHEMA.required).toContain("reference_links");
+		expect(LABEL_WEB_JSON_SCHEMA.required).toContain("prices");
+	});
+});
+
+describe("Langfuse 管理下のプロンプトとの一致(IMPL-3 W3-2)", () => {
+	// 本文のSSOTは Langfuse 側だが、取得に失敗した回はコードの fallback で動く。
+	// fallback がコードのビルダーと食い違うと「Langfuse が落ちたときだけ違う指示文」
+	// になるので、変数を埋めた fallback がビルダー出力と一致することを固定する。
+	it("label-web-research の fallback は buildWebLabelPrompt と一致する", () => {
+		expect(
+			compileFallbackTemplate(LABEL_WEB_RESEARCH_PROMPT.template, {
+				known_lists: buildKnownListsSection(),
+			}),
+		).toBe(buildWebLabelPrompt());
+	});
+
+	it("label-agent-research の fallback は buildAgentLabelPrompt と一致する", () => {
+		expect(
+			compileFallbackTemplate(LABEL_AGENT_RESEARCH_PROMPT.template, {
+				known_grapes: buildKnownGrapesSection(),
+			}),
+		).toBe(buildAgentLabelPrompt());
 	});
 });

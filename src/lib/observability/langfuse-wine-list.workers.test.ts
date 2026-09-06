@@ -8,6 +8,7 @@ import {
 } from "#/lib/services/ai-service";
 import { beginMeteredInference } from "#/lib/services/metered-inference";
 import { __resetLangfuseForTests } from "./langfuse";
+import { __resetLangfusePromptForTests } from "./langfuse-prompt";
 
 // 一括抽出(wine_list_analysis)の Langfuse 計装を workerd 上で検証する(#515)。
 // これで3機能(region_qa / label_analysis / wine_list_analysis)すべてが
@@ -71,6 +72,15 @@ function isLangfuseCall(c: FetchCall): boolean {
 	return (
 		c.url.includes("langfuse") || c.url.includes("/api/public/otel/v1/traces")
 	);
+}
+/**
+ * Langfuse 管理下のプロンプト取得は 404 で落とす(IMPL-3 W3-2)。
+ * ai-service は推論の実行直前に `getManagedPrompt` で本文を引くが、計装テストの
+ * 焦点は OTLP の generation / span にある。SDK が fallback 本文へ倒すので、
+ * プロンプト未登録の環境と同じ挙動になる。
+ */
+function isPromptFetch(url: string): boolean {
+	return url.includes("/api/public/v2/prompts/");
 }
 
 function parseOtlpSpans(body: string): Array<Record<string, unknown>> {
@@ -195,6 +205,7 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 		delete (env as unknown as { AI?: unknown }).AI;
 		setLangfuseKeys(undefined, undefined);
 		__resetLangfuseForTests();
+		__resetLangfusePromptForTests();
 	});
 
 	it("GPT経路がgenerationを報告し、写真インベントリがメタデータに載る", async () => {
@@ -205,6 +216,9 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 			"fetch",
 			async (input: RequestInfo | URL, init?: RequestInit) => {
 				const url = String(input);
+				if (isPromptFetch(url)) {
+					return new Response("{}", { status: 404 });
+				}
 				if (isLangfuseCall({ url, body: "" })) {
 					calls.push({ url, body: bodyToString(init?.body) });
 					return new Response("{}", { status: 200 });
@@ -283,6 +297,9 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 			"fetch",
 			async (input: RequestInfo | URL, init?: RequestInit) => {
 				const url = String(input);
+				if (isPromptFetch(url)) {
+					return new Response("{}", { status: 404 });
+				}
 				if (isLangfuseCall({ url, body: "" })) {
 					calls.push({ url, body: bodyToString(init?.body) });
 					return new Response("{}", { status: 200 });

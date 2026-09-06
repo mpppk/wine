@@ -754,6 +754,50 @@ describe("エチケット解析のGPT-5.6 Luna経路", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
 	});
 
+	it("参考サイト・価格(IMPL-3): エージェントの指示がモデルへ届き、結果が候補に載る", async () => {
+		// 一括抽出の Claude 経路テストと同じく、見たいのは指示文の配線と
+		// 応答から候補への持ち回り。検証器が引用を落としても「最後の回答」を
+		// 候補にするので、suggestions への到達は変わらない。
+		const userId = await seedPremiumUser();
+		const requests: string[] = [];
+		stubOpenAiCapturing(requests, () =>
+			openaiSubmitAnswerResponse(
+				{
+					wine_name: "Chablis Les Clos",
+					producer: "Vincent Dauvissat",
+					vintage: 2020,
+					appellation: "Chablis Grand Cru",
+					region: "Bourgogne",
+					grape_varieties: ["Chardonnay"],
+					reference_links: [
+						{ title: "Dauvissat", url: "https://example.com/dauvissat" },
+					],
+					prices: [{ source: "aaa.com", amount_jpy: 2000, url: null }],
+					sources: {},
+				},
+				{ input_tokens: 1300, output_tokens: 200 },
+				0,
+			),
+		);
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await runLabelViaJob(userId, {
+			imageDataUrls: [PHOTO],
+		});
+
+		expect(result).toMatchObject({ blocked: false });
+		if (result.blocked) throw new Error("unreachable");
+		expect(requests.length).toBeGreaterThan(0);
+		expect(requests[0]).toContain("reference_links");
+		expect(requests[0]).toContain("prices");
+		expect(result.suggestions.referenceLinks).toEqual([
+			{ url: "https://example.com/dauvissat", title: "Dauvissat" },
+		]);
+		expect(result.suggestions.prices).toEqual([
+			{ source: "aaa.com", amountJpy: 2000 },
+		]);
+	});
+
 	it("GPT経路が失敗したら Workers AI へフォールバックして完了する", async () => {
 		const userId = await seedPremiumUser();
 		// 400 はSDKがリトライしない失敗。経路ごと諦めてフォールバックさせる
@@ -1041,6 +1085,60 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		const rows = await ledgerRowsOf(userId);
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
+	});
+
+	it("参考サイト・価格(IMPL-3): 管理下プロンプトの指示がモデルへ届き、結果が候補に載る", async () => {
+		// Langfuse の鍵が無いテスト環境ではコードの fallback 本文で動く。
+		// 見たいのは「解決済みプロンプトの本文がリクエストに載る」配線と、
+		// 応答の reference_links/prices が候補まで届くこと。
+		const userId = await seedPremiumUser();
+		const requests: string[] = [];
+		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
+			"sk-ant-test";
+		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+			requests.push(typeof init?.body === "string" ? init.body : "");
+			return anthropicMessage(
+				{
+					wines: [
+						wineJson({
+							wine_name: "Chablis Les Clos",
+							producer: "Vincent Dauvissat",
+							vintage: 2020,
+							appellation: "Chablis Grand Cru",
+							photo_indexes: [0],
+							reference_links: [
+								{ title: "Dauvissat", url: "https://example.com/dauvissat" },
+								{ title: "bad", url: "javascript:alert(1)" },
+							],
+							prices: [
+								{ source: "aaa.com", amount_jpy: 2000, url: null },
+								{ source: "", amount_jpy: 1000, url: null },
+							],
+						}),
+					],
+					truncated: false,
+				},
+				{ input_tokens: 3000, output_tokens: 500 },
+			);
+		});
+
+		const result = await runWineListViaJob(userId, {
+			imageDataUrls: [PHOTO],
+		});
+
+		expect(result).toMatchObject({ blocked: false });
+		if (result.blocked) throw new Error("unreachable");
+		// 送った指示文に reference_links/prices の出力定義が載っている
+		expect(requests).toHaveLength(1);
+		expect(requests[0]).toContain("reference_links");
+		expect(requests[0]).toContain("prices");
+		// 不正URL・空source の行は落として候補に載る
+		expect(result.candidates[0]?.referenceLinks).toEqual([
+			{ url: "https://example.com/dauvissat", title: "Dauvissat" },
+		]);
+		expect(result.candidates[0]?.prices).toEqual([
+			{ source: "aaa.com", amountJpy: 2000 },
+		]);
 	});
 
 	it("OPENAI_API_KEY だけの環境では GPT 経路で解析し、Luna の単価で確定する", async () => {

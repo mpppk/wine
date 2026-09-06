@@ -1,5 +1,9 @@
 import { useState } from "react";
 import type { LabelDiffItem } from "#/components/cellar/label-suggestion-diff";
+import {
+	PriceList,
+	ReferenceLinksList,
+} from "#/components/cellar/ReferenceLinksList";
 import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
 import {
@@ -10,6 +14,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import type { LabelPrice, LabelReferenceLink } from "#/lib/ai/label-extraction";
 
 export interface LabelSuggestionDiffDialogProps {
 	open: boolean;
@@ -17,6 +22,15 @@ export interface LabelSuggestionDiffDialogProps {
 	/** チェックされた項目のpatchをマージして反映する */
 	onApply: (selected: LabelDiffItem[]) => void;
 	onOpenChange: (open: boolean) => void;
+	/**
+	 * 解析結果の参考サイト・価格(IMPL-3)。**選択対象ではなく参考表示**——
+	 * フォーム項目では無いので差分には載せず、カードの展開部と同じ
+	 * 共通コンポーネントで一覧の下に出す。
+	 */
+	references?: {
+		referenceLinks?: LabelReferenceLink[];
+		prices?: LabelPrice[];
+	};
 }
 
 /**
@@ -30,6 +44,7 @@ export function LabelSuggestionDiffDialog({
 	diffs,
 	onApply,
 	onOpenChange,
+	references,
 }: LabelSuggestionDiffDialogProps) {
 	// key は "region" 等の固定文字列なので Set<LabelDiffItem["key"]> で足りる。
 	// diffs は open=false のまま維持される(Dialogがアンマウントされない)ため、
@@ -83,6 +98,12 @@ export function LabelSuggestionDiffDialog({
 						</li>
 					))}
 				</ul>
+				{(references?.referenceLinks?.length ?? 0) > 0 && (
+					<ReferenceLinksList links={references?.referenceLinks ?? []} />
+				)}
+				{(references?.prices?.length ?? 0) > 0 && (
+					<PriceList prices={references?.prices ?? []} />
+				)}
 				<DialogFooter className="sm:flex-col-reverse sm:gap-2">
 					<Button
 						type="button"

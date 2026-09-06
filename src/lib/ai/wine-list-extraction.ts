@@ -8,10 +8,15 @@ import {
 	buildKnownListsSection,
 	buildLabelSuggestions,
 	extractJsonPayload,
+	LABEL_PRICES_MAX,
+	LABEL_REFERENCE_LINKS_MAX,
 	type LabelExtraction,
+	type LabelPrice,
+	type LabelReferenceLink,
 	type LabelSuggestions,
 	labelCommentShape,
 	labelExtractionShape,
+	labelReferenceShape,
 	matchAop,
 	normalizeLabelText,
 	parseImageDataUrl,
@@ -130,6 +135,9 @@ const wineListItemSchema = z.object({
 	...labelExtractionShape,
 	// コメント(#493)。揺れの吸収はエチケット解析と共有する(labelCommentShape)
 	...labelCommentShape,
+	// 参考サイト・価格一覧(IMPL-3)。揺れの吸収・正規化はエチケット解析と共有する
+	// (labelReferenceShape / toLabelExtraction)。ここで書き直さない。
+	...labelReferenceShape,
 	/** リスト記載の価格。数値化できなければ null。 */
 	price: z
 		.union([z.number(), z.string()])
@@ -231,8 +239,15 @@ export interface WineListParseResult {
  *
  * 写真番号は buildWineListMessages が画像の直前に "写真 N" のテキストブロックを
  * 挟むことで対応づける。
+ *
+ * マスタの一覧は引数で差し替え可能にする。ai-service は Langfuse 管理下の版
+ * (`WINE_LIST_RESEARCH_PROMPT`)を `getManagedPrompt` で引いた本文をそのまま使うが、
+ * メッセージ組み立て側で差し替えるため、ここでは変数値の組み立て直し用に残す。
  */
-export function buildWineListPrompt(photoCount: number): string {
+export function buildWineListPrompt(
+	photoCount: number,
+	knownLists: string = buildKnownListsSection(),
+): string {
 	return [
 		"これは飲食店のワインリスト、ワインショップの陳列・棚・ポップ、または1本のワインのボトル・エチケット(ラベル)を撮影した写真です",
 		`(全${photoCount}枚。各写真の直前に「写真 N」と番号を記載しています)。`,
@@ -261,6 +276,10 @@ export function buildWineListPrompt(photoCount: number): string {
 		'     - "tasting_comment": 香り・味わいの日本語コメント。**1〜2文で簡潔に**。web検索で見つかった評価・販売ページの説明に現れる表現を踏まえ、',
 		"       複数の評価に共通する特徴を自分の言葉でまとめる。特定のページの文章をそのまま引き写さない。見つからなければ null(推測で書かない)",
 		'     - "producer_comment": 生産者についての日本語コメント。**1文で簡潔に**。確認できなければ null',
+		'     - "reference_links": 裏取りに使ったページの一覧(1銘柄あたり最大3件)。各要素は { "title": ページのタイトル(原語のまま。分からなければ null), "url": 実際に開いたページのURL }。',
+		"       実際に開いていないURLを書かない。参考にしたページが無ければ空配列",
+		'     - "prices": このワインの販売価格の一覧(1銘柄あたり最大3件)。各要素は { "source": 店・サイト名(例: ドメイン名), "amount_jpy": 日本円の整数, "url": 価格を見たページのURL(無ければ null) }。',
+		"       日本円で表示されていたものだけを入れる(外貨は換算せず、amount_jpy を null にする)。見つからなければ空配列",
 		'   - "subject": 写真群の被写体。**すべての写真が同じ1本のワインだけを写している**場合(ボトル単体・エチケット・裏ラベル・箱・ネックタグのクローズアップなど)は "single_wine"、飲食店のワインリスト・ショップの陳列や棚・複数の銘柄が写っている場合は "wine_list"',
 		'   - "truncated": 列挙しきれなかった銘柄が残っている場合は true、すべて列挙できたなら false',
 		'6. subject の判定は迷ったら "wine_list" にする。1本のワインだと確信できる場合にだけ "single_wine" にする。',
@@ -269,7 +288,7 @@ export function buildWineListPrompt(photoCount: number): string {
 		"9. 写真は銘柄ごとに1枚を用意する。手元の写真で足りるなら bottle_photo_index を優先し、無い銘柄だけ image_url を探す(検索は銘柄をまとめて調べてよい)。",
 		"10. JSONの前後に説明文・コードフェンスを書かない。",
 		"",
-		buildKnownListsSection(),
+		knownLists,
 	].join("\n");
 }
 
@@ -280,12 +299,15 @@ export function buildWineListPrompt(photoCount: number): string {
  *
  * data URI であることの強制は parseImageDataUrl が兼ねる(HTTP URL を渡させない
  * 境界。エチケット解析の高精度経路と同じ)。
+ *
+ * 指示文は差し替え可能にする(`buildWebLabelMessages` の promptText と同じ理由)。
  */
 export function buildWineListMessages(
 	imageDataUrls: string[],
+	promptText: string = buildWineListPrompt(imageDataUrls.length),
 ): Anthropic.MessageParam[] {
 	const content: Anthropic.ContentBlockParam[] = [
-		{ type: "text", text: buildWineListPrompt(imageDataUrls.length) },
+		{ type: "text", text: promptText },
 	];
 	for (const [index, dataUrl] of imageDataUrls.entries()) {
 		const { mediaType, data } = parseImageDataUrl(dataUrl);
@@ -575,6 +597,41 @@ function registerKeys<T>(
 	if (keys.loose && !looseMap.has(keys.loose)) looseMap.set(keys.loose, value);
 }
 
+/** 2つの参考サイト一覧をURLで重複を潰しながら束ね、上限で切り捨てる。 */
+function unionCappedReferences(
+	base: LabelReferenceLink[] | undefined,
+	added: LabelReferenceLink[] | undefined,
+): LabelReferenceLink[] | undefined {
+	if (!base?.length && !added?.length) return undefined;
+	const out = [...(base ?? [])];
+	const seen = new Set(out.map((l) => l.url));
+	for (const link of added ?? []) {
+		if (seen.has(link.url)) continue;
+		seen.add(link.url);
+		out.push(link);
+		if (out.length >= LABEL_REFERENCE_LINKS_MAX) break;
+	}
+	return out.length > 0 ? out : undefined;
+}
+
+/** 2つの価格一覧を店+金額で重複を潰しながら束ね、上限で切り捨てる。 */
+function unionCappedPrices(
+	base: LabelPrice[] | undefined,
+	added: LabelPrice[] | undefined,
+): LabelPrice[] | undefined {
+	if (!base?.length && !added?.length) return undefined;
+	const out = [...(base ?? [])];
+	const seen = new Set(out.map((p) => `${p.source}|${p.amountJpy ?? ""}`));
+	for (const price of added ?? []) {
+		const key = `${price.source}|${price.amountJpy ?? ""}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(price);
+		if (out.length >= LABEL_PRICES_MAX) break;
+	}
+	return out.length > 0 ? out : undefined;
+}
+
 export interface DedupeResult {
 	items: WineListItem[];
 	/** 統合によって減った件数(= 重複として畳まれた件数)。サマリ表示に使う。 */
@@ -617,6 +674,14 @@ export function dedupeWineListItems(items: WineListItem[]): DedupeResult {
 		// 書けなかった回を拾う。
 		existing.tastingComment ??= item.tastingComment;
 		existing.producerComment ??= item.producerComment;
+		// 参考サイト・価格(IMPL-3)も先勝ちで束ねる。同じ銘柄が複数の写真に写っていて、
+		// 片方でしか書けなかった回を拾う。上限は toLabelExtraction 側で切ってあるが、
+		// 統合で増えるぶんはここで切り直す。
+		existing.referenceLinks = unionCappedReferences(
+			existing.referenceLinks,
+			item.referenceLinks,
+		);
+		existing.prices = unionCappedPrices(existing.prices, item.prices);
 		// 写真の手当て(#473)も先勝ちで埋める。同じ銘柄が複数の写真に写っていて、
 		// 片方だけがボトル単体のクローズアップというケースを拾う。
 		existing.bottlePhotoIndex ??= item.bottlePhotoIndex;
@@ -653,6 +718,14 @@ export interface WineListCandidate {
 	/** この銘柄が写っていた写真の番号(0始まり)。 */
 	photoIndexes: number[];
 	/**
+	 * 参考サイトの一覧(IMPL-3)。カードの展開部で表示する。フォームへは流し込まない。
+	 */
+	referenceLinks?: LabelReferenceLink[];
+	/**
+	 * 複数ソースの価格一覧(IMPL-3)。同上。
+	 */
+	prices?: LabelPrice[];
+	/**
 	 * 銘柄の写真に使う「適切な写真」の番号(#473)。バッチ写真の中でその1本だけを
 	 * 写しているもの。無ければ undefined。
 	 */
@@ -684,6 +757,13 @@ export function buildWineListCandidates(
 		suggestions: buildLabelSuggestions(item),
 		price: item.price,
 		photoIndexes: item.photoIndexes,
+		// 参考サイト・価格(IMPL-3)はフォームへ流し込まず、カードの表示用に持ち回る。
+		// suggestions 側にも同値が載っている(buildLabelSuggestions が通す)が、
+		// カードは候補直下を読む(フォーム由来の値と混ざらないため)。
+		...(item.referenceLinks?.length
+			? { referenceLinks: item.referenceLinks }
+			: {}),
+		...(item.prices?.length ? { prices: item.prices } : {}),
 		...(item.bottlePhotoIndex !== undefined
 			? { bottlePhotoIndex: item.bottlePhotoIndex }
 			: {}),

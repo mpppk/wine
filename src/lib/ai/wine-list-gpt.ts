@@ -3,7 +3,10 @@ import type { AiUsage } from "#/lib/billing/ai-pricing";
 import { BadRequestError } from "#/lib/errors";
 import {
 	LABEL_JSON_SCHEMA,
+	LABEL_REFERENCE_JSON_PROPERTIES,
+	LABEL_REFERENCE_KEYS,
 	type LabelFieldKey,
+	type LabelReferenceKey,
 	parseImageDataUrl,
 } from "./label-extraction";
 import {
@@ -59,6 +62,8 @@ const WINE_LIST_ITEM_SCHEMA = {
 		},
 		...WINE_LIST_PHOTO_JSON_PROPERTIES,
 		...WINE_LIST_COMMENT_JSON_PROPERTIES,
+		// 参考サイト・価格一覧(IMPL-3)。エチケット解析の高精度スキーマと共有する。
+		...LABEL_REFERENCE_JSON_PROPERTIES,
 	},
 	required: [
 		...LABEL_JSON_SCHEMA.required,
@@ -66,6 +71,7 @@ const WINE_LIST_ITEM_SCHEMA = {
 		"photo_indexes",
 		...WINE_LIST_PHOTO_KEYS,
 		...WINE_LIST_COMMENT_KEYS,
+		...LABEL_REFERENCE_KEYS,
 	],
 	additionalProperties: false,
 } as const satisfies {
@@ -77,6 +83,7 @@ const WINE_LIST_ITEM_SCHEMA = {
 		| "photo_indexes"
 		| WineListPhotoKey
 		| WineListCommentKey
+		| LabelReferenceKey
 	)[];
 	additionalProperties: false;
 };
@@ -118,12 +125,15 @@ export const WINE_LIST_JSON_SCHEMA = {
  * data URI であることの強制は parseImageDataUrl が兼ねる(image_url には HTTP URL も
  * 渡せてしまうため。エチケット解析の GPT 経路と同じ境界)。detail は "auto" に任せる
  * (クライアントが長辺1600pxへ縮小済み)。
+ *
+ * 指示文は差し替え可能にする(`buildWebLabelMessages` の promptText と同じ理由)。
  */
 export function buildWineListGptInput(
 	imageDataUrls: string[],
+	promptText: string = buildWineListPrompt(imageDataUrls.length),
 ): OpenAI.Responses.ResponseInput {
 	const content: OpenAI.Responses.ResponseInputMessageContentList = [
-		{ type: "input_text", text: buildWineListPrompt(imageDataUrls.length) },
+		{ type: "input_text", text: promptText },
 	];
 	for (const [index, dataUrl] of imageDataUrls.entries()) {
 		// 戻り値は使わないが、data URI でなければここで throw する(境界の強制)

@@ -11,6 +11,11 @@ import {
 	resolveWineListRoute,
 	WINE_LIST_ROUTE_KEYS,
 } from "./config";
+import { buildKnownListsSection } from "./label-extraction";
+import {
+	compileFallbackTemplate,
+	WINE_LIST_RESEARCH_PROMPT,
+} from "./managed-prompts";
 import {
 	buildWineListCandidates,
 	buildWineListMessages,
@@ -387,6 +392,31 @@ describe("buildWineListCandidates", () => {
 		expect(candidate?.suggestions.grapeVarietyIds).toEqual(["chardonnay"]);
 		expect(candidate?.price).toBe(12000);
 		expect(candidate?.photoIndexes).toEqual([1]);
+	});
+
+	it("参考サイト・価格を持ち回る(空なら持たない)", () => {
+		const [withRefs] = buildWineListCandidates([
+			item({
+				wineName: "Chablis",
+				photoIndexes: [0],
+				referenceLinks: [{ url: "https://example.com/a", title: "t" }],
+				prices: [{ source: "aaa.com", amountJpy: 2000 }],
+			}),
+		]);
+		expect(withRefs?.referenceLinks).toEqual([
+			{ url: "https://example.com/a", title: "t" },
+		]);
+		expect(withRefs?.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
+		expect(withRefs?.suggestions.referenceLinks).toEqual(
+			withRefs?.referenceLinks,
+		);
+		expect(withRefs?.suggestions.prices).toEqual(withRefs?.prices);
+
+		const [withoutRefs] = buildWineListCandidates([
+			item({ wineName: "Chablis", photoIndexes: [0] }),
+		]);
+		expect(withoutRefs?.referenceLinks).toBeUndefined();
+		expect(withoutRefs?.prices).toBeUndefined();
 	});
 });
 
@@ -948,5 +978,108 @@ describe("一括抽出のコメント", () => {
 		// 80銘柄ぶん積むと出力上限に触れるので、短く保たせるのが歯止め
 		expect(prompt).toContain("1〜2文");
 		expect(prompt).toContain("引き写さない");
+	});
+});
+
+// ---- 銘柄ごとの参考サイト・価格(IMPL-3) --------------------------------------
+// コメントと同じく「付随情報は throw しない」: 形が崩れていても銘柄は落とさない。
+
+describe("一括抽出の参考サイト・価格", () => {
+	it("銘柄ごとに参考サイトと価格を取り出す", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({
+						wine_name: "Barolo",
+						reference_links: [
+							{ title: "Producer", url: "https://example.com/p" },
+							{ title: "bad", url: "javascript:alert(1)" },
+						],
+						prices: [
+							{ source: "aaa.com", amount_jpy: 2000, url: null },
+							{ source: "", amount_jpy: 1000, url: null },
+						],
+					}),
+				],
+			}),
+			1,
+		);
+		expect(wines[0]?.referenceLinks).toEqual([
+			{ url: "https://example.com/p", title: "Producer" },
+		]);
+		expect(wines[0]?.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
+	});
+
+	it("書かれていなければ持たない(旧形式の応答も従来どおりパースできる)", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({ wines: [wineJson({ wine_name: "Barolo" })] }),
+			1,
+		);
+		expect(wines[0]?.referenceLinks).toBeUndefined();
+		expect(wines[0]?.prices).toBeUndefined();
+	});
+
+	it("形が壊れていても銘柄は落とさない", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({
+						wine_name: "Barolo",
+						reference_links: "https://example.com/a",
+						prices: 42,
+					}),
+				],
+			}),
+			1,
+		);
+		expect(wines).toHaveLength(1);
+		expect(wines[0]?.wineName).toBe("Barolo");
+		expect(wines[0]?.referenceLinks).toBeUndefined();
+		expect(wines[0]?.prices).toBeUndefined();
+	});
+
+	it("重複統合では参考サイト・価格も先勝ちで束ねる", () => {
+		const { items } = dedupeWineListItems([
+			item({
+				wineName: "Barolo",
+				producer: "X",
+				referenceLinks: [{ url: "https://example.com/a" }],
+			}),
+			item({
+				wineName: "Barolo",
+				producer: "X",
+				referenceLinks: [
+					{ url: "https://example.com/a" },
+					{ url: "https://example.com/b" },
+				],
+				prices: [{ source: "aaa.com", amountJpy: 2000 }],
+			}),
+		]);
+		expect(items).toHaveLength(1);
+		expect(items[0]?.referenceLinks).toEqual([
+			{ url: "https://example.com/a" },
+			{ url: "https://example.com/b" },
+		]);
+		expect(items[0]?.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
+	});
+
+	it("指示文は reference_links/prices を求め、創作を禁じる", () => {
+		const prompt = buildWineListPrompt(2);
+		expect(prompt).toContain("reference_links");
+		expect(prompt).toContain("prices");
+		expect(prompt).toContain("実際に開いていないURLを書かない");
+	});
+
+	it("wine-list-research の fallback は buildWineListPrompt と一致する", () => {
+		// 本文のSSOTは Langfuse 側。fallback とコードの食い違いは
+		// 「Langfuse が落ちたときだけ違う指示文」になるので固定する。
+		for (const photoCount of [1, 3]) {
+			expect(
+				compileFallbackTemplate(WINE_LIST_RESEARCH_PROMPT.template, {
+					known_lists: buildKnownListsSection(),
+					photo_count: String(photoCount),
+				}),
+			).toBe(buildWineListPrompt(photoCount));
+		}
 	});
 });

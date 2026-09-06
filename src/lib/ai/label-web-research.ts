@@ -19,12 +19,16 @@ import { buildWebLabelPrompt, parseImageDataUrl } from "./label-extraction";
  * 指示文 + 全エチケット画像を1つのユーザーメッセージに組み立てる。
  * Workers AI 経路と異なり1リクエストに全photoを載せる(Claude は複数画像の
  * 突き合わせが安定しており、表ラベルの呼称と裏ラベルの品種を統合できる)。
+ *
+ * 指示文は差し替え可能にする。ai-service は Langfuse 管理下の版
+ * (`LABEL_WEB_RESEARCH_PROMPT`)を引いた本文を渡し、省略時はコードの版を使う。
  */
 export function buildWebLabelMessages(
 	imageDataUrls: string[],
+	promptText: string = buildWebLabelPrompt(),
 ): Anthropic.MessageParam[] {
 	const content: Anthropic.ContentBlockParam[] = [
-		{ type: "text", text: buildWebLabelPrompt() },
+		{ type: "text", text: promptText },
 	];
 	for (const dataUrl of imageDataUrls) {
 		const { mediaType, data } = parseImageDataUrl(dataUrl);

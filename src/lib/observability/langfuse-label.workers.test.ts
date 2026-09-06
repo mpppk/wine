@@ -9,6 +9,7 @@ import {
 } from "#/lib/services/ai-service";
 import { beginMeteredInference } from "#/lib/services/metered-inference";
 import { __resetLangfuseForTests } from "./langfuse";
+import { __resetLangfusePromptForTests } from "./langfuse-prompt";
 
 // エチケット解析の Langfuse 計装を workerd 上で検証する(#514)。
 // 主眼は**フォールバックの可視化**: 高精度経路が失敗して Workers AI へ降格した回に、
@@ -82,6 +83,15 @@ function isLangfuseCall(c: FetchCall): boolean {
 		c.url.includes("langfuse") || c.url.includes("/api/public/otel/v1/traces")
 	);
 }
+/**
+ * Langfuse 管理下のプロンプト取得は 404 で落とす(IMPL-3 W3-2)。
+ * ai-service は推論の実行直前に `getManagedPrompt` で本文を引くが、計装テストの
+ * 焦点は OTLP の generation / span にある。SDK が fallback 本文へ倒すので、
+ * プロンプト未登録の環境と同じ挙動になる。
+ */
+function isPromptFetch(url: string): boolean {
+	return url.includes("/api/public/v2/prompts/");
+}
 
 function parseOtlpSpans(body: string): Array<Record<string, unknown>> {
 	const parsed = JSON.parse(body) as Record<string, unknown>;
@@ -132,6 +142,9 @@ function stubOpenAiIncompleteAndCapture(calls: FetchCall[]): void {
 		"fetch",
 		async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url = String(input);
+			if (isPromptFetch(url)) {
+				return new Response("{}", { status: 404 });
+			}
 			if (isLangfuseCall({ url, body: "" })) {
 				calls.push({ url, body: bodyToString(init?.body) });
 				return new Response("{}", { status: 200 });
@@ -168,6 +181,9 @@ function stubOpenAiSubmitAndCapture(
 		"fetch",
 		async (input: RequestInfo | URL, init?: RequestInit) => {
 			const url = String(input);
+			if (isPromptFetch(url)) {
+				return new Response("{}", { status: 404 });
+			}
 			if (isLangfuseCall({ url, body: "" })) {
 				calls.push({ url, body: bodyToString(init?.body) });
 				return new Response("{}", { status: 200 });
@@ -213,6 +229,7 @@ describe("エチケット解析の Langfuse 計装 (#514)", () => {
 		delete (env as unknown as { AI?: unknown }).AI;
 		setLangfuseKeys(undefined, undefined);
 		__resetLangfuseForTests();
+		__resetLangfusePromptForTests();
 	});
 
 	it("フォールバックした回に高精度経路のgenerationとWorkers AIのgenerationが同じtraceに並ぶ", async () => {

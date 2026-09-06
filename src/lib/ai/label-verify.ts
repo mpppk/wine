@@ -81,6 +81,9 @@ function tracedHosts(trace: WebResearchTrace | undefined): Set<string> {
  *    ホストのURLを引いているか。**検索していないのに web を名乗る**、
  *    **見ていないサイトを引用する**を捕まえる。#455 で観測した「誤答＋それらしいURL」に
  *    直接効く検査で、モデルの内省では代替できない(こちらしか軌跡を持っていない)。
+ * 4. **参考サイト・価格の引用** — `reference_links` / `prices[].url` も実際に
+ *    検索・閲覧したホストでなければ、開いていないページの引用(作文URL)として落とす。
+ *    書いていないこと自体は問題にしない(3 と同じく「名乗ったときだけ裏付けを求める」)。
  */
 export function verifyLabelAnswer(
 	extraction: LabelExtraction,
@@ -148,6 +151,41 @@ export function verifyLabelAnswer(
 			problems.push({
 				field,
 				message: `${field} の参照URL "${source.url}" は今回の検索で開いていないサイトです。実際に参照したページのURLだけを書いてください(URLを創作しない)。`,
+			});
+		}
+	}
+
+	// 参考サイト・価格の引用(IMPL-3)。fields と同じく「開いていないサイトの引用」を
+	// 捕まえる。URLが無い価格は対象外(金額だけの記載は正当)。
+	const cited: { field: string; url: string }[] = [
+		...(extraction.referenceLinks ?? []).map((l, i) => ({
+			field: `reference_links[${i}]`,
+			url: l.url,
+		})),
+		...(extraction.prices ?? [])
+			.filter((p) => p.url != null)
+			.map((p, i) => ({ field: `prices[${i}]`, url: p.url as string })),
+	];
+	for (const { field, url } of cited) {
+		const host = toHost(url);
+		if (!host) {
+			problems.push({
+				field,
+				message: `${field} の参照URL "${url}" はURLとして解釈できません。実際に参照したページのURLを書いてください。`,
+			});
+			continue;
+		}
+		if (hosts.size === 0) {
+			problems.push({
+				field,
+				message: `${field} でURLを引用していますが、web検索を実行していません。web_search で裏を取るか、引用を外してください。`,
+			});
+			continue;
+		}
+		if (!hosts.has(host)) {
+			problems.push({
+				field,
+				message: `${field} の参照URL "${url}" は今回の検索で開いていないサイトです。実際に参照したページのURLだけを書いてください(URLを創作しない)。`,
 			});
 		}
 	}

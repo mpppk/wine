@@ -201,6 +201,73 @@ describe("verifyLabelAnswer", () => {
 		});
 	});
 
+	describe("参考サイト・価格の引用(IMPL-3)", () => {
+		it("実際に参照したサイトの参考リンク・価格URLは通る", () => {
+			const result = verifyLabelAnswer(
+				{
+					...base,
+					referenceLinks: [
+						{ url: "https://www.vivino.com/dauvissat", title: "Vivino" },
+					],
+					prices: [
+						{ source: "vivino", amountJpy: 3000, url: "https://example.com/y" },
+						{ source: "店頭", amountJpy: 2800 },
+					],
+				},
+				{ trace },
+			);
+			expect(result).toEqual({ ok: true, problems: [] });
+		});
+
+		it("開いていないサイトの参考リンクを落とす(URLの創作)", () => {
+			const result = verifyLabelAnswer(
+				{
+					...base,
+					referenceLinks: [{ url: "https://wine-searcher.com/never-visited" }],
+				},
+				{ trace },
+			);
+			expect(result.ok).toBe(false);
+			expect(result.problems[0]?.field).toBe("reference_links[0]");
+			expect(result.problems[0]?.message).toContain("開いていないサイト");
+		});
+
+		it("開いていないサイトの価格URLを落とす", () => {
+			const result = verifyLabelAnswer(
+				{
+					...base,
+					prices: [
+						{ source: "s", amountJpy: 1000, url: "https://nowhere.example/a" },
+					],
+				},
+				{ trace },
+			);
+			expect(result.ok).toBe(false);
+			expect(result.problems[0]?.field).toBe("prices[0]");
+		});
+
+		it("検索していないのにURLを引用した回答を落とす", () => {
+			const result = verifyLabelAnswer(
+				{
+					...base,
+					referenceLinks: [{ url: "https://example.com/a" }],
+				},
+				{ trace: { steps: [], stepCount: 0, hosts: [] } },
+			);
+			expect(result.ok).toBe(false);
+			expect(result.problems[0]?.message).toContain(
+				"web検索を実行していません",
+			);
+		});
+
+		it("書いていないこと自体は問題にしない", () => {
+			expect(verifyLabelAnswer({ ...base }, { trace })).toEqual({
+				ok: true,
+				problems: [],
+			});
+		});
+	});
+
 	it("問題は複数まとめて返す(1ターンで全部直させる)", () => {
 		const result = verifyLabelAnswer(
 			{
