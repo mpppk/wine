@@ -109,3 +109,11 @@ for TypeScript in `src/env-secrets.d.ts`. If `BETTER_AUTH_SECRET` is missing, Be
 back to a built-in default and, with `NODE_ENV=production`, fails fast at startup.
 
 For local OAuth/MCP verification, also set `BETTER_AUTH_URL=http://localhost:3000` in `.dev.vars` (see `.dev.vars.example`).
+
+## ライセンス
+
+このリポジトリの成果物は [PolyForm Noncommercial License 1.0.0](./LICENSE.md) の下で提供されます（SPDX: `PolyForm-Noncommercial-1.0.0`、原文: <https://polyformproject.org/licenses/noncommercial/1.0.0>）。
+
+- 非商用の利用（個人の学習・研究・趣味、非営利団体・教育機関・公的機関による利用等）に限り、無償で利用・複製・改変・配布できます。
+- 商用利用はこのライセンスの範囲外です。商用利用を希望する場合は、リポジトリの Issue から maintainers へお問い合わせください。
+- 依存パッケージ（`package.json` / `bun.lock` に記載のもの）は各々のライセンスに従います。本リポジトリのライセンス設定とは無関係です。
