@@ -6,6 +6,11 @@ import {
 	XIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import {
+	analyzeBlockReason,
+	formPhotoSetKey,
+	savedEntryPhotoSetKey,
+} from "#/components/cellar/analysis-gate";
 import { DrunkWineFields } from "#/components/cellar/DrunkWineFields";
 import {
 	buildCreateInput,
@@ -488,6 +493,18 @@ export function DrunkWineForm({
 	// それを精緻化するものなので、17〜31秒(#463 の本番実測)拘束する必要が無い。
 	const [jobId, setJobId] = useState<string | null>(null);
 	const { data: job, isError: jobUnavailable } = useLabelAnalysisJob(jobId);
+	// 解析済みの写真の印(`photoSetKey`)。同じ写真での解析の押し直しを止める。
+	// 写真ウィザードと同じ関門(`analyzeBlockReason`)を通す——経路ごとに書くと
+	// 後発の経路で適用漏れする。
+	const [analyzedPhotoKey, setAnalyzedPhotoKey] = useState<string | null>(null);
+	// 投入時点の写真集合の印の控え。完了時に「この写真は解析済み」として覚える。
+	// `localId` ではなく安定識別子(`formPhotoSetKey`)で控える——保存で振り直される
+	// 前の姿でも、完了時の比較は保存後の R2 キー基準に組み立て直すため。
+	const submitPhotoKeyRef = useRef<string | null>(null);
+	// 完了時に `analyzedPhotoKey` へ入れる印。投入時の保存で新規写真が R2 キーを
+	// 持つ既存写真になるため、投入時点のままでは完了時に一致しなくなる——保存後の
+	// キーの並びで組み立て直したものをここに控える。
+	const pendingAnalyzedKeyRef = useRef<string | null>(null);
 	/**
 	 * 走っているジョブに保存先を教える(#472)。**best-effort**——保存は既に成功して
 	 * おり、紐づけの失敗で利用者の操作を止める理由が無い(受け取りが従来どおり新規作成
@@ -525,6 +542,8 @@ export function DrunkWineForm({
 	const { mutate: startAnalysisJob, isPending: isSubmittingJob } = useMutation({
 		mutationFn: async () => {
 			if (photos.length === 0) throw new Error("写真を選択してください");
+			// 完了時に解析済みの印にするための控え。安定識別子で控える。
+			submitPhotoKeyRef.current = formPhotoSetKey(photos);
 			const result = await submitLabelAnalysisJob(analysisSources());
 			if (result.blocked) return { result, saved: null, saveError: null };
 			return await persistForm().then(
@@ -545,11 +564,21 @@ export function DrunkWineForm({
 				queryKey: LABEL_JOB_BADGE_QUERY_KEY,
 			});
 			if (result.blocked) {
+				// 残高不足では解析が始まっていないので印を付けない(再試行できる)。
+				pendingAnalyzedKeyRef.current = null;
 				setShowInsufficient(true);
 				return;
 			}
 			setJobId(result.jobId);
 			if (saved) applySavedEntry(saved);
+			// 完了時に解析済みとして覚える印。保存で新規写真が R2 キーを持つため、
+			// 保存後のキーの並びで組み立て直す——保存に失敗した回は振り直されて
+			// いないため投入時点の控えをそのまま使う。
+			pendingAnalyzedKeyRef.current = saved
+				? savedEntryPhotoSetKey(
+						saved.photoUrls.map((url) => imageKeyFromPath(url)),
+					)
+				: submitPhotoKeyRef.current;
 			// 宛先が決まったので、この時点で教えておく。解析中に離脱しても、完了の
 			// 受け取りが新規登録ではなく「このワインを編集」へ向く(#472)。
 			const target = saved ?? savedRef.current ?? entry;
@@ -589,9 +618,15 @@ export function DrunkWineForm({
 		void queryClient.invalidateQueries({ queryKey: CREDIT_BALANCE_QUERY_KEY });
 		void queryClient.invalidateQueries({ queryKey: LABEL_JOB_BADGE_QUERY_KEY });
 		if (job.status === "failed" || !job.suggestions) {
+			// 失敗した回は解析済みの印を付けない(同じ写真でもう一度試せる)。
 			setError(job.error || "エチケットの解析に失敗しました");
 			setAnalyzeNotice("");
 			return;
+		}
+		// 完了した写真を解析済みとして覚える。差分ゼロの回も含む——クレジットは消費
+		// されており、同じ写真では同じ結果にしかならないため。
+		if (pendingAnalyzedKeyRef.current !== null) {
+			setAnalyzedPhotoKey(pendingAnalyzedKeyRef.current);
 		}
 		setAnalyzeNotice("");
 		applyLabelSuggestions(job.suggestions);
@@ -636,6 +671,22 @@ export function DrunkWineForm({
 		(jobId !== null &&
 			!jobUnavailable &&
 			(job === undefined || !isTerminalLabelJobStatus(job.status)));
+
+	// いま添付中の写真の印。解析済みの印と一致する間は「同じ解析」なので押させない。
+	// 既存写真は R2 キー・新規写真は安定識別子で指すため、保存を挟んでも同じ写真は
+	// 同じ印になる。
+	const photoKey = formPhotoSetKey(photos);
+	// 解析を始められない理由。null なら押せる。残高不足は押してからのサーバ判定と
+	// 不足ダイアログの流儀を維持するため、ここでは関与させない(false)。
+	const analyzeBlocked = analyzeBlockReason({
+		photoKey,
+		analyzedPhotoKey,
+		photoCount: photos.length,
+		analyzing: isAnalyzing,
+		loadingPhotos: false,
+		insufficientCredits: false,
+		missingPlaceName: false,
+	});
 
 	const { mutate: save, isPending } = useMutation({
 		mutationFn: persistForm,
@@ -796,7 +847,7 @@ export function DrunkWineForm({
 								variant="outline"
 								size="sm"
 								className="self-start"
-								disabled={isAnalyzing}
+								disabled={analyzeBlocked !== null}
 								onClick={() => {
 									setError("");
 									setAnalyzeNotice("");
@@ -804,8 +855,19 @@ export function DrunkWineForm({
 								}}
 							>
 								<SparklesIcon className="size-4" aria-hidden />
-								{isAnalyzing ? "解析中..." : "エチケットから自動入力"}
+								{isAnalyzing
+									? "解析中..."
+									: analyzedPhotoKey !== null
+										? "エチケットを解析し直す"
+										: "エチケットから自動入力"}
 							</Button>
+							{analyzeBlocked === "already_analyzed" && (
+								// なぜ押せないのかを言わずに disabled にしない。同じ写真の解析は
+								// クレジットを払って同じ結果を得るだけなので、行き先を示して止める。
+								<p className="text-xs text-muted-foreground">
+									この写真は解析済みです。写真を追加・削除・並べ替えすると解析し直せます。
+								</p>
+							)}
 							<p className="text-xs text-muted-foreground">
 								AIが全ての写真を総合して読み取り、現在の入力と違う項目を反映するか選べます
 								{requiredCredits === null
