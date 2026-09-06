@@ -28,7 +28,7 @@
   - `lockfile`: `bun.lock`
   - `ci-config`: `.github/workflows/**`
 
-`db-schema` は下記「スキーマ変更を含むPRは同時に複数オープンしない」（Issue #54）を、claim時に機械的に効かせるためのもの。全プレビュー環境が共通D1を共有する以上 `drizzle/` と Drizzle 実行時クエリ層は常に一緒に変わるので、1つのリソースとしてまとめて排他する。
+`db-schema` は下記「DBスキーマ変更を含むPR」の同時オープン禁止（Issue #54）をclaim時に機械的に効かせるためのもの。理由の詳細はそちらを参照。
 
 ## MCPサーバー変更時の動作確認
 
@@ -71,7 +71,7 @@
 
 過去の全PR（#1〜#186）の振り返りから抽出した頻出の落とし穴。該当する作業では必ず確認する。
 
-* **着手前に重複を確認する**: origin/main を最新化し、同一Issue・機能の既存PR/マージ済みコミットを確認してから実装する（古いmain基点のセッション再開で機能一式2,500行超を丸ごと再実装 → クローズ #61、同一Issueへの並行PRで相互巻き戻しリスク #167/#168）。Issue対応のPR本文には必ず `Closes #N` を書く（auto-close漏れによる「どのIssueが未対応か」の再調査が7本以上のPRで繰り返された）。
+* **着手前の重複確認・`Closes #N` は `issue-claim-protocol` skill に従う**（手順・claim-then-verify・auto-closeに任せるcloseの扱いはそちら。過去の失敗例: 古いmain基点で機能一式2,500行超を丸ごと再実装 → クローズ #61、同一Issueへの並行PRで相互巻き戻しリスク #167/#168、auto-close漏れによる未対応Issueの再調査）。
 * **CIが緑でもランタイムで壊れる変更がある**: バンドラのアセット解決に関わる依存更新や、Node前提の実装がWorkersで無効化するケースは typecheck/build/test では検出できない（maplibre-gl v6 の worker が Vite に検出されず実行時404で地図が真っ白 #184、メモリ保持のレートリミットが isolate 分散でほぼ無効 #178）。この種の変更はプレビュー実機で該当画面を必ず目視する。**CIが網にならない以上、無人マージさせない**のが対の規約で、`vite` / `@vitejs/plugin-react` は Renovate の automerge から外してある（#402）。
 * **wrangler と `@cloudflare/vite-plugin` はペアで更新する**: wrangler 単独更新は旧pluginが生成する `dist/server/wrangler.json` の `legacy_env` を新CLIが拒否して deploy が失敗する（#103）。この検証はCIの `bun run check:deploy` / `check:deploy:preview`（本番/preview 両envの `wrangler deploy --dry-run`）で自動化済み。Renovate 側も両パッケージ（＋`@cloudflare/vitest-pool-workers`）を1グループにまとめ automerge から除外してある（#263）ので、この組み合わせのPRは必ず人手でレビューする。automerge に残っている devDependencies も、公開から3日経つまでは着地しない（`minimumReleaseAge`。侵害されたリリースが無人で main に乗る窓を狭める #402）。
 * **Workers AI のモデル追加・切替・呼び出し変更**は `workers-ai` skill のチェックリストに従う（`AiModels` 型未登録モデルは呼べない、`guided_json` は型を保証しない、reasoningモデルの thinking で出力が途切れる等。#100/#103/#106/#108/#110 で反復）。
