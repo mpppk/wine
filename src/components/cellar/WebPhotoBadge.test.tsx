@@ -1,9 +1,9 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebPhotoBadge } from "./WebPhotoBadge";
 
-// WEB由来の表示は3箇所(ギャラリー・1枚表示・レビューカード)でこの1点に寄せる。
-// 文言・見た目のドリフトをここで固定する。
+// WEB由来の表示はギャラリー・1枚表示の overlay に一本化した。文言・見た目の
+// ドリフトをここで固定する。
 
 afterEach(() => cleanup());
 
@@ -14,10 +14,5 @@ describe("WebPhotoBadge", () => {
 		expect(badge?.textContent).toContain("WEB");
 		expect(badge?.getAttribute("aria-hidden")).toBe("true");
 		expect(badge?.className).toContain("absolute");
-	});
-
-	it("inline は従来の文字バッジの置き換え(文言は WEB画像)", () => {
-		render(<WebPhotoBadge variant="inline" />);
-		expect(screen.getByText("WEB画像")).toBeTruthy();
 	});
 });

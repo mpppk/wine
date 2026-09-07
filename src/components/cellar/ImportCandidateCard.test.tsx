@@ -38,8 +38,8 @@ function renderCard(
 }
 
 describe("ImportCandidateCard の WEB 由来表示", () => {
-	it("web 由来の新規銘柄にはサムネイルと overlay・バッジを出す", () => {
-		renderCard({
+	it("web 由来の新規銘柄にはサムネイルと overlay を出す(文字バッジなし)", () => {
+		const { container } = renderCard({
 			photoKind: "web",
 			imageUrl: "https://example.com/barolo.jpg",
 			imageNote: "2019年のラベル画像です",
@@ -48,9 +48,10 @@ describe("ImportCandidateCard の WEB 由来表示", () => {
 		expect(
 			screen.getByRole("button", { name: "Baroloの写真(WEB画像)を拡大" }),
 		).toBeTruthy();
-		// overlay と inline バッジは共通コンポーネントから出る
+		// 由来表示は overlay のみ。文字バッジ(何枚目・WEB画像)は出さない
 		expect(screen.getAllByText("WEB").length).toBeGreaterThanOrEqual(1);
-		expect(screen.getByText("WEB画像")).toBeTruthy();
+		expect(container.textContent).not.toContain("WEB画像");
+		expect(container.textContent).not.toContain("枚目");
 		// ズレの注記はバッジの近傍に出る
 		expect(screen.getByText("2019年のラベル画像です")).toBeTruthy();
 	});
@@ -95,7 +96,7 @@ describe("ImportCandidateCard の利用画像サムネイル", () => {
 		expect(container.querySelector("img")?.getAttribute("src")).toBe(
 			"blob:photo-2",
 		);
-		// 手元写真なので overlay・バッジは出さない
+		// 手元写真なので overlay は出さない
 		expect(container.textContent).not.toContain("WEB");
 	});
 
