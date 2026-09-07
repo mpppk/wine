@@ -5,6 +5,7 @@ import {
 	buildBulkRegisterInput,
 	buildImportCards,
 	detachExisting,
+	displayPhotoForImportCard,
 	type ImportCardState,
 	summarizeImportCards,
 	validateImportCards,
@@ -357,5 +358,98 @@ describe("写真の手当て", () => {
 			}),
 		]);
 		expect(state?.photoKind).toBe("bottle");
+	});
+});
+
+// ---- 利用画像の自動選択(IMPL-5) ------------------------------------------
+//
+// 表示する画像は「登録時に実際に使われる画像」と一致させる。番号の決め方は
+// buildBulkRegisterInput の目撃記録の写真番号と同じにする。
+
+describe("displayPhotoForImportCard", () => {
+	const PREVIEWS = ["blob:photo-0", "blob:photo-1", "blob:photo-2"];
+
+	it("新規の web 由来は web 画像を出す(プレビュー不要)", () => {
+		expect(
+			displayPhotoForImportCard(
+				card({
+					photoKind: "web",
+					imageUrl: "https://example.com/barolo.jpg",
+					photoIndexes: [1],
+				}),
+				[],
+			),
+		).toEqual({ src: "https://example.com/barolo.jpg", isWebPhoto: true });
+	});
+
+	it("bottle_photo_index があればそれを出す(複数関連時の自動選択)", () => {
+		expect(
+			displayPhotoForImportCard(
+				card({ photoIndexes: [0, 2], bottlePhotoIndex: 2 }),
+				PREVIEWS,
+			),
+		).toEqual({ src: "blob:photo-2", isWebPhoto: false });
+	});
+
+	it("無ければ関連写真の先頭を出す(目撃記録の写真番号と同じ)", () => {
+		const state = card({ photoIndexes: [1, 2] });
+		expect(displayPhotoForImportCard(state, PREVIEWS)).toEqual({
+			src: "blob:photo-1",
+			isWebPhoto: false,
+		});
+		// 登録側の番号と一致すること(表示と登録で違う写真を指さない)
+		const input = buildBulkRegisterInput([state], { photoCount: 3 });
+		expect(input.items[0]?.sighting?.photoIndex).toBe(1);
+	});
+
+	it("既存一致の web 由来は web 画像を出さず手元写真に落とす(取り込まないため)", () => {
+		expect(
+			displayPhotoForImportCard(
+				card({
+					photoKind: "web",
+					imageUrl: "https://example.com/barolo.jpg",
+					photoIndexes: [0],
+					existing: {
+						id: "e1",
+						name: "Barolo",
+						vintage: 2018,
+						status: "owned",
+					},
+				}),
+				PREVIEWS,
+			),
+		).toEqual({ src: "blob:photo-0", isWebPhoto: false });
+	});
+
+	it("既存一致の手元写真は目撃記録の写真を出す", () => {
+		expect(
+			displayPhotoForImportCard(
+				card({
+					photoIndexes: [2],
+					existing: {
+						id: "e1",
+						name: "Barolo",
+						vintage: 2018,
+						status: "owned",
+					},
+				}),
+				PREVIEWS,
+			),
+		).toEqual({ src: "blob:photo-2", isWebPhoto: false });
+	});
+
+	it("該当のプレビューが無ければ null(サムネイルを出さない)", () => {
+		// 受け取って開いた回は手元に写真が無い
+		expect(displayPhotoForImportCard(card(), [])).toBeNull();
+		// 範囲外の番号も null(存在しない写真を指さない)
+		expect(
+			displayPhotoForImportCard(card({ photoIndexes: [9] }), PREVIEWS),
+		).toBeNull();
+		expect(
+			displayPhotoForImportCard(
+				card({ photoIndexes: [0], bottlePhotoIndex: 9 }),
+				PREVIEWS,
+			),
+		).toBeNull();
 	});
 });

@@ -143,6 +143,43 @@ export function buildImportCards(
 }
 
 /**
+ * レビューカードに表示する「利用画像」(IMPL-5)。**登録時に実際に使われる画像と
+ * 一致させる**のが要点で、選ぶ規則をここに一本化する:
+ *
+ * - 新規作成する web 由来の銘柄だけが web 画像を取り込む(IMPL-4 と同じ条件。
+ *   既存一致のカードは目撃記録を足すだけで web 画像を取り込まないので、
+ *   imageUrl を持っていても web 画像は出さない)
+ * - それ以外は手元のバッチ写真から1枚を自動選択する。番号の決め方は
+ *   `buildBulkRegisterInput` の目撃記録の写真番号
+ *   (`bottlePhotoIndex ?? photoIndexes[0]`)と**同じ**にする——表示と登録で
+ *   違う写真を指すと「この写真で登録される」という表示が嘘になる
+ *
+ * `photoPreviews` は解析に渡した順のプレビューURL(受け取って開いた回は手元に
+ * 写真が無いので空)。該当のプレビューが無ければ null(サムネイルを出さない)。
+ */
+export interface ImportCardDisplayPhoto {
+	/** 表示する画像のURL(blobプレビューまたは web 画像URL) */
+	src: string;
+	/** WEB由来なら overlay を出す(IMPL-4) */
+	isWebPhoto: boolean;
+}
+
+export function displayPhotoForImportCard(
+	card: Pick<
+		ImportCardState,
+		"photoKind" | "imageUrl" | "bottlePhotoIndex" | "photoIndexes" | "existing"
+	>,
+	photoPreviews: readonly string[],
+): ImportCardDisplayPhoto | null {
+	if (!card.existing && card.photoKind === "web" && card.imageUrl) {
+		return { src: card.imageUrl, isWebPhoto: true };
+	}
+	const index = card.bottlePhotoIndex ?? card.photoIndexes[0];
+	const src = index != null ? photoPreviews[index] : undefined;
+	return src ? { src, isWebPhoto: false } : null;
+}
+
+/**
  * 既存一致を外す(新規作成に切り替える)。ユーザが銘柄の内容を編集したときに使う:
  * 「既存の『シャブリ 2020』に目撃を追加」と表示したまま名前を書き換えられると、
  * 画面の表示と実際に起きること(既存エントリは変更されない)が食い違う。
