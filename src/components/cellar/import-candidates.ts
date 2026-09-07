@@ -6,7 +6,10 @@ import {
 	toFormState,
 	type WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
-import type { WineListCandidate } from "#/lib/ai/wine-list-extraction";
+import type {
+	PhotoKind,
+	WineListCandidate,
+} from "#/lib/ai/wine-list-extraction";
 import type { WineStatus } from "#/lib/drunk-wine/status";
 import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 
@@ -52,6 +55,12 @@ export interface ImportCardState {
 	imageUrl?: string;
 	/** 取り込む画像と実物のズレの説明(#473)。取り込めたときだけコメントへ追記される。 */
 	imageNote?: string;
+	/**
+	 * 銘柄写真の由来(IMPL-4)。レビューカードが WEB の overlay を出すかの材料。
+	 * 候補の `photoKind` を写すだけにする(ここで有無判定を書き直さない。
+	 * 判定は `photoKindForPhotoHints` が唯一の入口)。
+	 */
+	photoKind: PhotoKind;
 	/** 既存セラーの同一銘柄。ある場合は新規作成せず目撃記録だけを足す */
 	existing?: WineListCandidate["existing"];
 }
@@ -126,6 +135,9 @@ export function buildImportCards(
 			: {}),
 		...(candidate.imageUrl ? { imageUrl: candidate.imageUrl } : {}),
 		...(candidate.imageNote ? { imageNote: candidate.imageNote } : {}),
+		// 由来は候補の判定をそのまま写す(判定の入口は `photoKindForPhotoHints` の
+		// 1箇所。ここで有無判定を書き直すと表示と登録で食い違う)。
+		photoKind: candidate.photoKind,
 		existing: candidate.existing,
 	}));
 }
@@ -241,6 +253,11 @@ export function buildBulkRegisterInput(
 						webPhoto: {
 							url: card.imageUrl,
 							...(card.imageNote ? { note: card.imageNote } : {}),
+							// 由来は web 固定。webPhoto を送るのは web 画像を取りに
+							// 行く銘柄だけで、サーバは webPhoto の有無で採用を決める
+							// (card.photoKind と一致する。判定の入口は
+							// `photoKindForPhotoHints` の1箇所)。
+							photoKind: "web" as const,
 						},
 					}
 				: {};

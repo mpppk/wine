@@ -1,6 +1,8 @@
 import { WineIcon } from "lucide-react";
 import { useState } from "react";
 import { PhotoLightbox } from "#/components/cellar/PhotoLightbox";
+import { WebPhotoBadge } from "#/components/cellar/WebPhotoBadge";
+import type { PhotoKind } from "#/lib/ai/wine-list-extraction";
 import { cn } from "#/lib/utils";
 
 // マイセラー閲覧画面の写真一覧。タップすると PhotoLightbox で拡大する。
@@ -18,6 +20,13 @@ export interface WinePhotoGalleryProps {
 	thumbUrls: string[];
 	/** キャッシュバスタ。エントリの updatedAt を渡す(写真差し替え時にR2キーが同じでも再取得させる) */
 	version: number;
+	/**
+	 * 写真ごとの由来(photoUrls と同じ順・同じ長さ。IMPL-4)。`"web"` の写真にだけ
+	 * 左上の overlay を出す。由来が分からない呼び出し元(保存済みエントリの表示
+	 * など。永続化は由来カラムの追加後に配線する)は省略し、その場合は overlay
+	 * を出さない。
+	 */
+	photoKinds?: readonly PhotoKind[];
 }
 
 export function WinePhotoGallery({
@@ -25,6 +34,7 @@ export function WinePhotoGallery({
 	photoUrls,
 	thumbUrls,
 	version,
+	photoKinds,
 }: WinePhotoGalleryProps) {
 	const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -54,8 +64,8 @@ export function WinePhotoGallery({
 						<button
 							type="button"
 							onClick={() => setOpenIndex(i)}
-							aria-label={`${name}の写真${i + 1}を拡大`}
-							className="block w-full overflow-hidden rounded-md border border-border transition-opacity hover:opacity-80"
+							aria-label={`${name}の写真${i + 1}${photoKinds?.[i] === "web" ? "(WEB画像)" : ""}を拡大`}
+							className="relative block w-full overflow-hidden rounded-md border border-border transition-opacity hover:opacity-80"
 						>
 							<img
 								src={`${thumbUrls[i] ?? url}?v=${version}`}
@@ -64,6 +74,7 @@ export function WinePhotoGallery({
 								loading="lazy"
 								decoding="async"
 							/>
+							{photoKinds?.[i] === "web" && <WebPhotoBadge variant="overlay" />}
 						</button>
 					</li>
 				))}
@@ -72,7 +83,7 @@ export function WinePhotoGallery({
 			<PhotoLightbox
 				photos={photoUrls.map((url, i) => ({
 					src: `${url}?v=${version}`,
-					alt: `${name}の写真${i + 1}`,
+					alt: `${name}の写真${i + 1}${photoKinds?.[i] === "web" ? "(WEB画像)" : ""}`,
 				}))}
 				openIndex={openIndex}
 				onOpenChange={setOpenIndex}
@@ -90,21 +101,31 @@ export function ZoomablePhoto({
 	src,
 	alt,
 	className,
+	/** WEB由来の画像なら左上に overlay を出し、由来を名前に含める(IMPL-4) */
+	isWebPhoto,
+	/**
+	 * 外部URLのサムネイル(レビューカードの web 画像など)を出すときだけ付ける。
+	 * 取得先へ Referer を送らない。
+	 */
+	referrerPolicy,
 }: {
 	src: string;
 	alt: string;
 	className?: string;
+	isWebPhoto?: boolean;
+	referrerPolicy?: "no-referrer";
 }) {
 	const [openIndex, setOpenIndex] = useState<number | null>(null);
+	const label = isWebPhoto ? `${alt}(WEB画像)` : alt;
 
 	return (
 		<>
 			<button
 				type="button"
 				onClick={() => setOpenIndex(0)}
-				aria-label={`${alt}を拡大`}
+				aria-label={`${label}を拡大`}
 				className={cn(
-					"shrink-0 overflow-hidden rounded-md border border-border transition-opacity hover:opacity-80",
+					"relative shrink-0 overflow-hidden rounded-md border border-border transition-opacity hover:opacity-80",
 					className,
 				)}
 			>
@@ -114,13 +135,15 @@ export function ZoomablePhoto({
 					className="size-full object-cover"
 					loading="lazy"
 					decoding="async"
+					{...(referrerPolicy ? { referrerPolicy } : {})}
 				/>
+				{isWebPhoto && <WebPhotoBadge variant="overlay" />}
 			</button>
 			<PhotoLightbox
-				photos={[{ src, alt }]}
+				photos={[{ src, alt: label }]}
 				openIndex={openIndex}
 				onOpenChange={setOpenIndex}
-				title={alt}
+				title={label}
 			/>
 		</>
 	);

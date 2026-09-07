@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
 import type { WineStatus } from "#/lib/drunk-wine/status";
+import { parseRemotePhotoUrl } from "#/lib/images/remote-photo";
 import { getAop } from "#/lib/wine/service";
 import { AI_WINE_LIST_MAX_WINES } from "./config";
 import {
@@ -212,10 +213,16 @@ export interface WineListItem extends LabelExtraction {
 	 * これがあれば web からの取得はしない。
 	 */
 	bottlePhotoIndex?: number;
-	/** web で見つけたボトル/エチケット画像のURL(#473)。 */
+	/** web で見つけたボトル/エチケット画像のURL(#473)。パース時は `bottlePhotoIndex` と排他だが、重複統合で両方を持つことがある(サーバは web を優先して採用する)。 */
 	imageUrl?: string;
-	/** `imageUrl` の画像と実物のズレの説明(#473)。 */
+	/** `imageUrl` の画像と実物のズレの説明(#473)。登録時にコメントへ追記する。 */
 	imageNote?: string;
+	/**
+	 * 銘柄写真の由来(IMPL-4)。**判定は `photoKindForPhotoHints` の1箇所だけ**が持ち、
+	 * パース・統合・候補化はその結果を写すだけにする(経路ごとに有無判定を書くと、
+	 * 「web画像なのに overlay が出ない」のようなドリフトが起きる)。
+	 */
+	photoKind: PhotoKind;
 }
 
 export interface WineListParseResult {
@@ -347,13 +354,41 @@ function normalizePhotoIndexes(
 }
 
 /**
+ * 銘柄写真の由来(IMPL-4)。
+ *
+ * - `bottle`: 手元の写真(その1本だけを写した適切な写真、または一括登録の
+ *   バッチ写真への退避)。利用者自身が撮った写真なので overlay を出さない
+ * - `web`: web で見つけたボトル/エチケット画像。別ヴィンテージ等のズレが
+ *   ありうるため、表示では WEB 由来であることを overlay で示す
+ */
+export type PhotoKind = "bottle" | "web";
+
+/**
+ * 写真の手当てから由来を導出する(IMPL-4 の判定の SSOT)。
+ *
+ * **サーバの採用順と一致させる**のが要点: 登録時(`buildBulkRegisterInput` →
+ * `adoptWebPhotos`)は `imageUrl` があれば web 画像を取りに行って銘柄写真に
+ * するので、`bottlePhotoIndex` と `imageUrl` が両方ある統合後の銘柄は "web"
+ * になる。ここで逆にすると「手元写真」扱いで overlay が出ず、保存される
+ * 写真(web)と表示の説明が食い違う。
+ */
+export function photoKindForPhotoHints(hints: {
+	bottlePhotoIndex?: number;
+	imageUrl?: string;
+}): PhotoKind {
+	return hints.imageUrl ? "web" : "bottle";
+}
+
+/**
  * 写真の手当て(#473)を正規化する。**採用しない情報は落とし切る**のが要点:
  *
  *  - `bottle_photo_index` は渡した枚数の範囲だけ。範囲外(1始まりで数えた等)を残すと、
  *    存在しない写真を指したまま「適切な写真がある」ことになり、web からの取得も
  *    一括登録写真への退避もされない銘柄が生まれる
- *  - `image_url` は https の絶対URLだけ。相対URL・作文はサーバ側の取得
- *    (`fetchRemotePhoto`)でも弾かれるが、**候補として画面に出す前に**落とす
+ *  - `image_url` はサーバの取得関門(`parseRemotePhotoUrl`)と同じ条件で受ける。
+ *    ここで独自の正規表現を書くと、表示が「web画像あり」なのに保存時に取得が
+ *    弾かれる(またはその逆)のドリフトが生まれる。**URL形の判定を新設しない**
+ *    (MIME検証のSSOT寄せ)。
  *  - `image_note` は `image_url` が残ったときだけ意味を持つ(画像が無いのに
  *    「ヴィンテージが違います」だけコメントに残るのを防ぐ)
  *  - `bottle_photo_index` があるときは web の画像を採らない(手元の写真が優先)
@@ -365,17 +400,25 @@ function normalizeWinePhotoHints(
 		image_note?: string | null;
 	},
 	photoCount: number,
-): Pick<WineListItem, "bottlePhotoIndex" | "imageUrl" | "imageNote"> {
+): Pick<WineListItem, "bottlePhotoIndex" | "imageUrl" | "imageNote"> & {
+	photoKind: PhotoKind;
+} {
 	const index = raw.bottle_photo_index;
 	const bottlePhotoIndex =
 		index != null && index >= 0 && index < photoCount ? index : undefined;
-	if (bottlePhotoIndex !== undefined) return { bottlePhotoIndex };
+	if (bottlePhotoIndex !== undefined)
+		return { bottlePhotoIndex, photoKind: "bottle" };
 
-	const url = raw.image_url?.trim();
-	const imageUrl = url && /^https:\/\/\S+$/i.test(url) ? url : undefined;
-	if (!imageUrl) return {};
+	const imageUrl = raw.image_url
+		? parseRemotePhotoUrl(raw.image_url)?.href
+		: undefined;
+	if (!imageUrl) return { photoKind: "bottle" };
 	const note = raw.image_note?.trim();
-	return { imageUrl, ...(note ? { imageNote: note } : {}) };
+	return {
+		imageUrl,
+		...(note ? { imageNote: note } : {}),
+		photoKind: photoKindForPhotoHints({ imageUrl }),
+	};
 }
 
 /**
@@ -684,9 +727,12 @@ export function dedupeWineListItems(items: WineListItem[]): DedupeResult {
 		existing.prices = unionCappedPrices(existing.prices, item.prices);
 		// 写真の手当て(#473)も先勝ちで埋める。同じ銘柄が複数の写真に写っていて、
 		// 片方だけがボトル単体のクローズアップというケースを拾う。
+		// 由来は統合後の手当てから導き直す(IMPL-4。片方が web 画像を持ち込んだ
+		// 回はサーバも web を採用するので、統合前の kind を引き継がない)。
 		existing.bottlePhotoIndex ??= item.bottlePhotoIndex;
 		existing.imageUrl ??= item.imageUrl;
 		existing.imageNote ??= item.imageNote;
+		existing.photoKind = photoKindForPhotoHints(existing);
 		for (const g of item.grapeVarieties) {
 			if (!existing.grapeVarieties.includes(g)) existing.grapeVarieties.push(g);
 		}
@@ -735,6 +781,11 @@ export interface WineListCandidate {
 	/** `imageUrl` の画像と実物のズレの説明(#473)。登録時にコメントへ追記する。 */
 	imageNote?: string;
 	/**
+	 * 銘柄写真の由来(IMPL-4)。レビューカードの overlay と、登録時に web 画像を
+	 * 取りに行くかの表示に使う。判定は `photoKindForPhotoHints` の結果を写すだけ。
+	 */
+	photoKind: PhotoKind;
+	/**
 	 * 既存セラーの同一銘柄。**ある場合は新規作成せず、この銘柄に目撃記録を追加する**
 	 * 候補として提示する(distinct の第2段)。
 	 */
@@ -757,6 +808,10 @@ export function buildWineListCandidates(
 		suggestions: buildLabelSuggestions(item),
 		price: item.price,
 		photoIndexes: item.photoIndexes,
+		// 銘柄写真の由来(IMPL-4)。レビューカードが overlay の有無を決める材料。
+		// 登録時の採用順(サーバは imageUrl があれば web を取りに行く)と
+		// `photoKindForPhotoHints` で一致させてある。
+		photoKind: item.photoKind,
 		// 参考サイト・価格(IMPL-3)はフォームへ流し込まず、カードの表示用に持ち回る。
 		// suggestions 側にも同値が載っている(buildLabelSuggestions が通す)が、
 		// カードは候補直下を読む(フォーム由来の値と混ざらないため)。

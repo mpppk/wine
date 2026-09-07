@@ -76,6 +76,35 @@ describe("WinePhotoGallery", () => {
 		render(<WinePhotoGallery {...PROPS} photoUrls={[]} thumbUrls={[]} />);
 		expect(screen.queryAllByRole("button")).toHaveLength(0);
 	});
+
+	it("由来の指定が無ければ overlay を出さない(保存済み表示の既定)", () => {
+		const { container } = render(<WinePhotoGallery {...PROPS} />);
+		expect(container.textContent).not.toContain("WEB");
+	});
+});
+
+describe("WinePhotoGallery の WEB 由来表示(IMPL-4)", () => {
+	it("web の写真にだけ左上の overlay を出す", () => {
+		render(
+			<WinePhotoGallery {...PROPS} photoKinds={["bottle", "web"] as const} />,
+		);
+		const buttons = screen.getAllByRole("button");
+		expect(buttons[0]?.textContent).not.toContain("WEB");
+		expect(buttons[1]?.textContent).toContain("WEB");
+	});
+
+	it("由来をボタンの名前と拡大の alt に含める", async () => {
+		render(
+			<WinePhotoGallery {...PROPS} photoKinds={["bottle", "web"] as const} />,
+		);
+		expect(
+			screen.getByRole("button", { name: "テストワインの写真1を拡大" }),
+		).toBeTruthy();
+		const dialog = await openLightbox("テストワインの写真2(WEB画像)を拡大");
+		expect(dialog.querySelector("img")?.getAttribute("alt")).toBe(
+			"テストワインの写真2(WEB画像)",
+		);
+	});
 });
 
 describe("ZoomablePhoto", () => {
@@ -85,5 +114,28 @@ describe("ZoomablePhoto", () => {
 		);
 		await openLightbox("見かけたときの写真を拡大");
 		expect(lightboxSrc()).toBe("/api/images/s.jpg?v=7");
+	});
+
+	it("WEB由来なら overlay を出し、由来を名前に含める(IMPL-4)", async () => {
+		render(
+			<ZoomablePhoto
+				src="https://example.com/a.jpg"
+				alt="バローロの写真"
+				isWebPhoto
+			/>,
+		);
+		const button = screen.getByRole("button", {
+			name: "バローロの写真(WEB画像)を拡大",
+		});
+		expect(button.textContent).toContain("WEB");
+		await openLightbox("バローロの写真(WEB画像)を拡大");
+		expect(lightboxSrc()).toBe("https://example.com/a.jpg");
+	});
+
+	it("手元写真には overlay を出さない", () => {
+		const { container } = render(
+			<ZoomablePhoto src="/api/images/s.jpg?v=7" alt="見かけたときの写真" />,
+		);
+		expect(container.textContent).not.toContain("WEB");
 	});
 });

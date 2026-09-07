@@ -24,6 +24,7 @@ import {
 	type ExistingWineIdentity,
 	matchExistingEntries,
 	parseWineListResponse,
+	photoKindForPhotoHints,
 	type WineListItem,
 	wineIdentityKey,
 	wineIdentityKeys,
@@ -46,7 +47,12 @@ function wineJson(partial: Record<string, unknown>): Record<string, unknown> {
 
 /** パース済みの銘柄1件のダミー。 */
 function item(partial: Partial<WineListItem>): WineListItem {
-	return { grapeVarieties: [], photoIndexes: [], ...partial };
+	return {
+		grapeVarieties: [],
+		photoIndexes: [],
+		photoKind: "bottle",
+		...partial,
+	};
 }
 
 describe("buildWineListPrompt", () => {
@@ -625,7 +631,7 @@ describe("wineIdentityKeys の loose キー(呼称の切り分けの揺れを吸
 describe("matchExistingEntries の揺れ吸収(#435)", () => {
 	const candidateFor = (item: Partial<WineListItem>) =>
 		buildWineListCandidates([
-			{ grapeVarieties: [], photoIndexes: [0], ...item },
+			{ grapeVarieties: [], photoIndexes: [0], photoKind: "bottle", ...item },
 		]);
 
 	it("呼称の切り分けが変わった再解析でも既存に一致する", () => {
@@ -904,6 +910,102 @@ describe("写真の手当て(bottle_photo_index / image_url / image_note)", () =
 		expect(prompt).toContain("image_url");
 		expect(prompt).toContain("image_note");
 		expect(prompt).toContain("URLを創作しない");
+	});
+});
+
+// ---- 銘柄写真の由来(IMPL-4) -------------------------------------------------
+// 非エチケット画像(棚/リスト由来)の銘柄には WEB 画像が設定され、表示では
+// overlay で WEB 由来を示す。判定は photoKindForPhotoHints の1箇所に寄せ、
+// パース・統合・候補化は結果を写すだけにする。
+
+describe("銘柄写真の由来(photoKind)", () => {
+	it("手当ての有無から由来を導出する", () => {
+		expect(photoKindForPhotoHints({})).toBe("bottle");
+		expect(photoKindForPhotoHints({ bottlePhotoIndex: 1 })).toBe("bottle");
+		expect(
+			photoKindForPhotoHints({ imageUrl: "https://example.com/a.jpg" }),
+		).toBe("web");
+		// 両方ある統合後の銘柄はサーバも web を採用するので "web" に倒す
+		expect(
+			photoKindForPhotoHints({
+				bottlePhotoIndex: 1,
+				imageUrl: "https://example.com/a.jpg",
+			}),
+		).toBe("web");
+	});
+
+	it("パース時に由来を付与する", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({
+						wine_name: "A",
+						bottle_photo_index: 0,
+					}),
+					wineJson({
+						wine_name: "B",
+						image_url: "https://example.com/b.jpg",
+					}),
+					wineJson({ wine_name: "C" }),
+				],
+			}),
+			1,
+		);
+		expect(wines.map((w) => w.photoKind)).toEqual(["bottle", "web", "bottle"]);
+	});
+
+	it("サーバの取得関門と同じ条件で image_url を受ける(SSOT寄せ)", () => {
+		// サーバ(fetchRemotePhoto)では弾かれるが旧正規表現では通っていた localhost
+		// は、候補の段階で落として由来も bottle に倒す(表示が「web画像あり」なのに
+		// 保存時に取得できない食い違いを防ぐ)
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({
+						wine_name: "A",
+						image_url: "https://localhost/a.jpg",
+					}),
+					wineJson({
+						wine_name: "B",
+						image_url: "https://127.0.0.1/b.jpg",
+					}),
+				],
+			}),
+			1,
+		);
+		for (const wine of wines) {
+			expect(wine.imageUrl).toBeUndefined();
+			expect(wine.photoKind).toBe("bottle");
+		}
+	});
+
+	it("重複統合では統合後の手当てから由来を導き直す", () => {
+		const { items } = dedupeWineListItems([
+			item({ wineName: "Barolo", producer: "X", photoIndexes: [0] }),
+			item({
+				wineName: "Barolo",
+				producer: "X",
+				photoIndexes: [1],
+				imageUrl: "https://example.com/barolo.jpg",
+				photoKind: "web",
+			}),
+		]);
+		expect(items).toHaveLength(1);
+		expect(items[0]?.imageUrl).toBe("https://example.com/barolo.jpg");
+		expect(items[0]?.photoKind).toBe("web");
+	});
+
+	it("候補へ由来を写す", () => {
+		const [candidate] = buildWineListCandidates([
+			item({
+				wineName: "Barolo",
+				imageUrl: "https://example.com/barolo.jpg",
+				photoKind: "web",
+			}),
+		]);
+		expect(candidate?.photoKind).toBe("web");
+		const [bottle] = buildWineListCandidates([item({ wineName: "Chablis" })]);
+		expect(bottle?.photoKind).toBe("bottle");
 	});
 });
 

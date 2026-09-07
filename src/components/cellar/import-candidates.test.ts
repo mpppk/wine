@@ -16,6 +16,7 @@ function candidate(
 	return {
 		suggestions: { name: "Chablis" },
 		photoIndexes: [0],
+		photoKind: "bottle",
 		...partial,
 	};
 }
@@ -317,13 +318,16 @@ describe("写真の手当て", () => {
 				photoIndexes: [1],
 				imageUrl: "https://example.com/barolo.jpg",
 				imageNote: "2019年のラベル画像です",
+				photoKind: "web",
 			}),
 		]);
 		if (!state) throw new Error("unreachable");
+		expect(state.photoKind).toBe("web");
 		const input = buildBulkRegisterInput([state], meta);
 		expect(input.items[0]?.webPhoto).toEqual({
 			url: "https://example.com/barolo.jpg",
 			note: "2019年のラベル画像です",
+			photoKind: "web",
 		});
 		// 一括登録の写真へのフォールバック用に、写真番号は従来どおり載る
 		expect(input.items[0]?.sighting?.photoIndex).toBe(1);
@@ -334,6 +338,7 @@ describe("写真の手当て", () => {
 		const [state] = buildImportCards([
 			candidate({
 				imageUrl: "https://example.com/barolo.jpg",
+				photoKind: "web",
 				existing: { id: "e1", name: "Barolo", vintage: 2018, status: "owned" },
 			}),
 		]);
@@ -341,5 +346,16 @@ describe("写真の手当て", () => {
 		const input = buildBulkRegisterInput([state], meta);
 		expect(input.items[0]?.existingId).toBe("e1");
 		expect(input.items[0]?.webPhoto).toBeUndefined();
+	});
+
+	it("手元の写真の銘柄は由来 bottle でカード化し、webPhoto は送らない", () => {
+		const [state] = buildImportCards([
+			candidate({
+				photoIndexes: [0, 2],
+				bottlePhotoIndex: 2,
+				photoKind: "bottle",
+			}),
+		]);
+		expect(state?.photoKind).toBe("bottle");
 	});
 });

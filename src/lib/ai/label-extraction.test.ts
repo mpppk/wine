@@ -407,6 +407,19 @@ describe("parseImageDataUrl", () => {
 		expect(() => parseImageDataUrl("data:image/jpeg,notbase64")).toThrow();
 		expect(() => parseImageDataUrl("data:image/jpeg;base64,")).toThrow();
 	});
+
+	it("許可外のMIMEは受け付けない(SSOT の ALLOWED_PHOTO_TYPES に寄せる)", () => {
+		// SVG 等をAIへ送っても画像として扱えず推論が無駄になる。入力欄・保存関門と
+		// 同じ許可形式だけを通し、ここで独自の許可表を持たない。
+		expect(() => parseImageDataUrl("data:image/svg+xml;base64,AAAA")).toThrow();
+		expect(() => parseImageDataUrl("data:image/bmp;base64,AAAA")).toThrow();
+		expect(() => parseImageDataUrl("data:text/plain;base64,AAAA")).toThrow();
+		for (const mime of ["image/jpeg", "image/png", "image/webp", "image/gif"]) {
+			expect(parseImageDataUrl(`data:${mime};base64,AAAA`).mediaType).toBe(
+				mime,
+			);
+		}
+	});
 });
 
 describe("buildWebLabelPrompt", () => {
