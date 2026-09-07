@@ -11,6 +11,7 @@ import type {
 	WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
 import type { ImportCardState } from "#/components/cellar/import-candidates";
+import { displayPhotoForImportCard } from "#/components/cellar/import-candidates";
 import {
 	PriceList,
 	ReferenceLinksList,
@@ -29,6 +30,12 @@ import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 
 export interface ImportCandidateCardProps {
 	card: ImportCardState;
+	/**
+	 * 解析に渡した順のバッチ写真のプレビューURL(IMPL-5)。カードの手元写真の
+	 * サムネイルに使う。受け取って開いた回は手元に写真が無いので空配列——
+	 * その場合は手元写真のサムネイルが出ない(web 画像は URL 参照なので出る)。
+	 */
+	photoPreviews: readonly string[];
 	/** 変更のあったキーだけを渡す。呼び出し側が state にマージする */
 	onChange: (patch: Partial<ImportCardState>) => void;
 	/** 銘柄の入力値の変更(既存一致の解除を伴うので専用の口にする) */
@@ -44,6 +51,7 @@ export interface ImportCandidateCardProps {
  */
 export function ImportCandidateCard({
 	card,
+	photoPreviews,
 	onChange,
 	onChangeValues,
 }: ImportCandidateCardProps) {
@@ -57,12 +65,13 @@ export function ImportCandidateCard({
 	]
 		.filter(Boolean)
 		.join(" / ");
-	// WEB画像の表示は「新規作成する web 由来の銘柄」だけに出す(IMPL-4)。
-	// 既存一致のカードは目撃記録を足すだけで web 画像を取り込まないので、
-	// imageUrl を持っていても overlay・サムネイルは出さない。
-	// 由来の判定は card.photoKind の1箇所だけを見る(ここで有無判定を書き直さない)。
-	const showWebPhoto =
-		!card.existing && card.photoKind === "web" && !!card.imageUrl;
+	// カードに表示する利用画像(IMPL-5)。選ぶ規則は `displayPhotoForImportCard` の
+	// 1箇所だけに寄せる(ここで有無判定を書き直すと表示と登録で食い違う):
+	// 新規作成する web 由来の銘柄は web 画像、それ以外は手元のバッチ写真から
+	// 登録時に使われる1枚と同じものを自動選択する。由来の判定も結果の
+	// `isWebPhoto` だけを見る(card.photoKind を直接見ない)。
+	const displayPhoto = displayPhotoForImportCard(card, photoPreviews);
+	const showWebPhoto = displayPhoto?.isWebPhoto === true;
 
 	return (
 		<Card className={card.selected ? undefined : "opacity-60"}>
@@ -77,17 +86,20 @@ export function ImportCandidateCard({
 						className="mt-1"
 					/>
 					{/*
-					 * WEB由来の銘柄のサムネイル(IMPL-4)。登録前に取り込む画像そのものを
-					 * 見せ、左上の overlay で由来を示す(タップで拡大。`ZoomablePhoto` と
-					 * 同じ挙動)。手元写真の銘柄のサムネイルは(5)の選択規則とあわせて
-					 * 導入するため、ここでは出さない。
+					 * 利用画像のサムネイル(IMPL-5。IMPL-4 の web 画像を含む)。
+					 * 登録前に取り込む画像そのものを見せ、WEB由来のものだけ左上の
+					 * overlay で由来を示す(タップで拡大。`ZoomablePhoto` と同じ挙動)。
+					 * 手元写真は登録時に使われる1枚と同じもの
+					 * (`bottlePhotoIndex ?? photoIndexes[0]`)を自動選択する。
 					 */}
-					{showWebPhoto && (
+					{displayPhoto && (
 						<ZoomablePhoto
-							src={card.imageUrl as string}
+							src={displayPhoto.src}
 							alt={`${title}の写真`}
-							isWebPhoto
-							referrerPolicy="no-referrer"
+							isWebPhoto={displayPhoto.isWebPhoto || undefined}
+							referrerPolicy={
+								displayPhoto.isWebPhoto ? "no-referrer" : undefined
+							}
 							className="size-16"
 						/>
 					)}

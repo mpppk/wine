@@ -917,6 +917,11 @@ export function PhotoRegisterWizard({
 						<ImportCandidateCard
 							key={card.localId}
 							card={card}
+							// カードの利用画像サムネイル(IMPL-5)に使う。解析に渡した順の
+							// プレビューで、カードの photoIndexes と同じ並び。
+							// 受け取って開いた回は手元に写真が無く空——その場合は
+							// 手元写真のサムネイルが出ない(web 画像は URL 参照なので出る)。
+							photoPreviews={photos.map((p) => p.previewUrl)}
 							onChange={(patch) => updateCard(card.localId, patch)}
 							onChangeValues={(patch: Partial<DrunkWineFieldsValue>) =>
 								setCards(
