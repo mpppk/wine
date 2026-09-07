@@ -219,7 +219,7 @@ export function ImportCandidateCard({
 									onCheckedChange={(checked) => onChange({ drunk: checked })}
 								/>
 								<Label htmlFor={`${card.localId}-drunk`}>
-									このワインを飲んだ
+									飲んだ記録を追加
 								</Label>
 							</div>{" "}
 							{card.drunk && (
