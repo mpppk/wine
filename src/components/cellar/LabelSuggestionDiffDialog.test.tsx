@@ -133,7 +133,7 @@ describe("LabelSuggestionDiffDialog", () => {
 			/>,
 		);
 		expect(screen.getByRole("link", { name: /公式/ })).toBeTruthy();
-		expect(screen.getByText("aaa.comでは2,000円")).toBeTruthy();
+		expect(screen.getByText("2,000円(aaa.com)")).toBeTruthy();
 		// チェックボックスは差分の2件のまま(参考表示は選ばせない)
 		expect(screen.getAllByRole("checkbox")).toHaveLength(2);
 	});

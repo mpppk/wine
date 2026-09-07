@@ -40,7 +40,7 @@ export function ReferenceLinksList({ links }: { links: LabelReferenceLink[] }) {
 }
 
 /**
- * 複数ソースの価格一覧。1行は「aaa.comでは2,000円」の形。
+ * 複数ソースの価格一覧。1行は「2,000円(aaa.com)」の形。
  * 価格を見たページのURLがあれば行ごとリンクにする。
  */
 export function PriceList({ prices }: { prices: LabelPrice[] }) {
@@ -57,7 +57,7 @@ export function PriceList({ prices }: { prices: LabelPrice[] }) {
 						price.amountJpy != null
 							? `${price.amountJpy.toLocaleString("ja-JP")}円`
 							: "価格不明";
-					const line = `${price.source}では${amount}`;
+					const line = `${amount}(${price.source})`;
 					return (
 						<li key={`${price.source}|${price.amountJpy ?? ""}`}>
 							{price.url ? (

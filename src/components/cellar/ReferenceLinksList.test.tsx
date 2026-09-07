@@ -34,9 +34,9 @@ describe("ReferenceLinksList", () => {
 });
 
 describe("PriceList", () => {
-	it("「sourceでは金額円」の形で出す", () => {
+	it("「金額円(source)」の形で出す", () => {
 		render(<PriceList prices={[{ source: "aaa.com", amountJpy: 2000 }]} />);
-		expect(screen.getByText("aaa.comでは2,000円")).toBeTruthy();
+		expect(screen.getByText("2,000円(aaa.com)")).toBeTruthy();
 	});
 
 	it("URLがあれば行ごとリンクにする", () => {
@@ -51,7 +51,7 @@ describe("PriceList", () => {
 				]}
 			/>,
 		);
-		const link = screen.getByRole("link", { name: /aaa\.comでは2,000円/ });
+		const link = screen.getByRole("link", { name: /2,000円\(aaa\.com\)/ });
 		expect(link.getAttribute("href")).toBe("https://aaa.com/w/1");
 		expect(link.getAttribute("target")).toBe("_blank");
 		expect(link.getAttribute("rel") ?? "").toContain("noreferrer");
@@ -59,7 +59,7 @@ describe("PriceList", () => {
 
 	it("金額不明の行は「価格不明」と出す", () => {
 		render(<PriceList prices={[{ source: "店頭" }]} />);
-		expect(screen.getByText("店頭では価格不明")).toBeTruthy();
+		expect(screen.getByText("価格不明(店頭)")).toBeTruthy();
 	});
 
 	it("空なら何も描かない", () => {
