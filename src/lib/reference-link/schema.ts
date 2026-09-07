@@ -5,7 +5,7 @@ import { z } from "zod";
 // 静的マスタ照合が必要なのでサービス層(reference-link-service)で行う。
 
 /** http/https のみ許可する。javascript: 等のスキームを弾き、xssの入口を作らない */
-function isHttpUrl(u: string): boolean {
+export function isHttpUrl(u: string): boolean {
 	try {
 		const { protocol } = new URL(u);
 		return protocol === "http:" || protocol === "https:";

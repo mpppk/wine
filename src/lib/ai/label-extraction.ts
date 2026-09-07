@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { buildWineNote } from "#/lib/drunk-wine/note";
+import { PRICE_MAX } from "#/lib/drunk-wine/schema";
+import { isHttpUrl } from "#/lib/reference-link/schema";
 import { WINE_COUNTRIES } from "#/lib/wine/countries";
 import { findProducerInfoByName } from "#/lib/wine/producer-info";
 import {
@@ -137,6 +139,80 @@ const LABEL_COMMENT_KEYS = Object.keys(
 ) as (keyof typeof LABEL_COMMENT_JSON_PROPERTIES)[];
 
 /**
+ * 参考サイト・価格一覧(IMPL-3)の出力スキーマ。**高精度経路だけが出す**。
+ *
+ * `LABEL_COMMENT_JSON_PROPERTIES` と同じ位置づけ: Workers AI 経路は裏取りを
+ * しないので書く材料が無く、出力上限(512トークン)を圧迫するだけになる。
+ * 受け取り側の zod(`labelReferenceShape`)と正規化は下で共有する。
+ *
+ * 一括抽出の GPT 経路(wine-list-gpt.ts)も同じ定義を展開する(銘柄1件ぶんの形)。
+ */
+export const LABEL_REFERENCE_JSON_PROPERTIES = {
+	reference_links: {
+		type: "array",
+		items: {
+			type: "object",
+			properties: {
+				title: {
+					type: ["string", "null"],
+					description:
+						"Title of the referenced page in its original language. null if unknown",
+				},
+				url: {
+					type: "string",
+					description:
+						"URL of a page actually opened during web search and used as a reference. Never invent a URL.",
+				},
+			},
+			required: ["title", "url"],
+			additionalProperties: false,
+		},
+		description:
+			"Reference pages actually used during web search (official producer site, wine databases, importer pages). Empty when nothing was referenced.",
+	},
+	prices: {
+		type: "array",
+		items: {
+			type: "object",
+			properties: {
+				source: {
+					type: "string",
+					description:
+						"Shop or site name where this price was seen (e.g. the domain)",
+				},
+				amount_jpy: {
+					type: ["integer", "null"],
+					description:
+						"Price in Japanese yen as an integer. Only when shown in yen (do not convert other currencies). null if unknown",
+				},
+				url: {
+					type: ["string", "null"],
+					description:
+						"URL of the page where this price was seen. null when not available. Never invent a URL.",
+				},
+			},
+			required: ["source", "amount_jpy", "url"],
+			additionalProperties: false,
+		},
+		description:
+			"Prices of this wine seen during web search from multiple sources. Empty when nothing was found.",
+	},
+} as const;
+
+/** 参考フィールドのキー。スキーマの required と受け取り側を1箇所から導出する。 */
+export const LABEL_REFERENCE_KEYS = Object.keys(
+	LABEL_REFERENCE_JSON_PROPERTIES,
+) as (keyof typeof LABEL_REFERENCE_JSON_PROPERTIES)[];
+
+export type LabelReferenceKey = (typeof LABEL_REFERENCE_KEYS)[number];
+
+/** 参考サイトの上限。超過分は切り捨てる(SPEC IMPL-3)。 */
+export const LABEL_REFERENCE_LINKS_MAX = 3;
+
+/** 価格一覧の上限。超過分は切り捨てる(SPEC IMPL-3)。 */
+export const LABEL_PRICES_MAX = 3;
+
+/**
  * 高精度経路(LLM + web検索)の出力スキーマ。`LABEL_JSON_SCHEMA` に**フィールドごとの
  * 根拠(`sources`)とコメント(#471)を足したもの**で、GPT経路の structured outputs に渡す。
  *
@@ -154,6 +230,7 @@ export const LABEL_WEB_JSON_SCHEMA = {
 	properties: {
 		...LABEL_JSON_SCHEMA.properties,
 		...LABEL_COMMENT_JSON_PROPERTIES,
+		...LABEL_REFERENCE_JSON_PROPERTIES,
 		sources: {
 			type: "object",
 			description:
@@ -163,7 +240,12 @@ export const LABEL_WEB_JSON_SCHEMA = {
 			additionalProperties: false,
 		},
 	},
-	required: [...LABEL_JSON_SCHEMA.required, ...LABEL_COMMENT_KEYS, "sources"],
+	required: [
+		...LABEL_JSON_SCHEMA.required,
+		...LABEL_COMMENT_KEYS,
+		...LABEL_REFERENCE_KEYS,
+		"sources",
+	],
 	additionalProperties: false,
 } as const;
 
@@ -188,8 +270,11 @@ export function buildKnownListsSection(): string {
  * (呼称は516件・約4,900トークンあり、毎ターン再送するには重すぎるので
  * `search_appellation` に置き換える。品種は84件・約560トークンと軽く、
  * 閉じた語彙なので同梱したほうが往復が減る)。
+ *
+ * Langfuse 管理下の版(`LABEL_AGENT_RESEARCH_PROMPT`)へ `known_grapes` として
+ * 注入する値もここから作る。export してあるのはそのため。
  */
-function buildKnownGrapesSection(): string {
+export function buildKnownGrapesSection(): string {
 	const grapeNames = GRAPE_VARIETIES.map((v) => v.nameLocal);
 	return [
 		"## 既知の品種リスト(該当があればこの表記を使う)",
@@ -236,6 +321,11 @@ const LABEL_OUTPUT_FIELD_RULES = [
 	'   - "region": 地域名(例: Bourgogne, Bordeaux, Toscana)。不明なら null',
 	'   - "country": 生産国(例: France, Italy)。不明なら null',
 	'   - "grape_varieties": 品種名(原語)の文字列配列。確認できなければ空配列',
+	'   - "reference_links": 参考にしたページの一覧(最大3件)。各要素は { "title": ページのタイトル(原語のまま。分からなければ null), "url": 実際に開いたページのURL }。',
+	"     生産者の公式サイト・ワインデータベース・輸入元の商品ページなど、裏取りに使ったページだけを入れる。",
+	"     実際に開いていないURLを書かない。参考にしたページが無ければ空配列。",
+	'   - "prices": このワインの販売価格の一覧(最大3件)。各要素は { "source": 店・サイト名(例: ドメイン名), "amount_jpy": 日本円の整数, "url": 価格を見たページのURL(無ければ null) }。',
+	"     日本円で表示されていたものだけを入れる(外貨は換算せず、amount_jpy を null にする)。見つからなければ空配列。",
 	'   - "sources": 上記7フィールドそれぞれの根拠。キーはフィールド名と同じで、値は',
 	'     { "origin": "photo" | "web" | "photo_and_web" | "unknown", "url": 文字列 or null }。',
 	'     - "photo": 写真から読み取ってそのまま採用した',
@@ -274,8 +364,14 @@ const LABEL_PHOTO_INTRO =
  * GPT経路はエージェントループ化(#455 以降)に伴い `buildAgentLabelPrompt` を使うが、
  * 裏取りの規範と出力フィールドの定義はここと共有している(SSOT)。違うのは
  * 「1回で出し切る」か「ツールを使って収束させる」かという進め方だけ。
+ *
+ * マスタの一覧は引数で差し替え可能にする。ai-service は Langfuse 管理下の版
+ * (`LABEL_WEB_RESEARCH_PROMPT`)を `getManagedPrompt` で引いた本文をそのまま使うが、
+ * 取得に失敗した回はここへ実行時の値を渡して組み立て直す——テンプレートへ焼き込まない。
  */
-export function buildWebLabelPrompt(): string {
+export function buildWebLabelPrompt(
+	knownLists: string = buildKnownListsSection(),
+): string {
 	return [
 		LABEL_PHOTO_INTRO,
 		"以下の手順でこのワインの情報を特定し、最後にJSONオブジェクトだけを出力してください。",
@@ -289,7 +385,7 @@ export function buildWebLabelPrompt(): string {
 		...LABEL_COMMENT_FIELD_RULES,
 		"4. 検索しても確認できない項目は null にする。JSONの前後に説明文・コードフェンスを書かない。",
 		"",
-		buildKnownListsSection(),
+		knownLists,
 	].join("\n");
 }
 
@@ -303,8 +399,12 @@ export function buildWebLabelPrompt(): string {
  * **呼称の一覧を同梱しない**のがコスト面での要点。516件・約4,900トークンを毎ターン
  * 再送するとループの固定費がターン数倍で効くため、`search_appellation` で必要な数件だけ
  * 引かせる。品種は84件と小さく、閉じた語彙なので同梱を続ける(検索の往復を減らす)。
+ *
+ * 品種の一覧は引数で差し替え可能にする(`buildWebLabelPrompt` と同じ理由)。
  */
-export function buildAgentLabelPrompt(): string {
+export function buildAgentLabelPrompt(
+	knownGrapes: string = buildKnownGrapesSection(),
+): string {
 	return [
 		LABEL_PHOTO_INTRO,
 		"ツールを使って調べながら、このワインを特定してください。**推測で埋めず、裏を取ってから提出すること。**",
@@ -329,7 +429,7 @@ export function buildAgentLabelPrompt(): string {
 		"5. submit_answer は検証を行う。問題が返ってきたら、指摘された点を調べ直して再度 submit_answer を呼ぶこと。",
 		"   同じ答えをそのまま再提出しない。確認できない項目は null / 空配列にして提出してよい。",
 		"",
-		buildKnownGrapesSection(),
+		knownGrapes,
 	].join("\n");
 }
 
@@ -436,11 +536,70 @@ export const labelCommentShape = {
 	producer_comment: textField,
 } as const;
 
+/** 参考サイト1件の受け取り側スキーマ。URLが無い行に意味は無いので後段で落とす。 */
+const referenceLinkItemSchema = z
+	.object({
+		title: z.union([z.string(), z.number()]).nullish().catch(null),
+		url: z.union([z.string(), z.number()]).nullish().catch(null),
+	})
+	.nullish()
+	.catch(null);
+
+/** 価格1件の受け取り側スキーマ。source が無い行・金額が読めない行は後段で落とす。 */
+const priceItemSchema = z
+	.object({
+		source: z.union([z.string(), z.number()]).nullish().catch(null),
+		amount_jpy: z.union([z.number(), z.string()]).nullish().catch(null),
+		url: z.union([z.string(), z.number()]).nullish().catch(null),
+	})
+	.nullish()
+	.catch(null);
+
+/**
+ * 参考サイト・価格一覧の受け取り側スキーマの構成要素。**コメントと同じく
+ * 本体より寛容にする**——付随情報で、形が崩れていても抽出結果は正しいことがある。
+ * 一括抽出(wine-list-extraction.ts)が銘柄1件ぶんの形としてこれを展開する。
+ *
+ * モデルが配列でなく単一オブジェクトを返すことがあるので、単一値も配列に寄せる
+ * (grape_varieties の grapesField と同じ流儀)。
+ */
+export const labelReferenceShape = {
+	reference_links: z
+		.union([z.array(referenceLinkItemSchema), referenceLinkItemSchema])
+		.transform((v) => (Array.isArray(v) ? v : [v]))
+		.nullish()
+		.catch([]),
+	prices: z
+		.union([z.array(priceItemSchema), priceItemSchema])
+		.transform((v) => (Array.isArray(v) ? v : [v]))
+		.nullish()
+		.catch([]),
+} as const;
+
 /** モデル出力(JSON)の受け取り側スキーマ。型の揺れに寛容な正規化つき。 */
 const labelResponseSchema = z.object({
 	...labelExtractionShape,
 	...labelCommentShape,
+	...labelReferenceShape,
 });
+
+/** 参考サイト1件(アプリ側の表現)。 */
+export interface LabelReferenceLink {
+	/** ページのタイトル(原語)。不明なら持たない。 */
+	title?: string;
+	/** 実際に開いたページのURL(http/https のみ)。 */
+	url: string;
+}
+
+/** 販売価格1件(アプリ側の表現)。 */
+export interface LabelPrice {
+	/** 店・サイト名(例: ドメイン名)。 */
+	source: string;
+	/** 日本円の整数。不明なら持たない。 */
+	amountJpy?: number;
+	/** 価格を見たページのURL(http/https のみ)。無ければ持たない。 */
+	url?: string;
+}
 
 /** モデル出力を正規化した抽出結果。未読取は undefined。 */
 export interface LabelExtraction {
@@ -458,6 +617,15 @@ export interface LabelExtraction {
 	tastingComment?: string;
 	/** 生産者についてのコメント(#471)。同上。 */
 	producerComment?: string;
+	/**
+	 * 参考サイトの一覧(IMPL-3)。web検索で裏取りする経路だけが持つ。
+	 * 空なら持たない。
+	 */
+	referenceLinks?: LabelReferenceLink[];
+	/**
+	 * 複数ソースの価格一覧(IMPL-3)。同上。空なら持たない。
+	 */
+	prices?: LabelPrice[];
 }
 
 /** 空文字・"null"等のプレースホルダを undefined に落とす。 */
@@ -527,6 +695,12 @@ export function toLabelExtraction(d: {
 	/** 高精度経路のみ(#471)。Workers AI 経路・一括抽出では未指定になる。 */
 	tasting_comment?: string | null;
 	producer_comment?: string | null;
+	/**
+	 * 参考サイト・価格一覧(IMPL-3)。高精度経路のみ。zod(`labelReferenceShape`)で
+	 * 型の揺れを吸収済みの値をそのまま渡す(意味的な検証は normalize 側)。
+	 */
+	reference_links?: readonly unknown[] | null;
+	prices?: readonly unknown[] | null;
 }): LabelExtraction {
 	return {
 		wineName: cleanText(d.wine_name),
@@ -540,7 +714,119 @@ export function toLabelExtraction(d: {
 			.filter((g) => g.length > 0),
 		tastingComment: cleanComment(d.tasting_comment),
 		producerComment: cleanComment(d.producer_comment),
+		...optionalList(
+			normalizeReferenceLinks(d.reference_links),
+			"referenceLinks",
+		),
+		...optionalList(normalizePrices(d.prices), "prices"),
 	};
+}
+
+/** 空配列を undefined に落とす(ジョブJSONを膨らませない・`if (x?.length)` を1箇所に)。 */
+function optionalList<T, K extends string>(
+	list: T[],
+	key: K,
+): { [P in K]?: T[] } {
+	return (list.length > 0 ? { [key]: list } : {}) as { [P in K]?: T[] };
+}
+
+/** タイトルを200文字に切り詰める(reference-link の入力上限と同じ)。 */
+const REFERENCE_TITLE_MAX = 200;
+
+/** 販売元の名前を100文字に切り詰める。 */
+const PRICE_SOURCE_MAX = 100;
+
+/**
+ * 参考サイトの正規化。**URLが無い行・http/https でない行は落とす**
+ * (reference-link の isHttpUrl と同じ境界)。作文URLはここで消える。
+ * 同じURLの重複を潰し、上限を超えたぶんは切り捨てる。決して throw しない。
+ */
+export function normalizeReferenceLinks(input: unknown): LabelReferenceLink[] {
+	const items = Array.isArray(input) ? input : [input];
+	const out: LabelReferenceLink[] = [];
+	const seen = new Set<string>();
+	for (const raw of items) {
+		if (!raw || typeof raw !== "object") continue;
+		const url = (raw as { url?: unknown }).url;
+		if (typeof url !== "string" && typeof url !== "number") continue;
+		const trimmed = String(url).trim();
+		if (!isHttpUrl(trimmed)) continue;
+		if (seen.has(trimmed)) continue;
+		seen.add(trimmed);
+		const title = cleanText(
+			(raw as { title?: unknown }).title == null
+				? undefined
+				: String((raw as { title?: unknown }).title),
+		);
+		out.push({
+			url: trimmed,
+			...(title ? { title: title.slice(0, REFERENCE_TITLE_MAX) } : {}),
+		});
+		if (out.length >= LABEL_REFERENCE_LINKS_MAX) break;
+	}
+	return out;
+}
+
+/**
+ * 価格一覧の正規化。**source が無い行・金額が読めない行は落とす**。
+ * URLはあるものだけ http/https を残し、読めないものはURLだけ落として行は残す
+ * (価格そのものが情報のため)。同じ店・同じ金額の重複を潰し、上限で切り捨てる。
+ * 決して throw しない。
+ */
+export function normalizePrices(input: unknown): LabelPrice[] {
+	const items = Array.isArray(input) ? input : [input];
+	const out: LabelPrice[] = [];
+	const seen = new Set<string>();
+	for (const raw of items) {
+		if (!raw || typeof raw !== "object") continue;
+		const rec = raw as {
+			source?: unknown;
+			amount_jpy?: unknown;
+			url?: unknown;
+		};
+		const source = cleanText(
+			rec.source == null ? undefined : String(rec.source),
+		)?.slice(0, PRICE_SOURCE_MAX);
+		if (!source) continue;
+		const amount = normalizePriceAmount(rec.amount_jpy);
+		if (amount == null) continue;
+		const key = `${source}|${amount}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		const url =
+			rec.url == null
+				? undefined
+				: (() => {
+						const trimmed = String(rec.url).trim();
+						return isHttpUrl(trimmed) ? trimmed : undefined;
+					})();
+		out.push({
+			source,
+			amountJpy: amount,
+			...(url ? { url } : {}),
+		});
+		if (out.length >= LABEL_PRICES_MAX) break;
+	}
+	return out;
+}
+
+/**
+ * 価格の金額を整数(円)に寄せる。数値化できない・0以下・上限超えは null
+ * (「0円」「マイナス」は未知の誤記とみなして落とす)。
+ */
+function normalizePriceAmount(value: unknown): number | null {
+	let n: number;
+	if (typeof value === "number") {
+		n = value;
+	} else if (typeof value === "string") {
+		// "3,800円" / "¥3800" のような表記も拾う(一括抽出の price と同じ流儀)
+		n = Number.parseInt(value.replace(/[^0-9]/g, ""), 10);
+	} else {
+		return null;
+	}
+	if (!Number.isFinite(n)) return null;
+	const amount = Math.trunc(n);
+	return amount >= 1 && amount <= PRICE_MAX ? amount : null;
 }
 
 /** 1フィールドぶんの根拠(アプリ側の表現)。 */
@@ -652,11 +938,49 @@ export function mergeExtractions(
 		merged.country ??= e.country;
 		merged.tastingComment ??= e.tastingComment;
 		merged.producerComment ??= e.producerComment;
+		// 参考サイト・価格は和集合で束ね、上限で切り捨てる(品種・写真番号と同じ流儀)。
+		merged.referenceLinks = unionCapped(
+			merged.referenceLinks,
+			e.referenceLinks,
+			(l) => l.url,
+			LABEL_REFERENCE_LINKS_MAX,
+		);
+		merged.prices = unionCapped(
+			merged.prices,
+			e.prices,
+			(p) => `${p.source}|${p.amountJpy ?? ""}`,
+			LABEL_PRICES_MAX,
+		);
 		for (const g of e.grapeVarieties) {
 			if (!merged.grapeVarieties.includes(g)) merged.grapeVarieties.push(g);
 		}
 	}
+	if (merged.referenceLinks?.length === 0) delete merged.referenceLinks;
+	if (merged.prices?.length === 0) delete merged.prices;
 	return merged;
+}
+
+/**
+ * 2つの一覧をキーで重複を潰しながら束ね、上限で切り捨てる。
+ * どちらも空なら undefined(空配列を持ち回さない)。
+ */
+function unionCapped<T>(
+	base: T[] | undefined,
+	added: T[] | undefined,
+	key: (item: T) => string,
+	max: number,
+): T[] | undefined {
+	if (!base?.length && !added?.length) return undefined;
+	const out = [...(base ?? [])];
+	const seen = new Set(out.map(key));
+	for (const item of added ?? []) {
+		const k = key(item);
+		if (seen.has(k)) continue;
+		seen.add(k);
+		out.push(item);
+		if (out.length >= max) break;
+	}
+	return out.length > 0 ? out : undefined;
 }
 
 // マスタ照合用の正規化。実装は産地ピッカーの検索と共有するため
@@ -779,6 +1103,13 @@ export interface LabelSuggestions {
 	 * 畳んだもの。どちらも無ければ持たない。
 	 */
 	note?: string;
+	/**
+	 * 参考サイトの一覧(IMPL-3)。フォームへは流し込まないが、解析結果の表示
+	 * (差分ダイアログ等)で使うため候補に載せて持ち回る。
+	 */
+	referenceLinks?: LabelReferenceLink[];
+	/** 複数ソースの価格一覧(IMPL-3)。同上。 */
+	prices?: LabelPrice[];
 }
 
 /**
@@ -865,6 +1196,15 @@ export function buildLabelSuggestions(
 		...(producerComment ? { producer: producerComment } : {}),
 	});
 	if (note) suggestions.note = note;
+
+	// 参考サイト・価格(IMPL-3)はフォーム項目では無いが、解析結果の表示で使うため
+	// そのまま持ち回る(空なら持たない)。
+	if (extraction.referenceLinks?.length) {
+		suggestions.referenceLinks = extraction.referenceLinks;
+	}
+	if (extraction.prices?.length) {
+		suggestions.prices = extraction.prices;
+	}
 
 	return suggestions;
 }

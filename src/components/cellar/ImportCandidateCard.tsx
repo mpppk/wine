@@ -11,6 +11,10 @@ import type {
 	WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
 import type { ImportCardState } from "#/components/cellar/import-candidates";
+import {
+	PriceList,
+	ReferenceLinksList,
+} from "#/components/cellar/ReferenceLinksList";
 import { TastingFields } from "#/components/cellar/TastingFields";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
@@ -150,6 +154,18 @@ export function ImportCandidateCard({
 							/>
 						</FormField>
 
+						{/*
+						 * 解析で裏取りした参考サイト・複数ソースの価格(IMPL-3)。
+						 * 差分ダイアログと同じ共通コンポーネントから出す(表示のドリフト防止)。
+						 * フォームには流し込まない(参考情報のため)。
+						 */}
+						{(card.referenceLinks?.length ?? 0) > 0 && (
+							<ReferenceLinksList links={card.referenceLinks ?? []} />
+						)}
+						{(card.prices?.length ?? 0) > 0 && (
+							<PriceList prices={card.prices ?? []} />
+						)}
+
 						<fieldset className="flex flex-col gap-3">
 							<div className="flex items-center gap-3">
 								<Switch
@@ -160,7 +176,7 @@ export function ImportCandidateCard({
 								<Label htmlFor={`${card.localId}-drunk`}>
 									このワインを飲んだ
 								</Label>
-							</div>
+							</div>{" "}
 							{card.drunk && (
 								<TastingFields
 									value={card.tasting}

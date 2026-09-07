@@ -90,6 +90,23 @@ describe("buildImportCards", () => {
 		expect(state?.values.price).toBe("");
 	});
 
+	it("参考サイト・価格は表示用に持ち回る(フォームには流し込まない)", () => {
+		const [withRefs] = buildImportCards([
+			candidate({
+				referenceLinks: [{ url: "https://example.com/a", title: "t" }],
+				prices: [{ source: "aaa.com", amountJpy: 2000 }],
+			}),
+		]);
+		expect(withRefs?.referenceLinks).toEqual([
+			{ url: "https://example.com/a", title: "t" },
+		]);
+		expect(withRefs?.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
+
+		const [withoutRefs] = buildImportCards([candidate()]);
+		expect(withoutRefs?.referenceLinks).toBeUndefined();
+		expect(withoutRefs?.prices).toBeUndefined();
+	});
+
 	it("カードごとに異なる localId を振る(入力欄の id 衝突を防ぐ)", () => {
 		const cards = buildImportCards([candidate(), candidate(), candidate()]);
 		expect(new Set(cards.map((c) => c.localId)).size).toBe(3);

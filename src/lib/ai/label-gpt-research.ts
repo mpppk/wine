@@ -31,13 +31,18 @@ export const GPT_WEB_SEARCH_TOOL_NAME = "web_search";
  * 画像は data URI をそのまま渡せるが、**HTTP URL を渡せてしまう**ため
  * parseImageDataUrl を通して data URI であることを強制する(Claude経路と同じ境界)。
  * media type は data URI から取り出したものをそのまま使う。
+ *
+ * 指示文は差し替え可能にする(`buildWebLabelMessages` の promptText と同じ理由)。
  */
-export function buildGptLabelMessages(imageDataUrls: string[]): ModelMessage[] {
+export function buildGptLabelMessages(
+	imageDataUrls: string[],
+	promptText: string = buildAgentLabelPrompt(),
+): ModelMessage[] {
 	return [
 		{
 			role: "user",
 			content: [
-				{ type: "text", text: buildAgentLabelPrompt() },
+				{ type: "text", text: promptText },
 				...imageDataUrls.map((dataUrl) => ({
 					type: "file" as const,
 					// data URI でなければここで throw する(境界の強制)

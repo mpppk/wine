@@ -34,6 +34,13 @@ export interface ImportCardState {
 	tasting: WineTastingDraft;
 	/** その店での売値(円)。銘柄ではなく目撃記録に保存する */
 	sightingPrice: string;
+	/**
+	 * 参考サイトの一覧(IMPL-3)。解析結果の表示用で、フォームへは流し込まない。
+	 * カードの展開部で共通コンポーネント(`ReferenceLinksList`)から出す。
+	 */
+	referenceLinks?: WineListCandidate["referenceLinks"];
+	/** 複数ソースの価格一覧(IMPL-3)。同上(`PriceList` から出す)。 */
+	prices?: WineListCandidate["prices"];
 	/** この銘柄が写っていた写真の番号(0始まり・表示用) */
 	photoIndexes: number[];
 	/**
@@ -106,6 +113,11 @@ export function buildImportCards(
 		tasting: EMPTY_TASTING_DRAFT,
 		sightingPrice: candidate.price != null ? String(candidate.price) : "",
 		photoIndexes: candidate.photoIndexes,
+		// 参考サイト・価格(IMPL-3)は表示用にそのまま持ち回る(フォームには流し込まない)。
+		...(candidate.referenceLinks?.length
+			? { referenceLinks: candidate.referenceLinks }
+			: {}),
+		...(candidate.prices?.length ? { prices: candidate.prices } : {}),
 		// 写真の手当て(#473)は解析の判断をそのまま持ち回る。カード上で編集はさせない
 		// (「どの写真がこの1本を写しているか」は写真を見ないと決められず、レビュー画面の
 		// 目的=銘柄の内容の確認から外れる)。

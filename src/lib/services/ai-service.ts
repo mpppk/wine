@@ -47,8 +47,12 @@ import {
 } from "#/lib/ai/config";
 import { AI_FEATURE_GENERATION_PREFIXES } from "#/lib/ai/inference-log";
 import {
+	buildAgentLabelPrompt,
+	buildKnownGrapesSection,
+	buildKnownListsSection,
 	buildLabelMessages,
 	buildLabelSuggestions,
+	buildWebLabelPrompt,
 	extractJsonPayload,
 	LABEL_JSON_SCHEMA,
 	type LabelExtraction,
@@ -73,7 +77,12 @@ import {
 	joinResponseText,
 	toAnthropicUsage,
 } from "#/lib/ai/label-web-research";
-import { REGION_QA_SYSTEM_PROMPT } from "#/lib/ai/managed-prompts";
+import {
+	LABEL_AGENT_RESEARCH_PROMPT,
+	LABEL_WEB_RESEARCH_PROMPT,
+	REGION_QA_SYSTEM_PROMPT,
+	WINE_LIST_RESEARCH_PROMPT,
+} from "#/lib/ai/managed-prompts";
 import {
 	buildRegionChatMessages,
 	buildRegionContext,
@@ -90,6 +99,7 @@ import {
 import {
 	buildWineListCandidates,
 	buildWineListMessages,
+	buildWineListPrompt,
 	dedupeWineListItems,
 	matchExistingEntries,
 	parseWineListResponse,
@@ -130,7 +140,10 @@ import type {
 	LangfuseGenerationInput,
 	LangfuseSpanInput,
 } from "#/lib/observability/langfuse";
-import { getManagedPrompt } from "#/lib/observability/langfuse-prompt";
+import {
+	getManagedPrompt,
+	type ManagedPromptResult,
+} from "#/lib/observability/langfuse-prompt";
 import { alertOperator } from "#/lib/observability/operator-alert";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
@@ -455,6 +468,90 @@ interface InferenceObserver {
 }
 
 /**
+ * Langfuse 管理下のプロンプトの解決結果。**本文 + 版の追跡情報**を束ねる。
+ *
+ * `getManagedPrompt` は取得に失敗してもコードの fallback 本文を返すので、
+ * 呼び出し側は成功/失敗を区別せず `text` をそのままモデルへ渡せる。
+ * 版の追跡(`ref` / `source`)は generation の `prompt` / `metadata.promptSource`
+ * に載せ、Langfuse 上で世代を追えるようにする(#512 Phase 4 / IMPL-3 W3-2)。
+ */
+interface ResolvedPrompt {
+	/** 変数を埋め終わった本文。モデルへ渡すのはこれ。 */
+	text: string;
+	/** 取得した版へのリンク。fallback の回は null。 */
+	ref: ManagedPromptResult["ref"];
+	/** どこから来た本文か。fallback の理由まで残る。 */
+	source: ManagedPromptResult["source"];
+}
+
+function toResolvedPrompt(result: ManagedPromptResult): ResolvedPrompt {
+	return { text: result.text, ref: result.ref, source: result.source };
+}
+
+/**
+ * 世代の追跡情報を全 generation に載せる包み。`withSpan` でも `startObservation`
+ * でもなく、既存の `recordGeneration` へ `prompt` / `metadata.promptSource` を
+ * 足すだけ——計装の入口は `finishMeteredInference` のまま。
+ */
+function withPromptAttribution(
+	obs: InferenceObserver,
+	prompt: ResolvedPrompt | undefined,
+): InferenceObserver {
+	if (!prompt) return obs;
+	return {
+		recordGeneration: (input) =>
+			obs.recordGeneration({
+				...input,
+				...(prompt.ref ? { prompt: prompt.ref } : {}),
+				metadata: { ...(input.metadata ?? {}), promptSource: prompt.source },
+			}),
+		recordSpan: (input) => obs.recordSpan(input),
+	};
+}
+
+/**
+ * エチケット解析の高精度プロンプトを Langfuse 管理下から引く。**throw しない**
+ * (`getManagedPrompt` が fallback へ落とす)ので、予約の前後どちらに置いても
+ * 予約を漏らさない。取得は推論の実行直前(ジョブのコンシューマ)で行い、
+ * 予約時の見積には影響させない。
+ */
+async function resolveLabelResearchPrompt(
+	route: LabelRoute,
+): Promise<{ web?: ResolvedPrompt; agent?: ResolvedPrompt }> {
+	if (route === "gpt-luna") {
+		return {
+			agent: toResolvedPrompt(
+				await getManagedPrompt(LABEL_AGENT_RESEARCH_PROMPT, {
+					known_grapes: buildKnownGrapesSection(),
+				}),
+			),
+		};
+	}
+	if (route === "web-research") {
+		return {
+			web: toResolvedPrompt(
+				await getManagedPrompt(LABEL_WEB_RESEARCH_PROMPT, {
+					known_lists: buildKnownListsSection(),
+				}),
+			),
+		};
+	}
+	return {};
+}
+
+/** 一括抽出のプロンプトを Langfuse 管理下から引く(同上・throw しない)。 */
+async function resolveWineListResearchPrompt(
+	photoCount: number,
+): Promise<ResolvedPrompt> {
+	return toResolvedPrompt(
+		await getManagedPrompt(WINE_LIST_RESEARCH_PROMPT, {
+			known_lists: buildKnownListsSection(),
+			photo_count: String(photoCount),
+		}),
+	);
+}
+
+/**
  * AI SDK の応答 content を、Langfuse に載せてよい形へ畳む。
  * テキスト・ツール呼び出し(名前と引数)は残し、**バイナリを含いうる部分(file など)は
  * 種別だけ**を残す。写真の方針(docs/deployment.md)の裏返しで、モデル応答側にも
@@ -484,6 +581,8 @@ async function analyzeLabelWithWebResearch(
 	imageDataUrls: string[],
 	onTrace: WebResearchTraceSink,
 	obs?: InferenceObserver,
+	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
+	promptText?: string,
 ): Promise<LabelResearchResult> {
 	const client = new Anthropic({ apiKey });
 	const request = {
@@ -497,7 +596,10 @@ async function analyzeLabelWithWebResearch(
 			},
 		],
 	} satisfies Partial<Anthropic.MessageCreateParamsNonStreaming>;
-	const messages = buildWebLabelMessages(imageDataUrls);
+	const messages = buildWebLabelMessages(
+		imageDataUrls,
+		promptText ?? buildWebLabelPrompt(),
+	);
 	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#514)。ハッシュ計算の非同期は
 	// ここで済ませてあるので、以降の置き換えは同期で済む。継続で積まれる assistant
 	// 応答には写真が無いので、同じ写像で全体を畳める。
@@ -598,6 +700,8 @@ async function analyzeLabelWithGptResearch(
 	onTrace: WebResearchTraceSink,
 	budgetMicroUsd: number,
 	obs?: InferenceObserver,
+	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
+	promptText?: string,
 ): Promise<LabelResearchResult> {
 	const openai = createOpenAI({ apiKey });
 	// クロージャで使うので、undefined の可能性を先に畳んでおく。
@@ -631,7 +735,10 @@ async function analyzeLabelWithGptResearch(
 
 	const result = await generateText({
 		model: openai(AI_LABEL_GPT_MODEL),
-		messages: buildGptLabelMessages(imageDataUrls),
+		messages: buildGptLabelMessages(
+			imageDataUrls,
+			promptText ?? buildAgentLabelPrompt(),
+		),
 		tools: {
 			[GPT_WEB_SEARCH_TOOL_NAME]: openai.tools.webSearch({
 				searchContextSize: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
@@ -719,7 +826,12 @@ async function analyzeLabelWithGptResearch(
 				// 入力は最初の呼び出しだけ(以降は蓄積した会話で、応答の連なりから読める)。
 				input:
 					callCount === 1
-						? redact(buildGptLabelMessages(imageDataUrls))
+						? redact(
+								buildGptLabelMessages(
+									imageDataUrls,
+									promptText ?? buildAgentLabelPrompt(),
+								),
+							)
 						: { step: callCount },
 				output: toSafeContentParts(content),
 				metadata: { photos: photoSummaries, step: callCount },
@@ -872,6 +984,12 @@ async function runLabelInference(
 		plan: LabelPlan;
 		openaiApiKey?: string;
 		anthropicApiKey?: string;
+		/**
+		 * Langfuse 管理下から引いた高精度プロンプト。**呼び出し側
+		 * (`runLabelAnalysisForJob`)が推論の実行直前に解決して渡す**——ここで
+		 * 引くと予約後の await が増える(#245)。省略時はコードの版を使う。
+		 */
+		prompts?: { web?: ResolvedPrompt; agent?: ResolvedPrompt };
 	},
 	ctx: MeteredInferenceContext,
 ): Promise<MeteredInferenceOutput<LabelSuggestions>> {
@@ -907,7 +1025,10 @@ async function runLabelInference(
 	// **失敗時にもう一方の高精度プロバイダは試さない**: 予約は選んだ経路の見積で
 	// 取ってあり、2つ目の課金と待ち時間を積み増すより確実に応答を返す方を採る
 	// (キー未設定による降格は予約前の resolveLabelRoute が済ませている)。
+	// 世代の追跡は実行した高精度経路の解決結果で付ける。Workers AI へ降格した回は
+	// コードの版で動くので付けない(promptSource が混ざると版ごとの指標が汚れる)。
 	if (route === "gpt-luna" && openaiApiKey) {
+		const researchObs = withPromptAttribution(obs, input.prompts?.agent);
 		try {
 			// **見せる版と切る版を分ける**。クライアントは拡大に耐える解像度で
 			// 送ってくるが、それをそのまま会話へ載せると入力トークンが毎ターン
@@ -936,7 +1057,8 @@ async function runLabelInference(
 				canTransform ? imageDataUrls : undefined,
 				(t) => ctx.addLogFields({ webResearch: t }),
 				ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
-				obs,
+				researchObs,
+				input.prompts?.agent?.text,
 			);
 			extractions.push(gpt.extraction);
 			usage = addUsage(usage, gpt.usage);
@@ -954,12 +1076,14 @@ async function runLabelInference(
 			});
 		}
 	} else if (route === "web-research" && anthropicApiKey) {
+		const researchObs = withPromptAttribution(obs, input.prompts?.web);
 		try {
 			const web = await analyzeLabelWithWebResearch(
 				anthropicApiKey,
 				imageDataUrls,
 				(t) => ctx.addLogFields({ webResearch: t }),
-				obs,
+				researchObs,
+				input.prompts?.web?.text,
 			);
 			extractions.push(web.extraction);
 			usage = addUsage(usage, web.usage);
@@ -1124,6 +1248,10 @@ export async function runLabelAnalysisForJob(
 		throw new BadRequestError("画像が指定されていません");
 	}
 	const apiKeys = labelProviderApiKeys();
+	// 高精度プロンプトは Langfuse 管理下から引く(IMPL-3 W3-2)。**予約は投入時に
+	// 済んでいる**が、`getManagedPrompt` は throw しない設計なので返却漏れは
+	// 起きない。取得に失敗した回はコードの fallback 本文で動く。
+	const prompts = await resolveLabelResearchPrompt(input.plan.route);
 	return finishMeteredInference(
 		userId,
 		{
@@ -1134,7 +1262,12 @@ export async function runLabelAnalysisForJob(
 		(ctx) =>
 			runLabelInference(
 				userId,
-				{ imageDataUrls: input.imageDataUrls, plan: input.plan, ...apiKeys },
+				{
+					imageDataUrls: input.imageDataUrls,
+					plan: input.plan,
+					...apiKeys,
+					prompts,
+				},
 				ctx,
 			),
 	);
@@ -1199,6 +1332,8 @@ async function extractWineListWithClaude(
 	apiKey: string,
 	imageDataUrls: string[],
 	obs?: InferenceObserver,
+	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
+	promptText?: string,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new Anthropic({ apiKey });
 	const request = {
@@ -1212,7 +1347,10 @@ async function extractWineListWithClaude(
 			},
 		],
 	} satisfies Partial<Anthropic.MessageCreateParamsNonStreaming>;
-	const messages = buildWineListMessages(imageDataUrls);
+	const messages = buildWineListMessages(
+		imageDataUrls,
+		promptText ?? buildWineListPrompt(imageDataUrls.length),
+	);
 	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#515)。写像の構築時に
 	// ハッシュ計算(非同期)を済ませるのはエチケット解析と同じ。継続で積まれる
 	// assistant 応答に写真は無いので、同じ写像で全体を畳める。
@@ -1293,6 +1431,8 @@ async function extractWineListWithGpt(
 	apiKey: string,
 	imageDataUrls: string[],
 	obs?: InferenceObserver,
+	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
+	promptText?: string,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new OpenAI({ apiKey });
 	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#515)。ハッシュ計算の非同期は
@@ -1301,7 +1441,10 @@ async function extractWineListWithGpt(
 	const photoSummaries = await describePhotoSummaries(imageDataUrls);
 	const response = await client.responses.create({
 		model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
-		input: buildWineListGptInput(imageDataUrls),
+		input: buildWineListGptInput(
+			imageDataUrls,
+			promptText ?? buildWineListPrompt(imageDataUrls.length),
+		),
 		max_output_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 		reasoning: { effort: AI_WINE_LIST_GPT_REASONING_EFFORT },
 		text: buildWineListGptTextFormat(),
@@ -1322,7 +1465,12 @@ async function extractWineListWithGpt(
 		obs.recordGeneration({
 			name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}gpt-luna#1`,
 			model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
-			input: redact(buildWineListGptInput(imageDataUrls)),
+			input: redact(
+				buildWineListGptInput(
+					imageDataUrls,
+					promptText ?? buildWineListPrompt(imageDataUrls.length),
+				),
+			),
 			output: toSafeResponseOutput(response.output),
 			metadata: { photos: photoSummaries },
 			usage: {
@@ -1380,20 +1528,39 @@ async function runWineListInference(
 		route: WineListRoute;
 		apiKey: string;
 		entries: DrunkWineEntry[];
+		/**
+		 * Langfuse 管理下から引いたプロンプト。**呼び出し側
+		 * (`runWineListAnalysisForJob`)が推論の実行直前に解決して渡す**
+		 * (`runLabelInference` の prompts と同じ理由)。省略時はコードの版を使う。
+		 */
+		prompt?: ResolvedPrompt;
 	},
 	ctx: MeteredInferenceContext,
 ): Promise<MeteredInferenceOutput<WineListAnalysisOutcome>> {
 	// **フォールバックは持たない**。片方の失敗でもう一方を叩くと、失敗した推論の
 	// 原価に加えてもう1回ぶんの消費が乗る(#404 と同種の問題を作らない)。
 	// Langfuse への報告口(#515)。キー未設定なら ctx 側が no-op するので常に定義してよい。
-	const obs: InferenceObserver = {
-		recordGeneration: (gen) => ctx.recordGeneration(gen),
-		recordSpan: (span) => ctx.recordSpan(span),
-	};
+	const obs = withPromptAttribution(
+		{
+			recordGeneration: (gen) => ctx.recordGeneration(gen),
+			recordSpan: (span) => ctx.recordSpan(span),
+		},
+		input.prompt,
+	);
 	const { parsed, usage } =
 		input.route === "gpt-luna"
-			? await extractWineListWithGpt(input.apiKey, input.imageDataUrls, obs)
-			: await extractWineListWithClaude(input.apiKey, input.imageDataUrls, obs);
+			? await extractWineListWithGpt(
+					input.apiKey,
+					input.imageDataUrls,
+					obs,
+					input.prompt?.text,
+				)
+			: await extractWineListWithClaude(
+					input.apiKey,
+					input.imageDataUrls,
+					obs,
+					input.prompt?.text,
+				);
 	const deduped = dedupeWineListItems(parsed.wines);
 	const candidates = matchExistingEntries(
 		buildWineListCandidates(deduped.items),
@@ -1513,6 +1680,11 @@ export async function runWineListAnalysisForJob(
 	}
 	// 既存セラーとの突合材料。予約は投入時に済んでいるので、ここで読んでよい。
 	const { entries } = await drunkWineService.listDrunkWines(userId);
+	// プロンプトは Langfuse 管理下から引く(IMPL-3 W3-2。`runLabelAnalysisForJob`
+	// と同じく throw しないので、予約済みのここに置いても返却漏れは起きない)。
+	const prompt = await resolveWineListResearchPrompt(
+		input.imageDataUrls.length,
+	);
 	return finishMeteredInference(
 		userId,
 		{
@@ -1527,6 +1699,7 @@ export async function runWineListAnalysisForJob(
 					route: input.plan.route,
 					apiKey,
 					entries,
+					prompt,
 				},
 				ctx,
 			),

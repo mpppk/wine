@@ -348,6 +348,11 @@ export function DrunkWineForm({
 	// 廃止した。産地の排他(最も細かい1つだけ)を含む適用ルールは buildLabelDiffs が
 	// 一手に持ち、反映するかどうかはユーザが選ぶ(#362)。
 	const [labelDiffs, setLabelDiffs] = useState<LabelDiffItem[]>([]);
+	// 差分ダイアログで併せて見せる参考サイト・価格(IMPL-3)。フォームには流し込まない。
+	const [labelReferences, setLabelReferences] = useState<{
+		referenceLinks?: LabelSuggestions["referenceLinks"];
+		prices?: LabelSuggestions["prices"];
+	}>({});
 
 	// 解析前に「この写真枚数でいくら要るか」を出す。コスト基準の計上では経路によって
 	// 消費が 3 / 39 / 275 クレジットと2桁変わるので、押してから残高不足で弾かれると
@@ -377,6 +382,7 @@ export function DrunkWineForm({
 		);
 		update(patch);
 		setLabelDiffs([]);
+		setLabelReferences({});
 		setAnalyzeNotice(
 			selected.length > 0
 				? `エチケットから入力しました: ${selected.map((d) => d.label).join("、")}`
@@ -405,6 +411,10 @@ export function DrunkWineForm({
 			return;
 		}
 		setLabelDiffs(diffs);
+		setLabelReferences({
+			referenceLinks: suggestions.referenceLinks,
+			prices: suggestions.prices,
+		});
 	};
 
 	/** 添付中の写真を解析ソースへ。既存写真はURL(同一オリジン)、新規はFile。 */
@@ -991,9 +1001,13 @@ export function DrunkWineForm({
 			<LabelSuggestionDiffDialog
 				open={labelDiffs.length > 0}
 				diffs={labelDiffs}
+				references={labelReferences}
 				onApply={applySelectedLabelDiffs}
 				onOpenChange={(open) => {
-					if (!open) setLabelDiffs([]);
+					if (!open) {
+						setLabelDiffs([]);
+						setLabelReferences({});
+					}
 				}}
 			/>
 

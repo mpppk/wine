@@ -114,4 +114,33 @@ describe("LabelSuggestionDiffDialog", () => {
 		fireEvent.click(applyButton());
 		expect(onApply).toHaveBeenCalledWith(DIFFS);
 	});
+
+	it("参考サイト・価格は選択対象ではなく参考表示として出す", () => {
+		// フォーム項目では無いのでチェックボックスには載らず、共通コンポーネントの
+		// 一覧として差分の下に出る。onApply の対象は変わらない。
+		const onApply = vi.fn();
+		const onOpenChange = vi.fn();
+		render(
+			<LabelSuggestionDiffDialog
+				open={true}
+				diffs={DIFFS}
+				references={{
+					referenceLinks: [{ url: "https://example.com/a", title: "公式" }],
+					prices: [{ source: "aaa.com", amountJpy: 2000 }],
+				}}
+				onApply={onApply}
+				onOpenChange={onOpenChange}
+			/>,
+		);
+		expect(screen.getByRole("link", { name: /公式/ })).toBeTruthy();
+		expect(screen.getByText("aaa.comでは2,000円")).toBeTruthy();
+		// チェックボックスは差分の2件のまま(参考表示は選ばせない)
+		expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+	});
+
+	it("references が無ければ参考表示は出ない", () => {
+		renderDialog();
+		expect(screen.queryByText("参考サイト")).toBeNull();
+		expect(screen.queryByText("価格一覧")).toBeNull();
+	});
 });
