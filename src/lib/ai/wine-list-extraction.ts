@@ -380,6 +380,27 @@ export function photoKindForPhotoHints(hints: {
 }
 
 /**
+ * 保存済みの由来(`drunk_wine.photo_kinds`)を `photo_keys` と同じ順・同じ長さに
+ * 正規化する(drizzle/0035 の読み取り側)。
+ *
+ * - 保存値が配列でない・JSON パース失敗で配列にならない → 全件 `"bottle"`
+ * - 長さ不一致・未知値 → その位置は `"bottle"`
+ *
+ * いずれも overlay なしに倒すのが要点で、`"web"` は保存値がその位置で明示的に
+ * `"web"` のときだけ返す。既存行(列追加前に作られた写真持ち)は `'[]'` のままなので、
+ * 全件 bottle 扱い = 従来どおり overlay なしになる。
+ */
+export function resolveStoredPhotoKinds(
+	photoKeys: readonly string[],
+	stored: unknown,
+): PhotoKind[] {
+	if (!Array.isArray(stored)) return photoKeys.map(() => "bottle" as PhotoKind);
+	return photoKeys.map((_, i) =>
+		stored[i] === "web" ? ("web" as PhotoKind) : ("bottle" as PhotoKind),
+	);
+}
+
+/**
  * 写真の手当て(#473)を正規化する。**採用しない情報は落とし切る**のが要点:
  *
  *  - `bottle_photo_index` は渡した枚数の範囲だけ。範囲外(1始まりで数えた等)を残すと、

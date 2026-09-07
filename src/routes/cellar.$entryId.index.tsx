@@ -236,6 +236,7 @@ function CellarDetailPage() {
 				photoUrls={entry.photoUrls}
 				thumbUrls={entry.thumbUrls}
 				version={entry.updatedAt}
+				photoKinds={entry.photoKinds}
 			/>
 
 			<dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">

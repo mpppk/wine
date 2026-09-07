@@ -10,6 +10,7 @@ import {
 import type { AdminAuditAction } from "#/lib/admin/audit";
 import type { LabelEngineKey, LabelRoute } from "#/lib/ai/config";
 import type { LabelJobKind, LabelJobStatus } from "#/lib/ai/label-job";
+import type { PhotoKind } from "#/lib/ai/wine-list-extraction";
 import type { CreditLedgerType } from "#/lib/credit/types";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
 import { DEFAULT_PLACE_KIND, type PlaceKind } from "#/lib/place/place";
@@ -140,6 +141,22 @@ export const drunkWine = sqliteTable(
 		/** R2キーの配列。表示順で、先頭が代表(サムネイル)。空配列=写真なし */
 		photoKeys: text("photo_keys", { mode: "json" })
 			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'`),
+		/**
+		 * 写真ごとの由来(`photo_keys` と同じ順・同じ長さの `"bottle" | "web"` 配列。
+		 * PR #561 草案の適用・drizzle/0035)。
+		 *
+		 * - `bottle`: 利用者自身が撮った写真(手元のボトル・解析ジョブ写真・
+		 *   バッチ写真の複製)。overlay を出さない
+		 * - `web`: web で見つけたボトル/エチケット画像。別ヴィンテージ等のズレが
+		 *   ありうるため、表示では WEB 由来であることを overlay で示す
+		 *
+		 * 読み取りは `resolveStoredPhotoKinds` が `photo_keys` と同じ長さに正規化し、
+		 * パース失敗・長さ不一致・未知値は由来不明扱い(overlay なし)に倒す。
+		 */
+		photoKinds: text("photo_kinds", { mode: "json" })
+			.$type<PhotoKind[]>()
 			.notNull()
 			.default(sql`'[]'`),
 		/**
