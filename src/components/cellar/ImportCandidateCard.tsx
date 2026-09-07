@@ -17,7 +17,6 @@ import {
 	ReferenceLinksList,
 } from "#/components/cellar/ReferenceLinksList";
 import { TastingFields } from "#/components/cellar/TastingFields";
-import { WebPhotoBadge } from "#/components/cellar/WebPhotoBadge";
 import { ZoomablePhoto } from "#/components/cellar/WinePhotoGallery";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
@@ -114,18 +113,10 @@ export function ImportCandidateCard({
 							<p className="truncate text-sm text-muted-foreground">{detail}</p>
 						)}
 						<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-							{card.photoIndexes.length > 0 && (
-								<span className="rounded bg-muted px-1.5 py-0.5">
-									{card.photoIndexes.map((i) => `${i + 1}枚目`).join("・")}
-								</span>
-							)}
 							{/*
-							 * 銘柄の写真をどう用意するか(#473)。撮った写真にこの1本だけを写した
-							 * ものが無い銘柄は web から取りに行くので、**登録前に分かる形にする**
-							 * (知らないうちに外部の画像が自分のセラーに入るのは避ける)。
-							 * バッジは共通の `WebPhotoBadge` から出す(IMPL-4。文言「WEB」で統一)。
+							 * 写真の由来はサムネイルの overlay(WebPhotoBadge)で示すため、
+							 * 文字バッジ(何枚目・WEB画像)は出さない。
 							 */}
-							{showWebPhoto && <WebPhotoBadge variant="inline" />}
 							{/*
 							 * 画像と実物のズレの注記(IMPL-4。例: 別ヴィンテージの画像)。
 							 * バッジの近傍に置き、全文は title で読めるようにする。
