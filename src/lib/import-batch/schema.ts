@@ -81,6 +81,13 @@ const importItemInput = z
 				url: z.string().min(1).max(WEB_PHOTO_URL_MAX),
 				/** 画像と実物のズレ(ヴィンテージ違い等)。取り込めたときだけコメントへ追記する */
 				note: z.string().max(NOTE_MAX).optional(),
+				/**
+				 * 銘柄写真の由来(IMPL-4)。webPhoto を送るのは web 画像の銘柄だけ
+				 * なので値は "web" 固定。サーバは現状この値で永続化しないが、
+				 * 由来カラムの追加(別PRのマイグレーション)までの間、API境界で
+				 * 由来を明示するために持つ。
+				 */
+				photoKind: z.literal("web").optional(),
 			})
 			.optional(),
 	})

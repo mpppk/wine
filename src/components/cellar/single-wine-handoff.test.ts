@@ -16,6 +16,7 @@ function candidate(
 	return {
 		suggestions: { name: "Chablis Les Clos" },
 		photoIndexes: [0],
+		photoKind: "bottle",
 		...partial,
 	};
 }

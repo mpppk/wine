@@ -1,7 +1,7 @@
 import {
 	ChevronDownIcon,
 	ChevronUpIcon,
-	ImageIcon,
+	InfoIcon,
 	LinkIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -16,6 +16,8 @@ import {
 	ReferenceLinksList,
 } from "#/components/cellar/ReferenceLinksList";
 import { TastingFields } from "#/components/cellar/TastingFields";
+import { WebPhotoBadge } from "#/components/cellar/WebPhotoBadge";
+import { ZoomablePhoto } from "#/components/cellar/WinePhotoGallery";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Checkbox } from "#/components/ui/checkbox";
@@ -55,6 +57,12 @@ export function ImportCandidateCard({
 	]
 		.filter(Boolean)
 		.join(" / ");
+	// WEB画像の表示は「新規作成する web 由来の銘柄」だけに出す(IMPL-4)。
+	// 既存一致のカードは目撃記録を足すだけで web 画像を取り込まないので、
+	// imageUrl を持っていても overlay・サムネイルは出さない。
+	// 由来の判定は card.photoKind の1箇所だけを見る(ここで有無判定を書き直さない)。
+	const showWebPhoto =
+		!card.existing && card.photoKind === "web" && !!card.imageUrl;
 
 	return (
 		<Card className={card.selected ? undefined : "opacity-60"}>
@@ -68,6 +76,21 @@ export function ImportCandidateCard({
 						}
 						className="mt-1"
 					/>
+					{/*
+					 * WEB由来の銘柄のサムネイル(IMPL-4)。登録前に取り込む画像そのものを
+					 * 見せ、左上の overlay で由来を示す(タップで拡大。`ZoomablePhoto` と
+					 * 同じ挙動)。手元写真の銘柄のサムネイルは(5)の選択規則とあわせて
+					 * 導入するため、ここでは出さない。
+					 */}
+					{showWebPhoto && (
+						<ZoomablePhoto
+							src={card.imageUrl as string}
+							alt={`${title}の写真`}
+							isWebPhoto
+							referrerPolicy="no-referrer"
+							className="size-16"
+						/>
+					)}
 					<div className="flex min-w-0 flex-1 flex-col gap-1">
 						<Label
 							htmlFor={`${card.localId}-selected`}
@@ -88,11 +111,21 @@ export function ImportCandidateCard({
 							 * 銘柄の写真をどう用意するか(#473)。撮った写真にこの1本だけを写した
 							 * ものが無い銘柄は web から取りに行くので、**登録前に分かる形にする**
 							 * (知らないうちに外部の画像が自分のセラーに入るのは避ける)。
+							 * バッジは共通の `WebPhotoBadge` から出す(IMPL-4。文言「WEB」で統一)。
 							 */}
-							{card.imageUrl && (
-								<span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
-									<ImageIcon className="size-3" aria-hidden />
-									web画像を取得
+							{showWebPhoto && <WebPhotoBadge variant="inline" />}
+							{/*
+							 * 画像と実物のズレの注記(IMPL-4。例: 別ヴィンテージの画像)。
+							 * バッジの近傍に置き、全文は title で読めるようにする。
+							 */}
+							{showWebPhoto && card.imageNote && (
+								<span
+									className="inline-flex max-w-48 items-center gap-1 rounded bg-muted px-1.5 py-0.5"
+									title={card.imageNote}
+								>
+									<InfoIcon className="size-3 shrink-0" aria-hidden />
+									<span className="truncate">{card.imageNote}</span>
+									<span className="sr-only">(画像の注記:{card.imageNote})</span>
 								</span>
 							)}
 							<span className="rounded bg-muted px-1.5 py-0.5">

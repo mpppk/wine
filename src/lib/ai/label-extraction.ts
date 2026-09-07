@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { buildWineNote } from "#/lib/drunk-wine/note";
+import { ALLOWED_PHOTO_TYPES } from "#/lib/drunk-wine/photo";
 import { PRICE_MAX } from "#/lib/drunk-wine/schema";
 import { isHttpUrl } from "#/lib/reference-link/schema";
 import { WINE_COUNTRIES } from "#/lib/wine/countries";
@@ -438,15 +439,23 @@ export function buildAgentLabelPrompt(
  * 高精度経路はどちらのプロバイダも外部URLを取得できてしまうため、クライアントが
  * 送れるのは自前で検証済みの data URI だけ、という前提をここで強制する
  * (Claude は base64 に分解して渡し、GPT は data URI のまま渡すが、検証は共通)。
+ *
+ * media type は写真の許可形式(`ALLOWED_PHOTO_TYPES`)だけを通す。形式の判定を
+ * ここで独自に持つと、入力欄・サーバの保存関門とドリフトする(SVG 等の許可外を
+ * 通すと、プロバイダ側で画像として扱えず推論が無駄になる)。**許可形式の判定を
+ * 新設しない**(MIME検証のSSOT寄せ)。
  */
 export function parseImageDataUrl(dataUrl: string): {
 	mediaType: string;
 	data: string;
 } {
 	const match = /^data:([a-z0-9.+/-]+);base64,(.+)$/i.exec(dataUrl);
-	const mediaType = match?.[1];
+	const mediaType = match?.[1]?.toLowerCase();
 	const data = match?.[2];
 	if (!mediaType || !data) {
+		throw new Error("画像のdata URIを解釈できませんでした");
+	}
+	if (!ALLOWED_PHOTO_TYPES.has(mediaType)) {
 		throw new Error("画像のdata URIを解釈できませんでした");
 	}
 	return { mediaType, data };
