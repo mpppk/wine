@@ -29,6 +29,7 @@ const BASE: DrunkWineEntry = {
 	price: null,
 	photoUrls: [],
 	thumbUrls: [],
+	photoKinds: [],
 	createdAt: 0,
 	updatedAt: 0,
 };

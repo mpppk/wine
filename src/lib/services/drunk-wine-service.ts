@@ -8,6 +8,10 @@ import {
 	wineSighting,
 	wineTasting,
 } from "#/db/schema";
+import {
+	type PhotoKind,
+	resolveStoredPhotoKinds,
+} from "#/lib/ai/wine-list-extraction";
 import { jstDayKey } from "#/lib/dashboard/jst";
 import {
 	type CellarFilterId,
@@ -118,6 +122,12 @@ export interface DrunkWineEntry {
 	 * 配信ルートが原寸へフォールバックするのでそのまま使える。
 	 */
 	thumbUrls: string[];
+	/**
+	 * 写真ごとの由来(photoUrls と同じ順・同じ長さ。drizzle/0035)。
+	 * `"web"` の写真にだけギャラリーが WEB overlay を出す。保存値のパース失敗・
+	 * 長さ不一致・未知値は `resolveStoredPhotoKinds` が `"bottle"` に倒す。
+	 */
+	photoKinds: PhotoKind[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -223,6 +233,7 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		thumbUrls: row.photoKeys.map((key) =>
 			imagePathForKey(thumbKeyForPhotoKey(key)),
 		),
+		photoKinds: resolveStoredPhotoKinds(row.photoKeys, row.photoKinds),
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
@@ -1363,13 +1374,25 @@ export async function syncDrunkWinePhotos(
 		throw new BadRequestError(`写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`);
 	}
 	const [existing] = await db
-		.select({ photoKeys: drunkWine.photoKeys })
+		.select({
+			photoKeys: drunkWine.photoKeys,
+			photoKinds: drunkWine.photoKinds,
+		})
 		.from(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
 	if (!existing) throw new NotFoundError("Entry not found");
 
 	const currentKeys = existing.photoKeys;
 	const currentSet = new Set(currentKeys);
+	// 既存キーの由来は正規化して写す(長さ不一致・未知値は bottle に倒れる)。
+	// 新規追加は利用者自身の撮影 = bottle。
+	const currentKinds = resolveStoredPhotoKinds(
+		currentKeys,
+		existing.photoKinds,
+	);
+	const kindByKey = new Map(
+		currentKeys.map((key, i) => [key, currentKinds[i] as PhotoKind]),
+	);
 	for (const item of layout) {
 		if (item.kind === "existing" && !currentSet.has(item.key)) {
 			throw new BadRequestError("Unknown photo");
@@ -1379,10 +1402,12 @@ export async function syncDrunkWinePhotos(
 	// 新規をR2へ保存しつつ最終キー配列を組み立てる。put途中で失敗したら今回put分を巻き戻す
 	const putKeys: string[] = [];
 	const nextKeys: string[] = [];
+	const nextKinds: PhotoKind[] = [];
 	try {
 		for (const item of layout) {
 			if (item.kind === "existing") {
 				nextKeys.push(item.key);
+				nextKinds.push(kindByKey.get(item.key) ?? "bottle");
 				continue;
 			}
 			// 保存するContent-Typeは申告値ではなく実バイト(マジックバイト)から確定する。
@@ -1403,6 +1428,9 @@ export async function syncDrunkWinePhotos(
 			});
 			putKeys.push(key);
 			nextKeys.push(key);
+			// 以降の追加(フォーム・MCP からの撮影)は利用者自身の写真 = bottle。
+			// web 由来は adoptWebPhotos 経路でのみ付く。
+			nextKinds.push("bottle");
 			// サムネイルは原寸キーから導出したキーに置く。失敗しても原寸で表示できるので
 			// 保存自体は必須にしない(ここで throw すると写真そのものが保存できなくなる)。
 			if (item.thumbBytes) {
@@ -1433,7 +1461,7 @@ export async function syncDrunkWinePhotos(
 
 	const [row] = await db
 		.update(drunkWine)
-		.set({ photoKeys: nextKeys })
+		.set({ photoKeys: nextKeys, photoKinds: nextKinds })
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning();
 	// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する
@@ -1522,7 +1550,10 @@ export async function appendDrunkWinePhotoKeys(
 	keys: string[],
 ): Promise<{ entry: DrunkWineEntry; adopted: string[]; dropped: string[] }> {
 	const [existing] = await db
-		.select({ photoKeys: drunkWine.photoKeys })
+		.select({
+			photoKeys: drunkWine.photoKeys,
+			photoKinds: drunkWine.photoKinds,
+		})
 		.from(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
 	if (!existing) throw new NotFoundError("Entry not found");
@@ -1530,6 +1561,7 @@ export async function appendDrunkWinePhotoKeys(
 	// 既に持っているキーは足さない(二重に開いた・再送された回で重複させない)。
 	const current = existing.photoKeys;
 	const currentSet = new Set(current);
+	const currentKinds = resolveStoredPhotoKinds(current, existing.photoKinds);
 	const incoming = keys.filter((key) => !currentSet.has(key));
 	const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - current.length);
 	const adopted = incoming.slice(0, room);
@@ -1538,9 +1570,16 @@ export async function appendDrunkWinePhotoKeys(
 	if (adopted.length === 0) {
 		return { entry: await getDrunkWine(userId, id), adopted, dropped };
 	}
+	// 解析ジョブの引き継ぎは利用者自身が撮った写真 = bottle。
 	const [row] = await db
 		.update(drunkWine)
-		.set({ photoKeys: [...current, ...adopted] })
+		.set({
+			photoKeys: [...current, ...adopted],
+			photoKinds: [
+				...currentKinds,
+				...adopted.map(() => "bottle" as PhotoKind),
+			],
+		})
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
 		.returning();
 	if (!row) throw new NotFoundError("Entry not found");
@@ -1813,7 +1852,14 @@ export async function bulkRegisterFromScan(
 							: undefined,
 					),
 					price: item.wine.price ?? null,
-					...(webPhoto ? { photoKeys: [webPhoto.photoKey] } : {}),
+					// adoptWebPhotos で取り込めた写真は web 由来。取れなかった銘柄は
+					// photo_keys を持たず、2段階目でバッチ写真の複製(bottle)が付く。
+					...(webPhoto
+						? {
+								photoKeys: [webPhoto.photoKey],
+								photoKinds: ["web" as PhotoKind],
+							}
+						: {}),
 					// このバッチで新規作成したエントリだけに付ける(Issue #363 案A)。
 					// 既存一致(item.existingId)はエントリを作らないので付けない
 					// (足されるのは目撃記録と、指定があれば試飲記録。どちらも
@@ -2355,7 +2401,10 @@ async function adoptBatchPhotosForWines(
 			updates.push(
 				db
 					.update(drunkWine)
-					.set({ photoKeys: [key] })
+					// バッチ写真の複製は利用者自身が撮った写真 = bottle。
+					// ここに来る行は photo_keys が空なので photo_kinds も空のはずだが、
+					// 念のためキー対応ではなく単体置換で bottle を1件付ける。
+					.set({ photoKeys: [key], photoKinds: ["bottle" as PhotoKind] })
 					.where(and(eq(drunkWine.id, row.id), eq(drunkWine.userId, userId))),
 			);
 		}

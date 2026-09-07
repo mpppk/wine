@@ -17,6 +17,7 @@ import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import {
 	addWineSighting,
 	addWineTasting,
+	appendDrunkWinePhotoKeys,
 	bulkRegisterFromScan,
 	countCellarFilters,
 	createDrunkWine,
@@ -1945,6 +1946,172 @@ describe("一括登録の銘柄写真", () => {
 			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
 		]);
 		expect((await getDrunkWine(userId, existing.id)).photoUrls).toEqual([]);
+	});
+});
+
+// ---- 写真由来の永続化(photo_kinds・drizzle/0035) ------------------------------
+// PR #561 草案の適用。`photo_keys` と同じ順・同じ長さの由来を `photo_kinds` に持ち、
+// ワイン詳細ギャラリーの WEB overlay を保存済み表示へ配線する。
+
+describe("写真由来の永続化", () => {
+	const JPEG_1X1_BYTES = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	function stubImageFetch(response: () => Response): string[] {
+		const requested: string[] = [];
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (input: RequestInfo | URL) => {
+				requested.push(
+					typeof input === "string"
+						? input
+						: input instanceof URL
+							? input.href
+							: input.url,
+				);
+				return response();
+			},
+		);
+		return requested;
+	}
+
+	function jpegResponse(): Response {
+		return new Response(JPEG_1X1_BYTES, {
+			headers: { "content-type": "image/jpeg" },
+		});
+	}
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("新規作成は由来なし(空配列)で、読み取りも空を返す", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "由来なし" });
+		expect(entry.photoKinds).toEqual([]);
+		expect((await wineRow(entry.id))?.photoKinds).toEqual([]);
+	});
+
+	it("web画像の取り込みは由来 web で保存する", async () => {
+		const userId = await freshUser();
+		stubImageFetch(jpegResponse);
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "Barolo" },
+					webPhoto: { url: "https://example.com/barolo.jpg" },
+				},
+			],
+		});
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toHaveLength(1);
+		expect(entries[0]?.photoKinds).toEqual(["web"]);
+	});
+
+	it("取得失敗時は写真も由来も付かない", async () => {
+		const userId = await freshUser();
+		stubImageFetch(() => new Response("nope", { status: 404 }));
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "Barolo" },
+					webPhoto: { url: "https://example.com/missing.jpg" },
+				},
+			],
+		});
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toEqual([]);
+		expect(entries[0]?.photoKinds).toEqual([]);
+	});
+
+	it("バッチ写真の複製は由来 bottle で保存する", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [{ wine: { name: "棚の1本" }, sighting: { photoIndex: 0 } }],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toHaveLength(1);
+		expect(entries[0]?.photoKinds).toEqual(["bottle"]);
+	});
+
+	it("web画像で手当て済みの銘柄はバッチ複製で上書きしない(由来も維持)", async () => {
+		const userId = await freshUser();
+		stubImageFetch(jpegResponse);
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{
+					wine: { name: "web画像あり" },
+					webPhoto: { url: "https://example.com/a.jpg" },
+					sighting: { photoIndex: 0 },
+				},
+			],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toHaveLength(1);
+		expect(entries[0]?.photoKinds).toEqual(["web"]);
+	});
+
+	it("sync は既存由来をキー対応で維持し、新規追加は bottle にする", async () => {
+		const userId = await freshUser();
+		stubImageFetch(jpegResponse);
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "web由来" },
+					webPhoto: { url: "https://example.com/a.jpg" },
+				},
+			],
+		});
+		const before = (await listDrunkWines(userId)).entries[0];
+		expect(before?.photoKinds).toEqual(["web"]);
+		const webKey = imageKeyFromPath(before?.photoUrls[0] as string);
+
+		// 既存(web)を残して新規(bottle)を足す。並びは新規→既存へ変える。
+		const saved = await syncDrunkWinePhotos(userId, before?.id as string, [
+			{ kind: "new", bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			{ kind: "existing", key: webKey },
+		]);
+		expect(saved.photoUrls).toHaveLength(2);
+		expect(saved.photoKinds).toEqual(["bottle", "web"]);
+
+		// 既存だけ残す並べ替えでも由来はキーに追随する
+		const webOnly = await syncDrunkWinePhotos(userId, before?.id as string, [
+			{ kind: "existing", key: webKey },
+		]);
+		expect(webOnly.photoUrls).toHaveLength(1);
+		expect(webOnly.photoKinds).toEqual(["web"]);
+	});
+
+	it("引き継ぎ(append)は由来 bottle で足す", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "引き継ぎ" });
+		const { entry: saved, adopted } = await appendDrunkWinePhotoKeys(
+			userId,
+			entry.id,
+			["wines/u/job/photo.jpg"],
+		);
+		expect(adopted).toEqual(["wines/u/job/photo.jpg"]);
+		expect(saved.photoKinds).toEqual(["bottle"]);
 	});
 });
 

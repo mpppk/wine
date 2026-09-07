@@ -25,6 +25,7 @@ import {
 	matchExistingEntries,
 	parseWineListResponse,
 	photoKindForPhotoHints,
+	resolveStoredPhotoKinds,
 	type WineListItem,
 	wineIdentityKey,
 	wineIdentityKeys,
@@ -1006,6 +1007,34 @@ describe("銘柄写真の由来(photoKind)", () => {
 		expect(candidate?.photoKind).toBe("web");
 		const [bottle] = buildWineListCandidates([item({ wineName: "Chablis" })]);
 		expect(bottle?.photoKind).toBe("bottle");
+	});
+});
+
+describe("保存済み由来の正規化(resolveStoredPhotoKinds・drizzle/0035)", () => {
+	it("保存値どおりに返す", () => {
+		expect(resolveStoredPhotoKinds(["a", "b"], ["bottle", "web"])).toEqual([
+			"bottle",
+			"web",
+		]);
+	});
+
+	it("配列でない保存値は全件 bottle に倒す", () => {
+		expect(resolveStoredPhotoKinds(["a"], null)).toEqual(["bottle"]);
+		expect(resolveStoredPhotoKinds(["a"], "web")).toEqual(["bottle"]);
+	});
+
+	it("長さ不一致・未知値はその位置を bottle に倒す(photo_keys と同じ長さ)", () => {
+		// 列追加前の既存行は '[]' のまま = overlay なし
+		expect(resolveStoredPhotoKinds(["a", "b"], [])).toEqual([
+			"bottle",
+			"bottle",
+		]);
+		expect(resolveStoredPhotoKinds(["a"], ["web", "web"])).toEqual(["web"]);
+		expect(resolveStoredPhotoKinds(["a"], ["unknown"])).toEqual(["bottle"]);
+	});
+
+	it("空の写真集合は空を返す", () => {
+		expect(resolveStoredPhotoKinds([], [])).toEqual([]);
 	});
 });
 

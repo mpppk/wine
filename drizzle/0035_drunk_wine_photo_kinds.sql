@@ -1,0 +1,24 @@
+-- PR #561 由来カラム追加の SQL 草案の適用: 保存済みワインの写真由来(photo_kinds)。
+--
+-- ワインリスト/棚等の非エチケット入力で web 画像を採用した銘柄は、レビューカードでは
+-- `photoKind: bottle | web` を持ち回って WEB 由来にだけ overlay を出す(IMPL-4)。
+-- しかし登録後は由来が残らず、ワイン詳細のギャラリーは overlay なしに倒していた。
+-- この列で `photo_keys` と同じ順・同じ長さの由来(`"bottle" | "web"` の JSON 配列)を
+-- 永続化し、保存済み表示へ配線する。
+--
+-- `TEXT NOT NULL DEFAULT '[]'` で足す。既存行は `'[]'` で埋まり、この列を書かない
+-- 旧コードの INSERT も通るので expand-and-contract の対象ではない(0032 の `kind` と
+-- 同じ形)。破壊的変更なし(ADD のみ。DROP / RENAME / 既存列の NOT NULL 化は無し)。
+--
+-- SQLite は `ADD COLUMN IF NOT EXISTS` を解さないため、他の ADD COLUMN 追加
+-- (0029/0031/0032/0033/0034)と同じく素の ADD COLUMN で書く。冪等性はファイル名記録と
+-- スキーマ変更PRの直列化(Issue #54)で担保する。
+--
+-- 読み取りは JSON パース失敗・長さ不一致時は由来不明扱い(overlay なし)に倒す
+-- (`resolveStoredPhotoKinds` が `photo_keys` と同じ長さに正規化する)。
+-- 書き込みの対応:
+--  - `adoptWebPhotos` 成功時 → "web"
+--  - バッチ写真の複製(`adoptBatchPhotosForWines`)・ラベル解析写真の引き継ぎ
+--    (`appendDrunkWinePhotoKeys`)・`syncDrunkWinePhotos` の新規追加 → "bottle"
+--  - `syncDrunkWinePhotos` の既存キー → キー対応で維持(並べ替え・削除に追随)
+ALTER TABLE `drunk_wine` ADD COLUMN `photo_kinds` text NOT NULL DEFAULT '[]';
