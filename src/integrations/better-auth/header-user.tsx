@@ -1,14 +1,41 @@
 import { useRouter } from "@tanstack/react-router";
-import { UserIcon } from "lucide-react";
+import { CheckIcon, UserIcon } from "lucide-react";
 import ThemeToggle from "#/components/ThemeToggle";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
 import { authClient } from "#/lib/auth-client";
+import { m } from "#/paraglide/messages.js";
+import { getLocale, locales, setLocale } from "#/paraglide/runtime.js";
+
+function LocaleMenuItems() {
+	const currentLocale = getLocale();
+
+	return (
+		<>
+			<DropdownMenuLabel>{m.header_locale()}</DropdownMenuLabel>
+			{locales.map((locale) => (
+				<DropdownMenuItem
+					key={locale}
+					className="justify-between"
+					onSelect={() => {
+						if (locale !== currentLocale) void setLocale(locale);
+					}}
+				>
+					{locale === "ja" ? m.locale_ja() : m.locale_en()}
+					{locale === currentLocale && (
+						<CheckIcon className="size-4" aria-hidden />
+					)}
+				</DropdownMenuItem>
+			))}
+		</>
+	);
+}
 
 export default function BetterAuthHeader() {
 	const { data: session, isPending } = authClient.useSession();
@@ -46,23 +73,25 @@ export default function BetterAuthHeader() {
 				</DropdownMenuTrigger>
 				<DropdownMenuContent>
 					<div className="flex items-center justify-between px-2 py-1.5">
-						<span className="text-sm">ダークモード</span>
+						<span className="text-sm">{m.header_dark_mode()}</span>
 						<ThemeToggle />
 					</div>
+					<DropdownMenuSeparator />
+					<LocaleMenuItems />
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						onSelect={() => {
 							void router.navigate({ to: "/profile" });
 						}}
 					>
-						プロフィールを編集
+						{m.header_profile()}
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onSelect={() => {
 							void router.navigate({ to: "/pricing" });
 						}}
 					>
-						料金プラン
+						{m.header_pricing()}
 					</DropdownMenuItem>
 					{session.user.role === "admin" && (
 						<DropdownMenuItem
@@ -70,7 +99,7 @@ export default function BetterAuthHeader() {
 								void router.navigate({ to: "/admin" });
 							}}
 						>
-							ユーザー管理
+							{m.header_admin()}
 						</DropdownMenuItem>
 					)}
 					<DropdownMenuSeparator />
@@ -80,7 +109,7 @@ export default function BetterAuthHeader() {
 							void router.navigate({ to: "/login" });
 						}}
 					>
-						Sign out
+						{m.header_sign_out()}
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
@@ -103,23 +132,25 @@ export default function BetterAuthHeader() {
 			</DropdownMenuTrigger>
 			<DropdownMenuContent>
 				<div className="flex items-center justify-between px-2 py-1.5">
-					<span className="text-sm">ダークモード</span>
+					<span className="text-sm">{m.header_dark_mode()}</span>
 					<ThemeToggle />
 				</div>
+				<DropdownMenuSeparator />
+				<LocaleMenuItems />
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					onSelect={() => {
 						void router.navigate({ to: "/pricing" });
 					}}
 				>
-					料金プラン
+					{m.header_pricing()}
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					onSelect={() => {
 						void router.navigate({ to: "/login" });
 					}}
 				>
-					Sign in
+					{m.header_sign_in()}
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>

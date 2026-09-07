@@ -81,6 +81,24 @@ async function storedModel(): Promise<string | null> {
 	return row?.m ?? null;
 }
 
+/** D1 に保存されている user.locale の生値 */
+async function storedLocale(): Promise<string | null> {
+	const row = await env.DB.prepare("SELECT locale FROM user WHERE id = ?")
+		.bind(userId)
+		.first<{ locale: string | null }>();
+	return row?.locale ?? null;
+}
+
+function signInWithoutCookie(): Promise<Response> {
+	return auth.handler(
+		new Request(`${BASE_URL}/api/auth/sign-in/email`, {
+			method: "POST",
+			headers: { "content-type": "application/json", origin: BASE_URL },
+			body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+		}),
+	);
+}
+
 /** update-user が D1 へ書く前に通す関門。拒否時は APIError(400) を投げる */
 function parseUpdate(body: Record<string, unknown>): {
 	status?: number;
@@ -163,5 +181,34 @@ describe("preferredLabelEngine の書き込みは許可リストで検証され�
 		expect(parseUpdate({ preferredLabelEngine: "gpt-4" }).message).toBe(
 			"対応していない解析エンジンです。",
 		);
+	});
+});
+
+describe("locale の書き込み・Cookie同期は許可リストで検証される (#536)", () => {
+	it("許可されたロケールは D1 に保存され、update-user 応答でも Cookie を同期する", async () => {
+		const res = await updateUser({ locale: "en" });
+		expect(res.status).toBe(200);
+		expect(await storedLocale()).toBe("en");
+		expect(
+			res.headers
+				.getSetCookie()
+				.some((value) => value.startsWith("wine_locale=en")),
+		).toBe(true);
+	});
+
+	it("許可リスト外のロケールは 400 で弾かれ、書き込み値に載らない", () => {
+		const result = parseUpdate({ locale: "fr" });
+		expect(result.status).toBe(400);
+		expect(result.parsed).toBeUndefined();
+	});
+
+	it("保存済みロケールは新しいサインインの応答 Cookie にも反映される", async () => {
+		const res = await signInWithoutCookie();
+		expect(res.status).toBe(200);
+		expect(
+			res.headers
+				.getSetCookie()
+				.some((value) => value.startsWith("wine_locale=en")),
+		).toBe(true);
 	});
 });

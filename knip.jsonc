@@ -6,11 +6,16 @@
 	"entry": [
 		"scripts/spike-label-usage.ts",
 		"scripts/generate-vapid-keys.mjs",
+		"test/start-worker.ts",
 	],
 	// 誤検知の除外:
 	//  - public/sw.js … push/client.ts が文字列定数("/sw.js")で参照するため knip に見えない
 	//  - scripts/geo-bands.d.mts … geo-bands.mjs の型宣言。JS からの型解決で使われる
-	"ignore": ["public/sw.js", "scripts/geo-bands.d.mts"],
+	"ignore": [
+		"public/sw.js",
+		"scripts/geo-bands.d.mts",
+		"src/paraglide/**"
+	],
 	// cloudflare:workers は Cloudflare ランタイムの仮想モジュール
 	"ignoreDependencies": ["cloudflare"],
 	// auth-schema の export は better-auth の drizzleAdapter が schema オブジェクト全体を

@@ -15,6 +15,8 @@ export const user = sqliteTable("user", {
 	// エチケット解析エンジンのユーザ設定(drizzle/0021)。null は既定
 	// (ANTHROPIC_API_KEY 設定時は高精度)。許可リストは ai/config.ts の LABEL_ENGINE_KEYS。
 	preferredLabelEngine: text("preferred_label_engine"),
+	// UI のロケール設定(drizzle/0035)。null は未設定(Cookieの解決を優先)。
+	locale: text("locale"),
 	// better-auth admin プラグインのカラム(drizzle/0014_admin_role.sql)。
 	// role: "admin" のユーザのみ管理画面を利用可能。null は一般ユーザ扱い。
 	role: text("role"),

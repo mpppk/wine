@@ -11,6 +11,8 @@ import { CommandPaletteProvider } from "../components/CommandPaletteContext";
 import Header from "../components/Header";
 import { STARTER_GUIDE_INIT_SCRIPT } from "../lib/dashboard/guide-dismissal";
 import { isEmbedPath } from "../lib/embed";
+import { m } from "../paraglide/messages.js";
+import { getLocale } from "../paraglide/runtime.js";
 import appCss from "../styles.css?url";
 
 interface MyRouterContext {
@@ -38,15 +40,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				content: "width=device-width, initial-scale=1",
 			},
 			{
-				title: "ワインAOP学習アプリ",
+				title: m.app_title(),
 			},
 			{
 				name: "description",
-				content: "ワインのAOP(原産地呼称)を地図で学ぶアプリ",
+				content: m.app_description(),
 			},
 			{
 				name: "application-name",
-				content: "ワインAOP学習アプリ",
+				content: m.app_title(),
 			},
 			{
 				name: "mobile-web-app-capable",
@@ -62,7 +64,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 			{
 				name: "apple-mobile-web-app-title",
-				content: "ワインAOP学習アプリ",
+				content: m.app_title(),
 			},
 		],
 		links: [
@@ -101,6 +103,9 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 		"Content-Security-Policy": "frame-ancestors 'none'",
 		"X-Content-Type-Options": "nosniff",
 		"Referrer-Policy": "strict-origin-when-cross-origin",
+		// SSR HTML のメッセージ・lang・metadata は wine_locale Cookie に依存する。
+		// キャッシュ層が追加されてもロケール違いのHTMLを混ぜない(#536)。
+		Vary: "Cookie",
 	}),
 	shellComponent: RootDocument,
 });
@@ -114,10 +119,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 		select: (s) => isEmbedPath(s.location.pathname),
 	});
 
-	// UI・meta description とも全編日本語なので lang も ja。en のままだと
-	// スクリーンリーダーが英語TTSで日本語を読もうとして破綻する(#236)
+	// Cookie で解決したロケールを document に反映し、スクリーンリーダーの言語も
+	// 表示中のメッセージと揃える。Cookie 未設定時は従来どおり ja。
 	return (
-		<html lang="ja" suppressHydrationWarning>
+		<html lang={getLocale()} suppressHydrationWarning>
 			<head>
 				{/* theme-color is set as literal tags (not via head() meta) because
 				    TanStack Router dedupes meta by name, dropping one of the two

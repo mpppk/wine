@@ -45,6 +45,14 @@
       ],
       "groupName": "langfuse opentelemetry",
       "automerge": false
+    },
+    {
+      "description": "Paraglide の更新は生成ランタイムと Vite の SSR middleware に影響するため、メッセージ生成・Workers 実機確認を含む人手レビューを必須にする(#536)。",
+      "matchPackageNames": [
+        "@inlang/paraglide-js"
+      ],
+      "groupName": "paraglide i18n runtime",
+      "automerge": false
     }
   ],
   "lockFileMaintenance": {

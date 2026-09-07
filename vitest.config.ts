@@ -3,6 +3,7 @@ import {
 	cloudflareTest,
 	readD1Migrations,
 } from "@cloudflare/vitest-pool-workers";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -12,14 +13,16 @@ import { defineConfig } from "vitest/config";
 // plugin's validation when Vite resolves the config in a dev-server-like flow,
 // which is exactly what Vitest does on startup.
 //
-// テストは2プロジェクト構成:
+// テストは3プロジェクト構成:
 //  - unit  : jsdom 上の純関数・スキーマ・コンポーネントのテスト(従来分)。
 //            `cloudflare:workers` を import するモジュールは読めないため、
 //            純ロジック層(src/lib/<domain>/)のみを対象にする(docs/architecture.md)。
 //  - workers: workerd(miniflare) 上で D1 / env バインディングを与えて動かすテスト
 //            (`*.workers.test.ts`)。quiz-service の実D1アクセスや MCP ツールの
 //            ハンドラなど、`cloudflare:workers` 依存のコードを実機に近い形で検証する。
-// どちらも `vitest run` の1コマンドで実行される。
+//  - start-workers: 実際のアプリ Worker(src/worker.ts)とTanStack Startの
+//                  server-function transportをworkerd上で検証する統合テスト。
+// いずれも `vitest run` の1コマンドで実行される。
 
 // D1 マイグレーションは Node 側(設定読み込み時)で読み、テスト用の分離D1へ
 // setup で適用する(workerd 側は fs を持たないため、バインディング経由で渡す)。
@@ -53,6 +56,53 @@ const {
 	compatibility_flags: compatibilityFlags = [],
 } = wranglerConfig;
 
+const workerMiniflare = {
+	// wrangler.jsonc から読む(二重管理しない・#268)
+	compatibilityDate,
+	compatibilityFlags,
+	d1Databases: ["DB"],
+	r2Buckets: ["AVATARS"],
+	// エチケット解析ジョブ(#460)の producer。**consumer は用意しない**:
+	// キューの consumer 配信はこのテスト構成の検証対象にしない。配信先が無くても、
+	// consumer 本体(runLabelAnalysisJob)の状態遷移は各テストから直接呼んで検証できる。
+	// ここに producer が要るのは、投入 API が `env.LABEL_JOBS.send()` を通ること自体を
+	// 経路として通すため。
+	queueProducers: { LABEL_JOBS: "wine-label-jobs" },
+	// スロットル(#397)。**本番の上限値はあえて再現しない**。
+	// 上限そのものは wrangler.jsonc の設定値であって、テストで
+	// 数値を書き写しても設定を二重管理するだけになる。ここで
+	// 検証したいのは「上限に達したら false を返し、経路がそれを
+	// 拒否に写すか」なので、少ない回数で使い切れる値にする。
+	// miniflare 側はバインディング名をキーにしたレコードで受ける
+	// (wrangler.jsonc の配列形式とは形が違う)。
+	ratelimits: {
+		RATE_LIMIT_WRITE: {
+			namespace_id: "9001",
+			simple: { limit: 3, period: 10 as const },
+		},
+		RATE_LIMIT_UPLOAD: {
+			namespace_id: "9002",
+			simple: { limit: 3, period: 10 as const },
+		},
+		RATE_LIMIT_FETCH_TITLE: {
+			namespace_id: "9003",
+			simple: { limit: 3, period: 10 as const },
+		},
+	},
+	bindings: {
+		// setup(test/apply-migrations.ts)で適用するマイグレーション本体
+		TEST_MIGRATIONS: migrations,
+		// ハンドラが絶対URL(geojson_url/map_url等)を組むのに使う
+		BETTER_AUTH_URL: "http://localhost:3000",
+		// tools.ts の buildAffiliateConfig が参照(未設定なら素の検索URL)
+		RAKUTEN_AFFILIATE_ID: "",
+		MOSHIMO_AMAZON_A_ID: "",
+		// 期間延長コード(billing-service の引換テスト用)。本番の値とは
+		// 無関係で、書式(CODE=days)だけ合わせてある
+		CAMPAIGN_EXTENSION_CODES: "TESTCODE=7",
+	},
+};
+
 export default defineConfig({
 	test: {
 		projects: [
@@ -71,68 +121,33 @@ export default defineConfig({
 			{
 				extends: true,
 				resolve: { tsconfigPaths: true },
-				plugins: [
-					cloudflareTest({
-						// wrangler.jsonc は流用せずバインディングを明示する。理由:
-						//  - `main`(@tanstack/react-start/server-entry)は Start プラグイン前提で
-						//    テストプールでは解決できない。テストはモジュールを直接 import して
-						//    関数を呼ぶだけなので Worker エントリは不要。
-						//  - AI バインディングはローカルでもリモート接続を張るため、DBアクセスの
-						//    テストには不要かつ避けたい。ここでは D1/R2 のみをローカルに用意する。
-						// テスト用D1は実行ごとに分離され、本番/プレビューには一切触れない。
-						miniflare: {
-							// wrangler.jsonc から読む(二重管理しない・#268)
-							compatibilityDate,
-							compatibilityFlags,
-							d1Databases: ["DB"],
-							r2Buckets: ["AVATARS"],
-							// エチケット解析ジョブ(#460)の producer。**consumer は用意しない**:
-							// テストプールは Worker エントリ(src/worker.ts)を読まないので配信先が
-							// 無く、「キューが確実に配信すること」はこちらの検証対象でもない。
-							// 見たいのはコンシューマ本体(runLabelAnalysisJob)の状態遷移なので、
-							// テストはそれを直接呼ぶ。ここに producer が要るのは、投入 API が
-							// `env.LABEL_JOBS.send()` を通ること自体を経路として通すため。
-							queueProducers: { LABEL_JOBS: "wine-label-jobs" },
-							// スロットル(#397)。**本番の上限値はあえて再現しない**。
-							// 上限そのものは wrangler.jsonc の設定値であって、テストで
-							// 数値を書き写しても設定を二重管理するだけになる。ここで
-							// 検証したいのは「上限に達したら false を返し、経路がそれを
-							// 拒否に写すか」なので、少ない回数で使い切れる値にする。
-							// miniflare 側はバインディング名をキーにしたレコードで受ける
-							// (wrangler.jsonc の配列形式とは形が違う)。
-							ratelimits: {
-								RATE_LIMIT_WRITE: {
-									namespace_id: "9001",
-									simple: { limit: 3, period: 10 },
-								},
-								RATE_LIMIT_UPLOAD: {
-									namespace_id: "9002",
-									simple: { limit: 3, period: 10 },
-								},
-								RATE_LIMIT_FETCH_TITLE: {
-									namespace_id: "9003",
-									simple: { limit: 3, period: 10 },
-								},
-							},
-							bindings: {
-								// setup(test/apply-migrations.ts)で適用するマイグレーション本体
-								TEST_MIGRATIONS: migrations,
-								// ハンドラが絶対URL(geojson_url/map_url等)を組むのに使う
-								BETTER_AUTH_URL: "http://localhost:3000",
-								// tools.ts の buildAffiliateConfig が参照(未設定なら素の検索URL)
-								RAKUTEN_AFFILIATE_ID: "",
-								MOSHIMO_AMAZON_A_ID: "",
-								// 期間延長コード(billing-service の引換テスト用)。本番の値とは
-								// 無関係で、書式(CODE=days)だけ合わせてある
-								CAMPAIGN_EXTENSION_CODES: "TESTCODE=7",
-							},
-						},
-					}),
-				],
+				plugins: [cloudflareTest({ miniflare: workerMiniflare })],
 				test: {
 					name: "workers",
 					include: ["src/**/*.workers.test.ts"],
+					exclude: ["src/paraglide.workers.test.ts"],
 					setupFiles: ["./test/apply-migrations.ts"],
+				},
+			},
+			{
+				extends: true,
+				resolve: { tsconfigPaths: true },
+				plugins: [
+					tanstackStart(),
+					cloudflareTest({
+						// Run the real application Worker so requests exercise the same
+						// Start handler and server-function transport as production.
+						main: "test/start-worker.ts",
+						// This project is intentionally isolated from the direct service tests
+						// above: only the locale integration test needs Start's app entry.
+						miniflare: workerMiniflare,
+					}),
+				],
+				test: {
+					name: "start-workers",
+					include: ["src/paraglide.workers.test.ts"],
+					setupFiles: ["./test/apply-migrations.ts"],
+					testTimeout: 30_000,
 				},
 			},
 		],

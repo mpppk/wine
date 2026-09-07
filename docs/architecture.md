@@ -298,7 +298,7 @@ Langfuse へも報告すること（`src/lib/observability/langfuse.ts` が唯�
 ## 横断規約
 
 - **import**: エイリアスは `#/*` = `./src/*`（package.json の Node subpath imports）。tsconfig に `@/*` も残っているが使用 0 件のデッドエントリで、新規コードは `#/` を使う。相対 import は同一ドメインディレクトリ内のみ（`../../` 越えは禁止相当。現状 0 件）。
-- **テスト**: Vitest の2プロジェクト構成（`vitest.config.ts`）。テストは対象と同ディレクトリの co-located で、**まず `src/lib/<domain>/` の純ロジックに寄せる**（モックが要らないようロジックを純関数へ分離するのが規約）。どちらのプロジェクトに置くかは「D1 / `env` に触るか」で決まる。
+- **テスト**: Vitest の3プロジェクト構成（`vitest.config.ts`）。テストは対象と同ディレクトリの co-located で、**まず `src/lib/<domain>/` の純ロジックに寄せる**（モックが要らないようロジックを純関数へ分離するのが規約）。`unit`/`workers` は「D1 / `env` に触るか」で決まり、アプリ Worker とTanStack Startのserver-function transportを実際のworkerd経路で検証するものは `start-workers` に置く。
   - `unit`（jsdom、`*.test.ts` / `*.test.tsx`）: 純ロジック。複雑な UI フック・コンポーネントも対象で、`src/components/quiz/useQuizSession.test.ts` は Cloudflare 依存を引き込む server fn とルーターを `vi.mock` し `renderHook` で検証する例。
   - `workers`（workerd + 実 D1、`*.workers.test.ts`）: **D1 / `env` に触るコード**。`src/lib/services/*` の各サービス（credit / drunk-wine / quiz / billing / admin-actions / ai / user-deletion）や `src/lib/mcp/tools`・`src/lib/images/authorize`・`src/lib/auth` がここにある。
   - **「サービス層・server fn は書かない」という方針ではない**。金銭の原子性・冪等性のように純関数へ切り出せない不変条件は、実 D1 の上で固定するのが正しい（docs/ai-credit-system.md の予約→確定/返却など）。server fn も、薄い1行委譲なら書かないが `src/server/middleware.ts` のように判断を持つ境界は例外で、`src/server/middleware.test.ts` がフレームワーク境界だけをモックして検証している。
