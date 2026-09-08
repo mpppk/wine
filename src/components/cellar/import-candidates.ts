@@ -205,6 +205,16 @@ export function displayPhotoForImportCard(
 }
 
 /**
+ * web 画像を取り込めるカードか(IMPL-4 と同じ条件)。既存一致のカードは目撃記録
+ * を足すだけで web 画像を取り込まないので、表示と一覧の両方でこの1箇所を見る。
+ */
+function canShowWebPhoto(
+	card: Pick<ImportCardState, "photoKind" | "imageUrl" | "existing">,
+): boolean {
+	return !card.existing && card.photoKind === "web" && !!card.imageUrl;
+}
+
+/**
  * カードの代表画像を `PrimaryPhotoSelection` として解く。**選ぶ規則の唯一の
  * 入口**——サムネイル(`displayPhotoForImportCard`)とダイアログの初期位置・
  * 代表表示(`dialogIndexForDisplayPhoto`)が共有する。無効な上書き(範囲外の番号・
@@ -222,8 +232,7 @@ function resolvePhotoSelection(
 	>,
 	photoPreviews: readonly string[],
 ): PrimaryPhotoSelection | null {
-	const canShowWeb =
-		!card.existing && card.photoKind === "web" && !!card.imageUrl;
+	const canShowWeb = canShowWebPhoto(card);
 	const selection = card.primaryPhoto;
 	if (selection?.kind === "web") {
 		if (canShowWeb) return selection;
@@ -260,7 +269,7 @@ export function photosForImportCardDialog(
 	photoPreviews: readonly string[],
 ): ImportCardDialogPhoto[] {
 	const list: ImportCardDialogPhoto[] = [];
-	if (!card.existing && card.photoKind === "web" && card.imageUrl) {
+	if (canShowWebPhoto(card) && card.imageUrl) {
 		list.push({
 			src: card.imageUrl,
 			isWebPhoto: true,
