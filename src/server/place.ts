@@ -56,3 +56,15 @@ export const getImportBatch = createServerFn({ method: "GET" })
 	.handler(({ data, context }) =>
 		drunkWineService.getImportBatch(context.user.id, data.batchId),
 	);
+
+/**
+ * 一括登録バッチ1件の詳細(Issue #572)。履歴の行から「どんな写真が
+ * アップロードされたか、どんな値が設定されたか」を辿るために
+ * `/cellar/import/history/$batchId` のローダーが呼ぶ。読み取り専用。
+ */
+export const getImportBatchDetail = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ batchId: z.string().min(1).max(80) }))
+	.handler(({ data, context }) =>
+		drunkWineService.getImportBatchDetail(context.user.id, data.batchId),
+	);

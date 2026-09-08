@@ -28,6 +28,7 @@ import {
 	getCellarSummary,
 	getDrunkWine,
 	getImportBatch,
+	getImportBatchDetail,
 	listDrunkWines,
 	listDrunkWinesByAop,
 	listImportBatches,
@@ -2397,6 +2398,107 @@ describe("getImportBatch", () => {
 		await expect(
 			getImportBatch(stranger, result.batchId),
 		).rejects.toBeInstanceOf(NotFoundError);
+	});
+});
+
+// ---- getImportBatchDetail(履歴ごとの詳細, Issue #572) -----------------------
+
+describe("getImportBatchDetail", () => {
+	// 1x1 JPEG(マジックバイト検証を通る最小の実データ)
+	const JPEG_1X1_BYTES = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+	const jpeg = () => ({ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" });
+
+	async function seedBatch(userId: string) {
+		const shop = await createPlace(userId, { name: "詳細の店" });
+		const existing = await createDrunkWine(userId, { name: "既存のワイン" });
+		const result = await bulkRegisterFromScan(userId, {
+			placeId: shop.id,
+			seenOn: "2026-08-01",
+			photoCount: 2,
+			items: [
+				{
+					wine: {
+						name: "新規のワイン",
+						vintage: 2020,
+						producer: "Dauvissat",
+					},
+					sighting: { photoIndex: 0, price: 24000 },
+				},
+				{
+					existingId: existing.id,
+					sighting: { photoIndex: 1, price: 9800 },
+				},
+			],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [jpeg(), jpeg()]);
+		return result.batchId;
+	}
+
+	it("バッチ写真・新規銘柄・既存追加を分けて返す", async () => {
+		const userId = await freshUser();
+		const detail = await getImportBatchDetail(userId, await seedBatch(userId));
+
+		expect(detail.placeName).toBe("詳細の店");
+		expect(detail.seenOn).toBe("2026-08-01");
+		expect(detail.photoUrls).toHaveLength(2);
+
+		expect(detail.createdEntries).toHaveLength(1);
+		const [created] = detail.createdEntries;
+		expect(created).toMatchObject({
+			name: "新規のワイン",
+			vintage: 2020,
+			producer: "Dauvissat",
+		});
+		// 新規銘柄はバッチ写真の複製を持つ(先頭=代表の規則は表示側と同じ)
+		expect(created?.photoUrls.length).toBeGreaterThan(0);
+		expect(created?.sighting).toMatchObject({
+			placeName: "詳細の店",
+			seenOn: "2026-08-01",
+			price: 24000,
+		});
+		expect(created?.sighting?.photoUrl).toBeTruthy();
+
+		expect(detail.matchedSightings).toHaveLength(1);
+		expect(detail.matchedSightings[0]).toMatchObject({
+			entryName: "既存のワイン",
+			price: 9800,
+			photoIndex: 1,
+		});
+		expect(detail.matchedSightings[0]?.photoUrl).toBeTruthy();
+	});
+
+	it("他人のバッチは取得できない(404)", async () => {
+		const userId = await freshUser();
+		const stranger = await freshUser();
+		const batchId = await seedBatch(userId);
+
+		await expect(
+			getImportBatchDetail(stranger, batchId),
+		).rejects.toBeInstanceOf(NotFoundError);
+	});
+
+	it("写真なし・既存追加のみのバッチも返す", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, { name: "既存のみ" });
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ existingId: existing.id, sighting: {} }],
+		});
+
+		const detail = await getImportBatchDetail(userId, result.batchId);
+
+		expect(detail.photoUrls).toEqual([]);
+		expect(detail.createdEntries).toEqual([]);
+		expect(detail.matchedSightings).toHaveLength(1);
+		expect(detail.matchedSightings[0]).toMatchObject({
+			entryName: "既存のみ",
+			photoUrl: null,
+		});
 	});
 });
 

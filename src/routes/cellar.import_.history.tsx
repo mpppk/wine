@@ -104,6 +104,15 @@ function CellarImportHistoryPage() {
 									)}
 								</div>
 								<div className="flex shrink-0 flex-col items-end gap-1">
+									<Button asChild type="button" variant="ghost" size="sm">
+										<Link
+											to="/cellar/import/history-detail/$batchId"
+											params={{ batchId: batch.id }}
+											aria-label="この登録の詳細を見る"
+										>
+											詳細
+										</Link>
+									</Button>
 									{batch.photoCount > 0 && (
 										// 写真が無いバッチは解析し直す材料が無いので出さない
 										<Button asChild type="button" variant="ghost" size="sm">
