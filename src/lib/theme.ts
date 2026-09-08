@@ -41,7 +41,7 @@ function applyTheme(mode: ThemeMode) {
  * 書き込む値は __root.tsx の React 描画と同一のため、ハイドレーションの
  * 再利用と競合せず重複タグを生まない。何枚あっても1枚に畳むので冪等。
  */
-export function syncHeadTheme(mode: ThemeMode) {
+function syncHeadTheme(mode: ThemeMode) {
 	if (typeof document === "undefined") return;
 	const metas = document.querySelectorAll('meta[name="theme-color"]');
 	metas.forEach((meta, index) => {
