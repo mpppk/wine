@@ -11,13 +11,19 @@ import type {
 	WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
 import type { ImportCardState } from "#/components/cellar/import-candidates";
-import { displayPhotoForImportCard } from "#/components/cellar/import-candidates";
+import {
+	dialogIndexForDisplayPhoto,
+	displayPhotoForImportCard,
+	photosForImportCardDialog,
+	primarySelectionForDialogIndex,
+} from "#/components/cellar/import-candidates";
+import { PhotoLightbox } from "#/components/cellar/PhotoLightbox";
 import {
 	PriceList,
 	ReferenceLinksList,
 } from "#/components/cellar/ReferenceLinksList";
 import { TastingFields } from "#/components/cellar/TastingFields";
-import { ZoomablePhoto } from "#/components/cellar/WinePhotoGallery";
+import { WebPhotoBadge } from "#/components/cellar/WebPhotoBadge";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Checkbox } from "#/components/ui/checkbox";
@@ -72,6 +78,11 @@ export function ImportCandidateCard({
 	// `isWebPhoto` だけを見る(card.photoKind を直接見ない)。
 	const displayPhoto = displayPhotoForImportCard(card, photoPreviews);
 	const showWebPhoto = displayPhoto?.isWebPhoto === true;
+	// タップダイアログに出す関連写真。サムネイル(自動選択または代表の上書き)を
+	// 含むことが保証されているので、開く位置がずれない。
+	const dialogPhotos = photosForImportCardDialog(card, photoPreviews);
+	const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+	const thumbnailLabel = `${title}の写真${showWebPhoto ? "(WEB画像)" : ""}を拡大`;
 
 	return (
 		<Card className={card.selected ? undefined : "opacity-60"}>
@@ -86,22 +97,60 @@ export function ImportCandidateCard({
 						className="mt-1"
 					/>
 					{/*
-					 * 利用画像のサムネイル(IMPL-5。IMPL-4 の web 画像を含む)。
-					 * 登録前に取り込む画像そのものを見せ、WEB由来のものだけ左上の
-					 * overlay で由来を示す(タップで拡大。`ZoomablePhoto` と同じ挙動)。
-					 * 手元写真は登録時に使われる1枚と同じもの
-					 * (`bottlePhotoIndex ?? photoIndexes[0]`)を自動選択する。
+					 * 利用画像のサムネイル(IMPL-5 + #568)。登録前に取り込む画像そのものを
+					 * 見せ、WEB由来のものだけ左上の overlay で由来を示す。タップで関連写真
+					 * のダイアログを開き、切り替えて見比べたうえで「代表画像として選択」
+					 * できる。選んだ写真はこのカードのサムネイルに使う(登録ペイロードの
+					 * 目撃写真番号は変えない——表示専用の上書き)。
 					 */}
 					{displayPhoto && (
-						<ZoomablePhoto
-							src={displayPhoto.src}
-							alt={`${title}の写真`}
-							isWebPhoto={displayPhoto.isWebPhoto || undefined}
-							referrerPolicy={
-								displayPhoto.isWebPhoto ? "no-referrer" : undefined
-							}
-							className="size-16"
-						/>
+						<>
+							<button
+								type="button"
+								onClick={() =>
+									setLightboxIndex(
+										dialogIndexForDisplayPhoto(card, photoPreviews),
+									)
+								}
+								aria-label={thumbnailLabel}
+								className="relative size-16 shrink-0 overflow-hidden rounded-md border border-border transition-opacity hover:opacity-80"
+							>
+								<img
+									src={displayPhoto.src}
+									alt=""
+									className="size-full object-cover"
+									loading="lazy"
+									decoding="async"
+									{...(showWebPhoto ? { referrerPolicy: "no-referrer" } : {})}
+								/>
+								{showWebPhoto && <WebPhotoBadge variant="overlay" />}
+							</button>
+							{dialogPhotos.length > 0 && (
+								<PhotoLightbox
+									photos={dialogPhotos.map((photo) => ({
+										src: photo.src,
+										alt: `${title}の写真${photo.isWebPhoto ? "(WEB画像)" : ""}`,
+									}))}
+									openIndex={lightboxIndex}
+									onOpenChange={setLightboxIndex}
+									title={`${title}の写真`}
+									primarySelect={{
+										selectedIndex: dialogIndexForDisplayPhoto(
+											card,
+											photoPreviews,
+										),
+										onSelect: (dialogIndex) => {
+											const selection = primarySelectionForDialogIndex(
+												card,
+												photoPreviews,
+												dialogIndex,
+											);
+											if (selection) onChange({ primaryPhoto: selection });
+										},
+									}}
+								/>
+							)}
+						</>
 					)}
 					<div className="flex min-w-0 flex-1 flex-col gap-1">
 						<Label

@@ -198,7 +198,10 @@ export function displayPhotoForImportCard(
 		// resolve が web を返すのは取り込めるカードだけなので imageUrl はある
 		return { src: card.imageUrl as string, isWebPhoto: true };
 	}
-	return { src: photoPreviews[selection.previewIndex] as string, isWebPhoto: false };
+	return {
+		src: photoPreviews[selection.previewIndex] as string,
+		isWebPhoto: false,
+	};
 }
 
 /**
@@ -252,11 +255,7 @@ export interface ImportCardDialogPhoto {
 export function photosForImportCardDialog(
 	card: Pick<
 		ImportCardState,
-		| "photoKind"
-		| "imageUrl"
-		| "bottlePhotoIndex"
-		| "photoIndexes"
-		| "existing"
+		"photoKind" | "imageUrl" | "bottlePhotoIndex" | "photoIndexes" | "existing"
 	>,
 	photoPreviews: readonly string[],
 ): ImportCardDialogPhoto[] {
@@ -325,11 +324,7 @@ export function dialogIndexForDisplayPhoto(
 export function primarySelectionForDialogIndex(
 	card: Pick<
 		ImportCardState,
-		| "photoKind"
-		| "imageUrl"
-		| "bottlePhotoIndex"
-		| "photoIndexes"
-		| "existing"
+		"photoKind" | "imageUrl" | "bottlePhotoIndex" | "photoIndexes" | "existing"
 	>,
 	photoPreviews: readonly string[],
 	dialogIndex: number,
