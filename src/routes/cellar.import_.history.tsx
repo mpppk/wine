@@ -106,7 +106,7 @@ function CellarImportHistoryPage() {
 								<div className="flex shrink-0 flex-col items-end gap-1">
 									<Button asChild type="button" variant="ghost" size="sm">
 										<Link
-											to="/cellar/import/history/$batchId"
+											to="/cellar/import/history-detail/$batchId"
 											params={{ batchId: batch.id }}
 											aria-label="この登録の詳細を見る"
 										>
