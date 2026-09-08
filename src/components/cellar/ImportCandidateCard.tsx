@@ -55,6 +55,7 @@ export function ImportCandidateCard({
 	onChangeValues,
 }: ImportCandidateCardProps) {
 	const [expanded, setExpanded] = useState(false);
+	const [noteOpen, setNoteOpen] = useState(false);
 	const title = card.values.name.trim() || "(名前未読取)";
 	const detail = [
 		card.values.producer.trim(),
@@ -119,16 +120,26 @@ export function ImportCandidateCard({
 							 */}
 							{/*
 							 * 画像と実物のズレの注記(IMPL-4。例: 別ヴィンテージの画像)。
-							 * バッジの近傍に置き、全文は title で読めるようにする。
+							 * 一覧性を損なわないようアイコンのみ出し、hover(title)・
+							 * タップ(展開)・読み上げ(aria-label)で全文を読めるようにする。
 							 */}
 							{showWebPhoto && card.imageNote && (
-								<span
-									className="inline-flex max-w-48 items-center gap-1 rounded bg-muted px-1.5 py-0.5"
-									title={card.imageNote}
-								>
-									<InfoIcon className="size-3 shrink-0" aria-hidden />
-									<span className="truncate">{card.imageNote}</span>
-									<span className="sr-only">(画像の注記:{card.imageNote})</span>
+								<span className="inline-flex items-center gap-1">
+									<button
+										type="button"
+										className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-muted-foreground"
+										title={card.imageNote}
+										aria-label={`画像の注記: ${card.imageNote}`}
+										aria-expanded={noteOpen}
+										onClick={() => setNoteOpen((v) => !v)}
+									>
+										<InfoIcon className="size-3" aria-hidden />
+									</button>
+									{noteOpen && (
+										<span className="text-xs text-muted-foreground">
+											{card.imageNote}
+										</span>
+									)}
 								</span>
 							)}
 							<span className="rounded bg-muted px-1.5 py-0.5">

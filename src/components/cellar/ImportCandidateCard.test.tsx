@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { WineListCandidate } from "#/lib/ai/wine-list-extraction";
 import { ImportCandidateCard } from "./ImportCandidateCard";
@@ -52,7 +52,13 @@ describe("ImportCandidateCard の WEB 由来表示", () => {
 		expect(screen.getAllByText("WEB").length).toBeGreaterThanOrEqual(1);
 		expect(container.textContent).not.toContain("WEB画像");
 		expect(container.textContent).not.toContain("枚目");
-		// ズレの注記はバッジの近傍に出る
+		// ズレの注記はアイコンのみ。タップで全文が展開される
+		expect(container.textContent).not.toContain("2019年のラベル画像です");
+		fireEvent.click(
+			screen.getByRole("button", {
+				name: "画像の注記: 2019年のラベル画像です",
+			}),
+		);
 		expect(screen.getByText("2019年のラベル画像です")).toBeTruthy();
 	});
 
