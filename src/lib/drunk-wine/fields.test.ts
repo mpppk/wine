@@ -32,7 +32,7 @@ describe("DRUNK_WINE_FIELD_DEFS", () => {
 		expect(camelKeys).toEqual(schemaKeys);
 	});
 
-	it("snakeKey 集合が期待の10件と一致する(飲んだ日/評価/メモは飲用記録へ移動済み)", () => {
+	it("snakeKey 集合が期待の9件と一致する(飲んだ日/評価/メモは飲用記録へ移動済み、銘柄の価格は廃止)", () => {
 		const snakeKeys = DRUNK_WINE_FIELD_DEFS.map((d) => d.snakeKey).sort();
 		expect(snakeKeys).toEqual(
 			[
@@ -42,7 +42,6 @@ describe("DRUNK_WINE_FIELD_DEFS", () => {
 				"name",
 				// 銘柄のコメント(#471)。飲用記録の memo とは別物
 				"note",
-				"price",
 				"producer",
 				"region_id",
 				"status",
@@ -114,7 +113,6 @@ describe("collectDrunkWinePatch", () => {
 			name: "Chablis",
 			status: "finished",
 			vintage: 2018,
-			price: 3000,
 			producer: "Dauvissat",
 			aop_id: "chablis",
 			grape_variety_ids: ["chardonnay"],
@@ -123,7 +121,6 @@ describe("collectDrunkWinePatch", () => {
 			name: "Chablis",
 			status: "finished",
 			vintage: "2018",
-			price: "3000",
 			producer: "Dauvissat",
 			aop_id: "chablis",
 			grape_variety_ids: ["chardonnay"],
@@ -144,9 +141,11 @@ describe("collectDrunkWinePatch", () => {
 	});
 
 	it("数値フィールドは Number() でパースし、空欄はnull", () => {
-		expect(collectDrunkWinePatch({}, { price: "4" })).toEqual({ price: 4 });
-		expect(collectDrunkWinePatch({ price: 5 }, { price: "" })).toEqual({
-			price: null,
+		expect(collectDrunkWinePatch({}, { vintage: "2018" })).toEqual({
+			vintage: 2018,
+		});
+		expect(collectDrunkWinePatch({ vintage: 2018 }, { vintage: "" })).toEqual({
+			vintage: null,
 		});
 	});
 
@@ -170,13 +169,12 @@ describe("collectDrunkWinePatch", () => {
 		);
 	});
 
-	it("非表示のフィールドの値を保持していれば差分に載らない(wishlist の価格)", () => {
-		// 価格入力は wishlist で描画しないが state は残す。空文字にすると
-		// price: null のクリアが飛んで既存値が失われる。
+	it("定義外のキーは差分に載らない(廃止した銘柄の価格など)", () => {
+		// DB列は残っているがフォームの欄は無い。基準に載っていても無視する
 		expect(
 			collectDrunkWinePatch(
 				{ status: "owned", price: 3000 },
-				{ status: "wishlist", price: "3000" },
+				{ status: "wishlist" },
 			),
 		).toEqual({ status: "wishlist" });
 	});
@@ -256,6 +254,7 @@ describe("toSnakeEntry", () => {
 		vintage: 2018,
 		grapeVarietyIds: ["chardonnay"],
 		producer: "Dauvissat",
+		// 廃止した銘柄の価格。DB列は残っているが定義外なので射影で落ちる
 		price: 3000,
 		photoUrls: ["/api/images/x"],
 		createdAt: 1,
@@ -271,7 +270,6 @@ describe("toSnakeEntry", () => {
 			name: "Chablis",
 			status: "finished",
 			vintage: 2018,
-			price: 3000,
 			producer: "Dauvissat",
 			aop_id: "chablis",
 			// entry の regionId は導出値(AOPの地域)、countryId は定義に写した undefined
@@ -289,13 +287,11 @@ describe("toSnakeEntry", () => {
 			vintage: null,
 			grapeVarietyIds: [],
 			producer: null,
-			price: null,
 		};
 		const values = {
 			name: "Chablis",
 			status: "finished",
 			vintage: "",
-			price: "",
 			producer: "",
 			aop_id: "",
 			grape_variety_ids: [],
@@ -387,6 +383,6 @@ describe("hasDrunkWinePatch", () => {
 	});
 
 	it("値の変更は変更として扱う", () => {
-		expect(hasDrunkWinePatch({ price: 5 })).toBe(true);
+		expect(hasDrunkWinePatch({ vintage: 2019 })).toBe(true);
 	});
 });

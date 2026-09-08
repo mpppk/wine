@@ -166,12 +166,7 @@ function EntryCard({
 							)}
 							{provenance && <span>{provenance}</span>}
 							<span>
-								{[
-									entry.vintage !== null ? `${entry.vintage}年` : undefined,
-									entry.price !== null
-										? `¥${entry.price.toLocaleString()}`
-										: undefined,
-								]
+								{[entry.vintage !== null ? `${entry.vintage}年` : undefined]
 									.filter(Boolean)
 									.join(" ・ ")}
 							</span>

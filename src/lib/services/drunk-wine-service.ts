@@ -508,7 +508,6 @@ export async function createDrunkWine(
 		grapeVarietyIds: input.grapeVarietyIds ?? [],
 		producer: input.producer ?? null,
 		note: input.note ?? null,
-		price: input.price ?? null,
 	};
 
 	if (!tasting && !sighting) {
@@ -585,7 +584,6 @@ export async function updateDrunkWine(
 					grapeVarietyIds: patch.grapeVarietyIds,
 					producer: patch.producer,
 					note: patch.note,
-					price: patch.price,
 				})
 				.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId))),
 			selectEntry(userId, id),
@@ -1851,7 +1849,6 @@ export async function bulkRegisterFromScan(
 							? `${NOTE_SECTION_LABELS.photo}\n${webPhoto.noteSuffix}`
 							: undefined,
 					),
-					price: item.wine.price ?? null,
 					// adoptWebPhotos で取り込めた写真は web 由来。取れなかった銘柄は
 					// photo_keys を持たず、2段階目でバッチ写真の複製(bottle)が付く。
 					...(webPhoto

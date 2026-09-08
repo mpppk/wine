@@ -52,7 +52,6 @@ export interface DrunkWineFormState {
 	status: WineStatus;
 	vintage: string;
 	producer: string;
-	price: string;
 	aopId: string | undefined;
 	regionId: string | undefined;
 	countryId: string | undefined;
@@ -71,7 +70,6 @@ export function toFormValues(s: DrunkWineFormState): DrunkWineFormValues {
 		name: s.name,
 		status: s.status,
 		vintage: s.vintage,
-		price: s.price,
 		producer: s.producer,
 		// 産地ピッカーは未選択を undefined で持つが、規約側の「空欄」は ""
 		aop_id: s.aopId ?? "",
@@ -116,7 +114,6 @@ export function toFormState(value: DrunkWineFieldsValue): DrunkWineFormState {
 		status: value.status,
 		vintage: value.vintage,
 		producer: value.producer,
-		price: value.price,
 		aopId: value.aopId,
 		regionId: value.regionId,
 		countryId: value.countryId,
@@ -155,7 +152,6 @@ export function fieldsValueFromEntry(
 		status: entry?.status ?? DEFAULT_WINE_STATUS,
 		vintage: entry?.vintage != null ? String(entry.vintage) : "",
 		producer: entry?.producer ?? "",
-		price: entry?.price != null ? String(entry.price) : "",
 		...provenanceFromDerived({
 			aopId: entry?.aopId ?? undefined,
 			regionId: entry?.regionId ?? undefined,
@@ -181,7 +177,6 @@ export function fieldsValueFromMcpEntry(
 		status: isWineStatus(entry.status) ? entry.status : DEFAULT_WINE_STATUS,
 		vintage: numText(entry.vintage),
 		producer: text(entry.producer),
-		price: numText(entry.price),
 		...provenanceFromDerived({
 			aopId: text(entry.aop_id) || undefined,
 			regionId: text(entry.region_id) || undefined,
@@ -327,7 +322,6 @@ function normalizeFormState(s: DrunkWineFormState) {
 		status: s.status,
 		vintage: s.vintage.trim(),
 		producer: s.producer.trim(),
-		price: s.price.trim(),
 		// 産地未選択は undefined と "" のどちらもありうる
 		aopId: s.aopId ?? "",
 		regionId: s.regionId ?? "",

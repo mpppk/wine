@@ -76,7 +76,9 @@ export const drunkWineFields = {
 	vintage: z.number().int().min(VINTAGE_MIN).max(VINTAGE_MAX).optional(),
 	grapeVarietyIds: z.array(z.string().max(80)).max(20).optional(),
 	producer: z.string().max(PRODUCER_MAX).optional(),
-	price: z.number().int().min(PRICE_MIN).max(PRICE_MAX).optional(),
+	// 銘柄の価格は持たない(#570)。「その店での売値」は目撃記録側が持つ。
+	// DB列 drunk_wine.price は expand-and-contract の phase 1 として残す
+	// (参照コードの除去が今回、列削除は次PR)。
 	// 銘柄についてのコメント(香り・味わい・生産者)。解析が付与し、利用者が編集できる
 	note: z.string().max(NOTE_MAX).optional(),
 };
@@ -110,7 +112,6 @@ export const updateDrunkWineInput = z.object({
 	vintage: drunkWineFields.vintage.nullable().optional(),
 	grapeVarietyIds: drunkWineFields.grapeVarietyIds.optional(),
 	producer: drunkWineFields.producer.nullable().optional(),
-	price: drunkWineFields.price.nullable().optional(),
 	note: drunkWineFields.note.nullable().optional(),
 });
 

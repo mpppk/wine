@@ -89,10 +89,11 @@ describe("buildImportCards", () => {
 		expect(countryOnly?.values.countryId).toBe("france");
 	});
 
-	it("リスト記載の価格は銘柄ではなく目撃記録側に入れる(店ごとに違うため)", () => {
+	it("リスト記載の価格は目撃記録側に入れる(店ごとに違うため)", () => {
 		const [state] = buildImportCards([candidate({ price: 9800 })]);
 		expect(state?.sightingPrice).toBe("9800");
-		expect(state?.values.price).toBe("");
+		// 銘柄に価格欄は無い(#570)
+		expect(state?.values).not.toHaveProperty("price");
 	});
 
 	it("参考サイト・価格は表示用に持ち回る(フォームには流し込まない)", () => {
@@ -214,7 +215,6 @@ describe("buildBulkRegisterInput", () => {
 						status: "spotted",
 						vintage: "2018",
 						producer: "Giuseppe Rinaldi",
-						price: "",
 						aopId: "barolo",
 						regionId: undefined,
 						countryId: undefined,

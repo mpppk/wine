@@ -57,14 +57,6 @@ export function buildWineDetailRows(entry: DrunkWineEntry): WineDetailRow[] {
 	if (entry.producer) {
 		rows.push({ label: "生産者", value: entry.producer });
 	}
-	// 未購入(wishlist)では価格を出さない。DrunkWineFields が同じ条件で入力欄を
-	// 隠しており、編集画面に無い値を閲覧画面だけが表示すると「消せない価格」に見える。
-	if (entry.price !== null && entry.status !== "wishlist") {
-		rows.push({
-			label: "価格",
-			value: `¥${entry.price.toLocaleString("ja-JP")}`,
-		});
-	}
 
 	const region = entry.regionId ? getRegion(entry.regionId) : undefined;
 	if (region) {

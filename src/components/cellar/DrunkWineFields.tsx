@@ -133,25 +133,6 @@ export function DrunkWineFields({
 						maxLength={200}
 					/>
 				</FormField>
-
-				{/*
-				 * 未購入(wishlist)では価格を出さない。state は消さずに描画だけ止める:
-				 * 空文字にすると差分パッチが price: null(クリア)を送り、買った後に
-				 * 状態を戻したときへ既存の価格が失われる。
-				 */}
-				{value.status !== "wishlist" && (
-					<FormField label="価格(円)" htmlFor={`${idPrefix}-price`}>
-						<Input
-							id={`${idPrefix}-price`}
-							type="number"
-							min={0}
-							max={10_000_000}
-							value={value.price}
-							onChange={(e) => onChange({ price: e.target.value })}
-							placeholder="例: 5000"
-						/>
-					</FormField>
-				)}
 			</div>
 
 			<FormSection

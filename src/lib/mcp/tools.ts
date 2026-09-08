@@ -442,7 +442,6 @@ async function toEntryPayload(
 		grape_variety_ids: entry.grapeVarietyIds,
 		producer: entry.producer,
 		note: entry.note,
-		price: entry.price,
 		photo_urls: photoUrls,
 		photo_url: photoUrls[0] ?? null,
 		created_at: entry.createdAt,
