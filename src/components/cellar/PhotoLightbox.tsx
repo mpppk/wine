@@ -27,6 +27,18 @@ export interface PhotoLightboxProps {
 	onOpenChange: (index: number | null) => void;
 	/** ダイアログのアクセシブルな名前(読み上げ専用) */
 	title: string;
+	/**
+	 * 「代表画像として選択」ボタン(任意)。レビューカードのタップダイアログで
+	 * 使う。ギャラリー等の既存の呼び出しには出さない——代表の保持場所が呼び出し
+	 * 側ごとに違うため、ダイアログは「いま何番目が代表か」と「選んだ番号を返す」
+	 * だけを受け持つ。
+	 */
+	primarySelect?: {
+		/** ダイアログの一覧での代表の位置。代表が無ければ null */
+		selectedIndex: number | null;
+		/** 表示中の写真を代表にする */
+		onSelect: (index: number) => void;
+	};
 }
 
 export function PhotoLightbox({
@@ -34,6 +46,7 @@ export function PhotoLightbox({
 	openIndex,
 	onOpenChange,
 	title,
+	primarySelect,
 }: PhotoLightboxProps) {
 	// 表示中の index はダイアログを開いている間だけ内部で動かす(前へ/次へ)。
 	// 開き直したときは呼び出し側が渡した index に必ず戻す。
@@ -44,7 +57,8 @@ export function PhotoLightbox({
 
 	const open = openIndex !== null && photos.length > 0;
 	// 写真が減った直後(削除→戻る等)に範囲外を指しても落ちないようにする
-	const current = photos[Math.min(index, photos.length - 1)];
+	const clampedIndex = Math.min(index, photos.length - 1);
+	const current = photos[clampedIndex];
 	const multiple = photos.length > 1;
 	const step = (dir: -1 | 1) =>
 		setIndex((i) => (i + dir + photos.length) % photos.length);
@@ -106,7 +120,7 @@ export function PhotoLightbox({
 							<ChevronLeftIcon className="size-4" />
 						</Button>
 						<span className="text-sm tabular-nums text-muted-foreground">
-							{Math.min(index, photos.length - 1) + 1} / {photos.length}
+							{clampedIndex + 1} / {photos.length}
 						</span>
 						<Button
 							type="button"
@@ -117,6 +131,25 @@ export function PhotoLightbox({
 						>
 							<ChevronRightIcon className="size-4" />
 						</Button>
+					</div>
+				)}
+
+				{primarySelect && current && (
+					<div className="flex justify-center">
+						{primarySelect.selectedIndex === clampedIndex ? (
+							<Button type="button" variant="outline" size="sm" disabled>
+								代表画像に設定中
+							</Button>
+						) : (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => primarySelect.onSelect(clampedIndex)}
+							>
+								代表画像として選択
+							</Button>
+						)}
 					</div>
 				)}
 			</DialogContent>

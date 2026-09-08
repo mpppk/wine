@@ -5,8 +5,11 @@ import {
 	buildBulkRegisterInput,
 	buildImportCards,
 	detachExisting,
+	dialogIndexForDisplayPhoto,
 	displayPhotoForImportCard,
 	type ImportCardState,
+	photosForImportCardDialog,
+	primarySelectionForDialogIndex,
 	summarizeImportCards,
 	validateImportCards,
 } from "./import-candidates";
@@ -451,5 +454,199 @@ describe("displayPhotoForImportCard", () => {
 				PREVIEWS,
 			),
 		).toBeNull();
+	});
+});
+
+// ---- 代表画像の上書き(#568) -------------------------------------------------
+//
+// タップダイアログの「代表画像として選択」はカードの表示だけを上書きする。
+// 無効な上書き(範囲外・取り込めない web)は黙って自動選択へ落とす。
+
+describe("primaryPhoto による代表画像の上書き", () => {
+	const PREVIEWS = ["blob:photo-0", "blob:photo-1", "blob:photo-2"];
+
+	it("手元写真の上書きが自動選択より優先される", () => {
+		expect(
+			displayPhotoForImportCard(
+				card({
+					photoIndexes: [0, 2],
+					bottlePhotoIndex: 2,
+					primaryPhoto: { kind: "preview", previewIndex: 0 },
+				}),
+				PREVIEWS,
+			),
+		).toEqual({ src: "blob:photo-0", isWebPhoto: false });
+	});
+
+	it("web 由来の新規銘柄は web への上書きができる", () => {
+		expect(
+			displayPhotoForImportCard(
+				card({
+					photoKind: "web",
+					imageUrl: "https://example.com/barolo.jpg",
+					photoIndexes: [1],
+					primaryPhoto: { kind: "web" },
+				}),
+				PREVIEWS,
+			),
+		).toEqual({ src: "https://example.com/barolo.jpg", isWebPhoto: true });
+	});
+
+	it("範囲外の番号の上書きは自動選択へ落とす(サムネイルを消さない)", () => {
+		expect(
+			displayPhotoForImportCard(
+				card({
+					photoIndexes: [1, 2],
+					primaryPhoto: { kind: "preview", previewIndex: 9 },
+				}),
+				PREVIEWS,
+			),
+		).toEqual({ src: "blob:photo-1", isWebPhoto: false });
+	});
+
+	it("既存一致の web への上書きは手元写真へ落とす(取り込まないため)", () => {
+		expect(
+			displayPhotoForImportCard(
+				card({
+					photoKind: "web",
+					imageUrl: "https://example.com/barolo.jpg",
+					photoIndexes: [0],
+					existing: {
+						id: "e1",
+						name: "Barolo",
+						vintage: 2018,
+						status: "owned",
+					},
+					primaryPhoto: { kind: "web" },
+				}),
+				PREVIEWS,
+			),
+		).toEqual({ src: "blob:photo-0", isWebPhoto: false });
+	});
+
+	it("上書きしても登録ペイロードの目撃写真番号は変わらない(表示専用)", () => {
+		const state = card({
+			photoIndexes: [0, 2],
+			bottlePhotoIndex: 2,
+			primaryPhoto: { kind: "preview", previewIndex: 0 },
+		});
+		const input = buildBulkRegisterInput([state], { photoCount: 3 });
+		expect(input.items[0]?.sighting?.photoIndex).toBe(2);
+	});
+});
+
+// ---- タップダイアログの一覧と位置(#568) ---------------------------------------
+
+describe("photosForImportCardDialog", () => {
+	const PREVIEWS = ["blob:photo-0", "blob:photo-1", "blob:photo-2"];
+
+	it("web 画像 → bottle → 関連順に並べ、重複を除く", () => {
+		expect(
+			photosForImportCardDialog(
+				card({
+					photoKind: "web",
+					imageUrl: "https://example.com/barolo.jpg",
+					photoIndexes: [2, 0, 2],
+					bottlePhotoIndex: 1,
+				}),
+				PREVIEWS,
+			).map((photo) => photo.src),
+		).toEqual([
+			"https://example.com/barolo.jpg",
+			"blob:photo-1",
+			"blob:photo-2",
+			"blob:photo-0",
+		]);
+	});
+
+	it("既存一致の web 由来は web 画像を入れない(取り込まないため)", () => {
+		expect(
+			photosForImportCardDialog(
+				card({
+					photoKind: "web",
+					imageUrl: "https://example.com/barolo.jpg",
+					photoIndexes: [0],
+					existing: {
+						id: "e1",
+						name: "Barolo",
+						vintage: 2018,
+						status: "owned",
+					},
+				}),
+				PREVIEWS,
+			).map((photo) => photo.src),
+		).toEqual(["blob:photo-0"]);
+	});
+
+	it("プレビューの無い番号は落とす(受け取って開いた回は web だけ)", () => {
+		expect(
+			photosForImportCardDialog(
+				card({
+					photoKind: "web",
+					imageUrl: "https://example.com/barolo.jpg",
+					photoIndexes: [0],
+				}),
+				[],
+			).map((photo) => photo.src),
+		).toEqual(["https://example.com/barolo.jpg"]);
+		expect(photosForImportCardDialog(card({ photoIndexes: [0] }), [])).toEqual(
+			[],
+		);
+	});
+
+	it("一覧の各写真は代表選択の値を持つ", () => {
+		expect(
+			photosForImportCardDialog(
+				card({
+					photoKind: "web",
+					imageUrl: "https://example.com/barolo.jpg",
+					photoIndexes: [1],
+				}),
+				PREVIEWS,
+			).map((photo) => photo.selection),
+		).toEqual([{ kind: "web" }, { kind: "preview", previewIndex: 1 }]);
+	});
+});
+
+describe("dialogIndexForDisplayPhoto / primarySelectionForDialogIndex", () => {
+	const PREVIEWS = ["blob:photo-0", "blob:photo-1", "blob:photo-2"];
+
+	it("自動選択のサムネイルの位置を指す", () => {
+		const state = card({ photoIndexes: [0, 2], bottlePhotoIndex: 2 });
+		// 一覧は bottle → 関連順なので bottle(2枚目)が先頭
+		expect(dialogIndexForDisplayPhoto(state, PREVIEWS)).toBe(0);
+		expect(
+			primarySelectionForDialogIndex(
+				state,
+				PREVIEWS,
+				dialogIndexForDisplayPhoto(state, PREVIEWS),
+			),
+		).toEqual({ kind: "preview", previewIndex: 2 });
+	});
+
+	it("上書きした代表の位置を指す", () => {
+		const state = card({
+			photoIndexes: [0, 2],
+			primaryPhoto: { kind: "preview", previewIndex: 0 },
+		});
+		expect(dialogIndexForDisplayPhoto(state, PREVIEWS)).toBe(0);
+	});
+
+	it("web 由来の新規銘柄は web の位置(先頭)を指す", () => {
+		const state = card({
+			photoKind: "web",
+			imageUrl: "https://example.com/barolo.jpg",
+			photoIndexes: [1],
+		});
+		expect(dialogIndexForDisplayPhoto(state, PREVIEWS)).toBe(0);
+		expect(primarySelectionForDialogIndex(state, PREVIEWS, 1)).toEqual({
+			kind: "preview",
+			previewIndex: 1,
+		});
+	});
+
+	it("一覧に無い位置は null(押せないボタンにしない)", () => {
+		const state = card({ photoIndexes: [0] });
+		expect(primarySelectionForDialogIndex(state, PREVIEWS, 9)).toBeNull();
 	});
 });

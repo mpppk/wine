@@ -63,7 +63,23 @@ export interface ImportCardState {
 	photoKind: PhotoKind;
 	/** 既存セラーの同一銘柄。ある場合は新規作成せず目撃記録だけを足す */
 	existing?: WineListCandidate["existing"];
+	/**
+	 * タップダイアログで選んだ「代表画像」の上書き。未指定なら自動選択
+	 * (`displayPhotoForImportCard` の既存規則)。**表示専用**で、登録ペイロード
+	 * (`buildBulkRegisterInput` の目撃写真番号)には影響しない——「選択すると
+	 * サムネイルに利用される」のはレビューカードの表示の話で、登録する写真の
+	 * 組み立ては変えない。
+	 */
+	primaryPhoto?: PrimaryPhotoSelection;
 }
+
+/**
+ * レビューカードの代表画像の指し示し方。ダイアログの一覧とサムネイルの選択が
+ * 共有する。`previewIndex` はバッチ写真の通し番号(`photoPreviews` の index)。
+ */
+export type PrimaryPhotoSelection =
+	| { kind: "preview"; previewIndex: number }
+	| { kind: "web" };
 
 /**
  * 解析の自動入力候補をフォームの入力値へ変換する。
@@ -167,16 +183,165 @@ export interface ImportCardDisplayPhoto {
 export function displayPhotoForImportCard(
 	card: Pick<
 		ImportCardState,
-		"photoKind" | "imageUrl" | "bottlePhotoIndex" | "photoIndexes" | "existing"
+		| "photoKind"
+		| "imageUrl"
+		| "bottlePhotoIndex"
+		| "photoIndexes"
+		| "existing"
+		| "primaryPhoto"
 	>,
 	photoPreviews: readonly string[],
 ): ImportCardDisplayPhoto | null {
-	if (!card.existing && card.photoKind === "web" && card.imageUrl) {
-		return { src: card.imageUrl, isWebPhoto: true };
+	const selection = resolvePhotoSelection(card, photoPreviews);
+	if (!selection) return null;
+	if (selection.kind === "web") {
+		// resolve が web を返すのは取り込めるカードだけなので imageUrl はある
+		return { src: card.imageUrl as string, isWebPhoto: true };
 	}
+	return {
+		src: photoPreviews[selection.previewIndex] as string,
+		isWebPhoto: false,
+	};
+}
+
+/**
+ * web 画像を取り込めるカードか(IMPL-4 と同じ条件)。既存一致のカードは目撃記録
+ * を足すだけで web 画像を取り込まないので、表示と一覧の両方でこの1箇所を見る。
+ */
+function canShowWebPhoto(
+	card: Pick<ImportCardState, "photoKind" | "imageUrl" | "existing">,
+): boolean {
+	return !card.existing && card.photoKind === "web" && !!card.imageUrl;
+}
+
+/**
+ * カードの代表画像を `PrimaryPhotoSelection` として解く。**選ぶ規則の唯一の
+ * 入口**——サムネイル(`displayPhotoForImportCard`)とダイアログの初期位置・
+ * 代表表示(`dialogIndexForDisplayPhoto`)が共有する。無効な上書き(範囲外の番号・
+ * 取り込めない web)は黙って自動選択へ落とす(サムネイルを出さない理由にしない)。
+ */
+function resolvePhotoSelection(
+	card: Pick<
+		ImportCardState,
+		| "photoKind"
+		| "imageUrl"
+		| "bottlePhotoIndex"
+		| "photoIndexes"
+		| "existing"
+		| "primaryPhoto"
+	>,
+	photoPreviews: readonly string[],
+): PrimaryPhotoSelection | null {
+	const canShowWeb = canShowWebPhoto(card);
+	const selection = card.primaryPhoto;
+	if (selection?.kind === "web") {
+		if (canShowWeb) return selection;
+	} else if (selection) {
+		if (photoPreviews[selection.previewIndex]) return selection;
+	}
+	if (canShowWeb) return { kind: "web" };
 	const index = card.bottlePhotoIndex ?? card.photoIndexes[0];
-	const src = index != null ? photoPreviews[index] : undefined;
-	return src ? { src, isWebPhoto: false } : null;
+	return index != null && photoPreviews[index]
+		? { kind: "preview", previewIndex: index }
+		: null;
+}
+
+/** カードのタップダイアログに出す関連写真1件。 */
+export interface ImportCardDialogPhoto {
+	src: string;
+	isWebPhoto: boolean;
+	/** この写真を代表に選んだときにカードへ載せる値 */
+	selection: PrimaryPhotoSelection;
+}
+
+/**
+ * カードのタップダイアログに出す関連写真の一覧。順序は固定: web 画像(出す
+ * カードだけ) → `bottlePhotoIndex` → `photoIndexes` 順(重複除去)。プレビュー
+ * の無い番号は落とす(受け取って開いた回は手元写真が出ない)。**現在のサムネイル
+ * (`displayPhotoForImportCard` の結果)は必ず含まれる**——ダイアログの初期位置
+ * が指す先が無いと切り替えの起点がずれるため。
+ */
+export function photosForImportCardDialog(
+	card: Pick<
+		ImportCardState,
+		"photoKind" | "imageUrl" | "bottlePhotoIndex" | "photoIndexes" | "existing"
+	>,
+	photoPreviews: readonly string[],
+): ImportCardDialogPhoto[] {
+	const list: ImportCardDialogPhoto[] = [];
+	if (canShowWebPhoto(card) && card.imageUrl) {
+		list.push({
+			src: card.imageUrl,
+			isWebPhoto: true,
+			selection: { kind: "web" },
+		});
+	}
+	const seen = new Set<number>();
+	const pushPreview = (previewIndex: number) => {
+		if (seen.has(previewIndex)) return;
+		seen.add(previewIndex);
+		const src = photoPreviews[previewIndex];
+		if (src) {
+			list.push({
+				src,
+				isWebPhoto: false,
+				selection: { kind: "preview", previewIndex },
+			});
+		}
+	};
+	if (card.bottlePhotoIndex !== undefined) {
+		pushPreview(card.bottlePhotoIndex);
+	}
+	for (const previewIndex of card.photoIndexes) {
+		pushPreview(previewIndex);
+	}
+	return list;
+}
+
+/**
+ * ダイアログを開く位置(= 現在のサムネイルの位置)。一覧に無いときは先頭。
+ */
+export function dialogIndexForDisplayPhoto(
+	card: Pick<
+		ImportCardState,
+		| "photoKind"
+		| "imageUrl"
+		| "bottlePhotoIndex"
+		| "photoIndexes"
+		| "existing"
+		| "primaryPhoto"
+	>,
+	photoPreviews: readonly string[],
+): number {
+	const selection = resolvePhotoSelection(card, photoPreviews);
+	const list = photosForImportCardDialog(card, photoPreviews);
+	const index = selection
+		? list.findIndex((photo) =>
+				selection.kind === "web"
+					? photo.selection.kind === "web"
+					: photo.selection.kind === "preview" &&
+						photo.selection.previewIndex === selection.previewIndex,
+			)
+		: -1;
+	return index >= 0 ? index : 0;
+}
+
+/**
+ * ダイアログの位置を「代表画像として選択」の値に戻す。一覧に無い位置は null
+ * (押せないボタンにしない——呼び出し側が無視する)。
+ */
+export function primarySelectionForDialogIndex(
+	card: Pick<
+		ImportCardState,
+		"photoKind" | "imageUrl" | "bottlePhotoIndex" | "photoIndexes" | "existing"
+	>,
+	photoPreviews: readonly string[],
+	dialogIndex: number,
+): PrimaryPhotoSelection | null {
+	return (
+		photosForImportCardDialog(card, photoPreviews)[dialogIndex]?.selection ??
+		null
+	);
 }
 
 /**
