@@ -90,19 +90,16 @@ export type PrimaryPhotoSelection =
  * 持つフォーム状態を作ってしまう。
  *
  * @param status 既定のステータス。経路ごとに違う(一括=見かけた / 単体=フォームの既定)
- * @param price 銘柄の価格欄の初期値。未指定なら空
  */
 export function valuesFromSuggestions(
 	suggestions: WineListCandidate["suggestions"],
 	status: WineStatus,
-	price?: number,
 ): DrunkWineFieldsValue {
 	return {
 		name: suggestions.name ?? "",
 		status,
 		vintage: suggestions.vintage != null ? String(suggestions.vintage) : "",
 		producer: suggestions.producer ?? "",
-		price: price != null ? String(price) : "",
 		aopId: suggestions.aopId,
 		regionId: suggestions.aopId ? undefined : suggestions.regionId,
 		countryId:
@@ -131,8 +128,8 @@ export function buildImportCards(
 	return candidates.map((candidate, index) => ({
 		localId: `c${index}`,
 		selected: true,
-		// 銘柄の価格は空のまま(price を渡さない)。リスト記載の価格は目撃記録側
-		// (sightingPrice)へ入れる
+		// リスト記載の価格は目撃記録側(sightingPrice)へ入れる。銘柄に価格欄は
+		// もう無い(#570)
 		values: valuesFromSuggestions(candidate.suggestions, IMPORT_DEFAULT_STATUS),
 		drunk: false,
 		tasting: EMPTY_TASTING_DRAFT,

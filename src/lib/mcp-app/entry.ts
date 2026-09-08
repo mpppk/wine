@@ -33,7 +33,6 @@ export interface McpDrunkWineEntry {
 	producer: string | null;
 	/** 銘柄についてのコメント(香り・味わい・生産者)。飲用記録の memo とは別物 */
 	note: string | null;
-	price: number | null;
 	/** 全写真の絶対URL(表示順・先頭が代表)。 */
 	photo_urls: string[];
 	/** 後方互換の代表1枚。 */

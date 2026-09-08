@@ -18,7 +18,6 @@ const ENTRY: ReceivedDrunkWineEntry = {
 	rating: 3,
 	vintage: 2018,
 	producer: "Dauvissat",
-	price: 3000,
 	aop_id: "chablis",
 	region_id: "bourgogne",
 	grape_variety_ids: ["chardonnay"],
@@ -56,7 +55,6 @@ describe("DrunkWineEmbedForm", () => {
 		expect(field("飲んだ日").value).toBe("2020-01-02");
 		expect(field("ヴィンテージ").value).toBe("2018");
 		expect(field("生産者").value).toBe("Dauvissat");
-		expect(field(/価格/).value).toBe("3000");
 		expect(field("メモ").value).toBe("good");
 		// 評価(星)は押下状態で表現される
 		expect(
@@ -106,9 +104,9 @@ describe("DrunkWineEmbedForm", () => {
 	it("空欄にした項目は null(クリア)として送る", () => {
 		const { onSave } = renderForm();
 		fireEvent.change(field("メモ"), { target: { value: "" } });
-		fireEvent.change(field(/価格/), { target: { value: "" } });
+		fireEvent.change(field("生産者"), { target: { value: "" } });
 		save();
-		expect(onSave).toHaveBeenCalledWith({ memo: null, price: null });
+		expect(onSave).toHaveBeenCalledWith({ memo: null, producer: null });
 	});
 
 	it("評価の解除も null として送る", () => {

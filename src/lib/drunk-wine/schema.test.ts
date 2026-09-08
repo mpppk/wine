@@ -30,7 +30,6 @@ describe("createDrunkWineInput", () => {
 			vintage: 2022,
 			grapeVarietyIds: ["gamay"],
 			producer: "Jean Foillard",
-			price: 4500,
 			tasting: { drankOn: "2026-07-01", rating: 4, memo: "ガメイらしい果実味" },
 		});
 		expect(parsed.status).toBe("owned");
@@ -47,10 +46,7 @@ describe("createDrunkWineInput", () => {
 		).toThrow();
 	});
 
-	it("負の価格・範囲外ヴィンテージを拒否する", () => {
-		expect(() =>
-			createDrunkWineInput.parse({ name: "x", price: -1 }),
-		).toThrow();
+	it("範囲外ヴィンテージを拒否する", () => {
 		expect(() =>
 			createDrunkWineInput.parse({ name: "x", vintage: 1700 }),
 		).toThrow();
@@ -111,10 +107,10 @@ describe("updateDrunkWineInput", () => {
 	it("nullでフィールドをクリアできる", () => {
 		const parsed = updateDrunkWineInput.parse({
 			id: "abc",
-			price: null,
+			vintage: null,
 			aopId: null,
 		});
-		expect(parsed.price).toBeNull();
+		expect(parsed.vintage).toBeNull();
 		expect(parsed.aopId).toBeNull();
 	});
 

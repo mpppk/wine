@@ -135,7 +135,6 @@ describe("registerDrunkWineInput", () => {
 			drank_on: "2020-01-02",
 			rating: 4,
 			vintage: 2019,
-			price: 3000,
 			producer: "Domaine Test",
 			aop_id: "chablis",
 			grape_variety_ids: ["chardonnay"],

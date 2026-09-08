@@ -129,7 +129,6 @@ const REGISTER_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 	name: "ワイン名(ラベル表記。必須)",
 	status: STATUS_DESCRIBE,
 	vintage: "ヴィンテージ (1800〜2100の年)",
-	price: "価格 (円)",
 	producer: "生産者名 (200文字まで)",
 	note:
 		"銘柄についてのコメント (2000文字まで)。香り・味わいや生産者の説明。" +
@@ -152,7 +151,6 @@ const UPDATE_DESCRIBE: Record<DrunkWineSnakeKey, string> = {
 		"所有状態。wishlist=気になる(未購入) / owned=手元にある / finished=飲み終えた / " +
 		"spotted=見かけた(店で見かけただけ)",
 	vintage: "ヴィンテージ (1800〜2100の年)。nullでクリア",
-	price: "価格 (円)。nullでクリア",
 	producer: "生産者名 (200文字まで)。nullでクリア",
 	note: "銘柄についてのコメント (2000文字まで)。香り・味わいや生産者の説明。nullでクリア",
 	aop_id:

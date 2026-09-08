@@ -23,7 +23,6 @@ const filled: DrunkWineFormState = {
 	status: "finished",
 	vintage: "2018",
 	producer: "Dauvissat",
-	price: "3000",
 	aopId: "chablis",
 	// 産地は「最も細かい1つだけ」: AOP選択時は地域・国を持たない
 	regionId: undefined,
@@ -37,6 +36,8 @@ const savedEntry = {
 	status: "finished",
 	vintage: 2018,
 	producer: "Dauvissat",
+	// 保存済みの銘柄価格(#570)。フォームに欄はもう無いが、DB列は残っているため
+	// 基準に載っていても差分パッチへ漏れないことを下のテストで固定する
 	price: 3000,
 	aopId: "chablis",
 	grapeVarietyIds: ["chardonnay"],
@@ -49,7 +50,6 @@ const empty: DrunkWineFormState = {
 	status: "finished",
 	vintage: "",
 	producer: "",
-	price: "",
 	aopId: undefined,
 	regionId: undefined,
 	countryId: undefined,
@@ -79,7 +79,6 @@ describe("toFormValues", () => {
 			name: "Chablis",
 			status: "finished",
 			vintage: "2018",
-			price: "3000",
 			producer: "Dauvissat",
 			aop_id: "chablis",
 			region_id: "",
@@ -138,13 +137,17 @@ describe("buildUpdatePatch", () => {
 		});
 	});
 
-	it("ヴィンテージ・価格は空欄でクリア、数値文字列は number になる", () => {
-		expect(
-			buildUpdatePatch(savedEntry, state({ vintage: "", price: "" })),
-		).toEqual({ vintage: null, price: null });
+	it("ヴィンテージは空欄でクリア、数値文字列は number になる", () => {
+		expect(buildUpdatePatch(savedEntry, state({ vintage: "" }))).toEqual({
+			vintage: null,
+		});
 		expect(buildUpdatePatch(savedEntry, state({ vintage: "2019" }))).toEqual({
 			vintage: 2019,
 		});
+	});
+
+	it("保存済みの銘柄価格は差分に載らない(欄が無いため変更のしようが無い)", () => {
+		expect(buildUpdatePatch(savedEntry, filled)).toEqual({});
 	});
 
 	it("生産者は空白だけならクリアし、前後空白だけの違いは送らない", () => {
@@ -201,7 +204,6 @@ describe("buildCreateInput", () => {
 			name: "Chablis",
 			status: "finished",
 			vintage: 2018,
-			price: 3000,
 			producer: "Dauvissat",
 			aopId: "chablis",
 			grapeVarietyIds: ["chardonnay"],
@@ -218,12 +220,11 @@ describe("buildCreateInput", () => {
 	});
 
 	it("作成入力に null は現れない(空欄はキーごと落ちる)", () => {
-		const input = buildCreateInput(
-			state({ producer: "  ", aopId: undefined, price: "" }),
-		);
+		const input = buildCreateInput(state({ producer: "  ", aopId: undefined }));
 		expect(Object.values(input)).not.toContain(null);
 		expect(input).not.toHaveProperty("producer");
 		expect(input).not.toHaveProperty("aopId");
+		// 銘柄の価格欄は無い(#570)。collect の対象外なので送られない
 		expect(input).not.toHaveProperty("price");
 	});
 
@@ -266,7 +267,6 @@ const mcpEntry = {
 	rating: 3,
 	vintage: 2018,
 	producer: "Dauvissat",
-	price: 3000,
 	aop_id: "chablis",
 	region_id: "bourgogne",
 	grape_variety_ids: ["chardonnay"],
@@ -282,7 +282,6 @@ describe("fieldsValueFromMcpEntry", () => {
 			status: "finished",
 			vintage: "2018",
 			producer: "Dauvissat",
-			price: "3000",
 			aopId: "chablis",
 			regionId: undefined,
 			countryId: undefined,
@@ -315,7 +314,6 @@ describe("fieldsValueFromMcpEntry", () => {
 			status: "finished",
 			vintage: "",
 			producer: "",
-			price: "",
 			aopId: undefined,
 			regionId: undefined,
 			countryId: undefined,
@@ -514,7 +512,7 @@ describe("hasUnsavedDrunkWineChanges", () => {
 			hasUnsavedDrunkWineChanges({
 				...base,
 				initial: saved,
-				values: { ...saved, price: "3000" },
+				values: { ...saved, producer: "Raveneau" },
 			}),
 		).toBe(true);
 	});

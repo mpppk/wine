@@ -94,9 +94,9 @@ export function takePhotosForEntry(files: File[]): {
 /**
  * 候補と選択中の写真から荷物を組み立てる。
  *
- * 価格は**銘柄の price 欄**へ入れる。一括登録では「その店での売値」として目撃記録
- * 側へ入れているが、単一ワインのエチケット写真に店の売値という文脈は無く、読み取れた
- * 価格はそのワインの値段とみなすのが自然なため(#416 の決定)。
+ * 読み取れた価格は引き継がない。銘柄に価格欄はもう無く(#570)、単一ワインの
+ * エチケット写真に「その店での売値」の文脈も無いため、行き先が無い。
+ * 参考価格の一覧は解析結果の表示側(PriceList)に残る。
  *
  * ステータスは引き継がない。一括登録の既定は「見かけた」だが、1本のエチケットを
  * わざわざ撮る人は飲んだ/持っている場合が多いので、フォームの既定に委ねる。
@@ -109,11 +109,7 @@ export function buildSingleWineHandoff(
 	// 解析を経た経路なので values は必ず入る(呼び出し側で undefined を考えずに済む)
 ): ManualFormStart & { values: DrunkWineFieldsValue } {
 	return {
-		values: valuesFromSuggestions(
-			candidate.suggestions,
-			DEFAULT_WINE_STATUS,
-			candidate.price,
-		),
+		values: valuesFromSuggestions(candidate.suggestions, DEFAULT_WINE_STATUS),
 		...takePhotosForEntry(files),
 		reason: "single_wine",
 		...(sighting ? { sighting } : {}),

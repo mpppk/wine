@@ -5,7 +5,7 @@ import { buildWineDetailRows } from "./wine-detail";
 // 閲覧専用画面(/cellar/$entryId)に並ぶ項目の規約:
 //  - 値が無い項目は行ごと落とす(状態だけは常に出る)
 //  - ID(地域・AOP・ぶどう品種)は静的マスタを引いて日本語名で出す
-//  - 未購入(wishlist)では価格を出さない(編集フォームが入力欄を隠す条件と揃える)
+//  - 銘柄の価格は出さない(欄の廃止 #570。保存済みの値があっても出さない)
 //  - 産地(地域・AOP)の行だけは産地の学習地図への遷移先(link)を持つ
 
 const BASE: DrunkWineEntry = {
@@ -51,21 +51,18 @@ describe("buildWineDetailRows", () => {
 		]);
 	});
 
-	it("ヴィンテージ・生産者・価格を表示用に整形する", () => {
+	it("ヴィンテージ・生産者を表示用に整形する", () => {
 		const rows = rowMap({
 			...BASE,
 			vintage: 2020,
 			producer: "ドメーヌ・ルフレーヴ",
-			price: 12345,
 		});
 		expect(rows.get("ヴィンテージ")).toBe("2020年");
 		expect(rows.get("生産者")).toBe("ドメーヌ・ルフレーヴ");
-		expect(rows.get("価格")).toBe("¥12,345");
 	});
 
-	it("未購入(wishlist)では価格を出さない", () => {
-		const rows = rowMap({ ...BASE, status: "wishlist", price: 5000 });
-		expect(rows.get("状態")).toBe("気になる");
+	it("保存済みの銘柄価格は表示しない(欄の廃止 #570)", () => {
+		const rows = rowMap({ ...BASE, price: 5000 });
 		expect(rows.get("価格")).toBeUndefined();
 	});
 
@@ -154,7 +151,6 @@ describe("産地の学習地図へのリンク", () => {
 			...BASE,
 			vintage: 2020,
 			producer: "ドメーヌ・ルフレーヴ",
-			price: 12345,
 			grapeVarietyIds: ["chardonnay"],
 		});
 		expect(rows.every((r) => r.link === undefined)).toBe(true);

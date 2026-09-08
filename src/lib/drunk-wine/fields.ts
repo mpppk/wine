@@ -1,5 +1,5 @@
 import type { CreateDrunkWineInput, UpdateDrunkWineInput } from "./schema";
-import { PRICE_MAX, PRICE_MIN, VINTAGE_MAX, VINTAGE_MIN } from "./schema";
+import { VINTAGE_MAX, VINTAGE_MIN } from "./schema";
 
 // マイセラーの銘柄編集フォームの「表示 + 差分パッチ規約」の単一情報源。
 // 値のバリデーション自体は drunkWineFields(schema.ts)が単一情報源で、ここは
@@ -82,16 +82,6 @@ export const DRUNK_WINE_FIELD_DEFS = [
 		col: "half",
 		min: VINTAGE_MIN,
 		max: VINTAGE_MAX,
-	},
-	{
-		camelKey: "price",
-		snakeKey: "price",
-		label: "価格 (円)",
-		input: "number",
-		clear: "null",
-		col: "half",
-		min: PRICE_MIN,
-		max: PRICE_MAX,
 	},
 	{
 		camelKey: "producer",

@@ -120,14 +120,9 @@ describe("buildSingleWineHandoff", () => {
 		expect(values.countryId).toBeUndefined();
 	});
 
-	it("読み取れた価格は銘柄の価格欄に入れる", () => {
+	it("読み取れた価格は引き継がない(銘柄に価格欄は無い)", () => {
 		const { values } = buildSingleWineHandoff(candidate({ price: 12000 }), []);
-		expect(values.price).toBe("12000");
-	});
-
-	it("価格が読めなければ空のまま", () => {
-		const { values } = buildSingleWineHandoff(candidate(), []);
-		expect(values.price).toBe("");
+		expect(values).not.toHaveProperty("price");
 	});
 
 	it("写真は先頭 MAX_HANDOFF_PHOTOS 枚だけ引き継ぎ、落とした枚数を伝える", () => {
