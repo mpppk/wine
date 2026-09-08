@@ -150,9 +150,15 @@ export interface WineSightingEntry {
 	photoIndex: number | null;
 	/**
 	 * 見かけたときの写真(一括登録のバッチ写真)の相対URL。手で足した目撃記録や、
-	 * 写真の保存に失敗したバッチでは null。
+	 * 写真の保存に失敗したバッチでは null。**後方互換の先頭1枚**で、新規の表示は
+	 * `photoUrls`(対応写真のすべて)を見る。
 	 */
 	photoUrl: string | null;
+	/**
+	 * そのワインが写っていた写真の相対URLの一覧(#574)。AIの画像-ワイン対応の
+	 * すべてで、順序は登録時の番号順。範囲外の番号は落とすので空にもなる。
+	 */
+	photoUrls: string[];
 	seenOn: string | null;
 	price: number | null;
 	memo: string | null;
@@ -250,19 +256,46 @@ function toTastingEntry(row: WineTastingRow): WineTastingEntry {
 	};
 }
 
+/**
+ * 目撃記録が参照するバッチ写真の番号の一覧(#574)。保存値の `photo_indexes` を
+ * 優先し、NULL の従来行は `photo_index`(先頭1枚)へ退避する。整数以外・範囲外は
+ * 落とす(存在しないキーの URL を作るとリンク切れの画像が並ぶ)。重複を潰して
+ * 昇順に並べる(解析の `normalizePhotoIndexes` と同じ形)。
+ */
+function sightingPhotoIndexes(row: {
+	photoIndex: number | null;
+	photoIndexes: number[] | null;
+}): number[] {
+	const stored = Array.isArray(row.photoIndexes)
+		? row.photoIndexes
+		: row.photoIndex != null
+			? [row.photoIndex]
+			: [];
+	const out = new Set<number>();
+	for (const raw of stored) {
+		if (!Number.isInteger(raw) || (raw as number) < 0) continue;
+		out.add(raw as number);
+	}
+	return [...out].sort((a, b) => a - b);
+}
+
 function toSightingEntry(row: WineSightingRow): WineSightingEntry {
-	// 由来写真は「バッチの photoKeys の photoIndex 番目」。バッチが無い(手で足した
-	// 目撃記録)・写真をまだ保存していない・番号が範囲外のいずれでも null にする
-	// (存在しないキーの URL を作るとリンク切れの画像が並ぶ)。
-	const photoKey =
-		row.photoIndex != null ? row.batchPhotoKeys?.[row.photoIndex] : undefined;
+	// 由来写真は「バッチの photoKeys の photoIndexes 番目」。バッチが無い(手で足した
+	// 目撃記録)・写真をまだ保存していない・番号が範囲外のいずれでも、その写真は
+	// 落とす。`photoUrl` は先頭1枚の後方互換。
+	const photoUrls = sightingPhotoIndexes(row)
+		.map((index) => row.batchPhotoKeys?.[index])
+		.filter((key): key is string => !!key)
+		.map(imagePathForKey);
+	const photoUrl = photoUrls[0] ?? null;
 	return {
 		id: row.id,
 		placeId: row.placeId,
 		placeName: row.placeName,
 		batchId: row.batchId,
 		photoIndex: row.photoIndex,
-		photoUrl: photoKey ? imagePathForKey(photoKey) : null,
+		photoUrl,
+		photoUrls,
 		seenOn: row.seenOn,
 		price: row.price,
 		memo: row.memo,
@@ -768,6 +801,9 @@ function buildSightingValues(
 		placeId: input.placeId ?? null,
 		batchId: input.batchId ?? null,
 		photoIndex: input.photoIndex ?? null,
+		// `photoIndex`(先頭1枚の後方互換)と併存する(#574)。空配列は送られて
+		// こない(クライアントが省略する)が、来たらそのまま残す。
+		photoIndexes: input.photoIndexes ?? null,
 		seenOn: input.seenOn ?? null,
 		price: input.price ?? null,
 		memo: input.memo ?? null,
@@ -858,6 +894,7 @@ function buildSightingUpdate(
 			placeId: patch.placeId,
 			batchId: patch.batchId,
 			photoIndex: patch.photoIndex,
+			photoIndexes: patch.photoIndexes,
 			seenOn: patch.seenOn,
 			price: patch.price,
 			memo: patch.memo,
@@ -2235,6 +2272,8 @@ interface ImportBatchDetailCreatedEntry {
 		price: number | null;
 		memo: string | null;
 		photoUrl: string | null;
+		/** そのワインが写っていた写真の相対URLの一覧(#574) */
+		photoUrls: string[];
 	} | null;
 }
 
@@ -2249,6 +2288,8 @@ interface ImportBatchDetailMatchedSighting {
 	price: number | null;
 	memo: string | null;
 	photoUrl: string | null;
+	/** そのワインが写っていた写真の相対URLの一覧(#574) */
+	photoUrls: string[];
 	photoIndex: number | null;
 }
 
@@ -2342,6 +2383,7 @@ export async function getImportBatchDetail(
 			price: number | null;
 			memo: string | null;
 			photoUrl: string | null;
+			photoUrls: string[];
 		}
 	>();
 	const matchedSightings: ImportBatchDetailMatchedSighting[] = [];
@@ -2354,6 +2396,7 @@ export async function getImportBatchDetail(
 				price: sighting.price,
 				memo: sighting.memo,
 				photoUrl: sighting.photoUrl,
+				photoUrls: sighting.photoUrls,
 			});
 		} else {
 			matchedSightings.push({
@@ -2365,6 +2408,7 @@ export async function getImportBatchDetail(
 				price: sighting.price,
 				memo: sighting.memo,
 				photoUrl: sighting.photoUrl,
+				photoUrls: sighting.photoUrls,
 				photoIndex: sighting.photoIndex,
 			});
 		}
@@ -2485,7 +2529,7 @@ export async function saveImportBatchPhotos(
 }
 
 /**
- * このバッチで作った銘柄のうち**まだ写真を持たないもの**へ、バッチ写真を1枚複製する
+ * このバッチで作った銘柄のうち**まだ写真を持たないもの**へ、バッチ写真を複製する
  * (#473 の3段目のフォールバック)。
  *
  * 優先順の最後に来る手当てで、前2段はここへ来る前に済んでいる:
@@ -2493,6 +2537,11 @@ export async function saveImportBatchPhotos(
  *     目撃記録の `photoIndex` に載せてくる(import-candidates.ts)
  *  2. 無ければ web から取り込む(`adoptWebPhotos`。取り込めた銘柄は photo_keys を持つ)
  *  3. どちらも無い銘柄がここで、目撃記録が指す写真(= リストや棚の全体写真)をそのまま使う
+ *
+ * 複製するのは**対応写真のすべて**(#574)。そのワインが写っていた写真は目撃記録の
+ * `photo_indexes` に残っているので、先頭1枚だけでなく上限
+ * (`MAX_PHOTOS_PER_ENTRY`)まで複製する。銘柄1件に保存できるのは6枚までで、
+ * 一括登録の上限(10枚)より小さいため、はみ出したぶんは目撃記録の参照だけが残る。
  *
  * **参照ではなく複製にする**。バッチ写真はバッチ取り消し(`undoImportBatch`)で消えるが、
  * 取り消しで消えるのは「そのバッチが作ったもの」だけで、既存エントリに目撃記録を足した
@@ -2516,6 +2565,7 @@ async function adoptBatchPhotosForWines(
 				id: drunkWine.id,
 				photoKeys: drunkWine.photoKeys,
 				photoIndex: wineSighting.photoIndex,
+				photoIndexes: wineSighting.photoIndexes,
 			})
 			.from(drunkWine)
 			.innerJoin(
@@ -2553,29 +2603,41 @@ async function adoptBatchPhotosForWines(
 		for (const row of rows) {
 			// 既に写真がある = 適切な写真か web 画像で手当て済み(前2段)。触らない。
 			if (row.photoKeys.length > 0) continue;
-			const sourceKey =
-				row.photoIndex == null ? undefined : batchPhotoKeys[row.photoIndex];
-			if (!sourceKey) continue;
-			const source = await readSource(sourceKey);
-			if (!source) continue;
-			// **参照ではなく複製**を持たせる(理由はこの関数の JSDoc)。
-			const key = buildWinePhotoKey(
-				userId,
-				row.id,
-				crypto.randomUUID(),
-				source.contentType,
-			);
-			await env.AVATARS.put(key, source.bytes, {
-				httpMetadata: { contentType: source.contentType },
-			});
-			putKeys.push(key);
+			// 対応写真のすべてを、エントリの上限まで複製する(#574)。範囲外の番号は
+			// 指す先が無いので落とす(読み取りの `toSightingEntry` と同じ扱い)。
+			const sourceKeys = sightingPhotoIndexes(row)
+				.map((index) => batchPhotoKeys[index])
+				.filter((key): key is string => !!key)
+				.slice(0, MAX_PHOTOS_PER_ENTRY);
+			if (sourceKeys.length === 0) continue;
+			const newKeys: string[] = [];
+			for (const sourceKey of sourceKeys) {
+				const source = await readSource(sourceKey);
+				if (!source) continue;
+				// **参照ではなく複製**を持たせる(理由はこの関数の JSDoc)。
+				const key = buildWinePhotoKey(
+					userId,
+					row.id,
+					crypto.randomUUID(),
+					source.contentType,
+				);
+				await env.AVATARS.put(key, source.bytes, {
+					httpMetadata: { contentType: source.contentType },
+				});
+				putKeys.push(key);
+				newKeys.push(key);
+			}
+			if (newKeys.length === 0) continue;
 			updates.push(
 				db
 					.update(drunkWine)
 					// バッチ写真の複製は利用者自身が撮った写真 = bottle。
 					// ここに来る行は photo_keys が空なので photo_kinds も空のはずだが、
-					// 念のためキー対応ではなく単体置換で bottle を1件付ける。
-					.set({ photoKeys: [key], photoKinds: ["bottle" as PhotoKind] })
+					// 念のためキー対応ではなく bottle の配列で置く。
+					.set({
+						photoKeys: newKeys,
+						photoKinds: newKeys.map(() => "bottle" as PhotoKind),
+					})
 					.where(and(eq(drunkWine.id, row.id), eq(drunkWine.userId, userId))),
 			);
 		}

@@ -25,7 +25,7 @@ import {
 // 編集画面の目撃記録セクション(Issue #358)。1銘柄を複数の店で見かけられるので、
 // 飲用記録(TastingList)と同じ形で 一覧 + 追加 + 行ごとの編集/削除 を扱う。
 //
-// 一括登録(/cellar/import)で作られた目撃記録には由来の写真があるので、その1枚を
+// 一括登録(/cellar/import)で作られた目撃記録には由来の写真があるので、その写真を
 // サムネイルとして出す。「どの店のリストで見たのか」を思い出す手掛かりになる。
 
 export function SightingList({
@@ -147,18 +147,24 @@ export function SightingList({
 						) : (
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex min-w-0 items-start gap-3">
-									{sighting.photoUrl && (
-										// 由来の写真(ワインリスト/棚)。サムネイルは保存していないので
-										// 原寸を読む(配信ルートのフォールバックと同じ挙動)
-										<img
-											src={`${sighting.photoUrl}?v=${version}`}
-											alt="見かけたときの写真"
-											className="size-14 shrink-0 rounded-md border border-border object-cover"
-											loading="lazy"
-											decoding="async"
-											width={56}
-											height={56}
-										/>
+									{sighting.photoUrls.length > 0 && (
+										// 由来の写真(ワインリスト/棚。#574 で対応写真のすべて)。
+										// サムネイルは保存していないので原寸を読む
+										// (配信ルートのフォールバックと同じ挙動)
+										<div className="flex shrink-0 gap-1">
+											{sighting.photoUrls.map((photoUrl) => (
+												<img
+													key={photoUrl}
+													src={`${photoUrl}?v=${version}`}
+													alt="見かけたときの写真"
+													className="size-14 shrink-0 rounded-md border border-border object-cover"
+													loading="lazy"
+													decoding="async"
+													width={56}
+													height={56}
+												/>
+											))}
+										</div>
 									)}
 									<div className="flex min-w-0 flex-col gap-1">
 										<span className="flex items-center gap-1 font-medium">

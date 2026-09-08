@@ -39,8 +39,8 @@ const placeFields = {
 /**
  * 目撃記録(1銘柄に複数持てる)。
  *
- * placeId / batchId / photoIndex は「どこで・どの写真で見かけたか」の由来情報で、
- * すべて任意。場所を入力せずに見かけた記録だけ残せるようにする(入力の強制は
+ * placeId / batchId / photoIndex / photoIndexes は「どこで・どの写真で見かけたか」の
+ * 由来情報で、すべて任意。場所を入力せずに見かけた記録だけ残せるようにする(入力の強制は
  * 一括登録のUXを重くするだけで、記録の価値を落とさないため)。
  */
 export const wineSightingFields = {
@@ -52,6 +52,22 @@ export const wineSightingFields = {
 		.int()
 		.min(0)
 		.max(MAX_PHOTOS_PER_IMPORT_BATCH - 1)
+		.optional(),
+	/**
+	 * そのワインが写っていたバッチ写真の番号の一覧(#574)。AIの画像-ワイン対応
+	 * (`photoIndexes`)を登録まで持ち回るためのもので、`photoIndex`(先頭1枚の
+	 * 後方互換)と併存する。銘柄の写真の取得元にもなる
+	 * (`adoptBatchPhotosForWines` が対応写真をすべて複製する)。
+	 */
+	photoIndexes: z
+		.array(
+			z
+				.number()
+				.int()
+				.min(0)
+				.max(MAX_PHOTOS_PER_IMPORT_BATCH - 1),
+		)
+		.max(MAX_PHOTOS_PER_IMPORT_BATCH)
 		.optional(),
 	/** 見かけた日 "YYYY-MM-DD"。覚えていない場合は未指定 */
 	seenOn: calendarDateSchema.optional(),
@@ -103,6 +119,7 @@ export const updateWineSightingInput = z.object({
 	placeId: wineSightingFields.placeId.nullable().optional(),
 	batchId: wineSightingFields.batchId.nullable().optional(),
 	photoIndex: wineSightingFields.photoIndex.nullable().optional(),
+	photoIndexes: wineSightingFields.photoIndexes.nullable().optional(),
 	seenOn: wineSightingFields.seenOn.nullable().optional(),
 	price: wineSightingFields.price.nullable().optional(),
 	memo: wineSightingFields.memo.nullable().optional(),

@@ -395,6 +395,21 @@ function toIntOrUndefined(value: string): number | undefined {
 	return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * 登録時に目撃記録へ載せる写真番号の一覧(#574)。AIの画像-ワイン対応
+ * (`photoIndexes`)に「その1本だけを写した写真」(`bottlePhotoIndex`)を足した
+ * 和集合で、重複を潰して昇順に並べる(解析の `normalizePhotoIndexes` と同じ形)。
+ * **表示の自動選択(`displayPhotoForImportCard`)とは別物**——あちらはサムネイルに
+ * 出す代表1枚を決める規則で、こちらは登録する写真の集合を決める規則。
+ */
+export function registrationPhotoIndexes(
+	card: Pick<ImportCardState, "bottlePhotoIndex" | "photoIndexes">,
+): number[] {
+	const out = new Set<number>(card.photoIndexes);
+	if (card.bottlePhotoIndex !== undefined) out.add(card.bottlePhotoIndex);
+	return [...out].sort((a, b) => a - b);
+}
+
 export interface ImportBatchMeta {
 	/** 既存の場所を選んだ場合のID */
 	placeId?: string;
@@ -410,10 +425,10 @@ export interface ImportBatchMeta {
  * 落とす。銘柄の入力値は buildCreateInput(= フォームの送信規約の SSOT)を
  * 通してから飲用記録を外し、一括登録の item 形に合わせる。
  *
- * 写真番号は**先頭の1枚だけ**を目撃記録に持たせる。同じ銘柄が複数の写真に
- * 写っていても「その店で1回見かけた」であって複数回の目撃ではないため、
- * 写真ごとに目撃記録を作ると sightingCount(何回見かけたか)が写真の枚数に
- * 引きずられて意味を失う。
+ * 写真番号は**そのワインが写っていた写真のすべて**を目撃記録に持たせる(#574)。
+ * 同じ銘柄が複数の写真に写っていても「その店で1回見かけた」であって複数回の
+ * 目撃ではないため、写真ごとに目撃記録を作ると sightingCount(何回見かけたか)が
+ * 写真の枚数に引きずられて意味を失う——記録は1件のまま、参照する写真だけを複数にする。
  */
 export function buildBulkRegisterInput(
 	cards: ImportCardState[],
@@ -423,12 +438,16 @@ export function buildBulkRegisterInput(
 		.filter((card) => card.selected)
 		.map((card) => {
 			const sightingPrice = toIntOrUndefined(card.sightingPrice);
-			// 目撃記録に持たせる写真は「その1本だけを写した写真」を優先する(#473)。
-			// この番号は**銘柄の写真の取得元にもなる**(saveImportBatchPhotos が
-			// バッチ写真から複製する)ので、単体の写真があるならそちらを指しておく。
+			// 目撃記録に持たせる写真は「そのワインが写っていた写真のすべて」(#574)。
+			// AIの画像-ワイン対応(`photoIndexes`)に「その1本だけを写した写真」
+			// (`bottlePhotoIndex`)を足した和集合で、銘柄の写真の取得元にもなる
+			// (saveImportBatchPhotos がバッチ写真から複製する)。`photoIndex` は
+			// 先頭1枚の後方互換として残す(デプロイ窓の旧コードが読む)。
+			const photoIndexes = registrationPhotoIndexes(card);
 			const photoIndex = card.bottlePhotoIndex ?? card.photoIndexes[0];
 			const sighting = {
 				...(photoIndex != null ? { photoIndex } : {}),
+				...(photoIndexes.length > 0 ? { photoIndexes } : {}),
 				...(sightingPrice != null ? { price: sightingPrice } : {}),
 			};
 			const tasting = card.drunk ? buildTastingInput(card.tasting) : undefined;

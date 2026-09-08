@@ -55,6 +55,7 @@ const DETAIL: ImportBatchDetail = {
 				price: 24000,
 				memo: null,
 				photoUrl: "/api/images/batch-0.jpg",
+				photoUrls: ["/api/images/batch-0.jpg", "/api/images/batch-1.jpg"],
 			},
 		},
 	],
@@ -68,6 +69,7 @@ const DETAIL: ImportBatchDetail = {
 			price: 9800,
 			memo: null,
 			photoUrl: "/api/images/batch-1.jpg",
+			photoUrls: ["/api/images/batch-1.jpg"],
 			photoIndex: 1,
 		},
 	],
@@ -110,6 +112,21 @@ describe("ImportBatchDetailView", () => {
 		expect(screen.getByText("9,800円", { exact: false })).toBeTruthy();
 		const link = screen.getByText("既存のワイン").closest("a");
 		expect(link?.getAttribute("href")).toBe("/cellar/e0");
+	});
+
+	it("目撃記録の対応写真をすべて出す(#574)", () => {
+		render(<ImportBatchDetailView detail={DETAIL} />);
+		// 新規銘柄の目撃記録は対応写真2枚(サムネイルは拡大ボタンとして並ぶ)。
+		const buttons = screen.getAllByRole("button", {
+			name: "エノテカ 渋谷で見かけたときの写真を拡大",
+		});
+		expect(buttons).toHaveLength(2);
+		expect(
+			buttons.map((button) => button.querySelector("img")?.getAttribute("src")),
+		).toEqual([
+			"/api/images/batch-0.jpg?v=1786000000000",
+			"/api/images/batch-1.jpg?v=1786000000000",
+		]);
 	});
 
 	it("削除済みの銘柄はリンクにしない", () => {

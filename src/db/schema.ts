@@ -359,6 +359,12 @@ export const wineSighting = sqliteTable(
 		}),
 		/** バッチの photoKeys の添字(0始まり)。どの写真に写っていたか */
 		photoIndex: integer("photo_index"),
+		/**
+		 * そのワインが写っていたバッチ写真の番号の一覧(#574)。AIの画像-ワイン対応
+		 * を登録まで持ち回るための配列で、`photoIndex`(先頭1枚の後方互換)と
+		 * 併存する。NULL = 先頭1枚だけの従来行(読み取りは `photoIndex` へ退避)。
+		 */
+		photoIndexes: text("photo_indexes", { mode: "json" }).$type<number[]>(),
 		/** 見かけた日 "YYYY-MM-DD"。覚えていない場合は null */
 		seenOn: text("seen_on"),
 		/** その店での売値(円) */

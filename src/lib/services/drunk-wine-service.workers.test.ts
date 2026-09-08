@@ -1950,6 +1950,196 @@ describe("一括登録の銘柄写真", () => {
 	});
 });
 
+// ---- 目撃記録の対応写真の一覧(Issue #574) ----------------------------------
+// 検出されたワインそれぞれに、少なくとも分析に利用した画像を登録する。
+// AIの画像-ワイン対応(`photoIndexes`)を保持し、全画像ベタ付けも代表1枚だけもしない。
+
+describe("目撃記録の対応写真の一覧", () => {
+	const JPEG_1X1_BYTES = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+	const jpeg = () => ({ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" });
+
+	it("対応写真のすべてを目撃記録に載せ、解決して返す", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 3,
+			items: [
+				{
+					wine: { name: "複数枚に写ったワイン" },
+					sighting: { photoIndex: 0, photoIndexes: [0, 2] },
+				},
+				{
+					wine: { name: "1枚だけのワイン" },
+					sighting: { photoIndex: 1, photoIndexes: [1] },
+				},
+			],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [
+			jpeg(),
+			jpeg(),
+			jpeg(),
+		]);
+
+		const { entries } = await listDrunkWines(userId);
+		const multi = entries.find((e) => e.name === "複数枚に写ったワイン");
+		const single = entries.find((e) => e.name === "1枚だけのワイン");
+		const [multiSighting] = await listWineSightings(userId, multi?.id ?? "");
+		const [singleSighting] = await listWineSightings(userId, single?.id ?? "");
+		// 対応写真のすべて(0と2)が解決される。先頭1枚の後方互換も残る
+		expect(multiSighting?.photoUrls).toHaveLength(2);
+		expect(multiSighting?.photoUrl).toBe(multiSighting?.photoUrls[0]);
+		expect(multiSighting?.photoIndex).toBe(0);
+		// 1枚だけのワインは従来どおり1枚
+		expect(singleSighting?.photoUrls).toHaveLength(1);
+		expect(singleSighting?.photoUrl).toBe(singleSighting?.photoUrls[0]);
+
+		// バッチ詳細にも対応写真の一覧が出る
+		const detail = await getImportBatchDetail(userId, result.batchId);
+		const created = detail.createdEntries.find(
+			(e) => e.name === "複数枚に写ったワイン",
+		);
+		expect(created?.sighting?.photoUrls).toHaveLength(2);
+		expect(created?.sighting?.photoUrl).toBe(created?.sighting?.photoUrls[0]);
+	});
+
+	it("写真なし銘柄へ対応写真をすべて複製する(参照ではなく複製)", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 2,
+			items: [
+				{
+					wine: { name: "棚の1本" },
+					sighting: { photoIndex: 0, photoIndexes: [0, 1] },
+				},
+			],
+		});
+		const batch = await saveImportBatchPhotos(userId, result.batchId, [
+			jpeg(),
+			jpeg(),
+		]);
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toHaveLength(2);
+		// 複製は利用者自身が撮った写真 = bottle
+		expect((await wineRow(entries[0]?.id ?? ""))?.photoKinds).toEqual([
+			"bottle",
+			"bottle",
+		]);
+		// 参照ではなく複製(バッチ取り消しで残ったエントリの写真が消えない)
+		for (const photoUrl of entries[0]?.photoUrls ?? []) {
+			expect(batch.photoUrls).not.toContain(photoUrl);
+			expect(await env.AVATARS.head(imageKeyFromPath(photoUrl))).not.toBeNull();
+		}
+	});
+
+	it("複製はエントリの上限6枚で打ち切る(目撃記録の参照は全件残る)", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 7,
+			items: [
+				{
+					wine: { name: "全部に写ったワイン" },
+					sighting: {
+						photoIndex: 0,
+						photoIndexes: [0, 1, 2, 3, 4, 5, 6],
+					},
+				},
+			],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [
+			jpeg(),
+			jpeg(),
+			jpeg(),
+			jpeg(),
+			jpeg(),
+			jpeg(),
+			jpeg(),
+		]);
+
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toHaveLength(6);
+		const [sighting] = await listWineSightings(userId, entries[0]?.id ?? "");
+		expect(sighting?.photoUrls).toHaveLength(7);
+	});
+
+	it("従来行(photo_indexes NULL)は photo_index に退避する", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 2,
+			items: [{ wine: { name: "従来のワイン" }, sighting: { photoIndex: 1 } }],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [jpeg(), jpeg()]);
+
+		// photoIndexes を送らない = photo_indexes NULL の従来行
+		const [row] = await db
+			.select()
+			.from(wineSighting)
+			.where(eq(wineSighting.batchId, result.batchId));
+		expect(row?.photoIndexes).toBeNull();
+
+		const [sighting] = await listWineSightings(userId, row?.drunkWineId ?? "");
+		expect(sighting?.photoIndex).toBe(1);
+		expect(sighting?.photoUrls).toHaveLength(1);
+		expect(sighting?.photoUrl).toBe(sighting?.photoUrls[0]);
+	});
+
+	it("範囲外の番号は解決時に落とす", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{
+					wine: { name: "ずれたワイン" },
+					sighting: { photoIndex: 0, photoIndexes: [0] },
+				},
+			],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [jpeg()]);
+		// 後から範囲外になった番号が混ざっても、存在する写真だけを返す
+		await db
+			.update(wineSighting)
+			.set({ photoIndexes: [0, 99] })
+			.where(eq(wineSighting.batchId, result.batchId));
+
+		const { entries } = await listDrunkWines(userId);
+		const [sighting] = await listWineSightings(userId, entries[0]?.id ?? "");
+		expect(sighting?.photoUrls).toHaveLength(1);
+		expect(sighting?.photoUrl).toBe(sighting?.photoUrls[0]);
+	});
+
+	it("取り消しで複製した複数写真も掃除する", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 2,
+			items: [
+				{
+					wine: { name: "消えるワイン" },
+					sighting: { photoIndex: 0, photoIndexes: [0, 1] },
+				},
+			],
+		});
+		const batch = await saveImportBatchPhotos(userId, result.batchId, [
+			jpeg(),
+			jpeg(),
+		]);
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toHaveLength(2);
+
+		await undoImportBatch(userId, result.batchId);
+
+		for (const photoUrl of [
+			...batch.photoUrls,
+			...(entries[0]?.photoUrls ?? []),
+		]) {
+			expect(await env.AVATARS.head(imageKeyFromPath(photoUrl))).toBeNull();
+		}
+	});
+});
+
 // ---- 写真由来の永続化(photo_kinds・drizzle/0035) ------------------------------
 // PR #561 草案の適用。`photo_keys` と同じ順・同じ長さの由来を `photo_kinds` に持ち、
 // ワイン詳細ギャラリーの WEB overlay を保存済み表示へ配線する。
