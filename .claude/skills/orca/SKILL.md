@@ -11,7 +11,7 @@ name: orca
 
 orcaが提供する/orchestrationを利用し、orchestrator, worker, reviewerの3種類のAIエージェントが協調して実装を進めます。
 
-- workerは指示されたタスクの実装やテストを行い、PRを作成します。PRには動作確認結果も記載してください。gyazoが利用可能な環境であれば動作確認時のキャプチャも付与してください。利用可能な環境では、GYAZO_API_TOKENなどの環境変数からトークンを取得できます。この環境変数は.envファイルから取得できることもあります。この.envは1password MCPがマウントします。
+- workerは指示されたタスクの実装やテストを行い、PRを作成します。PRには動作確認結果も記載してください。動作確認時のキャプチャは `gh` の `--attach` フラグでPRに直接添付してください（Gyazoは使わない。要 gh v2.99.0+）。
 - reviewerは指定されたPRについてレビューを行い、必要に応じて必要な変更を指摘してください。レビューの結果がOKであればPRをマージするのもreviewerの責務です。またPRマージ後の本番での動作確認もreviewerが行ってください。
 - workerとreviewerのハーネスにはそれぞれ、opencodeを利用し、モデルはopencode-go/muse-spark-1.3-contributorを利用してください。
 
