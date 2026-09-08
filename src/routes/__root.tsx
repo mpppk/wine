@@ -5,26 +5,31 @@ import {
 	Scripts,
 	useRouterState,
 } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { AdBanner } from "../components/ads/AdBanner";
 import { CommandPalette } from "../components/CommandPalette";
 import { CommandPaletteProvider } from "../components/CommandPaletteContext";
 import Header from "../components/Header";
 import { STARTER_GUIDE_INIT_SCRIPT } from "../lib/dashboard/guide-dismissal";
 import { isEmbedPath } from "../lib/embed";
+import {
+	resolveInitialMode,
+	STATUS_BAR_STYLES,
+	THEME_CHANGE_EVENT,
+	THEME_COLORS,
+	THEME_INIT_SCRIPT,
+	type ThemeMode,
+} from "../lib/theme";
 import appCss from "../styles.css?url";
 
 interface MyRouterContext {
 	queryClient: QueryClient;
 }
 
-// 保存値は 'light' | 'dark' の2値のみ(src/lib/theme.ts の ThemeMode が SSOT)。
-// 未保存・不正値は OS の設定に従う。以前は 'auto' という第3の保存値も受け付けていたが、
-// アプリはそれを書き込まないため到達しない分岐だった(#262)。
-const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark')?stored:null;var resolved=mode||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode){root.setAttribute('data-theme',mode)}else{root.removeAttribute('data-theme')}root.style.colorScheme=resolved;}catch(e){}})();`;
-
 // ハイドレーション前に localStorage を見て html の状態を整えるブートストラップ。
 // テーマのFOUCと、閉じたスターターガイドのちらつきを防ぐ。どちらも「描画前に
 // html へ印を付けて CSS 側で解決する」同じ形なので1つの script にまとめる。
+// THEME_INIT_SCRIPT は解決済みテーマへの theme-color 同期まで含む(src/lib/theme.ts)。
 const BOOT_SCRIPT = `${THEME_INIT_SCRIPT}${STARTER_GUIDE_INIT_SCRIPT}`;
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
@@ -55,10 +60,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			{
 				name: "apple-mobile-web-app-capable",
 				content: "yes",
-			},
-			{
-				name: "apple-mobile-web-app-status-bar-style",
-				content: "default",
 			},
 			{
 				name: "apple-mobile-web-app-title",
@@ -114,24 +115,57 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 		select: (s) => isEmbedPath(s.location.pathname),
 	});
 
+	// head meta が参照する解決済みテーマ。SSR 時は localStorage を読めないため
+	// null で2タグfallback(No-JS 用)を出し、クライアント初回描画で解決済み単一
+	// タグへ寄せる。描く値は THEME_INIT_SCRIPT のピン留めと同一のため、
+	// ハイドレーションの再利用と競合せず重複タグを生まない。トグル時は
+	// setThemeMode のイベントで追随する(#576)。
+	const [headMode, setHeadMode] = useState<ThemeMode | null>(() =>
+		typeof window === "undefined" ? null : resolveInitialMode(),
+	);
+	useEffect(() => {
+		const onThemeChange = (event: Event) => {
+			setHeadMode((event as CustomEvent<ThemeMode>).detail);
+		};
+		window.addEventListener(THEME_CHANGE_EVENT, onThemeChange);
+		return () => window.removeEventListener(THEME_CHANGE_EVENT, onThemeChange);
+	}, []);
+
 	// UI・meta description とも全編日本語なので lang も ja。en のままだと
 	// スクリーンリーダーが英語TTSで日本語を読もうとして破綻する(#236)
 	return (
 		<html lang="ja" suppressHydrationWarning>
 			<head>
-				{/* theme-color is set as literal tags (not via head() meta) because
-				    TanStack Router dedupes meta by name, dropping one of the two
-				    prefers-color-scheme variants. */}
-				<meta
-					name="theme-color"
-					content="#ffffff"
-					media="(prefers-color-scheme: light)"
-				/>
-				<meta
-					name="theme-color"
-					content="#09090b"
-					media="(prefers-color-scheme: dark)"
-				/>
+				{/* theme-color / status-bar-style は literal タグで出す(head() meta は
+				    TanStack Router が name で重複排除し2枚目の media 違いを落とす)。
+				    apple-mobile-web-app-status-bar-style も単一情報源のため shell 側
+				    のみで描く(#576)。 */}
+				{headMode === null ? (
+					<>
+						<meta
+							name="theme-color"
+							content={THEME_COLORS.light}
+							media="(prefers-color-scheme: light)"
+						/>
+						<meta
+							name="theme-color"
+							content={THEME_COLORS.dark}
+							media="(prefers-color-scheme: dark)"
+						/>
+						<meta
+							name="apple-mobile-web-app-status-bar-style"
+							content={STATUS_BAR_STYLES.light}
+						/>
+					</>
+				) : (
+					<>
+						<meta name="theme-color" content={THEME_COLORS[headMode]} />
+						<meta
+							name="apple-mobile-web-app-status-bar-style"
+							content={STATUS_BAR_STYLES[headMode]}
+						/>
+					</>
+				)}
 				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Static bootstrap script must run before hydration. */}
 				<script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
 				<HeadContent />
