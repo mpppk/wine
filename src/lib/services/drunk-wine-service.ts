@@ -2211,7 +2211,7 @@ export async function getImportBatch(
 }
 
 /** バッチ詳細の新規作成銘柄1件。保存された値と写真をそのまま出す(読み取り専用)。 */
-export interface ImportBatchDetailCreatedEntry {
+interface ImportBatchDetailCreatedEntry {
 	id: string;
 	name: string;
 	status: WineStatus;
@@ -2239,7 +2239,7 @@ export interface ImportBatchDetailCreatedEntry {
 }
 
 /** バッチ詳細の既存追加ぶん1件(目撃記録)。銘柄は作らず、足した記録だけ出す。 */
-export interface ImportBatchDetailMatchedSighting {
+interface ImportBatchDetailMatchedSighting {
 	id: string;
 	entryId: string;
 	/** 対象銘柄の名前。削除済みなら null(「削除済みの銘柄」と出す) */
