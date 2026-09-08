@@ -27,6 +27,7 @@ function SightingLine({
 	price,
 	memo,
 	photoUrl,
+	photoUrls,
 	version,
 }: {
 	placeName: string | null;
@@ -34,17 +35,26 @@ function SightingLine({
 	price: number | null;
 	memo: string | null;
 	photoUrl: string | null;
+	/** そのワインが写っていた写真の相対URLの一覧(#574)。未指定なら photoUrl の1枚 */
+	photoUrls?: string[];
 	/** 写真のキャッシュバスタ。バッチの createdAt を渡す */
 	version: number;
 }) {
+	// `photoUrls` を持たない呼び出しは無いが、型の既定で photoUrl の1枚に退避する。
+	const photos = photoUrls ?? (photoUrl ? [photoUrl] : []);
 	return (
 		<div className="flex items-start gap-3 text-sm">
-			{photoUrl && (
-				<ZoomablePhoto
-					src={`${photoUrl}?v=${version}`}
-					alt={`${placeName ?? "場所未設定"}で見かけたときの写真`}
-					className="size-14"
-				/>
+			{photos.length > 0 && (
+				<div className="flex shrink-0 gap-1">
+					{photos.map((url) => (
+						<ZoomablePhoto
+							key={url}
+							src={`${url}?v=${version}`}
+							alt={`${placeName ?? "場所未設定"}で見かけたときの写真`}
+							className="size-14"
+						/>
+					))}
+				</div>
 			)}
 			<div className="flex min-w-0 flex-col gap-0.5">
 				<span className="font-medium">{placeName ?? "場所の指定なし"}</span>
@@ -179,6 +189,7 @@ export function ImportBatchDetailView({
 											price={entry.sighting.price}
 											memo={entry.sighting.memo}
 											photoUrl={entry.sighting.photoUrl}
+											photoUrls={entry.sighting.photoUrls}
 											version={detail.createdAt}
 										/>
 									</div>
@@ -223,6 +234,7 @@ export function ImportBatchDetailView({
 									price={sighting.price}
 									memo={sighting.memo}
 									photoUrl={sighting.photoUrl}
+									photoUrls={sighting.photoUrls}
 									version={detail.createdAt}
 								/>
 							</li>

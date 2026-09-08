@@ -113,7 +113,7 @@ export function buildCreateEntrySightingInput(
 /**
  * 更新時の入力。空欄は null(クリア)として送る。
  *
- * batchId / photoIndex は**送らない**。由来(どの一括登録のどの写真か)はユーザが
+ * batchId / photoIndex / photoIndexes は**送らない**。由来(どの一括登録のどの写真か)はユーザが
  * 編集する情報ではなく、未指定なら drizzle が列を触らないので値が保たれる。
  */
 export function buildUpdateSightingInput(

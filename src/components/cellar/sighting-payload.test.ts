@@ -17,6 +17,7 @@ function sighting(partial: Partial<WineSightingEntry> = {}): WineSightingEntry {
 		batchId: null,
 		photoIndex: null,
 		photoUrl: null,
+		photoUrls: [],
 		seenOn: null,
 		price: null,
 		memo: null,

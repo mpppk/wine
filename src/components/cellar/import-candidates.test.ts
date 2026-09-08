@@ -10,6 +10,7 @@ import {
 	type ImportCardState,
 	photosForImportCardDialog,
 	primarySelectionForDialogIndex,
+	registrationPhotoIndexes,
 	summarizeImportCards,
 	validateImportCards,
 } from "./import-candidates";
@@ -236,7 +237,7 @@ describe("buildBulkRegisterInput", () => {
 				aopId: "barolo",
 				grapeVarietyIds: ["nebbiolo"],
 			},
-			sighting: { photoIndex: 1, price: 28000 },
+			sighting: { photoIndex: 1, photoIndexes: [1], price: 28000 },
 		});
 	});
 
@@ -258,12 +259,31 @@ describe("buildBulkRegisterInput", () => {
 		expect(input.items[0]).not.toHaveProperty("wine");
 	});
 
-	it("写真番号は先頭の1枚だけを目撃記録に持たせる(1回の目撃を写真数で水増ししない)", () => {
+	it("目撃記録は1件のまま、対応写真のすべてを番号の一覧で持たせる(#574)", () => {
 		const input = buildBulkRegisterInput(
 			[card({ photoIndexes: [0, 1] })],
 			meta,
 		);
+		// 写真ごとに目撃記録を作ると sightingCount が水増しされるので記録は1件のまま。
+		// photoIndex は先頭1枚の後方互換として残す。
 		expect(input.items[0]?.sighting?.photoIndex).toBe(0);
+		expect(input.items[0]?.sighting?.photoIndexes).toEqual([0, 1]);
+		expect(bulkRegisterFromScanInput.safeParse(input).success).toBe(true);
+	});
+
+	it("対応写真が無ければ写真番号は載せない", () => {
+		const input = buildBulkRegisterInput([card({ photoIndexes: [] })], meta);
+		expect(input.items[0]?.sighting?.photoIndex).toBeUndefined();
+		expect(input.items[0]?.sighting?.photoIndexes).toBeUndefined();
+	});
+
+	it("photoIndexes が申告枚数を超える入力はスキーマに弾かれる", () => {
+		const built = buildBulkRegisterInput([card({ photoIndexes: [0, 1] })], {
+			...meta,
+			photoCount: 1,
+		});
+		expect(built.items[0]?.sighting?.photoIndexes).toEqual([0, 1]);
+		expect(bulkRegisterFromScanInput.safeParse(built).success).toBe(false);
 	});
 
 	it("「飲んだ」トグルON なら中身が空でも飲用記録を作る", () => {
@@ -298,6 +318,16 @@ describe("buildBulkRegisterInput", () => {
 	});
 });
 
+describe("registrationPhotoIndexes", () => {
+	it("AIの対応と単体の写真の和集合を重複除去・昇順で返す", () => {
+		expect(
+			registrationPhotoIndexes({ photoIndexes: [2, 0], bottlePhotoIndex: 2 }),
+		).toEqual([0, 2]);
+		expect(registrationPhotoIndexes({ photoIndexes: [1] })).toEqual([1]);
+		expect(registrationPhotoIndexes({ photoIndexes: [] })).toEqual([]);
+	});
+});
+
 // ---- 銘柄ごとの写真の手当て(#473) ----------------------------------------
 
 describe("写真の手当て", () => {
@@ -312,6 +342,8 @@ describe("写真の手当て", () => {
 		if (!state) throw new Error("unreachable");
 		const input = buildBulkRegisterInput([state], meta);
 		expect(input.items[0]?.sighting?.photoIndex).toBe(2);
+		// 登録するのは対応写真のすべて(単体の写真を含む和集合)
+		expect(input.items[0]?.sighting?.photoIndexes).toEqual([0, 2]);
 		// 手元の写真で足りるので web 画像は送らない
 		expect(input.items[0]?.webPhoto).toBeUndefined();
 	});

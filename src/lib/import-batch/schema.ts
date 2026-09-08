@@ -59,6 +59,12 @@ const importItemInput = z
 		sighting: z
 			.object({
 				photoIndex: wineSightingFields.photoIndex,
+				/**
+				 * AIの画像-ワイン対応の全件(#574)。目撃記録に載せて登録する写真の
+				 * 番号で、`photoIndex`(先頭1枚の後方互換)と併存する。銘柄の写真の
+				 * 取得元にもなる(サーバが対応写真をすべて複製する)。
+				 */
+				photoIndexes: wineSightingFields.photoIndexes,
 				price: wineSightingFields.price,
 				memo: wineSightingFields.memo,
 			})
@@ -125,8 +131,11 @@ export const bulkRegisterFromScanInput = z
 		(v) =>
 			v.items.every(
 				(i) =>
-					i.sighting?.photoIndex == null ||
-					i.sighting.photoIndex < v.photoCount,
+					(i.sighting?.photoIndex == null ||
+						i.sighting.photoIndex < v.photoCount) &&
+					(i.sighting?.photoIndexes ?? []).every(
+						(photo) => photo < v.photoCount,
+					),
 			),
 		{ error: "写真の番号が、送信する写真の枚数を超えています" },
 	);

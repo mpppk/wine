@@ -132,14 +132,20 @@ function SightingSection({
 							key={sighting.id}
 							className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
 						>
-							{sighting.photoUrl && (
-								// 由来の写真(ワインリスト/棚)。サムネイルは保存していないので
-								// 原寸を読む(編集画面の目撃記録と同じ扱い)
-								<ZoomablePhoto
-									src={`${sighting.photoUrl}?v=${version}`}
-									alt={`${sighting.placeName ?? "場所未設定"}で見かけたときの写真`}
-									className="size-14"
-								/>
+							{sighting.photoUrls.length > 0 && (
+								// 由来の写真(ワインリスト/棚。#574 で対応写真のすべて)。
+								// サムネイルは保存していないので原寸を読む
+								// (編集画面の目撃記録と同じ扱い)
+								<div className="flex shrink-0 gap-1">
+									{sighting.photoUrls.map((photoUrl) => (
+										<ZoomablePhoto
+											key={photoUrl}
+											src={`${photoUrl}?v=${version}`}
+											alt={`${sighting.placeName ?? "場所未設定"}で見かけたときの写真`}
+											className="size-14"
+										/>
+									))}
+								</div>
 							)}
 							<div className="flex min-w-0 flex-col gap-1">
 								<span className="flex items-center gap-1 font-medium">
