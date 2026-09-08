@@ -2210,6 +2210,180 @@ export async function getImportBatch(
 	return toImportBatchEntry(row);
 }
 
+/** バッチ詳細の新規作成銘柄1件。保存された値と写真をそのまま出す(読み取り専用)。 */
+export interface ImportBatchDetailCreatedEntry {
+	id: string;
+	name: string;
+	status: WineStatus;
+	vintage: number | null;
+	producer: string | null;
+	note: string | null;
+	/** 原寸の相対URL(表示順・先頭=代表)。wine-1 の代表規則と同じ */
+	photoUrls: string[];
+	thumbUrls: string[];
+	photoKinds: PhotoKind[];
+	createdAt: number;
+	/**
+	 * 写真のキャッシュバスタ。バッチ後に写真を足し直すと R2 キーが同じでも
+	 * 中身が変わるため、バッチの時刻ではなくエントリの更新時刻を使う。
+	 */
+	updatedAt: number;
+	/** このバッチで付けた目撃記録(場所・価格・写真)。銘柄1件に1件だけある */
+	sighting: {
+		placeName: string | null;
+		seenOn: string | null;
+		price: number | null;
+		memo: string | null;
+		photoUrl: string | null;
+	} | null;
+}
+
+/** バッチ詳細の既存追加ぶん1件(目撃記録)。銘柄は作らず、足した記録だけ出す。 */
+export interface ImportBatchDetailMatchedSighting {
+	id: string;
+	entryId: string;
+	/** 対象銘柄の名前。削除済みなら null(「削除済みの銘柄」と出す) */
+	entryName: string | null;
+	placeName: string | null;
+	seenOn: string | null;
+	price: number | null;
+	memo: string | null;
+	photoUrl: string | null;
+	photoIndex: number | null;
+}
+
+/** 一括登録バッチ1件の詳細。履歴画面からの遷移先。読み取り専用で件数は数えない。 */
+export interface ImportBatchDetail {
+	id: string;
+	placeName: string | null;
+	seenOn: string | null;
+	/** バッチ写真の相対URL(撮影順 = 目撃記録の photoIndex が指す順) */
+	photoUrls: string[];
+	createdAt: number;
+	createdEntries: ImportBatchDetailCreatedEntry[];
+	matchedSightings: ImportBatchDetailMatchedSighting[];
+}
+
+function toBatchDetailEntry(
+	row: typeof drunkWine.$inferSelect,
+): Omit<ImportBatchDetailCreatedEntry, "sighting"> {
+	return {
+		id: row.id,
+		name: row.name,
+		status: row.status,
+		vintage: row.vintage,
+		producer: row.producer,
+		note: row.note,
+		photoUrls: row.photoKeys.map(imagePathForKey),
+		thumbUrls: row.photoKeys.map((key) =>
+			imagePathForKey(thumbKeyForPhotoKey(key)),
+		),
+		photoKinds: resolveStoredPhotoKinds(row.photoKeys, row.photoKinds),
+		createdAt: row.createdAt.getTime(),
+		updatedAt: row.updatedAt.getTime(),
+	};
+}
+
+/**
+ * 一括登録バッチ1件の詳細を返す(本人所有のみ)。履歴の行から「どんな写真が
+ * アップロードされたか、どんな値が設定されたか」を辿るための読み取り専用口で、
+ * 分析完了後の一覧(レビューカード)と同等の項目を、保存済みの値から組み立てる。
+ *
+ * - 他人のバッチ・存在しないIDは `getImportBatch` と同じく 404(存在を漏らさない)
+ * - 新規作成した銘柄は保存値と写真と、そのバッチで付けた目撃記録を添える
+ * - 既存一致ぶんは銘柄を作っていないので、足した目撃記録だけを出す
+ * - 参考サイト・価格の一覧は保存していない(IMPL-3 はジョブ結果JSONにだけ
+ *   載る)ため、ここには出ない
+ */
+export async function getImportBatchDetail(
+	userId: string,
+	batchId: string,
+): Promise<ImportBatchDetail> {
+	const [batchRow] = await db
+		.select({ batch: importBatch, placeName: place.name })
+		.from(importBatch)
+		.leftJoin(place, eq(place.id, importBatch.placeId))
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+	if (!batchRow) throw new NotFoundError("Import batch not found");
+
+	const entryRows = await db
+		.select()
+		.from(drunkWine)
+		.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)))
+		.orderBy(desc(drunkWine.createdAt));
+	const sightingRows = await db
+		.select({
+			...getTableColumns(wineSighting),
+			placeName: place.name,
+			batchPhotoKeys: importBatch.photoKeys,
+			entryName: drunkWine.name,
+		})
+		.from(wineSighting)
+		.leftJoin(place, eq(place.id, wineSighting.placeId))
+		.leftJoin(importBatch, eq(importBatch.id, wineSighting.batchId))
+		.leftJoin(
+			drunkWine,
+			and(
+				eq(drunkWine.id, wineSighting.drunkWineId),
+				eq(drunkWine.userId, userId),
+			),
+		)
+		.where(
+			and(eq(wineSighting.batchId, batchId), eq(wineSighting.userId, userId)),
+		)
+		.orderBy(desc(wineSighting.createdAt));
+
+	const createdIds = new Set(entryRows.map((row) => row.id));
+	const sightingByEntry = new Map<
+		string,
+		{
+			placeName: string | null;
+			seenOn: string | null;
+			price: number | null;
+			memo: string | null;
+			photoUrl: string | null;
+		}
+	>();
+	const matchedSightings: ImportBatchDetailMatchedSighting[] = [];
+	for (const row of sightingRows) {
+		const sighting = toSightingEntry(row);
+		if (createdIds.has(row.drunkWineId)) {
+			sightingByEntry.set(row.drunkWineId, {
+				placeName: sighting.placeName,
+				seenOn: sighting.seenOn,
+				price: sighting.price,
+				memo: sighting.memo,
+				photoUrl: sighting.photoUrl,
+			});
+		} else {
+			matchedSightings.push({
+				id: sighting.id,
+				entryId: row.drunkWineId,
+				entryName: row.entryName,
+				placeName: sighting.placeName,
+				seenOn: sighting.seenOn,
+				price: sighting.price,
+				memo: sighting.memo,
+				photoUrl: sighting.photoUrl,
+				photoIndex: sighting.photoIndex,
+			});
+		}
+	}
+
+	return {
+		id: batchRow.batch.id,
+		placeName: batchRow.placeName,
+		seenOn: batchRow.batch.seenOn,
+		photoUrls: batchRow.batch.photoKeys.map(imagePathForKey),
+		createdAt: batchRow.batch.createdAt.getTime(),
+		createdEntries: entryRows.map((row) => ({
+			...toBatchDetailEntry(row),
+			sighting: sightingByEntry.get(row.id) ?? null,
+		})),
+		matchedSightings,
+	};
+}
+
 /**
  * 一括登録バッチの写真をR2へ保存し、キー配列を確定する(2段階目)。
  *
