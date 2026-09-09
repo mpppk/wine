@@ -52,7 +52,7 @@ import {
 	LABEL_JOB_BADGE_QUERY_KEY,
 	useLabelAnalysisJob,
 } from "#/components/cellar/use-label-analysis-job";
-import { WineReferencesEditor } from "#/components/cellar/WineReferencesEditor";
+import { WineReferencesSection } from "#/components/cellar/WineReferencesSection";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { FormField, FormSection } from "#/components/ui/form-section";
@@ -1054,8 +1054,10 @@ export function DrunkWineForm({
 			/>
 
 			{/* 参考サイト・市場価格は銘柄に属する参考情報。新規・編集の両方で
-			    追加・削除できる。再解析の結果は差分ダイアログの確定で足される */}
-			<WineReferencesEditor value={references} onChange={setReferences} />
+			    追加・削除できる。再解析の結果は差分ダイアログの確定で足される。
+			    空のときは追加ボタン式に折りたたむ(#588)。新規作成の引き継ぎが
+			    空でない回は最初から開く */}
+			<WineReferencesSection value={references} onChange={setReferences} />
 
 			{/* 送信失敗は対処が要るので assertive。空でもコンテナを残さないと読み上げられない(#239) */}
 			<LiveRegion tone="alert" className="empty:-mt-6">
