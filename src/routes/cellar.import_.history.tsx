@@ -139,6 +139,28 @@ function CellarImportHistoryPage() {
 									</Button>
 								</div>
 							</div>
+							{batch.photoUrls.length > 0 && (
+								<Link
+									to="/cellar/import/history-detail/$batchId"
+									params={{ batchId: batch.id }}
+									aria-label="この登録の写真を詳しく見る"
+									className="mt-3 block"
+								>
+									<ul className="flex gap-2 overflow-x-auto">
+										{batch.photoUrls.map((url, i) => (
+											<li key={url} className="shrink-0">
+												<img
+													src={`${url}?v=${batch.createdAt}`}
+													alt={`この登録で使った写真${i + 1}`}
+													className="size-16 rounded-md border border-border object-cover"
+													loading="lazy"
+													decoding="async"
+												/>
+											</li>
+										))}
+									</ul>
+								</Link>
+							)}
 						</li>
 					))}
 				</ul>
