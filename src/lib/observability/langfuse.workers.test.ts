@@ -75,6 +75,19 @@ function dumpOtlpBody(body: string): string {
 	}
 }
 
+/** OTLP span JSON の葉の文字列値を全部集める（属性のキー名に依存しない検査用）。 */
+function collectStrings(value: unknown, out: string[] = []): string[] {
+	if (typeof value === "string") out.push(value);
+	else if (Array.isArray(value)) {
+		for (const v of value) collectStrings(v, out);
+	} else if (value !== null && typeof value === "object") {
+		for (const v of Object.values(value as Record<string, unknown>)) {
+			collectStrings(v, out);
+		}
+	}
+	return out;
+}
+
 async function seedUser(): Promise<string> {
 	const id = crypto.randomUUID();
 	await env.DB.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
@@ -204,8 +217,40 @@ describe("langfuse", () => {
 		const allBodies = otlp.map((c) => c.body).join("\n");
 		expect(allBodies).toContain("hello");
 		expect(allBodies).toContain("bonjour");
+		// v4 は observations-first のため、子単体で絞れるよう feature/requestId が
+		// generation 側の属性にも載る（root だけでは子のクエリで引けない）
+		const genStrings = collectStrings(gen);
+		expect(genStrings.some((s) => s.includes("region_qa"))).toBe(true);
+		expect(genStrings.some((s) => s.includes(requestId))).toBe(true);
 		// OTLP の送信先が JP リージョンである
 		expect(otlp[0]!.url).toContain("jp.cloud.langfuse.com");
+	});
+
+	it("recordSpan の子にも feature/requestId が載る", async () => {
+		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
+		__resetLangfuseForTests();
+		const userId = await seedUser();
+		const requestId = `ask_region:${crypto.randomUUID()}`;
+
+		await runMeteredInference(
+			userId,
+			{ estimate: ESTIMATE, requestId, logBase: LOG_BASE },
+			async (ctx) => {
+				ctx.recordSpan({ name: "web_search", input: "q", output: "r" });
+				return { value: "ok", charge: ESTIMATE, usage: {} };
+			},
+		);
+		await Promise.resolve();
+		await new Promise((r) => setTimeout(r, 30));
+
+		const otlp = calls.filter(isLangfuseOtlpCall);
+		const spans = otlp.flatMap((c) => parseOtlpSpans(c.body));
+		const byName = Object.fromEntries(spans.map((s) => [String(s.name), s]));
+		const tool = byName.web_search as Record<string, unknown>;
+		expect(tool).toBeDefined();
+		const toolStrings = collectStrings(tool);
+		expect(toolStrings.some((s) => s.includes("region_qa"))).toBe(true);
+		expect(toolStrings.some((s) => s.includes(requestId))).toBe(true);
 	});
 
 	it("送信が失敗（例外/4xx）しても呼び出し側へ例外が漏れない", async () => {
