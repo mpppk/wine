@@ -91,17 +91,10 @@ describe("isMapTapExcludedAop", () => {
 });
 
 describe("pickTopFeature", () => {
-	const all = byIdApp(
-		BORDEAUX,
-		BORDEAUX_SUPERIEUR,
-		MEDOC,
-		PAUILLAC,
-		LATOUR,
-	);
+	const all = byIdApp(BORDEAUX, BORDEAUX_SUPERIEUR, MEDOC, PAUILLAC, LATOUR);
 	it("広域と村名が重なったら村名を選ぶ(#584)", () => {
 		expect(
-			pickTopFeature([{ id: BORDEAUX.idApp }, { id: PAUILLAC.idApp }], all)
-				?.id,
+			pickTopFeature([{ id: BORDEAUX.idApp }, { id: PAUILLAC.idApp }], all)?.id,
 		).toBe("pauillac");
 	});
 	it("広域だけしか重ならなければ何も選ばない", () => {
@@ -115,8 +108,7 @@ describe("pickTopFeature", () => {
 	});
 	it("地区級 regional は引き続き選ばれる", () => {
 		expect(
-			pickTopFeature([{ id: BORDEAUX.idApp }, { id: MEDOC.idApp }], all)
-				?.id,
+			pickTopFeature([{ id: BORDEAUX.idApp }, { id: MEDOC.idApp }], all)?.id,
 		).toBe("medoc");
 	});
 	it("区分ランク順と同ランクの決定的選択を維持する", () => {
@@ -129,8 +121,7 @@ describe("pickTopFeature", () => {
 		});
 		const m = byIdApp(PAUILLAC, vineyard);
 		expect(
-			pickTopFeature([{ id: PAUILLAC.idApp }, { id: vineyard.idApp }], m)
-				?.id,
+			pickTopFeature([{ id: PAUILLAC.idApp }, { id: vineyard.idApp }], m)?.id,
 		).toBe("les-forts");
 		// 同ランクは idApp 昇順
 		const v2 = aop({
