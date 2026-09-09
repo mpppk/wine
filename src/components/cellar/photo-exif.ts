@@ -7,7 +7,7 @@ import { isCalendarDate } from "#/lib/date/calendar-date";
 // (AGENTS.mdのmaplibre教訓: 依存追加時はバンドル影響を確認する)。
 
 /** EXIFのGPS座標(十進度)。 */
-export interface PhotoGps {
+interface PhotoGps {
 	latitude: number;
 	longitude: number;
 }
