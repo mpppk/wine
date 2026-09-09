@@ -1,5 +1,5 @@
 import type { ExpressionSpecification } from "maplibre-gl";
-import type { AopKind } from "./types";
+import type { Aop, AopKind } from "./types";
 
 // データ可視化向けの淡色ベースマップ(ラベル・道路が控えめでポリゴンが主役になる)。
 // APIキー不要・利用制限なしの OpenFreeMap を利用する。
@@ -55,6 +55,50 @@ export const KIND_RANK: Record<AopKind, number> = {
 	vineyard: 2,
 	winery: 3,
 };
+
+/**
+ * 地図タップ/ホバー選択の対象外にする広域AOCか(#584)。
+ *
+ * ボルドー広域AOCのポリゴンは地方全域を覆うため、どこをタップしても広域が
+ * 候補に混ざる。`*-regional` は広域AOCの置き場(地理的な地区ではない)なので
+ * 全地方で一律に対象外にし、ボルドー広域(id=`bordeaux`)はデータ上の置き場が
+ * 将来変わっても除外が維持されるよう id でも明示する。
+ *
+ * 除外はUI選択層だけの話で、データ自体は消さない。一覧・検索・キーボード移動・
+ * back-stackからは引き続き到達できる。地区級の regional
+ * (例: メドック/オー・メドック/グラーヴ: 実在の地区の地理を持つ)は対象外に
+ * しない — タップ選択の正当な対象として残す。
+ */
+export function isMapTapExcludedAop(
+	aop: Pick<Aop, "id" | "subregionId">,
+): boolean {
+	return aop.id === "bordeaux" || aop.subregionId.endsWith("-regional");
+}
+
+// hover/クリック位置のフィーチャから「最も区分ランクの高い(=最前面の)」ものを選ぶ。
+// 同ランク(例: サンテミリオンとサンテミリオン・グラン・クリュの同形ポリゴン)は
+// idApp昇順で決定的に選ぶ。広域AOC(isMapTapExcludedAop)は候補から外す(#584)。
+// click/mousemove 両経路がこの関数だけを通す(単一入口)。
+export function pickTopFeature<T extends { id?: unknown }>(
+	features: readonly T[],
+	aopsByIdApp: ReadonlyMap<number, Aop>,
+): Aop | undefined {
+	let best: Aop | undefined;
+	for (const f of features) {
+		const idApp = typeof f.id === "number" ? f.id : Number(f.id);
+		const aop = aopsByIdApp.get(idApp);
+		if (!aop || isMapTapExcludedAop(aop)) continue;
+		if (!best) {
+			best = aop;
+			continue;
+		}
+		const d = KIND_RANK[aop.kind] - KIND_RANK[best.kind];
+		if (d > 0 || (d === 0 && aop.idApp < best.idApp)) {
+			best = aop;
+		}
+	}
+	return best;
+}
 
 export const AOP_KINDS: AopKind[] = [
 	"regional",

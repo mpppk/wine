@@ -1,7 +1,6 @@
 import type { FeatureCollection, Geometry, Position } from "geojson";
 import type {
 	ExpressionSpecification,
-	MapGeoJSONFeature,
 	Map as MaplibreMap,
 	Popup,
 } from "maplibre-gl";
@@ -23,9 +22,9 @@ import { cn } from "#/lib/utils";
 import {
 	BASEMAP_STYLE_URL,
 	KIND_COLORS,
-	KIND_RANK,
 	kindFillColorExpr,
 	kindLineColorExpr,
+	pickTopFeature,
 	progressFillColorExpr,
 	progressLineColorExpr,
 	REGION_BOUNDARY_STYLE,
@@ -212,30 +211,6 @@ function buildInverseMask(geometry: Geometry): FeatureCollection {
 			},
 		],
 	};
-}
-
-// hover/クリック位置のフィーチャから「最も区分ランクの高い(=最前面の)」ものを選ぶ。
-// 同ランク(例: サンテミリオンとサンテミリオン・グラン・クリュの同形ポリゴン)は
-// idApp昇順で決定的に選ぶ
-function pickTopFeature(
-	features: MapGeoJSONFeature[],
-	aopsByIdApp: Map<number, Aop>,
-): Aop | undefined {
-	let best: Aop | undefined;
-	for (const f of features) {
-		const idApp = typeof f.id === "number" ? f.id : Number(f.id);
-		const aop = aopsByIdApp.get(idApp);
-		if (!aop) continue;
-		if (!best) {
-			best = aop;
-			continue;
-		}
-		const d = KIND_RANK[aop.kind] - KIND_RANK[best.kind];
-		if (d > 0 || (d === 0 && aop.idApp < best.idApp)) {
-			best = aop;
-		}
-	}
-	return best;
 }
 
 export function AopMapView({
