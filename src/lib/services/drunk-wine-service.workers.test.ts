@@ -2731,11 +2731,41 @@ describe("listImportBatches", () => {
 			placeName: "1軒目",
 			seenOn: "2026-07-01",
 			photoCount: 0,
+			photoUrls: [],
 			createdCount: 1,
 			matchedCount: 1,
 			sightingCount: 2,
 			hasEditedEntries: false,
 		});
+	});
+
+	it("登録時に与えられた写真のURLを一覧に含める", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{ wine: { name: "写真つきの一括登録" }, sighting: { photoIndex: 0 } },
+			],
+		});
+		// 2段階目の保存前は写真が無いので空
+		expect((await listImportBatches(userId))[0]?.photoUrls).toEqual([]);
+
+		const jpeg1x1 = Uint8Array.from(
+			atob(
+				"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+			),
+			(c) => c.charCodeAt(0),
+		);
+		await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: jpeg1x1, mimeType: "image/jpeg" },
+		]);
+
+		const [summary] = await listImportBatches(userId);
+		expect(summary?.photoCount).toBe(1);
+		expect(summary?.photoUrls).toHaveLength(1);
+		// 一覧と再取得(getImportBatch)で同じURLを指す
+		const batch = await getImportBatch(userId, result.batchId);
+		expect(summary?.photoUrls).toEqual(batch.photoUrls);
 	});
 
 	it("登録後に編集された新規エントリは hasEditedEntries を立てる", async () => {
