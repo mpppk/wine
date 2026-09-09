@@ -95,9 +95,13 @@ jobs:
       # 依存パッケージの既知の脆弱性を検査する。--audit-level=high は high 以上の
       # advisory があると exit 1 になる。
       #
-      # 現状の high 7件は全て推移的依存で、--ignore で明示的に許可している:
+      # 現状の high 8件は全て推移的依存で、--ignore で明示的に許可している:
       #  - adm-zip / image-size×2: mapshaper(geodata ビルド専用の dev 依存)経由。
       #    修正版が存在せず、親の mapshaper が更新されるまで解消しない。
+      #  - sharp: miniflare(vite-plugin / vitest-pool-workers / wrangler 経由)が
+      #    0.35.2 にピン留めしており、最新の miniflare でも解消しない。
+      #    ローカル実行・ビルド専用で Workers ランタイムには同梱されないため許可し、
+      #    miniflare 側の更新で解消するため Renovate 任せ。
       #  - fast-uri / js-yaml / nanoid / undici: 修正版は存在するが親パッケージの
       #    range 内で bun が拾わない(lockfile 再生成で拾うと better-auth 等の
       #    breaking bump が混入する)。親の更新で解消するため Renovate 任せ。
