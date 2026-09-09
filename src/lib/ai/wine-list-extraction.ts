@@ -17,6 +17,7 @@ import {
 	type LabelSuggestions,
 	labelCommentShape,
 	labelExtractionShape,
+	labelPriceKey,
 	labelReferenceShape,
 	matchAop,
 	normalizeLabelText,
@@ -285,8 +286,8 @@ export function buildWineListPrompt(
 		'     - "producer_comment": 生産者についての日本語コメント。**1文で簡潔に**。確認できなければ null',
 		'     - "reference_links": 裏取りに使ったページの一覧(1銘柄あたり最大3件)。各要素は { "title": ページのタイトル(原語のまま。分からなければ null), "url": 実際に開いたページのURL }。',
 		"       実際に開いていないURLを書かない。参考にしたページが無ければ空配列",
-		'     - "prices": このワインの販売価格の一覧(1銘柄あたり最大3件)。各要素は { "source": 店・サイト名(例: ドメイン名), "amount_jpy": 日本円の整数, "url": 価格を見たページのURL(無ければ null) }。',
-		"       日本円で表示されていたものだけを入れる(外貨は換算せず、amount_jpy を null にする)。見つからなければ空配列",
+		'     - "prices": このワインの販売価格の一覧(1銘柄あたり最大3件)。各要素は { "source": 店・サイト名(例: ドメイン名), "amount_jpy": 日本円の整数, "currency": 外貨のISOコード(例: USD, EUR), "amount": 外貨の金額, "url": 価格を見たページのURL(無ければ null) }。',
+		"       日本円で表示されていたものは amount_jpy に入れ、currency と amount は null にする。外貨で表示されていたものは換算せず、currency と amount に表示どおりに入れて amount_jpy は null にする。見つからなければ空配列",
 		'   - "subject": 写真群の被写体。**すべての写真が同じ1本のワインだけを写している**場合(ボトル単体・エチケット・裏ラベル・箱・ネックタグのクローズアップなど)は "single_wine"、飲食店のワインリスト・ショップの陳列や棚・複数の銘柄が写っている場合は "wine_list"',
 		'   - "truncated": 列挙しきれなかった銘柄が残っている場合は true、すべて列挙できたなら false',
 		'6. subject の判定は迷ったら "wine_list" にする。1本のワインだと確信できる場合にだけ "single_wine" にする。',
@@ -685,9 +686,9 @@ function unionCappedPrices(
 ): LabelPrice[] | undefined {
 	if (!base?.length && !added?.length) return undefined;
 	const out = [...(base ?? [])];
-	const seen = new Set(out.map((p) => `${p.source}|${p.amountJpy ?? ""}`));
+	const seen = new Set(out.map((p) => labelPriceKey(p)));
 	for (const price of added ?? []) {
-		const key = `${price.source}|${price.amountJpy ?? ""}`;
+		const key = labelPriceKey(price);
 		if (seen.has(key)) continue;
 		seen.add(key);
 		out.push(price);

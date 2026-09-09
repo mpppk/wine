@@ -1141,6 +1141,46 @@ describe("一括抽出の参考サイト・価格", () => {
 		expect(wines[0]?.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
 	});
 
+	it("銘柄ごとの外貨価格を currency/amount で取り出す", () => {
+		const { wines } = parseWineListResponse(
+			JSON.stringify({
+				wines: [
+					wineJson({
+						wine_name: "Barolo",
+						prices: [
+							{
+								source: "wine.com",
+								amount_jpy: null,
+								currency: "USD",
+								amount: 25,
+								url: null,
+							},
+							{
+								source: "shop.fr",
+								amount_jpy: null,
+								currency: "EUR",
+								amount: 18,
+								url: null,
+							},
+							{
+								source: "nope",
+								amount_jpy: null,
+								currency: null,
+								amount: null,
+								url: null,
+							},
+						],
+					}),
+				],
+			}),
+			1,
+		);
+		expect(wines[0]?.prices).toEqual([
+			{ source: "wine.com", currency: "USD", amount: 25 },
+			{ source: "shop.fr", currency: "EUR", amount: 18 },
+		]);
+	});
+
 	it("書かれていなければ持たない(旧形式の応答も従来どおりパースできる)", () => {
 		const { wines } = parseWineListResponse(
 			JSON.stringify({ wines: [wineJson({ wine_name: "Barolo" })] }),
@@ -1194,11 +1234,41 @@ describe("一括抽出の参考サイト・価格", () => {
 		expect(items[0]?.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
 	});
 
+	it("重複統合では外貨の通貨違いを潰さない", () => {
+		const { items } = dedupeWineListItems([
+			item({
+				wineName: "Barolo",
+				producer: "X",
+				prices: [{ source: "s", currency: "USD", amount: 25 }],
+			}),
+			item({
+				wineName: "Barolo",
+				producer: "X",
+				prices: [
+					{ source: "s", currency: "USD", amount: 25 },
+					{ source: "s", currency: "EUR", amount: 18 },
+				],
+			}),
+		]);
+		expect(items).toHaveLength(1);
+		expect(items[0]?.prices).toEqual([
+			{ source: "s", currency: "USD", amount: 25 },
+			{ source: "s", currency: "EUR", amount: 18 },
+		]);
+	});
+
 	it("指示文は reference_links/prices を求め、創作を禁じる", () => {
 		const prompt = buildWineListPrompt(2);
 		expect(prompt).toContain("reference_links");
 		expect(prompt).toContain("prices");
 		expect(prompt).toContain("実際に開いていないURLを書かない");
+	});
+
+	it("指示文は外貨を currency/amount で求め、円換算を禁じる", () => {
+		const prompt = buildWineListPrompt(2);
+		expect(prompt).toContain("currency");
+		expect(prompt).toContain("amount_jpy");
+		expect(prompt).toContain("換算せず");
 	});
 
 	it("wine-list-research の fallback は buildWineListPrompt と一致する", () => {

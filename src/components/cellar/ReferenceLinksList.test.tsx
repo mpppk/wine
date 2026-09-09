@@ -62,6 +62,26 @@ describe("PriceList", () => {
 		expect(screen.getByText("価格不明(店頭)")).toBeTruthy();
 	});
 
+	it("外貨は原通貨のまま記号付きで出す", () => {
+		render(
+			<PriceList
+				prices={[
+					{ source: "wine.com", currency: "USD", amount: 25 },
+					{ source: "shop.fr", currency: "EUR", amount: 18 },
+				]}
+			/>,
+		);
+		expect(screen.getByText("$25(wine.com)")).toBeTruthy();
+		expect(screen.getByText("€18(shop.fr)")).toBeTruthy();
+	});
+
+	it("記号の無い通貨はコード付きで出す", () => {
+		render(
+			<PriceList prices={[{ source: "s", currency: "CHF", amount: 30 }]} />,
+		);
+		expect(screen.getByText("30 CHF(s)")).toBeTruthy();
+	});
+
 	it("空なら何も描かない", () => {
 		const { container } = render(<PriceList prices={[]} />);
 		expect(container.firstChild).toBeNull();

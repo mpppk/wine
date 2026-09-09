@@ -11,12 +11,14 @@ import {
 	buildLabelSuggestions,
 	buildWebLabelPrompt,
 	estimateLabelPromptTokens,
+	formatLabelPrice,
 	LABEL_JSON_SCHEMA,
 	LABEL_PRICES_MAX,
 	LABEL_PROMPT,
 	LABEL_REFERENCE_LINKS_MAX,
 	LABEL_WEB_JSON_SCHEMA,
 	type LabelExtraction,
+	labelPriceKey,
 	matchAop,
 	matchGrapeVarietyIds,
 	matchRegionId,
@@ -815,6 +817,99 @@ describe("normalizePrices", () => {
 		expect(normalizePrices(undefined)).toEqual([]);
 		expect(normalizePrices(42)).toEqual([]);
 	});
+
+	it("外貨は currency と amount に入れて残す(円換算しない)", () => {
+		expect(
+			normalizePrices([
+				{ source: "wine.com", currency: "USD", amount: 25, url: null },
+				{ source: "shop.fr", currency: "eur", amount: 18, url: null },
+			]),
+		).toEqual([
+			{ source: "wine.com", currency: "USD", amount: 25 },
+			{ source: "shop.fr", currency: "EUR", amount: 18 },
+		]);
+	});
+
+	it("外貨の文字列表記も拾う(記号・桁区切り・小数)", () => {
+		expect(
+			normalizePrices([
+				{ source: "s", currency: "USD", amount: "$24.99" },
+				{ source: "s2", currency: "EUR", amount: "1,299.50" },
+			]),
+		).toEqual([
+			{ source: "s", currency: "USD", amount: 24.99 },
+			{ source: "s2", currency: "EUR", amount: 1299.5 },
+		]);
+	});
+
+	it("currency と amount の片方だけでは行を落とす", () => {
+		expect(
+			normalizePrices([
+				{ source: "s", currency: "USD", amount: null },
+				{ source: "s", currency: null, amount: 25 },
+				{ source: "s", currency: "US", amount: 25 },
+				{ source: "s", currency: "USD", amount: 0 },
+				{ source: "s", currency: "USD", amount: -5 },
+				{ source: "s", currency: "USD", amount: "不明" },
+			]),
+		).toEqual([]);
+	});
+
+	it("currency に JPY と書かれた回は円建てに畳む", () => {
+		expect(
+			normalizePrices([{ source: "s", currency: "JPY", amount: 2000 }]),
+		).toEqual([{ source: "s", amountJpy: 2000 }]);
+	});
+
+	it("同じ店でも通貨が違えば別の行として残す", () => {
+		expect(
+			normalizePrices([
+				{ source: "s", amount_jpy: 3000 },
+				{ source: "s", currency: "USD", amount: 25 },
+				{ source: "s", currency: "USD", amount: 25 },
+			]),
+		).toEqual([
+			{ source: "s", amountJpy: 3000 },
+			{ source: "s", currency: "USD", amount: 25 },
+		]);
+	});
+});
+
+describe("formatLabelPrice / labelPriceKey", () => {
+	it("円建ては「2,000円」の形", () => {
+		expect(formatLabelPrice({ source: "s", amountJpy: 2000 })).toBe("2,000円");
+	});
+
+	it("外貨は原通貨のまま記号付きで出す", () => {
+		expect(formatLabelPrice({ source: "s", currency: "USD", amount: 25 })).toBe(
+			"$25",
+		);
+		expect(formatLabelPrice({ source: "s", currency: "EUR", amount: 18 })).toBe(
+			"€18",
+		);
+		expect(
+			formatLabelPrice({ source: "s", currency: "USD", amount: 24.99 }),
+		).toBe("$24.99");
+	});
+
+	it("記号の無い通貨はコード付きで出す", () => {
+		expect(formatLabelPrice({ source: "s", currency: "CHF", amount: 30 })).toBe(
+			"30 CHF",
+		);
+	});
+
+	it("金額が無ければ価格不明", () => {
+		expect(formatLabelPrice({ source: "s" })).toBe("価格不明");
+	});
+
+	it("同一性キーは通貨まで含む", () => {
+		expect(
+			labelPriceKey({ source: "s", currency: "USD", amount: 25 }),
+		).not.toBe(labelPriceKey({ source: "s", currency: "EUR", amount: 25 }));
+		expect(labelPriceKey({ source: "s", amountJpy: 3000 })).not.toBe(
+			labelPriceKey({ source: "s", currency: "USD", amount: 25 }),
+		);
+	});
 });
 
 describe("参考サイト・価格の受け取り", () => {
@@ -839,6 +934,40 @@ describe("参考サイト・価格の受け取り", () => {
 			{ url: "https://example.com/a", title: "t" },
 		]);
 		expect(parsed.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
+	});
+
+	it("parseLabelResponse が外貨の currency/amount を通す(amount_jpy は null のまま)", () => {
+		const parsed = parseLabelResponse({
+			wine_name: "Barolo",
+			producer: null,
+			vintage: 2020,
+			appellation: "Barolo",
+			region: null,
+			country: null,
+			grape_varieties: [],
+			reference_links: [],
+			prices: [
+				{
+					source: "wine.com",
+					amount_jpy: null,
+					currency: "USD",
+					amount: 25,
+					url: null,
+				},
+				{
+					source: "shop.fr",
+					amount_jpy: null,
+					currency: "EUR",
+					amount: 18,
+					url: null,
+				},
+			],
+			sources: {},
+		});
+		expect(parsed.prices).toEqual([
+			{ source: "wine.com", currency: "USD", amount: 25 },
+			{ source: "shop.fr", currency: "EUR", amount: 18 },
+		]);
 	});
 
 	it("書かれていなければ持たない(Workers AI 経路は常に undefined)", () => {
@@ -899,6 +1028,22 @@ describe("参考サイト・価格の受け取り", () => {
 		]);
 	});
 
+	it("mergeExtractions は外貨の通貨違いを潰さない", () => {
+		const merged = mergeExtractions([
+			extraction({ prices: [{ source: "s", currency: "USD", amount: 25 }] }),
+			extraction({
+				prices: [
+					{ source: "s", currency: "USD", amount: 25 },
+					{ source: "s", currency: "EUR", amount: 18 },
+				],
+			}),
+		]);
+		expect(merged.prices).toEqual([
+			{ source: "s", currency: "USD", amount: 25 },
+			{ source: "s", currency: "EUR", amount: 18 },
+		]);
+	});
+
 	it("buildLabelSuggestions は参考サイト・価格を持ち回る(フォームには流し込まない)", () => {
 		const s = buildLabelSuggestions(
 			extraction({
@@ -928,6 +1073,14 @@ describe("参考サイト・価格のスキーマ配置", () => {
 			expect(prompt).toContain("reference_links");
 			expect(prompt).toContain("prices");
 			expect(prompt).toContain("創作しない");
+		}
+	});
+
+	it("裏取り経路の指示文は外貨を currency/amount で求め、円換算を禁じる", () => {
+		for (const prompt of [buildWebLabelPrompt(), buildAgentLabelPrompt()]) {
+			expect(prompt).toContain("currency");
+			expect(prompt).toContain("amount_jpy");
+			expect(prompt).toContain("換算せず");
 		}
 	});
 

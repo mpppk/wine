@@ -184,7 +184,17 @@ export const LABEL_REFERENCE_JSON_PROPERTIES = {
 				amount_jpy: {
 					type: ["integer", "null"],
 					description:
-						"Price in Japanese yen as an integer. Only when shown in yen (do not convert other currencies). null if unknown",
+						"Price in Japanese yen as an integer. Only when shown in yen. null otherwise (foreign prices use currency and amount; never convert currencies)",
+				},
+				currency: {
+					type: ["string", "null"],
+					description:
+						"ISO 4217 currency code in uppercase (e.g. USD, EUR, GBP) when the price was shown in a foreign currency. null when shown in yen or unknown",
+				},
+				amount: {
+					type: ["number", "null"],
+					description:
+						"Price amount in currency exactly as shown (do not convert). null when shown in yen or unknown",
 				},
 				url: {
 					type: ["string", "null"],
@@ -192,7 +202,7 @@ export const LABEL_REFERENCE_JSON_PROPERTIES = {
 						"URL of the page where this price was seen. null when not available. Never invent a URL.",
 				},
 			},
-			required: ["source", "amount_jpy", "url"],
+			required: ["source", "amount_jpy", "currency", "amount", "url"],
 			additionalProperties: false,
 		},
 		description:
@@ -325,8 +335,8 @@ const LABEL_OUTPUT_FIELD_RULES = [
 	'   - "reference_links": 参考にしたページの一覧(最大3件)。各要素は { "title": ページのタイトル(原語のまま。分からなければ null), "url": 実際に開いたページのURL }。',
 	"     生産者の公式サイト・ワインデータベース・輸入元の商品ページなど、裏取りに使ったページだけを入れる。",
 	"     実際に開いていないURLを書かない。参考にしたページが無ければ空配列。",
-	'   - "prices": このワインの販売価格の一覧(最大3件)。各要素は { "source": 店・サイト名(例: ドメイン名), "amount_jpy": 日本円の整数, "url": 価格を見たページのURL(無ければ null) }。',
-	"     日本円で表示されていたものだけを入れる(外貨は換算せず、amount_jpy を null にする)。見つからなければ空配列。",
+	'   - "prices": このワインの販売価格の一覧(最大3件)。各要素は { "source": 店・サイト名(例: ドメイン名), "amount_jpy": 日本円の整数, "currency": 外貨のISOコード(例: USD, EUR), "amount": 外貨の金額, "url": 価格を見たページのURL(無ければ null) }。',
+	"     日本円で表示されていたものは amount_jpy に入れ、currency と amount は null にする。外貨で表示されていたものは換算せず、currency と amount に表示どおりに入れて amount_jpy は null にする。見つからなければ空配列。",
 	'   - "sources": 上記7フィールドそれぞれの根拠。キーはフィールド名と同じで、値は',
 	'     { "origin": "photo" | "web" | "photo_and_web" | "unknown", "url": 文字列 or null }。',
 	'     - "photo": 写真から読み取ってそのまま採用した',
@@ -559,6 +569,8 @@ const priceItemSchema = z
 	.object({
 		source: z.union([z.string(), z.number()]).nullish().catch(null),
 		amount_jpy: z.union([z.number(), z.string()]).nullish().catch(null),
+		currency: z.union([z.string(), z.number()]).nullish().catch(null),
+		amount: z.union([z.number(), z.string()]).nullish().catch(null),
 		url: z.union([z.string(), z.number()]).nullish().catch(null),
 	})
 	.nullish()
@@ -600,14 +612,55 @@ export interface LabelReferenceLink {
 	url: string;
 }
 
-/** 販売価格1件(アプリ側の表現)。 */
+/** 販売価格1件(アプリ側の表現)。円建ては `amountJpy`、外貨は `currency` + `amount` に入る。 */
 export interface LabelPrice {
 	/** 店・サイト名(例: ドメイン名)。 */
 	source: string;
-	/** 日本円の整数。不明なら持たない。 */
+	/** 日本円の整数。不明なら持たない。**円建てのときだけ持つ**(外貨の円換算はしない)。 */
 	amountJpy?: number;
+	/**
+	 * 外貨のISO 4217コード(大文字3文字。例: USD, EUR)。円建て・不明なら持たない。
+	 * `amount` と対で持つ。
+	 */
+	currency?: string;
+	/** `currency` 建ての金額(表示どおり。小数ありうる)。円建て・不明なら持たない。 */
+	amount?: number;
 	/** 価格を見たページのURL(http/https のみ)。無ければ持たない。 */
 	url?: string;
+}
+
+/**
+ * 通貨記号で表示する外貨。ここに無いコードは `金額 CODE` の形で出す
+ * (例: `25 CHF`)。JPY は `amountJpy` 側で扱うので表示ここを通らないが、
+ * 混入時の防御として `円` に倒す。
+ */
+const PRICE_CURRENCY_SYMBOLS: Record<string, string> = {
+	USD: "$",
+	EUR: "€",
+	GBP: "£",
+	JPY: "¥",
+};
+
+/** 価格1件の表示文(`2,000円` / `$25` / `€18` / `価格不明`)。表示仕様のSSOT。 */
+export function formatLabelPrice(price: LabelPrice): string {
+	if (price.amountJpy != null) {
+		return `${price.amountJpy.toLocaleString("ja-JP")}円`;
+	}
+	if (price.currency != null && price.amount != null) {
+		const grouped = price.amount.toLocaleString("en-US", {
+			maximumFractionDigits: 2,
+		});
+		if (price.currency === "JPY") return `${grouped}円`;
+		const symbol = PRICE_CURRENCY_SYMBOLS[price.currency];
+		if (symbol) return `${symbol}${grouped}`;
+		return `${grouped} ${price.currency}`;
+	}
+	return "価格不明";
+}
+
+/** 価格1件の同一性キー。重複潰し・React の key を1箇所から導出する。 */
+export function labelPriceKey(price: LabelPrice): string {
+	return `${price.source}|${price.amountJpy ?? ""}|${price.currency ?? ""}|${price.amount ?? ""}`;
 }
 
 /** モデル出力を正規化した抽出結果。未読取は undefined。 */
@@ -778,9 +831,10 @@ export function normalizeReferenceLinks(input: unknown): LabelReferenceLink[] {
 
 /**
  * 価格一覧の正規化。**source が無い行・金額が読めない行は落とす**。
- * URLはあるものだけ http/https を残し、読めないものはURLだけ落として行は残す
- * (価格そのものが情報のため)。同じ店・同じ金額の重複を潰し、上限で切り捨てる。
- * 決して throw しない。
+ * 金額は円建て(`amount_jpy`)か外貨(`currency` + `amount`)のどちらかが
+ * 読めれば行を残す(両方無ければ落とす)。URLはあるものだけ http/https を残し、
+ * 読めないものはURLだけ落として行は残す(価格そのものが情報のため)。
+ * 同じ店・同じ金額の重複を潰し、上限で切り捨てる。決して throw しない。
  */
 export function normalizePrices(input: unknown): LabelPrice[] {
 	const items = Array.isArray(input) ? input : [input];
@@ -791,15 +845,32 @@ export function normalizePrices(input: unknown): LabelPrice[] {
 		const rec = raw as {
 			source?: unknown;
 			amount_jpy?: unknown;
+			currency?: unknown;
+			amount?: unknown;
 			url?: unknown;
 		};
 		const source = cleanText(
 			rec.source == null ? undefined : String(rec.source),
 		)?.slice(0, PRICE_SOURCE_MAX);
 		if (!source) continue;
-		const amount = normalizePriceAmount(rec.amount_jpy);
-		if (amount == null) continue;
-		const key = `${source}|${amount}`;
+		let amountJpy = normalizePriceAmount(rec.amount_jpy);
+		let currency = normalizeCurrencyCode(rec.currency);
+		let amount = normalizeForeignAmount(rec.amount);
+		// JPY を currency 側に書いてきた回は円建てに畳む(amount_jpy が円建ての正とする)。
+		if (currency === "JPY") {
+			if (amountJpy == null && amount != null) {
+				amountJpy = normalizePriceAmount(Math.trunc(amount));
+			}
+			currency = undefined;
+			amount = undefined;
+		}
+		if (amountJpy == null && (currency == null || amount == null)) continue;
+		const price: LabelPrice = {
+			source,
+			...(amountJpy != null ? { amountJpy } : {}),
+			...(currency != null && amount != null ? { currency, amount } : {}),
+		};
+		const key = labelPriceKey(price);
 		if (seen.has(key)) continue;
 		seen.add(key);
 		const url =
@@ -810,8 +881,7 @@ export function normalizePrices(input: unknown): LabelPrice[] {
 						return isHttpUrl(trimmed) ? trimmed : undefined;
 					})();
 		out.push({
-			source,
-			amountJpy: amount,
+			...price,
 			...(url ? { url } : {}),
 		});
 		if (out.length >= LABEL_PRICES_MAX) break;
@@ -836,6 +906,39 @@ function normalizePriceAmount(value: unknown): number | null {
 	if (!Number.isFinite(n)) return null;
 	const amount = Math.trunc(n);
 	return amount >= 1 && amount <= PRICE_MAX ? amount : null;
+}
+
+/**
+ * 外貨コードをISO 4217の大文字3文字に寄せる。3文字の英字でなければ null
+ * (モデルの造語・通貨記号だけの記載は落とす)。JPY は呼び出し側が円建てへ畳む。
+ */
+function normalizeCurrencyCode(value: unknown): string | undefined {
+	if (typeof value !== "string" && typeof value !== "number") return undefined;
+	const code = String(value).trim().toUpperCase();
+	return /^[A-Z]{3}$/.test(code) ? code : undefined;
+}
+
+/**
+ * 外貨の金額を寄せる。小数(セント等)がありうるので小数第2位までに丸める。
+ * 数値化できない・0以下・上限超えは undefined(呼び出し側で行ごと落とす)。
+ * 上限は円建てと同じ PRICE_MAX を生の数値に適用する(表示専用のため為替換算しない)。
+ */
+function normalizeForeignAmount(value: unknown): number | undefined {
+	let n: number;
+	if (typeof value === "number") {
+		n = value;
+	} else if (typeof value === "string") {
+		// "$24.99" / "€18" / "1,299.99" のような表記も拾う。桁区切りのカンマを
+		// 落としてから小数として読む(通貨記号・空白は除去)。
+		const cleaned = value.replace(/,/g, "").replace(/[^0-9.]/g, "");
+		if (!cleaned) return undefined;
+		n = Number.parseFloat(cleaned);
+	} else {
+		return undefined;
+	}
+	if (!Number.isFinite(n)) return undefined;
+	const amount = Math.round(n * 100) / 100;
+	return amount > 0 && amount <= PRICE_MAX ? amount : undefined;
 }
 
 /** 1フィールドぶんの根拠(アプリ側の表現)。 */
@@ -957,7 +1060,7 @@ export function mergeExtractions(
 		merged.prices = unionCapped(
 			merged.prices,
 			e.prices,
-			(p) => `${p.source}|${p.amountJpy ?? ""}`,
+			(p) => labelPriceKey(p),
 			LABEL_PRICES_MAX,
 		);
 		for (const g of e.grapeVarieties) {
