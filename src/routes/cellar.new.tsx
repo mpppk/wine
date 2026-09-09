@@ -142,6 +142,20 @@ function CellarNewPage() {
 				...(labelJob.sighting
 					? { sighting: draftFromLabelJobSighting(labelJob.sighting) }
 					: {}),
+				// 参考サイト・市場価格も記録フォームへ引き継ぐ(保存はフォーム側)。
+				...(labelJob.suggestions.referenceLinks?.length ||
+				labelJob.suggestions.prices?.length
+					? {
+							references: {
+								...(labelJob.suggestions.referenceLinks?.length
+									? { referenceLinks: labelJob.suggestions.referenceLinks }
+									: {}),
+								...(labelJob.suggestions.prices?.length
+									? { prices: labelJob.suggestions.prices }
+									: {}),
+							},
+						}
+					: {}),
 			};
 		}
 		return wineListPlan.route
@@ -240,6 +254,9 @@ function CellarNewPage() {
 						// 撮影日を入力していれば、その内容が初期値に入っている。
 						places={places}
 						{...(manual.sighting ? { initialSighting: manual.sighting } : {})}
+						{...(manual.references
+							? { initialReferences: manual.references }
+							: {})}
 						// 保存できた時点で、このジョブが解析に使った写真を引き継ぐ(#474)。
 						{...(labelJob?.jobId ? { sourceLabelJobId: labelJob.jobId } : {})}
 						// その写真を保存前に見せる(#498)。読み取り専用——実体は R2 にあり、

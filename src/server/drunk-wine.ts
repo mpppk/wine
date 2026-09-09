@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { CELLAR_FILTER_IDS } from "#/lib/drunk-wine/filter";
 import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
+import { drunkWineReferenceInputs } from "#/lib/drunk-wine/references";
 import {
 	deleteDrunkWinesInput,
 	drunkWineFields,
@@ -35,7 +36,9 @@ export const createDrunkWine = createServerFn({ method: "POST" })
 
 export const updateDrunkWine = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
-	.inputValidator(updateDrunkWineInput)
+	// 解析の参考サイト・市場価格。指定されたときだけ置き換える(未指定は変更しない)。
+	// 空配列で「取得済みを消す」こともできる。形の定義は `drunkWineReferenceInputs`。
+	.inputValidator(updateDrunkWineInput.extend(drunkWineReferenceInputs))
 	.handler(({ data, context }) =>
 		drunkWineService.updateDrunkWine(context.user.id, data),
 	);

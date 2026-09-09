@@ -14,13 +14,16 @@ import {
 import { DrunkWineFields } from "#/components/cellar/DrunkWineFields";
 import {
 	buildCreateInput,
+	buildReferencesPatch,
 	buildTastingInput,
 	buildUpdatePatch,
 	type DrunkWineFieldsValue,
 	EMPTY_TASTING_DRAFT,
 	fieldsValueFromEntry,
 	hasUnsavedDrunkWineChanges,
+	mergeReferencesValue,
 	toFormState,
+	type WineReferencesValue,
 	type WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
 import { LabelSuggestionDiffDialog } from "#/components/cellar/LabelSuggestionDiffDialog";
@@ -49,6 +52,7 @@ import {
 	LABEL_JOB_BADGE_QUERY_KEY,
 	useLabelAnalysisJob,
 } from "#/components/cellar/use-label-analysis-job";
+import { WineReferencesEditor } from "#/components/cellar/WineReferencesEditor";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import { FormField, FormSection } from "#/components/ui/form-section";
@@ -56,7 +60,11 @@ import { Input } from "#/components/ui/input";
 import { LiveRegion } from "#/components/ui/live-region";
 import { TAP_TARGET_44 } from "#/lib/a11y";
 import { estimateLabelReserveCharge } from "#/lib/ai/config";
-import type { LabelSuggestions } from "#/lib/ai/label-extraction";
+import type {
+	LabelPrice,
+	LabelReferenceLink,
+	LabelSuggestions,
+} from "#/lib/ai/label-extraction";
 import { isTerminalLabelJobStatus } from "#/lib/ai/label-job";
 import { costToCredits } from "#/lib/credit/credit-math";
 import {
@@ -73,6 +81,10 @@ import {
 	PHOTO_THUMB_MAX_DIMENSION,
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
+import {
+	normalizeStoredMarketPrices,
+	normalizeStoredReferenceLinks,
+} from "#/lib/drunk-wine/references";
 import { postImageForm } from "#/lib/images/form-client";
 import { imageKeyFromPath, imagePathForKey } from "#/lib/images/signed-url";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
@@ -113,6 +125,15 @@ export interface DrunkWineFormProps {
 	 * `places` を渡していないときは意味を持たない。
 	 */
 	initialSighting?: WineSightingDraft;
+	/**
+	 * 新規作成時の参考サイト・市場価格の初期値(一括登録からの引き継ぎ)。
+	 * 単一ワイン判定の handoff(`references`)や、受け取った解析ジョブの候補が
+	 * 入る。編集時は `entry` の保存値が初期値になるので渡さない。
+	 */
+	initialReferences?: {
+		referenceLinks?: LabelReferenceLink[];
+		prices?: LabelPrice[];
+	};
 	/**
 	 * 完了したエチケット解析ジョブの結果を、開いた直後に差分ダイアログで提示する(#472)。
 	 *
@@ -202,6 +223,7 @@ export function DrunkWineForm({
 	initialPhotoFiles,
 	places,
 	initialSighting,
+	initialReferences,
 	pendingLabelJob,
 	sourceLabelJobId,
 	sourceLabelJobPhotoUrls,
@@ -221,6 +243,17 @@ export function DrunkWineForm({
 	const [sightingDraft, setSightingDraft] = useState<WineSightingDraft>(
 		() => (entry ? undefined : initialSighting) ?? EMPTY_SIGHTING_DRAFT,
 	);
+	// 参考サイト・市場価格。銘柄に属する参考情報で、新規・編集の両方で持つ。
+	// 初期値は編集時は保存値、新規作成時は引き継ぎ(単一ワイン判定・受け取った
+	// 解析ジョブ)。再解析の結果は差分ダイアログの確定でマージする。
+	const [references, setReferences] = useState<WineReferencesValue>(() => ({
+		referenceLinks: normalizeStoredReferenceLinks(
+			entry?.referenceLinks ?? initialReferences?.referenceLinks,
+		),
+		prices: normalizeStoredMarketPrices(
+			entry?.prices ?? initialReferences?.prices,
+		),
+	}));
 	// 写真は複数枚。表示順=配列順、先頭が代表(サムネイル)。既存写真はキーで保持する
 	const [photos, setPhotos] = useState<PhotoItem[]>(() => {
 		if (entry) {
@@ -270,6 +303,11 @@ export function DrunkWineForm({
 			sighting: sightingDraft,
 			initialPhotoKeys: (baseline?.photoUrls ?? []).map(imageKeyFromPath),
 			photoKeys: photos.map((p) => (p.kind === "existing" ? p.key : null)),
+			initialReferences: {
+				referenceLinks: baseline?.referenceLinks ?? [],
+				prices: baseline?.prices ?? [],
+			},
+			references,
 		});
 
 	// キャッシュバスタは**直近に保存した内容**を基準にする。解析の投入で保存した回
@@ -353,6 +391,9 @@ export function DrunkWineForm({
 		referenceLinks?: LabelSuggestions["referenceLinks"];
 		prices?: LabelSuggestions["prices"];
 	}>({});
+	// 差分ダイアログの開閉。項目の差分が無く参考情報だけの回もあるため、
+	// `labelDiffs.length > 0` では開閉を表せない。
+	const [labelDialogOpen, setLabelDialogOpen] = useState(false);
 
 	// 解析前に「この写真枚数でいくら要るか」を出す。コスト基準の計上では経路によって
 	// 消費が 3 / 39 / 275 クレジットと2桁変わるので、押してから残高不足で弾かれると
@@ -381,8 +422,21 @@ export function DrunkWineForm({
 			{},
 		);
 		update(patch);
+		// 参考サイト・価格は差分の選択対象ではなく、確定したら和集合で足す
+		// (手で足した行を消さない)。「そのままにする」を選んだ回は捨てられる。
+		setReferences((prev) =>
+			mergeReferencesValue(prev, {
+				...(labelReferences.referenceLinks?.length
+					? { referenceLinks: labelReferences.referenceLinks }
+					: {}),
+				...(labelReferences.prices?.length
+					? { prices: labelReferences.prices }
+					: {}),
+			}),
+		);
 		setLabelDiffs([]);
 		setLabelReferences({});
+		setLabelDialogOpen(false);
 		setAnalyzeNotice(
 			selected.length > 0
 				? `エチケットから入力しました: ${selected.map((d) => d.label).join("、")}`
@@ -404,17 +458,31 @@ export function DrunkWineForm({
 		// 再解析結果が一切伝わらずクレジットだけ消費される(#362)。差分がある項目を
 		// ダイアログで提示し、反映するかどうかをユーザに選ばせる。
 		const diffs = buildLabelDiffs(values, suggestions);
-		if (diffs.length === 0) {
+		const hasReferences =
+			(suggestions.referenceLinks?.length ?? 0) > 0 ||
+			(suggestions.prices?.length ?? 0) > 0;
+		// 項目の差分が無くても参考情報があれば提示する(再解析での補充用)。
+		// 参考情報だけの回もクレジットは消費されているので黙って捨てない。
+		if (diffs.length === 0 && !hasReferences) {
 			setAnalyzeNotice(
 				"今回の解析結果と現在の入力に差分はありませんでした(クレジットは消費されています)",
 			);
 			return;
 		}
 		setLabelDiffs(diffs);
-		setLabelReferences({
-			referenceLinks: suggestions.referenceLinks,
-			prices: suggestions.prices,
-		});
+		setLabelReferences(
+			hasReferences
+				? {
+						...(suggestions.referenceLinks?.length
+							? { referenceLinks: suggestions.referenceLinks }
+							: {}),
+						...(suggestions.prices?.length
+							? { prices: suggestions.prices }
+							: {}),
+					}
+				: {},
+		);
+		setLabelDialogOpen(true);
 	};
 
 	/** 添付中の写真を解析ソースへ。既存写真はURL(同一オリジン)、新規はFile。 */
@@ -437,21 +505,41 @@ export function DrunkWineForm({
 			// 更新: 変更したフィールドだけを送る(null=クリア)。
 			// 全キー未指定のパッチは空UPDATEになるので送信自体をスキップする
 			const patch = buildUpdatePatch(existing, state);
-			saved = hasDrunkWinePatch(patch)
-				? await updateDrunkWine({ data: { id: existing.id, ...patch } })
+			const referencesPatch = buildReferencesPatch(
+				{
+					referenceLinks: existing.referenceLinks,
+					prices: existing.prices,
+				},
+				references,
+			);
+			const hasChanges =
+				hasDrunkWinePatch(patch) || Object.keys(referencesPatch).length > 0;
+			saved = hasChanges
+				? await updateDrunkWine({
+						data: { id: existing.id, ...patch, ...referencesPatch },
+					})
 				: existing;
 		} else {
 			// 新規作成は銘柄・飲用記録・目撃記録を1リクエストで作る(サービス層が
 			// db.batch で原子化する)。写真だけは R2 キーが entryId 依存なので
 			// 2段階のまま。
 			saved = await createDrunkWine({
-				data: buildCreateInput(
-					state,
-					buildTastingInput(tastingDraft),
-					// 目撃記録の入力欄を出していない画面(編集)では下書きが空のままなので
-					// undefined になり、記録は作られない
-					buildCreateEntrySightingInput(sightingDraft),
-				),
+				data: {
+					...buildCreateInput(
+						state,
+						buildTastingInput(tastingDraft),
+						// 目撃記録の入力欄を出していない画面(編集)では下書きが空のままなので
+						// undefined になり、記録は作られない
+						buildCreateEntrySightingInput(sightingDraft),
+					),
+					// 参考サイト・市場価格は銘柄に属するので一緒に送る(空なら送らない)。
+					...(references.referenceLinks.length > 0
+						? { referenceLinks: references.referenceLinks }
+						: {}),
+					...(references.prices.length > 0
+						? { prices: references.prices }
+						: {}),
+				},
 			});
 		}
 		savedRef.current = saved;
@@ -488,6 +576,10 @@ export function DrunkWineForm({
 		);
 		setTastingDraft(EMPTY_TASTING_DRAFT);
 		setSightingDraft(EMPTY_SIGHTING_DRAFT);
+		setReferences({
+			referenceLinks: saved.referenceLinks,
+			prices: saved.prices,
+		});
 		setSavedEntry(saved);
 	};
 
@@ -961,6 +1053,10 @@ export function DrunkWineForm({
 				}
 			/>
 
+			{/* 参考サイト・市場価格は銘柄に属する参考情報。新規・編集の両方で
+			    追加・削除できる。再解析の結果は差分ダイアログの確定で足される */}
+			<WineReferencesEditor value={references} onChange={setReferences} />
+
 			{/* 送信失敗は対処が要るので assertive。空でもコンテナを残さないと読み上げられない(#239) */}
 			<LiveRegion tone="alert" className="empty:-mt-6">
 				{error && <p className="text-sm text-destructive">{error}</p>}
@@ -999,7 +1095,7 @@ export function DrunkWineForm({
 			/>
 
 			<LabelSuggestionDiffDialog
-				open={labelDiffs.length > 0}
+				open={labelDialogOpen}
 				diffs={labelDiffs}
 				references={labelReferences}
 				onApply={applySelectedLabelDiffs}
@@ -1007,6 +1103,7 @@ export function DrunkWineForm({
 					if (!open) {
 						setLabelDiffs([]);
 						setLabelReferences({});
+						setLabelDialogOpen(false);
 					}
 				}}
 			/>

@@ -62,6 +62,18 @@ export const storedMarketPricesInput = z
 	.optional();
 
 /**
+ * 銘柄の作成・更新・一括登録の入力に足す参考情報の形。`drunkWineFields` には
+ * 入れない——あちらはフォームの差分パッチ規約(`fields.ts`)と1対1で、JSON配列は
+ * その規約(文字列/数値/品種IDのみ)に載らないため。参考情報は飲用・目撃記録と
+ * 同じく「銘柄に添える別入力」として合成する(`place/schema.ts`、
+ * `server/drunk-wine.ts`、`import-batch/schema.ts` がここを参照する)。
+ */
+export const drunkWineReferenceInputs = {
+	referenceLinks: storedReferenceLinksInput,
+	prices: storedMarketPricesInput,
+};
+
+/**
  * 参考サイトの正規化。URLが無い行・http/https でない行は落とし、同じURLの
  * 重複を潰して上限で切り捨てる。決して throw しない。
  */

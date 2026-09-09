@@ -9,6 +9,10 @@ import {
 } from "lucide-react";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import {
+	PriceList,
+	ReferenceLinksList,
+} from "#/components/cellar/ReferenceLinksList";
+import {
 	WinePhotoGallery,
 	ZoomablePhoto,
 } from "#/components/cellar/WinePhotoGallery";
@@ -269,6 +273,15 @@ function CellarDetailPage() {
 					</p>
 				</section>
 			)}
+
+			{/*
+			 * 解析の参考サイト・市場価格。銘柄に属する参考情報で、カードの展開部・
+			 * 差分ダイアログと同じ共通コンポーネントから出す(表示のドリフト防止)。
+			 */}
+			{entry.referenceLinks.length > 0 && (
+				<ReferenceLinksList links={entry.referenceLinks} />
+			)}
+			{entry.prices.length > 0 && <PriceList prices={entry.prices} />}
 
 			<TastingSection tastings={tastings} />
 			<SightingSection sightings={sightings} version={entry.updatedAt} />
