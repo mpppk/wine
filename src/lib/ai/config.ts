@@ -268,16 +268,6 @@ export const AI_LABEL_GPT_MODEL = "gpt-5.6-luna";
 export const AI_LABEL_GPT_MAX_OUTPUT_TOKENS = 24_000;
 
 /**
- * 推論の深さ(Responses API の reasoning.effort)。この経路の精度は「web検索で裏を取る」
- * ことから来ており、長い内省ではない。effort を上げると reasoning が出力枠を食って
- * 本文JSONが途切れる(incomplete)リスクとトークン消費が増えるため既定は低めにする。
- *
- * ユーザがプロフィール画面で low/medium/high を選べる(`preferredReasoningEffort`)。
- * ここは後方互換の既定値として残す。
- */
-export const AI_LABEL_GPT_REASONING_EFFORT = "low";
-
-/**
  * web検索結果をどれだけコンテキストに載せるか(web_search ツールの search_context_size)。
  * Claude経路の max_uses と違い OpenAI は検索回数を直接は縛れないので、原価の上限化は
  * この値と max_output_tokens で行う。medium は既定値。
@@ -512,8 +502,8 @@ export function toReasoningEffortKey(
  * `enabled` は SDK で非推奨警告が出るが、 adaptive には budget 指定が無く原価を
  * 上限化できないため、コスト予測可能なこちらを使う。
  */
-export const AI_CLAUDE_THINKING_BUDGET_MEDIUM = 8_000;
-export const AI_CLAUDE_THINKING_BUDGET_HIGH = 12_000;
+const AI_CLAUDE_THINKING_BUDGET_MEDIUM = 8_000;
+const AI_CLAUDE_THINKING_BUDGET_HIGH = 12_000;
 
 /**
  * effort に対応する Claude の thinking 指定。low は `undefined`
@@ -550,7 +540,8 @@ const REASONING_EFFORT_OUTPUT_MULTIPLIER: Record<ReasoningEffortKey, number> = {
 };
 
 /** 見積関数の effort 引数を正規化する(不正値・未設定は既定へ)。 */
-export function normalizeReasoningEffort(value: unknown): ReasoningEffortKey {
+/** 見積関数の effort 引数を正規化する(不正値・未設定は既定へ)。 */
+function normalizeReasoningEffort(value: unknown): ReasoningEffortKey {
 	return toReasoningEffortKey(value) ?? DEFAULT_REASONING_EFFORT;
 }
 
@@ -711,17 +702,6 @@ const AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE = 3_000;
  * (`AI_LABEL_GPT_MAX_OUTPUT_TOKENS` のコメント参照)。
  */
 const AI_WINE_LIST_GPT_BASE_OUTPUT_TOKEN_ESTIMATE = 4_000;
-
-/**
- * GPT経路の推論の深さ(Responses API の reasoning.effort)。この経路の精度は
- * 「写真を丁寧に読む」ことから来ており、長い内省ではない。effort を上げると
- * reasoning が出力枠を食い、銘柄数に比例して伸びる本文JSONが途中で切れる
- * (status="incomplete")リスクだけが増えるため既定は低めにする。
- *
- * ユーザがプロフィール画面で low/medium/high を選べる(`preferredReasoningEffort`)。
- * ここは後方互換の既定値として残す。
- */
-export const AI_WINE_LIST_GPT_REASONING_EFFORT = "low";
 
 /**
  * 画像1枚あたりの追加出力トークン見積。**この経路だけ出力が銘柄数に比例して伸びる**
