@@ -1,4 +1,3 @@
-import { z } from "zod";
 import {
 	LABEL_PRICES_MAX,
 	LABEL_REFERENCE_LINKS_MAX,
@@ -16,62 +15,16 @@ import {
 // 書き直すと、後発の経路で適用漏れが起きる(#166 / #174 / #185 と同型)。
 // 上限(各3件)・同一性キーも同じ定義を指す。
 //
-// DB列の追加・永続化は別PR(マイグレーション)のため、このモジュールは純ロジック
-// (API境界の形・正規化・統合)のみを持つ。DBに触れない。
+// API境界の形は `reference-inputs.ts` に置く。あちらは zod のみのリーフで、
+// `place/schema.ts`(`ai/config` から参照される)から合成する。このファイルが
+// `label-extraction` のランタイムを import するため、形までここに置くと
+// 循環してクライアントで TDZ エラーになる。DBに触れないのは同じ。
 
 /** 保存する参考サイトの上限。解析の出力上限と同じ値を使う。 */
 export const STORED_REFERENCE_LINKS_MAX = LABEL_REFERENCE_LINKS_MAX;
 
 /** 保存する市場価格の上限。同上。 */
 export const STORED_MARKET_PRICES_MAX = LABEL_PRICES_MAX;
-
-/**
- * API境界で受ける参考サイト1件の形。アプリ側の表現もモデルの生出力も受ける。
- * 意味的な検証(URLの有無・http/https)は `normalizeStoredReferenceLinks` 側が
- * 行い、不正行は落とす。
- */
-const storedReferenceLinkItemInput = z.object({
-	title: z.union([z.string(), z.number()]).nullish(),
-	url: z.union([z.string(), z.number()]).nullish(),
-});
-
-/** 参考サイトの一覧入力。正規化で上限に切り詰めるので、ここでは余裕を持って受ける。 */
-export const storedReferenceLinksInput = z
-	.array(storedReferenceLinkItemInput)
-	.max(10)
-	.optional();
-
-/**
- * API境界で受ける市場価格1件の形。アプリ側の表現(camelCase: `amountJpy`)も
- * モデルの生出力(snake_case: `amount_jpy`)も受ける。どちらかが読めれば行を残し、
- * 両方無ければ `normalizeStoredMarketPrices` が落とす。
- */
-const storedMarketPriceItemInput = z.object({
-	source: z.union([z.string(), z.number()]).nullish(),
-	amount_jpy: z.union([z.number(), z.string()]).nullish(),
-	amountJpy: z.union([z.number(), z.string()]).nullish(),
-	currency: z.union([z.string(), z.number()]).nullish(),
-	amount: z.union([z.number(), z.string()]).nullish(),
-	url: z.union([z.string(), z.number()]).nullish(),
-});
-
-/** 市場価格の一覧入力。同上。 */
-export const storedMarketPricesInput = z
-	.array(storedMarketPriceItemInput)
-	.max(10)
-	.optional();
-
-/**
- * 銘柄の作成・更新・一括登録の入力に足す参考情報の形。`drunkWineFields` には
- * 入れない——あちらはフォームの差分パッチ規約(`fields.ts`)と1対1で、JSON配列は
- * その規約(文字列/数値/品種IDのみ)に載らないため。参考情報は飲用・目撃記録と
- * 同じく「銘柄に添える別入力」として合成する(`place/schema.ts`、
- * `server/drunk-wine.ts`、`import-batch/schema.ts` がここを参照する)。
- */
-export const drunkWineReferenceInputs = {
-	referenceLinks: storedReferenceLinksInput,
-	prices: storedMarketPricesInput,
-};
 
 /**
  * 参考サイトの正規化。URLが無い行・http/https でない行は落とし、同じURLの

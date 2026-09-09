@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { calendarDateSchema } from "#/lib/date/calendar-date";
-import { drunkWineReferenceInputs } from "#/lib/drunk-wine/references";
+import { drunkWineReferenceInputs } from "#/lib/drunk-wine/reference-inputs";
 import {
 	createDrunkWineInput,
 	PRICE_MAX,

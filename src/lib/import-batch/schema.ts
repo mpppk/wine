@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AI_WINE_LIST_MAX_WINES } from "#/lib/ai/config";
 import { calendarDateSchema } from "#/lib/date/calendar-date";
-import { drunkWineReferenceInputs } from "#/lib/drunk-wine/references";
+import { drunkWineReferenceInputs } from "#/lib/drunk-wine/reference-inputs";
 import {
 	createWineTastingInput,
 	drunkWineFields,

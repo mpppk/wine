@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { CELLAR_FILTER_IDS } from "#/lib/drunk-wine/filter";
 import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
-import { drunkWineReferenceInputs } from "#/lib/drunk-wine/references";
+import { drunkWineReferenceInputs } from "#/lib/drunk-wine/reference-inputs";
 import {
 	deleteDrunkWinesInput,
 	drunkWineFields,

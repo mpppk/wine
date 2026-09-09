@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+	storedMarketPricesInput,
+	storedReferenceLinksInput,
+} from "./reference-inputs";
+import {
 	mergeStoredMarketPrices,
 	mergeStoredReferenceLinks,
 	normalizeStoredMarketPrices,
 	normalizeStoredReferenceLinks,
 	STORED_MARKET_PRICES_MAX,
 	STORED_REFERENCE_LINKS_MAX,
-	storedMarketPricesInput,
-	storedReferenceLinksInput,
 } from "./references";
 
 // 解析の参考サイト・市場価格の保存用SSOT。DB列の追加は別PRのため、ここでは
