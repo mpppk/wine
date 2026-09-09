@@ -31,6 +31,11 @@ export interface WineReferencesEditorProps {
 	onChange: (next: WineReferencesValue) => void;
 	/** 入力欄の DOM id の接頭辞(既定 "wine-references")。 */
 	idPrefix?: string;
+	/**
+	 * 入力欄を出すかどうか(既定 true)。一覧だけ見せて追加はボタン式にするときは
+	 * false にする(WineReferencesSection が出し分ける)。false でも削除はできる。
+	 */
+	showInputs?: boolean;
 }
 
 /** 市場価格の通貨の選択肢。JPY=円建て、それ以外は原通貨のまま保存する。 */
@@ -45,18 +50,21 @@ export function WineReferencesEditor({
 	value,
 	onChange,
 	idPrefix = "wine-references",
+	showInputs = true,
 }: WineReferencesEditorProps) {
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex min-w-0 flex-col gap-6">
 			<ReferenceLinksEditor
 				links={value.referenceLinks}
 				onChange={(referenceLinks) => onChange({ ...value, referenceLinks })}
 				idPrefix={idPrefix}
+				showInputs={showInputs}
 			/>
 			<MarketPricesEditor
 				prices={value.prices}
 				onChange={(prices) => onChange({ ...value, prices })}
 				idPrefix={idPrefix}
+				showInputs={showInputs}
 			/>
 		</div>
 	);
@@ -66,10 +74,12 @@ function ReferenceLinksEditor({
 	links,
 	onChange,
 	idPrefix,
+	showInputs,
 }: {
 	links: WineReferencesValue["referenceLinks"];
 	onChange: (next: WineReferencesValue["referenceLinks"]) => void;
 	idPrefix: string;
+	showInputs: boolean;
 }) {
 	const [title, setTitle] = useState("");
 	const [url, setUrl] = useState("");
@@ -108,11 +118,16 @@ function ReferenceLinksEditor({
 			htmlFor={`${idPrefix}-link-url`}
 			description="AIが裏取りに使ったページです。不要なものは削除できます"
 		>
-			<div className="flex flex-col gap-2">
+			<div className="flex min-w-0 flex-col gap-2">
 				{links.length > 0 && (
-					<ul className="flex flex-col gap-1.5">
+					<ul className="flex min-w-0 flex-col gap-1.5">
 						{links.map((link) => (
-							<li key={link.url} className="flex items-center gap-2 text-sm">
+							// 長いタイトルでモバイルの横幅が広がらないよう li まで
+							// min-w-0。a の truncate だけでは抑えきれないため。
+							<li
+								key={link.url}
+								className="flex min-w-0 items-center gap-2 text-sm"
+							>
 								<a
 									href={link.url}
 									target="_blank"
@@ -125,6 +140,7 @@ function ReferenceLinksEditor({
 									type="button"
 									variant="ghost"
 									size="sm"
+									className="shrink-0"
 									aria-label={`参考サイト「${link.title ?? link.url}」を削除`}
 									onClick={() =>
 										onChange(links.filter((l) => l.url !== link.url))
@@ -136,28 +152,36 @@ function ReferenceLinksEditor({
 						))}
 					</ul>
 				)}
-				<div className="flex flex-col gap-2">
-					<Input
-						id={`${idPrefix}-link-title`}
-						value={title}
-						onChange={(e) => setTitle(e.target.value)}
-						placeholder="タイトル(任意)"
-						maxLength={200}
-					/>
-					<div className="flex gap-2">
+				{showInputs && (
+					<div className="flex min-w-0 flex-col gap-2">
 						<Input
-							id={`${idPrefix}-link-url`}
-							value={url}
-							onChange={(e) => setUrl(e.target.value)}
-							placeholder="https://example.com/..."
-							inputMode="url"
-							className="flex-1"
+							id={`${idPrefix}-link-title`}
+							value={title}
+							onChange={(e) => setTitle(e.target.value)}
+							placeholder="タイトル(任意)"
+							maxLength={200}
 						/>
-						<Button type="button" variant="outline" size="sm" onClick={add}>
-							追加
-						</Button>
+						<div className="flex min-w-0 gap-2">
+							<Input
+								id={`${idPrefix}-link-url`}
+								value={url}
+								onChange={(e) => setUrl(e.target.value)}
+								placeholder="https://example.com/..."
+								inputMode="url"
+								className="flex-1"
+							/>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="shrink-0"
+								onClick={add}
+							>
+								追加
+							</Button>
+						</div>
 					</div>
-				</div>
+				)}
 				{error && (
 					<p role="alert" className="text-xs text-destructive">
 						{error}
@@ -172,10 +196,12 @@ function MarketPricesEditor({
 	prices,
 	onChange,
 	idPrefix,
+	showInputs,
 }: {
 	prices: WineReferencesValue["prices"];
 	onChange: (next: WineReferencesValue["prices"]) => void;
 	idPrefix: string;
+	showInputs: boolean;
 }) {
 	const [source, setSource] = useState("");
 	const [amount, setAmount] = useState("");
@@ -229,19 +255,24 @@ function MarketPricesEditor({
 			htmlFor={`${idPrefix}-price-source`}
 			description="AIが見つけた販売価格です。不要なものは削除できます"
 		>
-			<div className="flex flex-col gap-2">
+			<div className="flex min-w-0 flex-col gap-2">
 				{prices.length > 0 && (
-					<ul className="flex flex-col gap-1.5">
+					<ul className="flex min-w-0 flex-col gap-1.5">
 						{prices.map((price) => {
 							const line = `${formatLabelPrice(price)}(${price.source})`;
 							const key = labelPriceKey(price);
 							return (
-								<li key={key} className="flex items-center gap-2 text-sm">
-									<span className="flex-1">{line}</span>
+								// 長い店名で横に広がらないよう min-w-0 + 折り返し。
+								<li
+									key={key}
+									className="flex min-w-0 items-center gap-2 text-sm"
+								>
+									<span className="min-w-0 flex-1 break-words">{line}</span>
 									<Button
 										type="button"
 										variant="ghost"
 										size="sm"
+										className="shrink-0"
 										aria-label={`価格「${line}」を削除`}
 										onClick={() =>
 											onChange(prices.filter((p) => labelPriceKey(p) !== key))
@@ -254,51 +285,59 @@ function MarketPricesEditor({
 						})}
 					</ul>
 				)}
-				<div className="flex flex-col gap-2">
-					<Input
-						id={`${idPrefix}-price-source`}
-						value={source}
-						onChange={(e) => setSource(e.target.value)}
-						placeholder="店・サイト名(例: ドメイン名)"
-						maxLength={100}
-					/>
-					<div className="flex gap-2">
+				{showInputs && (
+					<div className="flex min-w-0 flex-col gap-2">
 						<Input
-							id={`${idPrefix}-price-amount`}
-							value={amount}
-							onChange={(e) => setAmount(e.target.value)}
-							placeholder="金額(例: 2000)"
-							inputMode="decimal"
-							className="flex-1"
+							id={`${idPrefix}-price-source`}
+							value={source}
+							onChange={(e) => setSource(e.target.value)}
+							placeholder="店・サイト名(例: ドメイン名)"
+							maxLength={100}
 						/>
-						<Select value={currency} onValueChange={setCurrency}>
-							<SelectTrigger
-								id={`${idPrefix}-price-currency`}
-								className="w-28"
-								aria-label="通貨"
+						<div className="flex min-w-0 gap-2">
+							<Input
+								id={`${idPrefix}-price-amount`}
+								value={amount}
+								onChange={(e) => setAmount(e.target.value)}
+								placeholder="金額(例: 2000)"
+								inputMode="decimal"
+								className="flex-1"
+							/>
+							<Select value={currency} onValueChange={setCurrency}>
+								<SelectTrigger
+									id={`${idPrefix}-price-currency`}
+									className="w-28 shrink-0"
+									aria-label="通貨"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{PRICE_CURRENCIES.map((c) => (
+										<SelectItem key={c.id} value={c.id}>
+											{c.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="shrink-0"
+								onClick={add}
 							>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{PRICE_CURRENCIES.map((c) => (
-									<SelectItem key={c.id} value={c.id}>
-										{c.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<Button type="button" variant="outline" size="sm" onClick={add}>
-							追加
-						</Button>
+								追加
+							</Button>
+						</div>
+						<Input
+							id={`${idPrefix}-price-url`}
+							value={url}
+							onChange={(e) => setUrl(e.target.value)}
+							placeholder="価格を見たページのURL(任意)"
+							inputMode="url"
+						/>
 					</div>
-					<Input
-						id={`${idPrefix}-price-url`}
-						value={url}
-						onChange={(e) => setUrl(e.target.value)}
-						placeholder="価格を見たページのURL(任意)"
-						inputMode="url"
-					/>
-				</div>
+				)}
 				{error && (
 					<p role="alert" className="text-xs text-destructive">
 						{error}
