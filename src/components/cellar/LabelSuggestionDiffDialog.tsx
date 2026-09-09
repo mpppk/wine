@@ -67,14 +67,25 @@ export function LabelSuggestionDiffDialog({
 			return next;
 		});
 	};
+	// 項目の差分が無く参考情報だけの回もある(再解析での補充用)。その回は
+	// 参考情報の確定のためにボタンを開ける。
+	const hasReferences =
+		(references?.referenceLinks?.length ?? 0) > 0 ||
+		(references?.prices?.length ?? 0) > 0;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>今回の解析結果と現在の入力に差分があります</DialogTitle>
+					<DialogTitle>
+						{diffs.length > 0
+							? "今回の解析結果と現在の入力に差分があります"
+							: "参考サイト・価格が見つかりました"}
+					</DialogTitle>
 					<DialogDescription>
-						反映する項目を選んでください(選ばなかった項目は変更されません)。
+						{diffs.length > 0
+							? "反映する項目を選んでください(選ばなかった項目は変更されません)。"
+							: "銘柄に保存する参考情報です。不要なら「そのままにする」を選んでください。"}
 					</DialogDescription>
 				</DialogHeader>
 				<ul className="flex flex-col gap-3">
@@ -116,10 +127,10 @@ export function LabelSuggestionDiffDialog({
 					<Button
 						type="button"
 						className="w-full"
-						disabled={selected.size === 0}
+						disabled={selected.size === 0 && !hasReferences}
 						onClick={() => onApply(diffs.filter((d) => selected.has(d.key)))}
 					>
-						選んだ項目を反映
+						{diffs.length > 0 ? "選んだ項目を反映" : "参考情報を追加"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

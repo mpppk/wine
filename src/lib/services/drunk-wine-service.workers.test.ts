@@ -1757,6 +1757,174 @@ describe("bulkRegisterFromScan", () => {
 	});
 });
 
+describe("参考サイト・市場価格の保存", () => {
+	it("作成時にそのまま保存し、読み直せる", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, {
+			name: "Muros Antigos Alvarinho",
+			status: "spotted",
+			referenceLinks: [
+				{ title: "公式", url: "https://example.com/a" },
+				{ title: "x", url: "javascript:alert(1)" },
+			],
+			prices: [
+				{
+					source: "Wine Enthusiast",
+					currency: "USD",
+					amount: 20,
+					url: "https://www.wineenthusiast.com/buying-guide/aaa",
+				},
+			],
+		});
+		// 不正行は落として保存される
+		expect(entry.referenceLinks).toEqual([
+			{ title: "公式", url: "https://example.com/a" },
+		]);
+		expect(entry.prices).toEqual([
+			{
+				source: "Wine Enthusiast",
+				currency: "USD",
+				amount: 20,
+				url: "https://www.wineenthusiast.com/buying-guide/aaa",
+			},
+		]);
+
+		const reread = await getDrunkWine(userId, entry.id);
+		expect(reread.referenceLinks).toEqual(entry.referenceLinks);
+		expect(reread.prices).toEqual(entry.prices);
+
+		const row = await wineRow(entry.id);
+		expect(row?.referenceLinks).toEqual([
+			{ title: "公式", url: "https://example.com/a" },
+		]);
+	});
+
+	it("未指定なら空配列(旧行と同じ扱い)", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "Chablis" });
+		expect(entry.referenceLinks).toEqual([]);
+		expect(entry.prices).toEqual([]);
+	});
+
+	it("更新は指定されたときだけ置き換える(空配列で消せる)", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, {
+			name: "Chablis",
+			status: "finished",
+			referenceLinks: [{ url: "https://example.com/a" }],
+			prices: [{ source: "aaa.com", amountJpy: 2000 }],
+		});
+
+		// 参考情報を触らない更新はそのまま残る
+		const kept = await updateDrunkWine(userId, {
+			id: entry.id,
+			producer: "Dauvissat",
+		});
+		expect(kept.producer).toBe("Dauvissat");
+		expect(kept.referenceLinks).toEqual([{ url: "https://example.com/a" }]);
+		expect(kept.prices).toEqual([{ source: "aaa.com", amountJpy: 2000 }]);
+
+		// 指定すれば置き換わる
+		const replaced = await updateDrunkWine(userId, {
+			id: entry.id,
+			prices: [{ source: "bbb.com", currency: "USD", amount: 20 }],
+		});
+		expect(replaced.prices).toEqual([
+			{ source: "bbb.com", currency: "USD", amount: 20 },
+		]);
+		expect(replaced.referenceLinks).toEqual([{ url: "https://example.com/a" }]);
+
+		// 空配列で消せる
+		const cleared = await updateDrunkWine(userId, {
+			id: entry.id,
+			referenceLinks: [],
+			prices: [],
+		});
+		expect(cleared.referenceLinks).toEqual([]);
+		expect(cleared.prices).toEqual([]);
+	});
+
+	it("一括登録の新規作成ではそのまま保存する", async () => {
+		const userId = await freshUser();
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "Muros Antigos Alvarinho" },
+					prices: [{ source: "Wine Enthusiast", currency: "USD", amount: 20 }],
+					referenceLinks: [{ url: "https://example.com/a" }],
+				},
+			],
+		});
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.prices).toEqual([
+			{ source: "Wine Enthusiast", currency: "USD", amount: 20 },
+		]);
+		expect(entries[0]?.referenceLinks).toEqual([
+			{ url: "https://example.com/a" },
+		]);
+	});
+
+	it("一括登録の既存一致では未保存ぶんをマージする(重複は潰す)", async () => {
+		const userId = await freshUser();
+		const existing = await createDrunkWine(userId, {
+			name: "以前飲んだシャブリ",
+			status: "finished",
+			prices: [{ source: "aaa.com", amountJpy: 2000 }],
+		});
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: undefined,
+					existingId: existing.id,
+					prices: [
+						{ source: "aaa.com", amountJpy: 2000 },
+						{ source: "bbb.com", currency: "USD", amount: 20 },
+					],
+				},
+			],
+		});
+
+		const reread = await getDrunkWine(userId, existing.id);
+		expect(reread.prices).toEqual([
+			{ source: "aaa.com", amountJpy: 2000 },
+			{ source: "bbb.com", currency: "USD", amount: 20 },
+		]);
+		// 目撃記録だけ足す振る舞いは変わらない
+		expect(reread.sightingCount).toBe(1);
+	});
+
+	it("0039以前の行(NULL)へもマージできる", async () => {
+		const userId = await freshUser();
+		// サービス層を通さず旧スキーマ相当の行を作る(新列はNULL)
+		const legacyId = `legacy-${userId}`;
+		await db
+			.insert(drunkWine)
+			.values({ id: legacyId, userId, name: "旧ワイン" });
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: undefined,
+					existingId: legacyId,
+					prices: [{ source: "bbb.com", currency: "USD", amount: 20 }],
+				},
+			],
+		});
+
+		const reread = await getDrunkWine(userId, legacyId);
+		expect(reread.referenceLinks).toEqual([]);
+		expect(reread.prices).toEqual([
+			{ source: "bbb.com", currency: "USD", amount: 20 },
+		]);
+	});
+});
+
+// ---- 銘柄ごとの写真の手当て(Issue #473) -----------------------------------
+
 // ---- 銘柄ごとの写真の手当て(Issue #473) -----------------------------------
 // 優先順は「手元の適切な写真 → web画像 → 一括登録の写真」。1段目はクライアントが
 // 目撃記録の photoIndex に載せてくるので、サーバ側で見えるのは2段目と3段目。

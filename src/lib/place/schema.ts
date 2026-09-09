@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { calendarDateSchema } from "#/lib/date/calendar-date";
+import { drunkWineReferenceInputs } from "#/lib/drunk-wine/reference-inputs";
 import {
 	createDrunkWineInput,
 	PRICE_MAX,
@@ -150,6 +151,9 @@ void _updateCoversSightingFields;
  */
 export const createDrunkWineWithSightingInput = createDrunkWineInput.extend({
 	sighting: createEntrySightingInput.optional(),
+	// 解析の参考サイト・市場価格。銘柄に属する参考情報で、そのまま保存する。
+	// 形の定義は `drunkWineReferenceInputs` が単一情報源(一括登録と共有する)。
+	...drunkWineReferenceInputs,
 });
 
 export type CreatePlaceInput = z.infer<typeof createPlaceInput>;
