@@ -9,8 +9,10 @@ import {
 	AI_LABEL_MODEL,
 	AI_LABEL_WEB_MODEL,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_ROUTE_MODELS,
 	estimateLabelReserveCharge,
+	estimateWineListReserveCharge,
 } from "#/lib/ai/config";
 import {
 	type AiUsage,
@@ -29,6 +31,8 @@ import {
 	isWineListAnalysisAvailable,
 	resolveLabelPlan,
 	resolveWineListPlan,
+	restoreLabelPlan,
+	restoreWineListPlan,
 	runLabelAnalysisForJob,
 	runWineListAnalysisForJob,
 } from "./ai-service";
@@ -418,6 +422,145 @@ describe("answerRegionQuestion のモデル解決順序 (#245)", () => {
 		// 予約より前に落ちるので台帳には何も残らない。モデル解決が予約の後にあると、
 		// ここに返却されないままの consume 行(と月次付与の grant 行)が残る。
 		expect(await ledgerRowsOf(userId)).toHaveLength(0);
+	});
+});
+
+// ユーザ設定の推論の深さ(low/medium/high)。plan に載って見積・実行記録に効き、
+// ジョブ行を経由してコンシューマまで届く(再解決しない)。
+describe("plan の effort 解決", () => {
+	async function setEffort(userId: string, value: string | null) {
+		await env.DB.prepare(
+			"UPDATE user SET preferred_reasoning_effort = ? WHERE id = ?",
+		)
+			.bind(value, userId)
+			.run();
+	}
+
+	function stubOpenAiKey() {
+		(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+	}
+
+	it("設定値が plan・見積・実行記録に載る", async () => {
+		const userId = await seedUser();
+		await setEffort(userId, "high");
+		stubOpenAiKey();
+		const plan = await resolveLabelPlan(userId, 1);
+		expect(plan.effort).toBe("high");
+		expect(plan.estimate).toEqual(
+			estimateLabelReserveCharge(plan.route, 1, "high"),
+		);
+		expect(plan.logBase.effort).toBe("high");
+	});
+
+	it("未設定・不正値は low へフォールバックする", async () => {
+		stubOpenAiKey();
+		const unset = await seedUser();
+		expect((await resolveLabelPlan(unset, 1)).effort).toBe("low");
+		const invalid = await seedUser();
+		await setEffort(invalid, "ultra");
+		expect((await resolveLabelPlan(invalid, 1)).effort).toBe("low");
+	});
+
+	it("restore は effort を維持する(再解決しない)", async () => {
+		const userId = await seedUser();
+		await setEffort(userId, "medium");
+		stubOpenAiKey();
+		const plan = await resolveLabelPlan(userId, 2);
+		const restored = restoreLabelPlan({
+			engine: plan.engine,
+			route: plan.route,
+			effort: plan.effort,
+			photoCount: 2,
+			requestId: plan.requestId,
+		});
+		expect(restored.effort).toBe("medium");
+		expect(restored.estimate).toEqual(plan.estimate);
+	});
+
+	it("一括抽出の plan にも effort が載る", async () => {
+		const userId = await seedUser();
+		await setEffort(userId, "medium");
+		stubOpenAiKey();
+		const plan = await resolveWineListPlan(userId, 1);
+		expect(plan.route).toBe("gpt-luna");
+		expect(plan.effort).toBe("medium");
+		expect(plan.estimate).toEqual(
+			estimateWineListReserveCharge(plan.route, 1, "medium"),
+		);
+		const restored = restoreWineListPlan({
+			route: plan.route,
+			effort: plan.effort,
+			photoCount: 1,
+			requestId: plan.requestId,
+		});
+		expect(restored.effort).toBe("medium");
+	});
+
+	it("high の設定は一括GPTリクエストの reasoning.effort と上限に載る", async () => {
+		const userId = await seedUser();
+		await setEffort(userId, "high");
+		const bodies: string[] = [];
+		(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+			if (typeof init?.body === "string") bodies.push(init.body);
+			return openaiResponse(
+				{
+					wines: [
+						{
+							wine_name: "Chablis",
+							producer: null,
+							vintage: null,
+							appellation: null,
+							region: null,
+							grape_varieties: [],
+							price: null,
+							photo_indexes: [0],
+						},
+					],
+					truncated: false,
+				},
+				{ input_tokens: 100, output_tokens: 20 },
+			);
+		});
+		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+
+		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false });
+		expect(bodies).toHaveLength(1);
+		const body = JSON.parse(bodies[0] ?? "{}") as {
+			reasoning?: unknown;
+			max_output_tokens?: unknown;
+		};
+		expect(body.reasoning).toEqual({ effort: "high" });
+		expect(body.max_output_tokens).toBe(AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS);
+	});
+
+	it("medium の設定はClaudeリクエストの thinking budget に載る", async () => {
+		const userId = await seedPremiumUser();
+		await setEffort(userId, "medium");
+		const bodies: string[] = [];
+		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
+			"sk-ant-test";
+		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+			if (typeof init?.body === "string") bodies.push(init.body);
+			return anthropicMessage(
+				{ wine_name: "Chablis" },
+				{ input_tokens: 100, output_tokens: 20 },
+			);
+		});
+
+		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
+
+		expect(result).toMatchObject({ blocked: false });
+		expect(bodies.length).toBeGreaterThan(0);
+		const body = JSON.parse(bodies[0] ?? "{}") as {
+			thinking?: unknown;
+		};
+		expect(body.thinking).toEqual({
+			type: "enabled",
+			budget_tokens: 8000,
+		});
 	});
 });
 

@@ -13,7 +13,6 @@ import {
 	AI_LABEL_AGENT_MAX_STEPS,
 	AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 	AI_LABEL_GPT_MODEL,
-	AI_LABEL_GPT_REASONING_EFFORT,
 	AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
 	AI_LABEL_MAX_OUTPUT_TOKENS,
 	AI_LABEL_MODEL,
@@ -25,23 +24,27 @@ import {
 	AI_LABEL_WEB_MODEL,
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
-	AI_WINE_LIST_GPT_REASONING_EFFORT,
+	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE,
 	AI_WINE_LIST_MAX_CONTINUATIONS,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_SEARCHES,
 	AI_WINE_LIST_ROUTE_MODELS,
+	claudeThinkingForEffort,
 	DEFAULT_LABEL_ENGINE,
+	DEFAULT_REASONING_EFFORT,
 	DEFAULT_REGION_QA_MODEL,
 	estimateLabelReserveCharge,
 	estimateRegionQaReserveCharge,
 	estimateWineListReserveCharge,
 	type LabelEngineKey,
 	type LabelRoute,
+	type ReasoningEffortKey,
 	type RegionQaModelKey,
 	resolveLabelRoute,
 	resolveWineListRoute,
 	toLabelEngineKey,
+	toReasoningEffortKey,
 	toRegionQaModelKey,
 	type WineListRoute,
 } from "#/lib/ai/config";
@@ -407,18 +410,24 @@ export async function resolveLabelRouteForUser(
  * ユーザ設定(D1読み)+ env から「選択エンジン」と「実行経路」を解決する。
  * **経路の解決口はここ1つ**にする——表示用(resolveLabelRouteForUser)と予約用
  * (resolveLabelPlan)で別々に書くと、片方だけがユーザ設定を読み忘れる形でドリフトする
- * (#354 の教訓)。
+ * (#354 の教訓)。推論の深さも同じ D1 行から読むのでここで一緒に解決する。
  */
-async function resolveLabelEngineAndRoute(
-	userId: string,
-): Promise<{ engine: LabelEngineKey; route: LabelRoute }> {
-	const { preferredLabelEngine } = await userService.getCurrentUser(userId);
+async function resolveLabelEngineAndRoute(userId: string): Promise<{
+	engine: LabelEngineKey;
+	route: LabelRoute;
+	effort: ReasoningEffortKey;
+}> {
+	const { preferredLabelEngine, preferredReasoningEffort } =
+		await userService.getCurrentUser(userId);
 	// 書き込み側(auth.ts の validator)と同じ許可リストで照合する。旧データ・不正値は
-	// 既定(高精度)へフォールバックする(resolveModelKey と同じ流儀)。
+	// 既定(高精度・low)へフォールバックする(resolveModelKey と同じ流儀)。
 	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
 	return {
 		engine,
 		route: resolveLabelRoute(engine, labelProviderAvailability()),
+		effort:
+			toReasoningEffortKey(preferredReasoningEffort) ??
+			DEFAULT_REASONING_EFFORT,
 	};
 }
 
@@ -583,11 +592,15 @@ async function analyzeLabelWithWebResearch(
 	obs?: InferenceObserver,
 	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
 	promptText?: string,
+	/** ユーザ設定の推論の深さ。low は thinking 無指定(現行どおり)。 */
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<LabelResearchResult> {
 	const client = new Anthropic({ apiKey });
+	const thinking = claudeThinkingForEffort(effort);
 	const request = {
 		model: AI_LABEL_WEB_MODEL,
 		max_tokens: AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
+		...(thinking ? { thinking } : {}),
 		tools: [
 			{
 				type: "web_search_20260209",
@@ -702,6 +715,8 @@ async function analyzeLabelWithGptResearch(
 	obs?: InferenceObserver,
 	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
 	promptText?: string,
+	/** ユーザ設定の推論の深さ。 */
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<LabelResearchResult> {
 	const openai = createOpenAI({ apiKey });
 	// クロージャで使うので、undefined の可能性を先に畳んでおく。
@@ -801,7 +816,7 @@ async function analyzeLabelWithGptResearch(
 		],
 		maxOutputTokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 		providerOptions: {
-			openai: { reasoningEffort: AI_LABEL_GPT_REASONING_EFFORT },
+			openai: { reasoningEffort: effort },
 		},
 		// **Workers では明示的に切る**。AI SDK の telemetry は Node の
 		// `diagnostics_channel` を使うが、workerd(nodejs_compat)のシムは
@@ -891,14 +906,16 @@ async function analyzeLabelWithGptResearch(
  * ならない**(#245)。同期経路とジョブ経路でここを別々に書き下ろすと、片方だけが
  * ユーザ設定を読み忘れる/別の見積で予約する、という形でドリフトする。
  *
- * ジョブ経路は `route` / `engine` を D1 に永続化し、コンシューマ側では**経路を再解決しない**
- * (予約はこの経路の見積で立っているので、再解決した結果が違えば予約と実行が食い違う)。
+ * ジョブ経路は `route` / `engine` / `effort` を D1 に永続化し、コンシューマ側では**経路を再解決しない**
+ * (予約はこの経路・effortの見積で立っているので、再解決した結果が違えば予約と実行が食い違う)。
  */
 export interface LabelPlan {
 	/** ユーザがプロフィールで選んでいたエンジン。実行記録の `selected` */
 	engine: LabelEngineKey;
 	/** 実際に走らせる経路。キーの設定状況で降格しうる */
 	route: LabelRoute;
+	/** ユーザがプロフィールで選んでいた推論の深さ。ジョブ行に永続化し、コンシューマは再解決しない */
+	effort: ReasoningEffortKey;
 	/** この経路・枚数での予約見積 */
 	estimate: CreditCharge;
 	/** 台帳の冪等キー */
@@ -912,12 +929,14 @@ export interface LabelPlan {
 function buildLabelLogBase(options: {
 	engine: LabelEngineKey;
 	route: LabelRoute;
+	effort: ReasoningEffortKey;
 	photoCount: number;
 }): MeteredInferenceLogBase {
 	return {
 		feature: "label_analysis",
 		selected: options.engine,
 		route: options.route,
+		effort: options.effort,
 		photoCount: options.photoCount,
 	};
 }
@@ -933,35 +952,42 @@ export async function resolveLabelPlan(
 	userId: string,
 	photoCount: number,
 ): Promise<LabelPlan> {
-	const { engine, route } = await resolveLabelEngineAndRoute(userId);
+	const { engine, route, effort } = await resolveLabelEngineAndRoute(userId);
 	// 見積は経路で大きく違う(実費で標準 約3 / Luna 約39 / Claude 約275 クレジット)。
 	// 経路 → 見積の対応は config.ts に寄せてあり、クライアントの必要クレジット表示も
-	// 同じ関数を通る。
+	// 同じ関数を通る。effort は出力見積の倍率に効く。
 	return {
 		engine,
 		route,
-		estimate: estimateLabelReserveCharge(route, photoCount),
+		effort,
+		estimate: estimateLabelReserveCharge(route, photoCount, effort),
 		requestId: `analyze_label:${crypto.randomUUID()}`,
-		logBase: buildLabelLogBase({ engine, route, photoCount }),
+		logBase: buildLabelLogBase({ engine, route, effort, photoCount }),
 		photoCount,
 	};
 }
 
 /**
- * 保存済みのジョブから plan を復元する(#460)。**経路は再解決しない**——予約は投入時の
- * 経路の見積で立っているため、コンシューマ側で解決し直すと(その間にシークレットが
+ * 保存済みのジョブから plan を復元する(#460)。**経路・effortは再解決しない**——予約は投入時の
+ * 経路・effortの見積で立っているため、コンシューマ側で解決し直すと(その間に設定が
  * 変わっていた等で)予約と実行が食い違う。
  */
 export function restoreLabelPlan(saved: {
 	engine: LabelEngineKey;
 	route: LabelRoute;
+	effort: ReasoningEffortKey;
 	photoCount: number;
 	requestId: string;
 }): LabelPlan {
 	return {
 		engine: saved.engine,
 		route: saved.route,
-		estimate: estimateLabelReserveCharge(saved.route, saved.photoCount),
+		effort: saved.effort,
+		estimate: estimateLabelReserveCharge(
+			saved.route,
+			saved.photoCount,
+			saved.effort,
+		),
 		requestId: saved.requestId,
 		logBase: buildLabelLogBase(saved),
 		photoCount: saved.photoCount,
@@ -1059,6 +1085,7 @@ async function runLabelInference(
 				ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
 				researchObs,
 				input.prompts?.agent?.text,
+				plan.effort,
 			);
 			extractions.push(gpt.extraction);
 			usage = addUsage(usage, gpt.usage);
@@ -1084,6 +1111,7 @@ async function runLabelInference(
 				(t) => ctx.addLogFields({ webResearch: t }),
 				researchObs,
 				input.prompts?.web?.text,
+				plan.effort,
 			);
 			extractions.push(web.extraction);
 			usage = addUsage(usage, web.usage);
@@ -1194,7 +1222,11 @@ async function runLabelInference(
 		// 揃えているのと同じ理由で、フォールバックの床も実行経路に揃える。
 		// 実行経路 = 予約した経路なら値は予約額と一致するので、降格が無い回の挙動は変わらない。
 		charge = fallbackCharge(
-			estimateLabelReserveCharge(executedRoute, imageDataUrls.length).microUsd,
+			estimateLabelReserveCharge(
+				executedRoute,
+				imageDataUrls.length,
+				plan.effort,
+			).microUsd,
 		);
 		// 実測欠落の頻度を観測できるようにする(Workers AI の usage は任意)。
 		logWarn("label usage missing; charging the executed route estimate", {
@@ -1296,13 +1328,27 @@ export interface WineListAnalysisSummary {
  * エチケット解析と同じ `preferredLabelEngine` を読み、`resolveWineListRoute` で
  * 一括抽出用に解決する(Workers AI へは降格しない)。UI の必要クレジット表示と
  * `analyzeWineList` の予約が**同じ解決を通る**ようにするための単一の判定口。
+ * 推論の深さも同じ D1 行から読むので一緒に戻す。
  */
 export async function resolveWineListRouteForUser(
 	userId: string,
 ): Promise<WineListRoute | null> {
-	const { preferredLabelEngine } = await userService.getCurrentUser(userId);
+	return (await resolveWineListRouteAndEffort(userId)).route;
+}
+
+async function resolveWineListRouteAndEffort(userId: string): Promise<{
+	route: WineListRoute | null;
+	effort: ReasoningEffortKey;
+}> {
+	const { preferredLabelEngine, preferredReasoningEffort } =
+		await userService.getCurrentUser(userId);
 	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
-	return resolveWineListRoute(engine, labelProviderAvailability());
+	return {
+		route: resolveWineListRoute(engine, labelProviderAvailability()),
+		effort:
+			toReasoningEffortKey(preferredReasoningEffort) ??
+			DEFAULT_REASONING_EFFORT,
+	};
 }
 
 /**
@@ -1334,11 +1380,15 @@ async function extractWineListWithClaude(
 	obs?: InferenceObserver,
 	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
 	promptText?: string,
+	/** ユーザ設定の推論の深さ。low は thinking 無指定(現行どおり)。 */
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new Anthropic({ apiKey });
+	const thinking = claudeThinkingForEffort(effort);
 	const request = {
 		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
 		max_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+		...(thinking ? { thinking } : {}),
 		tools: [
 			{
 				type: "web_search_20260209",
@@ -1433,6 +1483,8 @@ async function extractWineListWithGpt(
 	obs?: InferenceObserver,
 	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
 	promptText?: string,
+	/** ユーザ設定の推論の深さ。 */
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
 	const client = new OpenAI({ apiKey });
 	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#515)。ハッシュ計算の非同期は
@@ -1445,8 +1497,8 @@ async function extractWineListWithGpt(
 			imageDataUrls,
 			promptText ?? buildWineListPrompt(imageDataUrls.length),
 		),
-		max_output_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
-		reasoning: { effort: AI_WINE_LIST_GPT_REASONING_EFFORT },
+		max_output_tokens: AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
+		reasoning: { effort },
 		text: buildWineListGptTextFormat(),
 		tools: [
 			{
@@ -1526,6 +1578,8 @@ async function runWineListInference(
 	input: {
 		imageDataUrls: string[];
 		route: WineListRoute;
+		/** ユーザがプロフィールで選んでいた推論の深さ(投入時に確定)。 */
+		effort: ReasoningEffortKey;
 		apiKey: string;
 		entries: DrunkWineEntry[];
 		/**
@@ -1554,12 +1608,14 @@ async function runWineListInference(
 					input.imageDataUrls,
 					obs,
 					input.prompt?.text,
+					input.effort,
 				)
 			: await extractWineListWithClaude(
 					input.apiKey,
 					input.imageDataUrls,
 					obs,
 					input.prompt?.text,
+					input.effort,
 				);
 	const deduped = dedupeWineListItems(parsed.wines);
 	const candidates = matchExistingEntries(
@@ -1587,6 +1643,8 @@ async function runWineListInference(
 /** 一括抽出ジョブの実行計画(#474)。`LabelPlan` と同じ役割・同じ使われ方。 */
 export interface WineListPlan {
 	route: WineListRoute;
+	/** ユーザがプロフィールで選んでいた推論の深さ。ジョブ行に永続化し、コンシューマは再解決しない */
+	effort: ReasoningEffortKey;
 	estimate: CreditCharge;
 	requestId: string;
 	logBase: MeteredInferenceLogBase;
@@ -1596,6 +1654,7 @@ export interface WineListPlan {
 /** 経路と枚数から、全ての結末に載る静的な実行メタデータを組む。 */
 function buildWineListLogBase(options: {
 	route: WineListRoute;
+	effort: ReasoningEffortKey;
 	photoCount: number;
 }): MeteredInferenceLogBase {
 	return {
@@ -1603,6 +1662,7 @@ function buildWineListLogBase(options: {
 		// 一括抽出はフォールバックを持たない(#358)ので、選択と実行経路は常に一致する。
 		selected: options.route,
 		route: options.route,
+		effort: options.effort,
 		model: AI_WINE_LIST_ROUTE_MODELS[options.route],
 		photoCount: options.photoCount,
 	};
@@ -1616,7 +1676,7 @@ export async function resolveWineListPlan(
 	userId: string,
 	photoCount: number,
 ): Promise<WineListPlan> {
-	const route = await resolveWineListRouteForUser(userId);
+	const { route, effort } = await resolveWineListRouteAndEffort(userId);
 	if (!route) {
 		throw new HttpError(
 			503,
@@ -1625,26 +1685,33 @@ export async function resolveWineListPlan(
 	}
 	return {
 		route,
-		estimate: estimateWineListReserveCharge(route, photoCount),
+		effort,
+		estimate: estimateWineListReserveCharge(route, photoCount, effort),
 		requestId: `scan_list:${crypto.randomUUID()}`,
-		logBase: buildWineListLogBase({ route, photoCount }),
+		logBase: buildWineListLogBase({ route, effort, photoCount }),
 		photoCount,
 	};
 }
 
 /**
- * 保存済みのジョブから計画を復元する。**経路は再解決しない**——予約は投入時の経路の
- * 見積で立っているため、コンシューマ側で解決し直すと予約と実行が食い違う
+ * 保存済みのジョブから計画を復元する。**経路・effortは再解決しない**——予約は投入時の経路・
+ * effortの見積で立っているため、コンシューマ側で解決し直すと予約と実行が食い違う
  * (`restoreLabelPlan` と同じ理由)。
  */
 export function restoreWineListPlan(saved: {
 	route: WineListRoute;
+	effort: ReasoningEffortKey;
 	photoCount: number;
 	requestId: string;
 }): WineListPlan {
 	return {
 		route: saved.route,
-		estimate: estimateWineListReserveCharge(saved.route, saved.photoCount),
+		effort: saved.effort,
+		estimate: estimateWineListReserveCharge(
+			saved.route,
+			saved.photoCount,
+			saved.effort,
+		),
 		requestId: saved.requestId,
 		logBase: buildWineListLogBase(saved),
 		photoCount: saved.photoCount,
@@ -1697,6 +1764,7 @@ export async function runWineListAnalysisForJob(
 				{
 					imageDataUrls: input.imageDataUrls,
 					route: input.plan.route,
+					effort: input.plan.effort,
 					apiKey,
 					entries,
 					prompt,

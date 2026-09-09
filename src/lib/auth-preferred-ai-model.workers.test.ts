@@ -165,3 +165,32 @@ describe("preferredLabelEngine の書き込みは許可リストで検証され�
 		);
 	});
 });
+
+// preferredReasoningEffort(推論の深さ)も同じ関門を通ることを確認する。
+// スキーマ自体の正しさは config.test.ts、ここでは auth.options への配線を見る。
+describe("preferredReasoningEffort の書き込みは許可リストで検証される", () => {
+	it("許可リストのキーは D1 に保存される", async () => {
+		const res = await updateUser({ preferredReasoningEffort: "high" });
+		expect(res.status).toBe(200);
+		const row = await env.DB.prepare(
+			"SELECT preferred_reasoning_effort AS e FROM user WHERE id = ?",
+		)
+			.bind(userId)
+			.first<{ e: string | null }>();
+		expect(row?.e).toBe("high");
+	});
+
+	it("許可リスト外・巨大な文字列は 400 で弾かれる", () => {
+		for (const value of ["ultra", "a".repeat(300_000)]) {
+			const result = parseUpdate({ preferredReasoningEffort: value });
+			expect(result.status).toBe(400);
+			expect(result.parsed).toBeUndefined();
+		}
+	});
+
+	it("拒否時のメッセージは利用者向けの日本語(プロフィール画面にそのまま出る)", () => {
+		expect(parseUpdate({ preferredReasoningEffort: "ultra" }).message).toBe(
+			"対応していない推論の深さです。",
+		);
+	});
+});

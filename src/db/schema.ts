@@ -8,7 +8,11 @@ import {
 	unique,
 } from "drizzle-orm/sqlite-core";
 import type { AdminAuditAction } from "#/lib/admin/audit";
-import type { LabelEngineKey, LabelRoute } from "#/lib/ai/config";
+import type {
+	LabelEngineKey,
+	LabelRoute,
+	ReasoningEffortKey,
+} from "#/lib/ai/config";
 import type { LabelJobKind, LabelJobStatus } from "#/lib/ai/label-job";
 import type { PhotoKind } from "#/lib/ai/wine-list-extraction";
 import type { CreditLedgerType } from "#/lib/credit/types";
@@ -573,6 +577,12 @@ export const labelAnalysisJob = sqliteTable(
 		selectedEngine: text("selected_engine").notNull().$type<LabelEngineKey>(),
 		/** 予約時に解決した実行経路。**コンシューマは再解決せずこれを使う**(予約と食い違わせない) */
 		route: text("route").notNull().$type<LabelRoute>(),
+		/**
+		 * 投入時に確定した推論の深さ(drizzle/0038)。値のSSOTは ai/config.ts の
+		 * REASONING_EFFORT_KEYS。**コンシューマは再解決せずこれを使う**(予約はこの
+		 * effortの見積で立っているため)。既存行・旧コードのINSERTは 'low'(現行挙動)。
+		 */
+		effort: text("effort").notNull().$type<ReasoningEffortKey>().default("low"),
 		/**
 		 * 成功時の自動入力候補(LabelSuggestions)。未完了・失敗なら null。
 		 * **`kind = 'label'` のときだけ入る**(一括抽出は `wineListResult` 側)。
