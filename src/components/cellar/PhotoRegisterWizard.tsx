@@ -20,6 +20,7 @@ import {
 	consumeLabelAnalysisJob,
 	submitLabelAnalysisJob,
 } from "#/components/cellar/label-analysis";
+import { firstTakenOn } from "#/components/cellar/photo-exif";
 import {
 	acceptPhotoFiles,
 	detachPhotoFiles,
@@ -368,6 +369,14 @@ export function PhotoRegisterWizard({
 		// 読めなかった理由を優先して出す。枚数超過より利用者の行動が変わる。
 		setError(detached.rejectMessage || rejectMessage);
 		if (detached.accepted.length === 0) return;
+		// EXIFの撮影日を撮影日欄へ自動入力する(Issue #590)。**利用者が触る前だけ**
+		// (既定の今日のままのときだけ)。一度でも変えた日付・再解析や受け取った
+		// ジョブから復元した日付は上書きしない。EXIFなし・取得失敗時は黙って
+		// 既定のまま(フォールバック)。
+		if (seenOn === defaultSeenOnRef.current) {
+			const takenOn = await firstTakenOn(detached.accepted);
+			if (takenOn) setSeenOn(takenOn);
+		}
 		setPhotos((prev) => [
 			...prev,
 			...detached.accepted.map((file) => ({
