@@ -13,6 +13,7 @@ import type {
 	LabelRoute,
 	ReasoningEffortKey,
 } from "#/lib/ai/config";
+import type { LabelPrice, LabelReferenceLink } from "#/lib/ai/label-extraction";
 import type { LabelJobKind, LabelJobStatus } from "#/lib/ai/label-job";
 import type { PhotoKind } from "#/lib/ai/wine-list-extraction";
 import type { CreditLedgerType } from "#/lib/credit/types";
@@ -142,6 +143,18 @@ export const drunkWine = sqliteTable(
 		note: text("note"),
 		/** 円 */
 		price: integer("price"),
+		/**
+		 * 解析の参考サイトの一覧(drizzle/0039)。web検索で裏取りしたページで、
+		 * 上限3件の JSON 配列。NULL = 取得していない(読み取りは空配列へ退避)。
+		 */
+		referenceLinks: text("reference_links", { mode: "json" }).$type<
+			LabelReferenceLink[]
+		>(),
+		/**
+		 * 解析の市場価格の一覧(drizzle/0039)。複数ソースの販売価格で、上限3件の
+		 * JSON 配列。NULL = 取得していない(読み取りは空配列へ退避)。
+		 */
+		marketPrices: text("market_prices", { mode: "json" }).$type<LabelPrice[]>(),
 		/** R2キーの配列。表示順で、先頭が代表(サムネイル)。空配列=写真なし */
 		photoKeys: text("photo_keys", { mode: "json" })
 			.$type<string[]>()

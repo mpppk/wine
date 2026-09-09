@@ -125,6 +125,24 @@ describe("buildSingleWineHandoff", () => {
 		expect(values).not.toHaveProperty("price");
 	});
 
+	it("参考サイト・市場価格は保存用に引き継ぐ(銘柄に属する参考情報のため)", () => {
+		const handoff = buildSingleWineHandoff(
+			candidate({
+				referenceLinks: [{ url: "https://example.com/a", title: "t" }],
+				prices: [{ source: "aaa.com", currency: "USD", amount: 20 }],
+			}),
+			[],
+		);
+		expect(handoff.references).toEqual({
+			referenceLinks: [{ url: "https://example.com/a", title: "t" }],
+			prices: [{ source: "aaa.com", currency: "USD", amount: 20 }],
+		});
+	});
+
+	it("参考サイト・市場価格が無ければ references を持たない", () => {
+		expect(buildSingleWineHandoff(candidate(), []).references).toBeUndefined();
+	});
+
 	it("写真は先頭 MAX_HANDOFF_PHOTOS 枚だけ引き継ぎ、落とした枚数を伝える", () => {
 		const files = Array.from({ length: MAX_HANDOFF_PHOTOS + 2 }, (_, i) =>
 			photoFile(`p${i}.jpg`),

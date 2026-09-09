@@ -3,6 +3,11 @@ import {
 	type WineSightingDraft,
 } from "#/components/cellar/SightingFields";
 import {
+	type LabelPrice,
+	type LabelReferenceLink,
+	labelPriceKey,
+} from "#/lib/ai/label-extraction";
+import {
 	collectDrunkWinePatch,
 	collectWineTastingPatch,
 	type DrunkWineCamelEntry,
@@ -17,6 +22,12 @@ import {
 	type WineTastingPatch,
 	type WineTastingSnakeKey,
 } from "#/lib/drunk-wine/fields";
+import {
+	mergeStoredMarketPrices,
+	mergeStoredReferenceLinks,
+	normalizeStoredMarketPrices,
+	normalizeStoredReferenceLinks,
+} from "#/lib/drunk-wine/references";
 import type {
 	CreateWineTastingInput,
 	UpdateDrunkWineInput,
@@ -102,6 +113,90 @@ export const EMPTY_TASTING_DRAFT: WineTastingDraft = {
 	rating: null,
 	memo: "",
 };
+
+/**
+ * 参考サイト・市場価格のフォーム値。銘柄に属するが、DRUNK_WINE_FIELD_DEFS の
+ * 差分パッチ規約(文字列/数値/品種IDのみ)には載らない JSON 配列のため別枠で持つ。
+ * 空配列=未取得。
+ */
+export interface WineReferencesValue {
+	referenceLinks: LabelReferenceLink[];
+	prices: LabelPrice[];
+}
+
+export const EMPTY_REFERENCES_VALUE: WineReferencesValue = {
+	referenceLinks: [],
+	prices: [],
+};
+
+/**
+ * 解析結果の参考情報をフォーム値へマージする(再解析での補充用)。
+ * 上書きではなく和集合(上限で切り捨て)——利用者が手で足した行を消さない。
+ */
+export function mergeReferencesValue(
+	base: WineReferencesValue,
+	added: {
+		referenceLinks?: readonly LabelReferenceLink[];
+		prices?: readonly LabelPrice[];
+	},
+): WineReferencesValue {
+	return {
+		referenceLinks:
+			mergeStoredReferenceLinks(
+				base.referenceLinks,
+				added.referenceLinks?.length ? [...added.referenceLinks] : undefined,
+			) ?? [],
+		prices:
+			mergeStoredMarketPrices(
+				base.prices,
+				added.prices?.length ? [...added.prices] : undefined,
+			) ?? [],
+	};
+}
+
+/** 比較用に正規化した参考サイトのキー。順序は保存内容に影響しない。 */
+function referenceLinksKey(links: readonly LabelReferenceLink[]): string {
+	return normalizeStoredReferenceLinks([...links])
+		.map((l) => l.url)
+		.sort()
+		.join(",");
+}
+
+/** 比較用に正規化した市場価格のキー。同上。 */
+function marketPricesKey(prices: readonly LabelPrice[]): string {
+	return normalizeStoredMarketPrices([...prices])
+		.map((p) => labelPriceKey(p))
+		.sort()
+		.join(",");
+}
+
+/**
+ * 保存済みと現在の参考情報を比べ、変わった項目だけを返す(更新の差分配信)。
+ * 正規化して比べるので、順序の違いや無効行の有無は差分にならない。
+ * 空配列への変化(全削除)も差分として送る。変わりが無ければ {}。
+ */
+export function buildReferencesPatch(
+	current: WineReferencesValue,
+	next: WineReferencesValue,
+): Partial<WineReferencesValue> {
+	const normalizedNext: WineReferencesValue = {
+		referenceLinks: normalizeStoredReferenceLinks(next.referenceLinks),
+		prices: normalizeStoredMarketPrices(next.prices),
+	};
+	const patch: Partial<WineReferencesValue> = {};
+	if (
+		referenceLinksKey(current.referenceLinks) !==
+		referenceLinksKey(normalizedNext.referenceLinks)
+	) {
+		patch.referenceLinks = normalizedNext.referenceLinks;
+	}
+	if (
+		marketPricesKey(current.prices) !== marketPricesKey(normalizedNext.prices)
+	) {
+		patch.prices = normalizedNext.prices;
+	}
+	return patch;
+}
 
 // 以下の3関数は satisfies で全キーの記入を強制する。toFormValues だけが
 // satisfies を持っていた頃は、ここへの足し忘れが静かに落ちていた。
@@ -385,6 +480,10 @@ export interface UnsavedDrunkWineChangesInput {
 	initialPhotoKeys: readonly string[];
 	/** 現在の写真(表示順)。既存はR2キー、まだ保存していない新規写真は null。 */
 	photoKeys: readonly (string | null)[];
+	/** 保存済みの参考サイト・市場価格。 */
+	initialReferences: WineReferencesValue;
+	/** 現在の参考サイト・市場価格。 */
+	references: WineReferencesValue;
 }
 
 /** 保存されていない変更があるか(離脱ガードの判定)。 */
@@ -395,6 +494,8 @@ export function hasUnsavedDrunkWineChanges({
 	sighting,
 	initialPhotoKeys,
 	photoKeys,
+	initialReferences,
+	references,
 }: UnsavedDrunkWineChangesInput): boolean {
 	if (!drunkWineFormStateEquals(toFormState(values), toFormState(initial))) {
 		return true;
@@ -403,5 +504,8 @@ export function hasUnsavedDrunkWineChanges({
 	if (!sightingDraftEquals(sighting, EMPTY_SIGHTING_DRAFT)) return true;
 	// 追加・削除・並べ替えのいずれも「保存すると結果が変わる」ので未保存扱いにする。
 	if (photoKeys.length !== initialPhotoKeys.length) return true;
-	return photoKeys.some((key, i) => key !== initialPhotoKeys[i]);
+	if (photoKeys.some((key, i) => key !== initialPhotoKeys[i])) return true;
+	return (
+		Object.keys(buildReferencesPatch(initialReferences, references)).length > 0
+	);
 }

@@ -4,15 +4,19 @@ import {
 	buildCreateInput,
 	buildMcpTastingArgs,
 	buildMcpUpdatePatch,
+	buildReferencesPatch,
 	buildTastingInput,
 	buildUpdatePatch,
 	type DrunkWineFieldsValue,
 	type DrunkWineFormState,
+	EMPTY_REFERENCES_VALUE,
 	EMPTY_TASTING_DRAFT,
 	fieldsValueFromMcpEntry,
 	hasUnsavedDrunkWineChanges,
+	mergeReferencesValue,
 	tastingDraftFromMcpEntry,
 	toFormValues,
+	type WineReferencesValue,
 	type WineTastingDraft,
 } from "./drunk-wine-payload";
 import { EMPTY_SIGHTING_DRAFT, NEW_PLACE_VALUE } from "./SightingFields";
@@ -452,6 +456,8 @@ describe("hasUnsavedDrunkWineChanges", () => {
 		sighting: EMPTY_SIGHTING_DRAFT,
 		initialPhotoKeys: [] as string[],
 		photoKeys: [] as (string | null)[],
+		initialReferences: EMPTY_REFERENCES_VALUE,
+		references: EMPTY_REFERENCES_VALUE,
 	};
 
 	it("何も触っていない新規フォームは未保存扱いにしない", () => {
@@ -571,5 +577,97 @@ describe("hasUnsavedDrunkWineChanges", () => {
 				photoKeys: ["wines/u/b.jpg", "wines/u/a.jpg"],
 			}),
 		).toBe(true);
+	});
+
+	it("参考サイト・市場価格の追加・削除も未保存として扱う", () => {
+		const withRefs: WineReferencesValue = {
+			referenceLinks: [{ url: "https://example.com/a" }],
+			prices: [{ source: "aaa.com", amountJpy: 2000 }],
+		};
+		// 変更なし
+		expect(
+			hasUnsavedDrunkWineChanges({
+				...base,
+				initialReferences: withRefs,
+				references: withRefs,
+			}),
+		).toBe(false);
+		// 追加
+		expect(hasUnsavedDrunkWineChanges({ ...base, references: withRefs })).toBe(
+			true,
+		);
+		// 削除(空に戻す)
+		expect(
+			hasUnsavedDrunkWineChanges({
+				...base,
+				initialReferences: withRefs,
+				references: EMPTY_REFERENCES_VALUE,
+			}),
+		).toBe(true);
+	});
+});
+
+describe("buildReferencesPatch / mergeReferencesValue", () => {
+	const current: WineReferencesValue = {
+		referenceLinks: [{ url: "https://example.com/a" }],
+		prices: [{ source: "aaa.com", amountJpy: 2000 }],
+	};
+
+	it("変わりが無ければ空を返す(順序の違いは差分にしない)", () => {
+		expect(buildReferencesPatch(current, current)).toEqual({});
+		expect(
+			buildReferencesPatch(current, {
+				referenceLinks: [{ url: "https://example.com/a" }],
+				prices: [{ source: "aaa.com", amountJpy: 2000 }],
+			}),
+		).toEqual({});
+	});
+
+	it("変わった項目だけを返す(全削除は空配列で送る)", () => {
+		expect(
+			buildReferencesPatch(current, {
+				...current,
+				prices: [{ source: "bbb.com", currency: "USD", amount: 20 }],
+			}),
+		).toEqual({
+			prices: [{ source: "bbb.com", currency: "USD", amount: 20 }],
+		});
+		expect(buildReferencesPatch(current, EMPTY_REFERENCES_VALUE)).toEqual({
+			referenceLinks: [],
+			prices: [],
+		});
+	});
+
+	it("無効行の有無は差分にしない(正規化して比べる)", () => {
+		expect(
+			buildReferencesPatch(current, {
+				...current,
+				prices: [{ source: "aaa.com", amountJpy: 2000 }, { source: "店頭" }],
+			}),
+		).toEqual({});
+	});
+
+	it("マージは和集合で束ねる(手で足した行を消さない)", () => {
+		expect(
+			mergeReferencesValue(current, {
+				referenceLinks: [
+					{ url: "https://example.com/a" },
+					{ url: "https://example.com/b" },
+				],
+				prices: [{ source: "bbb.com", currency: "USD", amount: 20 }],
+			}),
+		).toEqual({
+			referenceLinks: [
+				{ url: "https://example.com/a" },
+				{ url: "https://example.com/b" },
+			],
+			prices: [
+				{ source: "aaa.com", amountJpy: 2000 },
+				{ source: "bbb.com", currency: "USD", amount: 20 },
+			],
+		});
+		expect(mergeReferencesValue(EMPTY_REFERENCES_VALUE, {})).toEqual(
+			EMPTY_REFERENCES_VALUE,
+		);
 	});
 });

@@ -143,4 +143,28 @@ describe("LabelSuggestionDiffDialog", () => {
 		expect(screen.queryByText("参考サイト")).toBeNull();
 		expect(screen.queryByText("価格一覧")).toBeNull();
 	});
+
+	it("差分ゼロでも参考情報があれば確定できる(再解析での補充用)", () => {
+		const onApply = vi.fn();
+		const onOpenChange = vi.fn();
+		render(
+			<LabelSuggestionDiffDialog
+				open={true}
+				diffs={[]}
+				references={{
+					prices: [{ source: "aaa.com", currency: "USD", amount: 20 }],
+				}}
+				onApply={onApply}
+				onOpenChange={onOpenChange}
+			/>,
+		);
+		expect(screen.getByText("参考サイト・価格が見つかりました")).toBeTruthy();
+		expect(screen.getByText("$20(aaa.com)")).toBeTruthy();
+		const applyButton = screen.getByRole("button", {
+			name: "参考情報を追加",
+		}) as HTMLButtonElement;
+		expect(applyButton.disabled).toBe(false);
+		fireEvent.click(applyButton);
+		expect(onApply).toHaveBeenCalledWith([]);
+	});
 });

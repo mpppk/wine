@@ -8,6 +8,7 @@ import {
 	wineSighting,
 	wineTasting,
 } from "#/db/schema";
+import type { LabelPrice, LabelReferenceLink } from "#/lib/ai/label-extraction";
 import {
 	type PhotoKind,
 	resolveStoredPhotoKinds,
@@ -26,6 +27,12 @@ import {
 	resolveStoredPhotoMime,
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
+import {
+	mergeStoredMarketPrices,
+	mergeStoredReferenceLinks,
+	normalizeStoredMarketPrices,
+	normalizeStoredReferenceLinks,
+} from "#/lib/drunk-wine/references";
 import type {
 	CreateWineTastingInput,
 	UpdateDrunkWineInput,
@@ -114,6 +121,16 @@ export interface DrunkWineEntry {
 	 */
 	note: string | null;
 	price: number | null;
+	/**
+	 * 解析の参考サイトの一覧。空配列=未取得。解析の表示専用だったものを
+	 * 登録後も残すために銘柄に保存する。
+	 */
+	referenceLinks: LabelReferenceLink[];
+	/**
+	 * 解析の市場価格の一覧。空配列=未取得。同上(「その店での売値」の
+	 * 目撃記録とは別物)。
+	 */
+	prices: LabelPrice[];
 	/** 写真の相対URL(/api/images/...)の配列。表示順で先頭=代表。呼び出し側で必要なら絶対化する */
 	photoUrls: string[];
 	/**
@@ -235,6 +252,9 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		producer: row.producer,
 		note: row.note,
 		price: row.price,
+		// 旧行・壊れた値は空配列へ退避する(保存時に正規化済みなので通常は素通し)。
+		referenceLinks: normalizeStoredReferenceLinks(row.referenceLinks),
+		prices: normalizeStoredMarketPrices(row.marketPrices),
 		photoUrls: row.photoKeys.map(imagePathForKey),
 		thumbUrls: row.photoKeys.map((key) =>
 			imagePathForKey(thumbKeyForPhotoKey(key)),
@@ -512,6 +532,9 @@ type CreateDrunkWineData = Omit<UpdateDrunkWineInput, "id"> & {
 	name: string;
 	tasting?: CreateWineTastingInput;
 	sighting?: CreateEntrySightingInput;
+	/** 解析の参考サイト・市場価格(未指定なら空)。形の検証は正規化が関門。 */
+	referenceLinks?: unknown;
+	prices?: unknown;
 };
 
 export async function createDrunkWine(
@@ -541,6 +564,9 @@ export async function createDrunkWine(
 		grapeVarietyIds: input.grapeVarietyIds ?? [],
 		producer: input.producer ?? null,
 		note: input.note ?? null,
+		// 参考サイト・市場価格は銘柄に属するのでそのまま保存する(未指定なら空)。
+		referenceLinks: normalizeStoredReferenceLinks(input.referenceLinks),
+		marketPrices: normalizeStoredMarketPrices(input.prices),
 	};
 
 	if (!tasting && !sighting) {
@@ -598,10 +624,14 @@ export async function createDrunkWine(
 
 export async function updateDrunkWine(
 	userId: string,
-	input: UpdateDrunkWineInput,
+	input: UpdateDrunkWineInput & {
+		/** 解析の参考サイト・市場価格。指定されたときだけ置き換える。 */
+		referenceLinks?: unknown;
+		prices?: unknown;
+	},
 ): Promise<DrunkWineEntry> {
 	assertValidRefs(input);
-	const { id, ...patch } = input;
+	const { id, referenceLinks, prices, ...patch } = input;
 	// undefined = 変更しない / null = クリア。undefinedキーはdrizzleが無視する
 	// 存在しない/他ユーザ所有は SELECT が0件になり、区別せず同じエラーになる
 	// (存在の探索を防ぐ)。
@@ -617,6 +647,16 @@ export async function updateDrunkWine(
 					grapeVarietyIds: patch.grapeVarietyIds,
 					producer: patch.producer,
 					note: patch.note,
+					// 参考情報だけは差分ではなく置き換え。呼び出し側が現在の保存値と
+					// 解析結果をマージ済みで送る(空配列で消せる)。
+					...(referenceLinks !== undefined
+						? {
+								referenceLinks: normalizeStoredReferenceLinks(referenceLinks),
+							}
+						: {}),
+					...(prices !== undefined
+						? { marketPrices: normalizeStoredMarketPrices(prices) }
+						: {}),
 				})
 				.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId))),
 			selectEntry(userId, id),
@@ -1785,9 +1825,18 @@ export async function bulkRegisterFromScan(
 				.filter((id): id is string => id != null),
 		),
 	];
+	// 既存一致の項目へ参考情報をマージするための現在値。所有権確認のついでに引く。
+	const existingReferences = new Map<
+		string,
+		{ referenceLinks: LabelReferenceLink[]; prices: LabelPrice[] }
+	>();
 	if (existingIds.length > 0) {
 		const rows = await db
-			.select({ id: drunkWine.id })
+			.select({
+				id: drunkWine.id,
+				referenceLinks: drunkWine.referenceLinks,
+				marketPrices: drunkWine.marketPrices,
+			})
 			.from(drunkWine)
 			.where(
 				and(eq(drunkWine.userId, userId), inArray(drunkWine.id, existingIds)),
@@ -1795,6 +1844,12 @@ export async function bulkRegisterFromScan(
 		if (rows.length !== existingIds.length) {
 			// 存在しない/他ユーザ所有は区別しない(存在の探索を防ぐ規約)
 			throw new NotFoundError("Entry not found");
+		}
+		for (const row of rows) {
+			existingReferences.set(row.id, {
+				referenceLinks: normalizeStoredReferenceLinks(row.referenceLinks),
+				prices: normalizeStoredMarketPrices(row.marketPrices),
+			});
 		}
 	}
 
@@ -1886,6 +1941,9 @@ export async function bulkRegisterFromScan(
 							? `${NOTE_SECTION_LABELS.photo}\n${webPhoto.noteSuffix}`
 							: undefined,
 					),
+					// 参考サイト・市場価格は銘柄に属するのでそのまま保存する。
+					referenceLinks: normalizeStoredReferenceLinks(item.referenceLinks),
+					marketPrices: normalizeStoredMarketPrices(item.prices),
 					// adoptWebPhotos で取り込めた写真は web 由来。取れなかった銘柄は
 					// photo_keys を持たず、2段階目でバッチ写真の複製(bottle)が付く。
 					...(webPhoto
@@ -1904,6 +1962,37 @@ export async function bulkRegisterFromScan(
 		} else {
 			// refine 済みなので existingId は必ずある
 			drunkWineId = item.existingId as string;
+			// 既存一致の項目は目撃記録を足すだけだが、参考情報の未保存ぶんは
+			// マージする(上書きではなく和集合。上限で切り捨て)。
+			const newLinks = normalizeStoredReferenceLinks(item.referenceLinks);
+			const newPrices = normalizeStoredMarketPrices(item.prices);
+			if (newLinks.length > 0 || newPrices.length > 0) {
+				const current = existingReferences.get(drunkWineId);
+				statements.push(
+					db
+						.update(drunkWine)
+						.set({
+							...(newLinks.length > 0
+								? {
+										referenceLinks:
+											mergeStoredReferenceLinks(
+												current?.referenceLinks,
+												newLinks,
+											) ?? [],
+									}
+								: {}),
+							...(newPrices.length > 0
+								? {
+										marketPrices:
+											mergeStoredMarketPrices(current?.prices, newPrices) ?? [],
+									}
+								: {}),
+						})
+						.where(
+							and(eq(drunkWine.id, drunkWineId), eq(drunkWine.userId, userId)),
+						),
+				);
+			}
 		}
 		affectedIds.push(drunkWineId);
 
