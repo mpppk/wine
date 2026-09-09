@@ -1075,10 +1075,13 @@ export function mergeExtractions(
 /**
  * 2つの一覧をキーで重複を潰しながら束ね、上限で切り捨てる。
  * どちらも空なら undefined(空配列を持ち回さない)。
+ *
+ * 参考サイト・価格の束ねのSSOT。抽出結果の統合(`mergeExtractions`)と
+ * 保存済み値へのマージ(`lib/drunk-wine/references`)が共有する。
  */
-function unionCapped<T>(
-	base: T[] | undefined,
-	added: T[] | undefined,
+export function unionCapped<T>(
+	base: readonly T[] | undefined,
+	added: readonly T[] | undefined,
 	key: (item: T) => string,
 	max: number,
 ): T[] | undefined {

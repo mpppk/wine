@@ -259,6 +259,30 @@ describe("buildBulkRegisterInput", () => {
 		expect(input.items[0]).not.toHaveProperty("wine");
 	});
 
+	it("参考サイト・市場価格は銘柄の参考情報として送る(目撃記録とは別)", () => {
+		const input = buildBulkRegisterInput(
+			[
+				card({
+					referenceLinks: [{ url: "https://example.com/a", title: "t" }],
+					prices: [{ source: "aaa.com", amountJpy: 2000 }],
+				}),
+			],
+			meta,
+		);
+		expect(input.items[0]).toMatchObject({
+			referenceLinks: [{ url: "https://example.com/a", title: "t" }],
+			prices: [{ source: "aaa.com", amountJpy: 2000 }],
+		});
+		// サーバの入力境界を通る(DB列の追加までは保存しない)
+		expect(bulkRegisterFromScanInput.safeParse(input).success).toBe(true);
+	});
+
+	it("参考サイト・市場価格が無ければ送らない", () => {
+		const input = buildBulkRegisterInput([card()], meta);
+		expect(input.items[0]).not.toHaveProperty("referenceLinks");
+		expect(input.items[0]).not.toHaveProperty("prices");
+	});
+
 	it("目撃記録は1件のまま、対応写真のすべてを番号の一覧で持たせる(#574)", () => {
 		const input = buildBulkRegisterInput(
 			[card({ photoIndexes: [0, 1] })],

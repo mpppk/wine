@@ -48,6 +48,17 @@ export interface ManualFormStart {
 	droppedPhotoCount: number;
 	reason: ManualFormReason;
 	/**
+	 * 解析の参考サイト・市場価格。銘柄に属する参考情報で、記録フォームから
+	 * 保存するまで持ち回る。
+	 *
+	 * **DB列の追加までは運ぶだけで保存しない**(別PRのマイグレーション)。
+	 * 記録フォーム側の引き継ぎはそのPRで行う。
+	 */
+	references?: {
+		referenceLinks?: WineListCandidate["referenceLinks"];
+		prices?: WineListCandidate["prices"];
+	};
+	/**
 	 * ウィザードで入力した写真の場所・撮影日(#495)。記録フォームの「見かけた記録」
 	 * セクションの初期値になる。
 	 *
@@ -94,9 +105,10 @@ export function takePhotosForEntry(files: File[]): {
 /**
  * 候補と選択中の写真から荷物を組み立てる。
  *
- * 読み取れた価格は引き継がない。銘柄に価格欄はもう無く(#570)、単一ワインの
- * エチケット写真に「その店での売値」の文脈も無いため、行き先が無い。
- * 参考価格の一覧は解析結果の表示側(PriceList)に残る。
+ * リスト記載の価格(その店での売値)は引き継がない。銘柄に価格欄はもう無く(#570)、
+ * 単一ワインのエチケット写真に「その店での売値」の文脈も無いため、行き先が無い。
+ * 一方、参考サイト・市場価格の一覧は銘柄に属する参考情報なので `references` に
+ * 載せて持ち回る(保存はDB列の追加を待つ別PR)。
  *
  * ステータスは引き継がない。一括登録の既定は「見かけた」だが、1本のエチケットを
  * わざわざ撮る人は飲んだ/持っている場合が多いので、フォームの既定に委ねる。
@@ -108,10 +120,23 @@ export function buildSingleWineHandoff(
 	sighting?: WineSightingDraft,
 	// 解析を経た経路なので values は必ず入る(呼び出し側で undefined を考えずに済む)
 ): ManualFormStart & { values: DrunkWineFieldsValue } {
+	const hasReferences =
+		(candidate.referenceLinks?.length ?? 0) > 0 ||
+		(candidate.prices?.length ?? 0) > 0;
 	return {
 		values: valuesFromSuggestions(candidate.suggestions, DEFAULT_WINE_STATUS),
 		...takePhotosForEntry(files),
 		reason: "single_wine",
 		...(sighting ? { sighting } : {}),
+		...(hasReferences
+			? {
+					references: {
+						...(candidate.referenceLinks?.length
+							? { referenceLinks: candidate.referenceLinks }
+							: {}),
+						...(candidate.prices?.length ? { prices: candidate.prices } : {}),
+					},
+				}
+			: {}),
 	};
 }

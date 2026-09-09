@@ -1866,6 +1866,9 @@ export async function bulkRegisterFromScan(
 			drunkWineId = newWineIds.get(index) as string;
 			createdCount += 1;
 			const webPhoto = webPhotos.get(drunkWineId);
+			// item.referenceLinks / item.prices はDB列の追加までは保存しない
+			// (別PRのマイグレーションで INSERT へ載せる。新規作成時はそのまま保存し、
+			// 既存一致のときは未保存ぶんをマージする)。
 			statements.push(
 				db.insert(drunkWine).values({
 					id: drunkWineId,

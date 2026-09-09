@@ -457,6 +457,12 @@ export function buildBulkRegisterInput(
 			const base = {
 				...(Object.keys(sighting).length > 0 ? { sighting } : {}),
 				...(tastingInput ? { tasting: tastingInput } : {}),
+				// 参考サイト・市場価格は銘柄に属するので目撃記録とは別に載せる。
+				// **DB列の追加まではサーバが受け付けるだけで保存しない**(別PR)。
+				...(card.referenceLinks?.length
+					? { referenceLinks: card.referenceLinks }
+					: {}),
+				...(card.prices?.length ? { prices: card.prices } : {}),
 			};
 			if (card.existing) {
 				// 既存エントリには web 写真を送らない(#473)。そのエントリの写真は

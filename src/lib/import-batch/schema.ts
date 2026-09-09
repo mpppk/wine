@@ -2,6 +2,10 @@ import { z } from "zod";
 import { AI_WINE_LIST_MAX_WINES } from "#/lib/ai/config";
 import { calendarDateSchema } from "#/lib/date/calendar-date";
 import {
+	storedMarketPricesInput,
+	storedReferenceLinksInput,
+} from "#/lib/drunk-wine/references";
+import {
 	createWineTastingInput,
 	drunkWineFields,
 	NOTE_MAX,
@@ -71,6 +75,16 @@ const importItemInput = z
 			.optional(),
 		/** 「飲んだ」トグルで入力された飲用記録。未指定なら作らない */
 		tasting: createWineTastingInput.optional(),
+		/**
+		 * 解析の参考サイト・市場価格。銘柄に属する参考情報で、新規作成時は
+		 * その銘柄に保存し、既存一致(目撃追加)のときは未保存ぶんをマージする。
+		 *
+		 * **DB列の追加までは受け付けるだけで保存しない**(別PRのマイグレーション。
+		 * サービス層はこの入力を無視する)。境界の形だけ先に固定し、転送系
+		 * (レビューカード→ペイロード→handoff)の配線を検証できるようにする。
+		 */
+		referenceLinks: storedReferenceLinksInput,
+		prices: storedMarketPricesInput,
 		/**
 		 * web から取り込む銘柄写真(#473)。解析が「手元の写真にこの1本だけを写した
 		 * 適切な写真が無い」と判断した銘柄にだけ付く。
