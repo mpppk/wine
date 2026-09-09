@@ -2065,6 +2065,13 @@ export interface ImportBatchSummary {
 	/** 見かけた日 "YYYY-MM-DD" */
 	seenOn: string | null;
 	photoCount: number;
+	/**
+	 * 登録時に与えられた写真の相対URL(/api/images/... 撮影順)。
+	 * 一覧の各アイテムにサムネイルとして出すために返す(詳細と同じURL)。
+	 * バッチ写真にサムネイル版は作らないので、原寸URLをそのまま使う
+	 * (無いぶんは配信ルートが原寸へフォールバックする)。
+	 */
+	photoUrls: string[];
 	createdAt: number;
 	/** このバッチで新規作成されたエントリの件数 */
 	createdCount: number;
@@ -2158,6 +2165,7 @@ export async function listImportBatches(
 			placeName: b.placeName,
 			seenOn: b.seenOn,
 			photoCount: b.photoKeys.length,
+			photoUrls: b.photoKeys.map(imagePathForKey),
 			createdAt: b.createdAt.getTime(),
 			createdCount,
 			matchedCount: Math.max(0, sightingCount - createdCount),
