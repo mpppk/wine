@@ -7,6 +7,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { groupRegionsByCountry } from "#/lib/wine/countries";
 import { listRegions } from "#/lib/wine/service";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
 
@@ -19,6 +20,8 @@ export const Route = createFileRoute("/regions")({
 function RegionsPage() {
 	const { regions } = Route.useLoaderData();
 	const enabled = regions.filter((r) => r.enabled);
+	// 国の並び順は WINE_COUNTRIES 定義順、国内は REGIONS 定義順(決定的)。#586
+	const groups = groupRegionsByCountry(enabled);
 
 	return (
 		<main className="mx-auto max-w-4xl px-4 py-8">
@@ -27,40 +30,52 @@ function RegionsPage() {
 				地図でAOP(原産地呼称)の区画・土壌・品種を学べる地域を選択してください。
 			</p>
 
-			<div className="mt-6 grid gap-4 sm:grid-cols-2">
-				{enabled.map((region) => (
-					<Link
-						key={region.id}
-						to="/map/$regionId"
-						params={{ regionId: region.id }}
-						className="group no-underline"
+			{groups.map(({ country, regions: countryRegions }) => (
+				<section key={country.id} aria-labelledby={`country-${country.id}`}>
+					<h2
+						id={`country-${country.id}`}
+						className="mt-8 flex items-baseline gap-2 text-lg font-semibold"
 					>
-						<Card className="h-full transition-colors group-hover:border-foreground/40">
-							<CardHeader>
-								<CardTitle className="flex items-center gap-2">
-									<MapIcon
-										className="size-5 text-muted-foreground"
-										aria-hidden
-									/>
-									{region.nameJa}
-									<span className="text-sm font-normal text-muted-foreground">
-										{region.nameLocal}
-									</span>
-								</CardTitle>
-								<CardDescription>
-									{region.countryJa} ・ {region.aopCount}{" "}
-									{getAppellationTermJa(region.id)}
-								</CardDescription>
-							</CardHeader>
-							<CardContent>
-								<p className="text-sm leading-relaxed text-muted-foreground">
-									{region.description}
-								</p>
-							</CardContent>
-						</Card>
-					</Link>
-				))}
-			</div>
+						{country.nameJa}
+						<span className="text-sm font-normal text-muted-foreground">
+							{country.nameLocal} ・ {countryRegions.length}地域
+						</span>
+					</h2>
+					<div className="mt-4 grid gap-4 sm:grid-cols-2">
+						{countryRegions.map((region) => (
+							<Link
+								key={region.id}
+								to="/map/$regionId"
+								params={{ regionId: region.id }}
+								className="group no-underline"
+							>
+								<Card className="h-full transition-colors group-hover:border-foreground/40">
+									<CardHeader>
+										<CardTitle className="flex items-center gap-2">
+											<MapIcon
+												className="size-5 text-muted-foreground"
+												aria-hidden
+											/>
+											{region.nameJa}
+											<span className="text-sm font-normal text-muted-foreground">
+												{region.nameLocal}
+											</span>
+										</CardTitle>
+										<CardDescription>
+											{region.aopCount} {getAppellationTermJa(region.id)}
+										</CardDescription>
+									</CardHeader>
+									<CardContent>
+										<p className="text-sm leading-relaxed text-muted-foreground">
+											{region.description}
+										</p>
+									</CardContent>
+								</Card>
+							</Link>
+						))}
+					</div>
+				</section>
+			))}
 		</main>
 	);
 }

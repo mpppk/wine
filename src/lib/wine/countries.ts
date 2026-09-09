@@ -40,6 +40,51 @@ export function getCountry(countryId: string): WineCountry | undefined {
 	return WINE_COUNTRIES.find((c) => c.id === countryId);
 }
 
+/** 国ごとの地域グループ。/regions の国別セクション表示のSSOT。 */
+export interface RegionsByCountry<TRegion extends Pick<Region, "country">> {
+	country: WineCountry;
+	regions: TRegion[];
+}
+
+/**
+ * 地域一覧を国ごとにまとめる(#586)。
+ * - 国の並び順は WINE_COUNTRIES の定義順(国マスタがSSOT)
+ * - 国内の地域順は入力順(REGIONS定義順)を保つ(決定的)
+ * - WINE_COUNTRIES に突合できない地域があっても落とさず、countryJa等から
+ *   合成した国グループに末尾へまとめる(沈黙の欠落を避ける)
+ */
+export function groupRegionsByCountry<
+	TRegion extends Pick<Region, "country" | "countryJa" | "nameLocal">,
+>(regions: readonly TRegion[]): RegionsByCountry<TRegion>[] {
+	const groups = new Map<string, RegionsByCountry<TRegion>>();
+	for (const country of WINE_COUNTRIES) {
+		groups.set(country.id, { country, regions: [] });
+	}
+	for (const region of regions) {
+		const country = countryForRegion(region);
+		if (country) {
+			groups.get(country.id)?.regions.push(region);
+			continue;
+		}
+		const fallbackId = `other:${region.country}`;
+		let fallback = groups.get(fallbackId);
+		if (!fallback) {
+			fallback = {
+				country: {
+					id: fallbackId,
+					nameJa: region.countryJa,
+					nameLocal: region.country,
+					countryNameEn: region.country,
+				},
+				regions: [],
+			};
+			groups.set(fallbackId, fallback);
+		}
+		fallback.regions.push(region);
+	}
+	return [...groups.values()].filter((g) => g.regions.length > 0);
+}
+
 /** 地域の所属国を引く。REGIONS の country は英語名なので countryNameEn で突合する。 */
 export function countryForRegion(
 	region: Pick<Region, "country">,
