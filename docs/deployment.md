@@ -463,7 +463,7 @@ Langfuse ダッシュボードの usage で月次を確認する。
 
 超過課金は無いが、枠を超えるとトレースが黙って止まる。次の順で間引く:
 
-1. `src/lib/observability/langfuse.ts` の `shouldExportSpan` でツールspanだけ落とす（generation は残す）
+1. `src/lib/observability/langfuse.ts` の `LangfuseSpanProcessor` に `shouldExportSpan` を追加してツールspanだけ落とす（generation は残す。現状このフックは無いので足す）
 2. それでも足りなければ Langfuse Cloud を Core $29/月に上げる
 
 ### セットアップ

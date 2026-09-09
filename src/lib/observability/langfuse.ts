@@ -201,6 +201,17 @@ export async function startLangfuseTrace(options: {
 			},
 			{ parentSpanContext },
 		);
+		// v4 は observations-first で、子だけのクエリでは親の属性が見えない。
+		// `feature` / `requestId` は集計・絞り込みの軸なので、子にも載せて
+		// 子単体でフィルタできるようにする(userId は載せない。span.ts の方針)。
+		// 呼び出し側が同名キーを渡したらそちらを優先する。
+		const childMetadata = (
+			extra?: Record<string, unknown>,
+		): Record<string, unknown> => ({
+			feature: options.feature,
+			requestId: options.requestId,
+			...extra,
+		});
 		return {
 			traceId,
 			recordGeneration(input: LangfuseGenerationInput) {
@@ -220,7 +231,7 @@ export async function startLangfuseTrace(options: {
 							input: input.input,
 							output: input.output,
 							model: input.model,
-							...(input.metadata ? { metadata: input.metadata } : {}),
+							metadata: childMetadata(input.metadata),
 							...(details && Object.keys(details).length > 0
 								? { usageDetails: details }
 								: {}),
@@ -240,7 +251,7 @@ export async function startLangfuseTrace(options: {
 						{
 							input: input.input,
 							output: input.output,
-							metadata: input.metadata,
+							metadata: childMetadata(input.metadata),
 							...(input.level ? { level: input.level } : {}),
 							...(input.statusMessage
 								? { statusMessage: input.statusMessage }
