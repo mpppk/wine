@@ -16,7 +16,11 @@ import {
 	isImpersonatedSession,
 	needsImpersonationCheck,
 } from "#/lib/admin/impersonation";
-import { labelEngineKeySchema, regionQaModelKeySchema } from "#/lib/ai/config";
+import {
+	labelEngineKeySchema,
+	reasoningEffortKeySchema,
+	regionQaModelKeySchema,
+} from "#/lib/ai/config";
 import { authSecretProblem, authSecretProblemMessage } from "#/lib/auth-secret";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
@@ -185,6 +189,13 @@ export const auth = betterAuth({
 				required: false,
 				input: true,
 				validator: { input: labelEngineKeySchema },
+			},
+			// ワイン分析の推論の深さの選択(プロフィール画面で変更)。同上。
+			preferredReasoningEffort: {
+				type: "string",
+				required: false,
+				input: true,
+				validator: { input: reasoningEffortKeySchema },
 			},
 		},
 	},

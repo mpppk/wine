@@ -1,0 +1,11 @@
+-- ワイン分析の推論の深さ(low/medium/high)をジョブ行に永続化する。
+--
+-- 予約は投入時の経路・effortの見積で立つため、コンシューマは再解決せずこの値を
+-- 使う(`route` / `selected_engine` と同じ扱い)。投入〜実行の間にユーザが設定を
+-- 変えても予約と実行が食い違わない。
+--
+-- NOT NULL + 定数デフォルトで足す。既存行は 'low'(現行挙動)で埋まり、この列を
+-- 書かない旧コードの INSERT も通るので expand-and-contract の対象ではない
+-- (0032 の `kind` と同じ形)。値の SSOT は src/lib/ai/config.ts の
+-- REASONING_EFFORT_KEYS。
+ALTER TABLE `label_analysis_job` ADD COLUMN `effort` text NOT NULL DEFAULT 'low';

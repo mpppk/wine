@@ -2,7 +2,12 @@ import { env } from "cloudflare:workers";
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { drunkWine, labelAnalysisJob, place } from "#/db/schema";
-import type { WineListRoute } from "#/lib/ai/config";
+import {
+	DEFAULT_REASONING_EFFORT,
+	type ReasoningEffortKey,
+	toReasoningEffortKey,
+	type WineListRoute,
+} from "#/lib/ai/config";
 import type { LabelSuggestions } from "#/lib/ai/label-extraction";
 import {
 	DEFAULT_LABEL_JOB_KIND,
@@ -272,6 +277,9 @@ export async function submitLabelAnalysisJob(
 			reservedMicroUsd: reservation.reservedMicroUsd,
 			// 一括抽出は経路のフォールバックを持たない(#358)ので、選択 = 実行経路。
 			selectedEngine: "engine" in plan ? plan.engine : plan.route,
+			// 推論の深さは投入時に確定し、コンシューマは再解決しない(予約はこの
+			// effortの見積で立っているため。route と同じ扱い)。
+			effort: plan.effort,
 			route: plan.route,
 			kind,
 			// 「どこで・いつ撮ったか」(#498)。既存の場所と新規の名前は排他で、
@@ -349,17 +357,22 @@ export async function runLabelAnalysisJob(jobId: string): Promise<void> {
 		return;
 	}
 
-	// **経路は再解決しない**(投入時の見積で予約が立っているため)。種別で復元先が違う。
+	// **経路・effortは再解決しない**(投入時の見積で予約が立っているため)。種別で復元先が違う。
 	const isWineList = job.kind === "wine_list";
+	// 旧行・不正値は既定(low)へフォールバックする(ユーザ設定の読み取り側と同じ流儀)。
+	const jobEffort: ReasoningEffortKey =
+		toReasoningEffortKey(job.effort) ?? DEFAULT_REASONING_EFFORT;
 	const plan = isWineList
 		? restoreWineListPlan({
 				route: job.route as WineListRoute,
+				effort: jobEffort,
 				photoCount: job.photoCount,
 				requestId: job.requestId,
 			})
 		: restoreLabelPlan({
 				engine: job.selectedEngine,
 				route: job.route,
+				effort: jobEffort,
 				photoCount: job.photoCount,
 				requestId: job.requestId,
 			});

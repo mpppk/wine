@@ -81,6 +81,12 @@ export interface AiInferenceLog {
 	/** シークレットの設定状況を加味して「意図した」経路。 */
 	route?: string;
 	/**
+	 * 推論の深さのユーザ設定(low/medium/high)。予約見積の出力倍率と、
+	 * GPT の reasoning.effort / Claude の thinking budget に効く。
+	 * 内容を含まない実行メタデータなので selected/route と同列に載せる。
+	 */
+	effort?: string;
+	/**
 	 * 実際に結果を出した経路。フォールバックが起きると route と食い違う。
 	 * **この2つを別々に持つのが要点**で、1つしか記録しないと
 	 * 「GPTで成功した」と「GPTが落ちて Workers AI が拾った」が区別できない。

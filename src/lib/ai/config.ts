@@ -261,15 +261,11 @@ export const AI_LABEL_GPT_MODEL = "gpt-5.6-luna";
  * **reasoning トークンもこの枠から出る**ため、JSONだけの出力でも余裕を持たせる。
  * 小さすぎると web検索と推論で枠を使い切り、status="incomplete" で本文JSONが
  * 出ないまま返る(Claude経路の AI_LABEL_WEB_MAX_OUTPUT_TOKENS と同じ理由)。
+ *
+ * effort を medium/high に上げられるようにしたことに伴い、16k → 24k へ緩和する。
+ * reasoning が枠を食っても本文JSONが途切れにくくするため。
  */
-export const AI_LABEL_GPT_MAX_OUTPUT_TOKENS = 16_000;
-
-/**
- * 推論の深さ(Responses API の reasoning.effort)。この経路の精度は「web検索で裏を取る」
- * ことから来ており、長い内省ではない。effort を上げると reasoning が出力枠を食って
- * 本文JSONが途切れる(incomplete)リスクとトークン消費が増えるため低めに固定する。
- */
-export const AI_LABEL_GPT_REASONING_EFFORT = "low";
+export const AI_LABEL_GPT_MAX_OUTPUT_TOKENS = 24_000;
 
 /**
  * web検索結果をどれだけコンテキストに載せるか(web_search ツールの search_context_size)。
@@ -445,6 +441,110 @@ export function resolveLabelRoute(
 	return "workers-ai";
 }
 
+// ---- 推論の深さ(effort)のユーザ設定 ----
+// エチケット解析・一括抽出の高精度2経路で共有する。ユーザの意思表示は
+// 「どれだけ深く考えさせるか」で経路横断で同じなので、エンジン選択
+// (`preferredLabelEngine`)と同様に1つの列で持つ。
+
+/** ユーザが選べる推論の深さ。OpenAI の reasoning.effort と1対1に対応する。 */
+export const REASONING_EFFORT_KEYS = ["low", "medium", "high"] as const;
+
+/** 推論の深さのキー。ワイヤ上の値(クライアント⇄サーバ・D1保存値)。 */
+export type ReasoningEffortKey = (typeof REASONING_EFFORT_KEYS)[number];
+
+/** 選択肢の表示定義。UI(プロフィール画面)が参照する。 */
+export const AI_REASONING_EFFORTS: Record<
+	ReasoningEffortKey,
+	{ label: string; description: string }
+> = {
+	low: {
+		label: "軽い(low)",
+		description:
+			"裏取り中心の既定の深さ。消費が最も小さく、本文欠落のリスクも最小です。",
+	},
+	medium: {
+		label: "標準(medium)",
+		description:
+			"より深く推論させます。難しいラベルで精度が上がることがありますが、消費が増えます。",
+	},
+	high: {
+		label: "深い(high)",
+		description:
+			"最も深く推論させます。消費が最大で、出力枠を圧迫して途切れることがあります。",
+	},
+};
+
+/** 未設定・不正値のときの既定。現行挙動(low固定)を維持する。 */
+export const DEFAULT_REASONING_EFFORT: ReasoningEffortKey = "low";
+
+/**
+ * effortキーの許可リスト検証スキーマ。**書き込み経路(better-auth の
+ * additionalFields validator)と読み取り経路で共有する SSOT**
+ * (#256 の preferredAiModel と同じ理由・同じ形)。
+ */
+export const reasoningEffortKeySchema = z.enum(REASONING_EFFORT_KEYS, {
+	error: "対応していない推論の深さです。",
+});
+
+/** 任意の値を許可リストと照合し、effortキーでなければ `null` を返す。 */
+export function toReasoningEffortKey(
+	value: unknown,
+): ReasoningEffortKey | null {
+	const parsed = reasoningEffortKeySchema.safeParse(value);
+	return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Claude経路の thinking budget(effort連動)。
+ *
+ * low はパラメータを付けず現行挙動のままにする。medium/high は extended thinking
+ * を明示し、budget を max_tokens 未満に収める(ラベル16k・一括20kのどちらでも収まる値)。
+ * `enabled` は SDK で非推奨警告が出るが、 adaptive には budget 指定が無く原価を
+ * 上限化できないため、コスト予測可能なこちらを使う。
+ */
+const AI_CLAUDE_THINKING_BUDGET_MEDIUM = 8_000;
+const AI_CLAUDE_THINKING_BUDGET_HIGH = 12_000;
+
+/**
+ * effort に対応する Claude の thinking 指定。low は `undefined`
+ * (= パラメータ無指定で現行どおり)。戻り値は Anthropic SDK の
+ * `ThinkingConfigParam` と構造互換。
+ */
+export function claudeThinkingForEffort(
+	effort: ReasoningEffortKey,
+): { type: "enabled"; budget_tokens: number } | undefined {
+	switch (effort) {
+		case "medium":
+			return {
+				type: "enabled",
+				budget_tokens: AI_CLAUDE_THINKING_BUDGET_MEDIUM,
+			};
+		case "high":
+			return {
+				type: "enabled",
+				budget_tokens: AI_CLAUDE_THINKING_BUDGET_HIGH,
+			};
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * effort別の出力トークン見積の倍率。reasoning も出力枠から出るため、
+ * 深く考えさせるほど出力の実測中心値が上がる。予約見積(中心値)に掛ける。
+ */
+const REASONING_EFFORT_OUTPUT_MULTIPLIER: Record<ReasoningEffortKey, number> = {
+	low: 1,
+	medium: 1.5,
+	high: 2,
+};
+
+/** 見積関数の effort 引数を正規化する(不正値・未設定は既定へ)。 */
+/** 見積関数の effort 引数を正規化する(不正値・未設定は既定へ)。 */
+function normalizeReasoningEffort(value: unknown): ReasoningEffortKey {
+	return toReasoningEffortKey(value) ?? DEFAULT_REASONING_EFFORT;
+}
+
 // ---- 写真からのワイン一括抽出(Issue #358) ----
 // レストランのワインリスト・ショップの棚など、複数銘柄が写った写真から銘柄の配列を
 // 取り出す経路。エチケット解析(1解析=1本)とは出力の形が違うので定数も分けて持つ。
@@ -546,14 +646,23 @@ export function resolveWineListRoute(
  * 出る(AI_LABEL_WEB_MAX_OUTPUT_TOKENS と同じ事情)ため大きめに取る。
  * 打ち切りは truncated フラグとしてUIに出し、「写真を分けて再解析」を案内する。
  *
- * **これ以上大きくするならストリーミングへの切り替えが要る**。Anthropic SDK は
- * 非ストリーミングの `messages.create` に対し max_tokens から推定所要時間を計算し、
- * 10分を超える見積(= おおよそ 21,000 トークン超)をリクエスト送信前に throw する
+ * **Claude経路用の上限**。これ以上大きくするとストリーミングへの切り替えが要る。
+ * Anthropic SDK は非ストリーミングの `messages.create` に対し max_tokens から
+ * 推定所要時間を計算し、10分を超える見積(= おおよそ 21,000 トークン超)を
+ * リクエスト送信前に throw する
  * ("Streaming is required for operations that may take longer than 10 minutes")。
  * 銘柄1件あたりの出力は 100 トークン弱で、件数上限(AI_WINE_LIST_MAX_WINES)ぶんでも
  * 1万トークンに届かないため、現状はこの枠で足りる。
  */
 export const AI_WINE_LIST_MAX_OUTPUT_TOKENS = 20_000;
+
+/**
+ * 一括抽出の GPT経路用の上限(Responses API の max_output_tokens)。
+ * reasoning トークンもこの枠から出て銘柄数に比例して伸びるため、Claude用(20k)
+ * とは別定数で大きく取る。effort を medium/high に上げた回でも本文JSONが
+ * 途切れにくくする。
+ */
+export const AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS = 32_000;
 
 /**
  * 1回の抽出で受け取る銘柄数の上限。モデルがこれを超えて列挙してきた場合は切り捨て、
@@ -593,14 +702,6 @@ const AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE = 3_000;
  * (`AI_LABEL_GPT_MAX_OUTPUT_TOKENS` のコメント参照)。
  */
 const AI_WINE_LIST_GPT_BASE_OUTPUT_TOKEN_ESTIMATE = 4_000;
-
-/**
- * GPT経路の推論の深さ(Responses API の reasoning.effort)。この経路の精度は
- * 「写真を丁寧に読む」ことから来ており、長い内省ではない。effort を上げると
- * reasoning が出力枠を食い、銘柄数に比例して伸びる本文JSONが途中で切れる
- * (status="incomplete")リスクだけが増えるため低めに固定する。
- */
-export const AI_WINE_LIST_GPT_REASONING_EFFORT = "low";
 
 /**
  * 画像1枚あたりの追加出力トークン見積。**この経路だけ出力が銘柄数に比例して伸びる**
@@ -668,17 +769,23 @@ export const AI_WINE_LIST_MAX_CONTINUATIONS = 6;
 export function estimateWineListReserveUsage(
 	route: WineListRoute,
 	imageCount: number,
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): AiUsage {
 	const photos = Math.min(Math.max(1, imageCount), MAX_PHOTOS_PER_IMPORT_BATCH);
 	const baseOutput =
 		route === "gpt-luna"
 			? AI_WINE_LIST_GPT_BASE_OUTPUT_TOKEN_ESTIMATE
 			: AI_WINE_LIST_BASE_OUTPUT_TOKEN_ESTIMATE;
+	// reasoning/thinking も出力として課金されるため、深く考えさせるほど中心値が上がる。
+	const outputMult =
+		REASONING_EFFORT_OUTPUT_MULTIPLIER[normalizeReasoningEffort(effort)];
 	return {
 		inputTokens:
 			AI_WINE_LIST_BASE_TOKEN_ESTIMATE +
 			AI_WINE_LIST_IMAGE_TOKEN_ESTIMATE * photos,
-		outputTokens: baseOutput + AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE * photos,
+		outputTokens: Math.round(
+			(baseOutput + AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE * photos) * outputMult,
+		),
 		webSearches: Math.min(
 			AI_WINE_LIST_WEB_SEARCH_ESTIMATE_PER_IMAGE * photos,
 			AI_WINE_LIST_MAX_SEARCHES,
@@ -690,10 +797,11 @@ export function estimateWineListReserveUsage(
 export function estimateWineListReserveCharge(
 	route: WineListRoute,
 	imageCount: number,
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): CreditCharge {
 	return toEstimateCharge(
 		AI_WINE_LIST_ROUTE_MODELS[route],
-		estimateWineListReserveUsage(route, imageCount),
+		estimateWineListReserveUsage(route, imageCount, effort),
 	);
 }
 
@@ -705,8 +813,13 @@ export function estimateWineListReserveCharge(
 export function estimateLabelReserveUsage(
 	route: LabelRoute,
 	imageCount: number,
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): AiUsage {
 	const photos = Math.max(1, imageCount);
+	// reasoning/thinking も出力として課金されるため、深く考えさせるほど中心値が上がる。
+	// Workers AI 経路は reasoning を使わないので掛けない。
+	const outputMult =
+		REASONING_EFFORT_OUTPUT_MULTIPLIER[normalizeReasoningEffort(effort)];
 	switch (route) {
 		case "gpt-luna": {
 			// エージェントループ。**入力はステップ数に比例して伸びる**(毎ターン会話全体を
@@ -722,7 +835,9 @@ export function estimateLabelReserveUsage(
 						(photos + AI_LABEL_AGENT_ZOOM_ESTIMATE) +
 					AI_LABEL_AGENT_TOKEN_PER_STEP * extraSteps,
 				cacheReadTokens: AI_LABEL_AGENT_CACHE_READ_PER_STEP * extraSteps,
-				outputTokens: AI_LABEL_AGENT_OUTPUT_TOKEN_ESTIMATE,
+				outputTokens: Math.round(
+					AI_LABEL_AGENT_OUTPUT_TOKEN_ESTIMATE * outputMult,
+				),
 				webSearches: AI_LABEL_AGENT_SEARCH_ESTIMATE,
 			};
 		}
@@ -731,7 +846,9 @@ export function estimateLabelReserveUsage(
 				inputTokens:
 					AI_LABEL_WEB_BASE_TOKEN_ESTIMATE +
 					AI_LABEL_WEB_IMAGE_TOKEN_ESTIMATE * photos,
-				outputTokens: AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE,
+				outputTokens: Math.round(
+					AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE * outputMult,
+				),
 				webSearches: AI_LABEL_WEB_SEARCH_ESTIMATE,
 			};
 		case "workers-ai":
@@ -748,10 +865,11 @@ export function estimateLabelReserveUsage(
 export function estimateLabelReserveCharge(
 	route: LabelRoute,
 	imageCount: number,
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): CreditCharge {
 	return toEstimateCharge(
 		AI_LABEL_ROUTE_MODELS[route],
-		estimateLabelReserveUsage(route, imageCount),
+		estimateLabelReserveUsage(route, imageCount, effort),
 	);
 }
 

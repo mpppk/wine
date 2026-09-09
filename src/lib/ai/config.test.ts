@@ -6,11 +6,18 @@ import {
 	AI_HISTORY_CONTENT_MAX_CHARS,
 	AI_HISTORY_INPUT_MAX_MESSAGES,
 	AI_LABEL_ENGINES,
+	AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
+	AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
 	AI_MAX_HISTORY_MESSAGES,
+	AI_REASONING_EFFORTS,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
+	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_SEARCHES,
 	chatHistorySchema,
+	claudeThinkingForEffort,
 	DEFAULT_LABEL_ENGINE,
+	DEFAULT_REASONING_EFFORT,
 	DEFAULT_REGION_QA_MODEL,
 	estimateLabelReserveCharge,
 	estimateLabelReserveUsage,
@@ -19,10 +26,14 @@ import {
 	LABEL_ENGINE_KEYS,
 	type LabelRoute,
 	labelEngineKeySchema,
+	REASONING_EFFORT_KEYS,
 	REGION_QA_MODEL_KEYS,
+	type ReasoningEffortKey,
+	reasoningEffortKeySchema,
 	regionQaModelKeySchema,
 	resolveLabelRoute,
 	toLabelEngineKey,
+	toReasoningEffortKey,
 	toRegionQaModelKey,
 	WINE_LIST_ROUTE_KEYS,
 } from "./config";
@@ -130,6 +141,142 @@ describe("labelEngineKeySchema / toLabelEngineKey", () => {
 	});
 });
 
+// 推論の深さの許可リスト(書き込み: auth.ts の validator / 読み取り:
+// ai-service の effort 解決 / UI: プロフィール画面 が共有する。
+// preferredAiModel と同じ形 #256)。
+describe("reasoningEffortKeySchema / toReasoningEffortKey", () => {
+	it("REASONING_EFFORT_KEYS の全キーに表示定義があり、既定キーが含まれる", () => {
+		for (const key of REASONING_EFFORT_KEYS) {
+			expect(AI_REASONING_EFFORTS[key]?.label.length).toBeGreaterThan(0);
+			expect(reasoningEffortKeySchema.safeParse(key).success).toBe(true);
+			expect(toReasoningEffortKey(key)).toBe(key);
+		}
+		expect(REASONING_EFFORT_KEYS).toContain(DEFAULT_REASONING_EFFORT);
+		expect(DEFAULT_REASONING_EFFORT).toBe("low");
+	});
+
+	it("許可リスト外・文字列以外・巨大な文字列を拒否する", () => {
+		for (const value of [
+			"ultra",
+			"",
+			null,
+			undefined,
+			1,
+			"a".repeat(300_000),
+		]) {
+			expect(toReasoningEffortKey(value)).toBeNull();
+		}
+	});
+
+	it("拒否時のメッセージは利用者向けの日本語(better-auth が 400 の message に載せる)", () => {
+		const result = reasoningEffortKeySchema.safeParse("ultra");
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe(
+				"対応していない推論の深さです。",
+			);
+		}
+	});
+});
+
+// effort → Claude thinking の対応づけ。budget は max_tokens 未満でなければならず、
+// ラベル(16k)・一括(20k)のどちらの上限でも収まる値を固定する。
+describe("claudeThinkingForEffort", () => {
+	it("low は thinking 無指定(現行挙動のまま)", () => {
+		expect(claudeThinkingForEffort("low")).toBeUndefined();
+	});
+
+	it("medium/high は budget 付きで返し、どちらの Claude 上限にも収まる", () => {
+		for (const effort of ["medium", "high"] as const) {
+			const thinking = claudeThinkingForEffort(effort);
+			expect(thinking?.type).toBe("enabled");
+			expect(thinking?.budget_tokens).toBeGreaterThanOrEqual(1024);
+			expect(thinking?.budget_tokens).toBeLessThan(
+				AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
+			);
+			expect(thinking?.budget_tokens).toBeLessThan(
+				AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+			);
+		}
+	});
+
+	it("high の budget は medium 以上(深さの順序が逆転しない)", () => {
+		expect(
+			claudeThinkingForEffort("high")?.budget_tokens,
+		).toBeGreaterThanOrEqual(
+			claudeThinkingForEffort("medium")?.budget_tokens ?? 0,
+		);
+	});
+});
+
+// GPT経路の出力上限。reasoning も同じ枠から出るため、effort 可変化に伴い緩和した。
+describe("GPT max_output_tokens", () => {
+	it("エチケットGPTは Claude 上限と同水準以上を確保する", () => {
+		expect(AI_LABEL_GPT_MAX_OUTPUT_TOKENS).toBeGreaterThanOrEqual(
+			AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
+		);
+	});
+
+	it("一括GPTは銘柄数に比例するぶん Claude 用より大きい", () => {
+		expect(AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS).toBeGreaterThan(
+			AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+		);
+	});
+});
+
+// effort別の出力見積の倍率。深く考えさせるほど reasoning が出力枠を食うため、
+// 高精度経路の出力中心値を引き上げる。Workers AI 経路は reasoning を使わないので不変。
+describe("estimate reserve usage の effort 倍率", () => {
+	it("高精度経路は medium/high で出力見積が増える(low 順)", () => {
+		const low = estimateLabelReserveUsage("gpt-luna", 1, "low").outputTokens;
+		const medium = estimateLabelReserveUsage(
+			"gpt-luna",
+			1,
+			"medium",
+		).outputTokens;
+		const high = estimateLabelReserveUsage("gpt-luna", 1, "high").outputTokens;
+		expect(medium).toBeGreaterThan(low ?? 0);
+		expect(high).toBeGreaterThanOrEqual(medium ?? 0);
+	});
+
+	it("Claude経路も effort で出力見積が増える", () => {
+		const low = estimateLabelReserveUsage(
+			"web-research",
+			1,
+			"low",
+		).outputTokens;
+		const high = estimateLabelReserveUsage(
+			"web-research",
+			1,
+			"high",
+		).outputTokens;
+		expect(high).toBeGreaterThan(low ?? 0);
+	});
+
+	it("一括抽出も effort で出力見積が増える", () => {
+		for (const route of WINE_LIST_ROUTE_KEYS) {
+			const low = estimateWineListReserveUsage(route, 1, "low").outputTokens;
+			const high = estimateWineListReserveUsage(route, 1, "high").outputTokens;
+			expect(high).toBeGreaterThan(low ?? 0);
+		}
+	});
+
+	it("標準(Workers AI)経路は effort で変わらない", () => {
+		const outputs = (["low", "medium", "high"] as ReasoningEffortKey[]).map(
+			(e) => estimateLabelReserveUsage("workers-ai", 1, e).outputTokens,
+		);
+		expect(new Set(outputs).size).toBe(1);
+	});
+
+	it("effort 省略時は low と同じ(既存呼び出しの互換性)", () => {
+		expect(estimateLabelReserveUsage("gpt-luna", 1)).toEqual(
+			estimateLabelReserveUsage("gpt-luna", 1, "low"),
+		);
+		expect(estimateWineListReserveUsage("gpt-luna", 2)).toEqual(
+			estimateWineListReserveUsage("gpt-luna", 2, "low"),
+		);
+	});
+});
 // 選択されたエンジンと実際に走る経路の対応づけ。ai-service が経路ごとに
 // `!!key && engine === "..."` を書くと、経路が増えるたびに条件がドリフトして
 // 「片方のキーだけ設定された環境で黙って標準へ落ちる」が起きるため、ここが SSOT。

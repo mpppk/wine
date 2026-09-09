@@ -16,18 +16,23 @@ import {
 } from "#/components/ui/select";
 import {
 	AI_LABEL_ENGINES,
+	AI_REASONING_EFFORTS,
 	AI_REGION_QA_MODELS,
 	AI_WINE_LIST_ROUTE_LABELS,
 	DEFAULT_LABEL_ENGINE,
+	DEFAULT_REASONING_EFFORT,
 	DEFAULT_REGION_QA_MODEL,
 	estimateLabelReserveCharge,
 	estimateWineListReserveCharge,
 	LABEL_ENGINE_KEYS,
 	type LabelEngineKey,
+	REASONING_EFFORT_KEYS,
+	type ReasoningEffortKey,
 	type RegionQaModelKey,
 	resolveLabelRoute,
 	resolveWineListRoute,
 	toLabelEngineKey,
+	toReasoningEffortKey,
 	toRegionQaModelKey,
 	type WineListRoute,
 } from "#/lib/ai/config";
@@ -236,6 +241,7 @@ function ProfilePage() {
 
 			<AiModelCard />
 			<LabelEngineCard />
+			<ReasoningEffortCard />
 			<PushNotificationCard />
 			<PlanCard />
 			<CreditCard />
@@ -338,18 +344,30 @@ function AiModelCard() {
  * エンジンごとの目安消費(写真1枚)。**サーバの予約見積と同じ関数から算出する**ので、
  * 単価改定・モデル差し替えで表示だけ古くなることがない(#355)。
  */
-function creditsPerPhoto(engine: LabelEngineKey): number {
-	return costToCredits(estimateLabelReserveCharge(engine, 1).microUsd);
+function creditsPerPhoto(
+	engine: LabelEngineKey,
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
+): number {
+	return costToCredits(estimateLabelReserveCharge(engine, 1, effort).microUsd);
 }
 
 /** 一括登録で写真1枚を解析するときの目安消費(経路ごと)。 */
-function wineListCreditsPerPhoto(route: WineListRoute): number {
-	return costToCredits(estimateWineListReserveCharge(route, 1).microUsd);
+function wineListCreditsPerPhoto(
+	route: WineListRoute,
+	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
+): number {
+	return costToCredits(
+		estimateWineListReserveCharge(route, 1, effort).microUsd,
+	);
 }
 
 function LabelEngineCard() {
 	const { data: session, refetch: refetchSession } = authClient.useSession();
 	const [engine, setEngine] = useState<LabelEngineKey>(DEFAULT_LABEL_ENGINE);
+	// 目安消費の表示はユーザの推論の深さ設定を反映する。session が読めない間は既定。
+	const effort =
+		toReasoningEffortKey(session?.user.preferredReasoningEffort) ??
+		DEFAULT_REASONING_EFFORT;
 	// 高精度経路はサーバにAPIキーが無いと使えず、選択に関わらず降格する。
 	// **その環境で消費の目安として選択エンジンの数字を出すと嘘になる**ので、
 	// 実際に走る経路を出して食い違いを明示する(判定はサーバと同じ resolveLabelRoute)。
@@ -437,14 +455,16 @@ function LabelEngineCard() {
 							{effectiveRoute === engine ? (
 								<>
 									写真1枚あたり約
-									{creditsPerPhoto(engine).toLocaleString("ja-JP")}
+									{creditsPerPhoto(engine, effort).toLocaleString("ja-JP")}
 									クレジットを消費します。
 								</>
 							) : (
 								<>
 									この環境では「{AI_LABEL_ENGINES[effectiveRoute].label}
 									」で解析されます(写真1枚あたり約
-									{creditsPerPhoto(effectiveRoute).toLocaleString("ja-JP")}
+									{creditsPerPhoto(effectiveRoute, effort).toLocaleString(
+										"ja-JP",
+									)}
 									クレジット)。
 								</>
 							)}
@@ -460,9 +480,10 @@ function LabelEngineCard() {
 									写真からまとめて登録するときは
 									{AI_WINE_LIST_ROUTE_LABELS[wineListRoute]}
 									で解析されます(web検索はしないため、写真1枚あたり約
-									{wineListCreditsPerPhoto(wineListRoute).toLocaleString(
-										"ja-JP",
-									)}
+									{wineListCreditsPerPhoto(
+										wineListRoute,
+										effort,
+									).toLocaleString("ja-JP")}
 									クレジット)。
 									{engine === "workers-ai" &&
 										"一括登録は標準(Workers AI)では読み取り精度が足りないため、この機能だけ高精度経路で解析します。"}
@@ -485,6 +506,99 @@ function LabelEngineCard() {
 					type="button"
 					disabled={isPending}
 					onClick={() => saveEngine()}
+					className="self-start"
+				>
+					{isPending ? "保存中..." : "設定を保存"}
+				</Button>
+			</CardContent>
+		</Card>
+	);
+}
+
+/**
+ * ワイン分析の推論の深さの選択。ユーザ設定として user.preferredReasoningEffort に
+ * 保存し、**エチケット解析と写真からの一括登録の両方**がこの設定を使う。
+ *
+ * GPT経路は OpenAI の reasoning.effort、Claude経路は thinking budget に効く。
+ * 深くするほど難しいラベルでの精度が上がりうるが、消費が増える。
+ */
+function ReasoningEffortCard() {
+	const { data: session, refetch: refetchSession } = authClient.useSession();
+	const [effort, setEffort] = useState<ReasoningEffortKey>(
+		DEFAULT_REASONING_EFFORT,
+	);
+	const [error, setError] = useState("");
+	const [successMessage, setSuccessMessage] = useState("");
+
+	useEffect(() => {
+		const pref = toReasoningEffortKey(session?.user.preferredReasoningEffort);
+		if (pref) setEffort(pref);
+	}, [session?.user.preferredReasoningEffort]);
+
+	const { mutate: saveEffort, isPending } = useMutation({
+		mutationFn: async () => {
+			const result = await authClient.updateUser({
+				preferredReasoningEffort: effort,
+			});
+			if (result.error)
+				throw new Error(result.error.message ?? "Update failed");
+		},
+		onSuccess: async () => {
+			await refetchSession();
+			setSuccessMessage("推論の深さの設定を更新しました。");
+			setError("");
+		},
+		onError: (err: Error) => {
+			setError(err.message);
+			setSuccessMessage("");
+		},
+	});
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle>推論の深さ</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				<p className="text-sm text-muted-foreground">
+					「エチケットから自動入力」と「写真からまとめて登録」でAIがどれだけ深く考えるかを選べます。
+				</p>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="reasoning-effort">推論の深さ</Label>
+					<Select
+						value={effort}
+						onValueChange={(v) => setEffort(v as ReasoningEffortKey)}
+					>
+						<SelectTrigger id="reasoning-effort" className="max-w-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{REASONING_EFFORT_KEYS.map((key) => (
+								<SelectItem key={key} value={key}>
+									{AI_REASONING_EFFORTS[key].label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-xs text-muted-foreground">
+						{AI_REASONING_EFFORTS[effort].description}
+					</p>
+					<p className="text-xs text-muted-foreground">
+						深くするほど消費が増えます。目安は画像解析エンジンの表示を参照してください。
+					</p>
+				</div>
+
+				{error && <p className="text-sm text-destructive">{error}</p>}
+				{successMessage && (
+					<p className="text-sm text-green-600 dark:text-green-400">
+						{successMessage}
+					</p>
+				)}
+
+				<Button
+					type="button"
+					disabled={isPending}
+					onClick={() => saveEffort()}
 					className="self-start"
 				>
 					{isPending ? "保存中..." : "設定を保存"}

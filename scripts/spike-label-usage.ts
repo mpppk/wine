@@ -39,8 +39,8 @@ import {
 	AI_LABEL_AGENT_MAX_STEPS,
 	AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 	AI_LABEL_GPT_MODEL,
-	AI_LABEL_GPT_REASONING_EFFORT,
 	AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
+	DEFAULT_REASONING_EFFORT,
 	estimateLabelReserveCharge,
 } from "#/lib/ai/config";
 import { buildLabelSuggestions } from "#/lib/ai/label-extraction";
@@ -180,7 +180,7 @@ async function main(): Promise<void> {
 		],
 		maxOutputTokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 		providerOptions: {
-			openai: { reasoningEffort: AI_LABEL_GPT_REASONING_EFFORT },
+			openai: { reasoningEffort: DEFAULT_REASONING_EFFORT },
 		},
 		// 本番と揃える(workerd では未処理の Promise 拒否を残すため切ってある)
 		telemetry: { isEnabled: false },
