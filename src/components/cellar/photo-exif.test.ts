@@ -45,7 +45,12 @@ function buildTiff(options: ExifBuildOptions = {}): Uint8Array {
 		out.push(littleEndian ? (v >> 8) & 0xff : v & 0xff);
 	};
 	const u32 = (v: number) => {
-		const b = [(v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff];
+		const b = [
+			(v >>> 24) & 0xff,
+			(v >>> 16) & 0xff,
+			(v >>> 8) & 0xff,
+			v & 0xff,
+		];
 		if (littleEndian) b.reverse();
 		out.push(...b);
 	};
@@ -53,7 +58,12 @@ function buildTiff(options: ExifBuildOptions = {}): Uint8Array {
 		for (const c of s) out.push(c.charCodeAt(0));
 	};
 	const patchU32 = (at: number, v: number) => {
-		const b = [(v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff];
+		const b = [
+			(v >>> 24) & 0xff,
+			(v >>> 16) & 0xff,
+			(v >>> 8) & 0xff,
+			v & 0xff,
+		];
 		if (littleEndian) b.reverse();
 		for (let i = 0; i < 4; i++) out[at + i] = b[i] as number;
 	};
@@ -144,7 +154,10 @@ function buildTiff(options: ExifBuildOptions = {}): Uint8Array {
 	return new Uint8Array(out);
 }
 
-function buildJpeg(tiff: Uint8Array, prefixSegments: Uint8Array[] = []): Uint8Array {
+function buildJpeg(
+	tiff: Uint8Array,
+	prefixSegments: Uint8Array[] = [],
+): Uint8Array {
 	const parts: number[] = [0xff, 0xd8];
 	for (const seg of prefixSegments) parts.push(...seg);
 	// APP1 Exif
@@ -232,8 +245,8 @@ describe("parseExifFromBytes", () => {
 	it("EXIFなしJPEGはnull埋め", () => {
 		// SOI + APP0(JFIF) + EOI
 		const bytes = new Uint8Array([
-			0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00,
-			0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xd9,
+			0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+			0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xd9,
 		]);
 		expect(parseExifFromBytes(bytes)).toEqual({
 			takenOn: null,
@@ -266,7 +279,9 @@ describe("parseExifFromBytes", () => {
 
 describe("exifDateTimeToCalendarDate", () => {
 	it("EXIF日時→暦日", () => {
-		expect(exifDateTimeToCalendarDate("2024:05:06 12:34:56")).toBe("2024-05-06");
+		expect(exifDateTimeToCalendarDate("2024:05:06 12:34:56")).toBe(
+			"2024-05-06",
+		);
 	});
 	it("形式違い・範囲外はnull", () => {
 		expect(exifDateTimeToCalendarDate("2024-05-06")).toBeNull();

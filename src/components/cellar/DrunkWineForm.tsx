@@ -35,6 +35,7 @@ import {
 	buildLabelDiffs,
 	type LabelDiffItem,
 } from "#/components/cellar/label-suggestion-diff";
+import { firstTakenOn } from "#/components/cellar/photo-exif";
 import {
 	acceptPhotoFiles,
 	detachPhotoFiles,
@@ -346,6 +347,16 @@ export function DrunkWineForm({
 		setError(detached.rejectMessage || rejectMessage);
 		setAnalyzeNotice("");
 		if (detached.accepted.length === 0) return;
+		// EXIFの撮影日を日付欄へ自動入力する(Issue #590)。**新規作成で・空欄だけ**
+		// (飲んだ日・見かけた日の両方)。既に入力済み・編集時・記録済み(#490で
+		// 下書き欄が消えた後)は触らない。EXIFなし・取得失敗時は黙って空欄のまま。
+		if (!entry && !savedEntry) {
+			const takenOn = await firstTakenOn(detached.accepted);
+			if (takenOn) {
+				setTastingDraft((d) => (d.drankOn ? d : { ...d, drankOn: takenOn }));
+				setSightingDraft((d) => (d.seenOn ? d : { ...d, seenOn: takenOn }));
+			}
+		}
 		setPhotos((prev) => [
 			...prev,
 			...detached.accepted.map(

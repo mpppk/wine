@@ -30,13 +30,11 @@ const NO_EXIF: PhotoExif = { takenOn: null, gps: null };
 // XMP等の別APP1・他セグメントは長さで飛ばす。壊れていたら黙って null へ
 // (EXIFなし・取得失敗時は従来通りのフォールバックが必須なため、throwしない)。
 
-function findExifTiff(bytes: Uint8Array): { view: DataView; start: number } | null {
+function findExifTiff(
+	bytes: Uint8Array,
+): { view: DataView; start: number } | null {
 	if (bytes.length < 4) return null;
-	const view = new DataView(
-		bytes.buffer,
-		bytes.byteOffset,
-		bytes.byteLength,
-	);
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 	if (view.getUint8(0) !== 0xff || view.getUint8(1) !== 0xd8) return null;
 	let pos = 2;
 	while (pos + 2 <= view.byteLength) {
@@ -75,14 +73,6 @@ function findExifTiff(bytes: Uint8Array): { view: DataView; start: number } | nu
 // ---- TIFF読み ------------------------------------------------------------
 // 範囲外アクセスは undefined へ潰す。DataViewは範囲外でthrowするため、
 // 呼び出し側は戻り値を見て黙って null へ倒す(フォールバック必須)。
-
-const TYPE_SIZES: Record<number, number> = {
-	1: 1, // BYTE
-	2: 1, // ASCII
-	3: 2, // SHORT
-	4: 4, // LONG
-	5: 8, // RATIONAL
-};
 
 interface Tiff {
 	view: DataView;
@@ -142,7 +132,7 @@ function findTag(
 /** ASCIIタグを読む。NUL終端までを返す(異常時は null)。 */
 function readAscii(tiff: Tiff, ifd: number, tag: number): string | null {
 	const found = findTag(tiff, ifd, tag);
-	if (!found || found.type !== 2 || found.count < 1 || found.count > 256) {
+	if (found?.type !== 2 || found.count < 1 || found.count > 256) {
 		return null;
 	}
 	const size = found.count;
@@ -169,18 +159,14 @@ function readAscii(tiff: Tiff, ifd: number, tag: number): string | null {
 /** LONG×1タグを読む(Exif/GPSのIFDオフセット用)。 */
 function readU32(tiff: Tiff, ifd: number, tag: number): number | null {
 	const found = findTag(tiff, ifd, tag);
-	if (!found || found.type !== 4 || found.count !== 1) return null;
+	if (found?.type !== 4 || found.count !== 1) return null;
 	return tiff.u32(found.valueAt) ?? null;
 }
 
 /** RATIONAL×3タグを十進度へ(異常時は null)。分母0は0として扱わず全体を捨てる。 */
-function readDegreeTriple(
-	tiff: Tiff,
-	ifd: number,
-	tag: number,
-): number | null {
+function readDegreeTriple(tiff: Tiff, ifd: number, tag: number): number | null {
 	const found = findTag(tiff, ifd, tag);
-	if (!found || found.type !== 5 || found.count !== 3) return null;
+	if (found?.type !== 5 || found.count !== 3) return null;
 	const offset = tiff.u32(found.valueAt);
 	if (offset === undefined) return null;
 	const at = tiff.start + offset;
