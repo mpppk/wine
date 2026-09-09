@@ -16,22 +16,27 @@ import {
 export function ReferenceLinksList({ links }: { links: LabelReferenceLink[] }) {
 	if (links.length === 0) return null;
 	return (
-		<section aria-label="参考サイト">
+		<section aria-label="参考サイト" className="min-w-0">
 			<h4 className="mb-1 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground">
 				<LinkIcon className="size-3.5" aria-hidden />
 				参考サイト
 			</h4>
-			<ul className="flex flex-col gap-1.5">
+			<ul className="flex min-w-0 flex-col gap-1.5">
 				{links.map((link) => (
-					<li key={link.url}>
+					// 長いタイトルでモバイルの横幅が広がらないよう li まで min-w-0。
+					// span の truncate(単行省略)だけでは flex アイテムの自動最小幅で
+					// 抑えきれないため。
+					<li key={link.url} className="min-w-0">
 						<a
 							href={link.url}
 							target="_blank"
 							rel="noopener noreferrer nofollow"
 							title={link.url}
-							className="flex min-w-0 items-center gap-1 text-sm underline decoration-dotted underline-offset-2 hover:text-foreground"
+							className="flex min-w-0 max-w-full items-center gap-1 text-sm underline decoration-dotted underline-offset-2 hover:text-foreground"
 						>
-							<span className="truncate">{link.title ?? link.url}</span>
+							<span className="min-w-0 flex-1 truncate">
+								{link.title ?? link.url}
+							</span>
 							<ExternalLinkIcon
 								className="size-3 shrink-0 opacity-60"
 								aria-hidden
@@ -52,16 +57,17 @@ export function ReferenceLinksList({ links }: { links: LabelReferenceLink[] }) {
 export function PriceList({ prices }: { prices: LabelPrice[] }) {
 	if (prices.length === 0) return null;
 	return (
-		<section aria-label="価格一覧">
+		<section aria-label="価格一覧" className="min-w-0">
 			<h4 className="mb-1 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground">
 				<TagIcon className="size-3.5" aria-hidden />
 				価格一覧
 			</h4>
-			<ul className="flex flex-col gap-1.5 text-sm">
+			<ul className="flex min-w-0 flex-col gap-1.5 text-sm">
 				{prices.map((price) => {
 					const line = `${formatLabelPrice(price)}(${price.source})`;
 					return (
-						<li key={labelPriceKey(price)}>
+						// 長い店名・ソースで横に広がらないよう折り返しを許す。
+						<li key={labelPriceKey(price)} className="min-w-0 break-words">
 							{price.url ? (
 								<a
 									href={price.url}

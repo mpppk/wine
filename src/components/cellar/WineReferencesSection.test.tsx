@@ -4,8 +4,8 @@ import type { WineReferencesValue } from "./drunk-wine-payload";
 import { EMPTY_REFERENCES_VALUE } from "./drunk-wine-payload";
 import { WineReferencesSection } from "./WineReferencesSection";
 
-// 参考サイト・市場価格の遅延表示(#588)。空の編集画面ではフォームを出さず
-// 追加ボタンから開くこと、値があるときは最初から見えることを固定する。
+// 参考サイト・市場価格の遅延表示(#588)。空でも値ありでも入力欄は出さず
+// 追加ボタンから開くこと、一覧は値があるとき常に見えることを固定する。
 
 afterEach(() => cleanup());
 
@@ -50,13 +50,34 @@ describe("WineReferencesSection", () => {
 		});
 	});
 
-	it("値があるときは最初からフォームを見せる", () => {
+	it("値があるときは一覧を見せ、入力欄は追加ボタンまで出さない", () => {
 		renderSection({
 			referenceLinks: [{ url: "https://example.com/a", title: "公式" }],
 			prices: [],
 		});
-		expect(screen.queryByRole("button", { name: "参考情報を追加" })).toBeNull();
+		// 一覧(削除ボタン)は見えるが、入力欄は隠れている
+		expect(
+			screen.getByRole("button", { name: /参考サイト「公式」を削除/ }),
+		).toBeTruthy();
+		expect(screen.queryByPlaceholderText("https://example.com/...")).toBeNull();
+		expect(screen.getByRole("button", { name: "参考情報を追加" })).toBeTruthy();
+		// 追加ボタンで入力欄が出る
+		fireEvent.click(screen.getByRole("button", { name: "参考情報を追加" }));
 		expect(screen.getByPlaceholderText("https://example.com/...")).toBeTruthy();
+	});
+
+	it("値があるときに閉じるで入力欄だけ畳み、一覧は残る", () => {
+		renderSection({
+			referenceLinks: [{ url: "https://example.com/a", title: "公式" }],
+			prices: [],
+		});
+		fireEvent.click(screen.getByRole("button", { name: "参考情報を追加" }));
+		expect(screen.getByPlaceholderText("https://example.com/...")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "閉じる" }));
+		expect(screen.queryByPlaceholderText("https://example.com/...")).toBeNull();
+		expect(
+			screen.getByRole("button", { name: /参考サイト「公式」を削除/ }),
+		).toBeTruthy();
 	});
 
 	it("空で開いて何も足さなければ閉じるで折りたたみに戻る", () => {
@@ -70,13 +91,17 @@ describe("WineReferencesSection", () => {
 		expect(screen.queryByPlaceholderText("https://example.com/...")).toBeNull();
 	});
 
-	it("親の値が外部から増えたら自動で開く(再解析の確定など)", () => {
+	it("親の値が外部から増えたら一覧が現れる(入力欄は開かない。再解析の確定など)", () => {
 		const { rerender } = renderSection();
 		expect(screen.getByRole("button", { name: "参考情報を追加" })).toBeTruthy();
 		rerender({
 			referenceLinks: [{ url: "https://example.com/a" }],
 			prices: [],
 		});
-		expect(screen.getByPlaceholderText("https://example.com/...")).toBeTruthy();
+		// 一覧は出るが、入力欄はいきなり出さない
+		expect(
+			screen.getByRole("link", { name: "https://example.com/a" }),
+		).toBeTruthy();
+		expect(screen.queryByPlaceholderText("https://example.com/...")).toBeNull();
 	});
 });

@@ -88,7 +88,9 @@ export function FormSection({
 	className,
 }: FormSectionProps) {
 	return (
-		<fieldset className="flex flex-col">
+		// fieldset は既定で min-inline-size: min-content のため、長いタイトル等の
+		// 折り返せない内容があるとモバイルで横に広がって崩れる。min-w-0 で抑える。
+		<fieldset className="flex min-w-0 flex-col">
 			{/*
 			  legend は fieldset の直下の最初の子でなければグループ名として扱われない。
 			  操作(action)を見出し行に並べたい場合も div で包まず legend の中に入れる。
@@ -99,7 +101,14 @@ export function FormSection({
 					{action}
 				</legend>
 			</Label>
-			<div className={cn(HEADING_GAP, "flex flex-col", CONTENT_GAP, className)}>
+			<div
+				className={cn(
+					HEADING_GAP,
+					"flex min-w-0 flex-col",
+					CONTENT_GAP,
+					className,
+				)}
+			>
 				{description && (
 					<p className="text-xs text-muted-foreground">{description}</p>
 				)}
