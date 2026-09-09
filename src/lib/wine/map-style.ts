@@ -49,7 +49,7 @@ export const KIND_LABELS_JA: Record<AopKind, string> = {
 };
 
 /** 重なり順(小さい=下)。広域AOCの上に村名、その上に畑を描く */
-export const KIND_RANK: Record<AopKind, number> = {
+const KIND_RANK: Record<AopKind, number> = {
 	regional: 0,
 	village: 1,
 	vineyard: 2,
