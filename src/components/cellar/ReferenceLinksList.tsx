@@ -1,5 +1,10 @@
 import { ExternalLinkIcon, LinkIcon, TagIcon } from "lucide-react";
-import type { LabelPrice, LabelReferenceLink } from "#/lib/ai/label-extraction";
+import {
+	formatLabelPrice,
+	type LabelPrice,
+	type LabelReferenceLink,
+	labelPriceKey,
+} from "#/lib/ai/label-extraction";
 
 // 解析結果の参考サイト・価格の表示。**カードの展開部と差分ダイアログ(将来は
 // ワイン詳細)が共有する**——表示仕様を経路ごとに書くと、MCP App フォームの
@@ -40,7 +45,8 @@ export function ReferenceLinksList({ links }: { links: LabelReferenceLink[] }) {
 }
 
 /**
- * 複数ソースの価格一覧。1行は「2,000円(aaa.com)」の形。
+ * 複数ソースの価格一覧。1行は「2,000円(aaa.com)」/「$25(aaa.com)」の形。
+ * 金額の整形は `formatLabelPrice` が持つ(円建て・外貨の表示仕様のSSOT)。
  * 価格を見たページのURLがあれば行ごとリンクにする。
  */
 export function PriceList({ prices }: { prices: LabelPrice[] }) {
@@ -53,13 +59,9 @@ export function PriceList({ prices }: { prices: LabelPrice[] }) {
 			</h4>
 			<ul className="flex flex-col gap-1.5 text-sm">
 				{prices.map((price) => {
-					const amount =
-						price.amountJpy != null
-							? `${price.amountJpy.toLocaleString("ja-JP")}円`
-							: "価格不明";
-					const line = `${amount}(${price.source})`;
+					const line = `${formatLabelPrice(price)}(${price.source})`;
 					return (
-						<li key={`${price.source}|${price.amountJpy ?? ""}`}>
+						<li key={labelPriceKey(price)}>
 							{price.url ? (
 								<a
 									href={price.url}
