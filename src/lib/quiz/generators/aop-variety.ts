@@ -1,6 +1,6 @@
-import { AOPS } from "#/lib/wine/aops-data";
 import { getAop } from "#/lib/wine/service";
 import type { Aop, RegionId } from "#/lib/wine/types";
+import { GRAPE_VARIETY_IDS, getVariety } from "#/lib/wine/varieties";
 import {
 	duplicatesUmbrellaFact,
 	isOpenEndedAppellation,
@@ -15,25 +15,19 @@ import {
 import { type Rng, shuffle } from "../rng";
 import type { QuizQuestion } from "../types";
 
-// 主要品種クイズ: 「「シャブリ」の主要品種はどれ？」
-// 設問文の主語はそのAOPで、正解 = 実データの principal(主要品種)コンボ。
-// colors と同型で、ディストラクタは全データに実在する主要品種コンボから
-// 正解と紛らわしい(対称差が小さい)ものを優先して選ぶため、
-// ありえない不自然な組み合わせは選択肢に出ない。
+// 主要品種クイズ: 「「シャブリ」の主要品種をすべて選ぶ」
+// 複数選択式。正解 = 実データの principal(主要品種)の集合。候補は
+// その地域の主要品種パレット(同一地域の収録AOPが主要品種に持つ品種の和集合)で、
+// 正誤は完全一致でのみ判定する(部分点なし)。
 
-/** 全AOPに実在する主要品種コンボ(遅延計算・以後不変) */
-let existingCombos: string[] | undefined;
-function listExistingCombos(): string[] {
-	if (!existingCombos) {
-		existingCombos = [
-			...new Set(
-				AOPS.map((a) => principalComboId(a)).filter((c) => c.length > 0),
-			),
-		];
+/** 地域の主要品種パレット(品種マスタの定義順)。候補一覧に使う */
+function listRegionPalette(regionId: RegionId): string[] {
+	const ids = new Set<string>();
+	for (const aop of listClosedListAops({ regionId })) {
+		for (const id of principalVarietyIds(aop)) ids.add(id);
 	}
-	return existingCombos;
+	return GRAPE_VARIETY_IDS.filter((id) => ids.has(id));
 }
-
 /** 正解の主要品種コンボが上位AOP(傘AOC/村)と同じ畑は、上位側の1問に集約する(aop-pool.ts 参照) */
 const duplicatesUmbrellaVariety = (a: Aop) =>
 	duplicatesUmbrellaFact(a, (x) =>
@@ -43,9 +37,9 @@ const duplicatesUmbrellaVariety = (a: Aop) =>
 	);
 
 export function enumerateAopVarietyKeys(regionId: RegionId): string[] {
-	// 主要品種を持ち、かつ4択を作れる(実在コンボが4種以上ある)場合のみ出題。
+	// 主要品種を持ち、かつ候補パレットが2件以上ある場合のみ出題。
 	// 開かれた広域呼称(IGT)は「主要品種」が定まらないため除く(aop-pool.ts 参照)
-	if (listExistingCombos().length < 4) return [];
+	if (listRegionPalette(regionId).length < 2) return [];
 	return listClosedListAops({ regionId })
 		.filter(
 			(a) => principalVarietyIds(a).length > 0 && !duplicatesUmbrellaVariety(a),
@@ -64,41 +58,26 @@ export function materializeAopVarietyQuestion(
 
 	const correctCombo = principalComboId(aop);
 	if (correctCombo.length === 0) return null;
-
-	const comboGrapes = (combo: string) => combo.split("+");
-	const symmetricDiff = (combo: string) => {
-		const a = new Set(comboGrapes(combo));
-		const b = new Set(comboGrapes(correctCombo));
-		let diff = 0;
-		for (const c of a) if (!b.has(c)) diff++;
-		for (const c of b) if (!a.has(c)) diff++;
-		return diff;
-	};
-	// シャッフル後に安定ソートすることで、対称差の同点内はランダムになる
-	const distractors = shuffle(
-		listExistingCombos().filter((c) => c !== correctCombo),
-		rng,
-	)
-		.sort((a, b) => symmetricDiff(a) - symmetricDiff(b))
-		.slice(0, 3);
-	if (distractors.length < 3) return null;
+	const correctIds = principalVarietyIds(aop);
 
 	const options = shuffle(
-		[correctCombo, ...distractors].map((combo) => ({
-			id: combo,
-			label: formatPrincipalGrapesJa(combo),
+		listRegionPalette(aop.region).map((id) => ({
+			id,
+			label: getVariety(id)?.nameJa ?? id,
 		})),
 		rng,
 	);
-	if (new Set(options.map((o) => o.id)).size !== 4) return null;
+	if (options.length < 2) return null;
 
 	return {
 		key: buildAopVarietyKey(aop.id),
 		quizType: "aop-variety",
 		regionId: aop.region,
-		prompt: `「${aop.nameJa}（${aop.shortName}）」の主要品種はどれ？`,
+		prompt: `「${aop.nameJa}（${aop.shortName}）」の主要品種をすべて選んでください`,
 		options,
 		correctOptionId: correctCombo,
+		selectionKind: "multi",
+		correctOptionIds: correctIds,
 		explanation:
 			`「${aop.nameJa}」の主要品種は${formatPrincipalGrapesJa(correctCombo)}です。` +
 			`\n${aop.description}`,

@@ -86,6 +86,8 @@ export function materializeVarietyQuestion(
 		prompt: `次のうち、主に「${variety.nameJa}」から造られるAOPはどれ？`,
 		options,
 		correctOptionId: correct.id,
+		selectionKind: "single",
+		correctOptionIds: [correct.id],
 		explanation:
 			`「${correct.nameJa}」の主要品種は${principalNames(correct)}です。` +
 			`${distractorLines}\n${correct.description}`,

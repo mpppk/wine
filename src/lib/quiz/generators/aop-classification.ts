@@ -82,6 +82,8 @@ export function materializeAopClassificationQuestion(
 		prompt: `「${aop.nameJa}（${aop.shortName}）」の格付けはどれ？`,
 		options,
 		correctOptionId: correct,
+		selectionKind: "single",
+		correctOptionIds: [correct],
 		explanation:
 			`「${aop.nameJa}」の格付けは「${correct}」です。` +
 			`\n${aop.description}`,

@@ -145,6 +145,8 @@ export function materializeLocationQuestion(
 		prompt: `次の${subregion.nameJa}の${subject.kind === "village" ? "村名AOP" : "畑名AOP"}のうち、最も${DIRECTION_LABELS_JA[parsed.direction]}にあるのはどれ？`,
 		options,
 		correctOptionId: subject.id,
+		selectionKind: "single",
+		correctOptionIds: [subject.id],
 		explanation:
 			`${orderLabel}から順に: ${orderLine}（AOP区画の重心位置の比較によります）。` +
 			`\n${subject.description}`,

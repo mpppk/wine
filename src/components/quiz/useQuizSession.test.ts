@@ -46,6 +46,27 @@ function makeQuestion(key: string): QuizQuestion {
 			{ id: "d", label: "D", labelSub: "" },
 		],
 		correctOptionId: "a",
+		selectionKind: "single",
+		correctOptionIds: ["a"],
+		explanation: "x",
+		subjectAopId: "a",
+	};
+}
+
+function makeMultiQuestion(
+	key: string,
+	correctIds: string[],
+	optionIds: string[],
+): QuizQuestion {
+	return {
+		key,
+		quizType: "colors",
+		regionId: "bourgogne",
+		prompt: "?",
+		options: optionIds.map((id) => ({ id, label: id })),
+		correctOptionId: [...correctIds].sort().join("+"),
+		selectionKind: "multi",
+		correctOptionIds: correctIds,
 		explanation: "x",
 		subjectAopId: "a",
 	};
@@ -396,6 +417,95 @@ describe("useQuizSession の quizTypes 参照ゆれ耐性", () => {
 		});
 		expect(getNextQuestions).toHaveBeenCalledTimes(callsBefore);
 
+		await drainAndUnmount(unmount);
+	});
+});
+
+// 複数選択式(multi): トグルで選択を蓄積し、submitMulti で完全一致のみ正解になる。
+describe("useQuizSession の複数選択ハンドリング", () => {
+	beforeEach(() => {
+		getNextQuestions.mockReset();
+		recordAnswer.mockReset();
+		revertAnswer.mockReset();
+		reportClientError.mockReset();
+		recordAnswer.mockResolvedValue(null);
+	});
+
+	it("完全一致で確定すると正解として記録される", async () => {
+		getNextQuestions.mockImplementation(async () => ({
+			questions: [
+				makeMultiQuestion("m1", ["red", "white"], ["red", "white", "rose"]),
+			],
+			remaining: 1,
+			total: 1,
+		}));
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], true),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+
+		act(() => result.current.toggleOption("red"));
+		act(() => result.current.toggleOption("white"));
+		expect(result.current.selectedOptionIds).toEqual(["red", "white"]);
+		act(() => result.current.submitMulti());
+		await waitFor(() => expect(result.current.phase).toBe("feedback"));
+		expect(recordAnswer).toHaveBeenCalledWith({
+			data: { questionKey: "m1", wasCorrect: true },
+		});
+		await drainAndUnmount(unmount);
+	});
+
+	it("部分選択・過剰選択は不正解として記録される", async () => {
+		getNextQuestions.mockImplementation(async () => ({
+			questions: [
+				makeMultiQuestion("m1", ["red", "white"], ["red", "white", "rose"]),
+			],
+			remaining: 1,
+			total: 1,
+		}));
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], true),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+
+		// 部分選択
+		act(() => result.current.toggleOption("red"));
+		act(() => result.current.submitMulti());
+		await waitFor(() => expect(result.current.phase).toBe("feedback"));
+		expect(recordAnswer).toHaveBeenCalledWith({
+			data: { questionKey: "m1", wasCorrect: false },
+		});
+
+		// 取り消して過剰選択で再回答
+		act(() => result.current.reset());
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+		expect(result.current.selectedOptionIds).toEqual([]);
+		act(() => result.current.toggleOption("red"));
+		act(() => result.current.toggleOption("white"));
+		act(() => result.current.toggleOption("rose"));
+		act(() => result.current.submitMulti());
+		await waitFor(() => expect(result.current.phase).toBe("feedback"));
+		expect(recordAnswer).toHaveBeenLastCalledWith({
+			data: { questionKey: "m1", wasCorrect: false },
+		});
+		await drainAndUnmount(unmount);
+	});
+
+	it("単発 answer() は multi では無視され、空選択の確定も何もしない", async () => {
+		getNextQuestions.mockImplementation(async () => ({
+			questions: [makeMultiQuestion("m1", ["red"], ["red", "white"])],
+			remaining: 1,
+			total: 1,
+		}));
+		const { result, unmount } = renderHook(() =>
+			useQuizSession("bourgogne", ["colors"], false),
+		);
+		await waitFor(() => expect(result.current.phase).toBe("answering"));
+
+		act(() => result.current.answer("red"));
+		expect(result.current.phase).toBe("answering");
+		act(() => result.current.submitMulti());
+		expect(result.current.phase).toBe("answering");
 		await drainAndUnmount(unmount);
 	});
 });

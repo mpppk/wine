@@ -73,6 +73,8 @@ export function materializeGrandCruSelectQuestion(
 		prompt: `次のうち、${subName}のグラン・クリュ(特級)はどれ？`,
 		options,
 		correctOptionId: answer.id,
+		selectionKind: "single",
+		correctOptionIds: [answer.id],
 		explanation:
 			`「${answer.nameJa}」は${subName}のグラン・クリュ(特級)です。` +
 			`他の3つ(${others})は特級ではありません。\n${answer.description}`,

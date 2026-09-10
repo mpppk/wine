@@ -46,6 +46,13 @@ interface QuizOption {
 /**
  * 具現化された1問。サーバが正解・解説込みで返し、クライアントは回答直後に
  * 即時フィードバックを表示する(学習アプリなのでアンチチートは不要)。
+ *
+ * selectionKind で回答形式を表す。
+ * - "single": 4択から1つを選ぶ。correctOptionIds は [correctOptionId] と等しい。
+ * - "multi": 候補一覧から該当するものをすべて選ぶ(複数選択)。正誤は
+ *   correctOptionIds との完全一致でのみ判定する(部分点なし)。
+ * correctOptionId は正解の正規コンボID(互換・ログ用)。multi でも
+ * correctOptionIds の正規結合を保持する。
  */
 export interface QuizQuestion {
 	/** 「テストされる事実」を表す安定キー。成績はこの単位で集計する */
@@ -53,11 +60,33 @@ export interface QuizQuestion {
 	quizType: QuizType;
 	regionId: RegionId;
 	prompt: string;
-	/** 4択・シャッフル済み */
+	/** singleでは4択・シャッフル済み、multiでは候補一覧・シャッフル済み */
 	options: QuizOption[];
 	correctOptionId: string;
+	/** 回答形式 */
+	selectionKind: "single" | "multi";
+	/** 正解の選択肢ID集合。singleでは [correctOptionId] */
+	correctOptionIds: string[];
 	/** 回答後に表示する解説 */
 	explanation: string;
 	/** 出題対象(正解)のAOP。バッチ内の重複抑制にも使う */
 	subjectAopId: string;
+}
+
+/**
+ * 複数選択の正誤判定。正解集合との完全一致(順序不問・重複無視)でのみ
+ * 正解とする。single形式の1択回答にもそのまま使える。
+ */
+export function isSelectionCorrect(
+	question: QuizQuestion,
+	selectedIds: readonly string[],
+): boolean {
+	const correct = new Set(question.correctOptionIds);
+	if (selectedIds.length !== correct.size) return false;
+	const seen = new Set<string>();
+	for (const id of selectedIds) {
+		if (!correct.has(id) || seen.has(id)) return false;
+		seen.add(id);
+	}
+	return true;
 }

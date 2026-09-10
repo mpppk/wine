@@ -3,7 +3,7 @@ import { AOPS } from "#/lib/wine/aops-data";
 import { REGION_IDS } from "#/lib/wine/regions";
 import { duplicatesUmbrellaFact, isOpenEndedAppellation } from "../aop-pool";
 import { parseKey } from "../keys";
-import { principalComboId } from "../labels";
+import { principalComboId, principalVarietyIds } from "../labels";
 import { mulberry32 } from "../rng";
 import {
 	enumerateAopVarietyKeys,
@@ -58,7 +58,7 @@ describe("主要品種クイズ", () => {
 		).toBeNull();
 	});
 
-	it("全キーの全数スイープ: 4択・重複なし・正解が実データの主要品種コンボと一致", () => {
+	it("全キーの全数スイープ: 候補は地域パレット・正解集合が実データの主要品種と一致", () => {
 		const rng = mulberry32(42);
 		for (const regionId of REGION_IDS) {
 			for (const key of enumerateAopVarietyKeys(regionId)) {
@@ -67,16 +67,22 @@ describe("主要品種クイズ", () => {
 				const q = materializeAopVarietyQuestion(parsed, rng);
 				expect(q, key).not.toBeNull();
 				if (!q) continue;
-				expect(q.options).toHaveLength(4);
-				expect(new Set(q.options.map((o) => o.id)).size).toBe(4);
-				expect(q.options.some((o) => o.id === q.correctOptionId)).toBe(true);
+				expect(q.selectionKind).toBe("multi");
+				expect(q.options.length).toBeGreaterThanOrEqual(2);
+				expect(new Set(q.options.map((o) => o.id)).size).toBe(q.options.length);
 				const aop = byId.get(q.subjectAopId);
+				expect(new Set(q.correctOptionIds)).toEqual(
+					new Set(principalVarietyIds(aop ?? ({} as never))),
+				);
 				expect(q.correctOptionId).toBe(principalComboId(aop ?? ({} as never)));
-				// 誤答コンボはすべて対象AOPの主要品種コンボと不一致
-				for (const option of q.options) {
-					if (option.id === q.correctOptionId) continue;
-					expect(option.id, key).not.toBe(q.correctOptionId);
+				// 正解の品種はすべて候補に含まれる
+				for (const id of q.correctOptionIds) {
+					expect(
+						q.options.some((o) => o.id === id),
+						key,
+					).toBe(true);
 				}
+				expect(q.prompt).toContain("すべて");
 			}
 		}
 	});

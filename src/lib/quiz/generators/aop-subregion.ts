@@ -92,6 +92,8 @@ export function materializeAopSubregionQuestion(
 		prompt: `「${aop.nameJa}（${aop.shortName}）」が属する地区はどれ？`,
 		options,
 		correctOptionId: correct.id,
+		selectionKind: "single",
+		correctOptionIds: [correct.id],
 		explanation:
 			`「${aop.nameJa}」は${correct.nameJa}に属します。` +
 			`\n${aop.description}`,

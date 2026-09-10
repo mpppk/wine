@@ -18,6 +18,8 @@ const QUESTION: QuizQuestion = {
 		{ id: "o2", label: "コート・ド・ボーヌ" },
 	],
 	correctOptionId: "o1",
+	selectionKind: "single",
+	correctOptionIds: ["o1"],
 	explanation: "コート・ド・ニュイの村です。",
 };
 
@@ -123,5 +125,98 @@ describe("QuizQuestionView", () => {
 		screen.getByRole("button", { name: /コート・ド・ニュイ/ }).click();
 
 		expect(calls).toEqual(["o1"]);
+	});
+});
+
+const MULTI_QUESTION: QuizQuestion = {
+	key: "colors:gevrey-chambertin",
+	quizType: "colors",
+	regionId: "bourgogne",
+	subjectAopId: "gevrey-chambertin",
+	prompt: "ジュヴレ・シャンベルタンの色をすべて選んでください",
+	options: [
+		{ id: "red", label: "赤のみ" },
+		{ id: "white", label: "白のみ" },
+		{ id: "rose", label: "ロゼのみ" },
+	],
+	correctOptionId: "red",
+	selectionKind: "multi",
+	correctOptionIds: ["red"],
+	explanation: "赤のみです。",
+};
+
+describe("QuizQuestionView の複数選択", () => {
+	it("回答中はチェックボタンが表示され、確定ボタンは持たない(確定はstickyバー)", () => {
+		render(
+			<QuizQuestionView
+				question={MULTI_QUESTION}
+				phase="answering"
+				selectedOptionId={undefined}
+				selectedOptionIds={[]}
+				onAnswer={() => {}}
+				onToggleOption={() => {}}
+			/>,
+		);
+
+		for (const option of MULTI_QUESTION.options) {
+			const button = screen.getByRole("button", {
+				name: new RegExp(option.label),
+			});
+			expect(button.getAttribute("aria-pressed")).toBe("false");
+		}
+		// 確定は呼び出し側のstickyバーが行うため、設問内に回答ボタンは無い
+		expect(screen.queryByRole("button", { name: /回答する/ })).toBeNull();
+		expect(screen.getByText(/あてはまるものをすべて選んで/)).toBeDefined();
+	});
+
+	it("チェックすると aria-pressed が切り替わり、トグルが呼ばれる", () => {
+		const toggles: string[] = [];
+		render(
+			<QuizQuestionView
+				question={MULTI_QUESTION}
+				phase="answering"
+				selectedOptionId={undefined}
+				selectedOptionIds={["red"]}
+				onAnswer={() => {}}
+				onToggleOption={(id) => toggles.push(id)}
+			/>,
+		);
+
+		expect(
+			screen
+				.getByRole("button", { name: /赤のみ/ })
+				.getAttribute("aria-pressed"),
+		).toBe("true");
+
+		screen.getByRole("button", { name: /白のみ/ }).click();
+		expect(toggles).toEqual(["white"]);
+	});
+
+	it("完全一致で回答後は正解になり、選び漏れがあると不正解と選び漏れ表示になる", () => {
+		const { container, rerender } = render(
+			<QuizQuestionView
+				question={MULTI_QUESTION}
+				phase="feedback"
+				selectedOptionId={undefined}
+				selectedOptionIds={["red"]}
+				onAnswer={() => {}}
+			/>,
+		);
+		expect(container.querySelector('[role="status"]')?.textContent).toContain(
+			"正解！",
+		);
+
+		rerender(
+			<QuizQuestionView
+				question={MULTI_QUESTION}
+				phase="feedback"
+				selectedOptionId={undefined}
+				selectedOptionIds={[]}
+				onAnswer={() => {}}
+			/>,
+		);
+		const live = container.querySelector('[role="status"]');
+		expect(live?.textContent).toContain("不正解");
+		expect(screen.getByText("正解(選び漏れ)")).toBeDefined();
 	});
 });
