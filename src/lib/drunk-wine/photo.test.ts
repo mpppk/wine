@@ -99,6 +99,13 @@ describe("resolveStoredPhotoMime", () => {
 		// 継承プロパティ名のすり抜けも拒否
 		expect(resolveStoredPhotoMime(PNG_MAGIC, "constructor")).toBeUndefined();
 	});
+
+	it("非標準エイリアス image/jpg の申告は image/jpeg として扱う(#593)", () => {
+		// VivinoのCDNのように image/jpg を返すサイトがある。実体がJPEGなら通す。
+		expect(resolveStoredPhotoMime(JPEG_MAGIC, "image/jpg")).toBe("image/jpeg");
+		// 実体との一致要求は緩めない(中身PNGを image/jpg と申告したら弾く)。
+		expect(resolveStoredPhotoMime(PNG_MAGIC, "image/jpg")).toBeUndefined();
+	});
 });
 
 describe("MAX_PHOTOS_PER_ENTRY", () => {
