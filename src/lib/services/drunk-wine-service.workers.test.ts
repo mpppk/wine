@@ -2036,6 +2036,31 @@ describe("一括登録の銘柄写真", () => {
 		expect((await listDrunkWines(userId)).entries[0]?.photoUrls).toEqual([]);
 	});
 
+	it("申告 image/jpg（非標準エイリアス）のJPEGも取り込む(#593)", async () => {
+		// VivinoのCDNのように image/jpg を返すサイトがある。実体がJPEGなら
+		// image/jpeg として採用し、銘柄の写真にする。
+		const userId = await freshUser();
+		stubImageFetch(
+			() =>
+				new Response(JPEG_1X1_BYTES, {
+					headers: { "content-type": "image/jpg" },
+				}),
+		);
+
+		await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "Barolo" },
+					webPhoto: { url: "https://example.com/barolo.jpg" },
+				},
+			],
+		});
+		const { entries } = await listDrunkWines(userId);
+		expect(entries[0]?.photoUrls).toHaveLength(1);
+		expect(entries[0]?.photoKinds).toEqual(["web"]);
+	});
+
 	it("https でないURLは取りに行かない", async () => {
 		const userId = await freshUser();
 		const requested = stubImageFetch(jpegResponse);

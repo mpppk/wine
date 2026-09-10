@@ -123,6 +123,17 @@ export function sniffImageMime(bytes: Uint8Array): string | undefined {
 }
 
 /**
+ * 申告MIMEの非標準エイリアスの正規化(#593)。`image/jpg` は標準登録されていないが
+ * JPEGの慣用表記として実在し、VivinoのCDNのように返すサイトがある。ブラウザの
+ * `<img>` は表示できるため、レビューカードではWeb画像が出るのにサーバ側の関門
+ * (`resolveStoredPhotoMime`)で弾かれて「分析では出たのに登録後に消えた」になる。
+ * 正規化はこの1箇所に閉じ込め、`ALLOWED_PHOTO_TYPES` のSSOTは変えない。
+ */
+function normalizeDeclaredPhotoMime(declaredMime: string): string {
+	return declaredMime === "image/jpg" ? "image/jpeg" : declaredMime;
+}
+
+/**
  * 保存する写真の Content-Type を実バイト(マジックバイト)から確定する多層防御。
  * 申告 mimeType が許可外、実バイトが画像として判定できない、または申告と実フォーマットが
  * 食い違う場合は undefined を返す(呼び出し側で拒否する)。保存する contentType・拡張子は
@@ -137,10 +148,11 @@ export function resolveStoredPhotoMime(
 	bytes: Uint8Array,
 	declaredMime: string,
 ): string | undefined {
-	if (!ALLOWED_PHOTO_TYPES.has(declaredMime)) return undefined;
+	const declared = normalizeDeclaredPhotoMime(declaredMime);
+	if (!ALLOWED_PHOTO_TYPES.has(declared)) return undefined;
 	const sniffed = sniffImageMime(bytes);
 	// 実フォーマットを判定できない、または申告と食い違う場合は拒否する(申告値は信用しない)
-	if (!sniffed || sniffed !== declaredMime) return undefined;
+	if (!sniffed || sniffed !== declared) return undefined;
 	return sniffed;
 }
 
