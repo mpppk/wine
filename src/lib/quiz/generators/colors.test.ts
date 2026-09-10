@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "#/lib/wine/aops-data";
 import { REGION_IDS } from "#/lib/wine/regions";
+import { COLOR_LABELS_JA } from "#/lib/wine/terminology";
 import { duplicatesUmbrellaFact, isOpenEndedAppellation } from "../aop-pool";
 import { colorComboId } from "../labels";
 import { mulberry32 } from "../rng";
@@ -80,6 +81,21 @@ describe("生産可能色クイズ", () => {
 				expect(q.correctOptionId).toBe(colorComboId(aop?.colors ?? []));
 				expect(q.prompt).toContain("すべて");
 			}
+		}
+	});
+
+	it("選択肢ラベルは単色表記で「のみ」を含まない(#599)", () => {
+		const q = materializeColorsQuestion(
+			{ quizType: "colors", aopId: "gevrey-chambertin" },
+			mulberry32(7),
+		);
+		expect(q).not.toBeNull();
+		if (!q) return;
+		for (const option of q.options) {
+			expect(option.label).not.toContain("のみ");
+			expect(option.label).toBe(
+				COLOR_LABELS_JA[option.id as keyof typeof COLOR_LABELS_JA],
+			);
 		}
 	});
 

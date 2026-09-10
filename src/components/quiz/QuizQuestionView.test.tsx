@@ -135,9 +135,9 @@ const MULTI_QUESTION: QuizQuestion = {
 	subjectAopId: "gevrey-chambertin",
 	prompt: "ジュヴレ・シャンベルタンの色をすべて選んでください",
 	options: [
-		{ id: "red", label: "赤のみ" },
-		{ id: "white", label: "白のみ" },
-		{ id: "rose", label: "ロゼのみ" },
+		{ id: "red", label: "赤" },
+		{ id: "white", label: "白" },
+		{ id: "rose", label: "ロゼ" },
 	],
 	correctOptionId: "red",
 	selectionKind: "multi",
@@ -184,11 +184,11 @@ describe("QuizQuestionView の複数選択", () => {
 
 		expect(
 			screen
-				.getByRole("button", { name: /赤のみ/ })
+				.getByRole("button", { name: "赤" })
 				.getAttribute("aria-pressed"),
 		).toBe("true");
 
-		screen.getByRole("button", { name: /白のみ/ }).click();
+		screen.getByRole("button", { name: "白" }).click();
 		expect(toggles).toEqual(["white"]);
 	});
 
