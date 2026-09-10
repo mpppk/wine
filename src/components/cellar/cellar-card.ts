@@ -9,20 +9,30 @@ import { provenanceNameJa } from "#/lib/wine/provenance";
 //  - 生産者は重要な情報なので出す
 //  - 代わりにヴィンテージは出さない
 //  - 値が無い項目は行ごと落とす(空の span が並ぶのを避ける)
-export function buildCellarCardLines(entry: DrunkWineEntry): string[] {
-	const lines: string[] = [];
+// カード補助行の1行。`key` は行の出どころ(日付・回数・産地・生産者)で、
+// React のリストキーにそのまま使えるよう本文と分けて返す(同文の行が
+// 並んでもキーが衝突しない)。
+export type CellarCardLine = {
+	key: "lastDrankOn" | "tastingCount" | "provenance" | "producer";
+	text: string;
+};
+export function buildCellarCardLines(entry: DrunkWineEntry): CellarCardLine[] {
+	const lines: CellarCardLine[] = [];
 	if (entry.lastDrankOn) {
-		lines.push(entry.lastDrankOn);
+		lines.push({ key: "lastDrankOn", text: entry.lastDrankOn });
 	}
 	if (entry.tastingCount > 1) {
-		lines.push(`${entry.tastingCount}回飲んだ`);
+		lines.push({
+			key: "tastingCount",
+			text: `${entry.tastingCount}回飲んだ`,
+		});
 	}
 	const provenance = provenanceNameJa(entry);
 	if (provenance) {
-		lines.push(provenance);
+		lines.push({ key: "provenance", text: provenance });
 	}
 	if (entry.producer) {
-		lines.push(entry.producer);
+		lines.push({ key: "producer", text: entry.producer });
 	}
 	return lines;
 }

@@ -76,7 +76,7 @@ export function EntryCard({
 						)}
 						<div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
 							{buildCellarCardLines(entry).map((line) => (
-								<span key={line}>{line}</span>
+								<span key={line.key}>{line.text}</span>
 							))}
 						</div>
 					</CardContent>

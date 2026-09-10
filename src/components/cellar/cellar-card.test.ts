@@ -12,11 +12,11 @@ describe("buildCellarCardLines", () => {
 	});
 
 	it("生産者を出し、ヴィンテージは出さない", () => {
-		const lines = buildCellarCardLines(
+		const texts = buildCellarCardLines(
 			makeDrunkWineEntry({ vintage: 2020, producer: "ドメーヌ・ルフレーヴ" }),
-		);
-		expect(lines).toContain("ドメーヌ・ルフレーヴ");
-		expect(lines.some((line) => line.includes("2020"))).toBe(false);
+		).map((line) => line.text);
+		expect(texts).toContain("ドメーヌ・ルフレーヴ");
+		expect(texts.some((text) => text.includes("2020"))).toBe(false);
 	});
 
 	it("生産者が無いときは生産者行を作らない", () => {
@@ -34,11 +34,17 @@ describe("buildCellarCardLines", () => {
 				producer: "ドメーヌ・ルフレーヴ",
 			}),
 		);
-		expect(lines).toEqual([
+		expect(lines.map((line) => line.text)).toEqual([
 			"2026-09-01",
 			"3回飲んだ",
 			"ブルゴーニュ",
 			"ドメーヌ・ルフレーヴ",
+		]);
+		expect(lines.map((line) => line.key)).toEqual([
+			"lastDrankOn",
+			"tastingCount",
+			"provenance",
+			"producer",
 		]);
 	});
 
