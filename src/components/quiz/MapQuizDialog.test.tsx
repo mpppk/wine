@@ -1,20 +1,19 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Aop } from "#/lib/wine/types";
 
 // server function / router / 課金状態は Cloudflare 依存を引き込むためモックする。
+// ルーターは共有スタブを使う(定型を直接書くと jscpd の重複検出で落ちる)。
 const getNextQuestions = vi.fn();
 vi.mock("#/server/quiz", () => ({
 	getNextQuestions: (...args: unknown[]) => getNextQuestions(...args),
 	recordAnswer: vi.fn(),
 	revertAnswer: vi.fn(),
 }));
-vi.mock("@tanstack/react-router", () => ({
-	useRouter: () => ({ invalidate: vi.fn() }),
-	Link: ({ children }: { children?: ReactNode }) =>
-		createElement("a", null, children),
-}));
+vi.mock("@tanstack/react-router", async () => {
+	const stub = await import("#/components/router-test-stub");
+	return { Link: stub.StubLink, useRouter: stub.stubUseRouter };
+});
 vi.mock("#/lib/billing/use-billing", () => ({ useShowAds: () => false }));
 
 const { MapQuizDialog } = await import("./MapQuizDialog");

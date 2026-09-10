@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
+import { makeDrunkWineEntry } from "./drunk-wine-entry-fixture";
 import { buildWineDetailRows } from "./wine-detail";
 
 // 閲覧専用画面(/cellar/$entryId)に並ぶ項目の規約:
@@ -8,33 +9,7 @@ import { buildWineDetailRows } from "./wine-detail";
 //  - 銘柄の価格は出さない(欄の廃止 #570。保存済みの値があっても出さない)
 //  - 産地(地域・AOP)の行だけは産地の学習地図への遷移先(link)を持つ
 
-const BASE: DrunkWineEntry = {
-	id: "e1",
-	name: "テストワイン",
-	status: "finished",
-	lastDrankOn: null,
-	tastingCount: 0,
-	lastSeenOn: null,
-	sightingCount: 0,
-	aopId: null,
-	aopNameJa: null,
-	regionId: null,
-	countryId: null,
-	lastRating: null,
-	lastMemo: null,
-	vintage: null,
-	grapeVarietyIds: [],
-	producer: null,
-	note: null,
-	price: null,
-	referenceLinks: [],
-	prices: [],
-	photoUrls: [],
-	thumbUrls: [],
-	photoKinds: [],
-	createdAt: 0,
-	updatedAt: 0,
-};
+/** テスト用の雛形は drunk-wine-entry-fixture が持つ(コピペすると jscpd で落ちる) */
 
 /** ラベル→値の辞書にして、行の有無と中身を素直に検査できるようにする */
 function rowMap(entry: DrunkWineEntry): Map<string, string> {
@@ -48,14 +23,14 @@ function rowOf(entry: DrunkWineEntry, label: string) {
 
 describe("buildWineDetailRows", () => {
 	it("値が無い項目は行を作らず、状態だけを返す", () => {
-		expect(buildWineDetailRows(BASE)).toEqual([
+		expect(buildWineDetailRows(makeDrunkWineEntry())).toEqual([
 			{ label: "状態", value: "飲んだ" },
 		]);
 	});
 
 	it("ヴィンテージ・生産者を表示用に整形する", () => {
 		const rows = rowMap({
-			...BASE,
+			...makeDrunkWineEntry(),
 			vintage: 2020,
 			producer: "ドメーヌ・ルフレーヴ",
 		});
@@ -64,13 +39,13 @@ describe("buildWineDetailRows", () => {
 	});
 
 	it("保存済みの銘柄価格は表示しない(欄の廃止 #570)", () => {
-		const rows = rowMap({ ...BASE, price: 5000 });
+		const rows = rowMap({ ...makeDrunkWineEntry(), price: 5000 });
 		expect(rows.get("価格")).toBeUndefined();
 	});
 
 	it("地域・AOP・ぶどう品種をマスタの日本語名で出す", () => {
 		const rows = rowMap({
-			...BASE,
+			...makeDrunkWineEntry(),
 			regionId: "bourgogne",
 			aopId: "chablis",
 			aopNameJa: "シャブリ",
@@ -82,13 +57,17 @@ describe("buildWineDetailRows", () => {
 	});
 
 	it("aopNameJa が欠けていても aopId から名前を引く", () => {
-		const rows = rowMap({ ...BASE, aopId: "chablis", aopNameJa: null });
+		const rows = rowMap({
+			...makeDrunkWineEntry(),
+			aopId: "chablis",
+			aopNameJa: null,
+		});
 		expect(rows.get("AOP")).toBe("シャブリ");
 	});
 
 	it("マスタに無いぶどう品種IDは落とす", () => {
 		const rows = rowMap({
-			...BASE,
+			...makeDrunkWineEntry(),
 			grapeVarietyIds: ["chardonnay", "no-such-variety"],
 		});
 		expect(rows.get("ぶどう品種")).toBe("シャルドネ");
@@ -106,7 +85,7 @@ describe("産地の学習地図へのリンク", () => {
 	it("AOP行は、そのAOPを選択した状態の地図を指す", () => {
 		const row = rowOf(
 			{
-				...BASE,
+				...makeDrunkWineEntry(),
 				regionId: "bourgogne",
 				aopId: "chablis",
 				aopNameJa: "シャブリ",
@@ -117,7 +96,10 @@ describe("産地の学習地図へのリンク", () => {
 	});
 
 	it("地域行は、AOPを選択しない地域全体の地図を指す", () => {
-		const row = rowOf({ ...BASE, regionId: "bourgogne" }, "地域");
+		const row = rowOf(
+			{ ...makeDrunkWineEntry(), regionId: "bourgogne" },
+			"地域",
+		);
 		expect(row?.link).toEqual({ regionId: "bourgogne" });
 	});
 
@@ -125,7 +107,7 @@ describe("産地の学習地図へのリンク", () => {
 		// 地図側は現行IDでしか選択できないので、保存値のままでは何も選択されない(#333)
 		const row = rowOf(
 			{
-				...BASE,
+				...makeDrunkWineEntry(),
 				regionId: "bordeaux",
 				aopId: "chateau-la-gaffeliere",
 				aopNameJa: null,
@@ -141,7 +123,7 @@ describe("産地の学習地図へのリンク", () => {
 	it("マスタから消えて名前だけ残ったAOPの行はリンクにしない", () => {
 		// aopNameJa はサーバ由来なので行自体は出るが、地図では選択できない
 		const row = rowOf(
-			{ ...BASE, aopId: "no-such-aop", aopNameJa: "幻のAOP" },
+			{ ...makeDrunkWineEntry(), aopId: "no-such-aop", aopNameJa: "幻のAOP" },
 			"AOP",
 		);
 		expect(row?.value).toBe("幻のAOP");
@@ -150,7 +132,7 @@ describe("産地の学習地図へのリンク", () => {
 
 	it("産地以外の行はリンクを持たない", () => {
 		const rows = buildWineDetailRows({
-			...BASE,
+			...makeDrunkWineEntry(),
 			vintage: 2020,
 			producer: "ドメーヌ・ルフレーヴ",
 			grapeVarietyIds: ["chardonnay"],
@@ -176,7 +158,7 @@ describe("産地の学習地図へのリンク", () => {
 		const { buildWineDetailRows: build } = await import("./wine-detail");
 
 		const rows = build({
-			...BASE,
+			...makeDrunkWineEntry(),
 			regionId: "bourgogne",
 			aopId: "chablis",
 			aopNameJa: "シャブリ",

@@ -1,30 +1,14 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ImportBatchDetail } from "#/lib/services/drunk-wine-service";
 
-// ルーターは Cloudflare 依存を引き込むため、Link だけのスタブにする
-// (MapQuizDialog.test.tsx と同じ流儀)。遷移先の検証は href で行う。
-vi.mock("@tanstack/react-router", () => ({
-	Link: ({
-		children,
-		to,
-		params,
-		...rest
-	}: {
-		children?: ReactNode;
-		to?: string;
-		params?: Record<string, string>;
-	}) =>
-		createElement(
-			"a",
-			{
-				href: to?.replace(/\$(\w+)/g, (_, key) => params?.[key] ?? ""),
-				...rest,
-			},
-			children,
-		),
-}));
+// ルーターは Cloudflare 依存を引き込むため、共有スタブに差し替える
+// (router-test-stub。定型を直接書くと jscpd の重複検出で落ちる)。
+// 遷移先の検証は href で行う。
+vi.mock("@tanstack/react-router", async () => {
+	const stub = await import("#/components/router-test-stub");
+	return { Link: stub.StubLink, useRouter: stub.stubUseRouter };
+});
 
 const { ImportBatchDetailView } = await import("./ImportBatchDetail");
 
