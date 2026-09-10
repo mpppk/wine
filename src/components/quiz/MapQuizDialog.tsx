@@ -236,10 +236,9 @@ function SessionRound({
 					selectedOptionIds={selectedOptionIds}
 					onAnswer={answer}
 					onToggleOption={toggleOption}
-					onSubmitMulti={submitMulti}
 				/>
 			)}
-			{phase === "answering" && (
+			{phase === "answering" && current?.selectionKind !== "multi" && (
 				<Button
 					onClick={skip}
 					variant="ghost"
@@ -249,6 +248,29 @@ function SessionRound({
 					<SkipForwardIcon className="size-4" aria-hidden />
 					スキップ
 				</Button>
+			)}
+			{phase === "answering" && current?.selectionKind === "multi" && (
+				<div className="flex gap-2">
+					<Button
+						onClick={skip}
+						variant="ghost"
+						size="lg"
+						className="h-12 text-base text-muted-foreground"
+					>
+						<SkipForwardIcon className="size-4" aria-hidden />
+						スキップ
+					</Button>
+					<Button
+						onClick={submitMulti}
+						disabled={selectedOptionIds.length === 0}
+						size="lg"
+						className="h-12 flex-1 text-base"
+					>
+						回答する
+						{selectedOptionIds.length > 0 &&
+							` (${selectedOptionIds.length}件選択中)`}
+					</Button>
+				</div>
 			)}
 			{phase === "feedback" && (
 				<div className="flex gap-2">

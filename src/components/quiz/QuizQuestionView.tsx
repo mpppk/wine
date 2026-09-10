@@ -19,7 +19,6 @@ export function QuizQuestionView({
 	selectedOptionIds = [],
 	onAnswer,
 	onToggleOption,
-	onSubmitMulti,
 }: {
 	question: QuizQuestion;
 	phase: "answering" | "feedback";
@@ -27,7 +26,6 @@ export function QuizQuestionView({
 	selectedOptionIds?: string[];
 	onAnswer: (optionId: string) => void;
 	onToggleOption?: (optionId: string) => void;
-	onSubmitMulti?: () => void;
 }) {
 	const isFeedback = phase === "feedback";
 	const isMulti = question.selectionKind === "multi";
@@ -173,19 +171,6 @@ export function QuizQuestionView({
 					);
 				})}
 			</div>
-
-			{isMulti && !isFeedback && (
-				<Button
-					onClick={() => onSubmitMulti?.()}
-					disabled={selectedOptionIds.length === 0}
-					size="lg"
-					className="h-12 w-full text-base"
-				>
-					回答する
-					{selectedOptionIds.length > 0 &&
-						` (${selectedOptionIds.length}件選択中)`}
-				</Button>
-			)}
 
 			{/*
 			  正誤+解説はライブリージョンの中身として出す。コンテナごと条件描画すると

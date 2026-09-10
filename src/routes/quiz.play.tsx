@@ -197,12 +197,12 @@ function QuizSession({
 					selectedOptionIds={selectedOptionIds}
 					onAnswer={answer}
 					onToggleOption={toggleOption}
-					onSubmitMulti={submitMulti}
 				/>
 			)}
 
-			{/* 画面下のstickyバー。回答中はスキップ、フィードバック中は取り消し＋次へ */}
-			{phase === "answering" && (
+			{/* 画面下のstickyバー。回答中はスキップ、フィードバック中は取り消し＋次へ。
+			    複数選択式の回答中は「回答する」(未選択では無効)＋スキップ */}
+			{phase === "answering" && current?.selectionKind !== "multi" && (
 				<div className="fixed inset-x-0 bottom-0 border-t bg-background/80 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur">
 					<Button
 						onClick={skip}
@@ -213,6 +213,31 @@ function QuizSession({
 						<SkipForwardIcon className="size-4" aria-hidden />
 						スキップ
 					</Button>
+				</div>
+			)}
+			{phase === "answering" && current?.selectionKind === "multi" && (
+				<div className="fixed inset-x-0 bottom-0 border-t bg-background/80 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur">
+					<div className="mx-auto flex w-full max-w-lg gap-2">
+						<Button
+							onClick={skip}
+							variant="ghost"
+							size="lg"
+							className="h-14 text-base text-muted-foreground"
+						>
+							<SkipForwardIcon className="size-4" aria-hidden />
+							スキップ
+						</Button>
+						<Button
+							onClick={submitMulti}
+							disabled={selectedOptionIds.length === 0}
+							size="lg"
+							className="h-14 flex-1 text-base"
+						>
+							回答する
+							{selectedOptionIds.length > 0 &&
+								` (${selectedOptionIds.length}件選択中)`}
+						</Button>
+					</div>
 				</div>
 			)}
 			{phase === "feedback" && (

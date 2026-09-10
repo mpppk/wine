@@ -146,7 +146,7 @@ const MULTI_QUESTION: QuizQuestion = {
 };
 
 describe("QuizQuestionView の複数選択", () => {
-	it("回答中はチェックボタンと無効な「回答する」が表示される", () => {
+	it("回答中はチェックボタンが表示され、確定ボタンは持たない(確定はstickyバー)", () => {
 		render(
 			<QuizQuestionView
 				question={MULTI_QUESTION}
@@ -155,7 +155,6 @@ describe("QuizQuestionView の複数選択", () => {
 				selectedOptionIds={[]}
 				onAnswer={() => {}}
 				onToggleOption={() => {}}
-				onSubmitMulti={() => {}}
 			/>,
 		);
 
@@ -165,13 +164,13 @@ describe("QuizQuestionView の複数選択", () => {
 			});
 			expect(button.getAttribute("aria-pressed")).toBe("false");
 		}
-		const submit = screen.getByRole("button", { name: /回答する/ });
-		expect((submit as HTMLButtonElement).disabled).toBe(true);
+		// 確定は呼び出し側のstickyバーが行うため、設問内に回答ボタンは無い
+		expect(screen.queryByRole("button", { name: /回答する/ })).toBeNull();
+		expect(screen.getByText(/あてはまるものをすべて選んで/)).toBeDefined();
 	});
 
-	it("チェックすると件数付きで「回答する」が有効になり、押すと確定する", () => {
+	it("チェックすると aria-pressed が切り替わり、トグルが呼ばれる", () => {
 		const toggles: string[] = [];
-		let submitted = 0;
 		render(
 			<QuizQuestionView
 				question={MULTI_QUESTION}
@@ -180,9 +179,6 @@ describe("QuizQuestionView の複数選択", () => {
 				selectedOptionIds={["red"]}
 				onAnswer={() => {}}
 				onToggleOption={(id) => toggles.push(id)}
-				onSubmitMulti={() => {
-					submitted++;
-				}}
 			/>,
 		);
 
@@ -191,11 +187,6 @@ describe("QuizQuestionView の複数選択", () => {
 				.getByRole("button", { name: /赤のみ/ })
 				.getAttribute("aria-pressed"),
 		).toBe("true");
-		const submit = screen.getByRole("button", { name: /回答する/ });
-		expect((submit as HTMLButtonElement).disabled).toBe(false);
-		expect(submit.textContent).toContain("1件選択中");
-		submit.click();
-		expect(submitted).toBe(1);
 
 		screen.getByRole("button", { name: /白のみ/ }).click();
 		expect(toggles).toEqual(["white"]);
