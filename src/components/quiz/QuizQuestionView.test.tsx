@@ -183,9 +183,7 @@ describe("QuizQuestionView の複数選択", () => {
 		);
 
 		expect(
-			screen
-				.getByRole("button", { name: "赤" })
-				.getAttribute("aria-pressed"),
+			screen.getByRole("button", { name: "赤" }).getAttribute("aria-pressed"),
 		).toBe("true");
 
 		screen.getByRole("button", { name: "白" }).click();

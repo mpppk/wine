@@ -1,5 +1,5 @@
-import { COLOR_LABELS_JA } from "#/lib/wine/terminology";
 import { getAop } from "#/lib/wine/service";
+import { COLOR_LABELS_JA } from "#/lib/wine/terminology";
 import type { Aop, RegionId } from "#/lib/wine/types";
 import {
 	duplicatesUmbrellaFact,
