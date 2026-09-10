@@ -271,6 +271,8 @@ export function materializeOddOneOutQuestion(
 		prompt: promptFor(parsed.axis, parsed.axisValue, answer),
 		options,
 		correctOptionId: answer.id,
+		selectionKind: "single",
+		correctOptionIds: [answer.id],
 		explanation: explanationFor(
 			parsed.axis,
 			parsed.axisValue,

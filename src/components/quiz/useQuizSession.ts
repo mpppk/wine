@@ -2,7 +2,11 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reportClientError } from "#/lib/observability/client-error";
 import { addSaveFailure, type QuizSaveFailure } from "#/lib/quiz/save-status";
-import type { QuizQuestion, QuizType } from "#/lib/quiz/types";
+import {
+	isSelectionCorrect,
+	type QuizQuestion,
+	type QuizType,
+} from "#/lib/quiz/types";
 import type { AnswerSnapshot } from "#/lib/services/quiz-service";
 import type { RegionId } from "#/lib/wine/types";
 import { getNextQuestions, recordAnswer, revertAnswer } from "#/server/quiz";
@@ -81,6 +85,8 @@ export function useQuizSession(
 	// 取得失敗時の再試行トリガー。インクリメントで初回ロード/プリフェッチの effect を再実行する
 	const [retryNonce, setRetryNonce] = useState(0);
 	const [selectedOptionId, setSelectedOptionId] = useState<string>();
+	// 複数選択式(multi)で回答中にチェックされている選択肢ID
+	const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
 	const [tally, setTally] = useState<QuizTally>({ answered: 0, correct: 0 });
 	// 解答のサーバ保存に失敗した状態。ローカルの正解演出・残数・完了画面は保存の成否と
 	// 無関係に進むため、これを出さないとユーザは保存されたと信じたまま進捗を失う(#255)。
@@ -269,6 +275,7 @@ export function useQuizSession(
 	// キューを1問進める(next / skip 共通)。recentKeys の更新は各呼び出し側が担う
 	const advance = useCallback(() => {
 		setSelectedOptionId(undefined);
+		setSelectedOptionIds([]);
 		setQueue((prev) => prev.slice(1));
 		setPhase(queue.length > 1 ? "answering" : "loading");
 	}, [queue.length]);
@@ -276,7 +283,9 @@ export function useQuizSession(
 	const answer = useCallback(
 		(optionId: string) => {
 			if (!current || phase !== "answering") return;
-			const wasCorrect = optionId === current.correctOptionId;
+			// 複数選択式は toggleOption + submitMulti で回答する。単発回答は無視
+			if (current.selectionKind === "multi") return;
+			const wasCorrect = isSelectionCorrect(current, [optionId]);
 			setSelectedOptionId(optionId);
 			setPhase("feedback");
 			setTally((t) => ({
@@ -326,12 +335,94 @@ export function useQuizSession(
 		[current, phase, isLoggedIn, regionId, enqueueMutation, applyRemaining],
 	);
 
+	// 複数選択式: 回答中のチェックを切り替える(回答確定は submitMulti)
+	const toggleOption = useCallback(
+		(optionId: string) => {
+			if (!current || phase !== "answering") return;
+			if (current.selectionKind !== "multi") return;
+			setSelectedOptionIds((prev) =>
+				prev.includes(optionId)
+					? prev.filter((id) => id !== optionId)
+					: [...prev, optionId],
+			);
+		},
+		[current, phase],
+	);
+
+	// 複数選択式: 現在のチェック集合で回答を確定する(完全一致のみ正解)
+	const submitMulti = useCallback(() => {
+		if (!current || phase !== "answering") return;
+		if (current.selectionKind !== "multi" || selectedOptionIds.length === 0)
+			return;
+		const wasCorrect = isSelectionCorrect(current, selectedOptionIds);
+		setPhase("feedback");
+		setTally((t) => ({
+			answered: t.answered + 1,
+			correct: t.correct + (wasCorrect ? 1 : 0),
+		}));
+		// 正解した問題はクリア済みとして残数を1減らし、以後の再出題から除外する
+		if (wasCorrect && !solvedKeysRef.current.has(current.key)) {
+			solvedKeysRef.current.add(current.key);
+			applyRemaining(Math.max(0, (remainingRef.current ?? 0) - 1));
+		}
+		recentKeysRef.current = [
+			...recentKeysRef.current.slice(-(RECENT_KEYS_LIMIT - 1)),
+			current.key,
+		];
+		// 記録は即時。失敗しても学習は続行できる。返ってくる更新前スナップショットは
+		// リセット用に保持する。未ログイン時はサーバに実績を残せないのでスキップ
+		if (isLoggedIn) {
+			didRecordRef.current = true;
+			recordRef.current = {
+				questionKey: current.key,
+				promise: enqueueMutation(() =>
+					recordAnswer({ data: { questionKey: current.key, wasCorrect } }),
+				)
+					.then((snapshot) => {
+						// 1件でも通ったら以後は保存できている。バナーを下げる。
+						setSaveFailure(null);
+						return snapshot;
+					})
+					.catch((error) => {
+						// 進捗が無言で消えるクラスの失敗(#255 のサポート起票シナリオ)。
+						// 画面にはバナーを出しつつ、原因は収集先に残す(#390)。
+						reportClientError(error, {
+							kind: "quiz_record_answer",
+							regionId,
+							quizType: current.quizType,
+							questionKey: current.key,
+						});
+						setSaveFailure((prev) => addSaveFailure(prev, error));
+						return null;
+					}),
+			};
+		} else {
+			recordRef.current = null;
+		}
+	}, [
+		current,
+		phase,
+		selectedOptionIds,
+		isLoggedIn,
+		regionId,
+		enqueueMutation,
+		applyRemaining,
+	]);
+
 	// 回答を取り消してやり直す(誤タップ救済)。ローカル状態を回答前へ戻し、
 	// 記録済みならサーバも更新前スナップショットで復元する
 	const reset = useCallback(() => {
 		if (phase !== "feedback" || !current) return;
-		const wasCorrect = selectedOptionId === current.correctOptionId;
+		const answeredIds =
+			current.selectionKind === "multi"
+				? selectedOptionIds
+				: selectedOptionId !== undefined
+					? [selectedOptionId]
+					: [];
+		const wasCorrect =
+			answeredIds.length > 0 && isSelectionCorrect(current, answeredIds);
 		setSelectedOptionId(undefined);
+		setSelectedOptionIds([]);
 		setPhase("answering");
 		setTally((t) => ({
 			answered: t.answered - 1,
@@ -373,6 +464,7 @@ export function useQuizSession(
 		phase,
 		current,
 		selectedOptionId,
+		selectedOptionIds,
 		regionId,
 		enqueueMutation,
 		applyRemaining,
@@ -411,10 +503,13 @@ export function useQuizSession(
 		phase,
 		current,
 		selectedOptionId,
+		selectedOptionIds,
 		tally,
 		remaining,
 		saveFailure,
 		answer,
+		toggleOption,
+		submitMulti,
 		reset,
 		skip,
 		next,

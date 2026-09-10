@@ -59,7 +59,7 @@ describe("生産可能色クイズ", () => {
 		).toBeNull();
 	});
 
-	it("全キーの全数スイープ: 4択・重複なし・正解が実データと一致", () => {
+	it("全キーの全数スイープ: 候補5色・正解集合が実データと一致", () => {
 		const rng = mulberry32(42);
 		const byId = new Map(AOPS.map((a) => [a.id, a]));
 		for (const regionId of REGION_IDS) {
@@ -70,16 +70,15 @@ describe("生産可能色クイズ", () => {
 				);
 				expect(q, key).not.toBeNull();
 				if (!q) continue;
-				expect(q.options).toHaveLength(4);
-				expect(new Set(q.options.map((o) => o.id)).size).toBe(4);
-				expect(q.options.some((o) => o.id === q.correctOptionId)).toBe(true);
+				expect(q.selectionKind).toBe("multi");
+				expect(q.options).toHaveLength(5);
+				expect(new Set(q.options.map((o) => o.id))).toEqual(
+					new Set(["red", "white", "sweet-white", "rose", "sparkling"]),
+				);
 				const aop = byId.get(q.subjectAopId);
+				expect(new Set(q.correctOptionIds)).toEqual(new Set(aop?.colors ?? []));
 				expect(q.correctOptionId).toBe(colorComboId(aop?.colors ?? []));
-				// 誤答コンボはすべて実データの colors と不一致
-				for (const option of q.options) {
-					if (option.id === q.correctOptionId) continue;
-					expect(option.id, key).not.toBe(colorComboId(aop?.colors ?? []));
-				}
+				expect(q.prompt).toContain("すべて");
 			}
 		}
 	});

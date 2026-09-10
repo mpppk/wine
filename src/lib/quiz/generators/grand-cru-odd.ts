@@ -69,6 +69,8 @@ export function materializeGrandCruOddQuestion(
 		prompt: `次のうち、${subName}のグラン・クリュ(特級)でないものはどれ？`,
 		options,
 		correctOptionId: answer.id,
+		selectionKind: "single",
+		correctOptionIds: [answer.id],
 		explanation:
 			`「${answer.nameJa}」は${subName}のグラン・クリュではありません` +
 			`${label ? `(${label})` : ""}。他の3つ(${others})はいずれも特級です。` +

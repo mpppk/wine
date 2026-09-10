@@ -18,6 +18,8 @@ const QUESTION: QuizQuestion = {
 		{ id: "o2", label: "コート・ド・ボーヌ" },
 	],
 	correctOptionId: "o1",
+	selectionKind: "single",
+	correctOptionIds: ["o1"],
 	explanation: "コート・ド・ニュイの村です。",
 };
 
@@ -123,5 +125,107 @@ describe("QuizQuestionView", () => {
 		screen.getByRole("button", { name: /コート・ド・ニュイ/ }).click();
 
 		expect(calls).toEqual(["o1"]);
+	});
+});
+
+const MULTI_QUESTION: QuizQuestion = {
+	key: "colors:gevrey-chambertin",
+	quizType: "colors",
+	regionId: "bourgogne",
+	subjectAopId: "gevrey-chambertin",
+	prompt: "ジュヴレ・シャンベルタンの色をすべて選んでください",
+	options: [
+		{ id: "red", label: "赤のみ" },
+		{ id: "white", label: "白のみ" },
+		{ id: "rose", label: "ロゼのみ" },
+	],
+	correctOptionId: "red",
+	selectionKind: "multi",
+	correctOptionIds: ["red"],
+	explanation: "赤のみです。",
+};
+
+describe("QuizQuestionView の複数選択", () => {
+	it("回答中はチェックボタンと無効な「回答する」が表示される", () => {
+		render(
+			<QuizQuestionView
+				question={MULTI_QUESTION}
+				phase="answering"
+				selectedOptionId={undefined}
+				selectedOptionIds={[]}
+				onAnswer={() => {}}
+				onToggleOption={() => {}}
+				onSubmitMulti={() => {}}
+			/>,
+		);
+
+		for (const option of MULTI_QUESTION.options) {
+			const button = screen.getByRole("button", {
+				name: new RegExp(option.label),
+			});
+			expect(button.getAttribute("aria-pressed")).toBe("false");
+		}
+		const submit = screen.getByRole("button", { name: /回答する/ });
+		expect((submit as HTMLButtonElement).disabled).toBe(true);
+	});
+
+	it("チェックすると件数付きで「回答する」が有効になり、押すと確定する", () => {
+		const toggles: string[] = [];
+		let submitted = 0;
+		render(
+			<QuizQuestionView
+				question={MULTI_QUESTION}
+				phase="answering"
+				selectedOptionId={undefined}
+				selectedOptionIds={["red"]}
+				onAnswer={() => {}}
+				onToggleOption={(id) => toggles.push(id)}
+				onSubmitMulti={() => {
+					submitted++;
+				}}
+			/>,
+		);
+
+		expect(
+			screen
+				.getByRole("button", { name: /赤のみ/ })
+				.getAttribute("aria-pressed"),
+		).toBe("true");
+		const submit = screen.getByRole("button", { name: /回答する/ });
+		expect((submit as HTMLButtonElement).disabled).toBe(false);
+		expect(submit.textContent).toContain("1件選択中");
+		submit.click();
+		expect(submitted).toBe(1);
+
+		screen.getByRole("button", { name: /白のみ/ }).click();
+		expect(toggles).toEqual(["white"]);
+	});
+
+	it("完全一致で回答後は正解になり、選び漏れがあると不正解と選び漏れ表示になる", () => {
+		const { container, rerender } = render(
+			<QuizQuestionView
+				question={MULTI_QUESTION}
+				phase="feedback"
+				selectedOptionId={undefined}
+				selectedOptionIds={["red"]}
+				onAnswer={() => {}}
+			/>,
+		);
+		expect(container.querySelector('[role="status"]')?.textContent).toContain(
+			"正解！",
+		);
+
+		rerender(
+			<QuizQuestionView
+				question={MULTI_QUESTION}
+				phase="feedback"
+				selectedOptionId={undefined}
+				selectedOptionIds={[]}
+				onAnswer={() => {}}
+			/>,
+		);
+		const live = container.querySelector('[role="status"]');
+		expect(live?.textContent).toContain("不正解");
+		expect(screen.getByText("正解(選び漏れ)")).toBeDefined();
 	});
 });

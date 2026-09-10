@@ -125,10 +125,13 @@ function SessionRound({
 		phase,
 		current,
 		selectedOptionId,
+		selectedOptionIds,
 		tally,
 		remaining,
 		saveFailure,
 		answer,
+		toggleOption,
+		submitMulti,
 		reset,
 		skip,
 		next,
@@ -230,7 +233,10 @@ function SessionRound({
 					question={current}
 					phase={phase}
 					selectedOptionId={selectedOptionId}
+					selectedOptionIds={selectedOptionIds}
 					onAnswer={answer}
+					onToggleOption={toggleOption}
+					onSubmitMulti={submitMulti}
 				/>
 			)}
 			{phase === "answering" && (
