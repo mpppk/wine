@@ -1,4 +1,5 @@
 import { getAop } from "#/lib/wine/service";
+import { COLOR_LABELS_JA } from "#/lib/wine/terminology";
 import type { Aop, RegionId } from "#/lib/wine/types";
 import {
 	duplicatesUmbrellaFact,
@@ -41,9 +42,12 @@ export function materializeColorsQuestion(
 	const correctCombo = colorComboId(aop.colors);
 	const correctIds = COLOR_ORDER.filter((c) => aop.colors.includes(c));
 	const options = shuffle(
+		// 選択肢は複数選択式なので単色表記にする。「赤のみ」のような「のみ」付きは
+		// 単一選択の含意になり、複数選択ではおかしい(#599)。解説文の formatColorsJa
+		// （単色AOPなら「赤のみ」）は事実の叙述なので変えない。
 		COLOR_ORDER.map((color) => ({
 			id: color,
-			label: formatColorsJa([color]),
+			label: COLOR_LABELS_JA[color],
 		})),
 		rng,
 	);
