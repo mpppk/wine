@@ -1,8 +1,17 @@
 export type ThemeMode = "light" | "dark";
 
 // PWA のステータスバー等が参照する色。__root.tsx の literal な theme-color タグと
-// 同じ値にすること。manifest.json の theme_color/background_color(#ffffff 固定)は
-// 今回触らない方針のため、meta 側だけをアプリテーマへ同期させる(#576)。
+// 同じ値にすること。
+//
+// **この meta が効くのはブラウザのアドレスバーまで**で、インストール済みPWA
+// (Android の WebAPK)の最上段には届かない。standalone のステータスバーは Chrome が
+// 自分で塗り、その色はインストール時に焼き込まれた manifest の theme_color なので、
+// 実行時に meta を書き換えても塗り替わらない(#576 はここを「触らない方針」として
+// スコープ外にしたため、報告の本体が残っていた。#607 で対処)。
+// manifest.json は theme_color/background_color を**宣言しない**ことでOSのダーク/
+// ライト設定に追従させてある(宣言を省くと meta が動的に効くようになるのではなく、
+// プラットフォーム既定色 #FFFFFF/#000000 へのフォールバックになる)。
+// 値を戻すと白帯が再発するので、src/lib/theme.test.ts が manifest を見張っている。
 export const THEME_COLORS: Record<ThemeMode, string> = {
 	light: "#ffffff",
 	dark: "#09090b",

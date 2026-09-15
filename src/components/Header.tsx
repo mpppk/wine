@@ -30,7 +30,12 @@ export default function Header() {
 				`${el.getBoundingClientRect().height}px`,
 			);
 		});
-		ro.observe(el);
+		// border-box で観測する。既定の content-box だとパディングの変化でコールバックが
+		// 発火せず、書き出す getBoundingClientRect().height(border box)とズレる。
+		// edge-to-edge 時の pt-[env(safe-area-inset-top)] はまさにパディングなので、
+		// content-box のままだとヘッダが伸びても --header-height が古いままになり、
+		// 100dvh 前提のページが伸びた分だけスクロール可能になる(#607)。
+		ro.observe(el, { box: "border-box" });
 		return () => {
 			ro.disconnect();
 			root.style.removeProperty("--header-height");
@@ -42,9 +47,14 @@ export default function Header() {
 	}
 
 	return (
+		// pt-[env(safe-area-inset-top)] は edge-to-edge(viewport-fit=cover)時に、
+		// ヘッダの背景をステータスバーの裏まで敷きつつ中身だけを下げるためのもの(#607)。
+		// インセットが0の環境(デスクトップ・非対応ブラウザ)では 0px になるので見た目は
+		// 変わらない。実測の --header-height はこのパディング込みで出るため、100dvh 前提の
+		// ページ(map.$regionId / cellar.map)の高さ計算もそのまま追従する。
 		<header
 			ref={setHeaderRef}
-			className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-lg"
+			className="sticky top-0 z-50 border-b border-border bg-background/80 pt-[env(safe-area-inset-top)] backdrop-blur-lg"
 		>
 			{/* なりすまし中のみ描画される警告帯(#116)。ヘッダーの内側に置くことで
 			    スクロールしても常に見える(独立した sticky にすると top-0 を奪い合う)。 */}

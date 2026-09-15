@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	resolveInitialMode,
@@ -177,5 +179,35 @@ describe("THEME_INIT_SCRIPT", () => {
 		expect(statusBarMeta()?.getAttribute("content")).toBe(
 			STATUS_BAR_STYLES.light,
 		);
+	});
+});
+
+// インストール済みPWA(Android の WebAPK)の最上段は、meta ではなく manifest の
+// theme_color で決まる。宣言を戻すと #576 の報告(ダークにしても最上段が白い)が
+// そのまま再発するので、顔ぶれを固定して見張る(#607)。件数ではなくキーの有無を
+// 直接見るのは、`格付けの件数は合っているのに顔ぶれが違う`(#216)と同じ素通りを
+// 避けるため。
+describe("public/manifest.json", () => {
+	const manifest = JSON.parse(
+		readFileSync(join(process.cwd(), "public/manifest.json"), "utf8"),
+	) as Record<string, unknown>;
+
+	it("theme_color / background_color を宣言しない(OSのダーク/ライトに追従させる)", () => {
+		// 宣言を省くと meta が動的に効くようになるのではなく、プラットフォーム既定色
+		// (システムがライトなら #FFFFFF / ダークなら #000000)へのフォールバックになる。
+		// アプリ内トグルまで追従させられるのは viewport-fit=cover による edge-to-edge
+		// 化だが、インストール済みPWAの上部は Chromium 側が未対応(2026-09時点)。
+		expect(manifest).not.toHaveProperty("theme_color");
+		expect(manifest).not.toHaveProperty("background_color");
+	});
+
+	it("インストールに必要なメンバーは残っている", () => {
+		// 上の削除で manifest ごと壊していないことの担保。これらが欠けると
+		// Chrome が WebAPK を作らず、standalone で起動しなくなる。
+		expect(manifest.start_url).toBe("/");
+		expect(manifest.scope).toBe("/");
+		expect(manifest.display).toBe("standalone");
+		expect(Array.isArray(manifest.icons)).toBe(true);
+		expect((manifest.icons as unknown[]).length).toBeGreaterThan(0);
 	});
 });
