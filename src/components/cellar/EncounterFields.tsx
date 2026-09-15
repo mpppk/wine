@@ -1,5 +1,12 @@
+import {
+	NEW_PLACE_VALUE,
+	NO_PLACE_VALUE,
+	type WineEncounterDraft,
+} from "#/components/cellar/encounter-payload";
+import { RatingStarsInput } from "#/components/cellar/RatingStarsInput";
 import { FormField } from "#/components/ui/form-section";
 import { Input } from "#/components/ui/input";
+import { Label } from "#/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -7,67 +14,47 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/ui/select";
+import { Switch } from "#/components/ui/switch";
 import { Textarea } from "#/components/ui/textarea";
 import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
 import { duplicatePlaceNameMessage } from "#/lib/place/place";
-import { PLACE_NAME_MAX, SIGHTING_MEMO_MAX } from "#/lib/place/schema";
+import { PLACE_NAME_MAX } from "#/lib/place/schema";
 import type { PlaceEntry } from "#/lib/services/place-service";
 
-/** 目撃記録1件のフォーム値。数値は入力途中を表せるよう文字列で持つ(飲用記録と同じ流儀)。 */
-export interface WineSightingDraft {
-	/** 場所の選択。未選択は ""、新規作成は NEW_PLACE_VALUE */
-	placeId: string;
-	/** その場で作る場所の名前(#495)。`placeId === NEW_PLACE_VALUE` のときだけ意味を持つ。 */
-	newPlaceName: string;
-	seenOn: string;
-	price: string;
-	memo: string;
-}
-
-export const EMPTY_SIGHTING_DRAFT: WineSightingDraft = {
-	placeId: "",
-	newPlaceName: "",
-	seenOn: "",
-	price: "",
-	memo: "",
-};
-
-/** 場所を選ばない選択肢の値。空文字は Select が「未選択」と解釈するため使えない。 */
-const NO_PLACE_VALUE = "__none__";
-
-/** その場で場所を作る選択肢の値(#495)。実IDと衝突しない形にする。 */
-export const NEW_PLACE_VALUE = "__new__";
-
-export interface SightingFieldsProps {
-	value: WineSightingDraft;
+export interface EncounterFieldsProps {
+	value: WineEncounterDraft;
 	/** 変更のあったキーだけを渡す。呼び出し側が state にマージする。 */
-	onChange: (patch: Partial<WineSightingDraft>) => void;
+	onChange: (patch: Partial<WineEncounterDraft>) => void;
 	/** 選択できる場所(ユーザ単位のマスタ)。 */
 	places: PlaceEntry[];
-	/** DOM id の接頭辞。同一ページに複数の目撃記録フォームが並ぶため必須 */
+	/** DOM id の接頭辞。同一ページに複数の体験記録フォームが並ぶため必須 */
 	idPrefix: string;
 	disabled?: boolean;
 }
 
 /**
- * 目撃記録1件の入力項目(場所 / 見かけた日 / その店での価格 / メモ)。
+ * 体験記録1件の入力項目(飲んだトグル / 日付 / 場所 / 評価 / 価格 / メモ)。
  *
- * 銘柄の入力(DrunkWineFields)・飲用記録の入力(TastingFields)とは別のコンポーネント
- * にしている。目撃記録は銘柄に対して 1:N で、追加・編集・削除の単位が銘柄と異なる
- * ため(飲用記録と同じ理由。Issue #358)。
+ * 旧 TastingFields(飲用記録)+ SightingFields(目撃記録)を1本に統合したもの
+ * (Issue #606)。「そのワインに出会った1回」が1行で、飲んだかどうかはトグルで
+ * 表す。レストランで飲んだ回は `drank=1` + `place_id` の1行になる。
  *
- * 場所は**どの経路でもその場で新規作成できる**。かつては新規登録(#495)だけに開き、
- * 編集画面の目撃記録では閉じていた——記録のたびに店を増やせると表記ゆれの店名が
+ * 場所は**どの経路でもその場で新規作成できる**。かつては新規登録だけに開き、
+ * 編集画面では閉じていた——記録のたびに店を増やせると表記ゆれの店名が
  * 増えるため——が、登録時に場所を入れ損ねると後から作る手段が無くなるため開いた。
  * 表記ゆれの抑制は「同名は作れない」というサーバ側の関門(`prepareNewPlace`)が担う。
+ *
+ * <form> は含めない。TastingFields と同じく、MCP App のホストのサンドボックス
+ * iframe(allow-forms が付かないことがある)と同じ制約に合わせ、保存は submit
+ * ではなくボタンの onClick で行う。
  */
-export function SightingFields({
+export function EncounterFields({
 	value,
 	onChange,
 	places,
 	idPrefix,
 	disabled,
-}: SightingFieldsProps) {
+}: EncounterFieldsProps) {
 	const creatingPlace = value.placeId === NEW_PLACE_VALUE;
 	// 同名は作れない(サーバの prepareNewPlace が 409 で弾く)。保存を押すまで
 	// 分からないと入力をやり直させることになるので、一覧に同じ名前があれば入力中に出す。
@@ -76,7 +63,27 @@ export function SightingFields({
 		creatingPlace && places.some((place) => place.name === newPlaceName);
 	return (
 		<>
+			<div className="flex items-center gap-3">
+				<Switch
+					id={`${idPrefix}-drank`}
+					checked={value.drank}
+					disabled={disabled}
+					onCheckedChange={(checked) => onChange({ drank: checked === true })}
+				/>
+				<Label htmlFor={`${idPrefix}-drank`}>このとき飲んだ</Label>
+			</div>
+
 			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+				<FormField label="日付" htmlFor={`${idPrefix}-occurred-on`}>
+					<Input
+						id={`${idPrefix}-occurred-on`}
+						type="date"
+						value={value.occurredOn}
+						disabled={disabled}
+						onChange={(e) => onChange({ occurredOn: e.target.value })}
+					/>
+				</FormField>
+
 				<FormField label="場所" htmlFor={`${idPrefix}-place`}>
 					<Select
 						value={value.placeId || NO_PLACE_VALUE}
@@ -123,19 +130,19 @@ export function SightingFields({
 						</>
 					)}
 				</FormField>
-
-				<FormField label="見かけた日" htmlFor={`${idPrefix}-seen-on`}>
-					<Input
-						id={`${idPrefix}-seen-on`}
-						type="date"
-						value={value.seenOn}
-						disabled={disabled}
-						onChange={(e) => onChange({ seenOn: e.target.value })}
-					/>
-				</FormField>
 			</div>
 
-			<FormField label="その店での価格(円)" htmlFor={`${idPrefix}-price`}>
+			{value.drank && (
+				<FormField label="評価">
+					<RatingStarsInput
+						value={value.rating}
+						onChange={(rating) => onChange({ rating })}
+						disabled={disabled}
+					/>
+				</FormField>
+			)}
+
+			<FormField label="その場での価格(円)" htmlFor={`${idPrefix}-price`}>
 				<Input
 					id={`${idPrefix}-price`}
 					type="number"
@@ -155,9 +162,10 @@ export function SightingFields({
 					value={value.memo}
 					disabled={disabled}
 					onChange={(e) => onChange({ memo: e.target.value })}
-					maxLength={SIGHTING_MEMO_MAX}
-					rows={2}
-					placeholder="例: グラスでも提供していた"
+					// 体験記録のメモ上限は飲用側の 2000 を採る(place/schema.ts 参照)
+					maxLength={2000}
+					rows={4}
+					placeholder="味わいの感想やお店の様子など"
 				/>
 			</FormField>
 		</>

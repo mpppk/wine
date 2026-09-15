@@ -34,6 +34,8 @@ const DETAIL: ImportBatchDetail = {
 			createdAt: 1_786_000_000_000,
 			updatedAt: 1_786_000_000_000,
 			sighting: {
+				drank: false,
+				rating: null,
 				placeName: "エノテカ 渋谷",
 				seenOn: "2026-08-01",
 				price: 24000,
@@ -48,6 +50,8 @@ const DETAIL: ImportBatchDetail = {
 			id: "s1",
 			entryId: "e0",
 			entryName: "既存のワイン",
+			drank: false,
+			rating: null,
 			placeName: null,
 			seenOn: null,
 			price: 9800,
@@ -111,6 +115,20 @@ describe("ImportBatchDetailView", () => {
 			"/api/images/batch-0.jpg?v=1786000000000",
 			"/api/images/batch-1.jpg?v=1786000000000",
 		]);
+	});
+
+	it("飲んだ記録には評価を出す", () => {
+		const matched = DETAIL.matchedSightings[0];
+		if (!matched) throw new Error("unreachable");
+		render(
+			<ImportBatchDetailView
+				detail={{
+					...DETAIL,
+					matchedSightings: [{ ...matched, drank: true, rating: 4 }],
+				}}
+			/>,
+		);
+		expect(screen.getByRole("img", { name: "評価 星4" })).toBeTruthy();
 	});
 
 	it("削除済みの銘柄はリンクにしない", () => {

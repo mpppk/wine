@@ -210,12 +210,17 @@ export const createWineEncounterInput = z
 /**
  * 体験記録の更新。`newPlace` を指定すると場所を作ってその記録に紐付ける。
  *
- * drank は更新対象に含めない(旧 updateWineTasting / updateWineSighting が
- * 「飲用/目撃であること」を変えなかったのと同じく、体験の種類は作り直しで変える)。
+ * `drank` も更新できる(旧 updateWineTasting / updateWineSighting は種類を変え
+ * なかったが、統合 UI(EncounterFields)は「このとき飲んだ」トグルを編集時にも
+ * 出す。「見かけただけ」で記録した回を後から飲んだことに直す操作が、作り直し
+ * なしにできないと、レストランで飲んだ1回の出来事をまた2行に分けてしまう)。
+ * OFF に倒した回の `rating` はクライアントが null でクリアする(意味を持たない
+ * 評価を不可視のまま残さない)。
  */
 export const updateWineEncounterInput = z
 	.object({
 		id: z.string().min(1).max(80),
+		drank: z.boolean().optional(),
 		occurredOn: wineEncounterFields.occurredOn.nullable().optional(),
 		rating: wineEncounterFields.rating.nullable().optional(),
 		price: wineEncounterFields.price.nullable().optional(),
@@ -229,7 +234,7 @@ export const updateWineEncounterInput = z
 	.refine(placeChoiceIsExclusive, PLACE_CHOICE_ERROR);
 
 const _updateCoversEncounterFields: Record<
-	keyof Omit<typeof wineEncounterFields, "drank"> | "id",
+	keyof typeof wineEncounterFields | "id",
 	unknown
 > = updateWineEncounterInput.shape;
 void _updateCoversEncounterFields;
@@ -245,6 +250,11 @@ void _updateCoversEncounterFields;
  */
 export const createDrunkWineWithSightingInput = createDrunkWineInput.extend({
 	sighting: createEntrySightingInput.optional(),
+	/**
+	 * 統合 UI が同時に作る体験記録(Issue #606 PR2)。`tasting`(銘柄側)・
+	 * `sighting` との併用はサービス層が弾く(同じ1回の出来事の二重化を防ぐ)。
+	 */
+	encounter: createWineEncounterInput.optional(),
 	// 解析の参考サイト・市場価格。銘柄に属する参考情報で、そのまま保存する。
 	// 形の定義は `drunkWineReferenceInputs` が単一情報源(一括登録と共有する)。
 	...drunkWineReferenceInputs,

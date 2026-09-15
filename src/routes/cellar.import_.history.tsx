@@ -175,7 +175,7 @@ function CellarImportHistoryPage() {
 						<DialogTitle>この登録を取り消しますか?</DialogTitle>
 						<DialogDescription>
 							{target &&
-								`新規作成した${target.createdCount}件の銘柄と、既存の銘柄に追加した目撃記録を取り消します。写真も削除されます。`}
+								`新規作成した${target.createdCount}件の銘柄と、既存の銘柄に追加した記録を取り消します。写真も削除されます。`}
 							{target?.hasEditedEntries &&
 								" 登録後に編集した内容も失われます。"}
 							{" この操作は取り消せません。"}

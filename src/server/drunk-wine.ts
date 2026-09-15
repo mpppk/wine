@@ -8,13 +8,12 @@ import {
 	drunkWineFields,
 	entryIdSchema,
 	updateDrunkWineInput,
-	updateWineTastingInput,
 	wineTastingFields,
 } from "#/lib/drunk-wine/schema";
 import {
 	createDrunkWineWithSightingInput,
-	createWineSightingInput,
-	updateWineSightingInput,
+	createWineEncounterInput,
+	updateWineEncounterInput,
 } from "#/lib/place/schema";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import { authMiddleware } from "./middleware";
@@ -106,39 +105,45 @@ export const getDrunkWine = createServerFn({ method: "GET" })
 		drunkWineService.getDrunkWine(context.user.id, data.id),
 	);
 
-// ---- 飲用記録 -------------------------------------------------------------
+// ---- 体験記録(Issue #606) -------------------------------------------------
+// 「そのワインに出会った1回」が1行で、飲んだかどうかは drank で表す。
+// 旧2テーブル体制の list/add/update/deleteWineTasting・list/add/update/
+// deleteWineSighting は PR2 で UI とともに廃止し、サービス層の互換アダプタ
+// (MCP 用)だけを残す。
 
-export const listWineTastings = createServerFn({ method: "GET" })
+export const listWineEncounters = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.inputValidator(z.object({ drunkWineId: entryId }))
 	.handler(({ data, context }) =>
-		drunkWineService.listWineTastings(context.user.id, data.drunkWineId),
+		drunkWineService.listWineEncounters(context.user.id, data.drunkWineId),
 	);
 
-export const addWineTasting = createServerFn({ method: "POST" })
+export const addWineEncounter = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
-	.inputValidator(z.object({ drunkWineId: entryId, ...wineTastingFields }))
+	// 場所の新規作成(newPlace)も受ける。placeId との排他は
+	// createWineEncounterInput の refine が持つ。
+	.inputValidator(createWineEncounterInput.extend({ drunkWineId: entryId }))
 	.handler(({ data, context }) => {
-		const { drunkWineId, ...tasting } = data;
-		return drunkWineService.addWineTasting(
+		const { drunkWineId, ...encounter } = data;
+		return drunkWineService.addWineEncounter(
 			context.user.id,
 			drunkWineId,
-			tasting,
+			encounter,
 		);
 	});
 
-export const updateWineTasting = createServerFn({ method: "POST" })
+export const updateWineEncounter = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
-	.inputValidator(updateWineTastingInput)
+	.inputValidator(updateWineEncounterInput)
 	.handler(({ data, context }) =>
-		drunkWineService.updateWineTasting(context.user.id, data),
+		drunkWineService.updateWineEncounter(context.user.id, data),
 	);
 
-export const deleteWineTasting = createServerFn({ method: "POST" })
+export const deleteWineEncounter = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
 	.inputValidator(z.object({ id: entryId }))
 	.handler(({ data, context }) =>
-		drunkWineService.deleteWineTasting(context.user.id, data.id),
+		drunkWineService.deleteWineEncounter(context.user.id, data.id),
 	);
 
 /** 「飲んだ」ボタン。飲用記録の追加と status='finished' を1操作で行う。 */
@@ -149,41 +154,3 @@ export const markWineDrunk = createServerFn({ method: "POST" })
 		const { id, ...tasting } = data;
 		return drunkWineService.markWineDrunk(context.user.id, id, tasting);
 	});
-
-// ---- 目撃記録(Issue #358) -------------------------------------------------
-// 飲用記録と同じ形のRPC。場所・バッチIDの所有権はサービス層が確認する。
-
-export const listWineSightings = createServerFn({ method: "GET" })
-	.middleware([authMiddleware])
-	.inputValidator(z.object({ drunkWineId: entryId }))
-	.handler(({ data, context }) =>
-		drunkWineService.listWineSightings(context.user.id, data.drunkWineId),
-	);
-
-export const addWineSighting = createServerFn({ method: "POST" })
-	.middleware([authMiddleware])
-	// 場所の新規作成(newPlace)も受ける。placeId との排他は
-	// createWineSightingInput の refine が持ち、extend しても保たれる。
-	.inputValidator(createWineSightingInput.extend({ drunkWineId: entryId }))
-	.handler(({ data, context }) => {
-		const { drunkWineId, ...sighting } = data;
-		return drunkWineService.addWineSighting(
-			context.user.id,
-			drunkWineId,
-			sighting,
-		);
-	});
-
-export const updateWineSighting = createServerFn({ method: "POST" })
-	.middleware([authMiddleware])
-	.inputValidator(updateWineSightingInput)
-	.handler(({ data, context }) =>
-		drunkWineService.updateWineSighting(context.user.id, data),
-	);
-
-export const deleteWineSighting = createServerFn({ method: "POST" })
-	.middleware([authMiddleware])
-	.inputValidator(z.object({ id: entryId }))
-	.handler(({ data, context }) =>
-		drunkWineService.deleteWineSighting(context.user.id, data.id),
-	);

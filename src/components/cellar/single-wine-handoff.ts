@@ -1,6 +1,6 @@
 import type { DrunkWineFieldsValue } from "#/components/cellar/drunk-wine-payload";
+import type { WineEncounterDraft } from "#/components/cellar/encounter-payload";
 import { valuesFromSuggestions } from "#/components/cellar/import-candidates";
-import type { WineSightingDraft } from "#/components/cellar/SightingFields";
 import type { WineListCandidate } from "#/lib/ai/wine-list-extraction";
 import { MAX_PHOTOS_PER_ENTRY } from "#/lib/drunk-wine/photo";
 import { DEFAULT_WINE_STATUS } from "#/lib/drunk-wine/status";
@@ -59,13 +59,13 @@ export interface ManualFormStart {
 		prices?: WineListCandidate["prices"];
 	};
 	/**
-	 * ウィザードで入力した写真の場所・撮影日(#495)。記録フォームの「見かけた記録」
+	 * ウィザードで入力した写真の場所・撮影日。記録フォームの「記録」
 	 * セクションの初期値になる。
 	 *
 	 * **以前はここで捨てていた**(引き継げない旨を画面で知らせるだけだった)。同じ機会に
-	 * 見かけた記録なので、単体登録へ切り替えたからといって失う理由が無い。
+	 * 出会った記録なので、単体登録へ切り替えたからといって失う理由が無い。
 	 */
-	sighting?: WineSightingDraft;
+	encounter?: WineEncounterDraft;
 }
 
 /**
@@ -116,8 +116,8 @@ export function takePhotosForEntry(files: File[]): {
 export function buildSingleWineHandoff(
 	candidate: WineListCandidate,
 	files: File[],
-	/** ウィザードで入力した場所・撮影日(#495)。入力が無ければ未指定 */
-	sighting?: WineSightingDraft,
+	/** ウィザードで入力した場所・撮影日。入力が無ければ未指定 */
+	encounter?: WineEncounterDraft,
 	// 解析を経た経路なので values は必ず入る(呼び出し側で undefined を考えずに済む)
 ): ManualFormStart & { values: DrunkWineFieldsValue } {
 	const hasReferences =
@@ -127,7 +127,7 @@ export function buildSingleWineHandoff(
 		values: valuesFromSuggestions(candidate.suggestions, DEFAULT_WINE_STATUS),
 		...takePhotosForEntry(files),
 		reason: "single_wine",
-		...(sighting ? { sighting } : {}),
+		...(encounter ? { encounter } : {}),
 		...(hasReferences
 			? {
 					references: {

@@ -1,9 +1,8 @@
-import { StarIcon } from "lucide-react";
 import type { WineTastingDraft } from "#/components/cellar/drunk-wine-payload";
+import { RatingStarsInput } from "#/components/cellar/RatingStarsInput";
 import { FormField } from "#/components/ui/form-section";
 import { Input } from "#/components/ui/input";
 import { Textarea } from "#/components/ui/textarea";
-import { cn } from "#/lib/utils";
 
 export interface TastingFieldsProps {
 	value: WineTastingDraft;
@@ -45,34 +44,11 @@ export function TastingFields({
 				</FormField>
 
 				<FormField label="評価">
-					<div className="flex h-9 items-center gap-0.5">
-						{[1, 2, 3, 4, 5].map((n) => {
-							const active = value.rating !== null && n <= value.rating;
-							return (
-								<button
-									key={n}
-									type="button"
-									aria-label={`星${n}`}
-									aria-pressed={value.rating === n}
-									disabled={disabled}
-									onClick={() =>
-										onChange({ rating: value.rating === n ? null : n })
-									}
-									className="rounded-sm p-1 transition-transform hover:scale-110 focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:opacity-50"
-								>
-									<StarIcon
-										className={cn(
-											"size-6",
-											active
-												? "fill-amber-400 text-amber-400"
-												: "text-muted-foreground/40",
-										)}
-										aria-hidden
-									/>
-								</button>
-							);
-						})}
-					</div>
+					<RatingStarsInput
+						value={value.rating}
+						onChange={(rating) => onChange({ rating })}
+						disabled={disabled}
+					/>
 				</FormField>
 			</div>
 

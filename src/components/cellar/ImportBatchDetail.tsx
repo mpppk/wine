@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftIcon, StoreIcon, WineIcon } from "lucide-react";
+import { RatingStars } from "#/components/cellar/RatingStars";
 import {
 	WinePhotoGallery,
 	ZoomablePhoto,
@@ -22,6 +23,8 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 function SightingLine({
+	drank,
+	rating,
 	placeName,
 	seenOn,
 	price,
@@ -30,12 +33,15 @@ function SightingLine({
 	photoUrls,
 	version,
 }: {
+	/** この回に飲んだか */
+	drank: boolean;
+	rating: number | null;
 	placeName: string | null;
 	seenOn: string | null;
 	price: number | null;
 	memo: string | null;
 	photoUrl: string | null;
-	/** そのワインが写っていた写真の相対URLの一覧(#574)。未指定なら photoUrl の1枚 */
+	/** そのワインが写っていた写真の相対URLの一覧。未指定なら photoUrl の1枚 */
 	photoUrls?: string[];
 	/** 写真のキャッシュバスタ。バッチの createdAt を渡す */
 	version: number;
@@ -58,6 +64,7 @@ function SightingLine({
 			)}
 			<div className="flex min-w-0 flex-col gap-0.5">
 				<span className="font-medium">{placeName ?? "場所の指定なし"}</span>
+				{drank && rating !== null && <RatingStars rating={rating} />}
 				<span className="text-muted-foreground">
 					{seenOn ?? "日付不明"}
 					{price != null && ` / ${price.toLocaleString("ja-JP")}円`}
@@ -181,9 +188,11 @@ export function ImportBatchDetailView({
 								{entry.sighting && (
 									<div className="flex flex-col gap-1 border-t border-border pt-3">
 										<p className="text-xs text-muted-foreground">
-											この登録で付けた見かけた記録
+											この登録で付けた記録
 										</p>
 										<SightingLine
+											drank={entry.sighting.drank}
+											rating={entry.sighting.rating}
 											placeName={entry.sighting.placeName}
 											seenOn={entry.sighting.seenOn}
 											price={entry.sighting.price}
@@ -202,7 +211,7 @@ export function ImportBatchDetailView({
 
 			{detail.matchedSightings.length > 0 && (
 				<section className="flex flex-col gap-3">
-					<SectionHeading>既存へ追加した目撃記録</SectionHeading>
+					<SectionHeading>既存へ追加した記録</SectionHeading>
 					<ul className="flex flex-col gap-3">
 						{detail.matchedSightings.map((sighting) => (
 							<li
@@ -229,6 +238,8 @@ export function ImportBatchDetailView({
 									)}
 								</div>
 								<SightingLine
+									drank={sighting.drank}
+									rating={sighting.rating}
 									placeName={sighting.placeName}
 									seenOn={sighting.seenOn}
 									price={sighting.price}

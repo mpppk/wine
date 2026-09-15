@@ -423,7 +423,8 @@ export interface ImportBatchMeta {
 /**
  * カード群とバッチ情報を server fn の入力へ変換する。チェックの外れたカードは
  * 落とす。銘柄の入力値は buildCreateInput(= フォームの送信規約の SSOT)を
- * 通してから飲用記録を外し、一括登録の item 形に合わせる。
+ * 通して一括登録の item 形に合わせる。飲用記録はカード側の tasting から
+ * item.tasting として別に載せる(銘柄側には載せない)。
  *
  * 写真番号は**そのワインが写っていた写真のすべて**を目撃記録に持たせる(#574)。
  * 同じ銘柄が複数の写真に写っていても「その店で1回見かけた」であって複数回の
@@ -469,9 +470,8 @@ export function buildBulkRegisterInput(
 				// ユーザのもので、目撃記録を足すだけの操作が差し替えてよいものではない。
 				return { existingId: card.existing.id, ...base };
 			}
-			const { tasting: _unused, ...wine } = buildCreateInput(
-				toFormState(card.values),
-			);
+			// 銘柄の入力値はフォームの送信規約の SSOT を通す。
+			const wine = buildCreateInput(toFormState(card.values));
 			const webPhoto = card.imageUrl
 				? {
 						webPhoto: {

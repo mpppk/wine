@@ -7,6 +7,11 @@ import {
 	photoSetKey,
 } from "#/components/cellar/analysis-gate";
 import type { DrunkWineFieldsValue } from "#/components/cellar/drunk-wine-payload";
+import {
+	EMPTY_ENCOUNTER_DRAFT,
+	NEW_PLACE_VALUE,
+	type WineEncounterDraft,
+} from "#/components/cellar/encounter-payload";
 import { ImportCandidateCard } from "#/components/cellar/ImportCandidateCard";
 import {
 	buildBulkRegisterInput,
@@ -27,11 +32,6 @@ import {
 	remainingPhotoSlots,
 } from "#/components/cellar/photo-picker";
 import { fetchBatchPhotoFiles } from "#/components/cellar/rescan-photos";
-import {
-	EMPTY_SIGHTING_DRAFT,
-	NEW_PLACE_VALUE,
-	type WineSightingDraft,
-} from "#/components/cellar/SightingFields";
 import {
 	buildSingleWineHandoff,
 	type ManualFormStart,
@@ -305,37 +305,37 @@ export function PhotoRegisterWizard({
 	}, [rescan?.batchId]);
 
 	/**
-	 * 記録フォームへ渡す目撃記録の下書き(#495)。ユーザが場所・撮影日に触っていなければ
-	 * undefined(フォームは空の「見かけた記録」で開く)。
+	 * 記録フォームへ渡す体験記録の下書き。ユーザが場所・撮影日に触っていなければ
+	 * undefined(フォームは空の「記録」で開く)。
 	 *
 	 * 撮影日は既定で今日が入っているので、**触っていない既定値は引き継がない**。
-	 * 引き継ぐと、1本のエチケットを撮っただけの回にも「今日そこで見かけた」という
+	 * 引き継ぐと、1本のエチケットを撮っただけの回にも「今日そこで出会った」という
 	 * 記録が黙って付く。
 	 */
-	const sightingHandoff = (): WineSightingDraft | undefined => {
+	const encounterHandoff = (): WineEncounterDraft | undefined => {
 		const touchedPlace = placeChoice !== NO_PLACE;
 		const touchedSeenOn = seenOn !== defaultSeenOnRef.current;
 		if (!touchedPlace && !touchedSeenOn) return undefined;
 		return {
-			...EMPTY_SIGHTING_DRAFT,
+			...EMPTY_ENCOUNTER_DRAFT,
 			...(placeChoice === NEW_PLACE
 				? { placeId: NEW_PLACE_VALUE, newPlaceName }
 				: touchedPlace
 					? { placeId: placeChoice }
 					: {}),
-			// 場所を選んだ回は、既定のままの撮影日も一緒に渡す(「今日そこで見かけた」が
+			// 場所を選んだ回は、既定のままの撮影日も一緒に渡す(「今日そこで出会った」が
 			// この回の記録として意味を持つため)
-			seenOn,
+			occurredOn: seenOn,
 		};
 	};
 
 	/**
-	 * 解析ジョブに残す「どこで・いつ撮ったか」(#498)。判定は記録フォームへの引き継ぎと
-	 * 同じ(`sightingHandoff`)にする——投入して離脱した回と、留まって切り替えた回で
+	 * 解析ジョブに残す「どこで・いつ撮ったか」。判定は記録フォームへの引き継ぎと
+	 * 同じ(`encounterHandoff`)にする——投入して離脱した回と、留まって切り替えた回で
 	 * 残る内容が違うと、同じ操作なのに結果が変わる。
 	 */
 	const sightingForJob = (): LabelJobSighting | undefined => {
-		const draft = sightingHandoff();
+		const draft = encounterHandoff();
 		if (!draft) return undefined;
 		return {
 			...(draft.placeId === NEW_PLACE_VALUE
@@ -345,7 +345,7 @@ export function PhotoRegisterWizard({
 				: draft.placeId
 					? { placeId: draft.placeId }
 					: {}),
-			...(draft.seenOn ? { seenOn: draft.seenOn } : {}),
+			...(draft.occurredOn ? { seenOn: draft.occurredOn } : {}),
 		};
 	};
 
@@ -487,7 +487,7 @@ export function PhotoRegisterWizard({
 				buildSingleWineHandoff(
 					single,
 					photos.map((p) => p.file),
-					sightingHandoff(),
+					encounterHandoff(),
 				),
 			);
 		}
@@ -829,11 +829,11 @@ export function PhotoRegisterWizard({
 								variant="ghost"
 								disabled={isAnalyzing}
 								onClick={() => {
-									const sighting = sightingHandoff();
+									const encounter = encounterHandoff();
 									onSwitchToManual({
 										...takePhotosForEntry(photos.map((p) => p.file)),
 										reason: "manual_choice",
-										...(sighting ? { sighting } : {}),
+										...(encounter ? { encounter } : {}),
 									});
 								}}
 							>
@@ -1110,9 +1110,9 @@ function ImportCompletionScreen({
 				<p>登録が完了しました。</p>
 				<p className="mt-1 text-muted-foreground">
 					新規{registered.createdCount}件・既存へ追加{registered.matchedCount}
-					件(目撃記録{registered.sightingCount}件
-					{registered.tastingCount > 0 &&
-						`・飲んだ記録${registered.tastingCount}件`}
+					件(体験記録{registered.encounterCount}件
+					{registered.drankCount > 0 &&
+						`・うち飲んだ記録${registered.drankCount}件`}
 					)
 				</p>
 				{rescanned && (

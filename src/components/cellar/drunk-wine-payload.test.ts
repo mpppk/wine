@@ -10,7 +10,6 @@ import {
 	type DrunkWineFieldsValue,
 	type DrunkWineFormState,
 	EMPTY_REFERENCES_VALUE,
-	EMPTY_TASTING_DRAFT,
 	fieldsValueFromMcpEntry,
 	hasUnsavedDrunkWineChanges,
 	mergeReferencesValue,
@@ -19,7 +18,7 @@ import {
 	type WineReferencesValue,
 	type WineTastingDraft,
 } from "./drunk-wine-payload";
-import { EMPTY_SIGHTING_DRAFT, NEW_PLACE_VALUE } from "./SightingFields";
+import { EMPTY_ENCOUNTER_DRAFT, NEW_PLACE_VALUE } from "./encounter-payload";
 
 // フォームで一通り入力済みの state と、それに対応する既存エントリ
 const filled: DrunkWineFormState = {
@@ -215,12 +214,17 @@ describe("buildCreateInput", () => {
 		});
 	});
 
-	it("飲用記録を渡すと tasting としてネストする", () => {
+	it("体験記録を渡すと encounter としてネストする", () => {
 		const input = buildCreateInput(filled, {
-			drankOn: "2020-01-02",
+			drank: true,
+			occurredOn: "2020-01-02",
 			rating: 4,
 		});
-		expect(input.tasting).toEqual({ drankOn: "2020-01-02", rating: 4 });
+		expect(input.encounter).toEqual({
+			drank: true,
+			occurredOn: "2020-01-02",
+			rating: 4,
+		});
 	});
 
 	it("作成入力に null は現れない(空欄はキーごと落ちる)", () => {
@@ -452,8 +456,7 @@ describe("hasUnsavedDrunkWineChanges", () => {
 	const base = {
 		initial,
 		values: initial,
-		tasting: EMPTY_TASTING_DRAFT,
-		sighting: EMPTY_SIGHTING_DRAFT,
+		encounter: EMPTY_ENCOUNTER_DRAFT,
 		initialPhotoKeys: [] as string[],
 		photoKeys: [] as (string | null)[],
 		initialReferences: EMPTY_REFERENCES_VALUE,
@@ -523,27 +526,21 @@ describe("hasUnsavedDrunkWineChanges", () => {
 		).toBe(true);
 	});
 
-	it("飲用記録の下書き(飲んだ日・評価・メモ)も未保存として扱う", () => {
-		for (const tasting of [
-			{ ...EMPTY_TASTING_DRAFT, drankOn: "2026-07-28" },
-			{ ...EMPTY_TASTING_DRAFT, rating: 4 },
-			{ ...EMPTY_TASTING_DRAFT, memo: "good" },
+	it("体験記録の下書き(トグル・日付・場所・評価・価格・メモ)も未保存として扱う", () => {
+		for (const encounter of [
+			{ ...EMPTY_ENCOUNTER_DRAFT, drank: true },
+			{ ...EMPTY_ENCOUNTER_DRAFT, occurredOn: "2026-07-28" },
+			{ ...EMPTY_ENCOUNTER_DRAFT, placeId: "place-1" },
+			{
+				...EMPTY_ENCOUNTER_DRAFT,
+				placeId: NEW_PLACE_VALUE,
+				newPlaceName: "店",
+			},
+			{ ...EMPTY_ENCOUNTER_DRAFT, rating: 4 },
+			{ ...EMPTY_ENCOUNTER_DRAFT, price: "12000" },
+			{ ...EMPTY_ENCOUNTER_DRAFT, memo: "good" },
 		]) {
-			expect(hasUnsavedDrunkWineChanges({ ...base, tasting })).toBe(true);
-		}
-	});
-
-	// 写真ウィザードから引き継いだ場所・見かけた日もここで拾う(#495)。拾わないと
-	// 「引き継いだのに、戻る操作で黙って消える」ことになる。
-	it("目撃記録の下書き(場所・見かけた日・価格・メモ)も未保存として扱う", () => {
-		for (const sighting of [
-			{ ...EMPTY_SIGHTING_DRAFT, placeId: "place-1" },
-			{ ...EMPTY_SIGHTING_DRAFT, placeId: NEW_PLACE_VALUE, newPlaceName: "店" },
-			{ ...EMPTY_SIGHTING_DRAFT, seenOn: "2026-08-09" },
-			{ ...EMPTY_SIGHTING_DRAFT, price: "12000" },
-			{ ...EMPTY_SIGHTING_DRAFT, memo: "グラスでも提供" },
-		]) {
-			expect(hasUnsavedDrunkWineChanges({ ...base, sighting })).toBe(true);
+			expect(hasUnsavedDrunkWineChanges({ ...base, encounter })).toBe(true);
 		}
 	});
 
