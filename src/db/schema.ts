@@ -71,7 +71,7 @@ export const quizQuestionStat = sqliteTable(
  * drizzle/0019 で削除済み(Issue #205)。評価・メモは集計ではなく「最新1件の値」
  * なので非正規化せず、読み取り時に相関サブクエリで導出する。
  *
- * 所有状態(status)と飲用履歴(wineTasting の 1:N)は**直交する2軸**で持つ(Issue #195)。
+ * 所有状態(status)と体験記録(wineEncounter の 1:N)は**直交する2軸**で持つ(Issue #195)。
  * 「以前飲んだワインをもう一度購入した」= status='owned' かつ 飲用記録あり、のように
  * 組み合わせがそのまま実際の状況に対応する。単一の enum に潰すとこれが表現できない。
  *
@@ -114,20 +114,12 @@ export const drunkWine = sqliteTable(
 		 * 最新の体験記録の見かけた日 = max(wine_encounter.occurred_on)。体験記録が無い、
 		 * または全件が日付未入力なら null。
 		 *
-		 * **旧 last_seen_on の後継**。「飲んだ = 必ず出会った」を採るので飲んだ回も数える。
-		 * 旧列(last_seen_on / sighting_count)は 0041 で DROP するまでの間残るが、
-		 * 以降どこからも読み書きしない。
-		 */
-		lastEncounteredOn: text("last_encountered_on"),
-		/** 体験記録の件数。0 なら「どこでも出会っていない」。旧 sighting_count の後継 */
-		encounterCount: integer("encounter_count").notNull().default(0),
-		/**
-		 * 旧集計列。0041 で DROP するまでの間残るが、以降どこからも読み書きしない。
-		 * 新規の読み書きは lastEncounteredOn / encounterCount を使う。
-		 */
-		lastSeenOn: text("last_seen_on"),
-		/** 旧集計列。0041 で DROP するまでの間残るが、以降どこからも読み書きしない。 */
-		sightingCount: integer("sighting_count").notNull().default(0),
+	 * **旧 last_seen_on の後継**。「飲んだ = 必ず出会った」を採るので飲んだ回も数える。
+	 * 旧列(last_seen_on / sighting_count)は drizzle/0041 で削除済み(Issue #606)。
+	 */
+	lastEncounteredOn: text("last_encountered_on"),
+	/** 体験記録の件数。0 なら「どこでも出会っていない」。旧 sighting_count の後継 */
+	encounterCount: integer("encounter_count").notNull().default(0),
 		/** 静的AOPマスタの Aop.id(任意) */
 		aopId: text("aop_id"),
 		/**
@@ -214,53 +206,6 @@ export const drunkWine = sqliteTable(
 );
 
 /**
- * 旧飲用記録。Issue #606 で体験記録(wineEncounter)へ統合済み。
- *
- * **0041 で DROP するまでの間残るが、以降どこからも読み書きしない。** 新規の
- * 読み書きは wineEncounter(drank=1) を使う。移送(0040)は決定的派生 id
- * ('tasting-' || id) + INSERT OR IGNORE で行う。
- */
-export const wineTasting = sqliteTable(
-	"wine_tasting",
-	{
-		id: text("id").primaryKey(),
-		drunkWineId: text("drunk_wine_id")
-			.notNull()
-			.references(() => drunkWine.id, { onDelete: "cascade" }),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		/**
-		 * 由来の一括登録バッチ。手動で足した試飲記録では null(#393)。
-		 *
-		 * **バッチ取り消しを対称にするために要る**。一括登録は既存エントリにも
-		 * 試飲記録を足せるが、この列が無いと「バッチが足した試飲記録」を
-		 * 特定できず、取り消しても残ってしまう(新規作成エントリぶんは
-		 * drunk_wine 削除の FK cascade でたまたま消えていた)。
-		 */
-		batchId: text("batch_id").references(() => importBatch.id, {
-			onDelete: "set null",
-		}),
-		/** 飲んだ日 "YYYY-MM-DD"。覚えていない場合は null */
-		drankOn: text("drank_on"),
-		/** 1–5 */
-		rating: integer("rating"),
-		memo: text("memo"),
-		createdAt: integer("created_at", { mode: "timestamp_ms" })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.notNull(),
-		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.$onUpdate(() => /* @__PURE__ */ new Date())
-			.notNull(),
-	},
-	(table) => [
-		index("wine_tasting_entry_drank_idx").on(table.drunkWineId, table.drankOn),
-		index("wine_tasting_user_drank_idx").on(table.userId, table.drankOn),
-	],
-);
-
-/**
  * 場所(ユーザ単位のマスタ)。「どの店でそのワインを見かけたか」を持つ(Issue #358)。
  *
  * **unique 制約を張らない**。同名の重複を作らせない判断はサービス層
@@ -300,7 +245,7 @@ export const place = sqliteTable(
 /**
  * 一括登録1回ぶんの写真の保管単位(Issue #358)。レストランのワインリストや
  * ショップの棚を撮った写真は**1枚に数十銘柄が写る**ため、エントリごとに複製添付
- * するのは不適切。バッチに1回だけ置き、目撃記録(wineSighting)から photoIndex で
+ * するのは不適切。バッチに1回だけ置き、体験記録(wineEncounter)から photoIndex で
  * 参照する。drunk_wine.photoKeys はボトル写真用として独立のまま。
  *
  * **写真のR2キーは `wines/{userId}/{batchId}/{photoId}.{ext}`**。エントリ写真と
@@ -350,60 +295,6 @@ export const importBatch = sqliteTable(
 	},
 	(table) => [
 		index("import_batch_user_created_idx").on(table.userId, table.createdAt),
-	],
-);
-
-/**
- * 旧目撃記録。Issue #606 で体験記録(wineEncounter)へ統合済み。
- *
- * **0041 で DROP するまでの間残るが、以降どこからも読み書きしない。** 新規の
- * 読み書きは wineEncounter(drank=0) を使う。移送(0040)は決定的派生 id
- * ('sighting-' || id) + INSERT OR IGNORE で行う。
- */
-export const wineSighting = sqliteTable(
-	"wine_sighting",
-	{
-		id: text("id").primaryKey(),
-		drunkWineId: text("drunk_wine_id")
-			.notNull()
-			.references(() => drunkWine.id, { onDelete: "cascade" }),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		/** 見かけた場所。任意。場所を消しても目撃した事実は残すので set null */
-		placeId: text("place_id").references(() => place.id, {
-			onDelete: "set null",
-		}),
-		/** 由来の一括登録バッチ。手動で足した目撃記録では null */
-		batchId: text("batch_id").references(() => importBatch.id, {
-			onDelete: "set null",
-		}),
-		/** バッチの photoKeys の添字(0始まり)。どの写真に写っていたか */
-		photoIndex: integer("photo_index"),
-		/**
-		 * そのワインが写っていたバッチ写真の番号の一覧(#574)。AIの画像-ワイン対応
-		 * を登録まで持ち回るための配列で、`photoIndex`(先頭1枚の後方互換)と
-		 * 併存する。NULL = 先頭1枚だけの従来行(読み取りは `photoIndex` へ退避)。
-		 */
-		photoIndexes: text("photo_indexes", { mode: "json" }).$type<number[]>(),
-		/** 見かけた日 "YYYY-MM-DD"。覚えていない場合は null */
-		seenOn: text("seen_on"),
-		/** その店での売値(円) */
-		price: integer("price"),
-		memo: text("memo"),
-		createdAt: integer("created_at", { mode: "timestamp_ms" })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.notNull(),
-		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.$onUpdate(() => /* @__PURE__ */ new Date())
-			.notNull(),
-	},
-	(table) => [
-		index("wine_sighting_entry_seen_idx").on(table.drunkWineId, table.seenOn),
-		index("wine_sighting_user_seen_idx").on(table.userId, table.seenOn),
-		// 「この店で見かけたワイン一覧」(PR4)用。所有権の user_id を先頭に置く
-		index("wine_sighting_user_place_idx").on(table.userId, table.placeId),
 	],
 );
 
