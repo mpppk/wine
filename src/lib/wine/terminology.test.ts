@@ -58,6 +58,8 @@ describe("原産地呼称の総称・バッジ(国ごとの出し分け)", () =>
 		expect(getAppellationTermJa("toscana")).toBe("DOC/DOCG/IGT");
 		// Vino de Pago は DO の階層の外にある独立したDOPなので総称にも並べる
 		expect(getAppellationTermJa("rioja")).toBe("DO/DOCa/VP");
+		// ポルトガルはDOCの1階層だけ(等級差が無いのでタグも持たない)
+		expect(getAppellationTermJa("portugal")).toBe("DOC");
 	});
 
 	it("スペインのバッジはAOP単位のDOP階層で決まる", () => {
@@ -74,6 +76,19 @@ describe("原産地呼称の総称・バッジ(国ごとの出し分け)", () =>
 		// 他国は従来どおり
 		expect(badge("chablis")).toBe("AOC");
 		expect(badge("barolo")).toBe("DOC/DOCG");
+	});
+
+	// ポルトガルは格付けタグを持たないので、バッジは国だけで決まる(酒精強化の
+	// ポルトも、ポルトガル唯一の白専用DOPのブセラスも同じ "DOC")。
+	it("ポルトガルのバッジは国から導出される", () => {
+		const badge = (id: string) => {
+			const aop = getAop(id);
+			if (!aop) throw new Error(`unknown aop: ${id}`);
+			return getAppellationBadgeJa(aop);
+		};
+		for (const id of ["douro", "porto", "bucelas", "alentejo"]) {
+			expect(badge(id), id).toBe("DOC");
+		}
 	});
 
 	// #212 の IGT と同じ理由: 呼称名そのものを表すタグは、格付けバッジ側では
@@ -99,6 +114,7 @@ describe("原産地呼称の総称・バッジ(国ごとの出し分け)", () =>
 			return getBoundarySourceNoteJa(aop);
 		};
 		expect(note("rioja")).toBe(note("barolo"));
+		expect(note("douro")).toBe(note("barolo"));
 		expect(note("rioja")).toContain("EU PDO境界データ");
 		expect(note("chablis")).not.toContain("EU PDO境界データ");
 	});

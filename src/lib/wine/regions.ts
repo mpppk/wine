@@ -245,6 +245,41 @@ export const REGIONS: Region[] = [
 			"地図で学べる。境界はイタリア同様、コミューン単位で集約された学術" +
 			"データセット(Candiago et al. 2022, CC0)に基づく概略値。",
 	},
+	{
+		id: "portugal",
+		nameJa: "ポルトガル",
+		nameLocal: "Portugal",
+		country: "Portugal",
+		countryJa: "ポルトガル",
+		enabled: true,
+		// build:geodata:eu の出力値を反映(本土のみ。マデイラ・アゾレスは除外)。
+		bounds: [-9.50053, 37.7412, -6.18935, 42.15442],
+		geojsonPath: "/data/aop/portugal.geojson",
+		boundariesPath: "/data/aop/portugal-boundaries.geojson",
+		boundaryAttribution:
+			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
+		// 地区はIVVの公式ワイン生産地方(região vitivinícola)に沿って北から南へ切る。
+		// DOPの数が1〜2しかない地方(ミーニョ・テージョ・アレンテージョ)も、
+		// 地理的に独立しているのでまとめずそのまま地区にする。
+		subregions: [
+			{ id: "minho", nameJa: "ミーニョ(ヴィーニョ・ヴェルデ)" },
+			{ id: "douro-tras-os-montes", nameJa: "ドウロ / トラス・オス・モンテス" },
+			{ id: "beiras", nameJa: "ベイラ(ダン / バイラーダ)" },
+			{ id: "lisboa", nameJa: "リスボア" },
+			{ id: "tejo", nameJa: "テージョ" },
+			{ id: "peninsula-de-setubal", nameJa: "セトゥーバル半島" },
+			{ id: "alentejo", nameJa: "アレンテージョ" },
+		],
+		description:
+			"ポルトガル本土の21のDOPを1つの地方として収録。大西洋に面した冷涼な" +
+			"ヴィーニョ・ヴェルデから、片岩の段々畑でポルトとドウロを生む北東部、" +
+			"花崗岩のダン、粘土石灰質のバイラーダ、石灰質のリスボア、川沿いのテージョ、" +
+			"砂地のセトゥーバル半島、そして広大なアレンテージョまで、南北約580kmに" +
+			"多様な気候と土壌が並ぶ。トゥリガ・ナシオナルやアリントをはじめ土着品種の" +
+			"比率が極めて高いのが最大の特徴で、ポルト・セトゥーバル・カルカヴェロスの" +
+			"3つの酒精強化ワインも学べる。境界はイタリア・スペイン同様、コミューン" +
+			"単位で集約された学術データセット(Candiago et al. 2022, CC0)に基づく概略値。",
+	},
 ];
 
 export function getRegion(id: string): Region | undefined {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// EU PDO データセット由来の地域(イタリア・スペイン)の境界GeoJSON
+// EU PDO データセット由来の地域(イタリア・スペイン・ポルトガル)の境界GeoJSON
 // (public/data/aop/<region>.geojson)を生成する。
 //
 //   bun run build:geodata:eu                       # 対象地域すべてを生成(figshareからDL、キャッシュあり)
@@ -15,7 +15,7 @@
 //    protected designations of origin in Europe." Sci Data 9, 394 (2022).
 //    figshare: doi:10.6084/m9.figshare.19312094 (EU_PDO.gpkg, ライセンス CC0)
 //
-//  イタリア・スペインにはフランスINAOのような公式の区画GISが存在しないため、上記の学術
+//  イタリア・スペイン・ポルトガルにはフランスINAOのような公式の区画GISが存在しないため、上記の学術
 //  データセット(各PDOをeAmbrosia登録の自治体一覧から集約した境界)を用いる。
 //  したがって粒度はコミューン(自治体)単位で、フランスの村名/畑AOC(区画単位)より粗い。
 //
@@ -158,6 +158,41 @@ const REGION_CONFIGS = {
 			// スペイン全土(西経6.5度〜東経3.1度)に及ぶ全国区DOなので、この地方の
 			// 地図には載せない。バスクのアラバ・チャコリ(PDO-ES-A0732)は
 			// アラバ県にあるがカンタブリア海側の水系で、エブロ川流域ではないため外す。
+		},
+	},
+	portugal: {
+		out: "portugal.geojson",
+		// ポルトガル本土。マデイラ(西経約17度)・アゾレス(同27〜28度)は本土から
+		// 遠く、同じ地図に載せると bounds が海で埋まるため収録対象から外している
+		// (本土のDOPだけを囲む bbox でクリップする)。
+		clipBbox: "-10.0,36.8,-6.0,42.3",
+		pdo: {
+			"vinho-verde": "PDO-PT-A1545",
+			douro: "PDO-PT-A1539",
+			porto: "PDO-PT-A1540",
+			"tavora-varosa": "PDO-PT-A1541",
+			"tras-os-montes": "PDO-PT-A1466",
+			dao: "PDO-PT-A1534",
+			lafoes: "PDO-PT-A1455",
+			bairrada: "PDO-PT-A1537",
+			"beira-interior": "PDO-PT-A1546",
+			"encostas-daire": "PDO-PT-A1470",
+			obidos: "PDO-PT-A1469",
+			alenquer: "PDO-PT-A1468",
+			arruda: "PDO-PT-A1471",
+			"torres-vedras": "PDO-PT-A1465",
+			bucelas: "PDO-PT-A1463",
+			colares: "PDO-PT-A1461",
+			carcavelos: "PDO-PT-A1462",
+			tejo: "PDO-PT-A1544",
+			palmela: "PDO-PT-A1460",
+			setubal: "PDO-PT-A1457",
+			alentejo: "PDO-PT-A1542",
+			// 注: アルガルヴェの4つのDOP(Lagos / Portimão / Lagoa / Tavira)は
+			// 法的には存続しているが、実際にはほぼ全量が IG Algarve で瓶詰めされて
+			// おり、DOPを名乗る造り手を確認できなかったため収録しない。
+			// マデイラ(Madeira / Madeirense)とアゾレス(Pico / Graciosa /
+			// Biscoitos)は本土から遠い島嶼なので、将来別地方として足す。
 		},
 	},
 };

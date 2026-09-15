@@ -459,6 +459,268 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		color: "white",
 	},
 	{ id: "verdejo", nameJa: "ベルデホ", nameLocal: "Verdejo", color: "white" },
+	// --- ポルトガル(本土) ---
+	// アラゴネス(Aragonez)/ティンタ・ロリス(Tinta Roriz)はテンプラニーリョと同一品種
+	// なので新設せず tempranillo を再利用する(各DOPの caderno de especificações の
+	// 同義語欄が "Aragonez | Tinta-Roriz, Tempranillo" と明記している)。同様に
+	// モスカテル・ガレゴ・ブランコ(= Muscat-à-Petits-Grains)は
+	// muscat-blanc-a-petits-grains を使う。同じ品種が別IDに割れると品種クイズ・
+	// 品種フィルタが分断されるため。現地でのシノニムは各AOPの解説に併記する。
+	{
+		id: "touriga-nacional",
+		nameJa: "トゥリガ・ナシオナル",
+		nameLocal: "Touriga Nacional",
+		color: "red",
+	},
+	{
+		id: "touriga-franca",
+		nameJa: "トゥリガ・フランカ",
+		nameLocal: "Touriga Franca",
+		color: "red",
+	},
+	{
+		id: "tinta-barroca",
+		nameJa: "ティンタ・バロッカ",
+		nameLocal: "Tinta Barroca",
+		color: "red",
+	},
+	{
+		id: "tinto-cao",
+		nameJa: "ティント・カン",
+		nameLocal: "Tinto Cão",
+		color: "red",
+	},
+	// ヴィーニョ・ヴェルデでは Vinhão、ドウロ以南では Sousão と呼ぶ同一品種
+	// (Vinho Verde / Beira Interior の caderno がシノニムとして併記している)。
+	{
+		id: "sousao",
+		nameJa: "ソウザン(ヴィニャン)",
+		nameLocal: "Sousão",
+		color: "red",
+	},
+	{ id: "baga", nameJa: "バガ", nameLocal: "Baga", color: "red" },
+	{
+		id: "alfrocheiro",
+		nameJa: "アルフロシェイロ",
+		nameLocal: "Alfrocheiro",
+		color: "red",
+	},
+	// スペイン・ビエルソのメンシアと同一品種。ポルトガルでは Jaen と呼ぶ。
+	{ id: "jaen", nameJa: "ジャエン(メンシア)", nameLocal: "Jaen", color: "red" },
+	{
+		id: "rufete",
+		nameJa: "ルフェテ(ティンタ・ピニェイラ)",
+		nameLocal: "Rufete",
+		color: "red",
+	},
+	{
+		id: "trincadeira",
+		nameJa: "トリンカデイラ(ティンタ・アマレラ)",
+		nameLocal: "Trincadeira",
+		color: "red",
+	},
+	{
+		id: "castelao",
+		nameJa: "カステラン(ペリキータ)",
+		nameLocal: "Castelão",
+		color: "red",
+	},
+	{
+		id: "alicante-bouschet",
+		nameJa: "アリカンテ・ブーシェ",
+		nameLocal: "Alicante Bouschet",
+		color: "red",
+	},
+	{ id: "ramisco", nameJa: "ラミスコ", nameLocal: "Ramisco", color: "red" },
+	{
+		id: "tinta-miuda",
+		nameJa: "ティンタ・ミウダ",
+		nameLocal: "Tinta Miúda",
+		color: "red",
+	},
+	{ id: "camarate", nameJa: "カマラテ", nameLocal: "Camarate", color: "red" },
+	{ id: "bastardo", nameJa: "バスタルド", nameLocal: "Bastardo", color: "red" },
+	{ id: "amaral", nameJa: "アマラル", nameLocal: "Amaral", color: "red" },
+	{
+		id: "espadeiro",
+		nameJa: "エスパデイロ",
+		nameLocal: "Espadeiro",
+		color: "red",
+	},
+	{ id: "padeiro", nameJa: "パデイロ", nameLocal: "Padeiro", color: "red" },
+	{
+		id: "alvarelhao",
+		nameJa: "アルヴァレリャン(ブランセーリョ)",
+		nameLocal: "Alvarelhão",
+		color: "red",
+	},
+	{
+		id: "marufo",
+		nameJa: "マルフォ(モウリスコ・ロショ)",
+		nameLocal: "Marufo",
+		color: "red",
+	},
+	{
+		id: "negra-mole",
+		nameJa: "ネグラ・モーレ",
+		nameLocal: "Negra Mole",
+		color: "red",
+	},
+	// スペイン・リアスバイシャスのアルバリーニョと同一品種。ポルトガル側の
+	// モンサン・エ・メルガッソが本拠で、現地表記は Alvarinho。
+	{
+		id: "alvarinho",
+		nameJa: "アルヴァリーニョ(アルバリーニョ)",
+		nameLocal: "Alvarinho",
+		color: "white",
+	},
+	{
+		id: "loureiro",
+		nameJa: "ロウレイロ",
+		nameLocal: "Loureiro",
+		color: "white",
+	},
+	{
+		id: "arinto",
+		nameJa: "アリント(ペデルナン)",
+		nameLocal: "Arinto",
+		color: "white",
+	},
+	{
+		id: "trajadura",
+		nameJa: "トラジャドゥーラ(トレイシャドゥーラ)",
+		nameLocal: "Trajadura",
+		color: "white",
+	},
+	{ id: "avesso", nameJa: "アヴェッソ", nameLocal: "Avesso", color: "white" },
+	{ id: "azal", nameJa: "アザル", nameLocal: "Azal", color: "white" },
+	{
+		id: "encruzado",
+		nameJa: "エンクルザード",
+		nameLocal: "Encruzado",
+		color: "white",
+	},
+	{
+		id: "bical",
+		nameJa: "ビカル(ボラード・ダス・モスカス)",
+		nameLocal: "Bical",
+		color: "white",
+	},
+	{
+		id: "malvasia-fina",
+		nameJa: "マルヴァジア・フィナ(ボアル)",
+		nameLocal: "Malvasia Fina",
+		color: "white",
+	},
+	{ id: "rabigato", nameJa: "ラビガト", nameLocal: "Rabigato", color: "white" },
+	{
+		id: "viosinho",
+		nameJa: "ヴィオジーニョ",
+		nameLocal: "Viosinho",
+		color: "white",
+	},
+	{
+		id: "gouveio",
+		nameJa: "ゴウヴェイオ",
+		nameLocal: "Gouveio",
+		color: "white",
+	},
+	{
+		id: "codega-do-larinho",
+		nameJa: "コデガ・ド・ラリーニョ",
+		nameLocal: "Códega do Larinho",
+		color: "white",
+	},
+	{
+		id: "fernao-pires",
+		nameJa: "フェルナン・ピレス(マリア・ゴメス)",
+		nameLocal: "Fernão Pires",
+		color: "white",
+	},
+	{
+		id: "antao-vaz",
+		nameJa: "アンタン・ヴァス",
+		nameLocal: "Antão Vaz",
+		color: "white",
+	},
+	{
+		id: "siria",
+		nameJa: "シリア(ロウペイロ/コデガ)",
+		nameLocal: "Síria",
+		color: "white",
+	},
+	{
+		id: "rabo-de-ovelha",
+		nameJa: "ラボ・デ・オヴェーリャ",
+		nameLocal: "Rabo de Ovelha",
+		color: "white",
+	},
+	{
+		id: "verdelho",
+		nameJa: "ヴェルデーリョ",
+		nameLocal: "Verdelho",
+		color: "white",
+	},
+	// モスカテル・グラウド(= モスカテル・デ・セトゥーバル)はマスカット・オブ・
+	// アレキサンドリア。小粒種の muscat-blanc-a-petits-grains とは別品種。
+	{
+		id: "moscatel-graudo",
+		nameJa: "モスカテル・グラウド(モスカテル・デ・セトゥーバル)",
+		nameLocal: "Moscatel Graúdo",
+		color: "white",
+	},
+	// 果皮がピンク色のモスカテル。ピノ・グリ等と同様、灰色系は white に分類する。
+	{
+		id: "moscatel-roxo",
+		nameJa: "モスカテル・ロショ",
+		nameLocal: "Moscatel Roxo",
+		color: "white",
+	},
+	{ id: "vital", nameJa: "ヴィタル", nameLocal: "Vital", color: "white" },
+	{
+		id: "seara-nova",
+		nameJa: "セアラ・ノヴァ",
+		nameLocal: "Seara Nova",
+		color: "white",
+	},
+	{
+		id: "galego-dourado",
+		nameJa: "ガレゴ・ドウラード",
+		nameLocal: "Galego Dourado",
+		color: "white",
+	},
+	{
+		id: "ratinho",
+		nameJa: "ラティーニョ",
+		nameLocal: "Ratinho",
+		color: "white",
+	},
+	// コラーレスの白を担う在来種。caderno は単に "Malvasia" と記すが、イタリアの
+	// マルヴァジーア(malvasia = Malvasia Bianca Lunga)とは別品種のため独立IDにする。
+	{
+		id: "malvasia-de-colares",
+		nameJa: "マルヴァジア・デ・コラーレス",
+		nameLocal: "Malvasia de Colares",
+		color: "white",
+	},
+	{
+		id: "dona-branca",
+		nameJa: "ドナ・ブランカ(フォーリャ・デ・フィゲイラ)",
+		nameLocal: "Dona Branca",
+		color: "white",
+	},
+	{
+		id: "sercial",
+		nameJa: "セルシアル(エスガナ・カン)",
+		nameLocal: "Sercial",
+		color: "white",
+	},
+	{
+		id: "fonte-cal",
+		nameJa: "フォンテ・カル",
+		nameLocal: "Fonte Cal",
+		color: "white",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);

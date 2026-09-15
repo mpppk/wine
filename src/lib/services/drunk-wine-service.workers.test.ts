@@ -1104,7 +1104,7 @@ describe("産地の粗い紐付け(region_id / country_id)", () => {
 			createDrunkWine(userId, { name: "x", regionId: "no-such-region" }),
 		).rejects.toBeInstanceOf(BadRequestError);
 		await expect(
-			createDrunkWine(userId, { name: "x", countryId: "portugal" }),
+			createDrunkWine(userId, { name: "x", countryId: "chile" }),
 		).rejects.toBeInstanceOf(BadRequestError);
 	});
 

@@ -26,7 +26,7 @@ describe("WINE_COUNTRIES", () => {
 
 	it("getCountry は未知の id に undefined を返す", () => {
 		expect(getCountry("france")?.nameJa).toBe("フランス");
-		expect(getCountry("portugal")).toBeUndefined();
+		expect(getCountry("chile")).toBeUndefined();
 	});
 });
 
@@ -51,11 +51,11 @@ describe("groupRegionsByCountry (#586)", () => {
 				expect(countryForRegion(region)?.id).toBe(group.country.id);
 			}
 		}
-		// 顔ぶれの固定: フランス7・イタリア2・スペイン1
+		// 顔ぶれの固定: フランス7・イタリア2・スペイン1・ポルトガル1
 		const counts = Object.fromEntries(
 			groups.map((g) => [g.country.id, g.regions.length]),
 		);
-		expect(counts).toEqual({ france: 7, italy: 2, spain: 1 });
+		expect(counts).toEqual({ france: 7, italy: 2, spain: 1, portugal: 1 });
 	});
 
 	it("国内の地域順は入力順(REGIONS定義順)を保つ", () => {
@@ -74,13 +74,13 @@ describe("groupRegionsByCountry (#586)", () => {
 			id: "unknown-region",
 			nameJa: "未知",
 			nameLocal: "Unknown",
-			country: "Portugal",
-			countryJa: "ポルトガル",
+			country: "Chile",
+			countryJa: "チリ",
 			enabled: true,
 		} as const;
 		const groups = groupRegionsByCountry([unknown]);
 		expect(groups).toHaveLength(1);
-		expect(groups[0]?.country.nameJa).toBe("ポルトガル");
+		expect(groups[0]?.country.nameJa).toBe("チリ");
 		expect(groups[0]?.regions.map((r) => r.id)).toEqual(["unknown-region"]);
 	});
 });
