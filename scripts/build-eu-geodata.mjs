@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// EU PDO データセット由来の地域(イタリア・スペイン)の境界GeoJSON
+// EU PDO データセット由来の地域(イタリア・スペイン・ドイツ)の境界GeoJSON
 // (public/data/aop/<region>.geojson)を生成する。
 //
 //   bun run build:geodata:eu                       # 対象地域すべてを生成(figshareからDL、キャッシュあり)
@@ -15,7 +15,7 @@
 //    protected designations of origin in Europe." Sci Data 9, 394 (2022).
 //    figshare: doi:10.6084/m9.figshare.19312094 (EU_PDO.gpkg, ライセンス CC0)
 //
-//  イタリア・スペインにはフランスINAOのような公式の区画GISが存在しないため、上記の学術
+//  イタリア・スペイン・ドイツにはフランスINAOのような公式の区画GISが存在しないため、上記の学術
 //  データセット(各PDOをeAmbrosia登録の自治体一覧から集約した境界)を用いる。
 //  したがって粒度はコミューン(自治体)単位で、フランスの村名/畑AOC(区画単位)より粗い。
 //
@@ -55,6 +55,11 @@ const SIMPLIFY_M = 50; // コミューン単位なので粗めでよい
 // 真実の源とする。clipBbox は、データセットが各PDOをコミューン「名」から集約している
 // ために混入する同名の他州コミューン(飛び地)を除去するための州境界bbox
 // (WGS84, xmin,ymin,xmax,ymax)。
+//
+// pdoClipBbox は同じ混入が地域bboxの内側に残る場合の、呼称ごとの絞り込み
+// (aopId → bbox)。ドイツのように地域bboxが国全体に及ぶと州境界で切れないため、
+// 「呼称の法定地域から明らかに外れる塊」だけをここで落とす。**本当に離れた飛び地を
+// 持つ呼称(ザクセンのオストリッツ等)を巻き込まないよう、根拠を確認してから足すこと**。
 const REGION_CONFIGS = {
 	piemonte: {
 		out: "piemonte.geojson",
@@ -160,6 +165,49 @@ const REGION_CONFIGS = {
 			// アラバ県にあるがカンタブリア海側の水系で、エブロ川流域ではないため外す。
 		},
 	},
+	deutschland: {
+		out: "deutschland.geojson",
+		// ラインガウの法定地域はラインガウ・タウヌス郡＋ヴィースバーデン/ホーホハイム
+		// (東端 約8.5°E)で、北ヘッセン(約9.5°E, 51.1°N)には及ばない。同名コミューン
+		// 由来の塊が122km離れて混入するため落とす。
+		// ザクセンの東端(オストリッツ/クロスター・マリエンタール, 約14.9°E)は
+		// 「ベライヒに属さないドイツ最東端の畑」として実在するので落とさない。
+		pdoClipBbox: { rheingau: "7.6,49.85,8.6,50.25" },
+		// ドイツ全土(西端モーゼル/オーバーモーゼル〜東端ザクセン、南端ボーデン湖〜
+		// 北端ミッテルライン/ザーレ・ウンストルート)。同名自治体由来の飛び地を除く。
+		clipBbox: "5.6,47.2,15.3,52.2",
+		pdo: {
+			// モーゼル(産地の g.U. と、その中にある単一畑の g.U. 3件)
+			mosel: "PDO-DE-A1270",
+			"uhlen-blaufuesser-lay": "PDO-DE-02081",
+			"uhlen-laubach": "PDO-DE-02082",
+			"uhlen-roth-lay": "PDO-DE-02083",
+			// アール / ミッテルライン
+			ahr: "PDO-DE-A0867",
+			mittelrhein: "PDO-DE-A1269",
+			// ラインガウ / ナーエ(＋単一畑 g.U.)
+			rheingau: "PDO-DE-A1273",
+			nahe: "PDO-DE-A1271",
+			"monzinger-niederberg": "PDO-DE-02363",
+			// ラインヘッセン / プファルツ / ベルクシュトラーセ
+			rheinhessen: "PDO-DE-A1274",
+			pfalz: "PDO-DE-A1272",
+			"hessische-bergstrasse": "PDO-DE-A1268",
+			// フランケン(＋単一畑 g.U. 2件)
+			franken: "PDO-DE-A1267",
+			"wuerzburger-stein-berg": "PDO-DE-02403",
+			"buergstadter-berg": "PDO-DE-N1822",
+			// バーデン / ヴュルテンベルク
+			baden: "PDO-DE-A1264",
+			wuerttemberg: "PDO-DE-A1276",
+			// 東部
+			"saale-unstrut": "PDO-DE-A1275",
+			sachsen: "PDO-DE-A1277",
+			// 注: ドイツのワイン g.U. は2021年時点で上記19件がすべて(13の
+			// アンバウゲビート＋単一畑6件)。Landwein は g.g.A.(PGI)なので
+			// このデータセット(PDOのみ)には無く、収録対象でもない。
+		},
+	},
 };
 
 async function main() {
@@ -190,6 +238,39 @@ async function main() {
 	} finally {
 		db.close();
 	}
+}
+
+/**
+ * フィーチャのポリゴンのうち、bbox([xmin,ymin,xmax,ymax])と交差しないものを落とす。
+ * コミューン輪郭の集合体なので、部分的にでも重なるポリゴンはそのまま残す。
+ * 戻り値は落としたポリゴン数。
+ */
+function clipFeatureToBbox(feature, [xmin, ymin, xmax, ymax]) {
+	const g = feature.geometry;
+	const polys = g.type === "MultiPolygon" ? g.coordinates : [g.coordinates];
+	const intersects = (poly) => {
+		let w = Infinity;
+		let s = Infinity;
+		let e = -Infinity;
+		let n = -Infinity;
+		for (const [x, y] of poly[0]) {
+			if (x < w) w = x;
+			if (x > e) e = x;
+			if (y < s) s = y;
+			if (y > n) n = y;
+		}
+		return w <= xmax && e >= xmin && s <= ymax && n >= ymin;
+	};
+	const kept = polys.filter(intersects);
+	if (kept.length === 0)
+		throw new Error(
+			`pdoClipBbox が全ポリゴンを落とした: id_app=${feature.properties.id_app}`,
+		);
+	feature.geometry =
+		kept.length === 1
+			? { type: "Polygon", coordinates: kept[0] }
+			: { type: "MultiPolygon", coordinates: kept };
+	return polys.length - kept.length;
 }
 
 /** 1地域分の geojson を生成して書き出す */
@@ -242,6 +323,21 @@ async function buildRegion(region, allAops, stmt) {
 		].join(" "),
 	);
 	const simplified = JSON.parse(fs.readFileSync(tmpOut, "utf8"));
+
+	// 呼称ごとの飛び地除去(pdoClipBbox)。地域bboxの内側に残った同名コミューン由来の
+	// 塊を、bboxと交差しないポリゴンごと落とす。
+	const idAppById = new Map(aops.map((a) => [a.id, a.idApp]));
+	for (const [aopId, box] of Object.entries(cfg.pdoClipBbox ?? {})) {
+		const idApp = idAppById.get(aopId);
+		if (idApp === undefined)
+			throw new Error(`${region}: pdoClipBbox の ${aopId} が aops.json に無い`);
+		const feature = simplified.features.find(
+			(f) => f.properties.id_app === idApp,
+		);
+		if (!feature) throw new Error(`${region}: ${aopId} のフィーチャが無い`);
+		const dropped = clipFeatureToBbox(feature, box.split(",").map(Number));
+		console.log(`  clip ${aopId}: dropped ${dropped} polygon(s)`);
+	}
 
 	// メタデータを結合してプロパティ契約に整える
 	const metaByIdApp = new Map(aops.map((a) => [a.idApp, a]));

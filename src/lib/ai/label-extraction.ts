@@ -1136,6 +1136,9 @@ const REGION_ALIASES: Record<string, string> = {
 	piedmont: "piemonte",
 	"loire valley": "loire",
 	"val de loire": "loire",
+	// ドイツは1地方＝国全体なので、国名の別表記も地域として解決する
+	germany: "deutschland",
+	ドイツ: "deutschland",
 };
 
 /** 地域テキスト群から enabled な地域の id を解決する。 */
@@ -1161,6 +1164,9 @@ const COUNTRY_ALIASES: Record<string, string> = {
 	italie: "italy",
 	仏: "france",
 	伊: "italy",
+	allemagne: "germany",
+	germania: "germany",
+	独: "germany",
 };
 
 /** 国テキスト群から国マスタの id を解決する。 */

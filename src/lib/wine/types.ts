@@ -43,6 +43,7 @@ export const REGION_ID_LIST = [
 	"loire",
 	"rhone",
 	"rioja",
+	"deutschland",
 ] as const;
 
 export type RegionId = (typeof REGION_ID_LIST)[number];
@@ -57,7 +58,15 @@ export interface GrapeVariety {
 
 interface AopGrape {
 	varietyId: string;
-	/** cahier des charges の主要品種(principaux)か補助品種(accessoires)か */
+	/**
+	 * cahier des charges の主要品種(principaux)か補助品種(accessoires)か。
+	 *
+	 * ドイツのアンバウゲビート(13のg.U.)だけは例外で、生産規約が100品種超を一律に
+	 * 認めるため規約から主要/補助を導けない。そこで**栽培面積(ドイツワイン協会DWIの
+	 * 公表値)の上位を principal、地域の特産品種等を accessory** として写す。収録が
+	 * 網羅でないことは `isOpenEndedAppellation`(lib/quiz/aop-pool.ts)が扱い、
+	 * 「主要品種をすべて選べ」のように網羅を前提とする出題からは外れる。
+	 */
 	role: "principal" | "accessory";
 }
 
@@ -103,6 +112,9 @@ export interface Aop {
 	 *     scripts/build-eu-geodata.mjs の REGION_CONFIGS が真実の源(追記のみ)。
 	 *   - リオハ/エブロ川流域(スペイン, EU PDO由来): 922001〜 の連番。対応表の
 	 *     置き場所はイタリアと同じ(scripts/build-eu-geodata.mjs)。
+	 *   - ドイツ(EU PDO由来): 923001〜 の連番。13のアンバウゲビートに加え、
+	 *     単一畑そのものがg.U.として登録された6件も同じ帯に置く。対応表の
+	 *     置き場所はイタリア・スペインと同じ(scripts/build-eu-geodata.mjs)。
 	 *   - ロワール: 大半はINAOの id_app 実値を使うが、区画データに独立ポリゴンが
 	 *     無く aire géographique から生成するAOC(カベルネ・ド・ソーミュール等)は
 	 *     912001〜 の合成IDを割り当てる。

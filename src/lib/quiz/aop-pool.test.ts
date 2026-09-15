@@ -10,28 +10,62 @@ import { enumerateVarietyKeys } from "./generators/variety";
 import { parseKey } from "./keys";
 import { colorComboId } from "./labels";
 
-const igtAopIds = new Set(
+const openEndedAopIds = new Set(
 	AOPS.filter((a) => isOpenEndedAppellation(a)).map((a) => a.id),
 );
 
-describe("開かれた広域呼称(IGT)の出題除外", () => {
-	it("IGTのAOPが実在する(データが消えたら以下のテストは無意味)", () => {
-		expect([...igtAopIds]).toEqual(["toscana-igt"]);
+describe("開かれた広域呼称(IGT・アンバウゲビート)の出題除外", () => {
+	it("対象のAOPが実在する(データが消えたら以下のテストは無意味)", () => {
+		// トスカーナIGT 1件 + ドイツの13アンバウゲビート。ドイツの単一畑g.U.
+		// (ウーレン等)は品種を数種に限定する閉じた呼称なので含まれない。
+		expect([...openEndedAopIds].sort()).toEqual(
+			[
+				"ahr",
+				"baden",
+				"franken",
+				"hessische-bergstrasse",
+				"mittelrhein",
+				"mosel",
+				"nahe",
+				"pfalz",
+				"rheingau",
+				"rheinhessen",
+				"saale-unstrut",
+				"sachsen",
+				"toscana-igt",
+				"wuerttemberg",
+			].sort(),
+		);
 	});
 
-	// IGT の生産規約は「州で栽培が認められた品種」を丸ごと許すため、aops.json の
-	// grapes / colors は代表例であって網羅ではない。網羅を前提に真偽を主張する
-	// 形式に載せると事実と違う設問・解説になる(#212)。
+	// IGT の生産規約は「州で栽培が認められた品種」を、ドイツのアンバウゲビートは
+	// 「その産地で認められた品種」を丸ごと許すため、aops.json の grapes / colors は
+	// 代表例であって網羅ではない。網羅を前提に真偽を主張する形式に載せると事実と
+	// 違う設問・解説になる(#212)。
 	it.each([
 		["colors", enumerateColorsKeys],
 		["aop-variety", enumerateAopVarietyKeys],
 		["variety", enumerateVarietyKeys],
-	] as const)("%s の候補キーにIGTのAOPが現れない", (_name, enumerate) => {
+	] as const)("%s の候補キーに開かれた呼称が現れない", (_name, enumerate) => {
 		for (const regionId of REGION_IDS) {
 			for (const key of enumerate(regionId)) {
 				const parsed = parseKey(key);
-				expect(igtAopIds.has(parsed?.aopId ?? ""), key).toBe(false);
+				expect(openEndedAopIds.has(parsed?.aopId ?? ""), key).toBe(false);
 			}
+		}
+	});
+
+	// ドイツの単一畑g.U.は規約が品種を限定するので、閉じた呼称として出題してよい。
+	it("ドイツの単一畑g.U.は開かれた呼称にならない", () => {
+		for (const id of [
+			"uhlen-blaufuesser-lay",
+			"uhlen-laubach",
+			"uhlen-roth-lay",
+			"monzinger-niederberg",
+			"wuerzburger-stein-berg",
+			"buergstadter-berg",
+		]) {
+			expect(openEndedAopIds.has(id), id).toBe(false);
 		}
 	});
 

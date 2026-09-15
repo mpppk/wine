@@ -181,10 +181,13 @@ describe("AOPメタデータの整合性", () => {
 		// (Chablis Premier Cru)を畑として追加したぶん、件数を更新している。
 		const vineyards = AOPS.filter((a) => a.kind === "vineyard");
 		// +4: スペインの Vino de Pago(単一のぶどう畑に与えられる呼称)
-		expect(vineyards.length).toBe(121);
+		// +6: ドイツの単一畑g.U.(ウーレン3・モンツィンガー・ニーダーベルク・
+		//     ヴュルツブルガー・シュタイン・ベルク・ビュルクシュタッター・ベルク)
+		expect(vineyards.length).toBe(127);
 		expect(vineyards.filter((a) => a.region === "bourgogne").length).toBe(66);
 		expect(vineyards.filter((a) => a.region === "alsace").length).toBe(51);
 		expect(vineyards.filter((a) => a.region === "rioja").length).toBe(4);
+		expect(vineyards.filter((a) => a.region === "deutschland").length).toBe(6);
 		// grand-cru: ブルゴーニュ+アルザス116 + ロワール唯一のGCケール・ド・ショーム1
 		expect(AOPS.filter((a) => a.tags?.includes("grand-cru")).length).toBe(117);
 		expect(AOPS.filter((a) => a.tags?.includes("premier-cru")).length).toBe(91);
@@ -860,6 +863,145 @@ describe("リオハ/エブロ川流域(スペイン)の整合性", () => {
 		for (const aop of rioja.filter((a) => !a.tags?.includes("vino-de-pago"))) {
 			expect(aop.kind, aop.id).toBe("regional");
 		}
+	});
+});
+
+describe("ドイツの整合性", () => {
+	const germany = AOPS.filter((a) => a.region === "deutschland");
+
+	it("件数スナップショット(アンバウゲビート13 / 単一畑g.U.6 / 計19)", () => {
+		expect(germany.length).toBe(19);
+		expect(germany.filter((a) => a.kind === "regional").length).toBe(13);
+		expect(germany.filter((a) => a.kind === "vineyard").length).toBe(6);
+	});
+
+	// 件数だけのスナップショットは中身の取り違えを検出できない(#216 の教訓)ため、
+	// 顔ぶれを固定する。出典は EU公式登録簿 eAmbrosia の fileNumber(PDO-DE-*)と
+	// ドイツワイン協会(DWI)の指定栽培地域一覧。
+	it("13の指定栽培地域(アンバウゲビート)が公式の顔ぶれと一致する", () => {
+		const names = germany
+			.filter((a) => a.kind === "regional")
+			.map((a) => a.name)
+			.sort();
+		expect(names).toEqual([
+			"Ahr",
+			"Baden",
+			"Franken",
+			"Hessische Bergstraße",
+			"Mittelrhein",
+			"Mosel",
+			"Nahe",
+			"Pfalz",
+			"Rheingau",
+			"Rheinhessen",
+			"Saale-Unstrut",
+			"Sachsen",
+			"Württemberg",
+		]);
+	});
+
+	// 単一畑そのものが独立したg.U.として登録されている6件(スペインのVino de Pagoと
+	// 同じ形)。2021年時点のEU登録簿にあるドイツのワインg.U.はこの6件＋13産地で全て。
+	it("単一畑g.U.の顔ぶれが一致する", () => {
+		const ids = germany
+			.filter((a) => a.kind === "vineyard")
+			.map((a) => a.id)
+			.sort();
+		expect(ids).toEqual([
+			"buergstadter-berg",
+			"monzinger-niederberg",
+			"uhlen-blaufuesser-lay",
+			"uhlen-laubach",
+			"uhlen-roth-lay",
+			"wuerzburger-stein-berg",
+		]);
+	});
+
+	it("収録した呼称の顔ぶれが地区ごとに一致する", () => {
+		const idsIn = (subregionId: string) =>
+			germany
+				.filter((a) => a.subregionId === subregionId)
+				.map((a) => a.id)
+				.sort();
+		expect(idsIn("mosel")).toEqual([
+			"mosel",
+			"uhlen-blaufuesser-lay",
+			"uhlen-laubach",
+			"uhlen-roth-lay",
+		]);
+		expect(idsIn("mittelrhein-ahr")).toEqual(["ahr", "mittelrhein"]);
+		expect(idsIn("rheingau-nahe")).toEqual([
+			"monzinger-niederberg",
+			"nahe",
+			"rheingau",
+		]);
+		expect(idsIn("rheinhessen-pfalz")).toEqual([
+			"hessische-bergstrasse",
+			"pfalz",
+			"rheinhessen",
+		]);
+		expect(idsIn("franken")).toEqual([
+			"buergstadter-berg",
+			"franken",
+			"wuerzburger-stein-berg",
+		]);
+		expect(idsIn("baden-wuerttemberg")).toEqual(["baden", "wuerttemberg"]);
+		expect(idsIn("ost")).toEqual(["saale-unstrut", "sachsen"]);
+	});
+
+	// ドイツのg.U.には上下の等級が無い(イタリアのDOCG/DOC・スペインのDOCa/DOのような
+	// 階級タグを付けない)。収穫時の果汁糖度で決まるプレディカーツはワイン単位の格付けで
+	// あって呼称の階級ではないため、tags には入れない(#tags.ts の語彙も増やさない)。
+	it("格付けタグを持たず、すべて法的呼称として扱われる", () => {
+		for (const aop of germany) {
+			expect(aop.tags, aop.id).toBeUndefined();
+			expect(isLegalAppellation(aop), aop.id).toBe(true);
+		}
+	});
+
+	// 単一畑g.U.は村名呼称の下位ではなく、産地g.U.と並ぶ独立した呼称
+	// (スペインのVino de Pagoと同じ扱い)。
+	it("単一畑g.U.は村・親畑への参照を持たない独立呼称", () => {
+		for (const aop of germany.filter((a) => a.kind === "vineyard")) {
+			expect(aop.villageAopIds, aop.id).toBeUndefined();
+			expect(aop.parentAopId, aop.id).toBeUndefined();
+		}
+	});
+
+	// 単一畑g.U.の許可品種は生産規約(EU官報の single document)が数種に限定する。
+	// ここを広げると「主要品種をすべて選べ」クイズが誤った事実を教えることになる。
+	it("単一畑g.U.の品種が生産規約と一致する", () => {
+		const grapesOf = (id: string) =>
+			germany
+				.find((a) => a.id === id)
+				?.grapes.map((g) => g.varietyId)
+				.sort();
+		// ウーレンの3区画とモンツィンガー・ニーダーベルクはリースリングのみ
+		for (const id of [
+			"uhlen-blaufuesser-lay",
+			"uhlen-laubach",
+			"uhlen-roth-lay",
+			"monzinger-niederberg",
+		]) {
+			expect(grapesOf(id), id).toEqual(["riesling"]);
+		}
+		// ヴュルツブルガー・シュタイン・ベルクは Silvaner / Riesling / Weißer Burgunder
+		expect(grapesOf("wuerzburger-stein-berg")).toEqual([
+			"pinot-blanc",
+			"riesling",
+			"sylvaner",
+		]);
+		// ビュルクシュタッター・ベルクは規約の「主要品種」8種
+		expect(grapesOf("buergstadter-berg")).toEqual([
+			"chardonnay",
+			"fruehburgunder",
+			"muller-thurgau",
+			"pinot-blanc",
+			"pinot-noir",
+			"riesling",
+			"sylvaner",
+			"zweigelt",
+		]);
 	});
 });
 

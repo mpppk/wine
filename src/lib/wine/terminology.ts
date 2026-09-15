@@ -24,7 +24,7 @@ export const COLOR_LABELS_JA: Record<WineColor, string> = {
  * フランス(INAO)以外の収録国はこのデータセットに依存しており、出典注記も
  * 生成スクリプト(scripts/build-eu-geodata.mjs)もこの集合で分岐する。
  */
-const EU_PDO_COUNTRIES = new Set(["Italy", "Spain"]);
+const EU_PDO_COUNTRIES = new Set(["Italy", "Spain", "Germany"]);
 
 /**
  * 地域IDに対応する原産地呼称の総称(日本語UI用)。
@@ -49,6 +49,11 @@ export function getAppellationTermJa(regionId: string): string {
 		);
 		return hasPago ? "DO/DOCa/VP" : "DO/DOCa";
 	}
+	// ドイツは13の指定栽培地域(アンバウゲビート)も単一畑の呼称も同じ g.U.
+	// (geschützte Ursprungsbezeichnung)で、イタリア・スペインのような上下の
+	// 等級が無い。収穫時の糖度で決まるプレディカーツは呼称ではなくワイン単位の
+	// 格付けなので、ここには並べない。
+	if (region?.country === "Germany") return "g.U.";
 	return "AOP";
 }
 
@@ -71,6 +76,8 @@ export function getAppellationBadgeJa(aop: Aop): string {
 	const region = getRegion(aop.region);
 	if (region?.country === "Italy") return "DOC/DOCG";
 	if (region?.country === "Spain") return "DO";
+	// ドイツは産地単位も単一畑も等しく g.U.(バッジ文言も総称と同じ)。
+	if (region?.country === "Germany") return "g.U.";
 	return "AOC";
 }
 
@@ -111,6 +118,13 @@ export function getAopKindLabelJa(kind: AopKind, regionId: string): string {
  */
 export function getBoundarySourceNoteJa(aop: Aop): string {
 	const region = getRegion(aop.region);
+	// ドイツの単一畑g.U.(ウーレン等)は数十haの区画だが、EU PDOデータセットの粒度は
+	// コミューン単位なので、描けるのは「その畑がある自治体の輪郭」でしかない
+	// (面積が3桁違い、ウーレンの2区画は同じヴィニンゲンの輪郭になる)。
+	// 汎用の注記では「畑そのものの形」と誤解されるため、ここだけ言い切る。
+	if (region?.country === "Germany" && aop.kind === "vineyard") {
+		return "単一畑のg.U.ですが、EU PDO境界データ(Candiago et al. 2022)の粒度がコミューン単位のため、地図は畑の区画ではなく畑のある自治体の範囲を表示しています。";
+	}
 	if (region && EU_PDO_COUNTRIES.has(region.country)) {
 		return "地図はEU PDO境界データ(コミューン単位, Candiago et al. 2022)を簡略化して表示しています。";
 	}
