@@ -534,7 +534,7 @@ export function PhotoRegisterWizard({
 	const isAnalyzing = isSubmittingJob || awaitingJobId !== null;
 	// 同名の場所は作れない(サーバの prepareNewPlace が 409 で弾く)。ここは解析に
 	// クレジットを払ってから登録する経路なので、入力中に気付けるようにする
-	// (SightingFields と同じ文言・同じ出し方)。
+	// (EncounterFields と同じ文言・同じ出し方)。
 	const duplicatePlaceName =
 		placeChoice === NEW_PLACE &&
 		places.some((place) => place.name === newPlaceName.trim());

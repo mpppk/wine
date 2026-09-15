@@ -2872,9 +2872,13 @@ async function adoptBatchPhotosForWines(
 ): Promise<void> {
 	if (batchPhotoKeys.length === 0) return;
 	try {
-		// このバッチが作った銘柄と、その体験記録(drank=0)が指す写真番号。
+		// このバッチが作った銘柄と、その体験記録が指す写真番号。
 		// 既存エントリに体験を足しただけのものは batch_id を持たないので、
 		// ここには出てこない(#363 案A)。
+		// drank では絞らない。1行化した統合後は「飲んだ」品も drank=1 の行に
+		// photoIndex を持つため、絞ると銘柄写真のフォールバックが効かなくなる。
+		// 旧2行体制のバッチでは drank=1 の行も混ざるが、そちらは写真番号を
+		// 持たないので下の sourceKeys が空になり何も起きない。
 		const rows = await db
 			.select({
 				id: drunkWine.id,
@@ -2888,7 +2892,6 @@ async function adoptBatchPhotosForWines(
 				and(
 					eq(wineEncounter.drunkWineId, drunkWine.id),
 					eq(wineEncounter.batchId, batchId),
-					eq(wineEncounter.drank, false),
 				),
 			)
 			.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)));

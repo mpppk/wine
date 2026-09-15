@@ -2645,6 +2645,34 @@ describe("目撃記録の対応写真の一覧", () => {
 		}
 	});
 
+	// 1行化した統合後は「飲んだ」品の写真番号も drank=1 の行に載る。join が
+	// drank=0 に絞ったままだと、このフォールバックが効かず銘柄写真が空になる。
+	it("「飲んだ」指定の銘柄にもバッチ写真を複製する", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{
+					wine: { name: "飲んだが写真なし" },
+					sighting: { photoIndex: 0 },
+					tasting: { drankOn: "2026-08-01", rating: 4 },
+				},
+			],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [jpeg()]);
+
+		// 体験記録は drank=1 の1行だけで、写真番号を持っている
+		const { entries } = await listDrunkWines(userId);
+		const encounters = await listWineEncounters(userId, entries[0]?.id ?? "");
+		expect(encounters).toHaveLength(1);
+		expect(encounters[0]).toMatchObject({ drank: true, rating: 4 });
+		// web 写真が無くてもバッチ写真が bottle として複製される
+		expect(entries[0]?.photoUrls).toHaveLength(1);
+		expect((await wineRow(entries[0]?.id ?? ""))?.photoKinds).toEqual([
+			"bottle",
+		]);
+	});
+
 	it("複製はエントリの上限6枚で打ち切る(目撃記録の参照は全件残る)", async () => {
 		const userId = await freshUser();
 		const result = await bulkRegisterFromScan(userId, {
