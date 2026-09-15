@@ -114,12 +114,12 @@ export const drunkWine = sqliteTable(
 		 * 最新の体験記録の見かけた日 = max(wine_encounter.occurred_on)。体験記録が無い、
 		 * または全件が日付未入力なら null。
 		 *
-	 * **旧 last_seen_on の後継**。「飲んだ = 必ず出会った」を採るので飲んだ回も数える。
-	 * 旧列(last_seen_on / sighting_count)は drizzle/0041 で削除済み(Issue #606)。
-	 */
-	lastEncounteredOn: text("last_encountered_on"),
-	/** 体験記録の件数。0 なら「どこでも出会っていない」。旧 sighting_count の後継 */
-	encounterCount: integer("encounter_count").notNull().default(0),
+		 * **旧 last_seen_on の後継**。「飲んだ = 必ず出会った」を採るので飲んだ回も数える。
+		 * 旧列(last_seen_on / sighting_count)は drizzle/0041 で削除済み(Issue #606)。
+		 */
+		lastEncounteredOn: text("last_encountered_on"),
+		/** 体験記録の件数。0 なら「どこでも出会っていない」。旧 sighting_count の後継 */
+		encounterCount: integer("encounter_count").notNull().default(0),
 		/** 静的AOPマスタの Aop.id(任意) */
 		aopId: text("aop_id"),
 		/**
