@@ -221,9 +221,13 @@ export function SightingList({
 				</div>
 			)}
 
+			{/* 失敗の文言はサーバの message を優先する。同名の場所は 409 で弾かれ、
+			    「どう直せばよいか」がその message にしか無い(共通文言に潰すと、
+			    利用者は名前を変える・一覧から選ぶという回避策に辿り着けない) */}
 			{(save.isError || remove.isError) && (
 				<p className="text-sm text-destructive">
-					保存に失敗しました。時間をおいて再度お試しください。
+					{(save.error ?? remove.error)?.message ||
+						"保存に失敗しました。時間をおいて再度お試しください。"}
 				</p>
 			)}
 		</FormSection>

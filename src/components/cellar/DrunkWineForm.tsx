@@ -1057,7 +1057,6 @@ export function DrunkWineForm({
 								}
 								places={places}
 								idPrefix="wine-sighting"
-								allowNewPlace
 							/>
 						</FormSection>
 					)

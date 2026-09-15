@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { importBatch, place, wineSighting } from "#/db/schema";
-import { NotFoundError } from "#/lib/errors";
+import { ConflictError, NotFoundError } from "#/lib/errors";
 import { addWineSighting, createDrunkWine } from "./drunk-wine-service";
 import {
 	createPlace,
@@ -55,10 +55,27 @@ describe("createPlace / getPlace", () => {
 		expect(p.memo).toBe("地下のワイン売場");
 	});
 
-	it("同名の場所を複数作れる(unique 制約は張っていない)", async () => {
-		const a = await createPlace(userId, { name: "エノテカ" });
-		const b = await createPlace(userId, { name: "エノテカ" });
-		expect(a.id).not.toBe(b.id);
+	// 重複の判定は DB の unique 制約ではなくサービス層(prepareNewPlace)。場所を作る
+	// 全経路がそこを通るので、目撃記録からの新規作成も同じ規則になる。
+	it("同名の場所は作れない(409。一覧から選ばせる)", async () => {
+		await createPlace(userId, { name: "エノテカ" });
+		await expect(createPlace(userId, { name: "エノテカ" })).rejects.toThrow(
+			ConflictError,
+		);
+		expect(await listPlaces(userId)).toHaveLength(1);
+	});
+
+	it("重複の判定はユーザ単位(他人の場所とは衝突しない)", async () => {
+		const stranger = await freshUser();
+		await createPlace(stranger, { name: "エノテカ" });
+		const p = await createPlace(userId, { name: "エノテカ" });
+		expect(p.name).toBe("エノテカ");
+	});
+
+	it("表記が違えば別の場所として作れる(支店は名前で区別する)", async () => {
+		await createPlace(userId, { name: "エノテカ 渋谷店" });
+		const p = await createPlace(userId, { name: "エノテカ 銀座店" });
+		expect(p.name).toBe("エノテカ 銀座店");
 		expect(await listPlaces(userId)).toHaveLength(2);
 	});
 });

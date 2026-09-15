@@ -23,3 +23,12 @@ export const PLACE_KIND_IDS = PLACE_KINDS.map((k) => k.id) as [
  * マイグレーションの DEFAULT と必ず同じ値にする。
  */
 export const DEFAULT_PLACE_KIND: PlaceKind = "other";
+
+/**
+ * 同名の場所は作れない(重複の関門は `prepareNewPlace`)。その文言はサーバの 409 と
+ * 入力欄の事前警告の両方に出るので、ここを単一情報源にする——片方だけ変えると
+ * 「入力中に出る注意書き」と「保存に失敗したときの説明」が食い違う。
+ */
+export function duplicatePlaceNameMessage(name: string): string {
+	return `「${name}」という場所は既に登録されています。一覧から選んでください。`;
+}

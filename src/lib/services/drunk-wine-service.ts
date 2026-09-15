@@ -47,7 +47,6 @@ import {
 	MAX_WEB_PHOTOS_PER_IMPORT,
 } from "#/lib/import-batch/schema";
 import { type LogFields, logError, logInfo, logWarn } from "#/lib/logger";
-import { DEFAULT_PLACE_KIND } from "#/lib/place/place";
 import {
 	type CreateDrunkWineWithSightingInput,
 	type CreateEntrySightingInput,
@@ -55,6 +54,7 @@ import {
 	MAX_PHOTOS_PER_IMPORT_BATCH,
 	type UpdateWineSightingInput,
 } from "#/lib/place/schema";
+import { prepareNewPlace } from "#/lib/services/place-service";
 import { countryForRegion, getCountry } from "#/lib/wine/countries";
 import {
 	getAop,
@@ -577,24 +577,19 @@ export async function createDrunkWine(
 	}
 
 	// 場所: 既存の指定は所有権を確認し、新規は同じ batch で作る(一括登録と同じ形)。
+	// 新規作成は prepareNewPlace(重複名の関門)を通す。
 	if (sighting?.placeId) {
 		await assertOwnsSightingRefs(userId, { placeId: sighting.placeId });
 	}
-	const newPlaceId = sighting?.newPlace ? crypto.randomUUID() : null;
+	const newPlace = sighting?.newPlace
+		? await prepareNewPlace(userId, sighting.newPlace)
+		: null;
 
 	// 銘柄・飲用記録・目撃記録を1トランザクションで作る(写真と違いR2キーの物理制約が
 	// 無い)。最後の SELECT から最終状態を得る。
 	const statements: BatchStatement[] = [];
-	if (sighting?.newPlace) {
-		statements.push(
-			db.insert(place).values({
-				id: newPlaceId as string,
-				userId,
-				name: sighting.newPlace.name,
-				kind: sighting.newPlace.kind ?? DEFAULT_PLACE_KIND,
-				memo: sighting.newPlace.memo ?? null,
-			}),
-		);
+	if (newPlace) {
+		statements.push(db.insert(place).values(newPlace));
 	}
 	statements.push(db.insert(drunkWine).values(values));
 	if (tasting) {
@@ -603,7 +598,7 @@ export async function createDrunkWine(
 		);
 	}
 	if (sighting) {
-		const placeId = sighting.placeId ?? newPlaceId;
+		const placeId = sighting.placeId ?? newPlace?.id ?? null;
 		statements.push(
 			db.insert(wineSighting).values(
 				buildSightingValues(userId, id, {
@@ -883,6 +878,11 @@ export async function listWineSightings(
 	return rows.map(toSightingEntry);
 }
 
+/**
+ * 既存の銘柄に目撃記録を1件足す。`newPlace` が来たら場所も**同じ batch** で作る
+ * (銘柄の新規登録・一括登録と同じ形)。場所だけ作られて記録が入らない、あるいは
+ * その逆の中途半端な状態を残さない。
+ */
 export async function addWineSighting(
 	userId: string,
 	drunkWineId: string,
@@ -890,14 +890,26 @@ export async function addWineSighting(
 ): Promise<DrunkWineEntry> {
 	await assertOwnsDrunkWine(userId, drunkWineId);
 	await assertOwnsSightingRefs(userId, input);
+	// 重複名の関門は prepareNewPlace(場所を作る全経路の共通入口)が持つ。
+	const newPlace = input.newPlace
+		? await prepareNewPlace(userId, input.newPlace)
+		: null;
+	const statements: BatchStatement[] = [];
+	if (newPlace) statements.push(db.insert(place).values(newPlace));
+	statements.push(
+		db.insert(wineSighting).values(
+			buildSightingValues(
+				userId,
+				drunkWineId,
+				// placeId と newPlace は zod が排他にしているので上書きの衝突は無い
+				newPlace ? { ...input, placeId: newPlace.id } : input,
+			),
+		),
+	);
+	statements.push(recomputeDrunkWineAggregates(userId, drunkWineId));
+	statements.push(selectEntry(userId, drunkWineId));
 	return entryFromBatch(
-		await db.batch([
-			db
-				.insert(wineSighting)
-				.values(buildSightingValues(userId, drunkWineId, input)),
-			recomputeDrunkWineAggregates(userId, drunkWineId),
-			selectEntry(userId, drunkWineId),
-		]),
+		await db.batch(statements as [BatchStatement, ...BatchStatement[]]),
 	);
 }
 
@@ -944,18 +956,36 @@ function buildSightingUpdate(
 		);
 }
 
+/**
+ * 目撃記録1件を更新する。`newPlace` が来たら場所を作って `placeId` をそれに差し替える
+ * ——追加時と同じく、場所の作成と記録の更新は同じ batch に積む。
+ */
 export async function updateWineSighting(
 	userId: string,
 	input: UpdateWineSightingInput,
 ): Promise<DrunkWineEntry> {
-	const { id, ...patch } = input;
+	const { id, newPlace: newPlaceInput, ...patch } = input;
 	const target = await findOwnedSighting(userId, id);
 	await assertOwnsSightingRefs(userId, patch);
-	const update = buildSightingUpdate(userId, id, patch);
+	const newPlace = newPlaceInput
+		? await prepareNewPlace(userId, newPlaceInput)
+		: null;
+	const update = buildSightingUpdate(
+		userId,
+		id,
+		// placeId と newPlace は zod が排他にしているので上書きの衝突は無い
+		newPlace ? { ...patch, placeId: newPlace.id } : patch,
+	);
 	const recompute = recomputeDrunkWineAggregates(userId, target.drunkWineId);
 	const read = selectEntry(userId, target.drunkWineId);
+	const statements: BatchStatement[] = [
+		...(newPlace ? [db.insert(place).values(newPlace)] : []),
+		...(update ? [update] : []),
+		recompute,
+		read,
+	];
 	return entryFromBatch(
-		await db.batch(update ? [update, recompute, read] : [recompute, read]),
+		await db.batch(statements as [BatchStatement, ...BatchStatement[]]),
 	);
 }
 
@@ -1857,8 +1887,10 @@ export async function bulkRegisterFromScan(
 	if (input.placeId) {
 		await assertOwnsSightingRefs(userId, { placeId: input.placeId });
 	}
-	const newPlaceId = input.newPlace ? crypto.randomUUID() : null;
-	const placeId = input.placeId ?? newPlaceId;
+	const newPlace = input.newPlace
+		? await prepareNewPlace(userId, input.newPlace)
+		: null;
+	const placeId = input.placeId ?? newPlace?.id ?? null;
 
 	const batchId = crypto.randomUUID();
 	const statements: BatchStatement[] = [];
@@ -1886,16 +1918,8 @@ export async function bulkRegisterFromScan(
 		}),
 	);
 
-	if (input.newPlace) {
-		statements.push(
-			db.insert(place).values({
-				id: newPlaceId as string,
-				userId,
-				name: input.newPlace.name,
-				kind: input.newPlace.kind ?? DEFAULT_PLACE_KIND,
-				memo: input.newPlace.memo ?? null,
-			}),
-		);
+	if (newPlace) {
+		statements.push(db.insert(place).values(newPlace));
 	}
 
 	statements.push(

@@ -11,7 +11,7 @@ import {
 } from "#/lib/drunk-wine/filter";
 import { thumbKeyForPhotoKey } from "#/lib/drunk-wine/photo";
 import type { WineStatus } from "#/lib/drunk-wine/status";
-import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
 import { imageKeyFromPath } from "#/lib/images/signed-url";
 import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import {
@@ -1528,6 +1528,94 @@ describe("目撃記録の並びと場所", () => {
 		expect(rows[0]?.placeId).toBeNull();
 		expect(rows[0]?.placeName).toBeNull();
 		expect(rows[0]?.seenOn).toBe("2024-05-05");
+	});
+});
+
+// 編集画面の「見かけた記録」からも場所を作れる。銘柄の登録時に場所を入れ損ねると
+// 後から作る手段が無かったため開いた経路で、重複名の関門(prepareNewPlace)は
+// 場所を作る全経路で共通。
+describe("目撃記録からの場所の新規作成", () => {
+	let userId: string;
+	let wineId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+		wineId = (await createDrunkWine(userId, { name: "後から場所" })).id;
+	});
+
+	it("追加時に新しい場所を作ってその記録に紐づける", async () => {
+		const entry = await addWineSighting(userId, wineId, {
+			newPlace: { name: "ビストロ・ド・パリ" },
+			seenOn: "2026-08-09",
+		});
+		expect(entry.sightingCount).toBe(1);
+		expect(entry.lastSeenOn).toBe("2026-08-09");
+
+		const places = await listPlaces(userId);
+		expect(places.map((p) => p.name)).toEqual(["ビストロ・ド・パリ"]);
+		// 区分は未指定なので既定値(other)
+		expect(places[0]?.kind).toBe("other");
+
+		const [row] = await listWineSightings(userId, wineId);
+		expect(row?.placeId).toBe(places[0]?.id);
+		expect(row?.placeName).toBe("ビストロ・ド・パリ");
+	});
+
+	it("編集時に新しい場所を作って差し替える", async () => {
+		const shop = await createPlace(userId, { name: "元の店" });
+		await addWineSighting(userId, wineId, { placeId: shop.id });
+		const [before] = await listWineSightings(userId, wineId);
+
+		await updateWineSighting(userId, {
+			id: before?.id ?? "",
+			newPlace: { name: "新しい店" },
+		});
+
+		const places = await listPlaces(userId);
+		const created = places.find((p) => p.name === "新しい店");
+		const [after] = await listWineSightings(userId, wineId);
+		expect(after?.placeId).toBe(created?.id);
+		expect(after?.placeName).toBe("新しい店");
+		// 元の店は残る(記録の付け替えであって場所の改名ではない)
+		expect(places.map((p) => p.name).sort()).toEqual(["元の店", "新しい店"]);
+	});
+
+	it("同名の場所は作れない(409。一覧から選ばせる)", async () => {
+		await createPlace(userId, { name: "エノテカ 渋谷" });
+		await expect(
+			addWineSighting(userId, wineId, {
+				newPlace: { name: "エノテカ 渋谷" },
+			}),
+		).rejects.toThrow(ConflictError);
+		// 目撃記録ごと作られない(重複の確認は INSERT の前)
+		expect(await listWineSightings(userId, wineId)).toHaveLength(0);
+		expect(await listPlaces(userId)).toHaveLength(1);
+	});
+
+	it("同名の判定はユーザ単位(他人の場所とは衝突しない)", async () => {
+		const otherUserId = await freshUser();
+		await createPlace(otherUserId, { name: "エノテカ 渋谷" });
+		await addWineSighting(userId, wineId, {
+			newPlace: { name: "エノテカ 渋谷" },
+		});
+		expect(await listPlaces(userId)).toHaveLength(1);
+	});
+
+	it("重複で弾かれた編集は目撃記録の他の項目も変えない(batchが原子的)", async () => {
+		await createPlace(userId, { name: "既にある店" });
+		await addWineSighting(userId, wineId, { memo: "元のメモ" });
+		const [before] = await listWineSightings(userId, wineId);
+
+		await expect(
+			updateWineSighting(userId, {
+				id: before?.id ?? "",
+				newPlace: { name: "既にある店" },
+				memo: "書き換え後",
+			}),
+		).rejects.toThrow(ConflictError);
+
+		const [after] = await listWineSightings(userId, wineId);
+		expect(after?.memo).toBe("元のメモ");
+		expect(after?.placeId).toBeNull();
 	});
 });
 
