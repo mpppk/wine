@@ -26,7 +26,7 @@ describe("WINE_COUNTRIES", () => {
 
 	it("getCountry は未知の id に undefined を返す", () => {
 		expect(getCountry("france")?.nameJa).toBe("フランス");
-		expect(getCountry("germany")).toBeUndefined();
+		expect(getCountry("chile")).toBeUndefined();
 	});
 });
 
@@ -74,13 +74,13 @@ describe("groupRegionsByCountry (#586)", () => {
 			id: "unknown-region",
 			nameJa: "未知",
 			nameLocal: "Unknown",
-			country: "Germany",
-			countryJa: "ドイツ",
+			country: "Chile",
+			countryJa: "チリ",
 			enabled: true,
 		} as const;
 		const groups = groupRegionsByCountry([unknown]);
 		expect(groups).toHaveLength(1);
-		expect(groups[0]?.country.nameJa).toBe("ドイツ");
+		expect(groups[0]?.country.nameJa).toBe("チリ");
 		expect(groups[0]?.regions.map((r) => r.id)).toEqual(["unknown-region"]);
 	});
 });
