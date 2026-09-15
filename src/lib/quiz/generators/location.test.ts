@@ -72,8 +72,8 @@ describe("位置関係クイズ", () => {
 	});
 
 	// 位置関係クイズは同一地区の村名AOP(無ければ畑名AOP)を4件以上必要とする。
-	// スペインのようにDO(=地方名AOP)が呼称の単位になる地域はこの条件を満たさず、
-	// 構造的に出題されない。地方名AOP同士は入れ子(ミュスカデ ⊃ ミュスカデ・
+	// スペイン・ポルトガルのようにDO/DOP(=地方名AOP)が呼称の単位になる地域は
+	// この条件を満たさず、構造的に出題されない。地方名AOP同士は入れ子(ミュスカデ ⊃ ミュスカデ・
 	// セーヴル・エ・メーヌ)になりうるため代替の出題対象にもできない。
 	// そこで「対象になりうる地域だけ」を対象にしてMIN_GAPの回帰を見る。
 	const regionsWithLocationPool = REGION_IDS.filter((regionId) =>
@@ -94,9 +94,11 @@ describe("位置関係クイズ", () => {
 		}
 	});
 
-	it("村名/畑名AOPを4件持つ地区が無い地域では生成されない(スペイン)", () => {
-		expect(regionsWithLocationPool).not.toContain("rioja");
-		expect(enumerateLocationKeys("rioja")).toEqual([]);
+	it("村名/畑名AOPを4件持つ地区が無い地域では生成されない(スペイン・ポルトガル)", () => {
+		for (const regionId of ["rioja", "portugal"] as const) {
+			expect(regionsWithLocationPool, regionId).not.toContain(regionId);
+			expect(enumerateLocationKeys(regionId), regionId).toEqual([]);
+		}
 	});
 
 	it("コート・ド・ニュイ最北の代表問題が生成される", () => {

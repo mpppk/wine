@@ -863,6 +863,137 @@ describe("リオハ/エブロ川流域(スペイン)の整合性", () => {
 	});
 });
 
+describe("ポルトガル(本土)の整合性", () => {
+	const portugal = AOPS.filter((a) => a.region === "portugal");
+
+	it("件数スナップショット(21 DOP / 7地区)", () => {
+		expect(portugal.length).toBe(21);
+		expect(REGIONS.find((r) => r.id === "portugal")?.subregions.length).toBe(7);
+	});
+
+	// ポルトガルのDOPは地方・準地方単位の呼称で、村名呼称の階層を持たない。
+	// スペイン(リオハ)のDOと同じ扱い。区分が混ざると「村名」と表示されてしまう。
+	it("区分は regional のみ(村・畑・ワイナリーは無し)", () => {
+		for (const aop of portugal) expect(aop.kind, aop.id).toBe("regional");
+	});
+
+	// ポルトガルのDOPは DOC(Denominação de Origem Controlada)の1階層しかなく、
+	// イタリアの DOCG/DOC やスペインの DOCa/DO のような等級差が無い。よって
+	// 格付けタグは付けず、呼称バッジは国から導出する(terminology.ts)。
+	it("格付けタグを持たない(DOCの1階層しかないため)", () => {
+		for (const aop of portugal) expect(aop.tags, aop.id).toBeUndefined();
+	});
+
+	// 件数だけのスナップショットは中身の取り違えを検出できない(#216 の教訓)ため、
+	// 顔ぶれを地区ごとに固定する。出典は IVV(Instituto da Vinha e do Vinho)が
+	// 公開する各DOPの caderno de especificações と EU 公式登録簿 eAmbrosia の
+	// fileNumber(PDO-PT-A****)。
+	it("収録した呼称の顔ぶれが地区ごとに一致する", () => {
+		const idsIn = (subregionId: string) =>
+			portugal
+				.filter((a) => a.subregionId === subregionId)
+				.map((a) => a.id)
+				.sort();
+		expect(idsIn("minho")).toEqual(["vinho-verde"]);
+		expect(idsIn("douro-tras-os-montes")).toEqual([
+			"douro",
+			"porto",
+			"tavora-varosa",
+			"tras-os-montes",
+		]);
+		expect(idsIn("beiras")).toEqual([
+			"bairrada",
+			"beira-interior",
+			"dao",
+			"lafoes",
+		]);
+		expect(idsIn("lisboa")).toEqual([
+			"alenquer",
+			"arruda",
+			"bucelas",
+			"carcavelos",
+			"colares",
+			"encostas-daire",
+			"obidos",
+			"torres-vedras",
+		]);
+		expect(idsIn("tejo")).toEqual(["tejo"]);
+		expect(idsIn("peninsula-de-setubal")).toEqual(["palmela", "setubal"]);
+		expect(idsIn("alentejo")).toEqual(["alentejo"]);
+	});
+
+	// アルガルヴェの4DOPは法的には存続しているが、実際にはほぼ全量が IG Algarve で
+	// 瓶詰めされている(ポルティマンは近年DOP表示の実績が無いと報じられ、タヴィラは
+	// 造り手が2軒まで減っている)。DOPを名乗る造り手を確認できないまま producers に
+	// 名前を並べると「この造り手はこのDOPを名乗っている」という誤った事実を教える
+	// ことになるため、意図して収録していない。足し戻すときは DOP 表示の実績から確認する。
+	//
+	// マデイラ(Madeira / Madeirense)とアゾレス(Pico / Graciosa / Biscoitos)は
+	// 本土から 1,000km 以上離れた島嶼で、同じ地方に入れると地図の bounds が
+	// 海で埋まる。別地方として足すのが前提なのでここには入れない。
+	it("アルガルヴェ4DOPとマデイラ・アゾレスは収録しない", () => {
+		const ids = new Set(portugal.map((a) => a.id));
+		for (const id of [
+			"lagos",
+			"portimao",
+			"lagoa",
+			"tavira",
+			"madeira",
+			"madeirense",
+			"pico",
+			"graciosa",
+			"biscoitos",
+		]) {
+			expect(ids.has(id), id).toBe(false);
+		}
+	});
+
+	// ドウロとポルトは同一区域の別呼称(スティルと酒精強化)で、境界ポリゴンも同一。
+	// パルメラとセトゥーバルも同じ関係にある。片方だけ消さないための固定。
+	it("同一区域の対になるDOPが両方そろっている", () => {
+		const byId = new Map(portugal.map((a) => [a.id, a]));
+		for (const [a, b] of [
+			["douro", "porto"],
+			["palmela", "setubal"],
+		] as const) {
+			expect(byId.get(a)?.subregionId, a).toBe(byId.get(b)?.subregionId);
+		}
+	});
+
+	// 酒精強化ワインのDOPは色の扱いが特殊(カルカヴェロス/セトゥーバルは甘口のみ)。
+	// 生産可能色クイズの出題内容そのものなので固定する。
+	it("酒精強化のみのDOPは甘口白だけを持つ", () => {
+		const colorsOf = (id: string) => portugal.find((a) => a.id === id)?.colors;
+		expect(colorsOf("carcavelos")).toEqual(["sweet-white"]);
+		expect(colorsOf("setubal")).toEqual(["sweet-white"]);
+		// ブセラスはポルトガル唯一の「白のみ」DOP(発泡を含む)
+		expect(colorsOf("bucelas")).toEqual(["white", "sparkling"]);
+	});
+
+	// 生産者が少ないDOPは、産地そのものが極小か造り手が数軒しかないもの。件数を
+	// 増やすために区域外の造り手を混ぜないための明示(理由は各 description を参照)。
+	it("生産者が3件未満のDOPは理由を明示した3件に限られる", () => {
+		const few = portugal
+			.filter((a) => a.producers.length < 3)
+			.map((a) => a.id)
+			.sort();
+		// arruda: 生産が1954年設立の協同組合にほぼ集中する(1件)
+		// obidos: サンギニャル(3キンタ)とグラディルが実質的な担い手
+		// torres-vedras: DOP表示を継続している造り手が限られる
+		expect(few).toEqual(["arruda", "obidos", "torres-vedras"]);
+	});
+
+	it("全生産者がカタカナの検索キーワードを持つ", () => {
+		for (const aop of portugal) {
+			for (const producer of aop.producers) {
+				expect(producer.searchKeyword, `${aop.id}: ${producer.name}`).toMatch(
+					/^[ァ-ヴー・]+$/,
+				);
+			}
+		}
+	});
+});
+
 describe("トスカーナ(イタリア)の整合性", () => {
 	const toscana = AOPS.filter((a) => a.region === "toscana");
 
