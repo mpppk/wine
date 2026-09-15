@@ -38,9 +38,17 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			{
 				charSet: "utf-8",
 			},
+			// viewport-fit=cover は edge-to-edge のオプトイン(#607)。これが無いと
+			// ブラウザはシステムバーの領域をレターボックスして env(safe-area-inset-*)
+			// を常に0で返すため、ページ側は最上段を塗れない。cover を宣言しておくと、
+			// インストール済みPWAが上部ステータスバーの下まで描けるようになった時点で
+			// (Chromium の short-edges cutout mode。2026-09時点で安定版は未対応)
+			// ヘッダの背景がそのままステータスバーの色になり、アプリ内テーマトグルに
+			// 追従する。下部(ナビゲーションバー側)は Chrome 135 で対応済みで、
+			// AdBanner / quiz.play の pb-[env(safe-area-inset-bottom)] が効く。
 			{
 				name: "viewport",
-				content: "width=device-width, initial-scale=1",
+				content: "width=device-width, initial-scale=1, viewport-fit=cover",
 			},
 			{
 				title: "ワインAOP学習アプリ",
