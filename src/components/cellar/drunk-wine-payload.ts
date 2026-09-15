@@ -1,7 +1,8 @@
 import {
-	EMPTY_SIGHTING_DRAFT,
-	type WineSightingDraft,
-} from "#/components/cellar/SightingFields";
+	EMPTY_ENCOUNTER_DRAFT,
+	encounterDraftEquals,
+	type WineEncounterDraft,
+} from "#/components/cellar/encounter-payload";
 import {
 	type LabelPrice,
 	type LabelReferenceLink,
@@ -40,7 +41,7 @@ import {
 import type { ReceivedDrunkWineEntry } from "#/lib/mcp-app/entry";
 import type {
 	CreateDrunkWineWithSightingInput,
-	CreateEntrySightingInput,
+	CreateWineEncounterInput,
 } from "#/lib/place/schema";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 
@@ -367,9 +368,8 @@ export function buildMcpUpdatePatch(
  */
 export function buildCreateInput(
 	s: DrunkWineFormState,
-	tasting?: CreateWineTastingInput,
-	/** 同時に作る目撃記録(#495)。入力が無ければ未指定 */
-	sighting?: CreateEntrySightingInput,
+	/** 同時に作る体験記録。入力が無ければ未指定 */
+	encounter?: CreateWineEncounterInput,
 ): CreateDrunkWineWithSightingInput {
 	const patch = collectDrunkWinePatch({}, toFormValues(s));
 	// name は clear:"never" なので空文字だと patch に載らない。必須なので明示的に
@@ -379,8 +379,7 @@ export function buildCreateInput(
 		...toCamelCreateFields(patch),
 		name: s.name.trim(),
 		status: s.status,
-		...(tasting ? { tasting } : {}),
-		...(sighting ? { sighting } : {}),
+		...(encounter ? { encounter } : {}),
 	};
 }
 
@@ -437,45 +436,20 @@ function drunkWineFormStateEquals(
 	return (Object.keys(na) as (keyof typeof na)[]).every((k) => na[k] === nb[k]);
 }
 
-/** 飲用記録の下書きが同値か。 */
-function tastingDraftEquals(a: WineTastingDraft, b: WineTastingDraft): boolean {
-	return (
-		a.drankOn === b.drankOn &&
-		a.rating === b.rating &&
-		a.memo.trim() === b.memo.trim()
-	);
-}
-
-/** 目撃記録の下書きが同値か(#495)。 */
-function sightingDraftEquals(
-	a: WineSightingDraft,
-	b: WineSightingDraft,
-): boolean {
-	return (
-		a.placeId === b.placeId &&
-		a.newPlaceName.trim() === b.newPlaceName.trim() &&
-		a.seenOn === b.seenOn &&
-		a.price.trim() === b.price.trim() &&
-		a.memo.trim() === b.memo.trim()
-	);
-}
-
 export interface UnsavedDrunkWineChangesInput {
 	/** 初期表示の値(= 直近に保存済みの内容)。fieldsValueFromEntry の結果を渡す。 */
 	initial: DrunkWineFieldsValue;
 	/** 現在のフォーム値。 */
 	values: DrunkWineFieldsValue;
-	/** 新規作成時の「最初の1件」の飲用記録。編集時は EMPTY_TASTING_DRAFT のまま。 */
-	tasting: WineTastingDraft;
 	/**
-	 * 新規作成時の「見かけた記録」(#495)。編集時・入力欄を出していない画面では
-	 * EMPTY_SIGHTING_DRAFT のまま。
+	 * 新規作成時の「記録(任意)」1件。編集時・入力欄を出していない画面では
+	 * EMPTY_ENCOUNTER_DRAFT のまま。
 	 *
-	 * **写真ウィザードから引き継いだ場所・見かけた日も未保存の変更として扱う**
+	 * **写真ウィザードから引き継いだ場所・日付も未保存の変更として扱う**
 	 * (引き継いだ値は空の下書きと一致しないため)。解析で得た内容と同じく、
 	 * 黙って捨てさせない。
 	 */
-	sighting: WineSightingDraft;
+	encounter: WineEncounterDraft;
 	/** 保存済みの写真キー(表示順)。 */
 	initialPhotoKeys: readonly string[];
 	/** 現在の写真(表示順)。既存はR2キー、まだ保存していない新規写真は null。 */
@@ -490,8 +464,7 @@ export interface UnsavedDrunkWineChangesInput {
 export function hasUnsavedDrunkWineChanges({
 	initial,
 	values,
-	tasting,
-	sighting,
+	encounter,
 	initialPhotoKeys,
 	photoKeys,
 	initialReferences,
@@ -500,8 +473,7 @@ export function hasUnsavedDrunkWineChanges({
 	if (!drunkWineFormStateEquals(toFormState(values), toFormState(initial))) {
 		return true;
 	}
-	if (!tastingDraftEquals(tasting, EMPTY_TASTING_DRAFT)) return true;
-	if (!sightingDraftEquals(sighting, EMPTY_SIGHTING_DRAFT)) return true;
+	if (!encounterDraftEquals(encounter, EMPTY_ENCOUNTER_DRAFT)) return true;
 	// 追加・削除・並べ替えのいずれも「保存すると結果が変わる」ので未保存扱いにする。
 	if (photoKeys.length !== initialPhotoKeys.length) return true;
 	if (photoKeys.some((key, i) => key !== initialPhotoKeys[i])) return true;

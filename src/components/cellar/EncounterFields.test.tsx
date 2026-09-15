@@ -2,15 +2,16 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { duplicatePlaceNameMessage } from "#/lib/place/place";
 import type { PlaceEntry } from "#/lib/services/place-service";
+import { EncounterFields } from "./EncounterFields";
 import {
-	EMPTY_SIGHTING_DRAFT,
+	EMPTY_ENCOUNTER_DRAFT,
 	NEW_PLACE_VALUE,
-	SightingFields,
-	type WineSightingDraft,
-} from "./SightingFields";
+	type WineEncounterDraft,
+} from "./encounter-payload";
 
-// 目撃記録の入力欄の規約: 場所はどの経路でもその場で作れる(新規登録・編集画面の
-// 双方)。作れるぶん、同名は作れないことを保存前に伝える必要がある——サーバは
+// 体験記録の入力欄の規約: 「このとき飲んだ」トグルが先頭で、ON のときだけ
+// 評価が出る。場所はどの経路でもその場で作れる(新規登録・編集画面の双方)。
+// 作れるぶん、同名は作れないことを保存前に伝える必要がある——サーバは
 // prepareNewPlace で 409 を返すので、押してから気付くと入力をやり直させることになる。
 
 // vitest の globals は無効なので、RTL の自動クリーンアップは働かない
@@ -27,18 +28,32 @@ const PLACES: PlaceEntry[] = [
 	},
 ];
 
-function setup(draft: Partial<WineSightingDraft> = {}, places = PLACES) {
+function setup(draft: Partial<WineEncounterDraft> = {}, places = PLACES) {
 	render(
-		<SightingFields
-			value={{ ...EMPTY_SIGHTING_DRAFT, ...draft }}
+		<EncounterFields
+			value={{ ...EMPTY_ENCOUNTER_DRAFT, ...draft }}
 			onChange={vi.fn()}
 			places={places}
-			idPrefix="s"
+			idPrefix="e"
 		/>,
 	);
 }
 
-describe("SightingFields の場所", () => {
+describe("EncounterFields の飲んだトグルと評価", () => {
+	it("トグルOFFでは評価を出さない", () => {
+		setup({ drank: false });
+		expect(screen.getByText("このとき飲んだ")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "星1" })).toBeNull();
+	});
+
+	it("トグルONで評価が出る", () => {
+		setup({ drank: true });
+		expect(screen.getByRole("button", { name: "星1" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "星5" })).toBeTruthy();
+	});
+});
+
+describe("EncounterFields の場所", () => {
 	it("場所が1件も無くても選択は無効にならない(新規作成へ進める)", () => {
 		setup({}, []);
 		expect(screen.getByLabelText("場所").hasAttribute("disabled")).toBe(false);

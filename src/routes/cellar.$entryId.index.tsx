@@ -2,7 +2,6 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
 	ArrowLeftIcon,
 	MapIcon,
-	MapPinIcon,
 	PencilIcon,
 	StoreIcon,
 	WineIcon,
@@ -23,15 +22,8 @@ import {
 import { Button } from "#/components/ui/button";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
-import type {
-	WineSightingEntry,
-	WineTastingEntry,
-} from "#/lib/services/drunk-wine-service";
-import {
-	getDrunkWine,
-	listWineSightings,
-	listWineTastings,
-} from "#/server/drunk-wine";
+import type { WineEncounterEntry } from "#/lib/services/drunk-wine-service";
+import { getDrunkWine, listWineEncounters } from "#/server/drunk-wine";
 
 // マイセラーの銘柄を選んだときに最初に出る閲覧専用の画面。編集画面
 // (/cellar/$entryId/edit)は「編集」ボタンからの明示的な遷移にする。
@@ -43,14 +35,11 @@ export const Route = createFileRoute("/cellar/$entryId/")({
 	beforeLoad: requireAuthBeforeLoad,
 	loader: async ({ params }) => {
 		try {
-			// 場所マスタ(listPlaces)は読まない。閲覧では場所の選び直しが無く、
-			// 目撃記録が表示名(placeName)を持っているため。
-			const [entry, tastings, sightings] = await Promise.all([
+			const [entry, encounters] = await Promise.all([
 				getDrunkWine({ data: { id: params.entryId } }),
-				listWineTastings({ data: { drunkWineId: params.entryId } }),
-				listWineSightings({ data: { drunkWineId: params.entryId } }),
+				listWineEncounters({ data: { drunkWineId: params.entryId } }),
 			]);
-			return { entry, tastings, sightings };
+			return { entry, encounters };
 		} catch (e) {
 			// 存在しない/他ユーザのエントリは一覧へ逃がす(編集画面と同じ扱い)。
 			// それ以外(一時障害等)は握りつぶさずエラー表示に任せる
@@ -82,70 +71,41 @@ function EmptySection({
 	);
 }
 
-function TastingSection({ tastings }: { tastings: WineTastingEntry[] }) {
-	return (
-		<section className="flex flex-col gap-3">
-			<SectionHeading>飲んだ記録</SectionHeading>
-			{tastings.length === 0 ? (
-				<EmptySection icon={WineIcon}>
-					まだ飲んだ記録がありません。
-				</EmptySection>
-			) : (
-				<ul className="flex flex-col gap-2">
-					{tastings.map((tasting) => (
-						<li
-							key={tasting.id}
-							className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm"
-						>
-							<span className="text-muted-foreground">
-								{tasting.drankOn ?? "日付不明"}
-							</span>
-							{tasting.rating !== null && (
-								<RatingStars rating={tasting.rating} />
-							)}
-							{tasting.memo && (
-								<p className="whitespace-pre-wrap">{tasting.memo}</p>
-							)}
-						</li>
-					))}
-				</ul>
-			)}
-		</section>
-	);
-}
-
-function SightingSection({
-	sightings,
+/**
+ * 体験記録の時系列(Issue #606)。飲んだ回と見かけただけの回を `occurred_on`
+ * 降順の1本に混ぜる(ローダーの listWineEncounters がその順で返す)。
+ * 飲んだ回は WineIcon + 評価、見かけただけは StoreIcon で出し分ける。
+ */
+function EncounterSection({
+	encounters,
 	version,
 }: {
-	sightings: WineSightingEntry[];
+	encounters: WineEncounterEntry[];
 	/** 写真のキャッシュバスタ。エントリの updatedAt を渡す */
 	version: number;
 }) {
 	return (
 		<section className="flex flex-col gap-3">
-			<SectionHeading>見かけた記録</SectionHeading>
-			{sightings.length === 0 ? (
-				<EmptySection icon={StoreIcon}>
-					まだ見かけた記録がありません。
-				</EmptySection>
+			<SectionHeading>記録</SectionHeading>
+			{encounters.length === 0 ? (
+				<EmptySection icon={WineIcon}>まだ記録がありません。</EmptySection>
 			) : (
 				<ul className="flex flex-col gap-2">
-					{sightings.map((sighting) => (
+					{encounters.map((encounter) => (
 						<li
-							key={sighting.id}
+							key={encounter.id}
 							className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm"
 						>
-							{sighting.photoUrls.length > 0 && (
-								// 由来の写真(ワインリスト/棚。#574 で対応写真のすべて)。
+							{encounter.photoUrls.length > 0 && (
+								// 由来の写真(ワインリスト/棚。対応写真のすべて)。
 								// サムネイルは保存していないので原寸を読む
-								// (編集画面の目撃記録と同じ扱い)
+								// (編集画面の体験記録と同じ扱い)
 								<div className="flex shrink-0 gap-1">
-									{sighting.photoUrls.map((photoUrl) => (
+									{encounter.photoUrls.map((photoUrl) => (
 										<ZoomablePhoto
 											key={photoUrl}
 											src={`${photoUrl}?v=${version}`}
-											alt={`${sighting.placeName ?? "場所未設定"}で見かけたときの写真`}
+											alt={`${encounter.placeName ?? "場所未設定"}で出会ったときの写真`}
 											className="size-14"
 										/>
 									))}
@@ -153,19 +113,30 @@ function SightingSection({
 							)}
 							<div className="flex min-w-0 flex-col gap-1">
 								<span className="flex items-center gap-1 font-medium">
-									<MapPinIcon
-										className="size-3.5 text-muted-foreground"
-										aria-hidden
-									/>
-									{sighting.placeName ?? "場所未設定"}
+									{encounter.drank ? (
+										<WineIcon
+											className="size-3.5 text-muted-foreground"
+											aria-hidden
+										/>
+									) : (
+										<StoreIcon
+											className="size-3.5 text-muted-foreground"
+											aria-hidden
+										/>
+									)}
+									{encounter.placeName ??
+										(encounter.drank ? "飲んだ" : "場所未設定")}
 								</span>
+								{encounter.drank && encounter.rating !== null && (
+									<RatingStars rating={encounter.rating} />
+								)}
 								<span className="text-muted-foreground">
-									{sighting.seenOn ?? "日付不明"}
-									{sighting.price != null &&
-										` / ${sighting.price.toLocaleString("ja-JP")}円`}
+									{encounter.occurredOn ?? "日付不明"}
+									{encounter.price != null &&
+										` / ${encounter.price.toLocaleString("ja-JP")}円`}
 								</span>
-								{sighting.memo && (
-									<p className="whitespace-pre-wrap">{sighting.memo}</p>
+								{encounter.memo && (
+									<p className="whitespace-pre-wrap">{encounter.memo}</p>
 								)}
 							</div>
 						</li>
@@ -210,7 +181,7 @@ function DetailValue({ row }: { row: WineDetailRow }) {
 }
 
 function CellarDetailPage() {
-	const { entry, tastings, sightings } = Route.useLoaderData();
+	const { entry, encounters } = Route.useLoaderData();
 	const rows = buildWineDetailRows(entry);
 
 	return (
@@ -283,8 +254,7 @@ function CellarDetailPage() {
 			)}
 			{entry.prices.length > 0 && <PriceList prices={entry.prices} />}
 
-			<TastingSection tastings={tastings} />
-			<SightingSection sightings={sightings} version={entry.updatedAt} />
+			<EncounterSection encounters={encounters} version={entry.updatedAt} />
 		</main>
 	);
 }

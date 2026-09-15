@@ -15,17 +15,20 @@ import { DrunkWineFields } from "#/components/cellar/DrunkWineFields";
 import {
 	buildCreateInput,
 	buildReferencesPatch,
-	buildTastingInput,
 	buildUpdatePatch,
 	type DrunkWineFieldsValue,
-	EMPTY_TASTING_DRAFT,
 	fieldsValueFromEntry,
 	hasUnsavedDrunkWineChanges,
 	mergeReferencesValue,
 	toFormState,
 	type WineReferencesValue,
-	type WineTastingDraft,
 } from "#/components/cellar/drunk-wine-payload";
+import { EncounterFields } from "#/components/cellar/EncounterFields";
+import {
+	buildCreateEntryEncounterInput,
+	EMPTY_ENCOUNTER_DRAFT,
+	type WineEncounterDraft,
+} from "#/components/cellar/encounter-payload";
 import { LabelSuggestionDiffDialog } from "#/components/cellar/LabelSuggestionDiffDialog";
 import {
 	type AnalysisPhotoSource,
@@ -41,13 +44,6 @@ import {
 	detachPhotoFiles,
 } from "#/components/cellar/photo-picker";
 import { downscaleImage } from "#/components/cellar/photo-resize";
-import {
-	EMPTY_SIGHTING_DRAFT,
-	SightingFields,
-	type WineSightingDraft,
-} from "#/components/cellar/SightingFields";
-import { buildCreateEntrySightingInput } from "#/components/cellar/sighting-payload";
-import { TastingFields } from "#/components/cellar/TastingFields";
 import { UnsavedChangesGuard } from "#/components/cellar/UnsavedChangesGuard";
 import {
 	LABEL_JOB_BADGE_QUERY_KEY,
@@ -104,10 +100,10 @@ export interface DrunkWineFormProps {
 	/** 保存(写真アップロードを含む)が完了したエントリを受け取る */
 	onSaved: (entry: DrunkWineEntry) => void | Promise<void>;
 	/**
-	 * 編集時の飲用記録セクション(TastingList)。新規作成時は記録がまだ無いので
-	 * 未指定にし、フォーム内の TastingFields で1件ぶんを同時入力する。
+	 * 編集時の体験記録セクション(EncounterList)。新規作成時は記録がまだ無いので
+	 * 未指定にし、フォーム内の EncounterFields で1件ぶんを同時入力する。
 	 */
-	tastingSlot?: React.ReactNode;
+	recordSlot?: React.ReactNode;
 	/**
 	 * 新規作成時の初期値(一括登録からの引き継ぎ #416)。`entry` 指定時は無視する。
 	 * 初期値が入っていると離脱ガードの基準(未保存の変更あり)にもなる——引き継いだ
@@ -117,15 +113,15 @@ export interface DrunkWineFormProps {
 	/** 新規作成時にフォームへ添付済みにする写真。`entry` 指定時は無視する。 */
 	initialPhotoFiles?: File[];
 	/**
-	 * 目撃記録の入力に出す場所の候補(#495)。**渡すと新規作成時に「見かけた記録」の
-	 * セクションが出る**。編集時は SightingList が銘柄の外で担当するので渡さない。
+	 * 体験記録の入力に出す場所の候補(#495)。新規作成時の「記録」セクションの
+	 * 選択肢になる。編集時は EncounterList が銘柄の外で担当するので渡さない。
 	 */
 	places?: PlaceEntry[];
 	/**
-	 * 新規作成時の目撃記録の初期値(写真ウィザードからの引き継ぎ #495)。
+	 * 新規作成時の体験記録の初期値(写真ウィザードからの引き継ぎ #495)。
 	 * `places` を渡していないときは意味を持たない。
 	 */
-	initialSighting?: WineSightingDraft;
+	initialEncounter?: WineEncounterDraft;
 	/**
 	 * 新規作成時の参考サイト・市場価格の初期値(一括登録からの引き継ぎ)。
 	 * 単一ワイン判定の handoff(`references`)や、受け取った解析ジョブの候補が
@@ -219,11 +215,11 @@ async function syncPhotos(
 export function DrunkWineForm({
 	entry,
 	onSaved,
-	tastingSlot,
+	recordSlot,
 	initialValues,
 	initialPhotoFiles,
 	places,
-	initialSighting,
+	initialEncounter,
 	initialReferences,
 	pendingLabelJob,
 	sourceLabelJobId,
@@ -235,14 +231,10 @@ export function DrunkWineForm({
 	);
 	const update = (patch: Partial<DrunkWineFieldsValue>) =>
 		setValues((prev) => ({ ...prev, ...patch }));
-	// 新規作成時にだけ使う「最初の1件」の飲用記録。編集時は tastingSlot(TastingList)
+	// 新規作成時にだけ使う体験記録1件。編集時は recordSlot(EncounterList)
 	// が担当するので触らない。
-	const [tastingDraft, setTastingDraft] =
-		useState<WineTastingDraft>(EMPTY_TASTING_DRAFT);
-	// 新規作成時にだけ使う「見かけた記録」1件(#495)。写真ウィザードで入力した場所・
-	// 見かけた日が引き継がれてくる。編集時は SightingList が担当するので触らない。
-	const [sightingDraft, setSightingDraft] = useState<WineSightingDraft>(
-		() => (entry ? undefined : initialSighting) ?? EMPTY_SIGHTING_DRAFT,
+	const [encounterDraft, setEncounterDraft] = useState<WineEncounterDraft>(
+		() => (entry ? undefined : initialEncounter) ?? EMPTY_ENCOUNTER_DRAFT,
 	);
 	// 参考サイト・市場価格。銘柄に属する参考情報で、新規・編集の両方で持つ。
 	// 初期値は編集時は保存値、新規作成時は引き継ぎ(単一ワイン判定・受け取った
@@ -300,8 +292,7 @@ export function DrunkWineForm({
 		hasUnsavedDrunkWineChanges({
 			initial: fieldsValueFromEntry(baseline),
 			values,
-			tasting: tastingDraft,
-			sighting: sightingDraft,
+			encounter: encounterDraft,
 			initialPhotoKeys: (baseline?.photoUrls ?? []).map(imageKeyFromPath),
 			photoKeys: photos.map((p) => (p.kind === "existing" ? p.key : null)),
 			initialReferences: {
@@ -347,14 +338,15 @@ export function DrunkWineForm({
 		setError(detached.rejectMessage || rejectMessage);
 		setAnalyzeNotice("");
 		if (detached.accepted.length === 0) return;
-		// EXIFの撮影日を日付欄へ自動入力する(Issue #590)。**新規作成で・空欄だけ**
-		// (飲んだ日・見かけた日の両方)。既に入力済み・編集時・記録済み(#490で
-		// 下書き欄が消えた後)は触らない。EXIFなし・取得失敗時は黙って空欄のまま。
+		// EXIFの撮影日を日付欄へ自動入力する(Issue #590)。**新規作成で・空欄だけ**。
+		// 既に入力済み・編集時・記録済み(#490で下書き欄が消えた後)は触らない。
+		// EXIFなし・取得失敗時は黙って空欄のまま。
 		if (!entry && !savedEntry) {
 			const takenOn = await firstTakenOn(detached.accepted);
 			if (takenOn) {
-				setTastingDraft((d) => (d.drankOn ? d : { ...d, drankOn: takenOn }));
-				setSightingDraft((d) => (d.seenOn ? d : { ...d, seenOn: takenOn }));
+				setEncounterDraft((d) =>
+					d.occurredOn ? d : { ...d, occurredOn: takenOn },
+				);
 			}
 		}
 		setPhotos((prev) => [
@@ -531,17 +523,16 @@ export function DrunkWineForm({
 					})
 				: existing;
 		} else {
-			// 新規作成は銘柄・飲用記録・目撃記録を1リクエストで作る(サービス層が
+			// 新規作成は銘柄・体験記録を1リクエストで作る(サービス層が
 			// db.batch で原子化する)。写真だけは R2 キーが entryId 依存なので
 			// 2段階のまま。
 			saved = await createDrunkWine({
 				data: {
 					...buildCreateInput(
 						state,
-						buildTastingInput(tastingDraft),
-						// 目撃記録の入力欄を出していない画面(編集)では下書きが空のままなので
+						// 体験記録の入力欄を出していない画面(編集)では下書きが空のままなので
 						// undefined になり、記録は作られない
-						buildCreateEntrySightingInput(sightingDraft),
+						buildCreateEntryEncounterInput(encounterDraft),
 					),
 					// 参考サイト・市場価格は銘柄に属するので一緒に送る(空なら送らない)。
 					...(references.referenceLinks.length > 0
@@ -585,8 +576,7 @@ export function DrunkWineForm({
 				key: imageKeyFromPath(url),
 			})),
 		);
-		setTastingDraft(EMPTY_TASTING_DRAFT);
-		setSightingDraft(EMPTY_SIGHTING_DRAFT);
+		setEncounterDraft(EMPTY_ENCOUNTER_DRAFT);
 		setReferences({
 			referenceLinks: saved.referenceLinks,
 			prices: saved.prices,
@@ -1019,47 +1009,26 @@ export function DrunkWineForm({
 				value={values}
 				onChange={update}
 				photoSlot={photoSection}
-				tastingSlot={
+				recordSlot={
 					// 記録済み(解析の投入で保存した回 #490)になったら下書きの入力欄は出さない。
 					// 以降の保存は差分更新の経路に入り下書きを送らないので、出したままにすると
 					// 「入力できるのに保存されない」欄になる。追加は保存後の編集画面から。
-					tastingSlot ??
+					recordSlot ??
 					(savedEntry ? null : (
 						<FormSection
-							title="飲んだ記録(任意)"
-							description="飲んだ日や感想を入れると、飲用記録として保存されます。まだ飲んでいない場合は空のままで構いません。"
+							title="記録(任意)"
+							description="出会った日や場所、飲んだときは感想を入れると、体験記録として保存されます。まだ何も無ければ空のままで構いません。"
 						>
-							<TastingFields
-								value={tastingDraft}
+							<EncounterFields
+								value={encounterDraft}
 								onChange={(patch) =>
-									setTastingDraft((d) => ({ ...d, ...patch }))
+									setEncounterDraft((d) => ({ ...d, ...patch }))
 								}
-								idPrefix="wine-tasting"
+								places={places ?? []}
+								idPrefix="wine-encounter"
 							/>
 						</FormSection>
 					))
-				}
-				sightingSlot={
-					// 新規作成で場所の候補を渡されたときだけ。編集画面の目撃記録は
-					// SightingList(銘柄の外)が担当する。記録済みになったら出さないのは
-					// 飲んだ記録と同じ理由。
-					!entry &&
-					!savedEntry &&
-					places && (
-						<FormSection
-							title="見かけた記録(任意)"
-							description="お店で見かけた場所や日付を入れると、見かけた記録として保存されます。写真から登録した場合は、そこで入力した内容が入っています。"
-						>
-							<SightingFields
-								value={sightingDraft}
-								onChange={(patch) =>
-									setSightingDraft((d) => ({ ...d, ...patch }))
-								}
-								places={places}
-								idPrefix="wine-sighting"
-							/>
-						</FormSection>
-					)
 				}
 			/>
 

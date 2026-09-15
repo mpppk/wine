@@ -242,7 +242,8 @@ describe("createDrunkWine の目撃記録", () => {
 			sighting: { seenOn: "2026-08-09" },
 		});
 		expect(entry.tastingCount).toBe(1);
-		// 同時指定は体験記録2行になる(移送と同じくマージしない。1行化は PR2)
+		// 同時指定は体験記録2行になる(移送と同じくマージしない)。統合 UI は
+		// encounter 1件で送るので、この同時指定を通る経路はもう無い。
 		expect(entry.encounterCount).toBe(2);
 		expect(entry.lastEncounteredOn).toBe("2026-08-09");
 	});
@@ -1487,6 +1488,138 @@ describe("体験記録の集計キャッシュ", () => {
 	});
 });
 
+// ---- 統合 UI 向けの体験記録操作(Issue #606 PR2) ----------------------------
+// 新規登録は銘柄 + 体験記録1件を1リクエストで作り、編集は drank の切り替えを
+// 含めて更新する。旧2セクションの同時指定は受け付けない。
+
+describe("統合 UI の体験記録操作(PR2)", () => {
+	let userId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+	});
+
+	it("createDrunkWine に encounter を渡すと drank と場所の1行になる", async () => {
+		const place = await createPlace(userId, { name: "ビストロ" });
+		const entry = await createDrunkWine(userId, {
+			name: "Meursault",
+			status: "finished",
+			encounter: {
+				drank: true,
+				occurredOn: "2026-08-09",
+				rating: 4,
+				placeId: place.id,
+			},
+		});
+		expect(entry).toMatchObject({
+			tastingCount: 1,
+			lastDrankOn: "2026-08-09",
+			lastRating: 4,
+			encounterCount: 1,
+			lastEncounteredOn: "2026-08-09",
+		});
+		const encounters = await listWineEncounters(userId, entry.id);
+		expect(encounters).toHaveLength(1);
+		expect(encounters[0]).toMatchObject({
+			drank: true,
+			occurredOn: "2026-08-09",
+			rating: 4,
+			placeId: place.id,
+			placeName: "ビストロ",
+		});
+	});
+
+	it("createDrunkWine に encounter と tasting/sighting は併用できない", async () => {
+		await expect(
+			createDrunkWine(userId, {
+				name: "Meursault",
+				encounter: { drank: true },
+				tasting: { drankOn: "2026-08-09" },
+			}),
+		).rejects.toBeInstanceOf(BadRequestError);
+		await expect(
+			createDrunkWine(userId, {
+				name: "Meursault",
+				encounter: { drank: false },
+				sighting: { seenOn: "2026-08-09" },
+			}),
+		).rejects.toBeInstanceOf(BadRequestError);
+		// 銘柄ごと作られない(記録の確認は INSERT の前)
+		expect(await countEntries(userId)).toBe(0);
+	});
+
+	it("createDrunkWine の encounter でも場所を新規作成できる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "Meursault",
+			encounter: {
+				drank: false,
+				occurredOn: "2026-08-09",
+				newPlace: { name: "その場で作る店" },
+			},
+		});
+		expect(entry.encounterCount).toBe(1);
+		const encounters = await listWineEncounters(userId, entry.id);
+		expect(encounters[0]?.placeName).toBe("その場で作る店");
+	});
+
+	it("updateWineEncounter で drank を切り替えられる", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "Chablis",
+			status: "spotted",
+		});
+		await addWineEncounter(userId, entry.id, {
+			drank: false,
+			occurredOn: "2026-08-01",
+			price: 3000,
+		});
+		const [encounter] = await listWineEncounters(userId, entry.id);
+
+		// 見かけただけ → 飲んだ(評価つき)
+		const drunk = await updateWineEncounter(userId, {
+			id: encounter?.id ?? "",
+			drank: true,
+			rating: 5,
+		});
+		expect(drunk).toMatchObject({ tastingCount: 1, encounterCount: 1 });
+		expect(await listWineEncounters(userId, entry.id)).toMatchObject([
+			{ drank: true, rating: 5, price: 3000 },
+		]);
+
+		// 飲んだ → 見かけただけに戻すと評価はクリアされる
+		const sober = await updateWineEncounter(userId, {
+			id: encounter?.id ?? "",
+			drank: false,
+		});
+		expect(sober).toMatchObject({ tastingCount: 0, encounterCount: 1 });
+		expect(await listWineEncounters(userId, entry.id)).toMatchObject([
+			{ drank: false, rating: null },
+		]);
+	});
+
+	it("同日・同時刻の記録は挿入順が確定する(rowid タイブレーク)", async () => {
+		const entry = await createDrunkWine(userId, {
+			name: "Chablis",
+			status: "spotted",
+		});
+		await addWineEncounter(userId, entry.id, {
+			drank: false,
+			occurredOn: "2026-08-01",
+			memo: "先",
+		});
+		await addWineEncounter(userId, entry.id, {
+			drank: true,
+			occurredOn: "2026-08-01",
+			memo: "後",
+		});
+		// created_at を同msに寄せても、後から入れた行が先に並ぶ
+		await db
+			.update(wineEncounter)
+			.set({ createdAt: new Date(1000) })
+			.where(eq(wineEncounter.drunkWineId, entry.id));
+		const encounters = await listWineEncounters(userId, entry.id);
+		expect(encounters.map((e) => e.memo)).toEqual(["後", "先"]);
+	});
+});
+
 describe("飲用と体験の集計の関係", () => {
 	let userId: string;
 	let wineId: string;
@@ -1887,8 +2020,8 @@ describe("bulkRegisterFromScan", () => {
 		expect(result).toMatchObject({
 			createdCount: 2,
 			matchedCount: 0,
-			sightingCount: 2,
-			tastingCount: 0,
+			encounterCount: 2,
+			drankCount: 0,
 			placeId: null,
 		});
 
@@ -1940,9 +2073,9 @@ describe("bulkRegisterFromScan", () => {
 		});
 	});
 
-	it("「飲んだ」指定があれば飲用記録も同じ batch で作る", async () => {
+	it("「飲んだ」指定があれば drank=1 の体験記録を1行だけ作る", async () => {
 		const userId = await freshUser();
-		await bulkRegisterFromScan(userId, {
+		const result = await bulkRegisterFromScan(userId, {
 			photoCount: 0,
 			items: [
 				item({
@@ -1951,15 +2084,24 @@ describe("bulkRegisterFromScan", () => {
 				}),
 			],
 		});
+		expect(result).toMatchObject({ encounterCount: 1, drankCount: 1 });
 		const { entries } = await listDrunkWines(userId);
-		// PR1 では旧2行相当の体験記録2行になる(drank=0 + drank=1)。1行化は PR2。
+		// 旧2テーブル体制では2行だったものが、統合で1行になる
 		expect(entries[0]).toMatchObject({
 			status: "finished",
 			tastingCount: 1,
 			lastDrankOn: "2026-07-31",
 			lastRating: 4,
-			encounterCount: 2,
+			encounterCount: 1,
 			lastEncounteredOn: "2026-07-31",
+		});
+		// 体験記録は drank=1 の1行だけで、日付・評価が載っている
+		const encounters = await listWineEncounters(userId, entries[0]?.id ?? "");
+		expect(encounters).toHaveLength(1);
+		expect(encounters[0]).toMatchObject({
+			drank: true,
+			occurredOn: "2026-07-31",
+			rating: 4,
 		});
 	});
 
@@ -2503,6 +2645,34 @@ describe("目撃記録の対応写真の一覧", () => {
 		}
 	});
 
+	// 1行化した統合後は「飲んだ」品の写真番号も drank=1 の行に載る。join が
+	// drank=0 に絞ったままだと、このフォールバックが効かず銘柄写真が空になる。
+	it("「飲んだ」指定の銘柄にもバッチ写真を複製する", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{
+					wine: { name: "飲んだが写真なし" },
+					sighting: { photoIndex: 0 },
+					tasting: { drankOn: "2026-08-01", rating: 4 },
+				},
+			],
+		});
+		await saveImportBatchPhotos(userId, result.batchId, [jpeg()]);
+
+		// 体験記録は drank=1 の1行だけで、写真番号を持っている
+		const { entries } = await listDrunkWines(userId);
+		const encounters = await listWineEncounters(userId, entries[0]?.id ?? "");
+		expect(encounters).toHaveLength(1);
+		expect(encounters[0]).toMatchObject({ drank: true, rating: 4 });
+		// web 写真が無くてもバッチ写真が bottle として複製される
+		expect(entries[0]?.photoUrls).toHaveLength(1);
+		expect((await wineRow(entries[0]?.id ?? ""))?.photoKinds).toEqual([
+			"bottle",
+		]);
+	});
+
 	it("複製はエントリの上限6枚で打ち切る(目撃記録の参照は全件残る)", async () => {
 		const userId = await freshUser();
 		const result = await bulkRegisterFromScan(userId, {
@@ -2921,7 +3091,7 @@ describe("undoImportBatch", () => {
 				},
 			],
 		});
-		expect(result.tastingCount).toBe(1);
+		expect(result.drankCount).toBe(1);
 		// 取り消し前は2件(元からの1件 + バッチが足した1件)
 		expect(await listWineTastings(userId, existing.id)).toHaveLength(2);
 
@@ -3162,7 +3332,7 @@ describe("getImportBatchDetail", () => {
 // ---- listImportBatches(バッチ履歴の一覧, Issue #380) -----------------------
 
 describe("listImportBatches", () => {
-	it("新しい順に一覧し、場所名・件数・目撃記録の内訳を含める", async () => {
+	it("新しい順に一覧し、場所名・件数・体験記録の内訳を含める", async () => {
 		const userId = await freshUser();
 		const existing = await createDrunkWine(userId, { name: "既存のワイン" });
 
@@ -3201,7 +3371,7 @@ describe("listImportBatches", () => {
 			photoUrls: [],
 			createdCount: 1,
 			matchedCount: 1,
-			sightingCount: 2,
+			encounterCount: 2,
 			hasEditedEntries: false,
 		});
 	});
@@ -3270,7 +3440,7 @@ describe("listImportBatches", () => {
 		expect(summary).toMatchObject({
 			id: result.batchId,
 			createdCount: 0,
-			sightingCount: 0,
+			encounterCount: 0,
 		});
 	});
 
@@ -3679,8 +3849,8 @@ describe("一括削除の監査ライン (#394)", () => {
 			batchId: result.batchId,
 			// 新規作成の1件が消え、既存エントリ1件は記録だけ取り消して再計算した
 			deletedCount: 1,
-			sightingCount: 2,
-			tastingCount: 1,
+			encounterCount: 2,
+			drankCount: 1,
 			recomputedCount: 1,
 		});
 	});

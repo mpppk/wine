@@ -283,12 +283,12 @@ describe("buildBulkRegisterInput", () => {
 		expect(input.items[0]).not.toHaveProperty("prices");
 	});
 
-	it("目撃記録は1件のまま、対応写真のすべてを番号の一覧で持たせる(#574)", () => {
+	it("体験記録は1件のまま、対応写真のすべてを番号の一覧で持たせる(#574)", () => {
 		const input = buildBulkRegisterInput(
 			[card({ photoIndexes: [0, 1] })],
 			meta,
 		);
-		// 写真ごとに目撃記録を作ると sightingCount が水増しされるので記録は1件のまま。
+		// 写真ごとに体験記録を作ると encounterCount が水増しされるので記録は1件のまま。
 		// photoIndex は先頭1枚の後方互換として残す。
 		expect(input.items[0]?.sighting?.photoIndex).toBe(0);
 		expect(input.items[0]?.sighting?.photoIndexes).toEqual([0, 1]);

@@ -15,8 +15,7 @@ import {
 import { useState } from "react";
 import { z } from "zod";
 import { DrunkWineForm } from "#/components/cellar/DrunkWineForm";
-import { SightingList } from "#/components/cellar/SightingList";
-import { TastingList } from "#/components/cellar/TastingList";
+import { EncounterList } from "#/components/cellar/EncounterList";
 import { Button } from "#/components/ui/button";
 import {
 	Dialog,
@@ -31,8 +30,7 @@ import { getLabelAnalysisJobById } from "#/server/ai";
 import {
 	deleteDrunkWine,
 	getDrunkWine,
-	listWineSightings,
-	listWineTastings,
+	listWineEncounters,
 	markWineDrunk,
 	updateDrunkWine,
 } from "#/server/drunk-wine";
@@ -53,12 +51,11 @@ export const Route = createFileRoute("/cellar/$entryId/edit")({
 	loaderDeps: ({ search }) => ({ labelJob: search.labelJob }),
 	loader: async ({ params, deps }) => {
 		try {
-			// 目撃記録の場所を選び直せるよう、場所マスタも一緒に読む(件数は
+			// 体験記録の場所を選び直せるよう、場所マスタも一緒に読む(件数は
 			// たかが知れているのでページングしない。place-service 参照)
-			const [entry, tastings, sightings, places, labelJob] = await Promise.all([
+			const [entry, encounters, places, labelJob] = await Promise.all([
 				getDrunkWine({ data: { id: params.entryId } }),
-				listWineTastings({ data: { drunkWineId: params.entryId } }),
-				listWineSightings({ data: { drunkWineId: params.entryId } }),
+				listWineEncounters({ data: { drunkWineId: params.entryId } }),
 				listPlaces(),
 				// 他人のジョブ・存在しないIDは 404 になるので、素の編集画面として開く。
 				// **既読化はここでしない**——ルータは `defaultPreload: "intent"` で、リンクに
@@ -69,7 +66,7 @@ export const Route = createFileRoute("/cellar/$entryId/edit")({
 						)
 					: null,
 			]);
-			return { entry, tastings, sightings, places, labelJob };
+			return { entry, encounters, places, labelJob };
 		} catch (e) {
 			// 存在しない/他ユーザのエントリは一覧へ逃がす。
 			// それ以外(一時障害等)は握りつぶさずエラー表示に任せる
@@ -83,8 +80,7 @@ export const Route = createFileRoute("/cellar/$entryId/edit")({
 });
 
 function CellarEditPage() {
-	const { entry, tastings, sightings, places, labelJob } =
-		Route.useLoaderData();
+	const { entry, encounters, places, labelJob } = Route.useLoaderData();
 	// 宛先違いのジョブは無視する(URL直打ちで他のワインの候補を流し込ませない)。
 	const pendingLabelJob =
 		labelJob?.suggestions && labelJob.entryId === entry.id
@@ -185,20 +181,13 @@ function CellarEditPage() {
 						params: { entryId: entry.id },
 					});
 				}}
-				tastingSlot={
-					<>
-						<TastingList entryId={entry.id} tastings={tastings} />
-						{/*
-						  目撃記録は「所有状態 ⊥ 飲用履歴」に足した第3の軸(Issue #358)。
-						  飲用記録と並べて置き、どちらも 1:N として同じ形で編集できるようにする。
-						*/}
-						<SightingList
-							entryId={entry.id}
-							sightings={sightings}
-							places={places}
-							version={entry.updatedAt}
-						/>
-					</>
+				recordSlot={
+					<EncounterList
+						entryId={entry.id}
+						encounters={encounters}
+						places={places}
+						version={entry.updatedAt}
+					/>
 				}
 			/>
 

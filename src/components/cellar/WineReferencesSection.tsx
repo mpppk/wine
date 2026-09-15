@@ -6,11 +6,11 @@ import { Button } from "#/components/ui/button";
 import { FormSection } from "#/components/ui/form-section";
 
 // 参考サイト・市場価格の遅延表示セクション(#588)。銘柄に属する参考情報で、
-// DrunkWineForm が新規・編集の両方で使う。TastingList / SightingList と同じ形で
+// DrunkWineForm が新規・編集の両方で使う。EncounterList と同じ形で
 // 一覧は常に見せ、入力欄だけを追加ボタン式にする。値があるときもいきなり
 // 入力フォームを出さない(空のときと同様のボタンで追加する)。
 //
-// TastingList 等と違い保存は銘柄フォームの「記録する/更新する」に載るため、
+// EncounterList と違い保存は銘柄フォームの「記録する/更新する」に載るため、
 // ここは表示の出し分けだけを持ち、値の state は親(DrunkWineForm)が持つ。
 // 展開後の入力UI自体は WineReferencesEditor に寄せる(出し分けをエディタ側に
 // 書くと単体テストの対象が混ざるため)。
