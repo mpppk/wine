@@ -178,7 +178,7 @@ void _updateCoversSightingFields;
  * memo の上限は飲用側の 2000 を採る(目撃側の 1000 では、移送された飲用メモの
  * 編集が「長すぎる」で弾かれてしまうため)。
  */
-export const wineEncounterFields = {
+const wineEncounterFields = {
 	/** この回に飲んだか */
 	drank: z.boolean(),
 	/** 出会った日 "YYYY-MM-DD"。覚えていない場合は未指定 */

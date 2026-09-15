@@ -46,9 +46,11 @@ import {
 	type CreateEntrySightingInput,
 	type CreateWineEncounterInput,
 	type CreateWineSightingInput,
+	createWineEncounterInput,
 	MAX_PHOTOS_PER_IMPORT_BATCH,
 	type UpdateWineEncounterInput,
 	type UpdateWineSightingInput,
+	updateWineEncounterInput,
 } from "#/lib/place/schema";
 import { prepareNewPlace } from "#/lib/services/place-service";
 import { countryForRegion, getCountry } from "#/lib/wine/countries";
@@ -827,17 +829,22 @@ export async function listWineEncounters(
  * 既存の銘柄に体験記録を1件足す。`newPlace` が来たら場所も**同じ batch** で作る
  * (銘柄の新規登録・一括登録と同じ形)。場所だけ作られて記録が入らない、あるいは
  * その逆の中途半端な状態を残さない。
+ *
+ * 入力は `createWineEncounterInput` が関門(形の単一情報源は place/schema.ts)。
+ * server fn・MCP は旧スキーマで検証済みの値を写し替えて渡すが、ここで改めて
+ * 統合後の形で検証する——経路ごとに条件を書き散らさない(#177 / #185 と同じ類型)。
  */
 export async function addWineEncounter(
 	userId: string,
 	drunkWineId: string,
 	input: CreateWineEncounterInput,
 ): Promise<DrunkWineEntry> {
+	const parsed = createWineEncounterInput.parse(input);
 	await assertOwnsDrunkWine(userId, drunkWineId);
-	await assertOwnsEncounterRefs(userId, input);
+	await assertOwnsEncounterRefs(userId, parsed);
 	// 重複名の関門は prepareNewPlace(場所を作る全経路の共通入口)が持つ。
-	const newPlace = input.newPlace
-		? await prepareNewPlace(userId, input.newPlace)
+	const newPlace = parsed.newPlace
+		? await prepareNewPlace(userId, parsed.newPlace)
 		: null;
 	const statements: BatchStatement[] = [];
 	if (newPlace) statements.push(db.insert(place).values(newPlace));
@@ -847,7 +854,7 @@ export async function addWineEncounter(
 				userId,
 				drunkWineId,
 				// placeId と newPlace は zod が排他にしているので上書きの衝突は無い
-				newPlace ? { ...input, placeId: newPlace.id } : input,
+				newPlace ? { ...parsed, placeId: newPlace.id } : parsed,
 			),
 		),
 	);
@@ -921,7 +928,12 @@ export async function updateWineEncounter(
 	userId: string,
 	input: UpdateWineEncounterInput,
 ): Promise<DrunkWineEntry> {
-	const { id, newPlace: newPlaceInput, ...patch } = input;
+	// 追加時と同じく統合後の形で検証する(関門は place/schema.ts)。
+	const {
+		id,
+		newPlace: newPlaceInput,
+		...patch
+	} = updateWineEncounterInput.parse(input);
 	const target = await findOwnedEncounter(userId, id);
 	await assertOwnsEncounterRefs(userId, patch);
 	const newPlace = newPlaceInput
