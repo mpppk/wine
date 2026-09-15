@@ -5,6 +5,7 @@ import {
 	createDrunkWineInput,
 	PRICE_MAX,
 	PRICE_MIN,
+	wineTastingFields,
 } from "#/lib/drunk-wine/schema";
 import { PLACE_KIND_IDS } from "./place";
 
@@ -167,6 +168,73 @@ void _updateCoversPlaceFields;
 void _updateCoversSightingFields;
 
 /**
+ * 体験記録(wine_encounter)の入力バリデーション(Issue #606)。
+ *
+ * 旧 wineTastingFields(飲用)と wineSightingFields(目撃)を1つに統合したもの。
+ * place と wine_encounter が同じ入力に同居するため、循環 import を避ける配置は
+ * place/schema.ts 側に寄せる現状の判断を踏襲する(createDrunkWineWithSightingInput
+ * と同じ理由)。旧2つのフィールド定義は互換アダプタ(server fn・MCP)が使うため残す。
+ *
+ * memo の上限は飲用側の 2000 を採る(目撃側の 1000 では、移送された飲用メモの
+ * 編集が「長すぎる」で弾かれてしまうため)。
+ */
+const wineEncounterFields = {
+	/** この回に飲んだか */
+	drank: z.boolean(),
+	/** 出会った日 "YYYY-MM-DD"。覚えていない場合は未指定 */
+	occurredOn: calendarDateSchema.optional(),
+	/** 1–5。drank=1 のときだけ意味を持つ */
+	rating: wineTastingFields.rating,
+	// 価格は「その場での売値」。店ごとに違うのが当たり前なので体験記録側に持つ
+	price: wineSightingFields.price,
+	memo: wineTastingFields.memo,
+	placeId: wineSightingFields.placeId,
+	batchId: wineSightingFields.batchId,
+	/** バッチ内の何枚目の写真で出会ったか(0始まり) */
+	photoIndex: wineSightingFields.photoIndex,
+	/**
+	 * そのワインが写っていたバッチ写真の番号の一覧(#574)。`photoIndex`(先頭1枚の
+	 * 後方互換)と併存する。
+	 */
+	photoIndexes: wineSightingFields.photoIndexes,
+};
+
+/**
+ * 体験記録の追加。`newPlace` で**その場の場所の新規作成**も受ける。
+ * 場所は「既存の選択」と「その場で新規作成」の排他(createWineSightingInput と同じ規則)。
+ */
+export const createWineEncounterInput = z
+	.object({ ...wineEncounterFields, newPlace: createPlaceInput.optional() })
+	.refine(placeChoiceIsExclusive, PLACE_CHOICE_ERROR);
+
+/**
+ * 体験記録の更新。`newPlace` を指定すると場所を作ってその記録に紐付ける。
+ *
+ * drank は更新対象に含めない(旧 updateWineTasting / updateWineSighting が
+ * 「飲用/目撃であること」を変えなかったのと同じく、体験の種類は作り直しで変える)。
+ */
+export const updateWineEncounterInput = z
+	.object({
+		id: z.string().min(1).max(80),
+		occurredOn: wineEncounterFields.occurredOn.nullable().optional(),
+		rating: wineEncounterFields.rating.nullable().optional(),
+		price: wineEncounterFields.price.nullable().optional(),
+		memo: wineEncounterFields.memo.nullable().optional(),
+		placeId: wineEncounterFields.placeId.nullable().optional(),
+		newPlace: createPlaceInput.optional(),
+		batchId: wineEncounterFields.batchId.nullable().optional(),
+		photoIndex: wineEncounterFields.photoIndex.nullable().optional(),
+		photoIndexes: wineEncounterFields.photoIndexes.nullable().optional(),
+	})
+	.refine(placeChoiceIsExclusive, PLACE_CHOICE_ERROR);
+
+const _updateCoversEncounterFields: Record<
+	keyof Omit<typeof wineEncounterFields, "drank"> | "id",
+	unknown
+> = updateWineEncounterInput.shape;
+void _updateCoversEncounterFields;
+
+/**
  * 銘柄 + 飲用記録 + 目撃記録をまとめて作る入力(#495)。
  *
  * **`createDrunkWineInput` の隣(drunk-wine/schema.ts)には置けない**。目撃記録の
@@ -186,6 +254,8 @@ export type CreatePlaceInput = z.infer<typeof createPlaceInput>;
 export type UpdatePlaceInput = z.infer<typeof updatePlaceInput>;
 export type CreateWineSightingInput = z.infer<typeof createWineSightingInput>;
 export type UpdateWineSightingInput = z.infer<typeof updateWineSightingInput>;
+export type CreateWineEncounterInput = z.infer<typeof createWineEncounterInput>;
+export type UpdateWineEncounterInput = z.infer<typeof updateWineEncounterInput>;
 export type CreateEntrySightingInput = z.infer<typeof createEntrySightingInput>;
 export type CreateDrunkWineWithSightingInput = z.infer<
 	typeof createDrunkWineWithSightingInput

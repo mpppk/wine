@@ -1,13 +1,7 @@
 import { env } from "cloudflare:workers";
 import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
-import {
-	drunkWine,
-	importBatch,
-	place,
-	wineSighting,
-	wineTasting,
-} from "#/db/schema";
+import { drunkWine, importBatch, place, wineEncounter } from "#/db/schema";
 import type { LabelPrice, LabelReferenceLink } from "#/lib/ai/label-extraction";
 import {
 	type PhotoKind,
@@ -50,9 +44,13 @@ import { type LogFields, logError, logInfo, logWarn } from "#/lib/logger";
 import {
 	type CreateDrunkWineWithSightingInput,
 	type CreateEntrySightingInput,
+	type CreateWineEncounterInput,
 	type CreateWineSightingInput,
+	createWineEncounterInput,
 	MAX_PHOTOS_PER_IMPORT_BATCH,
+	type UpdateWineEncounterInput,
 	type UpdateWineSightingInput,
+	updateWineEncounterInput,
 } from "#/lib/place/schema";
 import { prepareNewPlace } from "#/lib/services/place-service";
 import { countryForRegion, getCountry } from "#/lib/wine/countries";
@@ -66,12 +64,17 @@ import {
 import type { RegionId } from "#/lib/wine/types";
 
 // マイセラーのサービス層。Webのserver fnとMCPツールの共通入口で、
-// D1(drunk_wine / wine_tasting)とR2(写真)への薄い橋渡しに徹する。
+// D1(drunk_wine / wine_encounter)とR2(写真)への薄い橋渡しに徹する。
 // AOP・品種は静的マスタ参照(FKなし)のため、ここで存在検証する。
 //
-// 所有状態(status)と飲用履歴(wine_tasting)は直交する2軸で、互いに自動連動しない
-// (Issue #195)。唯一の例外は「飲んだ」操作(markWineDrunk)で、飲用記録の追加と
-// status='finished' を1操作としてここに閉じている。
+// 所有状態(status)と体験履歴(wine_encounter)は直交する2軸で、互いに自動連動しない
+// (Issue #195 / #606)。唯一の例外は「飲んだ」操作(markWineDrunk)で、drank=1 の
+// 体験記録の追加と status='finished' を1操作としてここに閉じている。
+//
+// 旧 wine_tasting / wine_sighting への読み書きは全廃した(0040 で wine_encounter へ
+// 移送済み)。既存の server fn・MCP が使う旧関数名(listWineTastings 等)は互換
+// アダプタとして残し、内部では drank 条件付きで wine_encounter を読む
+// (listWineTastings は drank=1、listWineSightings は drank=0 を返す)。
 
 /**
  * `inArray(...)` に積む id の1文あたりの上限。**件数が実行時に決まる経路は
@@ -87,14 +90,14 @@ export interface DrunkWineEntry {
 	id: string;
 	name: string;
 	status: WineStatus;
-	/** 最新の飲用記録の飲んだ日。飲用記録が無い/全件日付未入力なら null */
+	/** 最新の飲用回の日。飲用記録が無い/全件日付未入力なら null */
 	lastDrankOn: string | null;
 	/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
 	tastingCount: number;
-	/** 最新の目撃記録の見かけた日。目撃記録が無い/全件日付未入力なら null */
-	lastSeenOn: string | null;
-	/** 目撃記録の件数。0 なら「どこでも見かけていない」 */
-	sightingCount: number;
+	/** 最新の体験記録の日。体験記録が無い/全件日付未入力なら null */
+	lastEncounteredOn: string | null;
+	/** 体験記録の件数。0 なら「どこでも出会っていない」 */
+	encounterCount: number;
 	aopId: string | null;
 	/** AOP紐付け時のみ。静的マスタから導出 */
 	aopNameJa: string | null;
@@ -149,6 +152,10 @@ export interface DrunkWineEntry {
 	updatedAt: number;
 }
 
+/**
+ * 旧飲用記録の表示形。互換アダプタ(listWineTastings 等)が wine_encounter の
+ * drank=1 の行から組み立てる。UI は無変更(PR2 で Encounter 側へ統合する)。
+ */
 export interface WineTastingEntry {
 	id: string;
 	drankOn: string | null;
@@ -158,6 +165,43 @@ export interface WineTastingEntry {
 	updatedAt: number;
 }
 
+/**
+ * 体験記録1件の表示形。「そのワインに出会った1回」で、飲んだかどうかは drank。
+ * 旧 WineTastingEntry(drank=1 の射影)と旧 WineSightingEntry(drank=0 の射影)を
+ * 1つに統合したもの。PR2 の EncounterList / 詳細の時系列がこの形で読む。
+ */
+export interface WineEncounterEntry {
+	id: string;
+	/** この回に飲んだか */
+	drank: boolean;
+	occurredOn: string | null;
+	rating: number | null;
+	price: number | null;
+	memo: string | null;
+	placeId: string | null;
+	/** 場所の表示名。placeId が無い/場所が消された場合は null */
+	placeName: string | null;
+	batchId: string | null;
+	photoIndex: number | null;
+	/**
+	 * 出会ったときの写真(一括登録のバッチ写真)の相対URL。手で足した体験記録や、
+	 * 写真の保存に失敗したバッチでは null。**後方互換の先頭1枚**で、新規の表示は
+	 * `photoUrls`(対応写真のすべて)を見る。
+	 */
+	photoUrl: string | null;
+	/**
+	 * そのワインが写っていた写真の相対URLの一覧(#574)。AIの画像-ワイン対応の
+	 * すべてで、順序は登録時の番号順。範囲外の番号は落とすので空にもなる。
+	 */
+	photoUrls: string[];
+	createdAt: number;
+	updatedAt: number;
+}
+
+/**
+ * 旧目撃記録の表示形。互換アダプタ(listWineSightings 等)が wine_encounter の
+ * drank=0 の行から組み立てる。UI は無変更(PR2 で Encounter 側へ統合する)。
+ */
 export interface WineSightingEntry {
 	id: string;
 	placeId: string | null;
@@ -191,13 +235,12 @@ type DrunkWineRow = typeof drunkWine.$inferSelect & {
 	lastRating: number | null;
 	lastMemo: string | null;
 };
-type WineTastingRow = typeof wineTasting.$inferSelect;
 /**
- * 目撃記録の行に、表示用の場所名と由来バッチの写真キー配列(いずれも LEFT JOIN で
+ * 体験記録の行に、表示用の場所名と由来バッチの写真キー配列(いずれも LEFT JOIN で
  * 引く)を足したもの。写真は「バッチの photoKeys の photoIndex 番目」なので、
  * 行だけでは URL を組み立てられない。
  */
-type WineSightingRow = typeof wineSighting.$inferSelect & {
+type WineEncounterRow = typeof wineEncounter.$inferSelect & {
 	placeName: string | null;
 	batchPhotoKeys: string[] | null;
 };
@@ -237,8 +280,8 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		status: row.status,
 		lastDrankOn: row.lastDrankOn,
 		tastingCount: row.tastingCount,
-		lastSeenOn: row.lastSeenOn,
-		sightingCount: row.sightingCount,
+		lastEncounteredOn: row.lastEncounteredOn,
+		encounterCount: row.encounterCount,
 		// 退役ID(改名前のスラッグ)で保存された行も、現行IDとして返す。地図のハイライトや
 		// AOP ページへのリンクが現行のマスタと突き合わせられるようにするため。
 		aopId: aop?.id ?? row.aopId,
@@ -265,24 +308,13 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 	};
 }
 
-function toTastingEntry(row: WineTastingRow): WineTastingEntry {
-	return {
-		id: row.id,
-		drankOn: row.drankOn,
-		rating: row.rating,
-		memo: row.memo,
-		createdAt: row.createdAt.getTime(),
-		updatedAt: row.updatedAt.getTime(),
-	};
-}
-
 /**
- * 目撃記録が参照するバッチ写真の番号の一覧(#574)。保存値の `photo_indexes` を
+ * 体験記録が参照するバッチ写真の番号の一覧(#574)。保存値の `photo_indexes` を
  * 優先し、NULL の従来行は `photo_index`(先頭1枚)へ退避する。整数以外・範囲外は
  * 落とす(存在しないキーの URL を作るとリンク切れの画像が並ぶ)。重複を潰して
  * 昇順に並べる(解析の `normalizePhotoIndexes` と同じ形)。
  */
-function sightingPhotoIndexes(row: {
+function encounterPhotoIndexes(row: {
 	photoIndex: number | null;
 	photoIndexes: number[] | null;
 }): number[] {
@@ -299,80 +331,108 @@ function sightingPhotoIndexes(row: {
 	return [...out].sort((a, b) => a - b);
 }
 
-function toSightingEntry(row: WineSightingRow): WineSightingEntry {
+function toEncounterEntry(row: WineEncounterRow): WineEncounterEntry {
 	// 由来写真は「バッチの photoKeys の photoIndexes 番目」。バッチが無い(手で足した
-	// 目撃記録)・写真をまだ保存していない・番号が範囲外のいずれでも、その写真は
+	// 体験記録)・写真をまだ保存していない・番号が範囲外のいずれでも、その写真は
 	// 落とす。`photoUrl` は先頭1枚の後方互換。
-	const photoUrls = sightingPhotoIndexes(row)
+	const photoUrls = encounterPhotoIndexes(row)
 		.map((index) => row.batchPhotoKeys?.[index])
 		.filter((key): key is string => !!key)
 		.map(imagePathForKey);
 	const photoUrl = photoUrls[0] ?? null;
 	return {
 		id: row.id,
+		drank: row.drank,
+		occurredOn: row.occurredOn,
+		rating: row.rating,
+		price: row.price,
+		memo: row.memo,
 		placeId: row.placeId,
 		placeName: row.placeName,
 		batchId: row.batchId,
 		photoIndex: row.photoIndex,
 		photoUrl,
 		photoUrls,
-		seenOn: row.seenOn,
-		price: row.price,
-		memo: row.memo,
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
 }
 
+/**
+ * 互換アダプタ用の射影。drank=0 の体験記録を旧目撃記録の形で返す。
+ * 呼び出し側(getImportBatchDetail 等)が drank=0 で絞っていることが前提。
+ */
+function toSightingEntry(row: WineEncounterRow): WineSightingEntry {
+	const encounter = toEncounterEntry(row);
+	return {
+		id: encounter.id,
+		placeId: encounter.placeId,
+		placeName: encounter.placeName,
+		batchId: encounter.batchId,
+		photoIndex: encounter.photoIndex,
+		photoUrl: encounter.photoUrl,
+		photoUrls: encounter.photoUrls,
+		seenOn: encounter.occurredOn,
+		price: encounter.price,
+		memo: encounter.memo,
+		createdAt: encounter.createdAt,
+		updatedAt: encounter.updatedAt,
+	};
+}
+
 // ---- 集計キャッシュの再計算 -----------------------------------------------
-// 飲用記録を書き換えるすべての経路が、変更文と同じ db.batch にこの UPDATE を積む。
+// 体験記録を書き換えるすべての経路が、変更文と同じ db.batch にこの UPDATE を積む。
 // D1 の batch は暗黙トランザクションで文を順次実行するため、この UPDATE は先行の
 // INSERT/DELETE の結果を見る。
 //
 // 加算・減算(quiz-service の `col + 1` / `max(0, col - 1)`)ではなく全再計算にする:
-// last_drank_on は MAX なので、削除や日付変更で「次に大きい値」へ戻す必要があり
-// incremental 更新では原理的に表現できない。全再計算なら冪等で、マイグレーションの
-// バックフィルと完全に同じ式を使え、整合が崩れても打ち直せば復旧する。
+// last_drank_on / last_encountered_on は MAX なので、削除や日付変更で「次に大きい値」へ
+// 戻す必要があり incremental 更新では原理的に表現できない。全再計算なら冪等で、
+// マイグレーションのバックフィルと完全に同じ式を使え、整合が崩れても打ち直せば復旧する。
 
 /** 「最新の飲用記録」の定義。SQLite は DESC で NULL を先頭に置くため、
- *  第1キーで日付未入力を末尾へ落とす。これで「最新行の drank_on」と
- *  「max(drank_on)」が常に一致する。相関サブクエリ内では下記のエイリアスで修飾する。 */
-const LATEST_TASTING_ORDER = sql`order by t.drank_on is null, t.drank_on desc, t.created_at desc`;
+ *  第1キーで日付未入力を末尾へ落とす。これで「最新行の occurred_on」と
+ *  「max(occurred_on where drank=1)」が常に一致する。相関サブクエリ内では下記のエイリアスで修飾する。
+ *
+ * created_at は ms 精度のため同一msがありうる(連続タップ等)。最終キーの rowid desc で
+ * 挿入順に倒し、同msでも後から入れた行を最新にする。無ければ同msの2件の順序が
+ * 未定義になり、「同じ日の2件」のテストが運で落ちる。 */
+const LATEST_DRANK_ENCOUNTER_ORDER = sql`order by e.occurred_on is null, e.occurred_on desc, e.created_at desc, e.rowid desc`;
 
 /**
- * 最新の飲用記録の1列を引く相関サブクエリ。
+ * 最新の飲用記録(drank=1 の体験記録)の1列を引く相関サブクエリ。
  *
  * **テーブル修飾を自前で書く必要がある**。drizzle は SELECT の `sql` テンプレート内で
  * 列参照をテーブル名なし(`"rating"`, `"id"`)に描画するため、そのまま書くと内側の
- * wine_tasting と外側の drunk_wine で同名列(`id`)が衝突し、SQLite は内側スコープを
- * 優先して `wine_tasting.drunk_wine_id = wine_tasting.id` という常に偽の条件になる
+ * wine_encounter と外側の drunk_wine で同名列(`id`)が衝突し、SQLite は内側スコープを
+ * 優先して `wine_encounter.drunk_wine_id = wine_encounter.id` という常に偽の条件になる
  * (静かに null が返るだけでエラーにならない)。UPDATE の SET 内では逆に完全修飾で
- * 描画されるため、同じ式でも文脈によって意味が変わる。エイリアス `t` と
+ * 描画されるため、同じ式でも文脈によって意味が変わる。エイリアス `e` と
  * `"drunk_wine".id` で明示すれば、どちらの文脈でも正しく相関する。
  */
-function latestTastingValue<T extends number | string>(
-	column: typeof wineTasting.rating | typeof wineTasting.memo,
+function latestDrankEncounterValue<T extends number | string>(
+	column: typeof wineEncounter.rating | typeof wineEncounter.memo,
 ) {
-	return sql<T | null>`(select t.${sql.raw(column.name)} from ${wineTasting} t where t.drunk_wine_id = ${drunkWine}.id ${LATEST_TASTING_ORDER} limit 1)`;
+	return sql<T | null>`(select e.${sql.raw(column.name)} from ${wineEncounter} e where e.drunk_wine_id = ${drunkWine}.id and e.drank = 1 ${LATEST_DRANK_ENCOUNTER_ORDER} limit 1)`;
 }
 
-const TASTING_COUNT_EXPR = sql`(select count(*) from ${wineTasting} where ${wineTasting.drunkWineId} = ${drunkWine.id})`;
-const MAX_DRANK_ON_EXPR = sql`(select max(${wineTasting.drankOn}) from ${wineTasting} where ${wineTasting.drunkWineId} = ${drunkWine.id})`;
-const SIGHTING_COUNT_EXPR = sql`(select count(*) from ${wineSighting} where ${wineSighting.drunkWineId} = ${drunkWine.id})`;
-const MAX_SEEN_ON_EXPR = sql`(select max(${wineSighting.seenOn}) from ${wineSighting} where ${wineSighting.drunkWineId} = ${drunkWine.id})`;
+const TASTING_COUNT_EXPR = sql`(select count(*) from ${wineEncounter} where ${wineEncounter.drunkWineId} = ${drunkWine.id} and ${wineEncounter.drank} = 1)`;
+const MAX_DRANK_ON_EXPR = sql`(select max(${wineEncounter.occurredOn}) from ${wineEncounter} where ${wineEncounter.drunkWineId} = ${drunkWine.id} and ${wineEncounter.drank} = 1)`;
+const ENCOUNTER_COUNT_EXPR = sql`(select count(*) from ${wineEncounter} where ${wineEncounter.drunkWineId} = ${drunkWine.id})`;
+const MAX_ENCOUNTERED_ON_EXPR = sql`(select max(${wineEncounter.occurredOn}) from ${wineEncounter} where ${wineEncounter.drunkWineId} = ${drunkWine.id})`;
 
 /**
- * 飲用記録・目撃記録から集計キャッシュを再計算する UPDATE を組み立てる(実行はしない。
+ * 体験記録から集計キャッシュを再計算する UPDATE を組み立てる(実行はしない。
  * 呼び出し側が db.batch に積む)。
  *
  * 非正規化して持つのは MAX と COUNT だけ(last_drank_on / tasting_count と
- * last_seen_on / sighting_count)。評価・メモは「最新1件の値」なので集計ではなく、
+ * last_encountered_on / encounter_count)。評価・メモは「最新1件の値」なので集計ではなく、
  * 読み取り時に selectEntry の相関サブクエリで導出する(#205)。
  *
- * **飲用側だけ・目撃側だけを触る経路でも4列すべてを再計算する**。片方だけ更新する
- * 変種を作ると「どの経路がどの列を保証するか」を呼び出し側が覚える必要が生まれ、
- * 経路が増えるたびに漏れる(#177 / #185 と同じ類型)。全再計算は冪等なので、
- * 関係ない列は同じ値で書き戻されるだけで害がない。
+ * **どの経路でも4列すべてを再計算する**。列ごとの変種を作ると「どの経路がどの列を
+ * 保証するか」を呼び出し側が覚える必要が生まれ、経路が増えるたびに漏れる
+ * (#177 / #185 と同じ類型)。全再計算は冪等なので、関係ない列は同じ値で
+ * 書き戻されるだけで害がない。
  *
  * extra で status も同時に変えられる(markWineDrunk が使う)。
  */
@@ -386,19 +446,19 @@ function recomputeDrunkWineAggregates(
 		.set({
 			tastingCount: TASTING_COUNT_EXPR,
 			lastDrankOn: MAX_DRANK_ON_EXPR,
-			sightingCount: SIGHTING_COUNT_EXPR,
-			lastSeenOn: MAX_SEEN_ON_EXPR,
+			encounterCount: ENCOUNTER_COUNT_EXPR,
+			lastEncounteredOn: MAX_ENCOUNTERED_ON_EXPR,
 			...(extra?.status ? { status: extra.status } : {}),
 		})
 		.where(and(eq(drunkWine.id, drunkWineId), eq(drunkWine.userId, userId)));
 }
 
 /**
- * エントリを読み直す SELECT。最新の飲用記録の評価・メモを相関サブクエリで載せる。
+ * エントリを読み直す SELECT。最新の飲用記録(drank=1)の評価・メモを相関サブクエリで載せる。
  *
  * 列を増やして非正規化する案も採れるが、そうすると「最新1件の射影」を書き戻す
  * 経路がまた増え、#205 で消したはずの二重管理が名前を変えて戻ってくる。
- * (drunk_wine_id, drank_on) の複合インデックスが効くので、相関サブクエリでも
+ * (drunk_wine_id, drank, occurred_on) の複合インデックスが効くので、相関サブクエリでも
  * 1行あたりインデックス参照2回で済む。
  *
  * 変更系は db.batch の最後にこれを積んで最終状態を得る(UPDATE の RETURNING では
@@ -408,8 +468,8 @@ function selectEntry(userId: string, id: string) {
 	return db
 		.select({
 			...getTableColumns(drunkWine),
-			lastRating: latestTastingValue<number>(wineTasting.rating),
-			lastMemo: latestTastingValue<string>(wineTasting.memo),
+			lastRating: latestDrankEncounterValue<number>(wineEncounter.rating),
+			lastMemo: latestDrankEncounterValue<string>(wineEncounter.memo),
 		})
 		.from(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
@@ -579,14 +639,17 @@ export async function createDrunkWine(
 	// 場所: 既存の指定は所有権を確認し、新規は同じ batch で作る(一括登録と同じ形)。
 	// 新規作成は prepareNewPlace(重複名の関門)を通す。
 	if (sighting?.placeId) {
-		await assertOwnsSightingRefs(userId, { placeId: sighting.placeId });
+		await assertOwnsEncounterRefs(userId, { placeId: sighting.placeId });
 	}
 	const newPlace = sighting?.newPlace
 		? await prepareNewPlace(userId, sighting.newPlace)
 		: null;
 
-	// 銘柄・飲用記録・目撃記録を1トランザクションで作る(写真と違いR2キーの物理制約が
+	// 銘柄・体験記録を1トランザクションで作る(写真と違いR2キーの物理制約が
 	// 無い)。最後の SELECT から最終状態を得る。
+	//
+	// tasting + sighting の同時指定(#495)は体験記録2行になる。機械的に1行へ畳むと、
+	// 利用者が別の出来事として記録したものを潰しうるため、移送と同じくマージしない。
 	const statements: BatchStatement[] = [];
 	if (newPlace) {
 		statements.push(db.insert(place).values(newPlace));
@@ -594,18 +657,26 @@ export async function createDrunkWine(
 	statements.push(db.insert(drunkWine).values(values));
 	if (tasting) {
 		statements.push(
-			db.insert(wineTasting).values(buildTastingValues(userId, id, tasting)),
+			db.insert(wineEncounter).values(
+				buildEncounterValues(userId, id, {
+					drank: true,
+					occurredOn: tasting.drankOn,
+					rating: tasting.rating,
+					memo: tasting.memo,
+				}),
+			),
 		);
 	}
 	if (sighting) {
 		const placeId = sighting.placeId ?? newPlace?.id ?? null;
 		statements.push(
-			db.insert(wineSighting).values(
-				buildSightingValues(userId, id, {
+			db.insert(wineEncounter).values(
+				buildEncounterValues(userId, id, {
+					drank: false,
+					occurredOn: sighting.seenOn,
+					price: sighting.price,
+					memo: sighting.memo,
 					...(placeId ? { placeId } : {}),
-					...(sighting.seenOn ? { seenOn: sighting.seenOn } : {}),
-					...(sighting.price != null ? { price: sighting.price } : {}),
-					...(sighting.memo ? { memo: sighting.memo } : {}),
 				}),
 			),
 		);
@@ -659,12 +730,15 @@ export async function updateDrunkWine(
 	);
 }
 
-// ---- 飲用記録 -------------------------------------------------------------
+// ---- 体験記録 -------------------------------------------------------------
+// 所有権確認 → 変更文 + 集計再計算 + 読み直しを1つの db.batch に積む。
+// 別ファイルに切らずここに置くのは、recomputeDrunkWineAggregates / selectEntry /
+// entryFromBatch といったモジュール私有のヘルパと同じ batch に積む必要があるため。
 
-function buildTastingValues(
+function buildEncounterValues(
 	userId: string,
 	drunkWineId: string,
-	input: CreateWineTastingInput,
+	input: CreateWineEncounterInput,
 	/** 一括登録由来の場合のバッチID。手動追加は未指定(null)(#393)。 */
 	batchId: string | null = null,
 ) {
@@ -672,137 +746,28 @@ function buildTastingValues(
 		id: crypto.randomUUID(),
 		drunkWineId,
 		userId,
-		batchId,
-		drankOn: input.drankOn ?? null,
+		placeId: input.placeId ?? null,
+		batchId: input.batchId ?? batchId,
+		photoIndex: input.photoIndex ?? null,
+		// `photoIndex`(先頭1枚の後方互換)と併存する(#574)。空配列は送られて
+		// こない(クライアントが省略する)が、来たらそのまま残す。
+		photoIndexes: input.photoIndexes ?? null,
+		occurredOn: input.occurredOn ?? null,
+		drank: input.drank,
 		rating: input.rating ?? null,
+		price: input.price ?? null,
 		memo: input.memo ?? null,
 	};
 }
 
-export async function listWineTastings(
-	userId: string,
-	drunkWineId: string,
-): Promise<WineTastingEntry[]> {
-	await assertOwnsDrunkWine(userId, drunkWineId);
-	const rows = await db
-		.select()
-		.from(wineTasting)
-		.where(
-			and(
-				eq(wineTasting.drunkWineId, drunkWineId),
-				eq(wineTasting.userId, userId),
-			),
-		)
-		.orderBy(
-			sql`${wineTasting.drankOn} is null`,
-			desc(wineTasting.drankOn),
-			desc(wineTasting.createdAt),
-		);
-	return rows.map(toTastingEntry);
-}
-
-export async function addWineTasting(
-	userId: string,
-	drunkWineId: string,
-	input: CreateWineTastingInput,
-): Promise<DrunkWineEntry> {
-	await assertOwnsDrunkWine(userId, drunkWineId);
-	return entryFromBatch(
-		await db.batch([
-			db
-				.insert(wineTasting)
-				.values(buildTastingValues(userId, drunkWineId, input)),
-			recomputeDrunkWineAggregates(userId, drunkWineId),
-			selectEntry(userId, drunkWineId),
-		]),
-	);
-}
-
-/** 所有する飲用記録を引く。存在しない/他ユーザは同一エラー。 */
-async function findOwnedTasting(userId: string, tastingId: string) {
-	const [row] = await db
-		.select({
-			id: wineTasting.id,
-			drunkWineId: wineTasting.drunkWineId,
-		})
-		.from(wineTasting)
-		.where(and(eq(wineTasting.id, tastingId), eq(wineTasting.userId, userId)));
-	if (!row) throw new NotFoundError("Entry not found");
-	return row;
-}
-
-/**
- * 飲用記録1件を更新する文を組み立てる。全キーが未指定なら null を返す
- * (drizzle は空の SET を "No values to set" で拒否するため)。集計の再計算だけは
- * 呼び出し側が常に実行する — 冪等なので、整合が崩れたときの復旧手段になる。
- */
-function buildTastingUpdate(
-	userId: string,
-	tastingId: string,
-	patch: {
-		drankOn?: string | null;
-		rating?: number | null;
-		memo?: string | null;
-	},
-) {
-	if (
-		patch.drankOn === undefined &&
-		patch.rating === undefined &&
-		patch.memo === undefined
-	) {
-		return null;
-	}
-	return db
-		.update(wineTasting)
-		.set({ drankOn: patch.drankOn, rating: patch.rating, memo: patch.memo })
-		.where(and(eq(wineTasting.id, tastingId), eq(wineTasting.userId, userId)));
-}
-
-export async function updateWineTasting(
-	userId: string,
-	input: UpdateWineTastingInput,
-): Promise<DrunkWineEntry> {
-	const { id, ...patch } = input;
-	const target = await findOwnedTasting(userId, id);
-	const update = buildTastingUpdate(userId, id, patch);
-	const recompute = recomputeDrunkWineAggregates(userId, target.drunkWineId);
-	const read = selectEntry(userId, target.drunkWineId);
-	return entryFromBatch(
-		await db.batch(update ? [update, recompute, read] : [recompute, read]),
-	);
-}
-
-export async function deleteWineTasting(
-	userId: string,
-	tastingId: string,
-): Promise<DrunkWineEntry> {
-	const target = await findOwnedTasting(userId, tastingId);
-	return entryFromBatch(
-		await db.batch([
-			db
-				.delete(wineTasting)
-				.where(
-					and(eq(wineTasting.id, tastingId), eq(wineTasting.userId, userId)),
-				),
-			recomputeDrunkWineAggregates(userId, target.drunkWineId),
-			selectEntry(userId, target.drunkWineId),
-		]),
-	);
-}
-
-// ---- 目撃記録 -------------------------------------------------------------
-// 飲用記録と同じ形(所有権確認 → 変更文 + 集計再計算 + 読み直しを1つの db.batch)。
-// 別ファイルに切らずここに置くのは、recomputeDrunkWineAggregates / selectEntry /
-// entryFromBatch といったモジュール私有のヘルパと同じ batch に積む必要があるため。
-
 /**
  * placeId / batchId は FK があるだけでは他ユーザの行も指せてしまう(FK は所有者を
- * 見ない)。他人の place を指した目撃記録を作れると、一覧の placeName に他人の
+ * 見ない)。他人の place を指した体験記録を作れると、一覧の placeName に他人の
  * 店名が出て情報が漏れる。参照する前に必ず所有権を確認する。
  *
  * 存在しない/他ユーザは区別せず同一エラー(存在の探索を防ぐ規約)。
  */
-async function assertOwnsSightingRefs(
+async function assertOwnsEncounterRefs(
 	userId: string,
 	refs: { placeId?: string | null; batchId?: string | null },
 ): Promise<void> {
@@ -824,85 +789,72 @@ async function assertOwnsSightingRefs(
 	}
 }
 
-function buildSightingValues(
-	userId: string,
-	drunkWineId: string,
-	input: CreateWineSightingInput,
-) {
-	return {
-		id: crypto.randomUUID(),
-		drunkWineId,
-		userId,
-		placeId: input.placeId ?? null,
-		batchId: input.batchId ?? null,
-		photoIndex: input.photoIndex ?? null,
-		// `photoIndex`(先頭1枚の後方互換)と併存する(#574)。空配列は送られて
-		// こない(クライアントが省略する)が、来たらそのまま残す。
-		photoIndexes: input.photoIndexes ?? null,
-		seenOn: input.seenOn ?? null,
-		price: input.price ?? null,
-		memo: input.memo ?? null,
-	};
-}
-
 /**
- * 目撃記録の一覧。見かけた日の新しい順で、日付未入力は末尾(飲用記録の並びと同じ規約)。
- * 場所名は LEFT JOIN で引く — place が消えていても目撃した事実は残るので、
+ * 体験記録の一覧。出会った日の新しい順で、日付未入力は末尾。
+ * 場所名は LEFT JOIN で引く — place が消えていても出会った事実は残るので、
  * INNER JOIN にすると記録が一覧から消える。
  */
-export async function listWineSightings(
+export async function listWineEncounters(
 	userId: string,
 	drunkWineId: string,
-): Promise<WineSightingEntry[]> {
+	options: { drank?: boolean } = {},
+): Promise<WineEncounterEntry[]> {
 	await assertOwnsDrunkWine(userId, drunkWineId);
+	const conditions = [
+		eq(wineEncounter.drunkWineId, drunkWineId),
+		eq(wineEncounter.userId, userId),
+		...(options.drank !== undefined
+			? [eq(wineEncounter.drank, options.drank)]
+			: []),
+	];
 	const rows = await db
 		.select({
-			...getTableColumns(wineSighting),
+			...getTableColumns(wineEncounter),
 			placeName: place.name,
 			batchPhotoKeys: importBatch.photoKeys,
 		})
-		.from(wineSighting)
-		.leftJoin(place, eq(place.id, wineSighting.placeId))
-		.leftJoin(importBatch, eq(importBatch.id, wineSighting.batchId))
-		.where(
-			and(
-				eq(wineSighting.drunkWineId, drunkWineId),
-				eq(wineSighting.userId, userId),
-			),
-		)
+		.from(wineEncounter)
+		.leftJoin(place, eq(place.id, wineEncounter.placeId))
+		.leftJoin(importBatch, eq(importBatch.id, wineEncounter.batchId))
+		.where(and(...conditions))
 		.orderBy(
-			sql`${wineSighting.seenOn} is null`,
-			desc(wineSighting.seenOn),
-			desc(wineSighting.createdAt),
+			sql`${wineEncounter.occurredOn} is null`,
+			desc(wineEncounter.occurredOn),
+			desc(wineEncounter.createdAt),
 		);
-	return rows.map(toSightingEntry);
+	return rows.map(toEncounterEntry);
 }
 
 /**
- * 既存の銘柄に目撃記録を1件足す。`newPlace` が来たら場所も**同じ batch** で作る
+ * 既存の銘柄に体験記録を1件足す。`newPlace` が来たら場所も**同じ batch** で作る
  * (銘柄の新規登録・一括登録と同じ形)。場所だけ作られて記録が入らない、あるいは
  * その逆の中途半端な状態を残さない。
+ *
+ * 入力は `createWineEncounterInput` が関門(形の単一情報源は place/schema.ts)。
+ * server fn・MCP は旧スキーマで検証済みの値を写し替えて渡すが、ここで改めて
+ * 統合後の形で検証する——経路ごとに条件を書き散らさない(#177 / #185 と同じ類型)。
  */
-export async function addWineSighting(
+export async function addWineEncounter(
 	userId: string,
 	drunkWineId: string,
-	input: CreateWineSightingInput,
+	input: CreateWineEncounterInput,
 ): Promise<DrunkWineEntry> {
+	const parsed = createWineEncounterInput.parse(input);
 	await assertOwnsDrunkWine(userId, drunkWineId);
-	await assertOwnsSightingRefs(userId, input);
+	await assertOwnsEncounterRefs(userId, parsed);
 	// 重複名の関門は prepareNewPlace(場所を作る全経路の共通入口)が持つ。
-	const newPlace = input.newPlace
-		? await prepareNewPlace(userId, input.newPlace)
+	const newPlace = parsed.newPlace
+		? await prepareNewPlace(userId, parsed.newPlace)
 		: null;
 	const statements: BatchStatement[] = [];
 	if (newPlace) statements.push(db.insert(place).values(newPlace));
 	statements.push(
-		db.insert(wineSighting).values(
-			buildSightingValues(
+		db.insert(wineEncounter).values(
+			buildEncounterValues(
 				userId,
 				drunkWineId,
 				// placeId と newPlace は zod が排他にしているので上書きの衝突は無い
-				newPlace ? { ...input, placeId: newPlace.id } : input,
+				newPlace ? { ...parsed, placeId: newPlace.id } : parsed,
 			),
 		),
 	);
@@ -913,64 +865,81 @@ export async function addWineSighting(
 	);
 }
 
-/** 所有する目撃記録を引く。存在しない/他ユーザは同一エラー。 */
-async function findOwnedSighting(userId: string, sightingId: string) {
+/**
+ * 所有する体験記録を引く。存在しない/他ユーザは同一エラー。
+ * drank を指定すると種類の不一致も同一エラーにする(旧テーブルの分離と等価)。
+ */
+async function findOwnedEncounter(
+	userId: string,
+	encounterId: string,
+	expected?: { drank: boolean },
+) {
 	const [row] = await db
 		.select({
-			id: wineSighting.id,
-			drunkWineId: wineSighting.drunkWineId,
+			id: wineEncounter.id,
+			drunkWineId: wineEncounter.drunkWineId,
+			drank: wineEncounter.drank,
 		})
-		.from(wineSighting)
+		.from(wineEncounter)
 		.where(
-			and(eq(wineSighting.id, sightingId), eq(wineSighting.userId, userId)),
+			and(eq(wineEncounter.id, encounterId), eq(wineEncounter.userId, userId)),
 		);
 	if (!row) throw new NotFoundError("Entry not found");
+	if (expected && row.drank !== expected.drank) {
+		throw new NotFoundError("Entry not found");
+	}
 	return row;
 }
 
 /**
- * 目撃記録1件を更新する文を組み立てる。全キーが未指定なら null を返す
+ * 体験記録1件を更新する文を組み立てる。全キーが未指定なら null を返す
  * (drizzle は空の SET を "No values to set" で拒否するため)。集計の再計算だけは
  * 呼び出し側が常に実行する — 冪等なので、整合が崩れたときの復旧手段になる。
  */
-function buildSightingUpdate(
+function buildEncounterUpdate(
 	userId: string,
-	sightingId: string,
-	patch: Omit<UpdateWineSightingInput, "id">,
+	encounterId: string,
+	patch: Omit<UpdateWineEncounterInput, "id">,
 ) {
 	// undefined = 変更しない / null = クリア。undefinedキーはdrizzleが無視する
 	if (Object.values(patch).every((v) => v === undefined)) return null;
 	return db
-		.update(wineSighting)
+		.update(wineEncounter)
 		.set({
+			occurredOn: patch.occurredOn,
+			rating: patch.rating,
+			price: patch.price,
+			memo: patch.memo,
 			placeId: patch.placeId,
 			batchId: patch.batchId,
 			photoIndex: patch.photoIndex,
 			photoIndexes: patch.photoIndexes,
-			seenOn: patch.seenOn,
-			price: patch.price,
-			memo: patch.memo,
 		})
 		.where(
-			and(eq(wineSighting.id, sightingId), eq(wineSighting.userId, userId)),
+			and(eq(wineEncounter.id, encounterId), eq(wineEncounter.userId, userId)),
 		);
 }
 
 /**
- * 目撃記録1件を更新する。`newPlace` が来たら場所を作って `placeId` をそれに差し替える
+ * 体験記録1件を更新する。`newPlace` が来たら場所を作って `placeId` をそれに差し替える
  * ——追加時と同じく、場所の作成と記録の更新は同じ batch に積む。
  */
-export async function updateWineSighting(
+export async function updateWineEncounter(
 	userId: string,
-	input: UpdateWineSightingInput,
+	input: UpdateWineEncounterInput,
 ): Promise<DrunkWineEntry> {
-	const { id, newPlace: newPlaceInput, ...patch } = input;
-	const target = await findOwnedSighting(userId, id);
-	await assertOwnsSightingRefs(userId, patch);
+	// 追加時と同じく統合後の形で検証する(関門は place/schema.ts)。
+	const {
+		id,
+		newPlace: newPlaceInput,
+		...patch
+	} = updateWineEncounterInput.parse(input);
+	const target = await findOwnedEncounter(userId, id);
+	await assertOwnsEncounterRefs(userId, patch);
 	const newPlace = newPlaceInput
 		? await prepareNewPlace(userId, newPlaceInput)
 		: null;
-	const update = buildSightingUpdate(
+	const update = buildEncounterUpdate(
 		userId,
 		id,
 		// placeId と newPlace は zod が排他にしているので上書きの衝突は無い
@@ -989,17 +958,20 @@ export async function updateWineSighting(
 	);
 }
 
-export async function deleteWineSighting(
+export async function deleteWineEncounter(
 	userId: string,
-	sightingId: string,
+	encounterId: string,
 ): Promise<DrunkWineEntry> {
-	const target = await findOwnedSighting(userId, sightingId);
+	const target = await findOwnedEncounter(userId, encounterId);
 	return entryFromBatch(
 		await db.batch([
 			db
-				.delete(wineSighting)
+				.delete(wineEncounter)
 				.where(
-					and(eq(wineSighting.id, sightingId), eq(wineSighting.userId, userId)),
+					and(
+						eq(wineEncounter.id, encounterId),
+						eq(wineEncounter.userId, userId),
+					),
 				),
 			recomputeDrunkWineAggregates(userId, target.drunkWineId),
 			selectEntry(userId, target.drunkWineId),
@@ -1008,40 +980,129 @@ export async function deleteWineSighting(
 }
 
 /**
- * 「飲んだ」操作。飲用記録の追加と status='finished' を1操作で行う。
- * 本数を管理しない以上これが既定として自然で、ストックが残っている場合は
- * 編集画面から owned に戻せる。2軸を同時に動かす唯一の経路をここに閉じる。
- */
-export async function markWineDrunk(
-	userId: string,
-	drunkWineId: string,
-	input?: CreateWineTastingInput,
-): Promise<DrunkWineEntry> {
-	await assertOwnsDrunkWine(userId, drunkWineId);
-	const tasting: CreateWineTastingInput = {
-		...input,
-		drankOn: input?.drankOn ?? jstDayKey(new Date()),
-	};
-	return entryFromBatch(
-		await db.batch([
-			db
-				.insert(wineTasting)
-				.values(buildTastingValues(userId, drunkWineId, tasting)),
-			recomputeDrunkWineAggregates(userId, drunkWineId, { status: "finished" }),
-			selectEntry(userId, drunkWineId),
-		]),
-	);
-}
-
-/**
  * MCP のレガシー引数(register/update の drank_on / rating / memo)専用。
- * 「最新の飲用記録を in-place で更新する」— 新規追加はしない。MCP App の編集
- * フォームは保存のたびに update_drunk_wine を投げるため、追加にすると保存を
- * 押すたびに tasting_count が増えてしまう。
+ * 「最新の飲用記録(drank=1 の体験記録)を in-place で更新する」— 新規追加はしない。
+ * MCP App の編集フォームは保存のたびに update_drunk_wine を投げるため、追加にすると
+ * 保存を押すたびに tasting_count が増えてしまう。
  *
  * 飲用記録が0件のときは、非 null の値が1つでもあれば1件作る(全部 null なら no-op)。
  * null は「その列をクリア」の意で、行は消さない(旧セマンティクスは列のクリアで
  * あって記録の削除ではない)。
+ */
+export async function updateLatestDrankEncounter(
+	userId: string,
+	drunkWineId: string,
+	patch: {
+		occurredOn?: string | null;
+		rating?: number | null;
+		memo?: string | null;
+	},
+): Promise<DrunkWineEntry | null> {
+	await assertOwnsDrunkWine(userId, drunkWineId);
+	const [latest] = await db
+		.select({ id: wineEncounter.id })
+		.from(wineEncounter)
+		.where(
+			and(
+				eq(wineEncounter.drunkWineId, drunkWineId),
+				eq(wineEncounter.userId, userId),
+				eq(wineEncounter.drank, true),
+			),
+		)
+		.orderBy(
+			sql`${wineEncounter.occurredOn} is null`,
+			desc(wineEncounter.occurredOn),
+			desc(wineEncounter.createdAt),
+			// 同msの created_at が並んだときは後から入れた行を最新にする
+			// (LATEST_DRANK_ENCOUNTER_ORDER と同じ定義)。
+			sql`rowid desc`,
+		)
+		.limit(1);
+
+	if (!latest) {
+		const hasValue = [patch.occurredOn, patch.rating, patch.memo].some(
+			(v) => v !== undefined && v !== null,
+		);
+		if (!hasValue) return null;
+		return addWineEncounter(userId, drunkWineId, {
+			drank: true,
+			occurredOn: patch.occurredOn ?? undefined,
+			rating: patch.rating ?? undefined,
+			memo: patch.memo ?? undefined,
+		});
+	}
+
+	const update = buildEncounterUpdate(userId, latest.id, patch);
+	const recompute = recomputeDrunkWineAggregates(userId, drunkWineId);
+	const read = selectEntry(userId, drunkWineId);
+	return entryFromBatch(
+		await db.batch(update ? [update, recompute, read] : [recompute, read]),
+	);
+}
+
+// ---- 互換アダプタ(旧 server fn・MCP 用) --------------------------------------
+// 旧 wine_tasting / wine_sighting を読んでいた経路の互換層。UI は無変更のため、
+// server fn(listWineTastings 等)はこのままの形で残し、内部では drank 条件付きで
+// wine_encounter を読む(listWineTastings は drank=1、listWineSightings は
+// drank=0 を返す)。PR2 で UI 統合とともに server fn を統合 API へ寄せる。
+// 種類の不一致(drank=0 の行への飲用操作など)は旧テーブルの分離と等価に
+// NotFound として扱う。
+
+export async function listWineTastings(
+	userId: string,
+	drunkWineId: string,
+): Promise<WineTastingEntry[]> {
+	const encounters = await listWineEncounters(userId, drunkWineId, {
+		drank: true,
+	});
+	return encounters.map((e) => ({
+		id: e.id,
+		drankOn: e.occurredOn,
+		rating: e.rating,
+		memo: e.memo,
+		createdAt: e.createdAt,
+		updatedAt: e.updatedAt,
+	}));
+}
+
+export async function addWineTasting(
+	userId: string,
+	drunkWineId: string,
+	input: CreateWineTastingInput,
+): Promise<DrunkWineEntry> {
+	return addWineEncounter(userId, drunkWineId, {
+		drank: true,
+		occurredOn: input.drankOn,
+		rating: input.rating,
+		memo: input.memo,
+	});
+}
+
+export async function updateWineTasting(
+	userId: string,
+	input: UpdateWineTastingInput,
+): Promise<DrunkWineEntry> {
+	const { id, ...patch } = input;
+	await findOwnedEncounter(userId, id, { drank: true });
+	return updateWineEncounter(userId, {
+		id,
+		occurredOn: patch.drankOn,
+		rating: patch.rating,
+		memo: patch.memo,
+	});
+}
+
+export async function deleteWineTasting(
+	userId: string,
+	tastingId: string,
+): Promise<DrunkWineEntry> {
+	await findOwnedEncounter(userId, tastingId, { drank: true });
+	return deleteWineEncounter(userId, tastingId);
+}
+
+/**
+ * MCP のレガシー引数(register/update の drank_on / rating / memo)専用の
+ * 互換アダプタ。実体は updateLatestDrankEncounter。
  */
 export async function updateLatestWineTasting(
 	userId: string,
@@ -1052,40 +1113,100 @@ export async function updateLatestWineTasting(
 		memo?: string | null;
 	},
 ): Promise<DrunkWineEntry | null> {
+	return updateLatestDrankEncounter(userId, drunkWineId, {
+		occurredOn: patch.drankOn,
+		rating: patch.rating,
+		memo: patch.memo,
+	});
+}
+
+export async function listWineSightings(
+	userId: string,
+	drunkWineId: string,
+): Promise<WineSightingEntry[]> {
+	const encounters = await listWineEncounters(userId, drunkWineId, {
+		drank: false,
+	});
+	return encounters.map((e) => ({
+		id: e.id,
+		placeId: e.placeId,
+		placeName: e.placeName,
+		batchId: e.batchId,
+		photoIndex: e.photoIndex,
+		photoUrl: e.photoUrl,
+		photoUrls: e.photoUrls,
+		seenOn: e.occurredOn,
+		price: e.price,
+		memo: e.memo,
+		createdAt: e.createdAt,
+		updatedAt: e.updatedAt,
+	}));
+}
+
+export async function addWineSighting(
+	userId: string,
+	drunkWineId: string,
+	input: CreateWineSightingInput,
+): Promise<DrunkWineEntry> {
+	return addWineEncounter(userId, drunkWineId, {
+		drank: false,
+		occurredOn: input.seenOn,
+		price: input.price,
+		memo: input.memo,
+		placeId: input.placeId,
+		batchId: input.batchId,
+		photoIndex: input.photoIndex,
+		photoIndexes: input.photoIndexes,
+		newPlace: input.newPlace,
+	});
+}
+
+export async function updateWineSighting(
+	userId: string,
+	input: UpdateWineSightingInput,
+): Promise<DrunkWineEntry> {
+	const { id, newPlace, seenOn, ...patch } = input;
+	await findOwnedEncounter(userId, id, { drank: false });
+	return updateWineEncounter(userId, {
+		id,
+		...(newPlace ? { newPlace } : {}),
+		...patch,
+		...(seenOn !== undefined ? { occurredOn: seenOn } : {}),
+	});
+}
+
+export async function deleteWineSighting(
+	userId: string,
+	sightingId: string,
+): Promise<DrunkWineEntry> {
+	await findOwnedEncounter(userId, sightingId, { drank: false });
+	return deleteWineEncounter(userId, sightingId);
+}
+
+/**
+ * 「飲んだ」操作。drank=1 の体験記録の追加と status='finished' を1操作で行う。
+ * 本数を管理しない以上これが既定として自然で、ストックが残っている場合は
+ * 編集画面から owned に戻せる。2軸を同時に動かす唯一の経路をここに閉じる。
+ */
+export async function markWineDrunk(
+	userId: string,
+	drunkWineId: string,
+	input?: CreateWineTastingInput,
+): Promise<DrunkWineEntry> {
 	await assertOwnsDrunkWine(userId, drunkWineId);
-	const [latest] = await db
-		.select({ id: wineTasting.id })
-		.from(wineTasting)
-		.where(
-			and(
-				eq(wineTasting.drunkWineId, drunkWineId),
-				eq(wineTasting.userId, userId),
-			),
-		)
-		.orderBy(
-			sql`${wineTasting.drankOn} is null`,
-			desc(wineTasting.drankOn),
-			desc(wineTasting.createdAt),
-		)
-		.limit(1);
-
-	if (!latest) {
-		const hasValue = [patch.drankOn, patch.rating, patch.memo].some(
-			(v) => v !== undefined && v !== null,
-		);
-		if (!hasValue) return null;
-		return addWineTasting(userId, drunkWineId, {
-			drankOn: patch.drankOn ?? undefined,
-			rating: patch.rating ?? undefined,
-			memo: patch.memo ?? undefined,
-		});
-	}
-
-	const update = buildTastingUpdate(userId, latest.id, patch);
-	const recompute = recomputeDrunkWineAggregates(userId, drunkWineId);
-	const read = selectEntry(userId, drunkWineId);
 	return entryFromBatch(
-		await db.batch(update ? [update, recompute, read] : [recompute, read]),
+		await db.batch([
+			db.insert(wineEncounter).values(
+				buildEncounterValues(userId, drunkWineId, {
+					drank: true,
+					occurredOn: input?.drankOn ?? jstDayKey(new Date()),
+					rating: input?.rating,
+					memo: input?.memo,
+				}),
+			),
+			recomputeDrunkWineAggregates(userId, drunkWineId, { status: "finished" }),
+			selectEntry(userId, drunkWineId),
+		]),
 	);
 }
 
@@ -1149,8 +1270,8 @@ export async function deleteDrunkWine(
  * 選択リストに他ユーザの id が混ざることは無いため、部分一致でも呼び出し側のミスとは
  * 見なさない)、実際に消えた件数を返す。
  *
- * D1書き込みは `drunk_wine` 1テーブルへの delete のみで、`wine_tasting` /
- * `wine_sighting` は ON DELETE CASCADE(schema.ts)で連動して消える。写真は
+ * D1書き込みは `drunk_wine` 1テーブルへの delete のみで、`wine_encounter` は
+ * ON DELETE CASCADE(schema.ts)で連動して消える。写真は
  * エントリ横断でまとめて1回(チャンク分割込み)のR2一括削除にする。
  *
  * **id は ID_CHUNK_SIZE 件ずつの delete に割り、1つの db.batch にまとめて積む**
@@ -1268,14 +1389,17 @@ function cellarFilterCondition(filter: CellarFilterId) {
 }
 
 /**
- * 「その場所で見かけた銘柄」の条件。目撃記録は 1:N なので EXISTS で畳む
- * (JOIN すると同じ場所で複数回見かけた銘柄が重複行になり、ページングの件数が狂う)。
+ * 「その場所で出会った銘柄」の条件。体験記録は 1:N なので EXISTS で畳む
+ * (JOIN すると同じ場所で複数回出会った銘柄が重複行になり、ページングの件数が狂う)。
+ *
+ * 飲んだ回にも場所が付くようになったため、drank では絞らない。「この店で飲んだ
+ * ワイン」が一覧の場所フィルタから漏れていたのが、統合で直る副次効果の1つ。
  *
  * pure 版の対応物は置かない。所有状態のチップ(filter.ts)と違い、この軸は
- * wine_sighting を読まないと判定できず、クライアント側に同じ述語を置く用途が無い。
+ * wine_encounter を読まないと判定できず、クライアント側に同じ述語を置く用途が無い。
  */
 function placeCondition(placeId: string) {
-	return sql`exists (select 1 from ${wineSighting} where ${wineSighting.drunkWineId} = ${drunkWine.id} and ${wineSighting.placeId} = ${placeId})`;
+	return sql`exists (select 1 from ${wineEncounter} where ${wineEncounter.drunkWineId} = ${drunkWine.id} and ${wineEncounter.placeId} = ${placeId})`;
 }
 
 /**
@@ -1317,8 +1441,8 @@ export async function listDrunkWines(
 	const query = db
 		.select({
 			...getTableColumns(drunkWine),
-			lastRating: latestTastingValue<number>(wineTasting.rating),
-			lastMemo: latestTastingValue<string>(wineTasting.memo),
+			lastRating: latestDrankEncounterValue<number>(wineEncounter.rating),
+			lastMemo: latestDrankEncounterValue<string>(wineEncounter.memo),
 		})
 		.from(drunkWine)
 		.where(and(...conditions))
@@ -1354,8 +1478,8 @@ export async function listDrunkWinesByAop(
 	const rows = await db
 		.select({
 			...getTableColumns(drunkWine),
-			lastRating: latestTastingValue<number>(wineTasting.rating),
-			lastMemo: latestTastingValue<string>(wineTasting.memo),
+			lastRating: latestDrankEncounterValue<number>(wineEncounter.rating),
+			lastMemo: latestDrankEncounterValue<string>(wineEncounter.memo),
 		})
 		.from(drunkWine)
 		.where(
@@ -1426,8 +1550,8 @@ export async function getCellarSummary(userId: string): Promise<{
 	const [latestRow] = await db
 		.select({
 			...getTableColumns(drunkWine),
-			lastRating: latestTastingValue<number>(wineTasting.rating),
-			lastMemo: latestTastingValue<string>(wineTasting.memo),
+			lastRating: latestDrankEncounterValue<number>(wineEncounter.rating),
+			lastMemo: latestDrankEncounterValue<string>(wineEncounter.memo),
 		})
 		.from(drunkWine)
 		.where(eq(drunkWine.userId, userId))
@@ -1693,11 +1817,11 @@ export async function appendDrunkWinePhotoKeys(
 
 // ---- 一括登録(写真からのスキャン。Issue #358) -----------------------------
 // レストランのワインリスト・ショップの棚を撮った写真から抽出した複数銘柄を、
-// 1回の確定でまとめて登録する経路。場所(新規なら)・バッチ・銘柄・目撃記録・
-// 飲用記録・集計キャッシュを**すべて同一の db.batch で原子的に**作る。
+// 1回の確定でまとめて登録する経路。場所(新規なら)・バッチ・銘柄・体験記録・
+// 集計キャッシュを**すべて同一の db.batch で原子的に**作る。
 //
-// ここに置くのは目撃記録・写真と同じ理由で、recomputeDrunkWineAggregates /
-// buildSightingValues / buildTastingValues / cleanupPhotoObjects といった
+// ここに置くのは体験記録・写真と同じ理由で、recomputeDrunkWineAggregates /
+// buildEncounterValues / cleanupPhotoObjects といった
 // モジュール私有のヘルパと同じ batch に積む必要があるため。
 //
 // 写真の実体だけは2段階目(saveImportBatchPhotos)になる。R2キーが batchId 依存で、
@@ -1742,8 +1866,8 @@ function recomputeDrunkWineAggregatesBulk(
 				.set({
 					tastingCount: TASTING_COUNT_EXPR,
 					lastDrankOn: MAX_DRANK_ON_EXPR,
-					sightingCount: SIGHTING_COUNT_EXPR,
-					lastSeenOn: MAX_SEEN_ON_EXPR,
+					encounterCount: ENCOUNTER_COUNT_EXPR,
+					lastEncounteredOn: MAX_ENCOUNTERED_ON_EXPR,
 				})
 				.where(and(eq(drunkWine.userId, userId), inArray(drunkWine.id, chunk))),
 		);
@@ -1754,9 +1878,9 @@ function recomputeDrunkWineAggregatesBulk(
 /**
  * 写真から抽出した銘柄群をまとめて登録する。
  *
- * - `existingId` の項目は銘柄を作らず、その既存エントリに目撃記録だけを足す
- *   (同じワインを別の店でも見かけた、を1エントリ + 目撃N件で表す設計)
- * - 目撃記録の場所・見かけた日・バッチIDはバッチ共通の値をここで埋める
+ * - `existingId` の項目は銘柄を作らず、その既存エントリに体験記録だけを足す
+ *   (同じワインを別の店でも見かけた、を1エントリ + 体験N件で表す設計)
+ * - 体験記録の場所・出会った日・バッチIDはバッチ共通の値をここで埋める
  * - `status` 未指定の新規銘柄は "spotted"(見かけた)。createDrunkWine の既定
  *   (finished)をそのまま使うと、見かけただけのワインが飲み終わり扱いになり、
  *   日付なしの飲用記録まで作られてしまう
@@ -1885,7 +2009,7 @@ export async function bulkRegisterFromScan(
 
 	// 場所: 既存の指定は所有権を確認し、新規は同じ batch で作る
 	if (input.placeId) {
-		await assertOwnsSightingRefs(userId, { placeId: input.placeId });
+		await assertOwnsEncounterRefs(userId, { placeId: input.placeId });
 	}
 	const newPlace = input.newPlace
 		? await prepareNewPlace(userId, input.newPlace)
@@ -1978,8 +2102,8 @@ export async function bulkRegisterFromScan(
 						: {}),
 					// このバッチで新規作成したエントリだけに付ける(Issue #363 案A)。
 					// 既存一致(item.existingId)はエントリを作らないので付けない
-					// (足されるのは目撃記録と、指定があれば試飲記録。どちらも
-					//  それぞれの batch_id で辿れる)。
+					// (足されるのは体験記録(drank=0 と、指定があれば drank=1)。
+					//  どちらもそれぞれの batch_id で辿れる)。
 					batchId,
 				}),
 			);
@@ -2020,13 +2144,21 @@ export async function bulkRegisterFromScan(
 		}
 		affectedIds.push(drunkWineId);
 
+		// 項目ごとに体験記録を1件作る(drank=0)。「飲んだ」指定があれば、飲用記録に
+		// 相当する drank=1 の体験記録も同じ batch で作る——旧2テーブル体制の2行と
+		// 同じ対応で、行のマージはしない(PR1 では移送と同じくマージしない。
+		// 1行化は PR2 の UI 統合で行う)。
 		statements.push(
-			db.insert(wineSighting).values(
-				buildSightingValues(userId, drunkWineId, {
-					...item.sighting,
+			db.insert(wineEncounter).values(
+				buildEncounterValues(userId, drunkWineId, {
+					drank: false,
+					occurredOn: input.seenOn,
+					price: item.sighting?.price,
+					memo: item.sighting?.memo,
 					placeId: placeId ?? undefined,
 					batchId,
-					seenOn: input.seenOn,
+					photoIndex: item.sighting?.photoIndex,
+					photoIndexes: item.sighting?.photoIndexes,
 				}),
 			),
 		);
@@ -2034,10 +2166,20 @@ export async function bulkRegisterFromScan(
 		if (item.tasting) {
 			tastingCount += 1;
 			statements.push(
-				db.insert(wineTasting).values(
-					// **batchId を必ず付ける**(#393)。既存エントリに足した試飲記録も
+				db.insert(wineEncounter).values(
+					// **batchId を必ず付ける**(#393)。既存エントリに足した飲用記録も
 					// 取り消しの対象にするための唯一の手掛かり。
-					buildTastingValues(userId, drunkWineId, item.tasting, batchId),
+					buildEncounterValues(
+						userId,
+						drunkWineId,
+						{
+							drank: true,
+							occurredOn: item.tasting.drankOn,
+							rating: item.tasting.rating,
+							memo: item.tasting.memo,
+						},
+						batchId,
+					),
 				),
 			);
 		}
@@ -2088,16 +2230,16 @@ export async function bulkRegisterFromScan(
  * (`ImportBatchSummary.hasEditedEntries` が材料)。サーバ側は無条件に削除する。
  *
  * 削除対象は **このバッチで新規作成されたエントリ**(drunk_wine.batch_id が
- * このバッチのもの)のみ。「既存エントリに目撃記録が増えただけ」のものは
- * エントリを消さず、目撃記録だけを取り消して集計を再計算する(バッチと
+ * このバッチのもの)のみ。「既存エントリに体験記録が増えただけ」のものは
+ * エントリを消さず、体験記録だけを取り消して集計を再計算する(バッチと
  * 無関係な過去のデータを失わないため、issue本文の案Aの要点)。
  *
- * **試飲記録もバッチ由来のものだけ消す**(#393)。一括登録は既存エントリにも
- * 試飲記録を足せる(「このワインを飲んだ」)ため、これを消さないと取り消しても
- * tasting_count / last_drank_on / last_rating が戻らない。新規作成エントリぶんは
- * エントリ削除の FK cascade でも消えるが、**既存エントリに足したぶんは
- * wine_tasting.batch_id を辿らないと特定できない**。ユーザが手動で足した
- * 試飲記録は batch_id が null なので巻き込まない。
+ * **体験記録はバッチ由来のものだけ消す**(#393)。一括登録は既存エントリにも
+ * 飲用記録(drank=1 の体験記録)を足せる(「このワインを飲んだ」)ため、これを
+ * 消さないと取り消しても tasting_count / last_drank_on / last_rating が戻らない。
+ * 新規作成エントリぶんはエントリ削除の FK cascade でも消えるが、
+ * **既存エントリに足したぶんは wine_encounter.batch_id を辿らないと特定できない**。
+ * ユーザが手動で足した体験記録は batch_id が null なので巻き込まない。
  *
  * バッチが作った place は消さない(参照が無くなっても場所マスタとして残す。
  * 不要ならユーザが deletePlace で個別に消せる)。バッチ写真
@@ -2120,46 +2262,41 @@ export async function undoImportBatch(
 		.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)));
 	const createdIds = new Set(createdRows.map((row) => row.id));
 
-	const sightingRows = await db
-		.select({ drunkWineId: wineSighting.drunkWineId })
-		.from(wineSighting)
+	// バッチが足した体験記録の付き先を拾う。飲用(drank=1)が付く項目には必ず
+	// drank=0 の体験記録も付く(1項目=1体験記録)ので、drank で分けず batch_id で
+	// まとめて拾う。**集計の再計算漏れは「取り消したのに数値が戻らない」という形で
+	// 表に出る**ので、付き先は体験記録全体から集める。
+	const encounterRows = await db
+		.select({
+			drunkWineId: wineEncounter.drunkWineId,
+			drank: wineEncounter.drank,
+		})
+		.from(wineEncounter)
 		.where(
-			and(eq(wineSighting.batchId, batchId), eq(wineSighting.userId, userId)),
-		);
-	// バッチが足した試飲記録の付き先も拾う(#393)。実際には試飲記録が付く項目には
-	// 必ず目撃記録も付く(1項目=1目撃記録)ので集合は sighting 側に含まれるはずだが、
-	// **集計の再計算漏れは「取り消したのに数値が戻らない」という形で表に出る**ので、
-	// 取り消す行の付き先を両方から集める形にして依存を断つ。
-	const tastingRows = await db
-		.select({ drunkWineId: wineTasting.drunkWineId })
-		.from(wineTasting)
-		.where(
-			and(eq(wineTasting.batchId, batchId), eq(wineTasting.userId, userId)),
+			and(eq(wineEncounter.batchId, batchId), eq(wineEncounter.userId, userId)),
 		);
 	// 新規作成エントリ以外(=既存エントリに記録が増えただけ)は、削除後に集計
-	// (sightingCount/lastSeenOn/tastingCount/lastDrankOn/lastRating)を再計算する。
+	// (encounterCount/lastEncounteredOn/tastingCount/lastDrankOn/lastRating)を再計算する。
 	// 新規作成エントリはエントリごと消えるので再計算は要らない。
 	const touchedExistingIds = [
 		...new Set(
-			[...sightingRows, ...tastingRows]
+			encounterRows
 				.map((row) => row.drunkWineId)
 				.filter((id) => !createdIds.has(id)),
 		),
 	];
 
 	const statements: BatchStatement[] = [
-		db
-			.delete(wineSighting)
-			.where(
-				and(eq(wineSighting.batchId, batchId), eq(wineSighting.userId, userId)),
-			),
-		// バッチ由来の試飲記録(batch_id 一致)だけを消す。手動で足したものは
+		// バッチ由来の体験記録(batch_id 一致)だけを消す。手動で足したものは
 		// batch_id が null なので残る。**エントリ削除より前に置く**必要は無いが、
 		// 削除対象の集合は batch_id で決まるので順序に依存しない。
 		db
-			.delete(wineTasting)
+			.delete(wineEncounter)
 			.where(
-				and(eq(wineTasting.batchId, batchId), eq(wineTasting.userId, userId)),
+				and(
+					eq(wineEncounter.batchId, batchId),
+					eq(wineEncounter.userId, userId),
+				),
 			),
 		db
 			.delete(drunkWine)
@@ -2198,8 +2335,8 @@ export async function undoImportBatch(
 		userId,
 		batchId,
 		deletedCount: createdRows.length,
-		sightingCount: sightingRows.length,
-		tastingCount: tastingRows.length,
+		sightingCount: encounterRows.filter((row) => !row.drank).length,
+		tastingCount: encounterRows.filter((row) => row.drank).length,
 		recomputedCount: touchedExistingIds.length,
 		photoKeyCount: photoKeys.length,
 	});
@@ -2243,7 +2380,7 @@ const IMPORT_BATCH_HISTORY_LIMIT = 50;
  * 過去の一括登録バッチを新しい順に一覧する(Issue #380)。#378 は取り消し導線を
  * 登録直後の完了画面だけに限定したため件数の集計を持たなかったが、ここでは
  * バッチ一覧画面から後からでも取り消せるようにするため、drunk_wine /
- * wine_sighting を都度集計する(import_batch 自体には件数列を持たせない)。
+ * wine_encounter を都度集計する(import_batch 自体には件数列を持たせない)。
  *
  * 全エントリが個別削除済みのバッチ(#380 未確定論点の1つ)は特別扱いしない。
  * createdCount/sightingCount が0のまま一覧に出て、取り消しは
@@ -2279,19 +2416,23 @@ export async function listImportBatches(
 			.from(drunkWine)
 			.where(and(eq(drunkWine.userId, userId), inArray(drunkWine.batchId, ids)))
 			.groupBy(drunkWine.batchId),
+		// 項目ごとの体験記録は drank=0 が1件ずつある(「飲んだ」指定の項目は
+		// drank=1 も1件ある)ので、drank=0 を数えると旧 sightingCount(= items 件数)
+		// と同じ値になる。項目名の変更(encounterCount / drankCount)は PR2 で行う。
 		db
 			.select({
-				batchId: wineSighting.batchId,
+				batchId: wineEncounter.batchId,
 				sightingCount: sql<number>`count(*)`,
 			})
-			.from(wineSighting)
+			.from(wineEncounter)
 			.where(
 				and(
-					eq(wineSighting.userId, userId),
-					inArray(wineSighting.batchId, ids),
+					eq(wineEncounter.userId, userId),
+					eq(wineEncounter.drank, false),
+					inArray(wineEncounter.batchId, ids),
 				),
 			)
-			.groupBy(wineSighting.batchId),
+			.groupBy(wineEncounter.batchId),
 	]);
 
 	const createdByBatch = new Map(
@@ -2452,8 +2593,8 @@ function toBatchDetailEntry(
  * 分析完了後の一覧(レビューカード)と同等の項目を、保存済みの値から組み立てる。
  *
  * - 他人のバッチ・存在しないIDは `getImportBatch` と同じく 404(存在を漏らさない)
- * - 新規作成した銘柄は保存値と写真と、そのバッチで付けた目撃記録を添える
- * - 既存一致ぶんは銘柄を作っていないので、足した目撃記録だけを出す
+ * - 新規作成した銘柄は保存値と写真と、そのバッチで付けた体験記録(drank=0)を添える
+ * - 既存一致ぶんは銘柄を作っていないので、足した体験記録(drank=0)だけを出す
  * - 参考サイト・価格の一覧は保存していない(IMPL-3 はジョブ結果JSONにだけ
  *   載る)ため、ここには出ない
  */
@@ -2473,27 +2614,33 @@ export async function getImportBatchDetail(
 		.from(drunkWine)
 		.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)))
 		.orderBy(desc(drunkWine.createdAt));
+	// 項目ごとの体験記録は drank=0 が1件ずつある(「飲んだ」指定の項目は drank=1 も
+	// 1件ある)ので、詳細の目撃相当ぶんは drank=0 に絞る。項目名の変更は PR2 で行う。
 	const sightingRows = await db
 		.select({
-			...getTableColumns(wineSighting),
+			...getTableColumns(wineEncounter),
 			placeName: place.name,
 			batchPhotoKeys: importBatch.photoKeys,
 			entryName: drunkWine.name,
 		})
-		.from(wineSighting)
-		.leftJoin(place, eq(place.id, wineSighting.placeId))
-		.leftJoin(importBatch, eq(importBatch.id, wineSighting.batchId))
+		.from(wineEncounter)
+		.leftJoin(place, eq(place.id, wineEncounter.placeId))
+		.leftJoin(importBatch, eq(importBatch.id, wineEncounter.batchId))
 		.leftJoin(
 			drunkWine,
 			and(
-				eq(drunkWine.id, wineSighting.drunkWineId),
+				eq(drunkWine.id, wineEncounter.drunkWineId),
 				eq(drunkWine.userId, userId),
 			),
 		)
 		.where(
-			and(eq(wineSighting.batchId, batchId), eq(wineSighting.userId, userId)),
+			and(
+				eq(wineEncounter.batchId, batchId),
+				eq(wineEncounter.userId, userId),
+				eq(wineEncounter.drank, false),
+			),
 		)
-		.orderBy(desc(wineSighting.createdAt));
+		.orderBy(desc(wineEncounter.createdAt));
 
 	const createdIds = new Set(entryRows.map((row) => row.id));
 	const sightingByEntry = new Map<
@@ -2679,21 +2826,23 @@ async function adoptBatchPhotosForWines(
 ): Promise<void> {
 	if (batchPhotoKeys.length === 0) return;
 	try {
-		// このバッチが作った銘柄と、その目撃記録が指す写真番号。既存エントリに目撃を
-		// 足しただけのものは batch_id を持たないので、ここには出てこない(#363 案A)。
+		// このバッチが作った銘柄と、その体験記録(drank=0)が指す写真番号。
+		// 既存エントリに体験を足しただけのものは batch_id を持たないので、
+		// ここには出てこない(#363 案A)。
 		const rows = await db
 			.select({
 				id: drunkWine.id,
 				photoKeys: drunkWine.photoKeys,
-				photoIndex: wineSighting.photoIndex,
-				photoIndexes: wineSighting.photoIndexes,
+				photoIndex: wineEncounter.photoIndex,
+				photoIndexes: wineEncounter.photoIndexes,
 			})
 			.from(drunkWine)
 			.innerJoin(
-				wineSighting,
+				wineEncounter,
 				and(
-					eq(wineSighting.drunkWineId, drunkWine.id),
-					eq(wineSighting.batchId, batchId),
+					eq(wineEncounter.drunkWineId, drunkWine.id),
+					eq(wineEncounter.batchId, batchId),
+					eq(wineEncounter.drank, false),
 				),
 			)
 			.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)));
@@ -2725,8 +2874,8 @@ async function adoptBatchPhotosForWines(
 			// 既に写真がある = 適切な写真か web 画像で手当て済み(前2段)。触らない。
 			if (row.photoKeys.length > 0) continue;
 			// 対応写真のすべてを、エントリの上限まで複製する(#574)。範囲外の番号は
-			// 指す先が無いので落とす(読み取りの `toSightingEntry` と同じ扱い)。
-			const sourceKeys = sightingPhotoIndexes(row)
+			// 指す先が無いので落とす(読み取りの `toEncounterEntry` と同じ扱い)。
+			const sourceKeys = encounterPhotoIndexes(row)
 				.map((index) => batchPhotoKeys[index])
 				.filter((key): key is string => !!key)
 				.slice(0, MAX_PHOTOS_PER_ENTRY);

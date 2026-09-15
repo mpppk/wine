@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
-import { importBatch, place, wineSighting } from "#/db/schema";
+import { importBatch, place, wineEncounter } from "#/db/schema";
 import { ConflictError, NotFoundError } from "#/lib/errors";
 import { addWineSighting, createDrunkWine } from "./drunk-wine-service";
 import {
@@ -152,7 +152,7 @@ describe("所有権", () => {
 });
 
 describe("deletePlace の参照側への影響", () => {
-	it("目撃記録・一括登録バッチの place_id が null になり、行自体は残る", async () => {
+	it("体験記録・一括登録バッチの place_id が null になり、行自体は残る", async () => {
 		const userId = await freshUser();
 		const p = await createPlace(userId, { name: "閉店した店" });
 		const { id: wineId } = await createDrunkWine(userId, { name: "Chablis" });
@@ -173,10 +173,17 @@ describe("deletePlace の参照側への影響", () => {
 
 		await deletePlace(userId, p.id);
 
+		// createDrunkWine の finished 既定(drank=1)に加えて drank=0 が1件あるため、
+		// 場所を指していた drank=0 の行に絞って確認する
 		const sightings = await db
 			.select()
-			.from(wineSighting)
-			.where(eq(wineSighting.drunkWineId, wineId));
+			.from(wineEncounter)
+			.where(
+				and(
+					eq(wineEncounter.drunkWineId, wineId),
+					eq(wineEncounter.drank, false),
+				),
+			);
 		expect(sightings).toHaveLength(1);
 		expect(sightings[0]?.placeId).toBeNull();
 		// バッチへの参照は場所とは無関係なので残る
@@ -192,7 +199,7 @@ describe("deletePlace の参照側への影響", () => {
 });
 
 describe("ユーザ削除のカスケード", () => {
-	it("place / import_batch / wine_sighting がユーザごと消える", async () => {
+	it("place / import_batch / wine_encounter がユーザごと消える", async () => {
 		const userId = await freshUser();
 		const p = await createPlace(userId, { name: "消える店" });
 		const { id: wineId } = await createDrunkWine(userId, {
@@ -213,8 +220,8 @@ describe("ユーザ削除のカスケード", () => {
 		expect(
 			await db
 				.select()
-				.from(wineSighting)
-				.where(eq(wineSighting.userId, userId)),
+				.from(wineEncounter)
+				.where(eq(wineEncounter.userId, userId)),
 		).toEqual([]);
 	});
 });

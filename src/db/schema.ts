@@ -75,16 +75,19 @@ export const quizQuestionStat = sqliteTable(
  * 「以前飲んだワインをもう一度購入した」= status='owned' かつ 飲用記録あり、のように
  * 組み合わせがそのまま実際の状況に対応する。単一の enum に潰すとこれが表現できない。
  *
- * 目撃記録(wineSighting)は**第3の軸**(Issue #358)。「店で見かけた」は所有でも
- * 飲用でもないため既存2軸のどちらにも畳めない。同じワインを複数の店で見かけたら
- * 1エントリ + 目撃記録 × N になり、一括登録の distinct(重複統合)要件の受け皿になる。
+ * 体験記録(wineEncounter)は**第2の軸**(Issue #606)。「店で見かけた」は所有でも
+ * 飲用でもないため既存2軸のどちらにも畳めない、という #358 の整理を一歩進め、
+ * 「そのワインに出会った1回」を1行で持ち、「その回に飲んだか」を drank フラグで
+ * 表す。同じワインを複数の店で見かけたら 1エントリ + 体験記録 × N になり、
+ * 一括登録の distinct(重複統合)要件の受け皿になる。レストランで飲んだ回には
+ * 場所・価格・写真も付く(旧2テーブル体制では飲用記録に場所を持てなかった)。
  *
- * lastDrankOn / tastingCount(飲用)と lastSeenOn / sightingCount(目撃)は
- * それぞれの 1:N の集計キャッシュ。一覧・地図・ダッシュボードがいずれも
+ * lastDrankOn / tastingCount(飲用条件付き)と lastEncounteredOn / encounterCount
+ * (全体験)は wine_encounter の集計キャッシュ。一覧・地図・ダッシュボードがいずれも
  * drunk_wine の単表クエリで、JOIN + GROUP BY にすると3経路すべてに波及するため
  * 非正規化する(dailyActivity と同じ理由付け)。更新は
  * recomputeDrunkWineAggregates(drunk-wine-service.ts)が4列まとめて全再計算で行い、
- * 飲用記録・目撃記録の書き換えと同一の db.batch に必ず含める。
+ * 体験記録の書き換えと同一の db.batch に必ず含める.
  */
 export const drunkWine = sqliteTable(
 	"drunk_wine",
@@ -101,18 +104,29 @@ export const drunkWine = sqliteTable(
 			.$type<WineStatus>()
 			.default(DEFAULT_WINE_STATUS),
 		/**
-		 * 最新の飲用記録の飲んだ日 = max(wine_tasting.drank_on)。飲用記録が無い、
+		 * 最新の飲用回の日 = max(wine_encounter.occurred_on where drank=1)。飲用記録が無い、
 		 * または全件が日付未入力なら null。
 		 */
 		lastDrankOn: text("last_drank_on"),
-		/** 飲用記録の件数。0 なら「まだ飲んだことがない」 */
+		/** 飲用記録の件数 = count(wine_encounter where drank=1)。0 なら「まだ飲んだことがない」 */
 		tastingCount: integer("tasting_count").notNull().default(0),
 		/**
-		 * 最新の目撃記録の見かけた日 = max(wine_sighting.seen_on)。目撃記録が無い、
+		 * 最新の体験記録の見かけた日 = max(wine_encounter.occurred_on)。体験記録が無い、
 		 * または全件が日付未入力なら null。
+		 *
+		 * **旧 last_seen_on の後継**。「飲んだ = 必ず出会った」を採るので飲んだ回も数える。
+		 * 旧列(last_seen_on / sighting_count)は 0041 で DROP するまでの間残るが、
+		 * 以降どこからも読み書きしない。
+		 */
+		lastEncounteredOn: text("last_encountered_on"),
+		/** 体験記録の件数。0 なら「どこでも出会っていない」。旧 sighting_count の後継 */
+		encounterCount: integer("encounter_count").notNull().default(0),
+		/**
+		 * 旧集計列。0041 で DROP するまでの間残るが、以降どこからも読み書きしない。
+		 * 新規の読み書きは lastEncounteredOn / encounterCount を使う。
 		 */
 		lastSeenOn: text("last_seen_on"),
-		/** 目撃記録の件数。0 なら「どこでも見かけていない」 */
+		/** 旧集計列。0041 で DROP するまでの間残るが、以降どこからも読み書きしない。 */
 		sightingCount: integer("sighting_count").notNull().default(0),
 		/** 静的AOPマスタの Aop.id(任意) */
 		aopId: text("aop_id"),
@@ -136,9 +150,9 @@ export const drunkWine = sqliteTable(
 		 * 銘柄についてのコメント(香り・味わい・生産者の説明)。解析が付与し、利用者が
 		 * 編集できる(Issue #471)。
 		 *
-		 * **飲用記録の memo とは別物**。memo は「その回に飲んだ感想」で wine_tasting に
-		 * 属する(Issue #195)。こちらは銘柄そのものの説明なので、まだ飲んでいない
-		 * (spotted / wishlist)エントリにも付く。
+		 * **体験記録の memo とは別物**。memo は「その回に出会ったときの記録」で
+		 * wine_encounter に属する(Issue #195 / #606)。こちらは銘柄そのものの説明なので、
+		 * まだ飲んでいない(spotted / wishlist)エントリにも付く。
 		 */
 		note: text("note"),
 		/** 円 */
@@ -200,14 +214,11 @@ export const drunkWine = sqliteTable(
 );
 
 /**
- * 飲用記録。1つの銘柄(drunkWine)を複数回飲んだ履歴を持つ(1:N)。同じワインを2回
- * 飲んで評価が違うのは当然なので、評価とメモは銘柄側ではなくここに属する。
+ * 旧飲用記録。Issue #606 で体験記録(wineEncounter)へ統合済み。
  *
- * drankOn は nullable。「飲んだが日付を覚えていない」記録があり、旧データの移送でも
- * 日付未入力の行を飲用記録1件として作るため(取りこぼすと集計から消える)。
- *
- * userId は drunkWine 経由で辿れるが、所有権チェックを JOIN 無しの
- * `WHERE id AND userId` で行う規約(docs/architecture.md)のため冗長に持つ。
+ * **0041 で DROP するまでの間残るが、以降どこからも読み書きしない。** 新規の
+ * 読み書きは wineEncounter(drank=1) を使う。移送(0040)は決定的派生 id
+ * ('tasting-' || id) + INSERT OR IGNORE で行う。
  */
 export const wineTasting = sqliteTable(
 	"wine_tasting",
@@ -343,21 +354,11 @@ export const importBatch = sqliteTable(
 );
 
 /**
- * 目撃記録。1つの銘柄(drunkWine)を複数の場所で見かけた履歴を持つ(1:N)。
- * wineTasting と同じ流儀で、所有状態・飲用履歴と直交する第3の軸(Issue #358)。
+ * 旧目撃記録。Issue #606 で体験記録(wineEncounter)へ統合済み。
  *
- * - レストランAで見かけて飲んだ → エントリ + 目撃記録(A) + 飲用記録
- * - ショップB・Cで見かけた同一ワイン → 1エントリ + 目撃記録(B) + 目撃記録(C)
- * - 以前飲んだワインを店で見かけた → 既存エントリに目撃記録が増えるだけ
- *
- * seenOn は nullable。wineTasting.drankOn と同じく「見かけたが日付を覚えていない」
- * 記録を取りこぼすと集計から消えるため。
- *
- * price は銘柄側(drunk_wine.price)とは別物で「その店での売値」。店ごとに違うのが
- * 当たり前なのでここに属する(評価・メモが飲用記録に属するのと同じ理由)。
- *
- * userId は drunkWine 経由で辿れるが、所有権チェックを JOIN 無しの
- * `WHERE id AND userId` で行う規約(docs/architecture.md)のため冗長に持つ。
+ * **0041 で DROP するまでの間残るが、以降どこからも読み書きしない。** 新規の
+ * 読み書きは wineEncounter(drank=0) を使う。移送(0040)は決定的派生 id
+ * ('sighting-' || id) + INSERT OR IGNORE で行う。
  */
 export const wineSighting = sqliteTable(
 	"wine_sighting",
@@ -403,6 +404,81 @@ export const wineSighting = sqliteTable(
 		index("wine_sighting_user_seen_idx").on(table.userId, table.seenOn),
 		// 「この店で見かけたワイン一覧」(PR4)用。所有権の user_id を先頭に置く
 		index("wine_sighting_user_place_idx").on(table.userId, table.placeId),
+	],
+);
+
+/**
+ * 体験記録。「そのワインに出会った1回」が1行で、飲んだかどうかは drank フラグで
+ * 表す(Issue #606)。旧 wine_tasting + wine_sighting の統合先。
+ *
+ * - レストランで飲んだ → drank=1 + place_id の**1行**
+ * - 店で見かけただけ → drank=0 の1行
+ * - 見かけた日に買って後日飲んだ → 2行(実際に別の出来事なので、これは正しい表現)
+ *
+ * occurredOn は nullable。旧 drank_on / seen_on と同じく「出会ったが日付を
+ * 覚えていない」記録を取りこぼすと集計から消えるため。
+ *
+ * rating は drank=1 のときだけ意味を持つ。price は銘柄側(drunk_wine.price)とは
+ * 別物で「その場での売値」。memo は旧2テーブルの memo を1本に統合したもの。
+ *
+ * userId は drunkWine 経由で辿れるが、所有権チェックを JOIN 無しの
+ * `WHERE id AND userId` で行う規約(docs/architecture.md)のため冗長に持つ。
+ */
+export const wineEncounter = sqliteTable(
+	"wine_encounter",
+	{
+		id: text("id").primaryKey(),
+		drunkWineId: text("drunk_wine_id")
+			.notNull()
+			.references(() => drunkWine.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 出会った場所。任意。場所を消しても出会った事実は残すので set null */
+		placeId: text("place_id").references(() => place.id, {
+			onDelete: "set null",
+		}),
+		/** 由来の一括登録バッチ。手動で足した体験記録では null */
+		batchId: text("batch_id").references(() => importBatch.id, {
+			onDelete: "set null",
+		}),
+		/** バッチの photoKeys の添字(0始まり)。どの写真に写っていたか */
+		photoIndex: integer("photo_index"),
+		/**
+		 * そのワインが写っていたバッチ写真の番号の一覧(#574)。AIの画像-ワイン対応
+		 * を登録まで持ち回るための配列で、`photoIndex`(先頭1枚の後方互換)と
+		 * 併存する。NULL = 先頭1枚だけの従来行(読み取りは `photoIndex` へ退避)。
+		 */
+		photoIndexes: text("photo_indexes", { mode: "json" }).$type<number[]>(),
+		/** 出会った日 "YYYY-MM-DD"。覚えていない場合は null */
+		occurredOn: text("occurred_on"),
+		/** この回に飲んだか */
+		drank: integer("drank", { mode: "boolean" }).notNull().default(false),
+		/** 1–5。drank=1 のときだけ意味を持つ */
+		rating: integer("rating"),
+		/** その場での売値(円) */
+		price: integer("price"),
+		memo: text("memo"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("wine_encounter_entry_idx").on(
+			table.drunkWineId,
+			table.drank,
+			table.occurredOn,
+		),
+		index("wine_encounter_user_occurred_idx").on(
+			table.userId,
+			table.occurredOn,
+		),
+		// 「この場所での体験一覧」用。所有権の user_id を先頭に置く
+		index("wine_encounter_user_place_idx").on(table.userId, table.placeId),
 	],
 );
 
