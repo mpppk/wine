@@ -1,9 +1,9 @@
 import { env } from "cloudflare:workers";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
-import { drunkWine, importBatch, wineSighting, wineTasting } from "#/db/schema";
+import { drunkWine, importBatch, wineEncounter } from "#/db/schema";
 import {
 	CELLAR_FILTER_IDS,
 	countCellarFilters as countCellarFiltersPure,
@@ -15,6 +15,7 @@ import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
 import { imageKeyFromPath } from "#/lib/images/signed-url";
 import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import {
+	addWineEncounter,
 	addWineSighting,
 	addWineTasting,
 	appendDrunkWinePhotoKeys,
@@ -23,6 +24,7 @@ import {
 	createDrunkWine,
 	deleteDrunkWine,
 	deleteDrunkWines,
+	deleteWineEncounter,
 	deleteWineSighting,
 	deleteWineTasting,
 	getCellarSummary,
@@ -32,6 +34,7 @@ import {
 	listDrunkWines,
 	listDrunkWinesByAop,
 	listImportBatches,
+	listWineEncounters,
 	listWineSightings,
 	listWineTastings,
 	markWineDrunk,
@@ -39,16 +42,18 @@ import {
 	syncDrunkWinePhotos,
 	undoImportBatch,
 	updateDrunkWine,
+	updateLatestDrankEncounter,
 	updateLatestWineTasting,
+	updateWineEncounter,
 	updateWineSighting,
 	updateWineTasting,
 } from "./drunk-wine-service";
 import { createPlace, deletePlace, listPlaces } from "./place-service";
 
-// D1(実SQLite)上で、所有状態(status)と飲用記録(wine_tasting)の2軸モデルを検証する。
-// 集計キャッシュ(tasting_count / last_drank_on)は相関サブクエリによる全再計算で
-// 更新しており、加算・減算では守れない挙動(削除で MAX が次に大きい値へ戻る等)を
-// 実クエリでないと確認できない。
+// D1(実SQLite)上で、所有状態(status)と体験記録(wine_encounter)の2軸モデルを検証する。
+// 集計キャッシュ(tasting_count / last_drank_on / encounter_count /
+// last_encountered_on)は相関サブクエリによる全再計算で更新しており、加算・減算では
+// 守れない挙動(削除で MAX が次に大きい値へ戻る等)を実クエリでないと確認できない。
 
 let seq = 0;
 async function freshUser(): Promise<string> {
@@ -73,14 +78,14 @@ async function wineRow(id: string) {
  * まとめ削除の件数境界(#400)用に、最小列だけの銘柄をまとめて作る。サービス層を
  * 通すと1件ごとに複数文を投げるので、境界の100件超では遅すぎる。
  * 種まき側の INSERT も同じ D1 のバインド変数上限に縛られるため小分けにする
- * (drizzle が既定値も束縛するので1行6個 → 15行で90個)。
+ * (drizzle が既定値も束縛するので1行8個 → 10行で80個)。
  */
 async function seedEntries(userId: string, count: number): Promise<string[]> {
 	const ids = Array.from({ length: count }, (_, i) => `${userId}-bulk-${i}`);
-	for (let i = 0; i < ids.length; i += 15) {
+	for (let i = 0; i < ids.length; i += 10) {
 		await db
 			.insert(drunkWine)
-			.values(ids.slice(i, i + 15).map((id) => ({ id, userId, name: id })));
+			.values(ids.slice(i, i + 10).map((id) => ({ id, userId, name: id })));
 	}
 	return ids;
 }
@@ -93,12 +98,20 @@ async function countEntries(userId: string): Promise<number> {
 	return rows.length;
 }
 
-async function tastingRows(drunkWineId: string) {
+async function encounterRows(drunkWineId: string, drank?: boolean) {
+	const conditions = [
+		eq(wineEncounter.drunkWineId, drunkWineId),
+		...(drank !== undefined ? [eq(wineEncounter.drank, drank)] : []),
+	];
 	return db
 		.select()
-		.from(wineTasting)
-		.where(eq(wineTasting.drunkWineId, drunkWineId))
-		.orderBy(desc(wineTasting.createdAt));
+		.from(wineEncounter)
+		.where(and(...conditions))
+		.orderBy(desc(wineEncounter.createdAt));
+}
+
+async function tastingRows(drunkWineId: string) {
+	return encounterRows(drunkWineId, true);
 }
 
 describe("createDrunkWine の所有状態と飲用記録", () => {
@@ -115,7 +128,7 @@ describe("createDrunkWine の所有状態と飲用記録", () => {
 
 		const rows = await tastingRows(entry.id);
 		expect(rows).toHaveLength(1);
-		expect(rows[0]?.drankOn).toBeNull();
+		expect(rows[0]?.occurredOn).toBeNull();
 	});
 
 	it("wishlist は飲用記録を作らない", async () => {
@@ -162,18 +175,20 @@ describe("createDrunkWine の所有状態と飲用記録", () => {
 });
 
 // 銘柄と同時に作る目撃記録(#495)。写真から登録して単体の記録フォームへ切り替えた回の
-// 「見かけた場所・見かけた日」がここを通る。飲用記録と同じ db.batch に載るので、
-// 集計(sighting_count / last_seen_on)まで1回で整う。
+// 「見かけた場所・見かけた日」がここを通る。体験記録(drank=0)として同じ db.batch に
+// 載るので、集計(encounter_count / last_encountered_on)まで1回で整う。
 describe("createDrunkWine の目撃記録", () => {
 	let userId: string;
 	beforeEach(async () => {
 		userId = await freshUser();
 	});
 
-	it("目撃記録を指定しなければ作らない", async () => {
+	it("体験記録(飲まない)を指定しなければ drank=0 は作らない", async () => {
 		const entry = await createDrunkWine(userId, { name: "Chablis" });
-		expect(entry.sightingCount).toBe(0);
-		expect(entry.lastSeenOn).toBeNull();
+		// finished 既定で drank=1 が1件できるため、全体験は1件になる
+		expect(entry.encounterCount).toBe(1);
+		expect(entry.lastEncounteredOn).toBeNull();
+		expect(await encounterRows(entry.id, false)).toHaveLength(0);
 	});
 
 	it("既存の場所を指定すると目撃記録が1件でき、集計に載る", async () => {
@@ -188,8 +203,8 @@ describe("createDrunkWine の目撃記録", () => {
 				memo: "棚の下段",
 			},
 		});
-		expect(entry.sightingCount).toBe(1);
-		expect(entry.lastSeenOn).toBe("2026-08-09");
+		expect(entry.encounterCount).toBe(1);
+		expect(entry.lastEncounteredOn).toBe("2026-08-09");
 
 		const sightings = await listWineSightings(userId, entry.id);
 		expect(sightings).toHaveLength(1);
@@ -216,7 +231,7 @@ describe("createDrunkWine の目撃記録", () => {
 
 		const sightings = await listWineSightings(userId, entry.id);
 		expect(sightings[0]?.placeId).toBe(places[0]?.id);
-		expect(entry.lastSeenOn).toBe("2026-08-09");
+		expect(entry.lastEncounteredOn).toBe("2026-08-09");
 	});
 
 	it("飲用記録と目撃記録は同時に作れる(その店で見かけて飲んだ回)", async () => {
@@ -227,7 +242,9 @@ describe("createDrunkWine の目撃記録", () => {
 			sighting: { seenOn: "2026-08-09" },
 		});
 		expect(entry.tastingCount).toBe(1);
-		expect(entry.sightingCount).toBe(1);
+		// 同時指定は体験記録2行になる(移送と同じくマージしない。1行化は PR2)
+		expect(entry.encounterCount).toBe(2);
+		expect(entry.lastEncounteredOn).toBe("2026-08-09");
 	});
 
 	it("他人の場所は指定できない(存在しないIDと同じ扱い)", async () => {
@@ -328,7 +345,7 @@ describe("集計キャッシュの再計算", () => {
 		expect(latest.lastDrankOn).toBe("2024-01-01");
 
 		const rows = await tastingRows(wineId);
-		const newest = rows.find((r) => r.drankOn === "2024-01-01");
+		const newest = rows.find((r) => r.occurredOn === "2024-01-01");
 		const after = await deleteWineTasting(userId, newest?.id ?? "");
 		// 減算では表現できない挙動。全再計算にしている理由
 		expect(after.tastingCount).toBe(1);
@@ -681,28 +698,33 @@ describe("getCellarSummary", () => {
 });
 
 describe("集計キャッシュの復旧", () => {
-	it("飲用記録を後から入れて再計算すると集計が復旧する", async () => {
-		// drizzle/0018 のバックフィル(INSERT ... SELECT + 再計算 UPDATE)と同じ形。
-		// 旧列(drank_on/rating/memo)は 0019 で削除済みなので、移送元ではなく
-		// 「集計が 0 の行に飲用記録を足して打ち直す」復旧手順として固定する。
+	it("体験記録を後から入れて再計算すると集計が復旧する", async () => {
+		// drizzle/0040 のバックフィル(INSERT ... SELECT + 再計算 UPDATE)と同じ形。
+		// 「集計が 0 の行に体験記録を足して打ち直す」復旧手順として固定する。
+		// 実行時の recomputeDrunkWineAggregates と同一の式なので、整合が崩れたら
+		// マイグレーションの UPDATE をそのまま打ち直せば復旧できる。
 		const userId = await freshUser();
 		const id = crypto.randomUUID();
 		await db.insert(drunkWine).values({ id, userId, name: "集計が崩れた行" });
 		expect((await wineRow(id))?.tastingCount).toBe(0);
+		expect((await wineRow(id))?.encounterCount).toBe(0);
 
-		await db.insert(wineTasting).values({
+		await db.insert(wineEncounter).values({
 			id: `legacy-${id}`,
 			drunkWineId: id,
 			userId,
-			drankOn: "2019-09-09",
+			drank: true,
+			occurredOn: "2019-09-09",
 			rating: 4,
 			memo: "移送前",
 		});
-		await updateLatestWineTasting(userId, id, {});
+		await updateLatestDrankEncounter(userId, id, {});
 
 		const row = await wineRow(id);
 		expect(row?.tastingCount).toBe(1);
 		expect(row?.lastDrankOn).toBe("2019-09-09");
+		expect(row?.encounterCount).toBe(1);
+		expect(row?.lastEncounteredOn).toBe("2019-09-09");
 		expect(row?.status).toBe("finished");
 	});
 });
@@ -1341,12 +1363,14 @@ describe("写真のR2後始末が失敗したときの扱い (#249)", () => {
 	});
 });
 
-// ---- 目撃記録(第3の 1:N 軸。Issue #358) ----------------------------------
+// ---- 体験記録の集計キャッシュ(Issue #606) ----------------------------------
 // 集計キャッシュを1つの UPDATE で4列まとめて再計算する形にしたので、
-// 「飲用側だけを触ったつもりが目撃側を壊す(逆も)」が最大の回帰リスク。
-// MAX の巻き戻り・NULL 混在という飲用側と同じ落とし穴も、目撃側で独立に固定する。
+// 「飲用側だけを触ったつもりが体験側を壊す(逆も)」が最大の回帰リスク。
+// MAX の巻き戻り・NULL 混在という飲用側と同じ落とし穴も、体験側で独立に固定する。
+// 旧目撃記録のテストは互換アダプタ(addWineSighting / listWineSightings 経由)のまま残し、
+// 新 API(addWineEncounter / listWineEncounters)の振る舞いもここで固定する。
 
-describe("目撃記録の集計キャッシュ", () => {
+describe("体験記録の集計キャッシュ", () => {
 	let userId: string;
 	let wineId: string;
 	beforeEach(async () => {
@@ -1358,69 +1382,112 @@ describe("目撃記録の集計キャッシュ", () => {
 		wineId = entry.id;
 	});
 
-	it("見かけただけの登録は目撃0件・飲用0件から始まる", async () => {
+	it("見かけただけの登録は体験0件・飲用0件から始まる", async () => {
 		const entry = await getDrunkWine(userId, wineId);
 		expect(entry.status).toBe("spotted");
-		expect(entry.sightingCount).toBe(0);
-		expect(entry.lastSeenOn).toBeNull();
+		expect(entry.encounterCount).toBe(0);
+		expect(entry.lastEncounteredOn).toBeNull();
 		// finished の「日付なし飲用記録を1件作る」規則に巻き込まれない
 		expect(entry.tastingCount).toBe(0);
 	});
 
-	it("複数追加すると件数が増え、last_seen_on は挿入順でなく MAX になる", async () => {
-		await addWineSighting(userId, wineId, { seenOn: "2022-06-01" });
-		await addWineSighting(userId, wineId, { seenOn: "2024-01-01" });
-		const entry = await addWineSighting(userId, wineId, {
-			seenOn: "2023-03-03",
+	it("複数追加すると件数が増え、last_encountered_on は挿入順でなく MAX になる", async () => {
+		await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2022-06-01",
 		});
-		expect(entry.sightingCount).toBe(3);
-		expect(entry.lastSeenOn).toBe("2024-01-01");
+		await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2024-01-01",
+		});
+		const entry = await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2023-03-03",
+		});
+		expect(entry.encounterCount).toBe(3);
+		expect(entry.lastEncounteredOn).toBe("2024-01-01");
+		// 飲んでいないので飲用側は動かない
+		expect(entry.tastingCount).toBe(0);
+		expect(entry.lastDrankOn).toBeNull();
 	});
 
-	it("最新を削除すると last_seen_on が次に大きい値へ戻る", async () => {
-		await addWineSighting(userId, wineId, { seenOn: "2022-06-01" });
-		const latest = await addWineSighting(userId, wineId, {
-			seenOn: "2024-01-01",
+	it("最新を削除すると last_encountered_on が次に大きい値へ戻る", async () => {
+		await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2022-06-01",
 		});
-		expect(latest.lastSeenOn).toBe("2024-01-01");
+		const latest = await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2024-01-01",
+		});
+		expect(latest.lastEncounteredOn).toBe("2024-01-01");
 
-		const sightings = await listWineSightings(userId, wineId);
-		const newest = sightings.find((s) => s.seenOn === "2024-01-01");
+		const encounters = await listWineEncounters(userId, wineId);
+		const newest = encounters.find((e) => e.occurredOn === "2024-01-01");
 		// 減算では表現できない挙動。全再計算にしている理由
-		const after = await deleteWineSighting(userId, newest?.id ?? "");
-		expect(after.sightingCount).toBe(1);
-		expect(after.lastSeenOn).toBe("2022-06-01");
+		const after = await deleteWineEncounter(userId, newest?.id ?? "");
+		expect(after.encounterCount).toBe(1);
+		expect(after.lastEncounteredOn).toBe("2022-06-01");
 	});
 
 	it("日付未入力の記録が混ざっても MAX が壊れない", async () => {
-		await addWineSighting(userId, wineId, {});
-		const entry = await addWineSighting(userId, wineId, {
-			seenOn: "2023-08-08",
+		await addWineEncounter(userId, wineId, { drank: false });
+		const entry = await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2023-08-08",
 		});
-		expect(entry.sightingCount).toBe(2);
-		expect(entry.lastSeenOn).toBe("2023-08-08");
+		expect(entry.encounterCount).toBe(2);
+		expect(entry.lastEncounteredOn).toBe("2023-08-08");
 	});
 
-	it("全件が日付未入力なら last_seen_on は null", async () => {
-		await addWineSighting(userId, wineId, { memo: "棚の上段" });
-		const entry = await addWineSighting(userId, wineId, { price: 4800 });
-		expect(entry.sightingCount).toBe(2);
-		expect(entry.lastSeenOn).toBeNull();
+	it("全件が日付未入力なら last_encountered_on は null", async () => {
+		await addWineEncounter(userId, wineId, {
+			drank: false,
+			memo: "棚の上段",
+		});
+		const entry = await addWineEncounter(userId, wineId, {
+			drank: false,
+			price: 4800,
+		});
+		expect(entry.encounterCount).toBe(2);
+		expect(entry.lastEncounteredOn).toBeNull();
 	});
 
-	it("目撃記録の更新でも再計算される", async () => {
-		await addWineSighting(userId, wineId, { seenOn: "2022-06-01" });
-		const [sighting] = await listWineSightings(userId, wineId);
-		const after = await updateWineSighting(userId, {
-			id: sighting?.id ?? "",
-			seenOn: "2025-05-05",
+	it("体験記録の更新でも再計算される", async () => {
+		await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2022-06-01",
 		});
-		expect(after.lastSeenOn).toBe("2025-05-05");
-		expect(after.sightingCount).toBe(1);
+		const [encounter] = await listWineEncounters(userId, wineId);
+		const after = await updateWineEncounter(userId, {
+			id: encounter?.id ?? "",
+			occurredOn: "2025-05-05",
+		});
+		expect(after.lastEncounteredOn).toBe("2025-05-05");
+		expect(after.encounterCount).toBe(1);
+	});
+
+	it("飲んだ回も体験の件数・最終日に数える", async () => {
+		await addWineEncounter(userId, wineId, {
+			drank: true,
+			occurredOn: "2024-06-01",
+			rating: 4,
+		});
+		const entry = await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2023-01-01",
+		});
+		// 「飲んだ = 必ず出会った」ので全体験は2件。最終体験日は飲んだ回が新しい
+		expect(entry.encounterCount).toBe(2);
+		expect(entry.lastEncounteredOn).toBe("2024-06-01");
+		// 飲用側は飲んだ回だけ
+		expect(entry.tastingCount).toBe(1);
+		expect(entry.lastDrankOn).toBe("2024-06-01");
+		expect(entry.lastRating).toBe(4);
 	});
 });
 
-describe("飲用記録と目撃記録の独立性", () => {
+describe("飲用と体験の集計の関係", () => {
 	let userId: string;
 	let wineId: string;
 	beforeEach(async () => {
@@ -1432,7 +1499,7 @@ describe("飲用記録と目撃記録の独立性", () => {
 		wineId = entry.id;
 	});
 
-	it("目撃記録を足しても飲用側の集計が動かない", async () => {
+	it("飲まない体験を足しても飲用側の集計が動かない", async () => {
 		await addWineTasting(userId, wineId, { drankOn: "2023-03-03" });
 		const before = await getDrunkWine(userId, wineId);
 
@@ -1441,24 +1508,26 @@ describe("飲用記録と目撃記録の独立性", () => {
 		});
 		expect(after.tastingCount).toBe(before.tastingCount);
 		expect(after.lastDrankOn).toBe(before.lastDrankOn);
-		expect(after.sightingCount).toBe(1);
-		expect(after.lastSeenOn).toBe("2025-01-01");
+		expect(after.encounterCount).toBe(2);
+		expect(after.lastEncounteredOn).toBe("2025-01-01");
 	});
 
-	it("飲用記録を足しても目撃側の集計が動かない", async () => {
+	it("飲用記録を足すと体験側の集計も動く(飲んだ = 必ず出会った)", async () => {
 		await addWineSighting(userId, wineId, { seenOn: "2025-01-01" });
 		const before = await getDrunkWine(userId, wineId);
+		expect(before.encounterCount).toBe(1);
 
 		const after = await addWineTasting(userId, wineId, {
 			drankOn: "2023-03-03",
 		});
-		expect(after.sightingCount).toBe(before.sightingCount);
-		expect(after.lastSeenOn).toBe(before.lastSeenOn);
+		// 旧体制では目撃側は動かなかったが、統合後は飲んだ回も体験に数える
+		expect(after.encounterCount).toBe(2);
+		expect(after.lastEncounteredOn).toBe("2025-01-01");
 		expect(after.tastingCount).toBe(1);
 		expect(after.lastDrankOn).toBe("2023-03-03");
 	});
 
-	it("飲用記録の削除で目撃側が巻き添えにならない", async () => {
+	it("飲用記録の削除で飲まない体験側が巻き添えにならない", async () => {
 		await addWineSighting(userId, wineId, { seenOn: "2025-01-01" });
 		await addWineTasting(userId, wineId, { drankOn: "2023-03-03" });
 		const [tasting] = await listWineTastings(userId, wineId);
@@ -1466,21 +1535,134 @@ describe("飲用記録と目撃記録の独立性", () => {
 		const after = await deleteWineTasting(userId, tasting?.id ?? "");
 		expect(after.tastingCount).toBe(0);
 		expect(after.lastDrankOn).toBeNull();
-		expect(after.sightingCount).toBe(1);
-		expect(after.lastSeenOn).toBe("2025-01-01");
+		expect(after.encounterCount).toBe(1);
+		expect(after.lastEncounteredOn).toBe("2025-01-01");
 	});
 
-	it("同じワインを「見かけて、飲んで、また見かけた」が両軸で表現できる", async () => {
+	it("同じワインを「見かけて、飲んで、また見かけた」が時系列で表現できる", async () => {
 		await addWineSighting(userId, wineId, { seenOn: "2024-01-01" });
 		await addWineTasting(userId, wineId, { drankOn: "2024-02-02", rating: 4 });
 		const after = await addWineSighting(userId, wineId, {
 			seenOn: "2025-03-03",
 		});
-		expect(after.sightingCount).toBe(2);
-		expect(after.lastSeenOn).toBe("2025-03-03");
+		expect(after.encounterCount).toBe(3);
+		expect(after.lastEncounteredOn).toBe("2025-03-03");
 		expect(after.tastingCount).toBe(1);
 		expect(after.lastDrankOn).toBe("2024-02-02");
 		expect(after.lastRating).toBe(4);
+
+		// 詳細の時系列(PR2)は occurred_on 降順の1本になる
+		const encounters = await listWineEncounters(userId, wineId);
+		expect(encounters.map((e) => e.occurredOn)).toEqual([
+			"2025-03-03",
+			"2024-02-02",
+			"2024-01-01",
+		]);
+		expect(encounters.map((e) => e.drank)).toEqual([false, true, false]);
+	});
+});
+
+// ---- 互換アダプタ(旧 server fn・MCP 用) -------------------------------------
+// PR1 では UI が旧 server fn を読むため、listWineTastings 等は drank 条件付きの
+// 射影として残る。種類の不一致は旧テーブルの分離と等価に NotFound になる。
+
+describe("互換アダプタの drank 絞り込み", () => {
+	let userId: string;
+	let wineId: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+		const entry = await createDrunkWine(userId, {
+			name: "Chablis",
+			status: "owned",
+		});
+		wineId = entry.id;
+		await addWineEncounter(userId, wineId, {
+			drank: true,
+			occurredOn: "2024-02-02",
+			rating: 4,
+			memo: "飲んだ",
+		});
+		await addWineEncounter(userId, wineId, {
+			drank: false,
+			occurredOn: "2024-01-01",
+			price: 4800,
+			memo: "見かけた",
+		});
+	});
+
+	it("listWineTastings は drank=1 だけを飲用記録の形で返す", async () => {
+		const tastings = await listWineTastings(userId, wineId);
+		expect(tastings).toHaveLength(1);
+		expect(tastings[0]).toMatchObject({
+			drankOn: "2024-02-02",
+			rating: 4,
+			memo: "飲んだ",
+		});
+	});
+
+	it("listWineSightings は drank=0 だけを目撃記録の形で返す", async () => {
+		const sightings = await listWineSightings(userId, wineId);
+		expect(sightings).toHaveLength(1);
+		expect(sightings[0]).toMatchObject({
+			seenOn: "2024-01-01",
+			price: 4800,
+			memo: "見かけた",
+		});
+	});
+
+	it("種類違いの更新・削除は NotFound(旧テーブルの分離と等価)", async () => {
+		const [tasting] = await listWineTastings(userId, wineId);
+		const [sighting] = await listWineSightings(userId, wineId);
+
+		await expect(
+			updateWineTasting(userId, { id: sighting?.id ?? "", rating: 1 }),
+		).rejects.toThrow("Entry not found");
+		await expect(
+			updateWineSighting(userId, { id: tasting?.id ?? "", price: 1 }),
+		).rejects.toThrow("Entry not found");
+		await expect(deleteWineTasting(userId, sighting?.id ?? "")).rejects.toThrow(
+			"Entry not found",
+		);
+		await expect(deleteWineSighting(userId, tasting?.id ?? "")).rejects.toThrow(
+			"Entry not found",
+		);
+		// 実データは無傷
+		expect(await listWineEncounters(userId, wineId)).toHaveLength(2);
+	});
+
+	it("updateLatestDrankEncounter は MCP レガシー引数と同値に動く", async () => {
+		const viaLegacy = await updateLatestWineTasting(userId, wineId, {
+			drankOn: "2024-03-03",
+		});
+		expect(viaLegacy?.tastingCount).toBe(1);
+		expect(viaLegacy?.lastDrankOn).toBe("2024-03-03");
+
+		const viaNew = await updateLatestDrankEncounter(userId, wineId, {
+			occurredOn: "2024-04-04",
+		});
+		expect(viaNew?.tastingCount).toBe(1);
+		expect(viaNew?.lastDrankOn).toBe("2024-04-04");
+	});
+});
+
+describe("場所での絞り込みと飲んだ回", () => {
+	it("飲んだ回に付けた場所でも一覧に拾われる(統合の副次効果)", async () => {
+		const userId = await freshUser();
+		const shop = await createPlace(userId, { name: "飲んだ店" });
+		const { id } = await createDrunkWine(userId, { name: "店で飲んだ" });
+		// 旧体制では飲用記録に場所を持てず、場所フィルタから構造的に漏れていた
+		await addWineEncounter(userId, id, {
+			drank: true,
+			occurredOn: "2024-05-05",
+			placeId: shop.id,
+			rating: 5,
+		});
+
+		const page = await listDrunkWines(userId, { placeId: shop.id });
+		expect(page.entries.map((e) => e.name)).toEqual(["店で飲んだ"]);
+		expect(
+			await countCellarFilters(userId, { placeId: shop.id }),
+		).toMatchObject({ all: 1 });
 	});
 });
 
@@ -1547,8 +1729,9 @@ describe("目撃記録からの場所の新規作成", () => {
 			newPlace: { name: "ビストロ・ド・パリ" },
 			seenOn: "2026-08-09",
 		});
-		expect(entry.sightingCount).toBe(1);
-		expect(entry.lastSeenOn).toBe("2026-08-09");
+		// createDrunkWine の finished 既定(drank=1) + 追加の drank=0 で全体験は2件
+		expect(entry.encounterCount).toBe(2);
+		expect(entry.lastEncounteredOn).toBe("2026-08-09");
 
 		const places = await listPlaces(userId);
 		expect(places.map((p) => p.name)).toEqual(["ビストロ・ド・パリ"]);
@@ -1662,7 +1845,7 @@ describe("目撃記録の所有権", () => {
 		).rejects.toThrow("Place not found");
 	});
 
-	it("銘柄を削除すると目撃記録も消える(FK cascade)", async () => {
+	it("銘柄を削除すると体験記録も消える(FK cascade)", async () => {
 		const userId = await freshUser();
 		const { id } = await createDrunkWine(userId, { name: "カスケード" });
 		await addWineSighting(userId, id, { seenOn: "2024-01-01" });
@@ -1670,8 +1853,8 @@ describe("目撃記録の所有権", () => {
 		await deleteDrunkWine(userId, id);
 		const rows = await db
 			.select()
-			.from(wineSighting)
-			.where(eq(wineSighting.drunkWineId, id));
+			.from(wineEncounter)
+			.where(eq(wineEncounter.drunkWineId, id));
 		expect(rows).toHaveLength(0);
 	});
 });
@@ -1716,8 +1899,8 @@ describe("bulkRegisterFromScan", () => {
 			expect(entry.status).toBe("spotted");
 			expect(entry.tastingCount).toBe(0);
 			// 集計キャッシュが同じ batch で更新されている
-			expect(entry.sightingCount).toBe(1);
-			expect(entry.lastSeenOn).toBe("2026-08-01");
+			expect(entry.encounterCount).toBe(1);
+			expect(entry.lastEncounteredOn).toBe("2026-08-01");
 		}
 
 		const sightings = await listWineSightings(
@@ -1747,11 +1930,12 @@ describe("bulkRegisterFromScan", () => {
 		expect(result).toMatchObject({ createdCount: 0, matchedCount: 1 });
 		const { entries } = await listDrunkWines(userId);
 		expect(entries).toHaveLength(1);
-		// 既存の状態(飲み終わった)は書き換えない。目撃記録が増えるだけ
+		// 既存の状態(飲み終わった)は書き換えない。体験記録が増えるだけ
+		// (元からの飲用1件 + バッチが足した drank=0 の1件で全体験は2件)
 		expect(entries[0]).toMatchObject({
 			id: existing.id,
 			status: "finished",
-			sightingCount: 1,
+			encounterCount: 2,
 			tastingCount: 1,
 		});
 	});
@@ -1768,12 +1952,14 @@ describe("bulkRegisterFromScan", () => {
 			],
 		});
 		const { entries } = await listDrunkWines(userId);
+		// PR1 では旧2行相当の体験記録2行になる(drank=0 + drank=1)。1行化は PR2。
 		expect(entries[0]).toMatchObject({
 			status: "finished",
 			tastingCount: 1,
 			lastDrankOn: "2026-07-31",
 			lastRating: 4,
-			sightingCount: 1,
+			encounterCount: 2,
+			lastEncounteredOn: "2026-07-31",
 		});
 	});
 
@@ -1980,8 +2166,8 @@ describe("参考サイト・市場価格の保存", () => {
 			{ source: "aaa.com", amountJpy: 2000 },
 			{ source: "bbb.com", currency: "USD", amount: 20 },
 		]);
-		// 目撃記録だけ足す振る舞いは変わらない
-		expect(reread.sightingCount).toBe(1);
+		// 体験記録だけ足す振る舞いは変わらない(元からの飲用1件 + 追加の1件)
+		expect(reread.encounterCount).toBe(2);
 	});
 
 	it("0039以前の行(NULL)へもマージできる", async () => {
@@ -2358,8 +2544,8 @@ describe("目撃記録の対応写真の一覧", () => {
 		// photoIndexes を送らない = photo_indexes NULL の従来行
 		const [row] = await db
 			.select()
-			.from(wineSighting)
-			.where(eq(wineSighting.batchId, result.batchId));
+			.from(wineEncounter)
+			.where(eq(wineEncounter.batchId, result.batchId));
 		expect(row?.photoIndexes).toBeNull();
 
 		const [sighting] = await listWineSightings(userId, row?.drunkWineId ?? "");
@@ -2382,9 +2568,9 @@ describe("目撃記録の対応写真の一覧", () => {
 		await saveImportBatchPhotos(userId, result.batchId, [jpeg()]);
 		// 後から範囲外になった番号が混ざっても、存在する写真だけを返す
 		await db
-			.update(wineSighting)
+			.update(wineEncounter)
 			.set({ photoIndexes: [0, 99] })
-			.where(eq(wineSighting.batchId, result.batchId));
+			.where(eq(wineEncounter.batchId, result.batchId));
 
 		const { entries } = await listDrunkWines(userId);
 		const [sighting] = await listWineSightings(userId, entries[0]?.id ?? "");
@@ -2628,13 +2814,13 @@ describe("undoImportBatch", () => {
 
 		const { entries } = await listDrunkWines(userId);
 		expect(entries).toHaveLength(1);
-		// 既存エントリは消えず、目撃記録だけ取り消されて集計が元に戻る
+		// 既存エントリは消えず、体験記録だけ取り消されて集計が元に戻る
 		expect(entries[0]).toMatchObject({
 			id: existing.id,
 			status: "finished",
-			sightingCount: 0,
-			lastSeenOn: null,
-			// 飲用記録(バッチと無関係)はそのまま残る
+			// 飲用記録(バッチと無関係)はそのまま残る = 全体験はその1件に戻る
+			encounterCount: 1,
+			lastEncounteredOn: "2020-01-01",
 			tastingCount: 1,
 			lastDrankOn: "2020-01-01",
 		});
@@ -2757,8 +2943,8 @@ describe("undoImportBatch", () => {
 		});
 	});
 
-	// バッチ由来かどうかは wine_tasting.batch_id で判定する。取り消しが
-	// 「そのエントリの試飲記録を全部消す」実装に退化したらここで落ちる。
+	// バッチ由来かどうかは wine_encounter.batch_id で判定する。取り消しが
+	// 「そのエントリの体験記録を全部消す」実装に退化したらここで落ちる。
 	it("取り消し後に手動で足した試飲記録は巻き込まない(#393)", async () => {
 		const userId = await freshUser();
 		// status を明示して「日付なしの飲用記録を1件作る」既定(finished)を避ける。
@@ -2800,11 +2986,11 @@ describe("undoImportBatch", () => {
 		await undoImportBatch(userId, result.batchId);
 
 		expect((await listDrunkWines(userId)).entries).toHaveLength(0);
-		// 取り残された試飲記録が無いこと(エントリが消えても行だけ残ると集計が壊れる)
+		// 取り残された体験記録が無いこと(エントリが消えても行だけ残ると集計が壊れる)
 		const leftover = await db
 			.select()
-			.from(wineTasting)
-			.where(eq(wineTasting.userId, userId));
+			.from(wineEncounter)
+			.where(eq(wineEncounter.userId, userId));
 		expect(leftover).toHaveLength(0);
 	});
 });
@@ -3401,7 +3587,8 @@ describe("場所での絞り込み", () => {
 
 		const page = await listDrunkWines(userId, { placeId: shop.id });
 		expect(page.entries).toHaveLength(1);
-		expect(page.entries[0]?.sightingCount).toBe(2);
+		// finished 既定の drank=1 + 同じ店の drank=0 × 2 で全体験は3件
+		expect(page.entries[0]?.encounterCount).toBe(3);
 	});
 });
 
