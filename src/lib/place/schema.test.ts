@@ -121,6 +121,25 @@ describe("createWineSightingInput", () => {
 			}).success,
 		).toBe(false);
 	});
+
+	it("場所は既存の選択と新規作成の排他", () => {
+		expect(
+			createWineSightingInput.safeParse({ newPlace: { name: "ビストロA" } })
+				.success,
+		).toBe(true);
+		expect(
+			createWineSightingInput.safeParse({
+				placeId: "p1",
+				newPlace: { name: "ビストロA" },
+			}).success,
+		).toBe(false);
+	});
+
+	it("新規作成の場所は名前が必須(空文字は弾く)", () => {
+		expect(
+			createWineSightingInput.safeParse({ newPlace: { name: "  " } }).success,
+		).toBe(false);
+	});
 });
 
 describe("updateWineSightingInput", () => {
@@ -135,5 +154,33 @@ describe("updateWineSightingInput", () => {
 			memo: null,
 		});
 		expect(r.success).toBe(true);
+	});
+
+	it("場所は既存の選択と新規作成の排他(追加時と同じ規則)", () => {
+		expect(
+			updateWineSightingInput.safeParse({
+				id: "s1",
+				newPlace: { name: "ビストロA" },
+			}).success,
+		).toBe(true);
+		expect(
+			updateWineSightingInput.safeParse({
+				id: "s1",
+				placeId: "p1",
+				newPlace: { name: "ビストロA" },
+			}).success,
+		).toBe(false);
+	});
+
+	it("placeId: null と newPlace は併用できる(クリアではなく差し替えになる)", () => {
+		// クライアントは newPlace 単独で送るが、null は「場所なし」なので
+		// 排他の対象にしない(refine が placeId の truthy だけを見る)。
+		expect(
+			updateWineSightingInput.safeParse({
+				id: "s1",
+				placeId: null,
+				newPlace: { name: "ビストロA" },
+			}).success,
+		).toBe(true);
 	});
 });

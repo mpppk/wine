@@ -9,6 +9,7 @@ import {
 } from "#/components/ui/select";
 import { Textarea } from "#/components/ui/textarea";
 import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
+import { duplicatePlaceNameMessage } from "#/lib/place/place";
 import { PLACE_NAME_MAX, SIGHTING_MEMO_MAX } from "#/lib/place/schema";
 import type { PlaceEntry } from "#/lib/services/place-service";
 
@@ -16,10 +17,7 @@ import type { PlaceEntry } from "#/lib/services/place-service";
 export interface WineSightingDraft {
 	/** 場所の選択。未選択は ""、新規作成は NEW_PLACE_VALUE */
 	placeId: string;
-	/**
-	 * その場で作る場所の名前(#495)。`placeId === NEW_PLACE_VALUE` のときだけ意味を持つ。
-	 * 新規作成を許さない呼び出し側(既存エントリへの目撃記録の追加)では常に空。
-	 */
+	/** その場で作る場所の名前(#495)。`placeId === NEW_PLACE_VALUE` のときだけ意味を持つ。 */
 	newPlaceName: string;
 	seenOn: string;
 	price: string;
@@ -49,15 +47,6 @@ export interface SightingFieldsProps {
 	/** DOM id の接頭辞。同一ページに複数の目撃記録フォームが並ぶため必須 */
 	idPrefix: string;
 	disabled?: boolean;
-	/**
-	 * 「新しい場所を追加…」を選べるようにするか(#495)。既定は false。
-	 *
-	 * 既存エントリへの目撃記録の追加(SightingList)では false のまま——記録のたびに
-	 * 場所を作れると表記ゆれの店名が増える。true にするのは**写真から登録した回**だけで、
-	 * そちらは一括登録と同じ「その機会に見かけた店をその場で登録する」文脈にあり、
-	 * ここで作れないと単体登録の利用者は場所を1つも作れない。
-	 */
-	allowNewPlace?: boolean;
 }
 
 /**
@@ -67,10 +56,10 @@ export interface SightingFieldsProps {
  * にしている。目撃記録は銘柄に対して 1:N で、追加・編集・削除の単位が銘柄と異なる
  * ため(飲用記録と同じ理由。Issue #358)。
  *
- * 場所の**新規作成は既定では持たない**。記録のたびに店を増やせるようにすると、表記ゆれの
- * 店名が目撃記録ごとに増えていく。写真から登録する経路だけが `allowNewPlace` で新規作成を
- * 開く(#495)——そちらは「その機会に見かけた店をその場で登録する」文脈で、閉じたままだと
- * 単体登録しか通らない利用者は場所を1つも作れない。
+ * 場所は**どの経路でもその場で新規作成できる**。かつては新規登録(#495)だけに開き、
+ * 編集画面の目撃記録では閉じていた——記録のたびに店を増やせると表記ゆれの店名が
+ * 増えるため——が、登録時に場所を入れ損ねると後から作る手段が無くなるため開いた。
+ * 表記ゆれの抑制は「同名は作れない」というサーバ側の関門(`prepareNewPlace`)が担う。
  */
 export function SightingFields({
 	value,
@@ -78,24 +67,20 @@ export function SightingFields({
 	places,
 	idPrefix,
 	disabled,
-	allowNewPlace,
 }: SightingFieldsProps) {
-	const creatingPlace = allowNewPlace && value.placeId === NEW_PLACE_VALUE;
+	const creatingPlace = value.placeId === NEW_PLACE_VALUE;
+	// 同名は作れない(サーバの prepareNewPlace が 409 で弾く)。保存を押すまで
+	// 分からないと入力をやり直させることになるので、一覧に同じ名前があれば入力中に出す。
+	const newPlaceName = value.newPlaceName.trim();
+	const duplicateName =
+		creatingPlace && places.some((place) => place.name === newPlaceName);
 	return (
 		<>
 			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-				<FormField
-					label="場所"
-					htmlFor={`${idPrefix}-place`}
-					description={
-						places.length === 0 && !allowNewPlace
-							? "場所は「写真からまとめて登録」で作成できます"
-							: undefined
-					}
-				>
+				<FormField label="場所" htmlFor={`${idPrefix}-place`}>
 					<Select
 						value={value.placeId || NO_PLACE_VALUE}
-						disabled={disabled || (places.length === 0 && !allowNewPlace)}
+						disabled={disabled}
 						onValueChange={(v) =>
 							onChange({
 								placeId: v === NO_PLACE_VALUE ? "" : v,
@@ -110,11 +95,7 @@ export function SightingFields({
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value={NO_PLACE_VALUE}>指定しない</SelectItem>
-							{allowNewPlace && (
-								<SelectItem value={NEW_PLACE_VALUE}>
-									新しい場所を追加…
-								</SelectItem>
-							)}
+							<SelectItem value={NEW_PLACE_VALUE}>新しい場所を追加…</SelectItem>
 							{places.map((place) => (
 								<SelectItem key={place.id} value={place.id}>
 									{place.name}
@@ -123,15 +104,23 @@ export function SightingFields({
 						</SelectContent>
 					</Select>
 					{creatingPlace && (
-						<Input
-							aria-label="新しい場所の名前"
-							value={value.newPlaceName}
-							disabled={disabled}
-							onChange={(e) => onChange({ newPlaceName: e.target.value })}
-							placeholder="例: ビストロ・ド・パリ 渋谷店"
-							maxLength={PLACE_NAME_MAX}
-							className="mt-2"
-						/>
+						<>
+							<Input
+								aria-label="新しい場所の名前"
+								value={value.newPlaceName}
+								disabled={disabled}
+								onChange={(e) => onChange({ newPlaceName: e.target.value })}
+								placeholder="例: ビストロ・ド・パリ 渋谷店"
+								maxLength={PLACE_NAME_MAX}
+								aria-invalid={duplicateName || undefined}
+								className="mt-2"
+							/>
+							{duplicateName && (
+								<p className="mt-1 text-sm text-destructive">
+									{duplicatePlaceNameMessage(newPlaceName)}
+								</p>
+							)}
+						</>
 					)}
 				</FormField>
 

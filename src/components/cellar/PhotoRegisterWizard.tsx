@@ -81,6 +81,7 @@ import {
 	PHOTO_ACCEPT_ATTR,
 	PHOTO_FORMATS_LABEL_JA,
 } from "#/lib/drunk-wine/photo";
+import { duplicatePlaceNameMessage } from "#/lib/place/place";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import type {
 	WineListAnalysisOutcome,
@@ -531,6 +532,12 @@ export function PhotoRegisterWizard({
 
 	/** 解析中(投入待ち + 結果待ち)。結果を反映するまで下がらない。 */
 	const isAnalyzing = isSubmittingJob || awaitingJobId !== null;
+	// 同名の場所は作れない(サーバの prepareNewPlace が 409 で弾く)。ここは解析に
+	// クレジットを払ってから登録する経路なので、入力中に気付けるようにする
+	// (SightingFields と同じ文言・同じ出し方)。
+	const duplicatePlaceName =
+		placeChoice === NEW_PLACE &&
+		places.some((place) => place.name === newPlaceName.trim());
 	/** 解析を始められない理由。null なら押せる。 */
 	const analyzeBlocked = analyzeBlockReason({
 		photoKey,
@@ -743,14 +750,22 @@ export function PhotoRegisterWizard({
 							</SelectContent>
 						</Select>
 						{placeChoice === NEW_PLACE && (
-							<Input
-								aria-label="新しい場所の名前"
-								value={newPlaceName}
-								onChange={(e) => setNewPlaceName(e.target.value)}
-								placeholder="例: ビストロ・ド・パリ 渋谷店"
-								maxLength={100}
-								className="mt-2"
-							/>
+							<>
+								<Input
+									aria-label="新しい場所の名前"
+									value={newPlaceName}
+									onChange={(e) => setNewPlaceName(e.target.value)}
+									placeholder="例: ビストロ・ド・パリ 渋谷店"
+									maxLength={100}
+									aria-invalid={duplicatePlaceName || undefined}
+									className="mt-2"
+								/>
+								{duplicatePlaceName && (
+									<p className="text-sm text-destructive">
+										{duplicatePlaceNameMessage(newPlaceName.trim())}
+									</p>
+								)}
+							</>
 						)}
 					</div>
 

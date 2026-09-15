@@ -59,17 +59,33 @@ function toIntOrUndefined(value: string): number | undefined {
 }
 
 /**
+ * 場所の選択をペイロードの形に写す。「新しい場所を追加…」は `newPlace` になる。
+ *
+ * 名前が空なら「場所の指定なし」に倒す(`buildCreateEntrySightingInput` と同じ規約)。
+ * 選択だけして名前を書かずに保存した回を弾くより、見かけた事実を残すほうが記録の
+ * 敷居が低い。**更新時は `null`(クリア)、追加時は未指定**と意味が分かれるので、
+ * 「場所なし」のときに載せるキーは呼び出し側から受け取る。
+ */
+function placePayload<T extends object>(draft: WineSightingDraft, noPlace: T) {
+	if (draft.placeId === NEW_PLACE_VALUE) {
+		const name = draft.newPlaceName.trim();
+		return name ? { newPlace: { name } } : noPlace;
+	}
+	return draft.placeId ? { placeId: draft.placeId } : noPlace;
+}
+
+/**
  * 追加時の入力。空欄のフィールドは送らない(= サーバ側で null になる)。
  *
- * 新規作成の場所は扱わない(この経路は `allowNewPlace` を開いていないので、
- * `placeId` が NEW_PLACE_VALUE になることは無い)。
+ * 場所はその場で新規作成できる(編集画面の「見かけた記録」からも作れるようにしたため)。
+ * 同名の場所が既にあればサーバ(`prepareNewPlace`)が 409 で弾く。
  */
 export function buildAddSightingInput(
 	draft: WineSightingDraft,
 ): CreateWineSightingInput {
 	const memo = draft.memo.trim();
 	return {
-		...(draft.placeId ? { placeId: draft.placeId } : {}),
+		...placePayload(draft, {}),
 		...(draft.seenOn ? { seenOn: draft.seenOn } : {}),
 		...(toIntOrUndefined(draft.price) != null
 			? { price: toIntOrUndefined(draft.price) }
@@ -91,16 +107,8 @@ export function buildCreateEntrySightingInput(
 	draft: WineSightingDraft,
 ): CreateEntrySightingInput | undefined {
 	const memo = draft.memo.trim();
-	const newPlaceName = draft.newPlaceName.trim();
-	const creatingPlace = draft.placeId === NEW_PLACE_VALUE;
 	const price = toIntOrUndefined(draft.price);
-	const place = creatingPlace
-		? newPlaceName
-			? { newPlace: { name: newPlaceName } }
-			: {}
-		: draft.placeId
-			? { placeId: draft.placeId }
-			: {};
+	const place = placePayload(draft, {});
 	const input = {
 		...place,
 		...(draft.seenOn ? { seenOn: draft.seenOn } : {}),
@@ -115,6 +123,9 @@ export function buildCreateEntrySightingInput(
  *
  * batchId / photoIndex / photoIndexes は**送らない**。由来(どの一括登録のどの写真か)はユーザが
  * 編集する情報ではなく、未指定なら drizzle が列を触らないので値が保たれる。
+ *
+ * 場所を新規作成するときは `placeId` を送らず `newPlace` だけを送る(サーバが採番した
+ * 新しい id が入る)。両方送るとサーバの zod が排他違反で弾く。
  */
 export function buildUpdateSightingInput(
 	id: string,
@@ -123,7 +134,7 @@ export function buildUpdateSightingInput(
 	const memo = draft.memo.trim();
 	return {
 		id,
-		placeId: draft.placeId || null,
+		...placePayload(draft, { placeId: null }),
 		seenOn: draft.seenOn || null,
 		price: toIntOrUndefined(draft.price) ?? null,
 		memo: memo || null,

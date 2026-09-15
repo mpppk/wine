@@ -1,8 +1,12 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "#/db";
 import { place } from "#/db/schema";
-import { NotFoundError } from "#/lib/errors";
-import { DEFAULT_PLACE_KIND, type PlaceKind } from "#/lib/place/place";
+import { ConflictError, NotFoundError } from "#/lib/errors";
+import {
+	DEFAULT_PLACE_KIND,
+	duplicatePlaceNameMessage,
+	type PlaceKind,
+} from "#/lib/place/place";
 import type { CreatePlaceInput, UpdatePlaceInput } from "#/lib/place/schema";
 
 // 場所(place)のサービス層。「どの店でワインを見かけたか」のユーザ単位マスタで、
@@ -52,19 +56,56 @@ export async function listPlaces(userId: string): Promise<PlaceEntry[]> {
 	return rows.map(toPlaceEntry);
 }
 
+/** 新しく作る place 行の値。呼び出し側が自分の db.batch に積む。 */
+export interface NewPlaceValues {
+	id: string;
+	userId: string;
+	name: string;
+	kind: PlaceKind;
+	memo: string | null;
+}
+
+/**
+ * 「その場で新しい場所を作る」の**共通チョークポイント**。同名の重複を弾いたうえで、
+ * insert する値(採番済みのid付き)を返す。
+ *
+ * 値だけを返して文を組み立てないのは、場所の作成が単独で完結しないため。呼び出し側は
+ * 銘柄・目撃記録・一括登録バッチと**同じ db.batch** に積んで原子的に作る必要がある。
+ *
+ * 重複の判定は名前の完全一致(zod が trim 済み)。SQLite の `=` は大文字小文字を区別
+ * するので、表記が1文字でも違えば別の場所として作れる——支店や曖昧な店名を許す
+ * 従来の方針(db/schema.ts)の名残で、ここで弾くのは「まったく同じ名前」だけ。
+ *
+ * 判定は SELECT → INSERT の2段階で、DB の unique 制約ではない(同名の既存データが
+ * ある利用者を登録不能にしないため)。同一ユーザが同時に同じ名前を投げた稀なケースでは
+ * すり抜けるが、その結果は従来どおりの同名2件であって壊れた状態ではない。
+ */
+export async function prepareNewPlace(
+	userId: string,
+	input: CreatePlaceInput,
+): Promise<NewPlaceValues> {
+	const [duplicate] = await db
+		.select({ id: place.id })
+		.from(place)
+		.where(and(eq(place.userId, userId), eq(place.name, input.name)))
+		.limit(1);
+	if (duplicate) throw new ConflictError(duplicatePlaceNameMessage(input.name));
+	return {
+		id: crypto.randomUUID(),
+		userId,
+		name: input.name,
+		kind: input.kind ?? DEFAULT_PLACE_KIND,
+		memo: input.memo ?? null,
+	};
+}
+
 export async function createPlace(
 	userId: string,
 	input: CreatePlaceInput,
 ): Promise<PlaceEntry> {
 	const [row] = await db
 		.insert(place)
-		.values({
-			id: crypto.randomUUID(),
-			userId,
-			name: input.name,
-			kind: input.kind ?? DEFAULT_PLACE_KIND,
-			memo: input.memo ?? null,
-		})
+		.values(await prepareNewPlace(userId, input))
 		.returning();
 	if (!row) throw new Error("Failed to insert place");
 	return toPlaceEntry(row);

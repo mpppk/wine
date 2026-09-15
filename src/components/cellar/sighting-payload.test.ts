@@ -176,6 +176,30 @@ describe("buildAddSightingInput", () => {
 	it("空白だけのメモは送らない", () => {
 		expect(buildAddSightingInput(draft({ memo: "   " }))).toEqual({});
 	});
+
+	it("新しい場所は newPlace として送る(placeId は送らない)", () => {
+		const input = buildAddSightingInput(
+			draft({
+				placeId: NEW_PLACE_VALUE,
+				newPlaceName: "  ビストロA  ",
+				seenOn: "2026-08-01",
+			}),
+		);
+		expect(input).toEqual({
+			newPlace: { name: "ビストロA" },
+			seenOn: "2026-08-01",
+		});
+		// placeId と同時に送るとサーバの zod が排他違反で弾く
+		expect(input).not.toHaveProperty("placeId");
+	});
+
+	it("新しい場所を選んだまま名前が空なら場所の指定なしにする", () => {
+		expect(
+			buildAddSightingInput(
+				draft({ placeId: NEW_PLACE_VALUE, newPlaceName: "   " }),
+			),
+		).toEqual({});
+	});
 });
 
 describe("buildUpdateSightingInput", () => {
@@ -219,5 +243,27 @@ describe("buildUpdateSightingInput", () => {
 		expect(buildUpdateSightingInput("s1", draft({ price: "abc" })).price).toBe(
 			null,
 		);
+	});
+
+	it("新しい場所は newPlace として送る(placeId は送らない)", () => {
+		const input = buildUpdateSightingInput(
+			"s1",
+			draft({ placeId: NEW_PLACE_VALUE, newPlaceName: "  ビストロA  " }),
+		);
+		expect(input).toMatchObject({
+			id: "s1",
+			newPlace: { name: "ビストロA" },
+		});
+		// 採番はサーバ。placeId を同時に送ると zod の排他違反になる
+		expect(input).not.toHaveProperty("placeId");
+	});
+
+	it("新しい場所を選んだまま名前が空なら場所をクリアする", () => {
+		const input = buildUpdateSightingInput(
+			"s1",
+			draft({ placeId: NEW_PLACE_VALUE, newPlaceName: "   " }),
+		);
+		expect(input.placeId).toBe(null);
+		expect(input).not.toHaveProperty("newPlace");
 	});
 });

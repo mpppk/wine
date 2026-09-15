@@ -13,8 +13,8 @@ import {
 } from "#/lib/drunk-wine/schema";
 import {
 	createDrunkWineWithSightingInput,
+	createWineSightingInput,
 	updateWineSightingInput,
-	wineSightingFields,
 } from "#/lib/place/schema";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
 import { authMiddleware } from "./middleware";
@@ -162,7 +162,9 @@ export const listWineSightings = createServerFn({ method: "GET" })
 
 export const addWineSighting = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
-	.inputValidator(z.object({ drunkWineId: entryId, ...wineSightingFields }))
+	// 場所の新規作成(newPlace)も受ける。placeId との排他は
+	// createWineSightingInput の refine が持ち、extend しても保たれる。
+	.inputValidator(createWineSightingInput.extend({ drunkWineId: entryId }))
 	.handler(({ data, context }) => {
 		const { drunkWineId, ...sighting } = data;
 		return drunkWineService.addWineSighting(

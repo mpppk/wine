@@ -90,7 +90,27 @@ export const updatePlaceInput = z.object({
 	memo: placeFields.memo.nullable().optional(),
 });
 
-export const createWineSightingInput = z.object(wineSightingFields);
+/**
+ * 場所は「既存の選択」と「その場で新規作成」の排他。目撃記録を作る/更新する入力が
+ * すべて同じ規則を共有するための述語(片方だけ緩めると経路ごとに挙動がずれる)。
+ */
+const placeChoiceIsExclusive = (v: {
+	placeId?: string | null;
+	newPlace?: unknown;
+}) => !(v.placeId && v.newPlace);
+
+const PLACE_CHOICE_ERROR = {
+	error: "場所は既存の選択か新規作成のどちらか一方にしてください",
+} as const;
+
+/**
+ * 目撃記録の追加(既存の銘柄に足す)。`newPlace` で**その場の場所の新規作成**も受ける。
+ * 編集画面の「見かけた記録」から場所を作れないと、銘柄の登録時に場所を入れ損ねた
+ * 利用者は既存の場所からしか選べない。作成は同じ db.batch で原子的に行う。
+ */
+export const createWineSightingInput = z
+	.object({ ...wineSightingFields, newPlace: createPlaceInput.optional() })
+	.refine(placeChoiceIsExclusive, PLACE_CHOICE_ERROR);
 
 /**
  * 銘柄の新規作成に添える目撃記録(Issue #495)。
@@ -111,20 +131,26 @@ const createEntrySightingInput = z
 		price: wineSightingFields.price,
 		memo: wineSightingFields.memo,
 	})
-	.refine((v) => !(v.placeId && v.newPlace), {
-		error: "場所は既存の選択か新規作成のどちらか一方にしてください",
-	});
+	.refine(placeChoiceIsExclusive, PLACE_CHOICE_ERROR);
 
-export const updateWineSightingInput = z.object({
-	id: z.string().min(1).max(80),
-	placeId: wineSightingFields.placeId.nullable().optional(),
-	batchId: wineSightingFields.batchId.nullable().optional(),
-	photoIndex: wineSightingFields.photoIndex.nullable().optional(),
-	photoIndexes: wineSightingFields.photoIndexes.nullable().optional(),
-	seenOn: wineSightingFields.seenOn.nullable().optional(),
-	price: wineSightingFields.price.nullable().optional(),
-	memo: wineSightingFields.memo.nullable().optional(),
-});
+/**
+ * 目撃記録の更新。`newPlace` を指定すると場所を作ってその記録に紐付ける。
+ * `placeId` との排他は追加時と同じ規則で、`newPlace` を送るときは `placeId` を
+ * 省く(サーバが採番した新しい id を入れる)。
+ */
+export const updateWineSightingInput = z
+	.object({
+		id: z.string().min(1).max(80),
+		placeId: wineSightingFields.placeId.nullable().optional(),
+		newPlace: createPlaceInput.optional(),
+		batchId: wineSightingFields.batchId.nullable().optional(),
+		photoIndex: wineSightingFields.photoIndex.nullable().optional(),
+		photoIndexes: wineSightingFields.photoIndexes.nullable().optional(),
+		seenOn: wineSightingFields.seenOn.nullable().optional(),
+		price: wineSightingFields.price.nullable().optional(),
+		memo: wineSightingFields.memo.nullable().optional(),
+	})
+	.refine(placeChoiceIsExclusive, PLACE_CHOICE_ERROR);
 
 // 上の2つは手書きのミラーなので、値スキーマへフィールドを足してここへ足し忘れても
 // 実行時には何も起きない。Record への代入は「全キーが揃っていること」を要求するので、
