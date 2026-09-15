@@ -230,6 +230,13 @@ function CellarNewPage() {
 										...(labelJob.sighting
 											? { sighting: labelJob.sighting }
 											: {}),
+										// 受け取り回のレビューでも手元写真のサムネイルを出す(#612)。
+										// ジョブが解析に使った写真の表示URLで、単体記録フォームの
+										// sourceLabelJobPhotoUrls と同じ材料（撮影順なので
+										// カードの photoIndexes と並びが一致する）。
+										...(labelJob.photoUrls?.length
+											? { photoUrls: labelJob.photoUrls }
+											: {}),
 									},
 								}
 							: {})}

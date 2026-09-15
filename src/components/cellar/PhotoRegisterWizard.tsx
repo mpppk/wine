@@ -18,6 +18,7 @@ import {
 	buildImportCards,
 	detachExisting,
 	type ImportCardState,
+	resolveReviewPhotoPreviews,
 	summarizeImportCards,
 	validateImportCards,
 } from "#/components/cellar/import-candidates";
@@ -184,6 +185,12 @@ export interface PhotoRegisterWizardProps {
 		 * 超えています」で登録ごと弾かれる(#482 の本番確認で踏んだ)。
 		 */
 		photoCount: number;
+		/**
+		 * ジョブが解析に使った写真の表示URL(撮影順・#612)。受け取って開いた回は
+		 * 手元に `File` が無いので、レビューカードの `photoPreviews` に使う。
+		 * 順序は投入時の写真順で、候補の `photoIndexes` と同じ並び。
+		 */
+		photoUrls?: string[];
 		/**
 		 * 投入時に入力されていた「どこで・いつ撮ったか」(#498)。ジョブに残してあるので、
 		 * 受け取って開いた回でも場所・撮影日を選び直させずに復元する。
@@ -627,6 +634,13 @@ export function PhotoRegisterWizard({
 
 	const selection = cards ? summarizeImportCards(cards) : null;
 	const validation = cards ? validateImportCards(cards) : null;
+	// カードの利用画像サムネイル(IMPL-5/#612)に使うプレビュー。解析に渡した順で、
+	// カードの photoIndexes と同じ並びにする。選ぶ規則は `resolveReviewPhotoPreviews`
+	// の1箇所に寄せる（受け取り回はジョブの写真、手元がある回は手元を優先）。
+	const photoPreviews: readonly string[] = resolveReviewPhotoPreviews(
+		photos.map((p) => p.previewUrl),
+		receivedJob?.photoUrls,
+	);
 
 	return (
 		<>
@@ -941,11 +955,12 @@ export function PhotoRegisterWizard({
 						<ImportCandidateCard
 							key={card.localId}
 							card={card}
-							// カードの利用画像サムネイル(IMPL-5)に使う。解析に渡した順の
+							// カードの利用画像サムネイル(IMPL-5/#612)に使う。解析に渡した順の
 							// プレビューで、カードの photoIndexes と同じ並び。
-							// 受け取って開いた回は手元に写真が無く空——その場合は
-							// 手元写真のサムネイルが出ない(web 画像は URL 参照なので出る)。
-							photoPreviews={photos.map((p) => p.previewUrl)}
+							// 受け取って開いた回はジョブの写真（サーバ保存）を使う——手元に
+							// File が無いため（手元プレビューは空）。web 画像は URL 参照なので
+							// 従来どおり出る。
+							photoPreviews={photoPreviews}
 							onChange={(patch) => updateCard(card.localId, patch)}
 							onChangeValues={(patch: Partial<DrunkWineFieldsValue>) =>
 								setCards(

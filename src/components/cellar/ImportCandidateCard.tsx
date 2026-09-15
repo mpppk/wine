@@ -36,9 +36,9 @@ import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 export interface ImportCandidateCardProps {
 	card: ImportCardState;
 	/**
-	 * 解析に渡した順のバッチ写真のプレビューURL(IMPL-5)。カードの手元写真の
-	 * サムネイルに使う。受け取って開いた回は手元に写真が無いので空配列——
-	 * その場合は手元写真のサムネイルが出ない(web 画像は URL 参照なので出る)。
+	 * 解析に渡した順のバッチ写真のプレビューURL(IMPL-5/#612)。カードの手元写真の
+	 * サムネイルに使う。受け取って開いた回はジョブの写真（サーバ保存）の表示URLが
+	 * 入る——手元に File が無いため blob ではなくサーバ参照になる。
 	 */
 	photoPreviews: readonly string[];
 	/** 変更のあったキーだけを渡す。呼び出し側が state にマージする */
