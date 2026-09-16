@@ -1427,6 +1427,7 @@ const KEYWORD_COMPLETE_REGIONS = [
 	"champagne",
 	"alsace",
 	"loire",
+	"veneto",
 ] as const;
 /**
  * カタカナ+中黒の原則から外れる検索語。**この表に載せた分だけ**が例外で、
@@ -1434,6 +1435,13 @@ const KEYWORD_COMPLETE_REGIONS = [
  */
 const KEYWORD_EXCEPTIONS: Record<string, string> = {
 	Salon: "サロン シャンパーニュ",
+	// ヴェネト(#622)。いずれもカタカナ表記が一般語・別業種と衝突するため、
+	// 産地名か「ワイン」を足して絞る。
+	Prà: "プラ ソアーヴェ",
+	Gorgo: "ゴルゴ クストーザ",
+	Astoria: "アストリア ワイン",
+	// 生産者名自体に数字が入る(「クオータ・チェントウーノ」とは読ませない)。
+	"Quota 101": "クオータ 101",
 };
 
 describe("検索キーワードを整備済みの地域(#211)", () => {
