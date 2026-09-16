@@ -1139,6 +1139,15 @@ const REGION_ALIASES: Record<string, string> = {
 	// ドイツは1地方＝国全体なので、国名の別表記も地域として解決する
 	germany: "deutschland",
 	ドイツ: "deutschland",
+	// ラングドックとルーションは1地方に収録しているが、ラベルには片方だけが
+	// 書かれることが多い。日本語表記の揺れ(ルシヨン)も拾う。値は正規化済みの
+	// ラベルと突き合わせるため、id の "-" を空白に畳んだ形で書く。
+	languedoc: "languedoc roussillon",
+	roussillon: "languedoc roussillon",
+	ラングドック: "languedoc roussillon",
+	ルーション: "languedoc roussillon",
+	ルシヨン: "languedoc roussillon",
+	"ラングドック ルシヨン": "languedoc roussillon",
 };
 
 /** 地域テキスト群から enabled な地域の id を解決する。 */

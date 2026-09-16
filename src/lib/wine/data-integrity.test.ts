@@ -1136,6 +1136,130 @@ describe("ドイツの整合性", () => {
 	});
 });
 
+describe("ラングドック・ルーションの整合性", () => {
+	const lr = AOPS.filter((a) => a.region === "languedoc-roussillon");
+
+	it("件数スナップショット(30 AOC / 4地区)", () => {
+		expect(lr.length).toBe(30);
+		expect(
+			REGIONS.find((r) => r.id === "languedoc-roussillon")?.subregions.length,
+		).toBe(4);
+	});
+
+	// 件数だけのスナップショットは中身の取り違えを検出できない(#216 の教訓)ため、
+	// 顔ぶれを地区ごとに固定する。出典はINAO公式レジストリ(Référentiel des produits
+	// SIQO)の comite_regional = LANGUEDOC-ROUSSILLON / VIN DOUX NATURELS と、
+	// 各AOCの cahier des charges。idApp はINAO区画データの id_app 実値。
+	it("収録した呼称の顔ぶれが地区ごとに一致する", () => {
+		const idsIn = (subregionId: string) =>
+			lr
+				.filter((a) => a.subregionId === subregionId)
+				.map((a) => a.id)
+				.sort();
+		expect(idsIn("aude")).toEqual([
+			"boutenac",
+			"cabardes",
+			"corbieres",
+			"cremant-de-limoux",
+			"fitou",
+			"la-clape",
+			"la-liviniere",
+			"limoux",
+			"malepere",
+			"minervois",
+			"muscat-de-saint-jean-de-minervois",
+		]);
+		expect(idsIn("herault-gard")).toEqual([
+			"clairette-du-languedoc",
+			"faugeres",
+			"muscat-de-frontignan",
+			"muscat-de-lunel",
+			"muscat-de-mireval",
+			"pic-saint-loup",
+			"picpoul-de-pinet",
+			"sable-de-camargue",
+			"saint-chinian",
+			"terrasses-du-larzac",
+		]);
+		expect(idsIn("roussillon")).toEqual([
+			"banyuls",
+			"banyuls-grand-cru",
+			"collioure",
+			"cotes-du-roussillon",
+			"cotes-du-roussillon-villages",
+			"maury",
+			"muscat-de-rivesaltes",
+			"rivesaltes",
+		]);
+		expect(idsIn("languedoc-regional")).toEqual(["languedoc"]);
+	});
+
+	// 調査の結果「収録しない」と判断したもの。理由を残さないと「網羅されていない」と
+	// 判断して後から足し戻される(#216 と同じ趣旨)。
+	it("調査で除外した呼称が復活していない", () => {
+		const excluded = [
+			// 生産量が非公表で、流通している商品も造り手も確認できなかった。実態は
+			// リヴザルト等の格下げ用の呼称。ポルトガルのアルガルヴェ4DOPと同じ判断。
+			"grand-roussillon",
+			// AOC Languedoc の補完地理表示(DGC)。法的に独立したAOCではなく、INAO
+			// レジストリ上も Languedoc と同じ id_appellation を共有する。ローヌで
+			// 「コート・デュ・ローヌ・ヴィラージュ＋村名」を収録していないのと同じ基準。
+			"pezenas",
+			"montpeyroux",
+			"saint-saturnin",
+			"quatourze",
+			"la-mejanelle",
+			"saint-christol",
+			"saint-drezery",
+			"saint-georges-d-orques",
+			"sommieres",
+			"cabrieres",
+			"gres-de-montpellier",
+			// Côtes du Roussillon Villages / Saint-Chinian のDGC(同上)
+			"caramany",
+			"latour-de-france",
+			"les-aspres",
+			"lesquerde",
+			"tautavel",
+			"berlou",
+			"roquebrun",
+		];
+		const ids = new Set(lr.map((a) => a.id));
+		for (const id of excluded) expect(ids.has(id), id).toBe(false);
+	});
+
+	// コスティール・ド・ニームとクレーレット・ド・ベルガルドはガール県だが、
+	// 前者は2004年にヴァレ・デュ・ローヌへ移管され INAO の délégation も comité も
+	// ローヌ側。後者は délégation が Avignon(comité は LANGUEDOC-ROUSSILLON)で
+	// 判断が割れるため、地図上の連続性を優先してローヌ地方に残している。
+	it("ガール県の2AOCはローヌ地方のまま", () => {
+		for (const id of ["costieres-de-nimes", "clairette-de-bellegarde"]) {
+			expect(AOPS.find((a) => a.id === id)?.region, id).toBe("rhone");
+		}
+	});
+
+	// ラングドックのAOCは cahier des charges が品種を閉じた集合として定めるため、
+	// ドイツのアンバウゲビートやイタリアのIGTのような「開かれた呼称」ではない。
+	it("開かれた呼称(isOpenEndedAppellation)を含まない", () => {
+		for (const aop of lr) {
+			expect(aop.tags?.includes("igt"), aop.id).toBeFalsy();
+		}
+	});
+
+	// バニュルス・グラン・クリュは名称に grand cru を含むが、独立したAOCの名前で
+	// あって等級ではない。grand-cru タグを付けるとUIで「特級」と表示され、
+	// ブルゴーニュ/アルザスの特級と同義に見えてしまう。
+	it("格付けタグを持たない(等級の階層が無いため)", () => {
+		for (const aop of lr) expect(aop.tags, aop.id).toBeUndefined();
+	});
+
+	it("生産者が3件以上ある", () => {
+		for (const aop of lr) {
+			expect(aop.producers.length, aop.id).toBeGreaterThanOrEqual(3);
+		}
+	});
+});
+
 describe("トスカーナ(イタリア)の整合性", () => {
 	const toscana = AOPS.filter((a) => a.region === "toscana");
 

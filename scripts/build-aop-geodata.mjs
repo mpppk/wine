@@ -104,6 +104,24 @@ const AIRES_CSV_NAME_BY_APP = {
 	"Côtes du Rhône Villages": "Côtes du Rhône Villages",
 	Ventoux: "Ventoux",
 	Luberon: "Luberon",
+	// ラングドック・ルーションの広域・地区AOC。区画データだと数十〜100村規模の
+	// 飛び地で肥大化するため aire géographique(コミューン輪郭)で表現する。
+	"Côtes du Roussillon": "Côtes du Roussillon",
+	"Côtes du Roussillon Villages": "Côtes du Roussillon Villages",
+	Rivesaltes: "Rivesaltes",
+	"Muscat de Rivesaltes": "Muscat de Rivesaltes",
+	Languedoc: "Languedoc",
+	Corbières: "Corbières",
+	Minervois: "Minervois",
+	Fitou: "Fitou",
+	Limoux: "Limoux",
+	"Crémant de Limoux": "Crémant de Limoux",
+	Cabardès: "Cabardès",
+	Malepère: "Malepère",
+	"Saint-Chinian": "Saint-Chinian",
+	"Terrasses du Larzac": "Terrasses du Larzac",
+	"Clairette du Languedoc": "Clairette du Languedoc",
+	"Sable de Camargue": "Sable de Camargue",
 };
 /** 委任コミューン(合併で消えた旧村)の輪郭を取得する県コード */
 const DELEGATED_DEPARTMENTS = ["51"];

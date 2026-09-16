@@ -120,11 +120,13 @@ const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
  * **`LABEL_PROMPT` の実長から計算せずに定数で持つ**。見積は解析前の必要クレジット表示
  * のためにクライアントも読むが、`label-extraction.ts` は AOP/品種の全マスタを推移的に
  * 読み込むためクライアントバンドルに入れたくない(一括抽出の見積を
- * ここへ置いたのと同じ理由)。実長(2026-08 時点で約5,600)がこの値を超えていない
- * ことは `label-extraction.test.ts` が検証する。マスタ名一覧を同梱しているので、
- * AOP/品種を増やすと伸びる。
+ * ここへ置いたのと同じ理由)。実長(ラングドック・ルーション30AOC追加後の
+ * 2026-09 時点で約6,800)がこの値を超えていないことは
+ * `label-extraction.test.ts` が検証する。マスタ名一覧を同梱しているので、
+ * **AOP/品種を増やすと伸びる**。下回ると Workers AI 経路の予約が実費を下回るため、
+ * 地域を足すPRではこの定数の追随が要る(テストが落ちて気付ける)。
  */
-export const AI_LABEL_PROMPT_TOKEN_ESTIMATE = 6_500;
+export const AI_LABEL_PROMPT_TOKEN_ESTIMATE = 8_000;
 
 // ---- エチケット解析の高精度経路(LLM + web検索) ----
 // 対応するプロバイダのAPIキーが設定されている場合のみ使う。未設定・失敗時は Workers AI

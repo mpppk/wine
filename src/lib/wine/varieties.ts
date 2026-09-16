@@ -820,6 +820,14 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		color: "red",
 	},
 	{
+		// カベルネ・ソーヴィニヨン×グルナッシュの交配品種(1961年INRA)。
+		// サーブル・ド・カマルグの生産規約が認める品種のひとつ。
+		id: "marselan",
+		nameJa: "マルスラン",
+		nameLocal: "Marselan",
+		color: "red",
+	},
+	{
 		// 南西地方のフェル・セルヴァドゥと同一。カバルデスの補助品種。
 		id: "fer",
 		nameJa: "フェル(フェル・セルヴァドゥ)",

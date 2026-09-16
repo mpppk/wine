@@ -20939,5 +20939,1655 @@
 			}
 		],
 		"description": "ピルナからドレスデン・ラーデボイルを経てマイセン、さらにディースバー・ゾイスリッツまで55kmのザクセン・ワイン街道沿いに畑が点在する531haの産地。1161年の記録に遡る800年の歴史があり、17世紀の最盛期には5,000haを数えた。大陸性気候の日較差が香りを育み、温暖化を受けて今はリースリング(75ha)が最大品種。ヴァイス/グラウブルグンダーとトラミナーが続き、ほぼザクセンでしか栽培されないゴールドリースリング(28ha)は地域固有の珍品種。"
+	},
+	{
+		"id": "cotes-du-roussillon",
+		"idApp": 258,
+		"name": "Côtes du Roussillon",
+		"shortName": "Côtes du Roussillon",
+		"nameJa": "コート・デュ・ルーション",
+		"region": "languedoc-roussillon",
+		"subregionId": "roussillon",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "carignan",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tourbat",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩・片麻岩の風化土(アレーヌ)、アグリ渓谷とフヌイエードの褐色・黒色片岩、コルビエール山麓の赤い粘土石灰質、テット川以南の砂質粘土を混じえた段丘、河川沿いの礫の段丘と、1つのAOCとは思えない多様さ。",
+		"producers": [
+			"Château de Jau",
+			"Domaine des Chênes",
+			"Château de Caladroy",
+			"Mas Cristine"
+		],
+		"description": "カニグー山(2,780m)・アルベール山塊・コルビエール山塊に囲まれ、東の地中海だけが開いた円形劇場状の地形に広がる、ルーションの土台となる広域AOC。ピレネー・オリアンタル県の102コミューンに及ぶ。赤はカリニャン・グルナッシュ・ムールヴェードル・シラーを主要品種とし、白はマカブー(=ビウラ)とトゥルバ(マルヴォワジー・デュ・ルーション)というこの地方ならではの品種が骨格を作る。"
+	},
+	{
+		"id": "cotes-du-roussillon-villages",
+		"idApp": 259,
+		"name": "Côtes du Roussillon Villages",
+		"shortName": "Côtes du Roussillon Villages",
+		"nameJa": "コート・デュ・ルーション・ヴィラージュ",
+		"region": "languedoc-roussillon",
+		"subregionId": "roussillon",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "carignan",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "accessory"
+			}
+		],
+		"soil": "テット川左岸は花崗岩・片麻岩の風化土とアグリ渓谷の褐色・黒色片岩、粘土石灰質。右岸は黄色・赤色の砂質粘土を混じえた段丘。標高100〜400m。",
+		"producers": [
+			"Domaine Gauby",
+			"Château de Jau",
+			"Les Vignerons de Tautavel-Vingrau",
+			"Domaine des Schistes"
+		],
+		"description": "ルーション北部の丘陵に限られる、赤のみのAOC。広域のコート・デュ・ルーションより収量を絞り、力強く熟成能力のある赤を生む。カラマニー/ラトゥール・ド・フランス/レ・ザスプル/レスケルド/トタヴェルの5つは、村名を補完地理表示としてラベルに併記できる。"
+	},
+	{
+		"id": "collioure",
+		"idApp": 254,
+		"name": "Collioure",
+		"shortName": "Collioure",
+		"nameJa": "コリウール",
+		"region": "languedoc-roussillon",
+		"subregionId": "roussillon",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "carignan",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tourbat",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "counoise",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "accessory"
+			}
+		],
+		"soil": "コート・ヴェルメイユの海に面した急斜面と段々畑を覆う、カンブリア紀の灰色片岩。土壌が薄く痩せている。",
+		"producers": [
+			"Domaine La Tour Vieille",
+			"Domaine du Mas Blanc",
+			"Coume del Mas",
+			"Cave de l'Abbé Rous"
+		],
+		"description": "バニュルスとまったく同じ4村(バニュルス・シュル・メール/セルベール/コリウール/ポール・ヴァンドル)の区域から造られる辛口。同じ畑から酒精強化のバニュルスと辛口のコリウールの両方が名乗れるのが最大の特徴で、スペイン国境に接する急斜面の段々畑は機械が入らず、今も人手で収穫される。"
+	},
+	{
+		"id": "banyuls",
+		"idApp": 302,
+		"name": "Banyuls",
+		"shortName": "Banyuls",
+		"nameJa": "バニュルス",
+		"region": "languedoc-roussillon",
+		"subregionId": "roussillon",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tourbat",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			}
+		],
+		"soil": "コート・ヴェルメイユの海に面した急斜面と段々畑を覆う、カンブリア紀の灰色片岩。土壌が薄く痩せている。",
+		"producers": [
+			"Terres des Templiers",
+			"Cave de l'Abbé Rous",
+			"Domaine du Mas Blanc",
+			"Coume del Mas"
+		],
+		"description": "発酵途中の果汁にアルコールを加えて糖を残す、ルーションを代表する天然甘口ワイン(ヴァン・ドゥー・ナチュレル)。「ランシオ」と呼ぶ酸化熟成の香りを育てるため、ガラス瓶や樽を屋外に置いて日光と寒暖差にさらす独特の熟成を行う。若い果実味を残す「リマージュ」と、酸化熟成させる「トラディショナル」「アンブレ」という2つの軸を持つ。"
+	},
+	{
+		"id": "banyuls-grand-cru",
+		"idApp": 303,
+		"name": "Banyuls grand cru",
+		"shortName": "Banyuls grand cru",
+		"nameJa": "バニュルス・グラン・クリュ",
+		"region": "languedoc-roussillon",
+		"subregionId": "roussillon",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tourbat",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "counoise",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			}
+		],
+		"soil": "コート・ヴェルメイユの海に面した急斜面と段々畑を覆う、カンブリア紀の灰色片岩。土壌が薄く痩せている。",
+		"producers": [
+			"Terres des Templiers",
+			"Cave de l'Abbé Rous",
+			"Domaine du Mas Blanc"
+		],
+		"description": "バニュルスと同じ区域から、赤の天然甘口だけに与えられる上位AOC(1962年認定)。グルナッシュ・ノワールを主体とし、樽での酸化熟成を長期間義務づける。名称に grand cru を含むが、これは独立したAOCの名前であってブルゴーニュの特級のような等級ではない。"
+	},
+	{
+		"id": "maury",
+		"idApp": 306,
+		"name": "Maury",
+		"shortName": "Maury",
+		"nameJa": "モーリー",
+		"region": "languedoc-roussillon",
+		"subregionId": "roussillon",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tourbat",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "accessory"
+			}
+		],
+		"soil": "黒色の泥灰岩(マルヌ)と黒色片岩の丘陵。周囲をガリーグが囲む。",
+		"producers": [
+			"Domaine du Mas Amiel",
+			"Les Vignerons de Maury",
+			"Domaine Pouderoux",
+			"Domaine de la Coume du Roy"
+		],
+		"description": "アグリ渓谷の黒い片岩の丘に広がる、ペルピニャン北西の4村(モーリー/トタヴェル/サン・ポール・ド・フヌイエ/ラジゲール)のAOC。天然甘口(グルナ/トゥイレ/アンブレ/ブラン)と辛口の赤を同じ名前で名乗れる珍しい呼称で、INAOの生産規約でも甘口はヴァン・ドゥー・ナチュレルの委員会、辛口赤はラングドック・ルーションの委員会と、所管が分かれている。"
+	},
+	{
+		"id": "rivesaltes",
+		"idApp": 314,
+		"name": "Rivesaltes",
+		"shortName": "Rivesaltes",
+		"nameJa": "リヴザルト",
+		"region": "languedoc-roussillon",
+		"subregionId": "roussillon",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tourbat",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩・片麻岩の風化土、フヌイエードの褐色・黒色片岩、コルビエール山麓の赤い粘土石灰質、アスプルの砂質粘土のモラス、河川沿いの礫の段丘。",
+		"producers": [
+			"Domaine Cazes",
+			"Château de Corneilla",
+			"Château de Jau",
+			"Domaine Força Réal"
+		],
+		"description": "ピレネー・オリアンタル県85村とオード県9村に及ぶ、フランス最大の天然甘口ワインAOC。グルナッシュ・ノワール100%で若い果実味を保つ「グルナ」、50%以上を使い酸化熟成させる「トゥイレ」、白系品種主体の「アンブレ」と、色と熟成でスタイルが分かれる。3年以上空気に触れさせた「ランシオ」表示も持つ。"
+	},
+	{
+		"id": "muscat-de-rivesaltes",
+		"idApp": 307,
+		"name": "Muscat de Rivesaltes",
+		"shortName": "Muscat de Rivesaltes",
+		"nameJa": "ミュスカ・ド・リヴザルト",
+		"region": "languedoc-roussillon",
+		"subregionId": "roussillon",
+		"kind": "regional",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "principal"
+			}
+		],
+		"soil": "花崗岩・片麻岩の風化土、フヌイエードの褐色・黒色片岩、コルビエール山麓の赤い粘土石灰質、河川沿いの礫の段丘。",
+		"producers": ["Domaine Cazes", "Château de Corneilla", "Domaine Pouderoux"],
+		"description": "リヴザルトと同じ広大な区域で、ミュスカ2種だけから造る天然甘口の白。小粒種のミュスカ・ブラン・ア・プティ・グランと、現地でミュスカ・ロマンと呼ぶミュスカ・ダレクサンドリーを併用するのが特徴で、酸化熟成させず華やかなマスカット香を保つ。クリスマス向けに早出しする「ミュスカ・ド・ノエル」表示もある。"
+	},
+	{
+		"id": "corbieres",
+		"idApp": 255,
+		"name": "Corbières",
+		"shortName": "Corbières",
+		"nameJa": "コルビエール",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "carignan",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "piquepoul-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "piquepoul-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			}
+		],
+		"soil": "ピレネー北東端に張り出したコルビエール山塊。峡谷に刻まれた台地・小さな盆地・尾根・孤立丘が入り組み、ピレネー造山運動を受けて各時代の地層が同居する。",
+		"producers": [
+			"Château Ollieux Romanis",
+			"Château de Villemajou",
+			"Cave des Vignerons de Camplong",
+			"Domaine Lerys"
+		],
+		"description": "ラングドックで最大級の面積を持つAOC。西の高地オード渓谷から東の地中海まで87村に及び、ビュガラッシュ峰(1,230m)・モン・トーシュ(917m)・ピック・アラリック(600m)が見下ろす起伏の激しい地形が、区画ごとにまったく違う個性を生む。カリニャンとグルナッシュを軸にした濃密な赤が中心。"
+	},
+	{
+		"id": "boutenac",
+		"idApp": 1098,
+		"name": "Corbières-Boutenac",
+		"shortName": "Boutenac",
+		"nameJa": "コルビエール・ブーテナック",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			}
+		],
+		"soil": "「ブーテナックの松林」(273m)を囲む、なだらかな丘と細長い尾根。畑は標高180mまでの斜面を占める。ピレネー造山運動で各時代の地層が同居する。",
+		"producers": [
+			"Château Ollieux Romanis",
+			"Château de Villemajou",
+			"Château Prieuré Borde-Rouge"
+		],
+		"description": "コルビエール唯一の村名格AOC(2005年認定)。オード県中央、カルカソンヌとナルボンヌの間の10村に限られ、オルビュー川・オーソー川・ニエル川に囲まれた一角を占める。生産規約はグルナッシュとムールヴェードルを主要品種としつつ、樹齢の高いカリニャンを補完品種として位置づけ、3品種の合計で70%以上を求める。"
+	},
+	{
+		"id": "minervois",
+		"idApp": 262,
+		"name": "Minervois",
+		"shortName": "Minervois",
+		"nameJa": "ミネルヴォワ",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "piquepoul-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rivairenc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "piquepoul-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			}
+		],
+		"soil": "セヴェンヌ山脈最南端のモンターニュ・ノワール(最高峰ピック・ド・ノール 1,210m)を背にした、北から南へ下る広大な円形劇場状の斜面。",
+		"producers": [
+			"Château Sainte-Eulalie",
+			"Clos Centeilles",
+			"Château Pierre Cros",
+			"Domaine Borie de Maurel"
+		],
+		"description": "モンターニュ・ノワールの南麓に開けた、南向き一面のAOC。中央部はマルセイエット池を100mほど見下ろし、アルジャン・ドゥーブル川とオニョン川が刻む大きな台地へと続く。ローマ街道「ヴィア・ミネルヴォワ」が丘と平野を貫き、地名の由来にもなっている。"
+	},
+	{
+		"id": "la-liviniere",
+		"idApp": 265,
+		"name": "Minervois-La Livinière",
+		"shortName": "La Livinière",
+		"nameJa": "ミネルヴォワ・ラ・リヴィニエール",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "village",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "piquepoul-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rivairenc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "「プティ・コース」と呼ばれる石灰質の台地。第三紀のモラス質堆積物が埋めた向斜で、砂岩の層と石灰岩の礫岩が挟まる。標高120〜330m。",
+		"producers": [
+			"Clos Centeilles",
+			"Château Sainte-Eulalie",
+			"Domaine Borie de Maurel"
+		],
+		"description": "ミネルヴォワの中心部、モンターニュ・ノワールの山裾に抱かれた6村だけの村名格AOC。南〜南東向きの斜面を松とガリーグ、ジュニパーやオークの丘が縁取る。生産規約は主要品種60%以上、うちムールヴェードルとシラーで40%以上を求め、より凝縮した長熟型の赤を生む。"
+	},
+	{
+		"id": "fitou",
+		"idApp": 261,
+		"name": "Fitou",
+		"shortName": "Fitou",
+		"nameJa": "フィトゥ",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "carignan",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			}
+		],
+		"soil": "海側は小さな丘と礫の平野、コルビエール側は狭い谷を囲む急斜面。2つの区域は石灰質の台地で隔てられている。",
+		"producers": [
+			"Les Producteurs du Mont Tauch",
+			"Cave du Cap Leucate",
+			"Domaine Lerys"
+		],
+		"description": "1948年認定という、ラングドック最古の赤ワインAOC。地中海に面した5村と、内陸のモン・トーシュ(917m)の麓の4村という、15kmほど離れた2つの飛び地からなる珍しい構成。生産規約は主要品種のカリニャンとグルナッシュを合わせて60%以上、それぞれ20%以上と定め、カリニャンの比率が高いことがこのAOCの骨格を作る。"
+	},
+	{
+		"id": "cabardes",
+		"idApp": 264,
+		"name": "Cabardès",
+		"shortName": "Cabardès",
+		"nameJa": "カバルデス",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "regional",
+		"colors": ["red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "fer",
+				"role": "accessory"
+			}
+		],
+		"soil": "北から南へ、原生層の片岩と片麻岩(標高350m超)、第三紀の石灰質コース(350〜200m)と変化する。ピレネー造山運動を受けた多様な地質。",
+		"producers": [
+			"Château de Pennautier",
+			"Château Auzias",
+			"Domaine Salitis",
+			"Château de Brau"
+		],
+		"description": "カルカソンヌ北西、モンターニュ・ノワールに背を向けオード渓谷へ緩やかに傾く「バルコニー」状のAOC。大西洋と地中海の気候がここで出会うため、**生産規約が大西洋系(カベルネ・フラン/カベルネ・ソーヴィニヨン/メルロ)で40%以上、地中海系(グルナッシュ/シラー)で40%以上を同時に義務づける**という、フランスでも珍しい構成を持つ。"
+	},
+	{
+		"id": "malepere",
+		"idApp": 608,
+		"name": "Malepère",
+		"shortName": "Malepère",
+		"nameJa": "マルペール",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "regional",
+		"colors": ["red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "accessory"
+			}
+		],
+		"soil": "マルペール山塊の粘土石灰質。大西洋と地中海の双方の気候の影響を受ける。",
+		"producers": [
+			"Château Guilhem",
+			"Château de Cointes",
+			"Domaine Girard",
+			"Vignobles de Vendéole"
+		],
+		"description": "カルカソンヌ南西のマルペール山塊に広がる、2007年にAOCへ昇格した産地。ラングドックの中で最も大西洋寄りの気候を持ち、赤はメルロ、ロゼはカベルネ・フランを主要品種とする。グルナッシュやシラーではなくボルドー系品種が軸になる点で、隣のカバルデスとともにこの地方の例外にあたる。"
+	},
+	{
+		"id": "limoux",
+		"idApp": 251,
+		"name": "Limoux",
+		"shortName": "Limoux",
+		"nameJa": "リムー",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "regional",
+		"colors": ["red", "white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "mauzac",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "オード上流、ピレネー山麓の粘土石灰質。標高が高く、ラングドックの中では冷涼。",
+		"producers": [
+			"Sieur d'Arques",
+			"Maison Antech",
+			"Domaine de Baron'Arques",
+			"Château Rives-Blanques"
+		],
+		"description": "1531年のサン・ティレール修道院の記録に遡るとされる、瓶内二次発酵の発祥地。モーザックのみ(90%以上)で造る「ブランケット・ド・リムー」、瓶内一次発酵を途中で止める古典的な「メトード・アンセストラル」、そして樽発酵の辛口白と、メルロを主体とする赤(2004年認可)まで、1つのAOCに4つの顔がある。"
+	},
+	{
+		"id": "cremant-de-limoux",
+		"idApp": 250,
+		"name": "Crémant de Limoux",
+		"shortName": "Crémant de Limoux",
+		"nameJa": "クレマン・ド・リムー",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "regional",
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chenin",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "mauzac",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "オード上流、ピレネー山麓の粘土石灰質。標高が高く、ラングドックの中では冷涼。",
+		"producers": ["Sieur d'Arques", "Maison Antech", "Domaine J. Laurens"],
+		"description": "リムーと同じ41村で造る瓶内二次発酵のスパークリング。生産規約はシャルドネを主要品種とし(50%以上)、シュナンを10〜40%、モーザックとピノ・ノワールを補完品種とする。モーザック主体のブランケット・ド・リムーとは品種構成で明確に分かれており、同じ土地の2つのスパークリングを飲み比べられるのがこの産地の面白さ。"
+	},
+	{
+		"id": "la-clape",
+		"idApp": 831,
+		"name": "La Clape",
+		"shortName": "La Clape",
+		"nameJa": "ラ・クラープ",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "village",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "piquepoul-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viura",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			}
+		],
+		"soil": "ナルボンヌ沖にかつて島だった石灰岩の岩山。海に囲まれた白い石灰質の断崖と、その間の痩せた斜面。",
+		"producers": [
+			"Château Pech Redon",
+			"Château Rouquette sur Mer",
+			"Château l'Hospitalet"
+		],
+		"description": "ナルボンヌの東、かつて地中海に浮かぶ島だった石灰岩の岩塊。ラングドックの広域AOCの補完地理表示から2015年に独立した村名格AOCで、ロゼは認められておらず赤と白だけを造る。年間降雨量が少なく海風が絶えないこの地は、白の主要品種にブールブーランを据える数少ないAOCでもある。"
+	},
+	{
+		"id": "muscat-de-saint-jean-de-minervois",
+		"idApp": 311,
+		"name": "Muscat de Saint-Jean-de-Minervois",
+		"shortName": "Muscat de Saint-Jean-de-Minervois",
+		"nameJa": "ミュスカ・ド・サン・ジャン・ド・ミネルヴォワ",
+		"region": "languedoc-roussillon",
+		"subregionId": "aude",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			}
+		],
+		"soil": "ミネルヴォワ北東端、標高200m超の石灰質の台地。赤い粘土と石灰岩の礫が混じる痩せた土壌。",
+		"producers": [
+			"Domaine de Barroubio",
+			"Clos Bagatelle",
+			"Cave du Muscat de Saint-Jean-de-Minervois"
+		],
+		"description": "サン・ジャン・ド・ミネルヴォワ1村だけ、生産規約が「ミュスカ・ア・プティ・グランのみ」と定める天然甘口の白。ラングドックの4つのミュスカのAOCの中では最も標高が高く冷涼で、その分だけ酸が残り、繊細でキレのある甘口になる。"
+	},
+	{
+		"id": "faugeres",
+		"idApp": 260,
+		"name": "Faugères",
+		"shortName": "Faugères",
+		"nameJa": "フォジェール",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "village",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			}
+		],
+		"soil": "上部ヴィゼアン期の片岩(シスト)のみからなる、極めて均質な土壌。砂質で薄く剥がれる。",
+		"producers": [
+			"Domaine Alquier",
+			"Mas des Capitelles",
+			"Domaine de Cébène",
+			"Château Haut-Lignières"
+		],
+		"description": "ベジエ北方20km、7つの村からなるAOC。ラングドックでは珍しく畑が片岩(シスト)だけに載っており、昼に蓄えた熱を夜に返す「蓄熱効果」が、カリニャンやムールヴェードルのような晩熟品種を完熟させる。隣接するサン・シニアンと並んで、この地方の片岩土壌を学ぶのに最適な産地。"
+	},
+	{
+		"id": "saint-chinian",
+		"idApp": 263,
+		"name": "Saint-Chinian",
+		"shortName": "Saint-Chinian",
+		"nameJa": "サン・シニアン",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			}
+		],
+		"soil": "北部は片岩(シスト)、南部は石灰質・粘土石灰質と、オルブ川を境に大きく2つに分かれる。",
+		"producers": [
+			"Cave de Roquebrun",
+			"Domaine Canet-Valette",
+			"Mas Champart",
+			"Château Coujan"
+		],
+		"description": "エロー県北西部の20村に広がるAOC(1982年認定)。南西のミネルヴォワと北東のフォジェールに挟まれ、北の片岩と南の石灰質という2つの土壌が同居する。ベルルーとロクブランの2つは、赤だけに補完地理表示としてラベルへ併記できる。"
+	},
+	{
+		"id": "pic-saint-loup",
+		"idApp": 833,
+		"name": "Pic Saint-Loup",
+		"shortName": "Pic Saint-Loup",
+		"nameJa": "ピク・サン・ルー",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "village",
+		"colors": ["red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "counoise",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "graciano",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "ピク・サン・ルーの岩峰とオルテュス断崖に挟まれた、粘土石灰質の斜面。",
+		"producers": [
+			"Château de Lascaux",
+			"Mas Bruguière",
+			"Château de Cazeneuve"
+		],
+		"description": "モンペリエ北方、ガリーグと松林の中に屹立するピク・サン・ルーの岩峰を望む産地。2017年にラングドックの補完地理表示から独立したAOCで、白は認められず赤とロゼのみ。生産規約が**シラーを赤で50%以上**と定めており、標高と夜間の冷え込みが効いて、この地方では例外的に引き締まった赤を生む。"
+	},
+	{
+		"id": "terrasses-du-larzac",
+		"idApp": 1042,
+		"name": "Terrasses du Larzac",
+		"shortName": "Terrasses du Larzac",
+		"nameJa": "テラス・デュ・ラルザック",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "regional",
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "counoise",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "graciano",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "礫の段丘・粘土石灰質・砂岩・片岩・「リュッフ」と呼ぶ赤い泥灰岩と、いずれも痩せて石が多い多様な土壌。",
+		"producers": ["Mas Jullien", "Domaine de Montcalmès", "Clos du Serre"],
+		"description": "モンペリエ北西、ラルザック石灰岩台地の断崖を背にした32村のAOC(2014年認定)。赤のみで、生産規約は3品種以上のブレンドと12か月の熟成を義務づける。台地から吹き下ろす冷気と海風が夏の高温を和らげ、ラングドックの赤としては珍しい酸とフレッシュさが残る。"
+	},
+	{
+		"id": "picpoul-de-pinet",
+		"idApp": 733,
+		"name": "Picpoul de Pinet",
+		"shortName": "Picpoul de Pinet",
+		"nameJa": "ピクプール・ド・ピネ",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "village",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "piquepoul-blanc",
+				"role": "principal"
+			}
+		],
+		"soil": "トー潟に向かって緩やかに下る、白亜紀と鮮新世の地層。年間降雨量600mmと乾燥する。",
+		"producers": [
+			"Cave de l'Ormarine",
+			"Cave de Pomérols",
+			"Domaine Félines Jourdan"
+		],
+		"description": "トー潟のほとりの6村だけで、生産規約が「ピクプール・ブランのみ」と定める白専用のAOC(2013年独立)。ラングドック最大の白ワイン産地で、潟と海が寒暖差を抑えるため、この地方には珍しい高い酸が残る。潟で獲れる牡蠣との組み合わせが地元の定番。"
+	},
+	{
+		"id": "clairette-du-languedoc",
+		"idApp": 253,
+		"name": "Clairette du Languedoc",
+		"shortName": "Clairette du Languedoc",
+		"nameJa": "クレレット・デュ・ラングドック",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "regional",
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "clairette",
+				"role": "principal"
+			}
+		],
+		"soil": "エロー川中流域の石灰質・粘土石灰質と、カブリエール周辺の赤い片岩。",
+		"producers": [
+			"La Clairette d'Adissan",
+			"Domaine La Croix Chaptal",
+			"Château de la Condamine Bertrand"
+		],
+		"description": "アディサン、アスピラン、カブリエール等11村で、生産規約が「クレレットのみ」と定める白のAOC(1948年認定)。ラングドックで最小級の呼称で、辛口のほか、3年以上空気に触れさせて熟成させる「ランシオ」と、酒精強化の「ヴァン・ド・リクール」という古典的なスタイルも名乗れる。村名を補完地理表示として併記できる11村がある。"
+	},
+	{
+		"id": "muscat-de-frontignan",
+		"idApp": 304,
+		"name": "Muscat de Frontignan ou Frontignan ou Vin de Frontignan",
+		"shortName": "Muscat de Frontignan",
+		"nameJa": "ミュスカ・ド・フロンティニャン",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			}
+		],
+		"soil": "トー潟と地中海に挟まれた石灰質の丘。海に近く、潮風を受ける。",
+		"producers": [
+			"Château de la Peyrade",
+			"Château de Stony",
+			"Cave des Vignerons de Frontignan",
+			"Domaine du Mas Rouge"
+		],
+		"description": "フロンティニャンとヴィック・ラ・ガルディオルの2村だけ、生産規約が「ミュスカ・ア・プティ・グランのみ」と定める天然甘口の白。18世紀から国際的に知られたフランスのミュスカの代名詞的存在で、天然甘口(ヴァン・ドゥー・ナチュレル)に加え、発酵前の果汁にアルコールを加える「ヴァン・ド・リクール」も名乗れる。"
+	},
+	{
+		"id": "muscat-de-lunel",
+		"idApp": 309,
+		"name": "Muscat de Lunel",
+		"shortName": "Muscat de Lunel",
+		"nameJa": "ミュスカ・ド・リュネル",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			}
+		],
+		"soil": "砂岩と丸石(ガレ・ルレ)の段丘。",
+		"producers": [
+			"Cave coopérative du Muscat de Lunel",
+			"Domaine de Bellevue",
+			"Château du Grès Saint-Paul"
+		],
+		"description": "モンペリエとニームの中間、リュネル/リュネル・ヴィエル/ヴェラルグの3村で造る天然甘口の白。ミュスカ・ア・プティ・グラン1品種のみ、色は白のみ、タイプは天然甘口のみという、極めて限定的な規約を持つ。1943年認定と、ラングドックのミュスカの中では古い。"
+	},
+	{
+		"id": "muscat-de-mireval",
+		"idApp": 310,
+		"name": "Muscat de Mireval",
+		"shortName": "Muscat de Mireval",
+		"nameJa": "ミュスカ・ド・ミルヴァル",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "village",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			}
+		],
+		"soil": "ガルディオル山塊の南麓、石灰質の斜面。トー潟と地中海に近い。",
+		"producers": [
+			"La Cave de Rabelais",
+			"Domaine de la Capelle",
+			"Mas des Arbousiers"
+		],
+		"description": "ミルヴァルとヴィック・ラ・ガルディオルの2村で造る天然甘口の白(1959年認定)。ミュスカ・ド・フロンティニャンと村を1つ共有する隣り合わせの産地で、こちらも品種はミュスカ・ア・プティ・グランのみ。ガルディオル山塊が北風を遮り、潟の湿気が穏やかな熟成をもたらす。"
+	},
+	{
+		"id": "sable-de-camargue",
+		"idApp": 1260,
+		"name": "Sable de Camargue",
+		"shortName": "Sable de Camargue",
+		"nameJa": "サーブル・ド・カマルグ",
+		"region": "languedoc-roussillon",
+		"subregionId": "herault-gard",
+		"kind": "regional",
+		"colors": ["rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marselan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "ugni-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "accessory"
+			}
+		],
+		"soil": "ローヌ川デルタの砂質土壌。川・海・風が運んだ堆積物からなり、粘土とシルトをほとんど含まず80%以上が砂。畑は平均海抜1m。",
+		"producers": [
+			"Domaine Royal de Jarras",
+			"Domaine de Montcalm",
+			"Les Vignobles de la Petite Camargue"
+		],
+		"description": "2023年にAOPへ昇格した、カマルグの砂地に育つ「グリ」専用の呼称。エロー・ガール・ブーシュ・デュ・ローヌ3県の沿岸14村に及ぶ。塩水の侵入を防ぐため「ルビーヌ」と呼ぶ水路網で地下水位と塩分を管理しており、この環境が淡いサーモン色とヨード感のある独特の味わいを生む。「グリ・ド・グリ」はグルナッシュ・グリのみから造る。"
+	},
+	{
+		"id": "languedoc",
+		"idApp": 257,
+		"name": "Languedoc",
+		"shortName": "Languedoc",
+		"nameJa": "ラングドック",
+		"region": "languedoc-roussillon",
+		"subregionId": "languedoc-regional",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lledoner-pelut",
+				"role": "principal"
+			},
+			{
+				"varietyId": "mourvedre",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bourboulenc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "clairette",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marsanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "piquepoul-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roussanne",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tourbat",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vermentino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carignan",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cinsault",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "counoise",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "grenache-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "graciano",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "piquepoul-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rivairenc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carignan-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viura",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "terret-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viognier",
+				"role": "accessory"
+			}
+		],
+		"soil": "ルーション国境からニーム近郊まで、片岩・石灰質・礫の段丘・砂岩と、区域全体であらゆる土壌を含む。",
+		"producers": [
+			"Gérard Bertrand",
+			"Château Puech-Haut",
+			"Abbaye Sylva Plana"
+		],
+		"description": "ラングドック(＋ルーションの一部)全域を覆う地方名AOC。この上にコルビエール、ミネルヴォワ、サン・シニアン、フォジェールといった地区AOCが積み上がり、さらにピク・サン・ルーやラ・クラープのように独立したAOCへ昇格したものもある。ペズナ、モンペルー、サン・サテュルナン等10の補完地理表示を持ち、それぞれ村名をラベルへ併記できる。"
 	}
 ]

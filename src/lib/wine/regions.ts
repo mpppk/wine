@@ -326,9 +326,12 @@ export const REGIONS: Region[] = [
 		nameLocal: "Languedoc-Roussillon",
 		country: "France",
 		countryJa: "フランス",
-		// AOPデータ投入中(#620)。投入後に bounds / geojsonPath / boundariesPath を
-		// 付けて enabled: true にする。
-		enabled: false,
+		enabled: true,
+		// build:geodata の出力値を反映(西端リムー〜東端カマルグ、南端バニュルス〜
+		// 北端テラス・デュ・ラルザック)。
+		bounds: [1.94257, 42.40481, 4.64454, 43.9946],
+		geojsonPath: "/data/aop/languedoc-roussillon.geojson",
+		boundariesPath: "/data/aop/languedoc-roussillon-boundaries.geojson",
 		// 地区はINAOの délégation territoriale(Narbonne / Montpellier)と県の
 		// 区切りに沿って西から東、そして国境側のルーションへと切る。ミュスカ・ド・
 		// サン・ジャン・ド・ミネルヴォワはエロー県だが、ミネルヴォワの一部であり
