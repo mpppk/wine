@@ -768,8 +768,8 @@ describe("ピエモンテ(イタリア)の整合性", () => {
 		}
 	});
 
-	it("docg / doc / igt タグはイタリア(ピエモンテ / トスカーナ)以外に付かない", () => {
-		const italianRegions = new Set(["piemonte", "toscana"]);
+	it("docg / doc / igt タグはイタリア(ピエモンテ / トスカーナ / ヴェネト)以外に付かない", () => {
+		const italianRegions = new Set(["piemonte", "toscana", "veneto"]);
 		for (const aop of AOPS.filter((a) => !italianRegions.has(a.region))) {
 			const tags = aop.tags ?? [];
 			expect(
@@ -1312,6 +1312,141 @@ describe("トスカーナ(イタリア)の整合性", () => {
 	});
 });
 
+describe("ヴェネト(イタリア)の整合性", () => {
+	const veneto = AOPS.filter((a) => a.region === "veneto");
+
+	it("件数スナップショット(DOCG14 / DOC24 / 計38)", () => {
+		expect(veneto.length).toBe(38);
+		expect(veneto.filter((a) => a.tags?.includes("docg")).length).toBe(14);
+		expect(veneto.filter((a) => a.tags?.includes("doc")).length).toBe(24);
+	});
+
+	it("各レコードは docg / doc のちょうど一方を持つ", () => {
+		for (const aop of veneto) {
+			const tags = aop.tags ?? [];
+			const n = Number(tags.includes("docg")) + Number(tags.includes("doc"));
+			expect(n, aop.id).toBe(1);
+		}
+	});
+
+	it("区分は regional / village のみ(畑・ワイナリーは無し)", () => {
+		for (const aop of veneto) {
+			expect(["regional", "village"]).toContain(aop.kind);
+		}
+	});
+
+	// 件数が合っていても中身が入れ替わると検出できない(#216 の教訓)。DOCG は
+	// 呼称の顔ぶれ自体が学習内容なので、14件のIDを固定する。
+	//
+	// 出典は MASAF「Elenco alfabetico Vini DOP」。同じ登録簿の `Menzione
+	// tradizionale` 欄が DOCG / DOC を分けており、**ヴァルポリチェッラ・リパッソは
+	// DOC** である(アマローネ等と同じ陰干し系なので DOCG と取り違えやすい)。
+	// リゾンはヴェネトとフリウリ・ヴェネツィア・ジュリアにまたがるが、
+	// 主産地がヴェネト側なので当地方に収録している。
+	it("DOCG14件の顔ぶれが公式登録簿と一致する", () => {
+		const docg = veneto
+			.filter((a) => a.tags?.includes("docg"))
+			.map((a) => a.id)
+			.sort();
+		expect(docg).toEqual(
+			[
+				"amarone-della-valpolicella",
+				"asolo-prosecco",
+				"bagnoli-friularo",
+				"bardolino-superiore",
+				"colli-di-conegliano",
+				"colli-euganei-fior-d-arancio",
+				"conegliano-valdobbiadene-prosecco",
+				"lison",
+				"montello-rosso",
+				"piave-malanotte",
+				"recioto-della-valpolicella",
+				"recioto-di-gambellara",
+				"recioto-di-soave",
+				"soave-superiore",
+			].sort(),
+		);
+	});
+
+	it("全レコードが REGIONS のヴェネトの地区に属する", () => {
+		const subregionIds = new Set(
+			REGIONS.find((r) => r.id === "veneto")?.subregions.map((s) => s.id),
+		);
+		for (const aop of veneto) {
+			expect(subregionIds.has(aop.subregionId), aop.id).toBe(true);
+		}
+	});
+
+	// 広域置き場(`-regional` 接尾辞)は境界GeoJSON・所属地区クイズの対象から
+	// 外れる。ヴェネトでここに入れてよいのは、9県2州に及ぶプロセッコDOCだけ。
+	// 地理的な地区に置けるものを流し込むと、その地区から学びが消える。
+	it("veneto-regional に入るのはプロセッコDOCだけ", () => {
+		const regional = veneto
+			.filter((a) => a.subregionId === "veneto-regional")
+			.map((a) => a.id);
+		expect(regional).toEqual(["prosecco"]);
+	});
+
+	// ヴェネトの陰干し(appassimento)系は、同じ品種構成のまま製法と甘辛で
+	// 呼称が分かれるのが学習の勘所。色の取り違えは「甘口白のレチョートを赤として
+	// 出題する」ような誤りに直結するため、4件の色を固定する。
+	it("レチョート系の色が製法どおりに割り当てられている", () => {
+		const colorsOf = (id: string) =>
+			veneto.find((a) => a.id === id)?.colors ?? [];
+		// ヴァルポリチェッラのレチョートは甘口だが黒ブドウの赤
+		expect(colorsOf("recioto-della-valpolicella")).toEqual(["red"]);
+		// 同じ陰干しでも辛口まで発酵させるのがアマローネ
+		expect(colorsOf("amarone-della-valpolicella")).toEqual(["red"]);
+		// ソアーヴェ/ガンベッラーラのレチョートはガルガーネガの甘口白
+		expect(colorsOf("recioto-di-soave")).toEqual(["sweet-white"]);
+		expect(colorsOf("recioto-di-gambellara")).toEqual(["sweet-white"]);
+	});
+
+	// プロセッコの2つのDOCGは、Art.2 の15%枠に在来品種(ヴェルディーゾ等)しか挙げず、
+	// シャルドネとピノ3種は Art.5 の「伝統的な補正(pratica tradizionale correttiva)」
+	// として同じ15%枠で認める。**Art.2 だけ読むと落ちる**ので、収録を固定しておく。
+	// 落ちていると「シャルドネの使用が認められていないAOPはどれ？」の答えに
+	// アーゾロ・プロセッコが混ざり、規約と食い違う出題になる。
+	it("プロセッコのDOCGはシャルドネとピノ3種を補助品種に持つ", () => {
+		for (const id of ["conegliano-valdobbiadene-prosecco", "asolo-prosecco"]) {
+			const aop = veneto.find((a) => a.id === id);
+			const accessory = new Set(
+				aop?.grapes
+					.filter((g) => g.role === "accessory")
+					.map((g) => g.varietyId),
+			);
+			for (const v of [
+				"chardonnay",
+				"pinot-blanc",
+				"pinot-gris",
+				"pinot-noir",
+			]) {
+				expect(accessory.has(v), `${id}: ${v}`).toBe(true);
+			}
+		}
+	});
+
+	// ヴェネツィアDOCの白は「タイ/ヴェルドゥッツォ/グレーラを合計50%以上」。
+	// この3品種はプロセッコ以外でグレーラが主役級に入る唯一の収録例なので固定する。
+	it("ヴェネツィアDOCはタイ・ヴェルドゥッツォ・グレーラを主要品種に持つ", () => {
+		const aop = veneto.find((a) => a.id === "venezia");
+		const principal = new Set(
+			aop?.grapes.filter((g) => g.role === "principal").map((g) => g.varietyId),
+		);
+		for (const v of ["friulano", "verduzzo", "glera"]) {
+			expect(principal.has(v), v).toBe(true);
+		}
+	});
+
+	// タイ・ロッソ(コッリ・ベリチ)はグルナッシュと同一品種なので、専用IDを
+	// 作らず grenache を再利用している(varieties.ts の規約)。別IDへ割ると
+	// 品種クイズ・品種フィルタがローヌ/ルーションのグルナッシュと分断される。
+	it("コッリ・ベリチのタイ・ロッソが grenache として収録されている", () => {
+		const berici = veneto.find((a) => a.id === "colli-berici");
+		expect(berici?.grapes.map((g) => g.varietyId)).toContain("grenache");
+	});
+});
+
 /** AOPごとの生産者名(重複を除く) */
 const producerNamesOf = (aops: readonly Aop[]): string[] => [
 	...new Set(aops.flatMap((a) => a.producers.map((p) => p.name))),
@@ -1328,6 +1463,7 @@ const KEYWORD_COMPLETE_REGIONS = [
 	"champagne",
 	"alsace",
 	"loire",
+	"veneto",
 ] as const;
 /**
  * カタカナ+中黒の原則から外れる検索語。**この表に載せた分だけ**が例外で、
@@ -1335,6 +1471,13 @@ const KEYWORD_COMPLETE_REGIONS = [
  */
 const KEYWORD_EXCEPTIONS: Record<string, string> = {
 	Salon: "サロン シャンパーニュ",
+	// ヴェネト(#622)。いずれもカタカナ表記が一般語・別業種と衝突するため、
+	// 産地名か「ワイン」を足して絞る。
+	Prà: "プラ ソアーヴェ",
+	Gorgo: "ゴルゴ クストーザ",
+	Astoria: "アストリア ワイン",
+	// 生産者名自体に数字が入る(「クオータ・チェントウーノ」とは読ませない)。
+	"Quota 101": "クオータ 101",
 };
 
 describe("検索キーワードを整備済みの地域(#211)", () => {

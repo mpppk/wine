@@ -354,6 +354,51 @@ export const REGIONS: Region[] = [
 			"瓶内二次発酵の起源とされるブランケットがあり、ピクプール・ド・ピネや" +
 			"各地のミュスカも含めて、1つの地方の中でスタイルの幅が最も広い。",
 	},
+	{
+		id: "veneto",
+		nameJa: "ヴェネト",
+		nameLocal: "Veneto",
+		country: "Italy",
+		countryJa: "イタリア",
+		enabled: true,
+		// build:geodata:eu の出力値を反映。
+		bounds: [10.62297, 45.05561, 13.91866, 46.6806],
+		geojsonPath: "/data/aop/veneto.geojson",
+		boundariesPath: "/data/aop/veneto-boundaries.geojson",
+		boundaryAttribution:
+			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
+		// 地区は州内の産地(行政区分ではなく地理と酒質のまとまり)で西から東へ切る。
+		// ガンベッラーラとレッシーニはヴィチェンツァ県だが、ソアーヴェと同じ
+		// 火山性土壌＋ガルガーネガ/ドゥレッラの帯なので soave-lessini に置く。
+		// プロセッコDOCだけは9県2州に及ぶ広域呼称なので、既存の規約どおり
+		// `-regional` 接尾辞の置き場へ回す(境界GeoJSON・所属地区クイズの対象から
+		// 自動的に外れる。トスカーナの toscana-regional と同じ扱い)。
+		subregions: [
+			{ id: "valpolicella", nameJa: "ヴァルポリチェッラ" },
+			{ id: "soave-lessini", nameJa: "ソアーヴェ / レッシーニ" },
+			{ id: "garda-veronese", nameJa: "ガルダ / ヴェローナ西部" },
+			{ id: "vicenza-berici", nameJa: "ヴィチェンツァ / ベリチ丘陵" },
+			{ id: "padova-euganei", nameJa: "パドヴァ / エウガネイ丘陵" },
+			{
+				id: "treviso-prosecco",
+				nameJa: "トレヴィーゾ(プロセッコ / ピアーヴェ)",
+			},
+			{ id: "venezia-orientale", nameJa: "ヴェネツィア東部(リゾン)" },
+			{ id: "veneto-regional", nameJa: "広域DOC" },
+		],
+		description:
+			"ガルダ湖からアドリア海まで東西に広がる、イタリア最大級の生産量を持つ州。" +
+			"ピエモンテがネッビオーロ、トスカーナがサンジョヴェーゼという1品種を軸に" +
+			"階層を学ぶ州なのに対し、ヴェネトは製法の違いで学ぶ州といえる。" +
+			"収穫した房を数か月陰干し(appassimento)してから発酵させるヴァルポリチェッラの" +
+			"アマローネとレチョート、その搾りかすで再発酵させるリパッソ、タンク内二次発酵で" +
+			"造るプロセッコ、瓶内二次発酵のレッシーニ・ドゥレッロと、同じ州の中に" +
+			"まったく異なる造りが並ぶ。品種も西のコルヴィーナ/ガルガーネガ、" +
+			"東のグレーラ/ラボーゾ/タイと入れ替わり、火山性(ソアーヴェ・エウガネイ)・" +
+			"氷堆石(バルドリーノ)・石灰岩(ベリチ)・沖積(ピアーヴェ)と土壌も対照的。" +
+			"境界はピエモンテ・トスカーナ同様、コミューン単位で集約された学術データセット" +
+			"(Candiago et al. 2022, CC0)に基づく概略値。",
+	},
 ];
 
 export function getRegion(id: string): Region | undefined {

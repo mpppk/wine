@@ -22589,5 +22589,1808 @@
 			"Abbaye Sylva Plana"
 		],
 		"description": "ラングドック(＋ルーションの一部)全域を覆う地方名AOC。この上にコルビエール、ミネルヴォワ、サン・シニアン、フォジェールといった地区AOCが積み上がり、さらにピク・サン・ルーやラ・クラープのように独立したAOCへ昇格したものもある。ペズナ、モンペルー、サン・サテュルナン等10の補完地理表示を持ち、それぞれ村名をラベルへ併記できる。"
+	},
+	{
+		"id": "amarone-della-valpolicella",
+		"idApp": 925001,
+		"name": "Amarone della Valpolicella",
+		"shortName": "Amarone della Valpolicella",
+		"nameJa": "アマローネ・デッラ・ヴァルポリチェッラ",
+		"region": "veneto",
+		"subregionId": "valpolicella",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "corvina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "corvinone",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rondinella",
+				"role": "principal"
+			},
+			{
+				"varietyId": "molinara",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "oseleta",
+				"role": "accessory"
+			}
+		],
+		"soil": "北をレッシーニ山塊に、西をガルダ湖に守られたヴェローナ北部の丘陵と谷。土壌は石灰岩・ドロマイトが風化したものと玄武岩、さらに火山性の氷堆石・河川堆積が混じり合い、谷ごとに保水力が変わる。",
+		"producers": [
+			"Giuseppe Quintarelli",
+			"Romano Dal Forno",
+			"Bertani",
+			"Masi",
+			"Allegrini",
+			"Tommasi",
+			"Speri",
+			"Tedeschi",
+			"Zenato",
+			"Tommaso Bussola",
+			"Brigaldara",
+			"Zýmē"
+		],
+		"description": "収穫した房を風通しの良い棚(fruttaio)で3〜4か月陰干し(appassimento)し、凝縮した果汁を辛口まで発酵させる。レチョートの発酵が止まらず辛口になったのが起源とされ、名は「苦い(amaro)」に由来する。コルヴィーナ/コルヴィノーネ45〜95%＋ロンディネッラ5〜30%。"
+	},
+	{
+		"id": "recioto-della-valpolicella",
+		"idApp": 925002,
+		"name": "Recioto della Valpolicella",
+		"shortName": "Recioto della Valpolicella",
+		"nameJa": "レチョート・デッラ・ヴァルポリチェッラ",
+		"region": "veneto",
+		"subregionId": "valpolicella",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "corvina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "corvinone",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rondinella",
+				"role": "principal"
+			},
+			{
+				"varietyId": "molinara",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "oseleta",
+				"role": "accessory"
+			}
+		],
+		"soil": "北をレッシーニ山塊に、西をガルダ湖に守られたヴェローナ北部の丘陵と谷。土壌は石灰岩・ドロマイトが風化したものと玄武岩、さらに火山性の氷堆石・河川堆積が混じり合い、谷ごとに保水力が変わる。",
+		"producers": [
+			"Giuseppe Quintarelli",
+			"Romano Dal Forno",
+			"Tommaso Bussola",
+			"Speri",
+			"Tedeschi",
+			"Masi"
+		],
+		"description": "アマローネと同じ陰干しブドウを使い、発酵を途中で止めて糖を残した甘口の赤。房の日当たりの良い肩(方言で recie=耳)だけを選ぶ慣習が名の由来で、歴史的にはこちらがヴァルポリチェッラの陰干しワインの本流だった。"
+	},
+	{
+		"id": "valpolicella",
+		"idApp": 925003,
+		"name": "Valpolicella",
+		"shortName": "Valpolicella",
+		"nameJa": "ヴァルポリチェッラ",
+		"region": "veneto",
+		"subregionId": "valpolicella",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "corvina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "corvinone",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rondinella",
+				"role": "principal"
+			},
+			{
+				"varietyId": "molinara",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "oseleta",
+				"role": "accessory"
+			}
+		],
+		"soil": "北をレッシーニ山塊に、西をガルダ湖に守られたヴェローナ北部の丘陵と谷。土壌は石灰岩・ドロマイトが風化したものと玄武岩、さらに火山性の氷堆石・河川堆積が混じり合い、谷ごとに保水力が変わる。",
+		"producers": [
+			"Allegrini",
+			"Masi",
+			"Tedeschi",
+			"Speri",
+			"Corte Sant'Alda",
+			"Monte dall'Ora",
+			"Zenato"
+		],
+		"description": "陰干しをせず新鮮なブドウから造る基本形。チェリーの果実味と軽やかな渋みが身上で、上位に Superiore を持つ。歴史的中心の5村に限る Classico と、ヴァルパンテーナ渓谷の Valpantena という2つの地区表示がある。"
+	},
+	{
+		"id": "valpolicella-ripasso",
+		"idApp": 925004,
+		"name": "Valpolicella Ripasso",
+		"shortName": "Valpolicella Ripasso",
+		"nameJa": "ヴァルポリチェッラ・リパッソ",
+		"region": "veneto",
+		"subregionId": "valpolicella",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "corvina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "corvinone",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rondinella",
+				"role": "principal"
+			},
+			{
+				"varietyId": "molinara",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "oseleta",
+				"role": "accessory"
+			}
+		],
+		"soil": "北をレッシーニ山塊に、西をガルダ湖に守られたヴェローナ北部の丘陵と谷。土壌は石灰岩・ドロマイトが風化したものと玄武岩、さらに火山性の氷堆石・河川堆積が混じり合い、谷ごとに保水力が変わる。",
+		"producers": ["Zenato", "Tommasi", "Brigaldara", "Tedeschi", "Speri"],
+		"description": "発酵を終えたヴァルポリチェッラを、アマローネ/レチョートの搾りかす(vinacce)の上で再発酵させる ripasso という技法で造る。色・アルコール・厚みが増し「アマローネの弟」と呼ばれる。2010年にヴァルポリチェッラDOCから独立した呼称になった。"
+	},
+	{
+		"id": "soave-superiore",
+		"idApp": 925005,
+		"name": "Soave Superiore",
+		"shortName": "Soave Superiore",
+		"nameJa": "ソアーヴェ・スペリオーレ",
+		"region": "veneto",
+		"subregionId": "soave-lessini",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trebbiano-di-soave",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルポーネ川流域の丘陵。分解した玄武岩に由来する黒っぽい壌土質粘土が主体で、石灰質玄武岩の露頭が肥沃さを足す。排水が良い一方で保水力もあり、生育期に少しずつ水を返すためガルガーネガに塩味と厚みが出る。",
+		"producers": [
+			"Pieropan",
+			"Gini",
+			"Inama",
+			"Suavia",
+			"Coffele",
+			"Ca' Rugate",
+			"Tamellini"
+		],
+		"description": "ガルガーネガ70%以上。収量を抑え、熟成期間を長く取った上位版で、畑は丘陵地に限られる。火山性土壌に由来する塩味と、瓶熟成で開くアーモンド・蜂蜜の香りが特徴。"
+	},
+	{
+		"id": "recioto-di-soave",
+		"idApp": 925006,
+		"name": "Recioto di Soave",
+		"shortName": "Recioto di Soave",
+		"nameJa": "レチョート・ディ・ソアーヴェ",
+		"region": "veneto",
+		"subregionId": "soave-lessini",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trebbiano-di-soave",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルポーネ川流域の丘陵。分解した玄武岩に由来する黒っぽい壌土質粘土が主体で、石灰質玄武岩の露頭が肥沃さを足す。排水が良い一方で保水力もあり、生育期に少しずつ水を返すためガルガーネガに塩味と厚みが出る。",
+		"producers": ["Pieropan", "Gini", "Coffele", "Suavia", "Ca' Rugate"],
+		"description": "ガルガーネガ70%以上を陰干しして造る甘口白。1998年にヴェネトで最初のDOCGとなった呼称で、ヴァルポリチェッラの赤いレチョートと対をなす。"
+	},
+	{
+		"id": "soave",
+		"idApp": 925007,
+		"name": "Soave",
+		"shortName": "Soave",
+		"nameJa": "ソアーヴェ",
+		"region": "veneto",
+		"subregionId": "soave-lessini",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trebbiano-di-soave",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "アルポーネ川流域の丘陵。分解した玄武岩に由来する黒っぽい壌土質粘土が主体で、石灰質玄武岩の露頭が肥沃さを足す。排水が良い一方で保水力もあり、生育期に少しずつ水を返すためガルガーネガに塩味と厚みが出る。",
+		"producers": [
+			"Pieropan",
+			"Inama",
+			"Gini",
+			"Suavia",
+			"Coffele",
+			"Ca' Rugate",
+			"Prà",
+			"Tamellini"
+		],
+		"description": "イタリアを代表する白のひとつ。ガルガーネガ70%以上で、残りはトレッビアーノ・ディ・ソアーヴェとシャルドネ。歴史的中心地の Classico と、丘陵部の Colli Scaligeri という2つの地区表示を持つ。"
+	},
+	{
+		"id": "recioto-di-gambellara",
+		"idApp": 925008,
+		"name": "Recioto di Gambellara",
+		"shortName": "Recioto di Gambellara",
+		"nameJa": "レチョート・ディ・ガンベッラーラ",
+		"region": "veneto",
+		"subregionId": "soave-lessini",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			}
+		],
+		"soil": "サン・マルコ公園の柱状節理に代表される火山性の丘陵。玄武岩の基盤に石灰岩・石灰質泥灰岩の露頭が混じり、表土は壌土質〜粘土質。玄武岩が根を通さないほど硬い区画もある。",
+		"producers": ["Zonin", "Dal Maso", "Cavazza"],
+		"description": "ガルガーネガ100%の陰干し甘口。生産規約が単一品種100%を求めるヴェネトで唯一のDOCGで、補助品種の余地がない。"
+	},
+	{
+		"id": "gambellara",
+		"idApp": 925009,
+		"name": "Gambellara",
+		"shortName": "Gambellara",
+		"nameJa": "ガンベッラーラ",
+		"region": "veneto",
+		"subregionId": "soave-lessini",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "trebbiano-di-soave",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "durella",
+				"role": "accessory"
+			}
+		],
+		"soil": "サン・マルコ公園の柱状節理に代表される火山性の丘陵。玄武岩の基盤に石灰岩・石灰質泥灰岩の露頭が混じり、表土は壌土質〜粘土質。玄武岩が根を通さないほど硬い区画もある。",
+		"producers": ["La Biancara", "Dal Maso", "Cavazza", "Zonin"],
+		"description": "ソアーヴェの東隣、ヴィチェンツァ県側に続く火山性の産地。ガルガーネガ80%以上。陰干しして木樽で熟成させる Classico Vin Santo も規約が認める。"
+	},
+	{
+		"id": "lessini-durello",
+		"idApp": 925010,
+		"name": "Lessini Durello",
+		"shortName": "Lessini Durello",
+		"nameJa": "レッシーニ・ドゥレッロ",
+		"region": "veneto",
+		"subregionId": "soave-lessini",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["sparkling", "white"],
+		"grapes": [
+			{
+				"varietyId": "durella",
+				"role": "principal"
+			},
+			{
+				"varietyId": "garganega",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴァル・ダルポーネからヴァル・ディ・キアンポにかけての丘陵斜面。塩基性の火山岩・火山砕屑岩が卓越し、表層は細粒で深部ほど玄武岩の礫を多く含む。",
+		"producers": ["Fongaro", "Marcato", "Casa Cecchin", "Corte Moschina"],
+		"description": "ドゥレッラ85%以上。この品種は際立って酸が高く、単体では硬いが発泡酒にすると長い熟成に耐える。タンク内二次発酵に加え、瓶内二次発酵で36〜60か月置く上位表記を持つ。"
+	},
+	{
+		"id": "monti-lessini",
+		"idApp": 925011,
+		"name": "Monti Lessini",
+		"shortName": "Monti Lessini",
+		"nameJa": "モンティ・レッシーニ",
+		"region": "veneto",
+		"subregionId": "soave-lessini",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "sparkling", "red"],
+		"grapes": [
+			{
+				"varietyId": "durella",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "garganega",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴァル・ダルポーネからヴァル・ディ・キアンポにかけての丘陵斜面。塩基性の火山岩・火山砕屑岩が卓越し、表層は細粒で深部ほど玄武岩の礫を多く含む。",
+		"producers": ["Marcato", "Casa Cecchin", "Corte Moschina"],
+		"description": "レッシーニ丘陵のもうひとつの呼称。ドゥレッラ85%以上の Durello と瓶内二次発酵の Spumante に加え、シャルドネ50%以上の白とピノ・ネーロの赤を規約が持つ。ドゥレッラ単一のレッシーニ・ドゥレッロとは棲み分ける。"
+	},
+	{
+		"id": "arcole",
+		"idApp": 925012,
+		"name": "Arcole",
+		"shortName": "Arcole",
+		"nameJa": "アルコレ",
+		"region": "veneto",
+		"subregionId": "soave-lessini",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "アディジェ川の浸食と堆積が作った平野。砂質〜砂質粘土の深い土壌で、部分的に礫を含む。東端はベリチ丘陵の裾にかかる。",
+		"producers": ["Cantina di Soave"],
+		"description": "ソアーヴェの南、ヴェローナ県とヴィチェンツァ県にまたがる平野の呼称。白はガルガーネガ50%以上、赤とロゼはメルロ50%以上を核とする。"
+	},
+	{
+		"id": "bardolino-superiore",
+		"idApp": 925013,
+		"name": "Bardolino Superiore",
+		"shortName": "Bardolino Superiore",
+		"nameJa": "バルドリーノ・スペリオーレ",
+		"region": "veneto",
+		"subregionId": "garda-veronese",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "corvina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "corvinone",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rondinella",
+				"role": "principal"
+			},
+			{
+				"varietyId": "molinara",
+				"role": "accessory"
+			}
+		],
+		"soil": "ガルダ湖東岸の氷堆石(モレーン)丘陵。構造も化学組成も多様で総じて肥沃ではなく、湖からの風と昼夜の寒暖差が果実味と塩味をもたらす。",
+		"producers": ["Guerrieri Rizzardi", "Zeni", "Cavalchina"],
+		"description": "バルドリーノの上位版で、2001年にDOCGへ昇格した。コルヴィーナ35〜80%、ロンディネッラ10〜40%、モリナーラ最大15%。収量を抑え、最低1年の熟成を経てから出荷される。"
+	},
+	{
+		"id": "bardolino",
+		"idApp": 925014,
+		"name": "Bardolino",
+		"shortName": "Bardolino",
+		"nameJa": "バルドリーノ",
+		"region": "veneto",
+		"subregionId": "garda-veronese",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "corvina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "corvinone",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rondinella",
+				"role": "principal"
+			},
+			{
+				"varietyId": "molinara",
+				"role": "accessory"
+			}
+		],
+		"soil": "ガルダ湖東岸の氷堆石(モレーン)丘陵。構造も化学組成も多様で総じて肥沃ではなく、湖からの風と昼夜の寒暖差が果実味と塩味をもたらす。",
+		"producers": [
+			"Guerrieri Rizzardi",
+			"Le Fraghe",
+			"Corte Gardoni",
+			"Zeni",
+			"Cavalchina"
+		],
+		"description": "ヴァルポリチェッラと同じ品種構成ながら、ガルダ湖畔の氷堆石土壌が軽快で塩味のある酒質を生む。ロゼの Chiaretto でも知られ、モンテバルド/ラ・ロッカ/ソンマカンパーニャの3つのサブゾーンを持つ。"
+	},
+	{
+		"id": "custoza",
+		"idApp": 925015,
+		"name": "Custoza",
+		"shortName": "Custoza",
+		"nameJa": "クストーザ",
+		"region": "veneto",
+		"subregionId": "garda-veronese",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "cortese",
+				"role": "principal"
+			},
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trebbiano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "manzoni-bianco",
+				"role": "accessory"
+			}
+		],
+		"soil": "ガルダ湖南東の氷堆石丘陵。石灰質・粘土石灰質・礫質石灰質〜礫質砂質で、南〜南西向きの斜面に畑が限られ、湿潤な土地は規約で除外される。",
+		"producers": ["Cavalchina", "Gorgo", "Monte del Frà"],
+		"description": "ビアンカ・フェルナンダ(=コルテーゼ)・ガルガーネガ・トレッビアーノ・トスカーノ・タイの4品種を合計70%以上、ただし1品種45%を超えないよう混ぜるのが規約。単一品種に寄せないことを明文で求める珍しい白。"
+	},
+	{
+		"id": "valdadige-terradeiforti",
+		"idApp": 925016,
+		"name": "Valdadige Terradeiforti",
+		"shortName": "Valdadige Terradeiforti",
+		"nameJa": "ヴァルダディジェ・テッラデイフォルティ",
+		"region": "veneto",
+		"subregionId": "garda-veronese",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "enantio",
+				"role": "principal"
+			},
+			{
+				"varietyId": "casetta",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			}
+		],
+		"soil": "アディジェ渓谷の南向き中腹。石灰岩の礫とミネラルに富んで排水が良く、鋭い珪質の薄片を含むのが特徴。",
+		"producers": ["Albino Armani"],
+		"description": "ヴェローナ県北端とトレント県にまたがるアディジェ渓谷の呼称。エナンティオ(登録簿名ランブルスコ・ア・フォリア・フラスタリアータ)とカゼッタという2つの土着黒品種を、それぞれ85%以上で名乗れるのが特色。"
+	},
+	{
+		"id": "colli-berici",
+		"idApp": 925017,
+		"name": "Colli Berici",
+		"shortName": "Colli Berici",
+		"nameJa": "コッリ・ベリチ",
+		"region": "veneto",
+		"subregionId": "vicenza-berici",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "grenache",
+				"role": "principal"
+			},
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "manzoni-bianco",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "friulano",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴィチェンツァ南方の標高300〜400mの低い丘陵。海成堆積の石灰岩が赤色粘土に風化して礫を多く含み、玄武岩・凝灰岩の露頭も点在する。カルスト地形のため排水が良く、時に水不足になる。",
+		"producers": ["Piovene Porto Godi", "Cavazza", "Inama"],
+		"description": "タイ・ロッソ(=グルナッシュ)を主役に据える珍しい産地。赤はメルロ50〜65%＋タイ・ロッソ20%以上で、サブゾーンのバルバラーノはタイ・ロッソだけで造る。白はガルガーネガ30〜60%＋ソーヴィニヨン20〜50%。"
+	},
+	{
+		"id": "breganze",
+		"idApp": 925018,
+		"name": "Breganze",
+		"shortName": "Breganze",
+		"nameJa": "ブレガンツェ",
+		"region": "veneto",
+		"subregionId": "vicenza-berici",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red", "sweet-white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "vespaiola",
+				"role": "principal"
+			},
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marzemino",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴィチェンツァ北部の山麓。北西部は石灰分に富む玄武岩と玄武岩質凝灰岩、北〜北東部は砂岩と石灰岩、南縁は青色泥灰岩と砂岩質泥灰岩が分布する。",
+		"producers": ["Maculan", "Vigneto Due Santi", "Firmino Miotti"],
+		"description": "土着白ヴェスパイオーラの本拠地。房を吊るして陰干しした甘口は「ねじる」を意味する Torcolato の名を持ち、この呼称の象徴になっている。白はタイ50%以上、赤はメルロ50%以上。"
+	},
+	{
+		"id": "vicenza",
+		"idApp": 925019,
+		"name": "Vicenza",
+		"shortName": "Vicenza",
+		"nameJa": "ヴィチェンツァ",
+		"region": "veneto",
+		"subregionId": "vicenza-berici",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["white", "red", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "manzoni-bianco",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscato-bianco",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscato-giallo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "accessory"
+			}
+		],
+		"soil": "西部丘陵と北部は火山性の玄武岩質、中南部とベリチ丘陵は海成堆積の石灰質。いずれも土性が軽く排水が良い。",
+		"producers": ["Cavazza", "Dal Maso"],
+		"description": "ヴィチェンツァ県を広く覆う呼称。白はガルガーネガ50%以上、赤はメルロ50%以上を核に、品種名を冠したタイプを数多く認める。県内のコッリ・ベリチ・ブレガンツェ・ガンベッラーラと重なる受け皿にあたる。"
+	},
+	{
+		"id": "colli-euganei-fior-d-arancio",
+		"idApp": 925020,
+		"name": "Colli Euganei Fior d'Arancio",
+		"shortName": "Colli Euganei Fior d'Arancio",
+		"nameJa": "コッリ・エウガネイ・フィオール・ダランチョ",
+		"region": "veneto",
+		"subregionId": "padova-euganei",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["white", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "moscato-giallo",
+				"role": "principal"
+			}
+		],
+		"soil": "パドヴァ平野に孤立して立つ円錐形の火山性丘陵群(エウガネイ丘陵自然公園)。火山岩が風化した土壌で、水はけの良い斜面に畑が置かれ、斜面の向き(涼しい北向きか、日射の強い南向きか)で造るワインを変える。",
+		"producers": ["Vignalta", "Ca' Lustra", "Borin Vini & Vigne"],
+		"description": "モスカート・ジャッロ95%以上。名前の「オレンジの花」はこの品種の香りに由来する。甘口のスプマンテ、陰干しのパッシート、辛口の3タイプを同じDOCGの中に持つ。"
+	},
+	{
+		"id": "colli-euganei",
+		"idApp": 925021,
+		"name": "Colli Euganei",
+		"shortName": "Colli Euganei",
+		"nameJa": "コッリ・エウガネイ",
+		"region": "veneto",
+		"subregionId": "padova-euganei",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "garganega",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "glera",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "friulano",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "manzoni-bianco",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinella",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-piave",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscato-bianco",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscato-giallo",
+				"role": "accessory"
+			}
+		],
+		"soil": "パドヴァ平野に孤立して立つ円錐形の火山性丘陵群(エウガネイ丘陵自然公園)。火山岩が風化した土壌で、水はけの良い斜面に畑が置かれ、斜面の向き(涼しい北向きか、日射の強い南向きか)で造るワインを変える。",
+		"producers": ["Vignalta", "Ca' Lustra", "Quota 101", "Il Filò delle Vigne"],
+		"description": "パドヴァ近郊の火山性丘陵。白はガルガーネガ30%以上＋タイ/ソーヴィニヨン30%以上、赤はボルドー品種(メルロ・カベルネ各種・カルメネール)主体という組み合わせで、火山性土壌のボルドーブレンドが育つ。グレーラをセルプリーノの地方名で呼ぶのもこの産地。"
+	},
+	{
+		"id": "bagnoli-friularo",
+		"idApp": 925022,
+		"name": "Bagnoli Friularo",
+		"shortName": "Bagnoli Friularo",
+		"nameJa": "バニョーリ・フリウラーロ",
+		"region": "veneto",
+		"subregionId": "padova-euganei",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "raboso-piave",
+				"role": "principal"
+			}
+		],
+		"soil": "堆積・沖積起源の中程度の土性で、やや軽く、石灰の結核を含むこともある。有機物に富む土地や湿地・湧水地は規約で除外される。",
+		"producers": ["Dominio di Bagnoli"],
+		"description": "ラボーゾ・ピアーヴェ90%以上。フリウラーロはこの品種のパドヴァ側の呼び名で、国の品種登録簿もラボーゾ・ピアーヴェの同義語として載せる。霜が降りてから摘む遅摘みや陰干しで、強い酸とタンニンを和らげる。"
+	},
+	{
+		"id": "bagnoli-di-sopra",
+		"idApp": 925023,
+		"name": "Bagnoli di Sopra",
+		"shortName": "Bagnoli di Sopra",
+		"nameJa": "バニョーリ・ディ・ソプラ",
+		"region": "veneto",
+		"subregionId": "padova-euganei",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "raboso-piave",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "refosco-dal-peduncolo-rosso",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "friulano",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "北のバッタリア・テルメ〜モンセリチェでは火山岩由来で礫に富み排水が良い。他の平野部はアディジェ・バッキリオーネ・ブレンタ各川の堆積で、シルトと有機物に富む。海が近く、土壌の塩分が白に塩味を与える。",
+		"producers": ["Dominio di Bagnoli"],
+		"description": "パドヴァ南部の平野。赤はメルロ15〜60%＋カベルネ系25%以上＋ラボーゾ最大15%。ラボーゾ・ピアーヴェ90%以上のスプマンテや、遅摘みの Vin da Viajo など土着品種の使い方が多彩。"
+	},
+	{
+		"id": "corti-benedettine-del-padovano",
+		"idApp": 925024,
+		"name": "Corti Benedettine del Padovano",
+		"shortName": "Corti Benedettine del Padovano",
+		"nameJa": "コルティ・ベネデッティーネ・デル・パドヴァーノ",
+		"region": "veneto",
+		"subregionId": "padova-euganei",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "moscato-giallo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "raboso-piave",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "refosco-dal-peduncolo-rosso",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			}
+		],
+		"soil": "ポー・アディジェ・バッキリオーネ・ブレンタの4河川が作った完全な平野。粘土質から砂質まで幅があり、他の非沖積地よりシルトが多く、有機物とミネラルに富む。",
+		"producers": ["Dominio di Bagnoli"],
+		"description": "ベネディクト会修道院の農園(corte)が営んだ歴史に由来する呼称。白はタイ50%以上、赤はメルロ60〜70%＋ラボーゾ10%以上。モスカート・ジャッロ95%以上のスプマンテと、70%以上のパッシートも持つ。"
+	},
+	{
+		"id": "merlara",
+		"idApp": 925025,
+		"name": "Merlara",
+		"shortName": "Merlara",
+		"nameJa": "メルラーラ",
+		"region": "veneto",
+		"subregionId": "padova-euganei",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "refosco-dal-peduncolo-rosso",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-piave",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "marzemino",
+				"role": "accessory"
+			}
+		],
+		"soil": "アディジェ川とフラッタ川が形作った平野。砂質から粘土質まで土性の幅が広く、湿潤で地下水位の高い土地と、逆に軽すぎる土地は除外される。",
+		"producers": ["Cantina di Merlara"],
+		"description": "パドヴァ県とヴェローナ県の境にある小さな呼称。白はタイ50〜70%、赤はメルロ50〜70%を核とし、残りは同色の非アロマティック品種で補う。"
+	},
+	{
+		"id": "riviera-del-brenta",
+		"idApp": 925026,
+		"name": "Riviera del Brenta",
+		"shortName": "Riviera del Brenta",
+		"nameJa": "リヴィエラ・デル・ブレンタ",
+		"region": "veneto",
+		"subregionId": "padova-euganei",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-piave",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "refosco-dal-peduncolo-rosso",
+				"role": "accessory"
+			}
+		],
+		"soil": "ブレンタ川の氾濫と晩氷期の氷河融解が残した沖積・氷河性堆積。細粒で粗い礫を欠き、深部に炭酸塩が集積したカラント(caranto)層を持つ。",
+		"producers": ["Cantine Riviera del Brenta"],
+		"description": "パドヴァとヴェネツィアを結ぶブレンタ運河沿い、ヴェネツィア貴族の別荘(ヴィッラ)が並ぶ一帯の呼称。白はタイ50%以上、赤はメルロ50%以上、スプマンテはシャルドネ60%以上。"
+	},
+	{
+		"id": "conegliano-valdobbiadene-prosecco",
+		"idApp": 925027,
+		"name": "Conegliano Valdobbiadene - Prosecco",
+		"shortName": "Conegliano Valdobbiadene - Prosecco",
+		"nameJa": "コネリアーノ・ヴァルドッビアーデネ・プロセッコ",
+		"region": "veneto",
+		"subregionId": "treviso-prosecco",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["sparkling", "white"],
+		"grapes": [
+			{
+				"varietyId": "glera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "verdiso",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bianchetta-trevigiana",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "perera",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "海底が隆起し、その後に氷河と河川が削った急斜面の丘陵。砂岩と泥灰岩を主体に氷堆石層と沖積層が交互に重なる。表土が薄く傾斜が強いため、根が張れる範囲が限られる。",
+		"producers": [
+			"Nino Franco",
+			"Bisol",
+			"Ruggeri",
+			"Adami",
+			"Col Vetoraz",
+			"Bortolomiol",
+			"Le Colture",
+			"Sorelle Bronca",
+			"Silvano Follador"
+		],
+		"description": "プロセッコの頂点。コネリアーノとヴァルドッビアーデネを結ぶ急斜面の丘陵に限られ、2019年にはこの景観がユネスコ世界遺産に登録された。最上の区画は Cartizze(わずか106ha)、村単位の区画表示は Rive と呼ぶ。グレーラ以外の15%枠には、ヴェルディーゾ等の在来品種のほかに、シャルドネとピノ3種を「伝統的な補正」として加えることも規約が認める。"
+	},
+	{
+		"id": "asolo-prosecco",
+		"idApp": 925028,
+		"name": "Asolo Prosecco",
+		"shortName": "Asolo Prosecco",
+		"nameJa": "アーゾロ・プロセッコ",
+		"region": "veneto",
+		"subregionId": "treviso-prosecco",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["sparkling", "white"],
+		"grapes": [
+			{
+				"varietyId": "glera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "verdiso",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bianchetta-trevigiana",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "perera",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "モンテッロを中心にカルスト地形が発達し、2000を超えるドリーネが地下の排水路を作る。固い礫岩の上に泥灰質粘土〜泥灰質砂の赤い表土が載り、脱炭酸が進んで酸性を示す。",
+		"producers": ["Bele Casel", "Montelvini"],
+		"description": "コネリアーノ・ヴァルドッビアーデネと並ぶもうひとつのプロセッコDOCG。アーゾロの丘とモンテッロの南斜面に限られ、規約上は「Colli Asolani - Prosecco」とも名乗れる。コネリアーノ・ヴァルドッビアーデネ同様、15%枠にシャルドネとピノ3種を伝統的な補正として加えられる。"
+	},
+	{
+		"id": "colli-di-conegliano",
+		"idApp": 925029,
+		"name": "Colli di Conegliano",
+		"shortName": "Colli di Conegliano",
+		"nameJa": "コッリ・ディ・コネリアーノ",
+		"region": "veneto",
+		"subregionId": "treviso-prosecco",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["white", "red", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "manzoni-bianco",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marzemino",
+				"role": "principal"
+			},
+			{
+				"varietyId": "boschera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "glera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "verdiso",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "refosco-dal-peduncolo-rosso",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰質と氷堆石起源が混じる丘陵。礫を含む骨格のある土壌で、傾斜の強い区画は等高線に沿って、緩いところは斜面に直交して畝を引く。",
+		"producers": ["Ca' di Rajo", "Astoria"],
+		"description": "プロセッコの産地と重なりながら、発泡ではないワインだけを扱うDOCG。白はマンゾーニ・ビアンコ30%以上、赤はカベルネ系とマルツェミーノ・メルロ、レフロントロはマルツェミーノ95%以上の甘口、トルキアート・ディ・フレゴーナはグレーラ・ヴェルディーゾ・ボスケーラの陰干し甘口という4本立て。"
+	},
+	{
+		"id": "montello-rosso",
+		"idApp": 925030,
+		"name": "Montello Rosso",
+		"shortName": "Montello Rosso",
+		"nameJa": "モンテッロ・ロッソ",
+		"region": "veneto",
+		"subregionId": "treviso-prosecco",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "principal"
+			}
+		],
+		"soil": "モンテッロとアーゾロの丘陵。泥灰岩由来の痩せた酸性土壌で、南向きの斜面が北からの冷風に守られ、秋まで穏やかに熟す。",
+		"producers": ["Loredan Gasparini", "Serafini & Vidotto"],
+		"description": "カベルネ・ソーヴィニヨン40〜70%＋メルロ/カベルネ・フラン/カルメネール30〜60%という、ヴェネトでは数少ないボルドー型の赤専用DOCG。泥灰岩の痩せた酸性土壌が長熟型の骨格を生む。"
+	},
+	{
+		"id": "asolo-montello",
+		"idApp": 925031,
+		"name": "Asolo Montello",
+		"shortName": "Asolo Montello",
+		"nameJa": "アーゾロ・モンテッロ",
+		"region": "veneto",
+		"subregionId": "treviso-prosecco",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "manzoni-bianco",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "glera",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bianchetta-trevigiana",
+				"role": "accessory"
+			}
+		],
+		"soil": "モンテッロとアーゾロの丘陵。泥灰岩由来の痩せた酸性土壌で、南向きの斜面が北からの冷風に守られ、秋まで穏やかに熟す。",
+		"producers": ["Loredan Gasparini", "Serafini & Vidotto"],
+		"description": "モンテッロ・ロッソDOCGと同じ丘を覆うDOC。赤はDOCGと同じ構成、白はシャルドネ40〜70%＋グレーラ/マンゾーニ・ビアンコ等30〜60%。ヴェネガッツーのサブゾーンを持ち、この地のボルドーブレンドの起点になった。"
+	},
+	{
+		"id": "piave-malanotte",
+		"idApp": 925032,
+		"name": "Piave Malanotte",
+		"shortName": "Piave Malanotte",
+		"nameJa": "ピアーヴェ・マラノッテ",
+		"region": "veneto",
+		"subregionId": "treviso-prosecco",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "raboso-piave",
+				"role": "principal"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "principal"
+			}
+		],
+		"soil": "ピアーヴェ川の堆積・沖積平野。粘土質・石灰質・礫質が主体で、泥炭質・湿潤地・強い珪質の土地は規約で除外される。",
+		"producers": ["Cecchetto", "Bonotto delle Tezze", "Ca' di Rajo"],
+		"description": "ラボーゾ・ピアーヴェ70%以上＋ラボーゾ・ヴェロネーゼ最大30%。収穫した房の一部を陰干ししてから混ぜることで、この品種の強い酸とタンニンに厚みを与えるのが規約上の要件になっている。"
+	},
+	{
+		"id": "piave",
+		"idApp": 925033,
+		"name": "Piave",
+		"shortName": "Piave",
+		"nameJa": "ピアーヴェ",
+		"region": "veneto",
+		"subregionId": "treviso-prosecco",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["red", "white", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "raboso-piave",
+				"role": "principal"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "friulano",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "verduzzo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "manzoni-bianco",
+				"role": "accessory"
+			}
+		],
+		"soil": "ピアーヴェ川の堆積・沖積平野。粘土質・石灰質・礫質が主体で、泥炭質・湿潤地・強い珪質の土地は規約で除外される。",
+		"producers": ["Cecchetto", "Bonotto delle Tezze"],
+		"description": "ピアーヴェ川流域をトレヴィーゾ県からヴェネツィア県まで広く覆う呼称。赤はメルロ50%以上。土着のラボーゾと、陰干しのヴェルドゥッツォ・パッシートを抱え、上位のピアーヴェ・マラノッテDOCGの母体にあたる。"
+	},
+	{
+		"id": "vigneti-della-serenissima",
+		"idApp": 925034,
+		"name": "Vigneti della Serenissima",
+		"shortName": "Vigneti della Serenissima",
+		"nameJa": "ヴィニェーティ・デッラ・セレニッシマ",
+		"region": "veneto",
+		"subregionId": "treviso-prosecco",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["sparkling"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "丘陵ごとに火山性または堆積性。いずれも表土は浅く礫に富んで雨水をよく排水し、畑はほぼ南向きの斜面に置かれる。",
+		"producers": ["Montelvini"],
+		"description": "シャルドネ・ピノ・ビアンコ・ピノ・ネーロだけで造る瓶内二次発酵専用の呼称。グレーラを使わないことで、プロセッコの産地にありながらシャンパーニュ型の発泡酒を明確に区別している。"
+	},
+	{
+		"id": "lison",
+		"idApp": 925035,
+		"name": "Lison",
+		"shortName": "Lison",
+		"nameJa": "リゾン",
+		"region": "veneto",
+		"subregionId": "venezia-orientale",
+		"kind": "village",
+		"tags": ["docg"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			}
+		],
+		"soil": "堆積・沖積起源の中程度の土性。粘土寄りのものから軽いものまで幅があり、石灰の結核や礫を含む。砂質泥炭質・湿地・湧水地は規約で除外される。",
+		"producers": ["Bosco del Merlo", "Tenuta Sant'Anna", "Ornella Molon"],
+		"description": "タイ(旧トカイ・フリウラーノ)85%以上の白。ヴェネツィア県・トレヴィーゾ県とフリウリのポルデノーネ県にまたがり、歴史的中心部だけが Classico を名乗れる。ハンガリーのトカイとの名称紛争を経て、品種名が Tai / Friulano に改められた。"
+	},
+	{
+		"id": "lison-pramaggiore",
+		"idApp": 925036,
+		"name": "Lison-Pramaggiore",
+		"shortName": "Lison-Pramaggiore",
+		"nameJa": "リゾン・ピラマッジョーレ",
+		"region": "veneto",
+		"subregionId": "venezia-orientale",
+		"kind": "village",
+		"tags": ["doc"],
+		"colors": ["white", "red", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "verduzzo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "refosco-dal-peduncolo-rosso",
+				"role": "accessory"
+			}
+		],
+		"soil": "堆積・沖積起源の中程度の土性。粘土寄りのものから軽いものまで幅があり、石灰の結核や礫を含む。砂質泥炭質・湿地・湧水地は規約で除外される。",
+		"producers": ["Bosco del Merlo", "Tenuta Sant'Anna"],
+		"description": "リゾンDOCGと同じ区域を覆うDOC。白はタイ50%以上、赤はメルロ50%以上で、レフォスコ・ダル・ペドゥンコロ・ロッソやマルベックまで認めるフリウリ寄りの品種構成を持つ。"
+	},
+	{
+		"id": "venezia",
+		"idApp": 925037,
+		"name": "Venezia",
+		"shortName": "Venezia",
+		"nameJa": "ヴェネツィア",
+		"region": "veneto",
+		"subregionId": "venezia-orientale",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["white", "red", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "merlot",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "raboso-piave",
+				"role": "principal"
+			},
+			{
+				"varietyId": "glera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "verduzzo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "raboso-veronese",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-franc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "carmenere",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malbec",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "refosco-dal-peduncolo-rosso",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "manzoni-bianco",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "accessory"
+			}
+		],
+		"soil": "土性の違いで品種を割り振る平野。礫に富む軽い土壌を白品種に充てて香りと酸を、重い粘土質を黒品種に充てて厚みと骨格を得る。",
+		"producers": ["Tenuta Sant'Anna", "Ornella Molon"],
+		"description": "トレヴィーゾ県とヴェネツィア県にまたがる広域DOC。白はタイ/ヴェルドゥッツォ/グレーラを合計50%以上とし、ピノ・グリージョをはじめ品種名を冠したタイプが中心で、ロゼはラボーゾ50%以上、赤はメルロ50%以上。"
+	},
+	{
+		"id": "prosecco",
+		"idApp": 925038,
+		"name": "Prosecco",
+		"shortName": "Prosecco",
+		"nameJa": "プロセッコ",
+		"region": "veneto",
+		"subregionId": "veneto-regional",
+		"kind": "regional",
+		"tags": ["doc"],
+		"colors": ["sparkling", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "glera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "verdiso",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bianchetta-trevigiana",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "perera",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "ヴェネトとフリウリの9県にまたがる平野から山麓。沖積起源で粘土‐シルト質が卓越し、ドロミテの浸食と河川堆積による礫を含んで排水が良い。",
+		"producers": ["Villa Sandi", "Mionetto", "La Marca", "Astoria"],
+		"description": "2009年の制度改編で、それまで品種名だった「プロセッコ」を呼称名に移し、品種はグレーラと改めたうえでヴェネト5県＋フリウリ4県に区域を広げた広域DOC。大半はタンク内二次発酵(シャルマ方式)で造られ、2020年からはピノ・ネーロを10〜15%加えるロゼも認められている。"
 	}
 ]

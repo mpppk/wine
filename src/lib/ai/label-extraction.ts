@@ -1148,6 +1148,10 @@ const REGION_ALIASES: Record<string, string> = {
 	ルーション: "languedoc roussillon",
 	ルシヨン: "languedoc roussillon",
 	"ラングドック ルシヨン": "languedoc roussillon",
+	// ヴェネトは日本語表記が「ヴェネト」「ベネト」で揺れる。ラベルに州名ではなく
+	// 「Veneto IGT」等と書かれることも多いので、両表記を地域として解決する。
+	ベネト: "veneto",
+	ヴェネート: "veneto",
 };
 
 /** 地域テキスト群から enabled な地域の id を解決する。 */
