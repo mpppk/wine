@@ -1799,35 +1799,25 @@ export async function syncDrunkWinePhotos(
  * 既に R2 にある写真キーを一括登録バッチへ渡す(#474)。エントリ側の
  * `appendDrunkWinePhotoKeys` と同じ役割で、宛先がバッチになったもの。
  *
- * 一括抽出をジョブ化すると、レビュー画面へ戻ってきた利用者の手元に `File` が無い
- * (ブラウザを離れているので当然)。解析に使った写真はサーバに残っているので、
- * アップロードし直させずそのまま渡す。
+ * 一括抽出はジョブ経路(#474)なので、**投入の時点で写真はサーバ(R2)に載っている**。
+ * 手元に `File` があるかどうかに関わらず、バッチはその実体を引き継ぐだけでよい
+ * (レビュー画面へ戻ってきた利用者の手元に `File` が無い回は、そもそも送り直せない)。
  *
- * **写真が保存済みのバッチには渡さない**(`saveImportBatchPhotos` と同じ排他)。
- * 目撃記録が `photoIndex` でこの配列を指しているため、後から足すと添字がずれる。
+ * 排他・申告枚数の照合・銘柄への複製は `attachImportBatchPhotoKeys`(バッチに写真が
+ * 載る唯一の関門)が持つ。ここで条件を書き足さないこと——アップロード経路とこちらで
+ * 条件がドリフトした結果が #617 だった。
  */
 export async function adoptImportBatchPhotoKeys(
 	userId: string,
 	batchId: string,
 	keys: string[],
 ): Promise<{ adopted: string[]; dropped: string[] }> {
-	const [existing] = await db
-		.select()
-		.from(importBatch)
-		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
-	if (!existing) throw new NotFoundError("Import batch not found");
-	if (existing.photoKeys.length > 0) {
-		throw new ConflictError("このバッチの写真は保存済みです");
-	}
 	// 上限を超えるぶんは足さずに捨てる(引き継ぎは付随的な処理で、ここで例外にすると
 	// 「登録は出来たのに写真のせいで失敗した」ことになる)。捨てたキーは呼び出し側が掃除する。
 	const adopted = keys.slice(0, MAX_PHOTOS_PER_IMPORT_BATCH);
 	const dropped = keys.slice(MAX_PHOTOS_PER_IMPORT_BATCH);
 	if (adopted.length > 0) {
-		await db
-			.update(importBatch)
-			.set({ photoKeys: adopted })
-			.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+		await attachImportBatchPhotoKeys(userId, batchId, adopted);
 	}
 	return { adopted, dropped };
 }
@@ -2745,52 +2735,27 @@ export async function getImportBatchDetail(
 /**
  * 一括登録バッチの写真をR2へ保存し、キー配列を確定する(2段階目)。
  *
- * リスト/棚の写真は**バッチに1回だけ置き、銘柄ごとに複製しない**。目撃記録は
- * photoIndex でこの配列を指す。したがって**順番と枚数が登録時の申告
- * (photoCount)と一致していること**が意味の前提になり、ここでずれると
- * 「別の写真で見かけたことになる」ため、枚数が合わなければ拒否する。
+ * **通常の導線はここを通らない**。一括抽出はジョブ経路(#474)で、写真は解析の投入
+ * 時点で既に R2 にあるため、レビュー画面は `adoptImportBatchPhotoKeys` で引き継ぐ。
+ * ここが残っているのは、引き継ぐべき写真がジョブ側に無かった回(受け取り済みから
+ * 24時間経って `sweepConsumedJobPhotos` が回収した後など)に、手元に `File` が
+ * あるぶんを送り直せるようにするフォールバックのため。
  *
- * **枚数の照合は import_batch.photo_count と行う**(#405)。この列を持つ前に
- * 作られたバッチは `null` で、申告枚数を復元する手立てが無いので照合を飛ばす
- * (目撃記録の最大 photoIndex から下限は導けるが、それは申告枚数とは別物で、
- * 「その写真を誰も指していない」だけの正常なバッチを誤って拒否する)。
- * **順番はサーバ側では検証できない**——受け取った配列の順序が撮影順である保証は
- * クライアント側にしか無い。枚数の一致は、抜けたファイルによる繰り上がり
- * (= 別の写真を指す)を検出する代理指標として効く。
+ * 受け入れ条件(排他・申告枚数の照合)と銘柄への複製は
+ * `assertImportBatchAcceptsPhotos` / `attachImportBatchPhotoKeys` が持つ。
  *
  * R2キーは `wines/{userId}/{batchId}/{photoId}.{ext}`。エントリ写真と同じ
  * `wines/` 接頭辞に載せる理由は db/schema.ts の importBatch の JSDoc を参照
  * (認可・署名URL・退会時削除がこのレイアウトと一対の契約になっている)。
- *
- * 既に写真が入っているバッチへの再アップロードは受け付けない(冪等性のためでは
- * なく、目撃記録の photoIndex が既に確定した配列を指しているため。差し替えたい
- * ケースは現状の導線に無い)。
  */
 export async function saveImportBatchPhotos(
 	userId: string,
 	batchId: string,
 	photos: Array<{ bytes: ArrayBuffer | Uint8Array; mimeType: string }>,
 ): Promise<ImportBatchEntry> {
-	if (photos.length > MAX_PHOTOS_PER_IMPORT_BATCH) {
-		throw new BadRequestError(
-			`写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです`,
-		);
-	}
-	const [existing] = await db
-		.select()
-		.from(importBatch)
-		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
-	if (!existing) throw new NotFoundError("Import batch not found");
-	if (existing.photoKeys.length > 0) {
-		throw new ConflictError("このバッチの写真は保存済みです");
-	}
-	// 申告枚数との照合(#405)。**R2へ書く前**に弾く(後で拒否すると孤児オブジェクトの
-	// 掃除が要る)。null は列を持つ前の既存バッチで、照合できないので通す。
-	if (existing.photoCount != null && photos.length !== existing.photoCount) {
-		throw new BadRequestError(
-			`写真の枚数が登録時の申告(${existing.photoCount}枚)と一致しません`,
-		);
-	}
+	// 受け入れ可否は**R2へ書く前**に確かめる(後で拒否すると孤児オブジェクトの掃除が要る)。
+	// 同じ検証を最後の attach でもう一度通るが、その往復1回より孤児の方が高く付く。
+	await assertImportBatchAcceptsPhotos(userId, batchId, photos.length);
 
 	const putKeys: string[] = [];
 	try {
@@ -2824,21 +2789,94 @@ export async function saveImportBatchPhotos(
 		throw e;
 	}
 
-	const [row] = await db
-		.update(importBatch)
-		.set({ photoKeys: putKeys })
-		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)))
-		.returning();
-	if (!row) {
+	try {
+		return await attachImportBatchPhotoKeys(userId, batchId, putKeys);
+	} catch (e) {
+		// 事前検証からここまでの間にバッチが消えた/他の経路が写真を載せた回。
+		// put 済みのオブジェクトは誰からも参照されないので掃除する。
 		await cleanupPhotoObjects(putKeys, {
 			userId,
 			entryId: batchId,
-			phase: "import-batch-deleted",
+			phase: "import-batch-attach-failed",
+			originalErr: e,
 		});
-		throw new NotFoundError("Import batch not found");
+		throw e;
 	}
+}
+
+/**
+ * バッチが写真を受け入れられるかを確かめる。**キーではなく枚数だけ**を見るので、
+ * R2 へ書く前の事前検証としても、キー確定後の関門としても同じ条件で使える。
+ *
+ * リスト/棚の写真は**バッチに1回だけ置き、銘柄ごとに複製しない**。目撃記録は
+ * photoIndex でこの配列を指す。したがって**順番と枚数が登録時の申告
+ * (photoCount)と一致していること**が意味の前提になり、ここでずれると
+ * 「別の写真で見かけたことになる」ため、枚数が合わなければ拒否する。
+ *
+ * **枚数の照合は import_batch.photo_count と行う**(#405)。この列を持つ前に
+ * 作られたバッチは `null` で、申告枚数を復元する手立てが無いので照合を飛ばす
+ * (目撃記録の最大 photoIndex から下限は導けるが、それは申告枚数とは別物で、
+ * 「その写真を誰も指していない」だけの正常なバッチを誤って拒否する)。
+ * **順番はサーバ側では検証できない**——受け取った配列の順序が撮影順である保証は
+ * 呼び出し側にしか無い。枚数の一致は、抜けたファイルによる繰り上がり
+ * (= 別の写真を指す)を検出する代理指標として効く。
+ *
+ * 既に写真が入っているバッチへの追加・差し替えは受け付けない(冪等性のためでは
+ * なく、目撃記録の photoIndex が既に確定した配列を指しているため)。
+ */
+async function assertImportBatchAcceptsPhotos(
+	userId: string,
+	batchId: string,
+	count: number,
+): Promise<void> {
+	if (count > MAX_PHOTOS_PER_IMPORT_BATCH) {
+		throw new BadRequestError(
+			`写真は最大${MAX_PHOTOS_PER_IMPORT_BATCH}枚までです`,
+		);
+	}
+	const [existing] = await db
+		.select({
+			photoKeys: importBatch.photoKeys,
+			photoCount: importBatch.photoCount,
+		})
+		.from(importBatch)
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)));
+	if (!existing) throw new NotFoundError("Import batch not found");
+	if (existing.photoKeys.length > 0) {
+		throw new ConflictError("このバッチの写真は保存済みです");
+	}
+	if (existing.photoCount != null && count !== existing.photoCount) {
+		throw new BadRequestError(
+			`写真の枚数が登録時の申告(${existing.photoCount}枚)と一致しません`,
+		);
+	}
+}
+
+/**
+ * バッチに写真キーを載せる**唯一の関門**(#617)。実体をアップロードした回
+ * (`saveImportBatchPhotos`)も、解析ジョブから引き継いだ回
+ * (`adoptImportBatchPhotoKeys`)も、必ずここを通る。
+ *
+ * **銘柄への複製(#473 の3段目)をここに置くのが肝**。以前は写真のアップロード経路
+ * だけが複製を呼んでいて、ジョブから引き継いだ回(手元に `File` が無い回)は
+ * 銘柄の `photo_keys` が空のままだった——レビュー画面には写真が出ているのに、
+ * 登録した銘柄には1枚も付かない(#617)。**バッチに写真が載る経路を足すときは、
+ * この関数を通す**こと(経路ごとに複製を書き足さない)。
+ */
+async function attachImportBatchPhotoKeys(
+	userId: string,
+	batchId: string,
+	keys: string[],
+): Promise<ImportBatchEntry> {
+	await assertImportBatchAcceptsPhotos(userId, batchId, keys.length);
+	const [row] = await db
+		.update(importBatch)
+		.set({ photoKeys: keys })
+		.where(and(eq(importBatch.id, batchId), eq(importBatch.userId, userId)))
+		.returning();
+	if (!row) throw new NotFoundError("Import batch not found");
 	// 写真がまだ無い銘柄へ、一括登録の写真を複製する(#473 の3段目)。
-	await adoptBatchPhotosForWines(userId, batchId, putKeys);
+	await adoptBatchPhotosForWines(userId, batchId, keys);
 	return toImportBatchEntry(row);
 }
 

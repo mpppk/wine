@@ -18,6 +18,7 @@ import {
 	addWineEncounter,
 	addWineSighting,
 	addWineTasting,
+	adoptImportBatchPhotoKeys,
 	appendDrunkWinePhotoKeys,
 	bulkRegisterFromScan,
 	countCellarFilters,
@@ -2516,6 +2517,65 @@ describe("一括登録の銘柄写真", () => {
 		expect(
 			await env.AVATARS.head(imageKeyFromPath(batch.photoUrls[0] as string)),
 		).not.toBeNull();
+	});
+
+	it("ジョブから引き継いだ回も銘柄へ複製する(#617)", async () => {
+		// 一括抽出はジョブ経路(#474)なので、**バッチに写真が載る入口は2つある**:
+		// アップロード(`saveImportBatchPhotos`)と、解析ジョブからの引き継ぎ
+		// (`adoptImportBatchPhotoKeys`)。以前は前者だけが銘柄への複製を呼んでおり、
+		// 受け取って開いた回に登録した銘柄は写真を1枚も持てなかった(レビュー画面には
+		// ジョブの写真が出ているので、利用者から見ると「登録したら消えた」)。
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{ wine: { name: "受け取って開いた回" }, sighting: { photoIndex: 0 } },
+			],
+		});
+		// 解析ジョブが投入時に置いた写真(キーの2つ目のセグメントはジョブID)。
+		const jobKey = `wines/${userId}/${crypto.randomUUID()}/${crypto.randomUUID()}.jpg`;
+		await env.AVATARS.put(jobKey, JPEG_1X1_BYTES, {
+			httpMetadata: { contentType: "image/jpeg" },
+		});
+
+		const { adopted } = await adoptImportBatchPhotoKeys(
+			userId,
+			result.batchId,
+			[jobKey],
+		);
+		expect(adopted).toEqual([jobKey]);
+
+		const { entries } = await listDrunkWines(userId);
+		const photoUrl = entries[0]?.photoUrls[0];
+		expect(photoUrl).toBeTruthy();
+		expect(entries[0]?.photoKinds).toEqual(["bottle"]);
+		// アップロード経路と同じく**参照ではなく複製**(バッチ取り消しで銘柄の写真が消えない)
+		expect(imageKeyFromPath(photoUrl as string)).not.toBe(jobKey);
+		expect(
+			await env.AVATARS.head(imageKeyFromPath(photoUrl as string)),
+		).not.toBeNull();
+		expect(await env.AVATARS.head(jobKey)).not.toBeNull();
+	});
+
+	it("引き継ぎも申告枚数と照合する(#405 の関門を共有する)", async () => {
+		// 目撃記録の photoIndex が指す配列の枚数が申告とズレると「別の写真で見かけた
+		// ことになる」。アップロード経路だけが持っていた照合を共通の関門へ移したので、
+		// 引き継ぎ経路でも同じ条件で弾く。
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 2,
+			items: [{ wine: { name: "枚数不一致" }, sighting: { photoIndex: 0 } }],
+		});
+		const jobKey = `wines/${userId}/${crypto.randomUUID()}/${crypto.randomUUID()}.jpg`;
+
+		await expect(
+			adoptImportBatchPhotoKeys(userId, result.batchId, [jobKey]),
+		).rejects.toThrow(BadRequestError);
+		const [batch] = await db
+			.select({ photoKeys: importBatch.photoKeys })
+			.from(importBatch)
+			.where(eq(importBatch.id, result.batchId));
+		expect(batch?.photoKeys).toEqual([]);
 	});
 
 	it("既に写真がある銘柄(web画像で手当て済み)は上書きしない", async () => {
