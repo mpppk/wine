@@ -9,7 +9,7 @@ AOPのメタデータ（土壌・品種・生産者）は `src/lib/wine/aops.jso
 | コマンド | 生成物 | 備考 |
 |---|---|---|
 | `bun run build:geodata` | フランス地域の `<region>.geojson` | node 実行 |
-| `bun run build:geodata:eu` | EU PDO 由来（イタリア・スペイン・ドイツ）の `<region>.geojson` | node 実行 |
+| `bun run build:geodata:eu` | EU PDO 由来（イタリア・スペイン・ポルトガル・ドイツ）の `<region>.geojson` | node 実行 |
 | `bun run build:centroids` | `src/lib/wine/aop-centroids.json` | コミット済み GeoJSON のみを入力とする |
 | `bun run build:boundaries` | `<region>-boundaries.geojson`（地方・地区輪郭） | bun 実行（`regions.ts` を直接 import するため） |
 
@@ -26,9 +26,9 @@ bun run build:geodata
 - コミューン結合・シャトー座標などのキュレーション表（`COMMUNES_BY_AOP_ID` / `WINERY_COORDS_BY_AOP_ID` 等）は `scripts/build-aop-geodata.mjs` 内で管理する
 - 実行後に表示される bounds を `src/lib/wine/regions.ts` に反映する
 
-## イタリア・スペイン・ドイツ（EU PDO 由来）
+## イタリア・スペイン・ポルトガル・ドイツ（EU PDO 由来）
 
-イタリア（ピエモンテ/トスカーナ）・スペイン（リオハ/エブロ川流域）・ドイツには公式の区画GISが存在しないため、別データソース・別スクリプトで生成する:
+イタリア（ピエモンテ/トスカーナ）・スペイン（リオハ/エブロ川流域）・ポルトガル（本土）・ドイツには公式の区画GISが存在しないため、別データソース・別スクリプトで生成する:
 
 ```bash
 bun run build:geodata:eu                       # figshareからgpkgをDL(キャッシュ)
@@ -44,6 +44,8 @@ bun run build:geodata:eu -- --source /path/to/EU_PDO.gpkg   # ローカル指定
 - 対応表を作るときは EU 公式登録簿 eAmbrosia の `fileNumber` と突き合わせる。全登録の一覧は
   `https://webgate.ec.europa.eu/eambrosia-api/api/v1/geographical-indications` が JSON で返す
   （`productType: "WINE"` / `countries: ["ES"]` などで絞り込む）
+- ポルトガルは各DOPの `caderno de especificações`（IVV が PDF で公開）が許可品種・土壌・区域の一次情報。
+  eAmbrosia の `fileNumber` と合わせて `REGION_CONFIGS` の対応表を作る
 - データセットは2021年時点の登録が対象。以後に登録された呼称（スペインの Bolandin 等）は
   収録されていないため、`gpkg に … のジオメトリが無い` で落ちる
 - `clipBbox`（地域全体）で落としきれない同名コミューン由来の飛び地は、呼称ごとの

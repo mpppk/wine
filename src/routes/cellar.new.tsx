@@ -9,9 +9,9 @@ import { ArrowLeftIcon, ImagesIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { DrunkWineForm } from "#/components/cellar/DrunkWineForm";
+import { draftFromLabelJobEncounter } from "#/components/cellar/encounter-payload";
 import { valuesFromSuggestions } from "#/components/cellar/import-candidates";
 import { PhotoRegisterWizard } from "#/components/cellar/PhotoRegisterWizard";
-import { draftFromLabelJobSighting } from "#/components/cellar/sighting-payload";
 import {
 	MAX_HANDOFF_PHOTOS,
 	type ManualFormStart,
@@ -140,7 +140,7 @@ function CellarNewPage() {
 				droppedPhotoCount: 0,
 				reason: "label_job",
 				...(labelJob.sighting
-					? { sighting: draftFromLabelJobSighting(labelJob.sighting) }
+					? { encounter: draftFromLabelJobEncounter(labelJob.sighting) }
 					: {}),
 				// 参考サイト・市場価格も記録フォームへ引き継ぐ(保存はフォーム側)。
 				...(labelJob.suggestions.referenceLinks?.length ||
@@ -253,7 +253,9 @@ function CellarNewPage() {
 						// 「見かけた記録」の入力欄を出す(#495)。写真ウィザードで場所・
 						// 撮影日を入力していれば、その内容が初期値に入っている。
 						places={places}
-						{...(manual.sighting ? { initialSighting: manual.sighting } : {})}
+						{...(manual.encounter
+							? { initialEncounter: manual.encounter }
+							: {})}
 						{...(manual.references
 							? { initialReferences: manual.references }
 							: {})}
@@ -352,9 +354,9 @@ function ManualNotice({
 					枚は1件のワインに保存できる上限を超えたため対象外)。
 				</p>
 			)}
-			{start.sighting && (
+			{start.encounter && (
 				<p className="text-muted-foreground">
-					写真の場所・撮影日は「見かけた記録」に引き継いでいます。
+					写真の場所・撮影日は「記録」に引き継いでいます。
 				</p>
 			)}
 			{onBack && (

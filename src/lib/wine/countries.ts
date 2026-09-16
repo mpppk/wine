@@ -35,6 +35,12 @@ export const WINE_COUNTRIES = [
 		countryNameEn: "Spain",
 	},
 	{
+		id: "portugal",
+		nameJa: "ポルトガル",
+		nameLocal: "Portugal",
+		countryNameEn: "Portugal",
+	},
+	{
 		id: "germany",
 		nameJa: "ドイツ",
 		nameLocal: "Deutschland",

@@ -43,6 +43,7 @@ export const REGION_ID_LIST = [
 	"loire",
 	"rhone",
 	"rioja",
+	"portugal",
 	"deutschland",
 ] as const;
 
@@ -112,7 +113,9 @@ export interface Aop {
 	 *     scripts/build-eu-geodata.mjs の REGION_CONFIGS が真実の源(追記のみ)。
 	 *   - リオハ/エブロ川流域(スペイン, EU PDO由来): 922001〜 の連番。対応表の
 	 *     置き場所はイタリアと同じ(scripts/build-eu-geodata.mjs)。
-	 *   - ドイツ(EU PDO由来): 923001〜 の連番。13のアンバウゲビートに加え、
+	 *   - ポルトガル(本土, EU PDO由来): 923001〜 の連番。対応表の置き場所は
+	 *     イタリア・スペインと同じ(scripts/build-eu-geodata.mjs)。
+	 *   - ドイツ(EU PDO由来): 924001〜 の連番。13のアンバウゲビートに加え、
 	 *     単一畑そのものがg.U.として登録された6件も同じ帯に置く。対応表の
 	 *     置き場所はイタリア・スペインと同じ(scripts/build-eu-geodata.mjs)。
 	 *   - ロワール: 大半はINAOの id_app 実値を使うが、区画データに独立ポリゴンが

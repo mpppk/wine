@@ -134,7 +134,7 @@ export function DrunkWineEmbedForm({
 			<DrunkWineFields
 				value={values}
 				onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
-				tastingSlot={
+				recordSlot={
 					<FormSection title="最新の飲んだ記録">
 						<TastingFields
 							value={tastingDraft}

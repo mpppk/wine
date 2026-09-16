@@ -323,7 +323,7 @@ describe("buildLabelSuggestions", () => {
 
 	it("国が対応外なら産地は候補に含めない", () => {
 		const s = buildLabelSuggestions(
-			extraction({ wineName: "Barca Velha", country: "Portugal" }),
+			extraction({ wineName: "Carmenere Reserva", country: "Chile" }),
 		);
 		expect(s.aopId).toBeUndefined();
 		expect(s.regionId).toBeUndefined();

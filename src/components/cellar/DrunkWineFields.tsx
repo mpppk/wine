@@ -26,16 +26,11 @@ export interface DrunkWineFieldsProps {
 	 */
 	photoSlot?: React.ReactNode;
 	/**
-	 * 末尾に差し込む飲用記録UI。Web版フォームだけが渡す(新規作成なら1件ぶんの
+	 * 末尾に差し込む体験記録UI。Web版フォームだけが渡す(新規作成なら1件ぶんの
 	 * 入力、編集なら記録一覧)。MCP App は保存経路が update_drunk_wine の
-	 * レガシー引数なので、自前で TastingFields を描画する。
+	 * レガシー引数なので、自前で TastingFields を描画したものを渡す。
 	 */
-	tastingSlot?: React.ReactNode;
-	/**
-	 * 飲用記録の後に差し込む目撃記録UI(#495)。新規作成のときだけ Web版フォームが渡す
-	 * (編集画面の目撃記録は SightingList が銘柄の外で担当する)。
-	 */
-	sightingSlot?: React.ReactNode;
+	recordSlot?: React.ReactNode;
 	/**
 	 * 入力欄の DOM id の接頭辞(既定 "wine")。**同じ画面にこのフォームを複数置く
 	 * 場合は必ずカードごとに変える**。一括登録のレビュー画面(/cellar/import)は
@@ -50,8 +45,9 @@ export interface DrunkWineFieldsProps {
  * マイセラーの銘柄(ボトル)の入力項目一式。Web版フォーム(DrunkWineForm)と
  * MCP App のフォーム(/embed/drunk-wine)で共有する表示層。
  *
- * 飲んだ日・評価・メモはここに無い。飲用記録(1:N)へ移したため(Issue #195)、
- * TastingFields が担当する。
+ * 飲んだ日・評価・メモはここに無い。体験記録(1:N)へ移したため(Issue #606)、
+ * EncounterFields が担当する(MCP App の最新1件の編集だけは、レガシー引数の
+ * 互換のため TastingFields のまま)。
  *
  * 以前は MCP App 側が apps.ts のテンプレート文字列内 vanilla JS で同じフォームを
  * 別実装しており、photo_urls 非対応などのドリフトが起きていた(#155/#189)。
@@ -68,8 +64,7 @@ export function DrunkWineFields({
 	value,
 	onChange,
 	photoSlot,
-	tastingSlot,
-	sightingSlot,
+	recordSlot,
 	idPrefix = "wine",
 }: DrunkWineFieldsProps) {
 	return (
@@ -161,7 +156,7 @@ export function DrunkWineFields({
 			{/*
 			 * 銘柄についてのコメント(#471)。エチケット解析・一括抽出の高精度経路が
 			 * 香り・味わい(web検索で見つかった表現を踏まえたもの)と生産者の説明を
-			 * 書き込む。飲用記録のメモ(TastingFields)とは別で、まだ飲んでいない
+			 * 書き込む。体験記録のメモ(EncounterFields)とは別で、まだ飲んでいない
 			 * ワインにも付く。
 			 */}
 			<FormField
@@ -181,9 +176,7 @@ export function DrunkWineFields({
 
 			{photoSlot}
 
-			{tastingSlot}
-
-			{sightingSlot}
+			{recordSlot}
 		</>
 	);
 }

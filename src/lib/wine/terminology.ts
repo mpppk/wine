@@ -15,16 +15,17 @@ export const COLOR_LABELS_JA: Record<WineColor, string> = {
 };
 
 // 地域の国(Region.country)に応じてUI表記を切り替えるヘルパー。
-// フランスは「AOP/AOC」、イタリアは「DOC/DOCG」、スペインは「DO/DOCa」と、
-// 原産地呼称制度の呼び名が異なるため、地域スコープの画面ではこの関数を通して
-// 総称を出す。アプリ名など国に依らないグローバルな見出しは従来どおり "AOP" のまま。
+// フランスは「AOP/AOC」、イタリアは「DOC/DOCG」、スペインは「DO/DOCa」、
+// ポルトガルは「DOC」と、原産地呼称制度の呼び名が異なるため、地域スコープの画面では
+// この関数を通して総称を出す。アプリ名など国に依らないグローバルな見出しは
+// 従来どおり "AOP" のまま。
 
 /**
  * 境界データをEU PDOデータセット(Candiago et al. 2022)から生成している国。
  * フランス(INAO)以外の収録国はこのデータセットに依存しており、出典注記も
  * 生成スクリプト(scripts/build-eu-geodata.mjs)もこの集合で分岐する。
  */
-const EU_PDO_COUNTRIES = new Set(["Italy", "Spain", "Germany"]);
+const EU_PDO_COUNTRIES = new Set(["Italy", "Spain", "Portugal", "Germany"]);
 
 /**
  * 地域IDに対応する原産地呼称の総称(日本語UI用)。
@@ -49,6 +50,10 @@ export function getAppellationTermJa(regionId: string): string {
 		);
 		return hasPago ? "DO/DOCa/VP" : "DO/DOCa";
 	}
+	// ポルトガルのDOPは階層が1段しかない(伝統的表記の DOC = Denominação de Origem
+	// Controlada)。イタリアの DOCG/DOC やスペインの DOCa/DO のような等級差が無いため、
+	// AOP単位のタグ(tags.ts)は設けず国だけで決まる。
+	if (region?.country === "Portugal") return "DOC";
 	// ドイツは13の指定栽培地域(アンバウゲビート)も単一畑の呼称も同じ g.U.
 	// (geschützte Ursprungsbezeichnung)で、イタリア・スペインのような上下の
 	// 等級が無い。収穫時の糖度で決まるプレディカーツは呼称ではなくワイン単位の
@@ -76,6 +81,7 @@ export function getAppellationBadgeJa(aop: Aop): string {
 	const region = getRegion(aop.region);
 	if (region?.country === "Italy") return "DOC/DOCG";
 	if (region?.country === "Spain") return "DO";
+	if (region?.country === "Portugal") return "DOC";
 	// ドイツは産地単位も単一畑も等しく g.U.(バッジ文言も総称と同じ)。
 	if (region?.country === "Germany") return "g.U.";
 	return "AOC";
@@ -113,8 +119,8 @@ export function getAopKindLabelJa(kind: AopKind, regionId: string): string {
 
 /**
  * 詳細パネル等に出す、境界データの出典・粒度の注記。
- * フランスはINAO(区画/コミューン)、イタリア・スペインはEU PDOデータセット
- * (コミューン単位)。
+ * フランスはINAO(区画/コミューン)、イタリア・スペイン・ポルトガルはEU PDO
+ * データセット(コミューン単位)。
  */
 export function getBoundarySourceNoteJa(aop: Aop): string {
 	const region = getRegion(aop.region);

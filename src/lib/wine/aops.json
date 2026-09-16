@@ -18025,8 +18025,1765 @@
 		"description": "サラゴサ県メサロチャにある単一所有地のVino de Pago。DOカリニェナに囲まれた立地ながら独立したDOPで、20世紀初頭から続くぶどう畑を有機栽培で維持している。"
 	},
 	{
-		"id": "mosel",
+		"id": "vinho-verde",
 		"idApp": 923001,
+		"name": "Vinho Verde",
+		"shortName": "Vinho Verde",
+		"nameJa": "ヴィーニョ・ヴェルデ",
+		"region": "portugal",
+		"subregionId": "minho",
+		"kind": "regional",
+		"colors": ["white", "red", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "alvarinho",
+				"role": "principal"
+			},
+			{
+				"varietyId": "loureiro",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trajadura",
+				"role": "principal"
+			},
+			{
+				"varietyId": "avesso",
+				"role": "principal"
+			},
+			{
+				"varietyId": "azal",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sousao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "espadeiro",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "padeiro",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alvarelhao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sercial",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩由来の浅く痩せた土壌が大半で、2本の細い片岩帯が走る。大西洋に向かって開いた円形劇場状の地形が海風と多量の雨を呼び込み、ポルトガル本土で最も冷涼湿潤なぶどう産地になる。",
+		"producers": [
+			{
+				"name": "Anselmo Mendes",
+				"searchKeyword": "アンセルモ・メンデス"
+			},
+			{
+				"name": "Quinta de Soalheiro",
+				"searchKeyword": "ソアリェイロ"
+			},
+			{
+				"name": "Aveleda",
+				"searchKeyword": "アヴェレーダ"
+			},
+			{
+				"name": "Palácio da Brejoeira",
+				"searchKeyword": "パラシオ・ダ・ブレジョエイラ"
+			},
+			{
+				"name": "Adega de Monção",
+				"searchKeyword": "アデガ・デ・モンサン"
+			},
+			{
+				"name": "Provam",
+				"searchKeyword": "プロヴァン"
+			},
+			{
+				"name": "Quinta do Ameal",
+				"searchKeyword": "キンタ・ド・アメアル"
+			},
+			{
+				"name": "Quinta de Azevedo",
+				"searchKeyword": "キンタ・デ・アゼヴェード"
+			}
+		],
+		"description": "ポルトガル北西部ミーニョ地方の全域を覆う、国内最大のDOP(約16,000ha)。「緑のワイン」は色ではなく「若いうちに飲むワイン」の意で、軽い発泡と高い酸が身上。モンサン・エ・メルガッソ/リマ/バストなど9つの下位地区を持ち、地区名を名乗るワインは地区ごとに許可品種が絞られる。北端のモンサン・エ・メルガッソはアルヴァリーニョ(スペイン側のアルバリーニョと同一品種)の本拠で、単一品種の凝縮した辛口白を生む。赤はヴィニャン(=ソウザン)による濃色・高酸のスタイル。"
+	},
+	{
+		"id": "douro",
+		"idApp": 923002,
+		"name": "Douro",
+		"shortName": "Douro",
+		"nameJa": "ドウロ",
+		"region": "portugal",
+		"subregionId": "douro-tras-os-montes",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-franca",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tinta-barroca",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tinto-cao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rabigato",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "viosinho",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sousao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gouveio",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "codega-do-larinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			}
+		],
+		"soil": "片岩(シスト)が卓越し、花崗岩の斑が混じる急斜面。人力で石積みの段々畑(ソカルコス)に造成された土地で、山に囲まれて大西洋の雨が遮られるため夏は酷暑・冬は厳寒という大陸性の極端な気候になる。",
+		"producers": [
+			{
+				"name": "Quinta do Crasto",
+				"searchKeyword": "キンタ・ド・クラスト"
+			},
+			{
+				"name": "Quinta do Vale Meão",
+				"searchKeyword": "キンタ・ド・ヴァレ・メアン"
+			},
+			{
+				"name": "Niepoort",
+				"searchKeyword": "ニーポート"
+			},
+			{
+				"name": "Quinta do Vallado",
+				"searchKeyword": "キンタ・ド・ヴァラード"
+			},
+			{
+				"name": "Quinta de la Rosa",
+				"searchKeyword": "キンタ・デ・ラ・ローザ"
+			},
+			{
+				"name": "Wine & Soul",
+				"searchKeyword": "ワイン・アンド・ソウル"
+			},
+			{
+				"name": "Quinta do Vale Dona Maria",
+				"searchKeyword": "キンタ・ド・ヴァレ・ドナ・マリア"
+			},
+			{
+				"name": "Casa Ferreirinha",
+				"searchKeyword": "カーサ・フェレイリーニャ"
+			},
+			{
+				"name": "Quinta Nova de Nossa Senhora do Carmo",
+				"searchKeyword": "キンタ・ノヴァ"
+			},
+			{
+				"name": "Quinta do Noval",
+				"searchKeyword": "キンタ・ド・ノヴァル"
+			}
+		],
+		"description": "1756年にポンバル侯が世界で初めて法的に画定したワイン産地(ドウロ画定地域、総面積25万ha)。バイショ・コルゴ/シマ・コルゴ/ドウロ・スペリオールの3地区に分かれ、同じ区域からポルト(酒精強化)と、このドウロDOP(非酒精強化のスティル)が造られる。トゥリガ・ナシオナルやトゥリガ・フランカを軸にした多品種混醸の赤が中心で、20世紀末以降は「バルカ・ヴェーリャ」に代表されるドウロ赤がポルトと並ぶ看板になった。2001年にはアルト・ドウロ・ワイン生産地域が世界遺産に登録されている。"
+	},
+	{
+		"id": "porto",
+		"idApp": 923003,
+		"name": "Porto",
+		"shortName": "Porto",
+		"nameJa": "ポルト",
+		"region": "portugal",
+		"subregionId": "douro-tras-os-montes",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-franca",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tinta-barroca",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tinto-cao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sousao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viosinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gouveio",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rabigato",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "codega-do-larinho",
+				"role": "accessory"
+			}
+		],
+		"soil": "ドウロDOPと完全に同一の区域。片岩の急斜面と段々畑という条件が、糖度の高い果実と発酵途中でのブランデー添加(酒精強化)に向いた原料を生む。",
+		"producers": [
+			{
+				"name": "Taylor Fladgate",
+				"searchKeyword": "テイラー"
+			},
+			{
+				"name": "Fonseca",
+				"searchKeyword": "フォンセカ"
+			},
+			{
+				"name": "Graham's",
+				"searchKeyword": "グラハム"
+			},
+			{
+				"name": "Dow's",
+				"searchKeyword": "ダウ"
+			},
+			{
+				"name": "Warre's",
+				"searchKeyword": "ウォー"
+			},
+			{
+				"name": "Quinta do Noval",
+				"searchKeyword": "キンタ・ド・ノヴァル"
+			},
+			{
+				"name": "Ramos Pinto",
+				"searchKeyword": "ラモス・ピント"
+			},
+			{
+				"name": "Ferreira",
+				"searchKeyword": "フェレイラ"
+			},
+			{
+				"name": "Niepoort",
+				"searchKeyword": "ニーポート"
+			},
+			{
+				"name": "Kopke",
+				"searchKeyword": "コプケ"
+			}
+		],
+		"description": "発酵途中のもろみにブドウ由来のアルコールを加えて糖を残す酒精強化ワイン。区域はドウロDOPと同一で、同じ畑から両方のDOPが名乗れる。ルビー系(若い果実味を残すルビー/LBV/ヴィンテージ)と、樽で酸化熟成させるトウニー系(10/20/30/40年、単一収穫年のコリェイタ)という2つの熟成軸を持つのが最大の特徴。伝統的にヴィラ・ノヴァ・デ・ガイアの倉庫で熟成されてきた。白ポルト・ロゼポルトも認められている。"
+	},
+	{
+		"id": "tavora-varosa",
+		"idApp": 923004,
+		"name": "Távora-Varosa",
+		"shortName": "Távora-Varosa",
+		"nameJa": "タヴォラ・ヴァローザ",
+		"region": "portugal",
+		"subregionId": "douro-tras-os-montes",
+		"kind": "regional",
+		"colors": ["sparkling", "white", "red", "rose"],
+		"grapes": [
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bical",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gouveio",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tinta-barroca",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alvarelhao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sercial",
+				"role": "accessory"
+			}
+		],
+		"soil": "ドウロとダンに挟まれた標高の高い花崗岩・片岩の高原。昼夜の寒暖差が大きく酸が落ちにくいため、国内で最も発泡ワインに適した気候・土壌の組み合わせとされる。",
+		"producers": [
+			{
+				"name": "Caves da Murganheira",
+				"searchKeyword": "ムルガニェイラ"
+			},
+			{
+				"name": "Caves Raposeira",
+				"searchKeyword": "ラポゼイラ"
+			},
+			{
+				"name": "Quinta de Cravaz",
+				"searchKeyword": "キンタ・デ・クラヴァス"
+			},
+			{
+				"name": "Casa de Santa Eufémia",
+				"searchKeyword": "カーサ・デ・サンタ・エウフェミア"
+			},
+			{
+				"name": "Casa dos Viscondes da Várzea",
+				"searchKeyword": "カーサ・ドス・ヴィスコンデス・ダ・ヴァルゼア"
+			},
+			{
+				"name": "Casca Wines",
+				"searchKeyword": "カスカ・ワインズ"
+			}
+		],
+		"description": "ポルトガルで最初に発泡ワインのために画定された産地。ドウロ川の支流タヴォラ川とヴァローザ川の流域にあり、青色花崗岩を掘り抜いたカーヴで瓶内二次発酵の「エスプマンテ」を熟成させる。シャルドネやマルヴァジア・フィナ、ビカルを使う白の発泡が中心で、トゥリガ・ナシオナルによる赤・ロゼの発泡も造られる。スティルワインも認められているが、産地の看板はあくまで発泡。"
+	},
+	{
+		"id": "tras-os-montes",
+		"idApp": 923005,
+		"name": "Trás-os-Montes",
+		"shortName": "Trás-os-Montes",
+		"nameJa": "トラス・オス・モンテス",
+		"region": "portugal",
+		"subregionId": "douro-tras-os-montes",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-franca",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bastardo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "siria",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gouveio",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rabigato",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "codega-do-larinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viosinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sousao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩由来の痩せた土壌と、片岩・片麻岩由来の地中海性土壌。ドウロの北側に広がる内陸高地で、シャーヴェス/ヴァルパソス/プラナルト・ミランデスの3地区それぞれで土壌構成が定められている。",
+		"producers": [
+			{
+				"name": "Quinta do Sobreiro de Cima",
+				"searchKeyword": "キンタ・ド・ソブレイロ・デ・シマ"
+			},
+			{
+				"name": "Encostas de Sonim",
+				"searchKeyword": "エンコスタス・デ・ソニン"
+			},
+			{
+				"name": "Quinta de Arcosso",
+				"searchKeyword": "キンタ・デ・アルコッソ"
+			},
+			{
+				"name": "Adega Cooperativa de Valpaços",
+				"searchKeyword": "アデガ・デ・ヴァルパソス"
+			},
+			{
+				"name": "Lavradores de Feitoria",
+				"searchKeyword": "ラヴラドーレス・デ・フェイトリア"
+			},
+			{
+				"name": "Costa Boal Family Estates",
+				"searchKeyword": "コスタ・ボアル"
+			}
+		],
+		"description": "ポルトガル北東の最奥部、「山の向こう側」を意味する内陸高地のDOP。ドウロの北に接し、シャーヴェス・ヴァルパソス・プラナルト・ミランデスの3地区からなる。標高が高く冬は厳しく夏は乾いた大陸性気候で、色が濃く構造のある赤と、酸の残る白の双方を生む。ドウロほど知られていないが同系統の在来品種を共有しており、近年は冷涼さを生かした産地として再評価が進む。"
+	},
+	{
+		"id": "dao",
+		"idApp": 923006,
+		"name": "Dão",
+		"shortName": "Dão",
+		"nameJa": "ダン",
+		"region": "portugal",
+		"subregionId": "beiras",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "alfrocheiro",
+				"role": "principal"
+			},
+			{
+				"varietyId": "jaen",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tinto-cao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rufete",
+				"role": "principal"
+			},
+			{
+				"varietyId": "encruzado",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bical",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "verdelho",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bastardo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alvarelhao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rabo-de-ovelha",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩が卓越し、片岩の露頭が混じる砂質の痩せた土壌。カラムロ/ブサコ/ナヴェ/エストレーラの山々に四方を囲まれ、海からの湿った空気と内陸の乾いた風の双方を遮る天然の要害になっている。",
+		"producers": [
+			{
+				"name": "Quinta dos Roques",
+				"searchKeyword": "キンタ・ドス・ロケス"
+			},
+			{
+				"name": "Quinta da Pellada",
+				"searchKeyword": "キンタ・ダ・ペラーダ"
+			},
+			{
+				"name": "Casa da Passarella",
+				"searchKeyword": "カーサ・ダ・パッサレラ"
+			},
+			{
+				"name": "Quinta de Lemos",
+				"searchKeyword": "キンタ・デ・レモス"
+			},
+			{
+				"name": "Casa de Santar",
+				"searchKeyword": "カーサ・デ・サンタール"
+			},
+			{
+				"name": "Quinta dos Carvalhais",
+				"searchKeyword": "キンタ・ドス・カルヴァリャイス"
+			},
+			{
+				"name": "Quinta de Saes",
+				"searchKeyword": "キンタ・デ・サエス"
+			}
+		],
+		"description": "1908年に画定されたポルトガル最古級の非酒精強化ワイン産地のひとつ。標高400〜700mの花崗岩台地で、山に囲まれた地形が穏やかな気候を保つ。赤はトゥリガ・ナシオナル(この地が原産とされる)を軸にアルフロシェイロ・ジャエン・ティンタ・ロリスを混ぜ、ボルドーに例えられる引き締まった酸とタンニンを持つ。白はエンクルザードが国際的評価を得ており、樽発酵で長期熟成に耐える。1993年以降の新植は上位群の品種に限定されている。"
+	},
+	{
+		"id": "lafoes",
+		"idApp": 923007,
+		"name": "Lafões",
+		"shortName": "Lafões",
+		"nameJa": "ラフォンイス",
+		"region": "portugal",
+		"subregionId": "beiras",
+		"kind": "regional",
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "dona-branca",
+				"role": "principal"
+			},
+			{
+				"varietyId": "amaral",
+				"role": "principal"
+			},
+			{
+				"varietyId": "jaen",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rabo-de-ovelha",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sercial",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "accessory"
+			}
+		],
+		"soil": "片岩・片麻岩・花崗岩・混成岩に由来する腐植質の痩せた土壌。ヴォウガ川の谷に沿って小区画の段々畑が連なり、一部では樹に這わせる棚仕立て(ラマーダ)が残る。",
+		"producers": [
+			{
+				"name": "Quinta da Comenda",
+				"searchKeyword": "キンタ・ダ・コメンダ"
+			},
+			{
+				"name": "Quinta da Moitinha",
+				"searchKeyword": "キンタ・ダ・モイチーニャ"
+			},
+			{
+				"name": "Quinta do Barreiro",
+				"searchKeyword": "キンタ・ド・バレイロ"
+			},
+			{
+				"name": "Encostas de Mosteirinhos",
+				"searchKeyword": "エンコスタス・デ・モステイリーニョス"
+			},
+			{
+				"name": "Chão de São Francisco",
+				"searchKeyword": "シャン・デ・サン・フランシスコ"
+			}
+		],
+		"description": "ヴィーニョ・ヴェルデとダンに挟まれた、ヴォウガ川流域の小さな移行地帯のDOP。酸が高く軽やかで、隣のヴィーニョ・ヴェルデに近いスタイルになる。白はアリント・ドナ・ブランカ・エスガナ・カンなどの古い在来種、赤はアマラルとジャエンが軸。2011年に地元の協同組合が閉鎖して一度は存続が危ぶまれたが、少数の造り手による復興が進んでいる(2025年時点で約10軒)。"
+	},
+	{
+		"id": "bairrada",
+		"idApp": 923008,
+		"name": "Bairrada",
+		"shortName": "Bairrada",
+		"nameJa": "バイラーダ",
+		"region": "portugal",
+		"subregionId": "beiras",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "baga",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bical",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "alfrocheiro",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rufete",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "castelao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rabo-de-ovelha",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "重い粘土石灰質(地名の由来である barro =粘土)に砂質が混じる。北をヴォウガ川、南をモンデゴ川、東をブサコ・カラムロ山地、西を大西洋に区切られたなだらかな平野で、海の影響が強く昼夜の寒暖差が大きい。",
+		"producers": [
+			{
+				"name": "Luis Pato",
+				"searchKeyword": "ルイス・パト"
+			},
+			{
+				"name": "Filipa Pato",
+				"searchKeyword": "フィリパ・パト"
+			},
+			{
+				"name": "Quinta das Bágeiras",
+				"searchKeyword": "キンタ・ダス・バジェイラス"
+			},
+			{
+				"name": "Sidónio de Sousa",
+				"searchKeyword": "シドニオ・デ・ソウザ"
+			},
+			{
+				"name": "Caves São João",
+				"searchKeyword": "カーヴェス・サン・ジョアン"
+			},
+			{
+				"name": "Campolargo",
+				"searchKeyword": "カンポラルゴ"
+			}
+		],
+		"description": "大西洋に面した粘土石灰質の産地で、晩熟・厚皮・高酸高タンニンのバガ種が主役。若いうちは硬いが長期熟成で香りが開く「ポルトガルのネッビオーロ」とも呼ばれるスタイルで、伝統的な子豚の丸焼き(レイタン)に合わせられてきた。白のマリア・ゴメス(=フェルナン・ピレス)とビカルは瓶内二次発酵の発泡にも使われ、国内有数の発泡産地でもある。"
+	},
+	{
+		"id": "beira-interior",
+		"idApp": 923009,
+		"name": "Beira Interior",
+		"shortName": "Beira Interior",
+		"nameJa": "ベイラ・インテリオール",
+		"region": "portugal",
+		"subregionId": "beiras",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "siria",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fonte-cal",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "rufete",
+				"role": "principal"
+			},
+			{
+				"varietyId": "marufo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "jaen",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bastardo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "touriga-franca",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alfrocheiro",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rabigato",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gouveio",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "codega-do-larinho",
+				"role": "accessory"
+			}
+		],
+		"soil": "花崗岩主体の痩せて石の多い土壌で、残りは片岩。両者の間に石英の岩脈が走る。標高300〜750mとポルトガルで最も高い産地で、冬は氷点下・夏は高温乾燥という大陸性気候。",
+		"producers": [
+			{
+				"name": "Quinta dos Currais",
+				"searchKeyword": "キンタ・ドス・クライス"
+			},
+			{
+				"name": "Quinta do Cardo",
+				"searchKeyword": "キンタ・ド・カルド"
+			},
+			{
+				"name": "Quinta dos Termos",
+				"searchKeyword": "キンタ・ドス・テルモス"
+			},
+			{
+				"name": "Rui Roboredo Madeira",
+				"searchKeyword": "ルイ・ロボレド・マデイラ",
+				"note": "「Beyra」ブランド"
+			},
+			{
+				"name": "Almeida Garrett",
+				"searchKeyword": "アルメイダ・ガレット"
+			}
+		],
+		"description": "エストレーラ山脈の東、スペイン国境に接する高地のDOP。カステロ・ロドリゴ/コヴァ・ダ・ベイラ/ピニェルの3地区からなる。標高と大陸性気候による大きな日較差が酸を保ち、軽やかで引き締まったワインになる。白のシリア(=ロウペイロ)とピニェル固有のフォンテ・カル、赤のルフェテとマルフォが地域色を担う。国内では長く無名だったが、温暖化のなかで冷涼高地として注目が集まっている。"
+	},
+	{
+		"id": "encostas-daire",
+		"idApp": 923010,
+		"name": "Encostas d'Aire",
+		"shortName": "Encostas d'Aire",
+		"nameJa": "エンコスタス・ダイレ",
+		"region": "portugal",
+		"subregionId": "lisboa",
+		"kind": "regional",
+		"colors": ["red", "white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "fernao-pires",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "principal"
+			},
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "baga",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bical",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vital",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rabo-de-ovelha",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alfrocheiro",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rufete",
+				"role": "accessory"
+			}
+		],
+		"soil": "エストレマドゥーラ石灰岩塊、とくにアイレ山地の斜面に広がる石灰質土壌。標高と露出の差から多様な微気候が生まれる。",
+		"producers": [
+			{
+				"name": "Quinta da Sapeira",
+				"searchKeyword": "キンタ・ダ・サペイラ"
+			},
+			{
+				"name": "Adega Cooperativa da Batalha",
+				"searchKeyword": "アデガ・ダ・バターリャ"
+			},
+			{
+				"name": "Paço das Cortes",
+				"searchKeyword": "パソ・ダス・コルテス"
+			},
+			{
+				"name": "Divinis",
+				"searchKeyword": "ディヴィニス"
+			}
+		],
+		"description": "リスボア地方の最北、アイレ山地の石灰岩斜面に広がるDOP。アルコバッサとオウレン(メディエヴァル・デ・オウレン)の2つの下位地区を持つ。石灰質土壌と冷涼さから、酸のある軽やかな赤と、柑橘系の白が生まれる。オウレンでは中世に由来する製法で赤白のぶどうを混醸した淡色の「パリェッテ」が造られ、「Vinho Medieval de Ourém」を名乗れる。"
+	},
+	{
+		"id": "obidos",
+		"idApp": 923011,
+		"name": "Óbidos",
+		"shortName": "Óbidos",
+		"nameJa": "オビドス",
+		"region": "portugal",
+		"subregionId": "lisboa",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "principal"
+			},
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tinta-miuda",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vital",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viosinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "encruzado",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alvarinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "camarate",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "baga",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			}
+		],
+		"soil": "埴壌質から粘土質の褐色・赤色石灰質土壌と、非石灰質母材の地中海性土壌。モンテジュント山地から北西のオビドスへ向かって丘陵が連なる。",
+		"producers": [
+			{
+				"name": "Companhia Agrícola do Sanguinhal",
+				"searchKeyword": "サンギニャル",
+				"note": "キンタ・ド・サンギニャル/キンタ・ダス・セレジェイラス/キンタ・デ・サン・フランシスコ"
+			},
+			{
+				"name": "Quinta do Gradil",
+				"searchKeyword": "キンタ・ド・グラディル"
+			}
+		],
+		"description": "中世の城壁都市オビドスの名を冠したDOP。ボンバラル・カダヴァル・カルダス・ダ・ライーニャ・オビドスの4市町にまたがる。大西洋から10kmほどの丘陵地で、冷涼さと石灰質土壌から酸の保たれた白と、色の淡い果実味主体の赤が生まれる。瓶内二次発酵の発泡も認められている。"
+	},
+	{
+		"id": "alenquer",
+		"idApp": 923012,
+		"name": "Alenquer",
+		"shortName": "Alenquer",
+		"nameJa": "アレンケル",
+		"region": "portugal",
+		"subregionId": "lisboa",
+		"kind": "regional",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vital",
+				"role": "principal"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "camarate",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tinta-miuda",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alvarinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "baga",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂岩・砂・泥岩由来の褐色ないし赤色の地中海性土壌と、泥灰岩・細砂岩由来の石灰質土壌。丘の斜面・尾根・谷が入り組み、モンテジュント山地が大西洋の風を遮る。",
+		"producers": [
+			{
+				"name": "Quinta do Monte d'Oiro",
+				"searchKeyword": "キンタ・ド・モンテ・ドイロ"
+			},
+			{
+				"name": "Quinta de Pancas",
+				"searchKeyword": "キンタ・デ・パンカス"
+			},
+			{
+				"name": "Quinta da Chocapalha",
+				"searchKeyword": "キンタ・ダ・ショカパーリャ"
+			},
+			{
+				"name": "Casa Santos Lima",
+				"searchKeyword": "カーサ・サントス・リマ"
+			}
+		],
+		"description": "リスボア地方で最も評価の高いDOPのひとつ。モンテジュント山地が大西洋の冷たい風を遮るため、同じリスボア地方でも例外的に温暖で、しっかり熟した赤が生まれる。在来のカステランやトゥリガ・ナシオナルに加え、シラーやカベルネ・ソーヴィニヨンを早くから取り入れた実験的な産地でもある。"
+	},
+	{
+		"id": "arruda",
+		"idApp": 923013,
+		"name": "Arruda",
+		"shortName": "Arruda",
+		"nameJa": "アルーダ",
+		"region": "portugal",
+		"subregionId": "lisboa",
+		"kind": "regional",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "camarate",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tinta-miuda",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vital",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rabo-de-ovelha",
+				"role": "accessory"
+			}
+		],
+		"soil": "泥灰岩・細砂岩に由来する褐色の石灰質土壌(パラ・バロス)。丘に囲まれた盆地状の地形で、大西洋の影響を受けつつ内陸側に守られる。",
+		"producers": [
+			{
+				"name": "Adega de Arruda",
+				"searchKeyword": "アデガ・デ・アルーダ",
+				"note": "アルーダ・ドス・ヴィーニョス協同組合。1954年設立"
+			}
+		],
+		"description": "「ワインのアルーダ」を意味する町 Arruda dos Vinhos を中心とする小さなDOPで、アレンケル・トレス・ヴェドラス・ブセラスに囲まれる。カステラン・カマラテ・ティンタ・ミウダによる赤が主体で、早くから柔らかく開く飲み口が特徴。生産は1954年設立の協同組合アデガ・デ・アルーダに大きく集中しており、DOPを名乗る造り手は少ない。"
+	},
+	{
+		"id": "torres-vedras",
+		"idApp": 923014,
+		"name": "Torres Vedras",
+		"shortName": "Torres Vedras",
+		"nameJa": "トレス・ヴェドラス",
+		"region": "portugal",
+		"subregionId": "lisboa",
+		"kind": "regional",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "camarate",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tinta-miuda",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "vital",
+				"role": "principal"
+			},
+			{
+				"varietyId": "seara-nova",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "viosinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alvarinho",
+				"role": "accessory"
+			}
+		],
+		"soil": "粘土石灰質を主体に、褐色・赤色の地中海性粘土質が混じる。モンテジュント山地から海岸までなだらかに下る起伏があり、大西洋の影響を強く受ける。",
+		"producers": [
+			{
+				"name": "Adega Mãe",
+				"searchKeyword": "アデガ・マイ"
+			},
+			{
+				"name": "Adega de Azueira",
+				"searchKeyword": "アデガ・デ・アズエイラ"
+			}
+		],
+		"description": "リスボア地方で最大級の栽培面積を持つDOP。大西洋のすぐ内側にあり、涼しく風の強い環境から軽やかで酸のある赤白が生まれる。かつては大量生産と蒸留用ワインの産地として知られたが、近年は近代的な設備を持つ造り手が品質路線へ転換している。歴史的にはナポレオン戦争の「トレス・ヴェドラスの防衛線」で知られる土地でもある。"
+	},
+	{
+		"id": "bucelas",
+		"idApp": 923015,
+		"name": "Bucelas",
+		"shortName": "Bucelas",
+		"nameJa": "ブセラス",
+		"region": "portugal",
+		"subregionId": "lisboa",
+		"kind": "regional",
+		"colors": ["white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sercial",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rabo-de-ovelha",
+				"role": "accessory"
+			}
+		],
+		"soil": "泥灰岩と硬い石灰岩に由来する痩せた土壌(地元で「カエイラス」と呼ぶ)。粗い礫を含み水はけがよい。トランカン川の谷の斜面にあり、冬は冷え込み夏は穏やかな微気候。",
+		"producers": [
+			{
+				"name": "Quinta da Romeira",
+				"searchKeyword": "キンタ・ダ・ロメイラ"
+			},
+			{
+				"name": "Quinta da Murta",
+				"searchKeyword": "キンタ・ダ・ムルタ"
+			},
+			{
+				"name": "Caves Velhas",
+				"searchKeyword": "カーヴェス・ヴェーリャス"
+			}
+		],
+		"description": "リスボン北方約20kmにある、ポルトガルで唯一「白ワインだけ」を認めるDOP(約138ha)。アリント(現地名ペデルナン)を最低75%使うことが定められ、高い酸と柑橘の香り、熟成でのミネラル感が身上。19世紀の英国では「リスボン・ホック」の名で親しまれ、ウェリントン公が愛飲したと伝わる。瓶内二次発酵の発泡も認められている。"
+	},
+	{
+		"id": "colares",
+		"idApp": 923016,
+		"name": "Colares",
+		"shortName": "Colares",
+		"nameJa": "コラーレス",
+		"region": "portugal",
+		"subregionId": "lisboa",
+		"kind": "regional",
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "ramisco",
+				"role": "principal"
+			},
+			{
+				"varietyId": "malvasia-de-colares",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "castelao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "galego-dourado",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tinta-miuda",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "vital",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂丘性の砂が硬い基盤の上に乗った砂質土壌(チャン・デ・アレイア=砂の地)と、泥灰岩由来の褐色石灰質土壌(チャン・リージョ=硬い地)。海に面し大西洋の風と霧を直接受ける。",
+		"producers": [
+			{
+				"name": "Adega Regional de Colares",
+				"searchKeyword": "アデガ・レジョナル・デ・コラーレス"
+			},
+			{
+				"name": "Viúva Gomes",
+				"searchKeyword": "ヴィウヴァ・ゴメス"
+			},
+			{
+				"name": "Casal Santa Maria",
+				"searchKeyword": "カザル・サンタ・マリア"
+			}
+		],
+		"description": "シントラ山地と大西洋の間、ヨーロッパ最西端の砂地に広がる極小のDOP。深い砂層がフィロキセラの侵入を防いだため、台木に接がない自根(ungrafted)のぶどうが今も残る稀有な産地。赤は現地固有のラミスコで、若いうちは強い酸とタンニンを持ち長期熟成で開く。白はマルヴァジア・デ・コラーレス。都市化で畑は激減しており、1931年設立の協同組合アデガ・レジョナル・デ・コラーレスが区域内の大半のぶどうを醸造している。"
+	},
+	{
+		"id": "carcavelos",
+		"idApp": 923017,
+		"name": "Carcavelos",
+		"shortName": "Carcavelos",
+		"nameJa": "カルカヴェロス",
+		"region": "portugal",
+		"subregionId": "lisboa",
+		"kind": "regional",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "galego-dourado",
+				"role": "principal"
+			},
+			{
+				"varietyId": "ratinho",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "negra-mole",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rabo-de-ovelha",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "seara-nova",
+				"role": "accessory"
+			}
+		],
+		"soil": "石灰質母材由来の赤色地中海性土壌、石灰質土壌、非石灰質の赤褐色粘土。テージョ川河口のすぐ近くで、海の影響により気温の変動が小さい。",
+		"producers": [
+			{
+				"name": "Villa Oeiras",
+				"searchKeyword": "ヴィラ・オエイラス",
+				"note": "オエイラス市が運営"
+			},
+			{
+				"name": "Quinta da Corrieira",
+				"searchKeyword": "キンタ・ダ・コリエイラ"
+			},
+			{
+				"name": "Adega de Belém",
+				"searchKeyword": "アデガ・デ・ベレン"
+			}
+		],
+		"description": "リスボン西郊、テージョ川河口に接するポルトガル最小級のDOP。1908年画定という古い歴史を持つ酒精強化ワインで、白ぶどうと黒ぶどうを併用し、アルコール15〜22%・残糖150g/l以下の琥珀色の甘口に仕上げる。18世紀にポンバル侯が自領オエイラスで生産を興したのが原点で、現在も市営のヴィラ・オエイラスがその蔵を使う。都市化で畑がほぼ失われ、毎年生産を続ける造り手は数軒しかない。"
+	},
+	{
+		"id": "tejo",
+		"idApp": 923018,
+		"name": "DoTejo",
+		"shortName": "Tejo",
+		"nameJa": "テージョ",
+		"region": "portugal",
+		"subregionId": "tejo",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "fernao-pires",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "alicante-bouschet",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tinta-miuda",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sousao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alvarinho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			}
+		],
+		"soil": "テージョ川の氾濫原(レジーリャ)の肥沃な沖積土から、川の北側の砂質(バイロ)、南側の粘土・石灰質(シャルネカ)まで、川を挟んで大きく性格が変わる。",
+		"producers": [
+			{
+				"name": "Quinta da Alorna",
+				"searchKeyword": "キンタ・ダ・アロルナ"
+			},
+			{
+				"name": "Casal Branco",
+				"searchKeyword": "カザル・ブランコ"
+			},
+			{
+				"name": "Casa Cadaval",
+				"searchKeyword": "カーサ・カダヴァル"
+			},
+			{
+				"name": "Quinta da Lagoalva",
+				"searchKeyword": "キンタ・ダ・ラゴアルヴァ"
+			},
+			{
+				"name": "Companhia das Lezírias",
+				"searchKeyword": "コンパニア・ダス・レジーリャス"
+			},
+			{
+				"name": "Quinta do Falcão",
+				"searchKeyword": "キンタ・ド・ファルカン"
+			},
+			{
+				"name": "Falua",
+				"searchKeyword": "ファルア"
+			}
+		],
+		"description": "ポルトガル最長のテージョ川の両岸に広がるDOP。かつては州名から「リバテージョ」と呼ばれ大量生産の代名詞だったが、1990年代以降に畑を川辺の肥沃地から丘の斜面へ移し、2009年に産地名を「テージョ」へ改めて品質路線に転換した。白のフェルナン・ピレスと赤のカステラン/トゥリガ・ナシオナルが軸で、正式な登録名は「DoTejo」だがラベルでは「Tejo」と表示される。"
+	},
+	{
+		"id": "palmela",
+		"idApp": 923019,
+		"name": "Palmela",
+		"shortName": "Palmela",
+		"nameJa": "パルメラ",
+		"region": "portugal",
+		"subregionId": "peninsula-de-setubal",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "principal"
+			},
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "alicante-bouschet",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "antao-vaz",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "verdelho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "moscatel-roxo",
+				"role": "accessory"
+			}
+		],
+		"soil": "大半が砂質の軽い土壌で、一部に粘土の斑が混じる。テージョ川とサド川の河口に挟まれた半島で、アラビダ山地が地中海性の温暖さをもたらす。",
+		"producers": [
+			{
+				"name": "José Maria da Fonseca",
+				"searchKeyword": "ジョゼ・マリア・ダ・フォンセカ"
+			},
+			{
+				"name": "Bacalhôa Vinhos de Portugal",
+				"searchKeyword": "バカリョア"
+			},
+			{
+				"name": "Casa Ermelinda Freitas",
+				"searchKeyword": "エルメリンダ・フレイタス"
+			},
+			{
+				"name": "Adega de Palmela",
+				"searchKeyword": "アデガ・デ・パルメラ"
+			},
+			{
+				"name": "Quinta do Piloto",
+				"searchKeyword": "キンタ・ド・ピロト"
+			},
+			{
+				"name": "Venâncio da Costa Lima",
+				"searchKeyword": "ヴェナンシオ・ダ・コスタ・リマ"
+			}
+		],
+		"description": "リスボンの南、セトゥーバル半島の砂質土壌に広がるDOP。赤はカステラン(現地名ペリキータ)を最低66.7%使うことが定められており、この品種の代表産地として知られる。砂地はフィロキセラに強く、古樹が残る。白はフェルナン・ピレスとモスカテル。スティルのほか微発泡(フリザンテ)・発泡・酒精強化まで幅広いカテゴリーが認められている。"
+	},
+	{
+		"id": "setubal",
+		"idApp": 923020,
+		"name": "Setúbal",
+		"shortName": "Setúbal",
+		"nameJa": "セトゥーバル",
+		"region": "portugal",
+		"subregionId": "peninsula-de-setubal",
+		"kind": "regional",
+		"colors": ["sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "moscatel-graudo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "moscatel-roxo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "fernao-pires",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "antao-vaz",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "verdelho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "castelao",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "accessory"
+			}
+		],
+		"soil": "パルメラDOPと同一の区域で、砂質を主体とする軽い土壌。アラビダ山地の石灰質斜面がモスカテル・ロショの主な栽培地になる。",
+		"producers": [
+			{
+				"name": "José Maria da Fonseca",
+				"searchKeyword": "ジョゼ・マリア・ダ・フォンセカ"
+			},
+			{
+				"name": "Bacalhôa Vinhos de Portugal",
+				"searchKeyword": "バカリョア"
+			},
+			{
+				"name": "Venâncio da Costa Lima",
+				"searchKeyword": "ヴェナンシオ・ダ・コスタ・リマ"
+			},
+			{
+				"name": "Horácio Simões",
+				"searchKeyword": "オラシオ・シモンイス"
+			},
+			{
+				"name": "Quinta do Piloto",
+				"searchKeyword": "キンタ・ド・ピロト"
+			}
+		],
+		"description": "パルメラと同じ区域から造られる酒精強化の甘口ワイン「モスカテル・デ・セトゥーバル」。アルコール16〜22%、残糖は20年未満で280g/l以上に達する。発酵を止めたあと果皮を数か月ワインに漬け込むのが特徴で、強いオレンジピールとナッツの香りを生む。白ぶどうのモスカテル・グラウド(=マスカット・オブ・アレキサンドリア)が基本で、果皮がピンク色のモスカテル・ロショを使う希少な「ロショ」も認められている。1797年創業のジョゼ・マリア・ダ・フォンセカが長期熟成のコレクションで知られる。"
+	},
+	{
+		"id": "alentejo",
+		"idApp": 923021,
+		"name": "Alentejo",
+		"shortName": "Alentejo",
+		"nameJa": "アレンテージョ",
+		"region": "portugal",
+		"subregionId": "alentejo",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "antao-vaz",
+				"role": "principal"
+			},
+			{
+				"varietyId": "arinto",
+				"role": "principal"
+			},
+			{
+				"varietyId": "siria",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trincadeira",
+				"role": "principal"
+			},
+			{
+				"varietyId": "tempranillo",
+				"role": "principal"
+			},
+			{
+				"varietyId": "alicante-bouschet",
+				"role": "principal"
+			},
+			{
+				"varietyId": "castelao",
+				"role": "principal"
+			},
+			{
+				"varietyId": "touriga-nacional",
+				"role": "principal"
+			},
+			{
+				"varietyId": "alfrocheiro",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "syrah",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "verdelho",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "malvasia-fina",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bical",
+				"role": "accessory"
+			}
+		],
+		"soil": "平坦な地形のなかに点在する丘陵が8つの下位地区を分ける。土壌は片岩・花崗岩・石灰岩・粘土と多様で、ポルタレグレはエストレーラ山地南麓の標高が高く冷涼。年間降水量550〜650mm(ボルバ750〜850mm、ポルタレグレ900〜1,000mm)の温暖な地中海性・大陸性気候。",
+		"producers": [
+			{
+				"name": "Herdade do Esporão",
+				"searchKeyword": "エルダーデ・ド・エスポラン"
+			},
+			{
+				"name": "Herdade do Mouchão",
+				"searchKeyword": "エルダーデ・ド・モウシャン"
+			},
+			{
+				"name": "Cortes de Cima",
+				"searchKeyword": "コルテス・デ・シマ"
+			},
+			{
+				"name": "Herdade dos Grous",
+				"searchKeyword": "エルダーデ・ドス・グロウス"
+			},
+			{
+				"name": "João Portugal Ramos",
+				"searchKeyword": "ジョアン・ポルトガル・ハモス"
+			},
+			{
+				"name": "Herdade da Malhadinha Nova",
+				"searchKeyword": "マリャジーニャ・ノヴァ"
+			},
+			{
+				"name": "Adega Mayor",
+				"searchKeyword": "アデガ・マイオール"
+			},
+			{
+				"name": "Fita Preta",
+				"searchKeyword": "フィタ・プレタ"
+			}
+		],
+		"description": "ポルトガル南東部、国土の約3分の1を占める広大な平原のDOP。レギェンゴス/ボルバ/レドンド/ヴィディゲイラ/エヴォラ/グランジャ=アマレレージャ/ポルタレグレ/モウラの8地区からなる。温暖で日照が多く、熟した果実味と柔らかいタンニンの赤が中心。果肉まで赤いアリカンテ・ブーシェがこの地で独自の地位を築いており、素焼きの甕(タリャ)で醸すローマ時代以来の「ヴィーニョ・デ・タリャ」の伝統も残る。白はアンタン・ヴァスとアリントの組み合わせが定番。"
+	},
+	{
+		"id": "mosel",
+		"idApp": 924001,
 		"name": "Mosel",
 		"shortName": "Mosel",
 		"nameJa": "モーゼル",
@@ -18107,7 +19864,7 @@
 	},
 	{
 		"id": "uhlen-blaufuesser-lay",
-		"idApp": 923002,
+		"idApp": 924002,
 		"name": "Uhlen Blaufüsser Lay/Uhlen Blaufüßer Lay",
 		"shortName": "Uhlen Blaufüsser Lay",
 		"nameJa": "ウーレン・ブラウフューサー・ライ",
@@ -18136,7 +19893,7 @@
 	},
 	{
 		"id": "uhlen-laubach",
-		"idApp": 923003,
+		"idApp": 924003,
 		"name": "Uhlen Laubach",
 		"shortName": "Uhlen Laubach",
 		"nameJa": "ウーレン・ラウバッハ",
@@ -18165,7 +19922,7 @@
 	},
 	{
 		"id": "uhlen-roth-lay",
-		"idApp": 923004,
+		"idApp": 924004,
 		"name": "Uhlen Roth Lay",
 		"shortName": "Uhlen Roth Lay",
 		"nameJa": "ウーレン・ロート・ライ",
@@ -18194,7 +19951,7 @@
 	},
 	{
 		"id": "ahr",
-		"idApp": 923005,
+		"idApp": 924005,
 		"name": "Ahr",
 		"shortName": "Ahr",
 		"nameJa": "アール",
@@ -18263,7 +20020,7 @@
 	},
 	{
 		"id": "mittelrhein",
-		"idApp": 923006,
+		"idApp": 924006,
 		"name": "Mittelrhein",
 		"shortName": "Mittelrhein",
 		"nameJa": "ミッテルライン",
@@ -18308,7 +20065,7 @@
 	},
 	{
 		"id": "rheingau",
-		"idApp": 923007,
+		"idApp": 924007,
 		"name": "Rheingau",
 		"shortName": "Rheingau",
 		"nameJa": "ラインガウ",
@@ -18373,7 +20130,7 @@
 	},
 	{
 		"id": "nahe",
-		"idApp": 923008,
+		"idApp": 924008,
 		"name": "Nahe",
 		"shortName": "Nahe",
 		"nameJa": "ナーエ",
@@ -18446,7 +20203,7 @@
 	},
 	{
 		"id": "monzinger-niederberg",
-		"idApp": 923009,
+		"idApp": 924009,
 		"name": "Monzinger Niederberg",
 		"shortName": "Monzinger Niederberg",
 		"nameJa": "モンツィンガー・ニーダーベルク",
@@ -18471,7 +20228,7 @@
 	},
 	{
 		"id": "rheinhessen",
-		"idApp": 923010,
+		"idApp": 924010,
 		"name": "Rheinhessen",
 		"shortName": "Rheinhessen",
 		"nameJa": "ラインヘッセン",
@@ -18556,7 +20313,7 @@
 	},
 	{
 		"id": "pfalz",
-		"idApp": 923011,
+		"idApp": 924011,
 		"name": "Pfalz",
 		"shortName": "Pfalz",
 		"nameJa": "プファルツ",
@@ -18649,7 +20406,7 @@
 	},
 	{
 		"id": "hessische-bergstrasse",
-		"idApp": 923012,
+		"idApp": 924012,
 		"name": "Hessische Bergstraße",
 		"shortName": "Hessische Bergstraße",
 		"nameJa": "ヘシッシェ・ベルクシュトラーセ",
@@ -18711,7 +20468,7 @@
 	},
 	{
 		"id": "franken",
-		"idApp": 923013,
+		"idApp": 924013,
 		"name": "Franken",
 		"shortName": "Franken",
 		"nameJa": "フランケン",
@@ -18796,7 +20553,7 @@
 	},
 	{
 		"id": "wuerzburger-stein-berg",
-		"idApp": 923014,
+		"idApp": 924014,
 		"name": "Würzburger Stein-Berg",
 		"shortName": "Würzburger Stein-Berg",
 		"nameJa": "ヴュルツブルガー・シュタイン・ベルク",
@@ -18837,7 +20594,7 @@
 	},
 	{
 		"id": "buergstadter-berg",
-		"idApp": 923015,
+		"idApp": 924015,
 		"name": "Bürgstadter Berg",
 		"shortName": "Bürgstadter Berg",
 		"nameJa": "ビュルクシュタッター・ベルク",
@@ -18898,7 +20655,7 @@
 	},
 	{
 		"id": "baden",
-		"idApp": 923016,
+		"idApp": 924016,
 		"name": "Baden",
 		"shortName": "Baden",
 		"nameJa": "バーデン",
@@ -18983,7 +20740,7 @@
 	},
 	{
 		"id": "wuerttemberg",
-		"idApp": 923017,
+		"idApp": 924017,
 		"name": "Württemberg",
 		"shortName": "Württemberg",
 		"nameJa": "ヴュルテンベルク",
@@ -19068,7 +20825,7 @@
 	},
 	{
 		"id": "saale-unstrut",
-		"idApp": 923018,
+		"idApp": 924018,
 		"name": "Saale-Unstrut",
 		"shortName": "Saale-Unstrut",
 		"nameJa": "ザーレ・ウンストルート",
@@ -19124,7 +20881,7 @@
 	},
 	{
 		"id": "sachsen",
-		"idApp": 923019,
+		"idApp": 924019,
 		"name": "Sachsen",
 		"shortName": "Sachsen",
 		"nameJa": "ザクセン",

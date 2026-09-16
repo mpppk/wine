@@ -1,75 +1,75 @@
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { MapPinIcon, PlusIcon, StoreIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, StoreIcon, Trash2Icon, WineIcon } from "lucide-react";
 import { useState } from "react";
+import { EncounterFields } from "#/components/cellar/EncounterFields";
 import {
-	EMPTY_SIGHTING_DRAFT,
-	SightingFields,
-	type WineSightingDraft,
-} from "#/components/cellar/SightingFields";
-import {
-	buildAddSightingInput,
-	buildUpdateSightingInput,
-	draftFromSighting,
-} from "#/components/cellar/sighting-payload";
+	buildAddEncounterInput,
+	buildUpdateEncounterInput,
+	draftFromEncounter,
+	EMPTY_ENCOUNTER_DRAFT,
+	type WineEncounterDraft,
+} from "#/components/cellar/encounter-payload";
+import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { FormSection } from "#/components/ui/form-section";
-import type { WineSightingEntry } from "#/lib/services/drunk-wine-service";
+import type { WineEncounterEntry } from "#/lib/services/drunk-wine-service";
 import type { PlaceEntry } from "#/lib/services/place-service";
 import {
-	addWineSighting,
-	deleteWineSighting,
-	updateWineSighting,
+	addWineEncounter,
+	deleteWineEncounter,
+	updateWineEncounter,
 } from "#/server/drunk-wine";
 
-// 編集画面の目撃記録セクション(Issue #358)。1銘柄を複数の店で見かけられるので、
-// 飲用記録(TastingList)と同じ形で 一覧 + 追加 + 行ごとの編集/削除 を扱う。
+// 編集画面の体験記録セクション(Issue #606)。旧 TastingList(飲用記録)+
+// SightingList(目撃記録)を1つに統合したもの。「そのワインに出会った1回」が
+// 1行で、飲んだかどうかは drank で表す。
 //
-// 一括登録(/cellar/import)で作られた目撃記録には由来の写真があるので、その写真を
+// 一括登録で作られた体験記録には由来の写真があるので、その写真を
 // サムネイルとして出す。「どの店のリストで見たのか」を思い出す手掛かりになる。
 
-export function SightingList({
+export function EncounterList({
 	entryId,
-	sightings,
+	encounters,
 	places,
 	/** 写真のキャッシュバスタ。エントリの updatedAt を渡す */
 	version,
 }: {
 	entryId: string;
-	sightings: WineSightingEntry[];
+	encounters: WineEncounterEntry[];
 	places: PlaceEntry[];
 	version: number;
 }) {
 	const router = useRouter();
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [adding, setAdding] = useState(false);
-	const [draft, setDraft] = useState<WineSightingDraft>(EMPTY_SIGHTING_DRAFT);
+	const [draft, setDraft] = useState<WineEncounterDraft>(EMPTY_ENCOUNTER_DRAFT);
 
 	const reset = () => {
 		setEditingId(null);
 		setAdding(false);
-		setDraft(EMPTY_SIGHTING_DRAFT);
+		setDraft(EMPTY_ENCOUNTER_DRAFT);
 		void router.invalidate();
 	};
 
 	const save = useMutation({
 		mutationFn: async () => {
 			if (adding) {
-				await addWineSighting({
-					data: { drunkWineId: entryId, ...buildAddSightingInput(draft) },
+				await addWineEncounter({
+					data: { drunkWineId: entryId, ...buildAddEncounterInput(draft) },
 				});
 				return;
 			}
 			if (!editingId) return;
-			await updateWineSighting({
-				data: buildUpdateSightingInput(editingId, draft),
+			await updateWineEncounter({
+				data: buildUpdateEncounterInput(editingId, draft),
 			});
 		},
 		onSuccess: reset,
 	});
 
 	const remove = useMutation({
-		mutationFn: (id: string) => deleteWineSighting({ data: { id } }),
+		mutationFn: (id: string) => deleteWineEncounter({ data: { id } }),
 		onSuccess: reset,
 	});
 
@@ -77,7 +77,7 @@ export function SightingList({
 
 	const editor = (idPrefix: string, submitLabel: string) => (
 		<div className="flex flex-col gap-4">
-			<SightingFields
+			<EncounterFields
 				value={draft}
 				onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
 				places={places}
@@ -108,7 +108,7 @@ export function SightingList({
 
 	return (
 		<FormSection
-			title="見かけた記録"
+			title="記録"
 			action={
 				!adding &&
 				editingId === null && (
@@ -118,7 +118,7 @@ export function SightingList({
 						size="sm"
 						onClick={() => {
 							setAdding(true);
-							setDraft(EMPTY_SIGHTING_DRAFT);
+							setDraft(EMPTY_ENCOUNTER_DRAFT);
 						}}
 					>
 						<PlusIcon className="size-4" aria-hidden />
@@ -127,36 +127,36 @@ export function SightingList({
 				)
 			}
 		>
-			{sightings.length === 0 && !adding && (
+			{encounters.length === 0 && !adding && (
 				<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6">
-					<StoreIcon className="size-6 text-muted-foreground/40" aria-hidden />
+					<WineIcon className="size-6 text-muted-foreground/40" aria-hidden />
 					<p className="text-sm text-muted-foreground">
-						まだ見かけた記録がありません。
+						まだ記録がありません。
 					</p>
 				</div>
 			)}
 
 			<ul className="flex flex-col gap-2">
-				{sightings.map((sighting) => (
+				{encounters.map((encounter) => (
 					<li
-						key={sighting.id}
+						key={encounter.id}
 						className="rounded-lg border border-border p-3 text-sm"
 					>
-						{editingId === sighting.id ? (
-							editor(`sighting-${sighting.id}`, "保存")
+						{editingId === encounter.id ? (
+							editor(`encounter-${encounter.id}`, "保存")
 						) : (
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex min-w-0 items-start gap-3">
-									{sighting.photoUrls.length > 0 && (
-										// 由来の写真(ワインリスト/棚。#574 で対応写真のすべて)。
+									{encounter.photoUrls.length > 0 && (
+										// 由来の写真(ワインリスト/棚。対応写真のすべて)。
 										// サムネイルは保存していないので原寸を読む
 										// (配信ルートのフォールバックと同じ挙動)
 										<div className="flex shrink-0 gap-1">
-											{sighting.photoUrls.map((photoUrl) => (
+											{encounter.photoUrls.map((photoUrl) => (
 												<img
 													key={photoUrl}
 													src={`${photoUrl}?v=${version}`}
-													alt="見かけたときの写真"
+													alt="出会ったときの写真"
 													className="size-14 shrink-0 rounded-md border border-border object-cover"
 													loading="lazy"
 													decoding="async"
@@ -168,19 +168,30 @@ export function SightingList({
 									)}
 									<div className="flex min-w-0 flex-col gap-1">
 										<span className="flex items-center gap-1 font-medium">
-											<MapPinIcon
-												className="size-3.5 text-muted-foreground"
-												aria-hidden
-											/>
-											{sighting.placeName ?? "場所未設定"}
+											{encounter.drank ? (
+												<WineIcon
+													className="size-3.5 text-muted-foreground"
+													aria-hidden
+												/>
+											) : (
+												<StoreIcon
+													className="size-3.5 text-muted-foreground"
+													aria-hidden
+												/>
+											)}
+											{encounter.placeName ??
+												(encounter.drank ? "飲んだ" : "場所未設定")}
 										</span>
+										{encounter.drank && encounter.rating !== null && (
+											<RatingStars rating={encounter.rating} />
+										)}
 										<span className="text-muted-foreground">
-											{sighting.seenOn ?? "日付不明"}
-											{sighting.price != null &&
-												` / ${sighting.price.toLocaleString("ja-JP")}円`}
+											{encounter.occurredOn ?? "日付不明"}
+											{encounter.price != null &&
+												` / ${encounter.price.toLocaleString("ja-JP")}円`}
 										</span>
-										{sighting.memo && (
-											<p className="whitespace-pre-wrap">{sighting.memo}</p>
+										{encounter.memo && (
+											<p className="whitespace-pre-wrap">{encounter.memo}</p>
 										)}
 									</div>
 								</div>
@@ -192,8 +203,8 @@ export function SightingList({
 										disabled={busy}
 										onClick={() => {
 											setAdding(false);
-											setEditingId(sighting.id);
-											setDraft(draftFromSighting(sighting));
+											setEditingId(encounter.id);
+											setDraft(draftFromEncounter(encounter));
 										}}
 									>
 										編集
@@ -204,7 +215,7 @@ export function SightingList({
 										size="icon"
 										aria-label="この記録を削除"
 										disabled={busy}
-										onClick={() => remove.mutate(sighting.id)}
+										onClick={() => remove.mutate(encounter.id)}
 									>
 										<Trash2Icon className="size-4" />
 									</Button>
@@ -217,7 +228,7 @@ export function SightingList({
 
 			{adding && (
 				<div className="flex flex-col gap-4 rounded-lg border border-border p-3">
-					{editor("sighting-new", "追加")}
+					{editor("encounter-new", "追加")}
 				</div>
 			)}
 
