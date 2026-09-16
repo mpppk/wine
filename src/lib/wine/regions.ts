@@ -399,6 +399,28 @@ export const REGIONS: Region[] = [
 			"境界はピエモンテ・トスカーナ同様、コミューン単位で集約された学術データセット" +
 			"(Candiago et al. 2022, CC0)に基づく概略値。",
 	},
+	{
+		id: "oesterreich",
+		nameJa: "オーストリア",
+		nameLocal: "Österreich",
+		country: "Austria",
+		countryJa: "オーストリア",
+		// AOPデータ投入前なので「準備中」。bounds / geojsonPath / boundariesPath は
+		// build:geodata:eu の実行後に付けて有効化する。
+		enabled: false,
+		// 地区はオーストリアの公式階層 Weinbauregion(4つ)にそのまま合わせる。
+		// Weinbaugebiet(=DACの単位)の上位がこの4つで、各 Weinbaugebiet はちょうど
+		// 1つの Weinbauregion に属するため、地区の輪郭が重ならない。
+		subregions: [
+			{ id: "niederoesterreich", nameJa: "ニーダーエスターライヒ" },
+			{ id: "burgenland", nameJa: "ブルゲンラント" },
+			{ id: "steiermark", nameJa: "シュタイヤーマルク" },
+			{ id: "wien", nameJa: "ウィーン" },
+		],
+		description:
+			"ドナウ川とノイジードラー湖を軸に、ドイツ語圏で唯一DAC" +
+			"(Districtus Austriae Controllatus)という産地=スタイルの呼称体系を持つ国。",
+	},
 ];
 
 export function getRegion(id: string): Region | undefined {
