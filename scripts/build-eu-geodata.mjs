@@ -142,6 +142,65 @@ const REGION_CONFIGS = {
 			pomino: "PDO-IT-A1453",
 		},
 	},
+	veneto: {
+		out: "veneto.geojson",
+		// ヴェネト州(西端ガルダ湖畔〜東端リゾン、南端アディジェ川〜北端ヴァルドッビアーデネ)。
+		// プロセッコDOCはフリウリ4県にも及ぶため東端をポルデノーネ〜ウーディネまで含める。
+		// 同名コミューン由来の他州飛び地を除く。
+		clipBbox: "10.2,44.6,14.1,46.9",
+		pdo: {
+			// valpolicella
+			"amarone-della-valpolicella": "PDO-IT-A0435",
+			"recioto-della-valpolicella": "PDO-IT-A0441",
+			valpolicella: "PDO-IT-A0442",
+			"valpolicella-ripasso": "PDO-IT-A0446",
+			// soave-lessini
+			"soave-superiore": "PDO-IT-A0473",
+			"recioto-di-soave": "PDO-IT-A0465",
+			soave: "PDO-IT-A0472",
+			"recioto-di-gambellara": "PDO-IT-A0470",
+			gambellara: "PDO-IT-A0469",
+			"lessini-durello": "PDO-IT-A0447",
+			"monti-lessini": "PDO-IT-A0462",
+			arcole: "PDO-IT-A0438",
+			// garda-veronese
+			"bardolino-superiore": "PDO-IT-A0437",
+			bardolino: "PDO-IT-A0436",
+			custoza: "PDO-IT-A0468",
+			"valdadige-terradeiforti": "PDO-IT-A0475",
+			// vicenza-berici
+			"colli-berici": "PDO-IT-A0450",
+			breganze: "PDO-IT-A0439",
+			vicenza: "PDO-IT-A0476",
+			// padova-euganei
+			"colli-euganei-fior-d-arancio": "PDO-IT-A0455",
+			"colli-euganei": "PDO-IT-A0454",
+			"bagnoli-friularo": "PDO-IT-A0467",
+			"bagnoli-di-sopra": "PDO-IT-A0466",
+			"corti-benedettine-del-padovano": "PDO-IT-A0456",
+			merlara: "PDO-IT-A0440",
+			"riviera-del-brenta": "PDO-IT-A0471",
+			// treviso-prosecco
+			"conegliano-valdobbiadene-prosecco": "PDO-IT-A0515",
+			"asolo-prosecco": "PDO-IT-A0514",
+			"colli-di-conegliano": "PDO-IT-A0453",
+			"montello-rosso": "PDO-IT-A0461",
+			"asolo-montello": "PDO-IT-A0460",
+			"piave-malanotte": "PDO-IT-A0463",
+			piave: "PDO-IT-A0464",
+			"vigneti-della-serenissima": "PDO-IT-A0478",
+			// venezia-orientale
+			lison: "PDO-IT-A0457",
+			"lison-pramaggiore": "PDO-IT-A0459",
+			venezia: "PDO-IT-A0517",
+			// veneto-regional
+			prosecco: "PDO-IT-A0516",
+			// 注: ロンバルディア主体のガルダ(PDO-IT-A1320)・ルガーナ(A1322)・
+			// サン マルティーノ デッラ バッタリア(A1318)と、ボルツァーノ/トレント主体の
+			// ヴァルダディジェ(A0474)は、州をまたぐが主産地がヴェネト外なので収録しない
+			// (ヴァルダディジェ テッラデイフォルティはヴェローナ県側が主産地なので収録する)。
+		},
+	},
 	rioja: {
 		out: "rioja.geojson",
 		// エブロ川上流〜中流(ラ・リオハ/ナバーラ/アラゴン)。同名自治体由来の

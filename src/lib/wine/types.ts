@@ -46,6 +46,7 @@ export const REGION_ID_LIST = [
 	"portugal",
 	"deutschland",
 	"languedoc-roussillon",
+	"veneto",
 ] as const;
 
 export type RegionId = (typeof REGION_ID_LIST)[number];
@@ -119,6 +120,9 @@ export interface Aop {
 	 *   - ドイツ(EU PDO由来): 924001〜 の連番。13のアンバウゲビートに加え、
 	 *     単一畑そのものがg.U.として登録された6件も同じ帯に置く。対応表の
 	 *     置き場所はイタリア・スペインと同じ(scripts/build-eu-geodata.mjs)。
+	 *   - ヴェネト(イタリア, EU PDO由来): 925001〜 の連番。ピエモンテ・トスカーナと
+	 *     同じくイタリアだが、地方ごとに帯を分ける規約なので別帯を割り当てる。
+	 *     対応表の置き場所も同じ(scripts/build-eu-geodata.mjs)。
 	 *   - ロワール: 大半はINAOの id_app 実値を使うが、区画データに独立ポリゴンが
 	 *     無く aire géographique から生成するAOC(カベルネ・ド・ソーミュール等)は
 	 *     912001〜 の合成IDを割り当てる。

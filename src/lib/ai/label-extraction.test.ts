@@ -283,6 +283,14 @@ describe("matchRegionId", () => {
 		);
 	});
 
+	// ヴェネトは日本語表記が「ヴェネト」「ベネト」で揺れる(#622)。
+	it("ヴェネトは日本語表記の揺れを解決する", () => {
+		expect(matchRegionId(["Veneto"])).toBe("veneto");
+		expect(matchRegionId(["ヴェネト"])).toBe("veneto");
+		expect(matchRegionId(["ベネト"])).toBe("veneto");
+		expect(matchRegionId(["ヴェネート"])).toBe("veneto");
+	});
+
 	it("一致しなければundefined", () => {
 		expect(matchRegionId(["Mosel"])).toBeUndefined();
 	});
@@ -364,6 +372,33 @@ describe("buildLabelSuggestions", () => {
 			}),
 		);
 		expect(s.aopId).toBe("mosel");
+	});
+
+	// ヴェネトは同じ地名から呼称が枝分かれする(ヴァルポリチェッラ→アマローネ/
+	// リパッソ、ソアーヴェ→スペリオーレ/レチョート)。より長い=具体的な名前を
+	// 優先する matchAop の規則が効いていることを固定する。
+	it("ヴェネトの呼称は長い名前を優先して解決される", () => {
+		expect(
+			buildLabelSuggestions(
+				extraction({
+					wineName: "Amarone della Valpolicella Classico",
+					appellation: "Amarone della Valpolicella",
+				}),
+			).aopId,
+		).toBe("amarone-della-valpolicella");
+		expect(
+			buildLabelSuggestions(
+				extraction({ wineName: "Soave Classico", appellation: "Soave" }),
+			).aopId,
+		).toBe("soave");
+		expect(
+			buildLabelSuggestions(
+				extraction({
+					wineName: "Valdobbiadene Superiore di Cartizze",
+					appellation: "Conegliano Valdobbiadene - Prosecco",
+				}),
+			).aopId,
+		).toBe("conegliano-valdobbiadene-prosecco");
 	});
 
 	// ドイツは1地方＝国全体なので、国名表記でも地域まで解決できるようにしている

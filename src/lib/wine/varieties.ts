@@ -916,6 +916,14 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		color: "red",
 	},
 	{
+		// ヴァルポリチェッラの「その他黒品種」枠で復活した土着品種。色素と
+		// タンニンが濃く、少量でアマローネに骨格を足す。
+		id: "oseleta",
+		nameJa: "オゼレータ",
+		nameLocal: "Oseleta",
+		color: "red",
+	},
+	{
 		// バルドリーノでは最大15%まで、ヴァルポリチェッラでは「その他黒品種」枠で
 		// 認められる。かつての必須品種だが現在は任意。
 		id: "molinara",

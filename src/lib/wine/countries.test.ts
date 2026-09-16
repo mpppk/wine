@@ -51,13 +51,13 @@ describe("groupRegionsByCountry (#586)", () => {
 				expect(countryForRegion(region)?.id).toBe(group.country.id);
 			}
 		}
-		// 顔ぶれの固定: フランス8・イタリア2・スペイン1・ポルトガル1・ドイツ1
+		// 顔ぶれの固定: フランス8・イタリア3・スペイン1・ポルトガル1・ドイツ1
 		const counts = Object.fromEntries(
 			groups.map((g) => [g.country.id, g.regions.length]),
 		);
 		expect(counts).toEqual({
 			france: 8,
-			italy: 2,
+			italy: 3,
 			spain: 1,
 			portugal: 1,
 			germany: 1,
