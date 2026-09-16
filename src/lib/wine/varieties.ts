@@ -867,6 +867,202 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Mauzac",
 		color: "white",
 	},
+	// --- イタリア(ヴェネト) ---
+	// 各DOC(G)の disciplinare di produzione(MASAF公開)の「Base ampelografica」に
+	// 現れて既存IDが無いものだけを足す。国際品種(メルロ/カベルネ各種/カルメネール/
+	// シャルドネ/ピノ各種/ソーヴィニヨン/リースリング)はフランス側で登録済みのIDを
+	// そのまま使う。
+	//
+	// 既存IDを再利用するもの(同じ品種が別IDに割れると品種クイズ・品種フィルタが
+	// 分断されるため。現地名は各AOPの解説に併記する):
+	//   タイ・ロッソ(Tai rosso / Tocai rosso) → grenache
+	//     コッリ・ベリチの主要黒品種。国の品種登録簿(Registro nazionale delle
+	//     varietà di vite)が「TOCAI ROSSO N.」の同義語に GRENACHE・GARNACHA
+	//     TINTA・CANNONAU・TAI ROSSO を列挙しており、グルナッシュと同一品種。
+	//   ビアンカ・フェルナンダ(Bianca Fernanda) → cortese
+	//     クストーザの生産規約が「Cortese B. の同義語」と明記し、登録簿も
+	//     「CORTESE B.」の同義語に BIANCA FERNANDA を載せる。
+	//   トレッビアーノ・トスカーノ(Trebbiano toscano) → trebbiano
+	//   モスカート・ビアンコ(Moscato bianco)       → moscato-bianco
+	{
+		// ソアーヴェ・ガンベッラーラの骨格。DOCGのレチョート・ディ・ガンベッラーラは
+		// この品種100%。
+		id: "garganega",
+		nameJa: "ガルガーネガ",
+		nameLocal: "Garganega",
+		color: "white",
+	},
+	{
+		// ヴァルポリチェッラ/バルドリーノの主要品種。登録簿の品種名は
+		// 「CORVINA N.」(同義語 CRUINA)だが、各生産規約は一貫して
+		// 「Corvina Veronese(Cruina o Corvina)」と表記する。
+		id: "corvina",
+		nameJa: "コルヴィーナ",
+		nameLocal: "Corvina Veronese",
+		color: "red",
+	},
+	{
+		// コルヴィーナとは別の独立した品種(かつて大粒のコルヴィーナと誤認された)。
+		// 生産規約でコルヴィーナと置換可能な枠として並記される。
+		id: "corvinone",
+		nameJa: "コルヴィノーネ",
+		nameLocal: "Corvinone",
+		color: "red",
+	},
+	{
+		id: "rondinella",
+		nameJa: "ロンディネッラ",
+		nameLocal: "Rondinella",
+		color: "red",
+	},
+	{
+		// バルドリーノでは最大15%まで、ヴァルポリチェッラでは「その他黒品種」枠で
+		// 認められる。かつての必須品種だが現在は任意。
+		id: "molinara",
+		nameJa: "モリナーラ",
+		nameLocal: "Molinara",
+		color: "red",
+	},
+	{
+		// プロセッコの品種。2009年に品種名が「Prosecco」から改められ、呼称名と
+		// 品種名が分離された。登録簿は「GLERA B.」の同義語に SERPRINO を載せ、
+		// コッリ・エウガネイの規約もこの地方名で品種を指す。
+		id: "glera",
+		nameJa: "グレーラ",
+		nameLocal: "Glera",
+		color: "white",
+	},
+	{
+		id: "verdiso",
+		nameJa: "ヴェルディーゾ",
+		nameLocal: "Verdiso",
+		color: "white",
+	},
+	{
+		id: "bianchetta-trevigiana",
+		nameJa: "ビアンケッタ・トレヴィジャーナ",
+		nameLocal: "Bianchetta trevigiana",
+		color: "white",
+	},
+	{ id: "perera", nameJa: "ペレーラ", nameLocal: "Perera", color: "white" },
+	{
+		// コッリ・ディ・コネリアーノのトルキアート・ディ・フレゴーナ(陰干し甘口)に
+		// 最低25%が要る品種。
+		id: "boschera",
+		nameJa: "ボスケーラ",
+		nameLocal: "Boschera",
+		color: "white",
+	},
+	{
+		// ソアーヴェ/ガンベッラーラの補助品種。規約は「Trebbiano di Soave
+		// (nostrano)」と表記する。トレッビアーノ・トスカーノとは別品種で、
+		// 登録簿では VERDICCHIO BIANCO・TURBIANA(ルガーナ)と同一品種。
+		id: "trebbiano-di-soave",
+		nameJa: "トレッビアーノ・ディ・ソアーヴェ",
+		nameLocal: "Trebbiano di Soave",
+		color: "white",
+	},
+	{
+		// ブレガンツェの土着白。陰干しするとトルコラート(甘口)になる。
+		id: "vespaiola",
+		nameJa: "ヴェスパイオーラ",
+		nameLocal: "Vespaiola",
+		color: "white",
+	},
+	{
+		// レッシーニ丘陵の火山性土壌の土着白。極めて酸が高く発泡酒に向く。
+		id: "durella",
+		nameJa: "ドゥレッラ",
+		nameLocal: "Durella",
+		color: "white",
+	},
+	{
+		// リゾンDOCGの品種。生産規約の呼称は「Tai」(旧 Tocai friulano)。
+		// ソーヴィニヨン・ブランとは別品種(仏 Sauvignonasse)。
+		id: "friulano",
+		nameJa: "フリウラーノ(タイ)",
+		nameLocal: "Friulano (Tai)",
+		color: "white",
+	},
+	{
+		// 登録簿上は Verduzzo friulano と Verduzzo trevigiano の2品種だが、
+		// ピアーヴェ・リゾン ピラマッジョーレ・ヴェネツィアの規約はどちらも
+		// 「Verduzzo」の一語で括るため、1つのIDにまとめる。
+		id: "verduzzo",
+		nameJa: "ヴェルドゥッツォ",
+		nameLocal: "Verduzzo (friulano / trevigiano)",
+		color: "white",
+	},
+	{
+		// トレヴィーゾのコネリアーノ醸造学校でルイジ・マンゾーニが作出した交配種
+		// (リースリング×ピノ・ビアンコ)。規約では「Manzoni bianco (I.M. 6.0.13)」。
+		id: "manzoni-bianco",
+		nameJa: "マンゾーニ・ビアンコ",
+		nameLocal: "Manzoni bianco",
+		color: "white",
+	},
+	{
+		// コッリ・エウガネイの土着白。規約はワイン名を Pinello、品種名を
+		// Pinella と書き分ける(登録簿の同義語も PINELLA BIANCA / PINELLO)。
+		id: "pinella",
+		nameJa: "ピネッラ",
+		nameLocal: "Pinella",
+		color: "white",
+	},
+	{
+		// コッリ・エウガネイのフィオール・ダランチョ(DOCG)は95%以上がこの品種。
+		// 小粒のモスカート・ビアンコとは別品種。
+		id: "moscato-giallo",
+		nameJa: "モスカート・ジャッロ",
+		nameLocal: "Moscato giallo",
+		color: "white",
+	},
+	{
+		// ピアーヴェ・マラノッテ(DOCG)とバニョーリ・フリウラーロ(DOCG)の主品種。
+		// 登録簿が「RABOSO PIAVE N.」の同義語に FRIULARO を載せており、
+		// バニョーリの「フリウラーロ」はこの品種の地方名。酸とタンニンが非常に
+		// 強く、陰干しで甘みを補うのが伝統。
+		id: "raboso-piave",
+		nameJa: "ラボーゾ・ピアーヴェ",
+		nameLocal: "Raboso Piave",
+		color: "red",
+	},
+	{
+		// ラボーゾ・ピアーヴェとは別品種で、規約でも別枠として並記される。
+		id: "raboso-veronese",
+		nameJa: "ラボーゾ・ヴェロネーゼ",
+		nameLocal: "Raboso veronese",
+		color: "red",
+	},
+	{
+		// コッリ・ディ・コネリアーノのレフロントロ(passito)は95%以上がこの品種。
+		id: "marzemino",
+		nameJa: "マルツェミーノ",
+		nameLocal: "Marzemino",
+		color: "red",
+	},
+	{
+		// フリウリ由来の黒品種。規約表記は「Refosco dal peduncolo rosso」(略 d.p.r.)。
+		id: "refosco-dal-peduncolo-rosso",
+		nameJa: "レフォスコ・ダル・ペドゥンコロ・ロッソ",
+		nameLocal: "Refosco dal peduncolo rosso",
+		color: "red",
+	},
+	{
+		// ヴァルダディジェ・テッラデイフォルティの土着品種。登録簿の品種名は
+		// 「LAMBRUSCO A FOGLIA FRASTAGLIATA N.」で、ENANTIO はその同義語。
+		id: "enantio",
+		nameJa: "エナンティオ",
+		nameLocal: "Enantio",
+		color: "red",
+	},
+	{
+		// テッラデイフォルティのもう一方の土着品種(登録簿では CASETTA N.)。
+		id: "casetta",
+		nameJa: "カゼッタ",
+		nameLocal: "Casetta",
+		color: "red",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);
