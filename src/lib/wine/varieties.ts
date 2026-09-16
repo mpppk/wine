@@ -441,8 +441,10 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		color: "red",
 	},
 	{
+		// リオハではビウラ、カタルーニャではマカベオ、ラングドック・ルーションでは
+		// マカブー(macabeu)と呼ぶ同一品種。
 		id: "viura",
-		nameJa: "ビウラ(マカベオ)",
+		nameJa: "ビウラ(マカベオ / マカブー)",
 		nameLocal: "Viura",
 		color: "white",
 	},
@@ -661,11 +663,14 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Verdelho",
 		color: "white",
 	},
-	// モスカテル・グラウド(= モスカテル・デ・セトゥーバル)はマスカット・オブ・
-	// アレキサンドリア。小粒種の muscat-blanc-a-petits-grains とは別品種。
+	// マスカット・オブ・アレキサンドリア。小粒種の muscat-blanc-a-petits-grains とは
+	// 別品種。ポルトガルではモスカテル・グラウド(= モスカテル・デ・セトゥーバル)、
+	// フランス(ルーション)ではミュスカ・ダレクサンドリー(現地名ミュスカ・ロマン)と
+	// 呼ぶ。**国ごとの現地名を nameJa に並べると表示が破綻するので、国際的な名前を
+	// 出して現地名は各AOPの解説に併記する**(varieties.ts の同一品種は1IDの規約)。
 	{
 		id: "moscatel-graudo",
-		nameJa: "モスカテル・グラウド(モスカテル・デ・セトゥーバル)",
+		nameJa: "マスカット・オブ・アレキサンドリア",
 		nameLocal: "Moscatel Graúdo",
 		color: "white",
 	},
