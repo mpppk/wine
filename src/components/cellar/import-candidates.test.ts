@@ -11,6 +11,7 @@ import {
 	photosForImportCardDialog,
 	primarySelectionForDialogIndex,
 	registrationPhotoIndexes,
+	resolveReviewPhotoPreviews,
 	summarizeImportCards,
 	validateImportCards,
 } from "./import-candidates";
@@ -510,6 +511,38 @@ describe("displayPhotoForImportCard", () => {
 				PREVIEWS,
 			),
 		).toBeNull();
+	});
+});
+
+describe("resolveReviewPhotoPreviews", () => {
+	it("手元に写真がある回は手元プレビューを優先する", () => {
+		expect(
+			resolveReviewPhotoPreviews(
+				["blob:photo-0"],
+				["/api/images/wines/u/job/p0.jpg"],
+			),
+		).toEqual(["blob:photo-0"]);
+	});
+
+	it("受け取って開いた回（手元が空）はジョブの写真を使う", () => {
+		const jobUrls = [
+			"/api/images/wines/u/job/p0.jpg",
+			"/api/images/wines/u/job/p1.jpg",
+		];
+		expect(resolveReviewPhotoPreviews([], jobUrls)).toEqual(jobUrls);
+		// 選ぶ規則は displayPhotoForImportCard と同じ入口に載る——
+		// ジョブ写真を渡せば手元写真のカードにサムネイルが出る
+		expect(
+			displayPhotoForImportCard(
+				card({ photoIndexes: [1] }),
+				resolveReviewPhotoPreviews([], jobUrls),
+			),
+		).toEqual({ src: "/api/images/wines/u/job/p1.jpg", isWebPhoto: false });
+	});
+
+	it("どちらも無ければ空（サムネイルなし）", () => {
+		expect(resolveReviewPhotoPreviews([], undefined)).toEqual([]);
+		expect(resolveReviewPhotoPreviews([], [])).toEqual([]);
 	});
 });
 

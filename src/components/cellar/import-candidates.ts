@@ -177,6 +177,20 @@ export interface ImportCardDisplayPhoto {
 	isWebPhoto: boolean;
 }
 
+/**
+ * レビュー画面のカードへ渡すプレビューURLの一覧(#612)。**選ぶ規則の唯一の
+ * 入口**——手元に写真がある回は手元のプレビュー(blob)を優先し、空のとき
+ * （受け取って開いた回）だけジョブの写真（サーバ保存）の表示URLを使う。
+ * 受け取った後にこの画面で解析し直した回は、候補の写真番号が新しく選んだ写真を
+ * 指しているため手元を優先する（登録時の `photoCount` の優先と同じ考え）。
+ */
+export function resolveReviewPhotoPreviews(
+	localPreviews: readonly string[],
+	jobPhotoUrls?: readonly string[],
+): readonly string[] {
+	return localPreviews.length > 0 ? localPreviews : (jobPhotoUrls ?? []);
+}
+
 export function displayPhotoForImportCard(
 	card: Pick<
 		ImportCardState,
