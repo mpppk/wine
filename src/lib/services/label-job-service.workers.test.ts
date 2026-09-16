@@ -25,6 +25,7 @@ import {
 	TooManyRequestsError,
 } from "#/lib/errors";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
+import { bulkRegisterFromScan } from "#/lib/services/drunk-wine-service";
 import { createPlace, listPlaces } from "#/lib/services/place-service";
 import {
 	adoptLabelJobPhotosToBatch,
@@ -889,6 +890,37 @@ describe("完了の受け取り (#462)", () => {
 		for (const key of keys) {
 			expect(await env.AVATARS.get(key)).not.toBeNull();
 		}
+	});
+
+	it("引き継いだ写真はその回に登録した銘柄にも付く (#617)", async () => {
+		// 「一括登録の写真を銘柄へ複製する」(#473 の3段目)は、以前はアップロード経路
+		// だけが通していた。ジョブから引き継いだ回の銘柄が写真を持てず、レビュー画面には
+		// 出ていた写真が登録後に消えたように見えた。ここは**引き継ぎ経路の end-to-end**
+		// (バッチに載る → 銘柄まで届く)を押さえる。
+		const userId = await seedPremiumUser();
+		const { jobId } = await submitOne(userId);
+		stubAiRun(workersAiOk(300));
+		await runLabelAnalysisJob(jobId);
+		// レビュー画面の確定と同じ順序: 先に銘柄・体験記録・バッチを作り、その後で写真を渡す。
+		const { batchId } = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{ wine: { name: "ジョブ経由の1本" }, sighting: { photoIndex: 0 } },
+			],
+		});
+
+		await adoptLabelJobPhotosToBatch(userId, jobId, batchId);
+
+		const [entry] = await db
+			.select({
+				photoKeys: drunkWine.photoKeys,
+				photoKinds: drunkWine.photoKinds,
+			})
+			.from(drunkWine)
+			.where(eq(drunkWine.batchId, batchId));
+		expect(entry?.photoKeys).toHaveLength(1);
+		expect(entry?.photoKinds).toEqual(["bottle"]);
+		expect(await env.AVATARS.get(entry?.photoKeys[0] as string)).not.toBeNull();
 	});
 
 	it("写真が保存済みのバッチには渡さない (#482)", async () => {

@@ -44,7 +44,10 @@ import {
 	LABEL_JOB_BADGE_QUERY_KEY,
 	useLabelAnalysisJob,
 } from "#/components/cellar/use-label-analysis-job";
-import { uploadImportBatchPhotos } from "#/components/cellar/wine-list-analysis";
+import {
+	resolveBatchPhotoFallback,
+	uploadImportBatchPhotos,
+} from "#/components/cellar/wine-list-analysis";
 import { InsufficientCreditsDialog } from "#/components/credit/InsufficientCreditsDialog";
 import { Button } from "#/components/ui/button";
 import {
@@ -236,6 +239,15 @@ export function PhotoRegisterWizard({
 	const [step, setStep] = useState<"photos" | "review">("photos");
 	// 解析済みの写真の印(`photoSetKey`)。同じ写真での解析の押し直しを止める。
 	const [analyzedPhotoKey, setAnalyzedPhotoKey] = useState<string | null>(null);
+	/**
+	 * **解析に使った写真の枚数**(= ジョブが持っている写真の枚数)。手元の `photos`
+	 * の枚数では代用できない: 受け取って開いた回は0枚だし、解析の後に写真を足した回は
+	 * 候補の `photoIndexes` が指す配列より多くなる。登録時の申告(`photoCount`)は
+	 * **バッチへ載る写真の枚数**でなければならず、それは常にジョブ側の枚数。
+	 */
+	const [analyzedPhotoCount, setAnalyzedPhotoCount] = useState<number | null>(
+		null,
+	);
 	const [summary, setSummary] = useState<WineListAnalysisSummary | null>(null);
 	const [error, setError] = useState("");
 	const [showInsufficient, setShowInsufficient] = useState(false);
@@ -469,8 +481,10 @@ export function PhotoRegisterWizard({
 	const applyWineListResult = (
 		result: WineListAnalysisOutcome,
 		analyzedKey: string,
+		photoCount: number,
 	) => {
 		setAnalyzedPhotoKey(analyzedKey);
+		setAnalyzedPhotoCount(photoCount);
 		if (result.candidates.length === 0) {
 			// **空のレビュー画面へは進めない**。読み取れなかった回に要るのは撮り直しの
 			// 導線であって、0件のカード一覧ではない。写真の画面に留めたまま理由を出す
@@ -514,7 +528,7 @@ export function PhotoRegisterWizard({
 			.catch(() => {});
 		// 受け取った回は手元に写真が無い(離脱しているので当然)。いまの選択(空)を
 		// 解析済みの印にしておくと、写真を足すまで解析ボタンが開かない。
-		applyWineListResult(receivedJob.result, photoKey);
+		applyWineListResult(receivedJob.result, photoKey, receivedJob.photoCount);
 	}, [receivedJob, queryClient]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: 完了の1回だけ処理する
@@ -534,7 +548,11 @@ export function PhotoRegisterWizard({
 		// **この画面で受け取ったジョブは受け取り済みにする**。しないと、目の前で反映した
 		// 結果がマイセラーのバッジに「解析が完了しました」として並び続ける(#472 と同じ)。
 		void consumeLabelAnalysisJob(job.jobId).catch(() => {});
-		applyWineListResult(job.wineList, analyzingPhotoKeyRef.current);
+		applyWineListResult(
+			job.wineList,
+			analyzingPhotoKeyRef.current,
+			job.photoCount,
+		);
 	}, [job, queryClient]);
 
 	/** 解析中(投入待ち + 結果待ち)。結果を反映するまで下がらない。 */
@@ -578,14 +596,11 @@ export function PhotoRegisterWizard({
 							: {}),
 						...(placeChoice === NEW_PLACE ? { newPlaceName } : {}),
 						...(seenOn ? { seenOn } : {}),
-						// 受け取って開いた回は手元に File が無く、写真はサーバから引き継ぐ。
-						// 申告枚数はその引き継ぎ元の枚数にする(#482)。**手元に写真が
-						// あるならそちらを優先する**——受け取った後にこの画面で解析し直した
-						// 回は、候補の写真番号が新しく選んだ写真を指しているため。
-						photoCount:
-							photos.length > 0
-								? photos.length
-								: (receivedJob?.photoCount ?? 0),
+						// 申告枚数は**解析に使った写真の枚数**(= ジョブが持っている枚数)。
+						// バッチへ載るのは常にその写真で、候補の `photoIndexes` もその配列を
+						// 指している。手元の枚数で申告すると、解析の後に写真を足した回に
+						// 「載る写真の枚数」とズレる(#482 / #617)。
+						photoCount: analyzedPhotoCount ?? photos.length,
 					}),
 				}));
 			setRegistered(result);
@@ -594,17 +609,34 @@ export function PhotoRegisterWizard({
 			// (onError 側で判定すると、この実行で setRegistered した結果がまだ
 			// クロージャに反映されておらず、初回の失敗を「登録に失敗」と誤って出す)。
 			try {
-				if (photos.length > 0) {
+				// **写真は常にジョブから引き継ぐ**(#617)。一括抽出はジョブ経路(#474)
+				// なので、手元に File がある回でも同じ写真が投入時点で既に R2 にある。
+				// 送り直さないぶん通信も減るが、本質は**経路を1本にすること**——
+				// 引き継ぎ経路だけ「銘柄への写真の複製」を通っておらず、レビュー画面には
+				// 写真が出るのに登録した銘柄には1枚も付かなかった。
+				const adopted = jobId
+					? (
+							await adoptLabelJobPhotosToBatch({
+								data: { jobId, batchId: result.batchId },
+							})
+						).adopted
+					: 0;
+				// 引き継げなかった回の逃げ道(判定は `resolveBatchPhotoFallback`)。
+				const fallback = resolveBatchPhotoFallback({
+					adopted,
+					localCount: photos.length,
+					analyzedCount: analyzedPhotoCount,
+				});
+				if (fallback === "unavailable") {
+					throw new Error(
+						"解析に使った写真がサーバに残っていません。写真を選び直して解析し直してください",
+					);
+				}
+				if (fallback === "upload") {
 					await uploadImportBatchPhotos(
 						result.batchId,
 						photos.map((p) => p.file),
 					);
-				} else if (jobId) {
-					// ジョブを受け取って開いた回は手元に File が無い(離脱しているので当然)。
-					// 解析に使った写真はサーバに残っているので、そのままバッチへ渡す(#474)。
-					await adoptLabelJobPhotosToBatch({
-						data: { jobId, batchId: result.batchId },
-					});
 				}
 			} catch (e) {
 				const detail = e instanceof Error ? e.message : String(e);
