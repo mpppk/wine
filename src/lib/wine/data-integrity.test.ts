@@ -1402,6 +1402,42 @@ describe("ヴェネト(イタリア)の整合性", () => {
 		expect(colorsOf("recioto-di-gambellara")).toEqual(["sweet-white"]);
 	});
 
+	// プロセッコの2つのDOCGは、Art.2 の15%枠に在来品種(ヴェルディーゾ等)しか挙げず、
+	// シャルドネとピノ3種は Art.5 の「伝統的な補正(pratica tradizionale correttiva)」
+	// として同じ15%枠で認める。**Art.2 だけ読むと落ちる**ので、収録を固定しておく。
+	// 落ちていると「シャルドネの使用が認められていないAOPはどれ？」の答えに
+	// アーゾロ・プロセッコが混ざり、規約と食い違う出題になる。
+	it("プロセッコのDOCGはシャルドネとピノ3種を補助品種に持つ", () => {
+		for (const id of ["conegliano-valdobbiadene-prosecco", "asolo-prosecco"]) {
+			const aop = veneto.find((a) => a.id === id);
+			const accessory = new Set(
+				aop?.grapes
+					.filter((g) => g.role === "accessory")
+					.map((g) => g.varietyId),
+			);
+			for (const v of [
+				"chardonnay",
+				"pinot-blanc",
+				"pinot-gris",
+				"pinot-noir",
+			]) {
+				expect(accessory.has(v), `${id}: ${v}`).toBe(true);
+			}
+		}
+	});
+
+	// ヴェネツィアDOCの白は「タイ/ヴェルドゥッツォ/グレーラを合計50%以上」。
+	// この3品種はプロセッコ以外でグレーラが主役級に入る唯一の収録例なので固定する。
+	it("ヴェネツィアDOCはタイ・ヴェルドゥッツォ・グレーラを主要品種に持つ", () => {
+		const aop = veneto.find((a) => a.id === "venezia");
+		const principal = new Set(
+			aop?.grapes.filter((g) => g.role === "principal").map((g) => g.varietyId),
+		);
+		for (const v of ["friulano", "verduzzo", "glera"]) {
+			expect(principal.has(v), v).toBe(true);
+		}
+	});
+
 	// タイ・ロッソ(コッリ・ベリチ)はグルナッシュと同一品種なので、専用IDを
 	// 作らず grenache を再利用している(varieties.ts の規約)。別IDへ割ると
 	// 品種クイズ・品種フィルタがローヌ/ルーションのグルナッシュと分断される。

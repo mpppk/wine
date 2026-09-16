@@ -23814,6 +23814,22 @@
 			{
 				"varietyId": "perera",
 				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
 			}
 		],
 		"soil": "海底が隆起し、その後に氷河と河川が削った急斜面の丘陵。砂岩と泥灰岩を主体に氷堆石層と沖積層が交互に重なる。表土が薄く傾斜が強いため、根が張れる範囲が限られる。",
@@ -23828,7 +23844,7 @@
 			"Sorelle Bronca",
 			"Silvano Follador"
 		],
-		"description": "プロセッコの頂点。コネリアーノとヴァルドッビアーデネを結ぶ急斜面の丘陵に限られ、2019年にはこの景観がユネスコ世界遺産に登録された。最上の区画は Cartizze(わずか106ha)、村単位の区画表示は Rive と呼ぶ。"
+		"description": "プロセッコの頂点。コネリアーノとヴァルドッビアーデネを結ぶ急斜面の丘陵に限られ、2019年にはこの景観がユネスコ世界遺産に登録された。最上の区画は Cartizze(わずか106ha)、村単位の区画表示は Rive と呼ぶ。グレーラ以外の15%枠には、ヴェルディーゾ等の在来品種のほかに、シャルドネとピノ3種を「伝統的な補正」として加えることも規約が認める。"
 	},
 	{
 		"id": "asolo-prosecco",
@@ -23857,11 +23873,27 @@
 			{
 				"varietyId": "perera",
 				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
 			}
 		],
 		"soil": "モンテッロを中心にカルスト地形が発達し、2000を超えるドリーネが地下の排水路を作る。固い礫岩の上に泥灰質粘土〜泥灰質砂の赤い表土が載り、脱炭酸が進んで酸性を示す。",
 		"producers": ["Bele Casel", "Montelvini"],
-		"description": "コネリアーノ・ヴァルドッビアーデネと並ぶもうひとつのプロセッコDOCG。アーゾロの丘とモンテッロの南斜面に限られ、規約上は「Colli Asolani - Prosecco」とも名乗れる。"
+		"description": "コネリアーノ・ヴァルドッビアーデネと並ぶもうひとつのプロセッコDOCG。アーゾロの丘とモンテッロの南斜面に限られ、規約上は「Colli Asolani - Prosecco」とも名乗れる。コネリアーノ・ヴァルドッビアーデネ同様、15%枠にシャルドネとピノ3種を伝統的な補正として加えられる。"
 	},
 	{
 		"id": "colli-di-conegliano",
@@ -24248,6 +24280,18 @@
 				"role": "principal"
 			},
 			{
+				"varietyId": "glera",
+				"role": "principal"
+			},
+			{
+				"varietyId": "friulano",
+				"role": "principal"
+			},
+			{
+				"varietyId": "verduzzo",
+				"role": "principal"
+			},
+			{
 				"varietyId": "raboso-veronese",
 				"role": "accessory"
 			},
@@ -24292,21 +24336,13 @@
 				"role": "accessory"
 			},
 			{
-				"varietyId": "verduzzo",
-				"role": "accessory"
-			},
-			{
-				"varietyId": "friulano",
-				"role": "accessory"
-			},
-			{
 				"varietyId": "gewurztraminer",
 				"role": "accessory"
 			}
 		],
 		"soil": "土性の違いで品種を割り振る平野。礫に富む軽い土壌を白品種に充てて香りと酸を、重い粘土質を黒品種に充てて厚みと骨格を得る。",
 		"producers": ["Tenuta Sant'Anna", "Ornella Molon"],
-		"description": "トレヴィーゾ県とヴェネツィア県にまたがる広域DOC。ピノ・グリージョをはじめ品種名を冠したタイプが中心で、ロゼはラボーゾ50%以上、赤はメルロ50%以上。"
+		"description": "トレヴィーゾ県とヴェネツィア県にまたがる広域DOC。白はタイ/ヴェルドゥッツォ/グレーラを合計50%以上とし、ピノ・グリージョをはじめ品種名を冠したタイプが中心で、ロゼはラボーゾ50%以上、赤はメルロ50%以上。"
 	},
 	{
 		"id": "prosecco",
