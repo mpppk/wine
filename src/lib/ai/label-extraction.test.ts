@@ -337,6 +337,26 @@ describe("buildLabelSuggestions", () => {
 		expect(s.aopId).toBe("rioja");
 	});
 
+	it("ドイツの呼称は収録後にAOP候補として解決される", () => {
+		const s = buildLabelSuggestions(
+			extraction({
+				wineName: "Wehlener Sonnenuhr Riesling",
+				appellation: "Mosel",
+			}),
+		);
+		expect(s.aopId).toBe("mosel");
+	});
+
+	// ドイツは1地方＝国全体なので、国名表記でも地域まで解決できるようにしている
+	it("国名表記(Germany)からドイツの地域を解決する", () => {
+		const s = buildLabelSuggestions(
+			extraction({ wineName: "Riesling Kabinett", region: "Germany" }),
+		);
+		expect(s.aopId).toBeUndefined();
+		expect(s.regionId).toBe("deutschland");
+		expect(s.countryId).toBeUndefined();
+	});
+
 	it("品種が無記載でもAOPの主要品種が1種ならそれを候補にする", () => {
 		const s = buildLabelSuggestions(extraction({ appellation: "Chablis" }));
 		expect(s.aopId).toBe("chablis");

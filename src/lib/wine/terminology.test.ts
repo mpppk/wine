@@ -60,6 +60,20 @@ describe("原産地呼称の総称・バッジ(国ごとの出し分け)", () =>
 		expect(getAppellationTermJa("rioja")).toBe("DO/DOCa/VP");
 		// ポルトガルはDOCの1階層だけ(等級差が無いのでタグも持たない)
 		expect(getAppellationTermJa("portugal")).toBe("DOC");
+		// ドイツは産地単位も単一畑も同じ g.U.(上下の等級が無い)
+		expect(getAppellationTermJa("deutschland")).toBe("g.U.");
+	});
+
+	it("ドイツのバッジは産地・単一畑とも g.U.", () => {
+		const badge = (id: string) => {
+			const aop = getAop(id);
+			if (!aop) throw new Error(`unknown aop: ${id}`);
+			return getAppellationBadgeJa(aop);
+		};
+		expect(badge("mosel")).toBe("g.U.");
+		expect(badge("franken")).toBe("g.U.");
+		expect(badge("uhlen-roth-lay")).toBe("g.U.");
+		expect(badge("wuerzburger-stein-berg")).toBe("g.U.");
 	});
 
 	it("スペインのバッジはAOP単位のDOP階層で決まる", () => {
@@ -103,6 +117,10 @@ describe("原産地呼称の総称・バッジ(国ごとの出し分け)", () =>
 		expect(panelBadge("somontano")).toBeUndefined();
 		expect(panelBadge("pago-de-arinzano")).toBeUndefined();
 		expect(panelBadge("toscana-igt")).toBeUndefined();
+		// ドイツは格付けタグを持たない(プレディカーツはワイン単位の格付けで、
+		// 呼称の階級ではないため tags に入れていない)
+		expect(panelBadge("mosel")).toBeUndefined();
+		expect(panelBadge("uhlen-laubach")).toBeUndefined();
 		// イタリアの DOCG/DOC は呼称バッジ("DOC/DOCG")と文言が異なるので従来どおり出す
 		expect(panelBadge("barolo")).toBe("DOCG");
 	});
@@ -115,7 +133,22 @@ describe("原産地呼称の総称・バッジ(国ごとの出し分け)", () =>
 		};
 		expect(note("rioja")).toBe(note("barolo"));
 		expect(note("douro")).toBe(note("barolo"));
+		expect(note("mosel")).toBe(note("barolo"));
 		expect(note("rioja")).toContain("EU PDO境界データ");
 		expect(note("chablis")).not.toContain("EU PDO境界データ");
+	});
+
+	// 単一畑g.U.(数十ha)にコミューン単位の輪郭を当てているので、汎用の注記では
+	// 「畑そのものの形」と誤解される。ドイツの畑だけ言い切る。
+	it("ドイツの単一畑g.U.は自治体の範囲だと明示する", () => {
+		const note = (id: string) => {
+			const aop = getAop(id);
+			if (!aop) throw new Error(`unknown aop: ${id}`);
+			return getBoundarySourceNoteJa(aop);
+		};
+		expect(note("uhlen-roth-lay")).toContain("自治体の範囲");
+		expect(note("buergstadter-berg")).toContain("自治体の範囲");
+		// 産地(アンバウゲビート)は他のEU PDO由来の国と同じ注記
+		expect(note("mosel")).not.toContain("自治体の範囲");
 	});
 });

@@ -8,8 +8,8 @@ import type { Aop } from "#/lib/wine/types";
 // (CLAUDE.md「横断的な防御・規約は共通チョークポイント(SSOT)に寄せる」)。
 
 /**
- * 許可品種・生産可能タイプが事実上「その州で認められた全品種・全タイプ」に
- * 開かれている広域呼称(IGT)か。
+ * 許可品種・生産可能タイプが事実上「その州・その産地で認められた全品種・全タイプ」に
+ * 開かれている広域呼称(イタリアのIGT / ドイツのアンバウゲビート)か。
  *
  * DOC(G) は生産規約(disciplinare)が品種と色を閉じた集合として定めるため、
  * `aops.json` の `grapes` / `colors` はその集合そのものを写せる。対して IGT の
@@ -24,7 +24,14 @@ import type { Aop } from "#/lib/wine/types";
  * 品種・色を主張しないため、この除外の対象外(IGT も出題してよい)。
  */
 export function isOpenEndedAppellation(aop: Aop): boolean {
-	return aop.tags?.includes("igt") ?? false;
+	if (aop.tags?.includes("igt")) return true;
+	// ドイツの13のアンバウゲビート(産地単位の g.U.)も同じ形。生産規約が
+	// 「その産地で栽培が認められた品種」を100種以上まとめて許し、色も
+	// 白・赤・ロゼ・ゼクト・プレディカーツ甘口を一律に認めるため、aops.json の
+	// grapes(栽培面積上位)・colors は代表例であって網羅ではない。
+	// 単一畑の g.U.(ウーレン等)は規約が品種を数種に限定する閉じた集合なので対象外。
+	if (aop.region === "deutschland" && aop.kind === "regional") return true;
+	return false;
 }
 
 /** 品種・色を主張する形式で使ってよいAOPだけに絞った listAops */

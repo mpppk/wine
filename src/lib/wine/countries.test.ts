@@ -51,11 +51,17 @@ describe("groupRegionsByCountry (#586)", () => {
 				expect(countryForRegion(region)?.id).toBe(group.country.id);
 			}
 		}
-		// 顔ぶれの固定: フランス7・イタリア2・スペイン1・ポルトガル1
+		// 顔ぶれの固定: フランス7・イタリア2・スペイン1・ポルトガル1・ドイツ1
 		const counts = Object.fromEntries(
 			groups.map((g) => [g.country.id, g.regions.length]),
 		);
-		expect(counts).toEqual({ france: 7, italy: 2, spain: 1, portugal: 1 });
+		expect(counts).toEqual({
+			france: 7,
+			italy: 2,
+			spain: 1,
+			portugal: 1,
+			germany: 1,
+		});
 	});
 
 	it("国内の地域順は入力順(REGIONS定義順)を保つ", () => {

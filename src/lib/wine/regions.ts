@@ -280,6 +280,46 @@ export const REGIONS: Region[] = [
 			"3つの酒精強化ワインも学べる。境界はイタリア・スペイン同様、コミューン" +
 			"単位で集約された学術データセット(Candiago et al. 2022, CC0)に基づく概略値。",
 	},
+	{
+		id: "deutschland",
+		nameJa: "ドイツ",
+		nameLocal: "Deutschland",
+		country: "Germany",
+		countryJa: "ドイツ",
+		enabled: true,
+		// build:geodata:eu の出力値を反映(モーゼル西端〜ザクセン東端)。
+		bounds: [6.35695, 47.53238, 14.96466, 51.93941],
+		geojsonPath: "/data/aop/deutschland.geojson",
+		boundariesPath: "/data/aop/deutschland-boundaries.geojson",
+		boundaryAttribution:
+			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
+		// 地区は13のアンバウゲビート(産地単位のg.U.)を水系・地理でまとめたもの。
+		// ドイツのg.U.はアンバウゲビートが最小単位で、その下のベライヒ/オルツ/
+		// アインツェルラーゲは呼称ではなく産地表示の階層なので地区にはしない。
+		subregions: [
+			{ id: "mosel", nameJa: "モーゼル(ザール・ルーヴァー)" },
+			{ id: "mittelrhein-ahr", nameJa: "ミッテルライン / アール" },
+			{ id: "rheingau-nahe", nameJa: "ラインガウ / ナーエ" },
+			{
+				id: "rheinhessen-pfalz",
+				nameJa: "ラインヘッセン / プファルツ / ベルクシュトラーセ",
+			},
+			{ id: "franken", nameJa: "フランケン" },
+			{ id: "baden-wuerttemberg", nameJa: "バーデン / ヴュルテンベルク" },
+			{ id: "ost", nameJa: "東部(ザーレ・ウンストルート / ザクセン)" },
+		],
+		description:
+			"リースリングの故郷。北緯50度前後という高緯度で日照を稼ぐため、川沿いの" +
+			"急斜面に畑を刻んできたのがドイツワインの原点で、モーゼルのスレートから" +
+			"フランケンの貝殻石灰岩、バーデンの火山性土壌まで13の指定栽培地域" +
+			"(アンバウゲビート)がそれぞれ独立したg.U.になっている。収穫時の果汁糖度で" +
+			"格付けするプレディカーツ(カビネット〜トロッケンベーレンアウスレーゼ)という" +
+			"独自の階層に加え、ウーレンやビュルクシュタッター・ベルクのように単一畑" +
+			"そのものがg.U.として登録された区画も収録する。境界はイタリア・スペインと" +
+			"同じくコミューン単位で集約された学術データセット" +
+			"(Candiago et al. 2022, CC0)に基づく概略値で、単一畑のg.U.も" +
+			"畑の区画ではなく畑のある自治体の輪郭になる。",
+	},
 ];
 
 export function getRegion(id: string): Region | undefined {

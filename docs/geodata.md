@@ -9,7 +9,7 @@ AOPのメタデータ（土壌・品種・生産者）は `src/lib/wine/aops.jso
 | コマンド | 生成物 | 備考 |
 |---|---|---|
 | `bun run build:geodata` | フランス地域の `<region>.geojson` | node 実行 |
-| `bun run build:geodata:eu` | EU PDO 由来（イタリア・スペイン・ポルトガル）の `<region>.geojson` | node 実行 |
+| `bun run build:geodata:eu` | EU PDO 由来（イタリア・スペイン・ポルトガル・ドイツ）の `<region>.geojson` | node 実行 |
 | `bun run build:centroids` | `src/lib/wine/aop-centroids.json` | コミット済み GeoJSON のみを入力とする |
 | `bun run build:boundaries` | `<region>-boundaries.geojson`（地方・地区輪郭） | bun 実行（`regions.ts` を直接 import するため） |
 
@@ -26,9 +26,9 @@ bun run build:geodata
 - コミューン結合・シャトー座標などのキュレーション表（`COMMUNES_BY_AOP_ID` / `WINERY_COORDS_BY_AOP_ID` 等）は `scripts/build-aop-geodata.mjs` 内で管理する
 - 実行後に表示される bounds を `src/lib/wine/regions.ts` に反映する
 
-## イタリア・スペイン・ポルトガル（EU PDO 由来）
+## イタリア・スペイン・ポルトガル・ドイツ（EU PDO 由来）
 
-イタリア（ピエモンテ/トスカーナ）・スペイン（リオハ/エブロ川流域）・ポルトガル（本土）には公式の区画GISが存在しないため、別データソース・別スクリプトで生成する:
+イタリア（ピエモンテ/トスカーナ）・スペイン（リオハ/エブロ川流域）・ポルトガル（本土）・ドイツには公式の区画GISが存在しないため、別データソース・別スクリプトで生成する:
 
 ```bash
 bun run build:geodata:eu                       # figshareからgpkgをDL(キャッシュ)
@@ -48,6 +48,15 @@ bun run build:geodata:eu -- --source /path/to/EU_PDO.gpkg   # ローカル指定
   eAmbrosia の `fileNumber` と合わせて `REGION_CONFIGS` の対応表を作る
 - データセットは2021年時点の登録が対象。以後に登録された呼称（スペインの Bolandin 等）は
   収録されていないため、`gpkg に … のジオメトリが無い` で落ちる
+- `clipBbox`（地域全体）で落としきれない同名コミューン由来の飛び地は、呼称ごとの
+  `pdoClipBbox`（aopId → bbox）で落とす。ドイツのように地域bboxが国全体に及ぶと州境界で
+  切れないため。**実在する飛び地（ザクセンのオストリッツ＝ドイツ最東端の畑など）を
+  巻き込まないよう、根拠を確認してから足すこと**
+- ドイツは13の指定栽培地域（アンバウゲビート）に加え、単一畑そのものが g.U. として
+  登録された6件（ウーレンの3区画・モンツィンガー・ニーダーベルク・ヴュルツブルガー・
+  シュタイン・ベルク・ビュルクシュタッター・ベルク）を収録する。データセットの粒度は
+  コミューン単位なので、単一畑 g.U. のポリゴンは**その畑がある自治体の輪郭**であり、
+  畑そのものの区画ではない（ウーレンの2区画は同じヴィニンゲンの輪郭になる）
 - 実行後に表示される bounds を `src/lib/wine/regions.ts` の該当地域に反映する
 
 ## 再生成時の注意

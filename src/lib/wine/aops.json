@@ -19780,5 +19780,1164 @@
 			}
 		],
 		"description": "ポルトガル南東部、国土の約3分の1を占める広大な平原のDOP。レギェンゴス/ボルバ/レドンド/ヴィディゲイラ/エヴォラ/グランジャ=アマレレージャ/ポルタレグレ/モウラの8地区からなる。温暖で日照が多く、熟した果実味と柔らかいタンニンの赤が中心。果肉まで赤いアリカンテ・ブーシェがこの地で独自の地位を築いており、素焼きの甕(タリャ)で醸すローマ時代以来の「ヴィーニョ・デ・タリャ」の伝統も残る。白はアンタン・ヴァスとアリントの組み合わせが定番。"
+	},
+	{
+		"id": "mosel",
+		"idApp": 924001,
+		"name": "Mosel",
+		"shortName": "Mosel",
+		"nameJa": "モーゼル",
+		"region": "deutschland",
+		"subregionId": "mosel",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "elbling",
+				"role": "accessory"
+			}
+		],
+		"soil": "中流〜下流はデボン紀のスレート(粘板岩)。ライン粘板岩山地を深く刻んだV字谷の急斜面で、上流のオーバーモーゼルとトリーア盆地だけは中生代の斑岩砂岩・貝殻石灰岩・コイパーのやわらかい岩層になる。",
+		"producers": [
+			{
+				"name": "Egon Müller - Scharzhof",
+				"searchKeyword": "エゴン・ミュラー"
+			},
+			{
+				"name": "Joh. Jos. Prüm",
+				"searchKeyword": "ヨー・ヨス・プリュム"
+			},
+			{
+				"name": "Dr. Loosen",
+				"searchKeyword": "ドクター・ローゼン"
+			},
+			{
+				"name": "Fritz Haag",
+				"searchKeyword": "フリッツ・ハーク"
+			},
+			{
+				"name": "Willi Schaefer",
+				"searchKeyword": "ヴィリー・シェーファー"
+			},
+			{
+				"name": "Maximin Grünhaus",
+				"searchKeyword": "マキシミン・グリュンハウス"
+			},
+			{
+				"name": "Van Volxem",
+				"searchKeyword": "ファン・フォルクセン"
+			},
+			{
+				"name": "Karthäuserhof",
+				"searchKeyword": "カルトホイザーホフ"
+			},
+			{
+				"name": "Forstmeister Geltz-Zilliken",
+				"searchKeyword": "ツィリケン"
+			},
+			{
+				"name": "Heymann-Löwenstein",
+				"searchKeyword": "ハイマン・レーヴェンシュタイン"
+			},
+			{
+				"name": "Peter Lauer",
+				"searchKeyword": "ペーター・ラウアー"
+			},
+			{
+				"name": "Clemens Busch",
+				"searchKeyword": "クレメンス・ブッシュ"
+			}
+		],
+		"description": "ローマ時代に遡るドイツ最古の産地の一つ。8,287haの半分が傾斜30度を超える急斜面・テラス畑で、白ぶどうの比率90%はドイツで最も高い。リースリングが5,156ha(約62%)を占め、ミュラー・トゥルガウ、シュペートブルグンダー、上流オーバーモーゼル特産の古代品種エルプリングが続く。ブルク・コッヘム(テラッセンモーゼル)・ベルンカステル(ミッテルモーゼル)・オーバーモーゼル・モーゼルトーア・ザール・ルーヴァータールの6つのベライヒに分かれる。"
+	},
+	{
+		"id": "uhlen-blaufuesser-lay",
+		"idApp": 924002,
+		"name": "Uhlen Blaufüsser Lay/Uhlen Blaufüßer Lay",
+		"shortName": "Uhlen Blaufüsser Lay",
+		"nameJa": "ウーレン・ブラウフューサー・ライ",
+		"region": "deutschland",
+		"subregionId": "mosel",
+		"kind": "vineyard",
+		"colors": ["white", "sweet-white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			}
+		],
+		"soil": "デボン紀下部オーバーエムス/ラウバッハ層の、より深い海に堆積した粘土質の多いスレートが風化したレゴソル。隣接区画より粘土分が多く、保水力が高い代わりに地温が上がりにくい。",
+		"producers": [
+			{
+				"name": "Heymann-Löwenstein",
+				"searchKeyword": "ハイマン・レーヴェンシュタイン"
+			},
+			{
+				"name": "Knebel",
+				"searchKeyword": "クネーベル"
+			}
+		],
+		"description": "モーゼル下流ヴィニンゲンの銘醸畑ウーレンを地質で3分割した単一畑g.U.の一つ。標高75〜210m、南西向きのテラスで、認められる品種はリースリングのみ。粘土質スレート由来の低い地温が、3区画の中で最も「冷たい」と評される張りつめた酸とミネラルを生む。"
+	},
+	{
+		"id": "uhlen-laubach",
+		"idApp": 924003,
+		"name": "Uhlen Laubach",
+		"shortName": "Uhlen Laubach",
+		"nameJa": "ウーレン・ラウバッハ",
+		"region": "deutschland",
+		"subregionId": "mosel",
+		"kind": "vineyard",
+		"colors": ["white", "sweet-white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			}
+		],
+		"soil": "サンゴや貝を含む石灰分の多いシルト質スレート。土壌pHは約7.5と隣接区画(約6.0)より高く、石が50%以上を占めるため下層まで通気性がよい。",
+		"producers": [
+			{
+				"name": "Heymann-Löwenstein",
+				"searchKeyword": "ハイマン・レーヴェンシュタイン"
+			},
+			{
+				"name": "Knebel",
+				"searchKeyword": "クネーベル"
+			}
+		],
+		"description": "ウーレンの3つの単一畑g.U.のうち、浅くなった熱帯の海の堆積に由来する石灰質スレートの区画。燻したような香りと、丸くクリーミーでビロードのような味わいが特徴で、熟成を待たずに開く。品種はリースリングのみ。"
+	},
+	{
+		"id": "uhlen-roth-lay",
+		"idApp": 924004,
+		"name": "Uhlen Roth Lay",
+		"shortName": "Uhlen Roth Lay",
+		"nameJa": "ウーレン・ロート・ライ",
+		"region": "deutschland",
+		"subregionId": "mosel",
+		"kind": "vineyard",
+		"colors": ["white", "sweet-white", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			}
+		],
+		"soil": "エムス珪岩を含むオーバーエムス/ラーンシュタイン層の、鉄・マグネシウム・アルミニウムに富む赤みを帯びたスレート。砂粒を珪酸が固めた硬い岩盤で、土壌pHは約6.0と隣接区画より低い。",
+		"producers": [
+			{
+				"name": "Heymann-Löwenstein",
+				"searchKeyword": "ハイマン・レーヴェンシュタイン"
+			},
+			{
+				"name": "Knebel",
+				"searchKeyword": "クネーベル"
+			}
+		],
+		"description": "ウーレンの3つの単一畑g.U.のうち、鉄分(酸化鉄を8%含む石もある)で赤く染まった区画。コーベルンとヴィニンゲンにまたがる南向きのテラスで、若いうちは閉じているが長期熟成のポテンシャルが大きい精緻なリースリングを生む。品種はリースリングのみ。"
+	},
+	{
+		"id": "ahr",
+		"idApp": 924005,
+		"name": "Ahr",
+		"shortName": "Ahr",
+		"nameJa": "アール",
+		"region": "deutschland",
+		"subregionId": "mittelrhein-ahr",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fruehburgunder",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "portugieser",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "dornfelder",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			}
+		],
+		"soil": "デボン紀のスレートと硬砂岩(グラウヴァッケ)。岩の裂け目に根を下ろす急斜面が昼の熱を蓄え、北緯50度を超える谷で黒ぶどうを完熟させる。",
+		"producers": [
+			{
+				"name": "Meyer-Näkel",
+				"searchKeyword": "マイヤー・ネーケル"
+			},
+			{
+				"name": "Jean Stodden",
+				"searchKeyword": "ジャン・シュトッデン"
+			},
+			{
+				"name": "J. J. Adeneuer",
+				"searchKeyword": "アーデネウアー"
+			},
+			{
+				"name": "Deutzerhof",
+				"searchKeyword": "ドイツァーホフ"
+			},
+			{
+				"name": "H.J. Kreuzberg",
+				"searchKeyword": "クロイツベルク"
+			},
+			{
+				"name": "Nelles",
+				"searchKeyword": "ネレス"
+			},
+			{
+				"name": "Burggarten",
+				"searchKeyword": "ブルクガルテン"
+			}
+		],
+		"description": "ライン川支流アール川沿いの535haの小産地でありながら、黒ぶどうの比率79%はドイツ最高という赤ワインの名産地。約3分の2(347ha)をシュペートブルグンダー(=ピノ・ノワール)が占め、早熟な変異種フリューブルグンダーは失われかけた地域の特産として保護されている。"
+	},
+	{
+		"id": "mittelrhein",
+		"idApp": 924006,
+		"name": "Mittelrhein",
+		"shortName": "Mittelrhein",
+		"nameJa": "ミッテルライン",
+		"region": "deutschland",
+		"subregionId": "mittelrhein-ahr",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			}
+		],
+		"soil": "ライン粘板岩山地のスレートを主体とする急斜面。岩尾根に刻まれた狭い谷が日照と熱を集める。",
+		"producers": [
+			{
+				"name": "Toni Jost",
+				"searchKeyword": "トニー・ヨスト"
+			},
+			{
+				"name": "Lanius-Knab",
+				"searchKeyword": "ラニウス・クナープ"
+			},
+			{
+				"name": "Matthias Müller",
+				"searchKeyword": "マティアス・ミュラー"
+			},
+			{
+				"name": "Ratzenberger",
+				"searchKeyword": "ラッツェンベルガー"
+			}
+		],
+		"description": "ビンゲンからボンの手前まで100km以上にわたってライン川沿いに点在する、439haのドイツ最小の指定栽培地域(2025年)。畑の大半が急斜面にあり、リースリングが271haと約3分の2を占める。南部のオーバーミッテルラインタールは2002年にユネスコ世界文化遺産に登録され、ボッパルダー・ハムが地域最大の連続したぶどう畑。"
+	},
+	{
+		"id": "rheingau",
+		"idApp": 924007,
+		"name": "Rheingau",
+		"shortName": "Rheingau",
+		"nameJa": "ラインガウ",
+		"region": "deutschland",
+		"subregionId": "rheingau-nahe",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			}
+		],
+		"soil": "南向きの乾いた石がちな斜面。リューデスハイム周辺は珪岩とスレート、東へ向かうにつれレスとレーム、泥灰土が増える。",
+		"producers": [
+			{
+				"name": "Robert Weil",
+				"searchKeyword": "ロバート・ヴァイル"
+			},
+			{
+				"name": "Schloss Johannisberg",
+				"searchKeyword": "シュロス・ヨハニスベルク"
+			},
+			{
+				"name": "Kloster Eberbach",
+				"searchKeyword": "クロスター・エーバーバッハ"
+			},
+			{
+				"name": "Schloss Vollrads",
+				"searchKeyword": "シュロス・フォルラーツ"
+			},
+			{
+				"name": "Leitz",
+				"searchKeyword": "ライツ"
+			},
+			{
+				"name": "Künstler",
+				"searchKeyword": "キュンストラー"
+			},
+			{
+				"name": "Peter Jakob Kühn",
+				"searchKeyword": "ペーター・ヤーコブ・キューン"
+			},
+			{
+				"name": "August Kesseler",
+				"searchKeyword": "アウグスト・ケッセラー"
+			},
+			{
+				"name": "Domdechant Werner",
+				"searchKeyword": "ドムデヒャント・ヴェルナー"
+			},
+			{
+				"name": "Josef Spreitzer",
+				"searchKeyword": "シュプライツァー"
+			}
+		],
+		"description": "ヴィースバーデンでライン川がラインガウ山地に阻まれてほぼ直角に西へ折れる「ラインクニー」に沿う産地。3,117haのうち2,355ha(約76%)がリースリングでその比率はドイツ最大、アスマンスハウゼンのシュペートブルグンダー(約390ha)も名高い。1775年にヨハニスベルク修道院が遅摘み(シュペートレーゼ)の利点を見出した地であり、分類された「エルステ・ラーゲ」から造る辛口「エルステス・ゲヴェックス」の発祥地でもある。"
+	},
+	{
+		"id": "nahe",
+		"idApp": 924008,
+		"name": "Nahe",
+		"shortName": "Nahe",
+		"nameJa": "ナーエ",
+		"region": "deutschland",
+		"subregionId": "rheingau-nahe",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "dornfelder",
+				"role": "accessory"
+			}
+		],
+		"soil": "スレート、火山性の斑岩(ポルフィール)、レス(黄土)とレームが混在する。激動の地史が残した土壌の多様性が、品種とスタイルの幅につながっている。",
+		"producers": [
+			{
+				"name": "H. Dönnhoff",
+				"searchKeyword": "デンホフ"
+			},
+			{
+				"name": "Emrich-Schönleber",
+				"searchKeyword": "エムリッヒ・シェーンレーバー"
+			},
+			{
+				"name": "Schäfer-Fröhlich",
+				"searchKeyword": "シェーファー・フレーリッヒ"
+			},
+			{
+				"name": "Schlossgut Diel",
+				"searchKeyword": "シュロスグート・ディール"
+			},
+			{
+				"name": "Gut Hermannsberg",
+				"searchKeyword": "グート・ヘルマンスベルク"
+			},
+			{
+				"name": "Kruger-Rumpf",
+				"searchKeyword": "クルーガー・ルンプフ"
+			},
+			{
+				"name": "Dr. Crusius",
+				"searchKeyword": "クルシウス"
+			},
+			{
+				"name": "Prinz Salm",
+				"searchKeyword": "プリンツ・ザルム"
+			}
+		],
+		"description": "ナーエ川と支流グラン川・アルゼンツ川沿いに広がる4,166haの産地。フンスリュック山地が冷たい風を遮り、降水量が少なく日照に恵まれる。作付の4分の3が白で、リースリング(1,225ha)を筆頭にブルグンダー系(合計1,107ha)が続く。2,000年の栽培史を持ち、土壌の多様性からモーゼルとラインガウの中間的な性格とも評される。"
+	},
+	{
+		"id": "monzinger-niederberg",
+		"idApp": 924009,
+		"name": "Monzinger Niederberg",
+		"shortName": "Monzinger Niederberg",
+		"nameJa": "モンツィンガー・ニーダーベルク",
+		"region": "deutschland",
+		"subregionId": "rheingau-nahe",
+		"kind": "vineyard",
+		"colors": ["white", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			}
+		],
+		"soil": "約2億8,000万年前に堆積したヴァーデルン層(頁岩・珪岩に石英脈を含む礫岩)の風化土壌。ナーエ渓谷とザールラントの一部にしか露出しない地層で、石がちのため雨の後も表土がすぐ乾く。",
+		"producers": [
+			{
+				"name": "Emrich-Schönleber",
+				"searchKeyword": "エムリッヒ・シェーンレーバー"
+			}
+		],
+		"description": "ナーエ上流モンツィンゲン村の南向き斜面を占める27.55haの単一畑g.U.。標高160〜240m、傾斜15%未満の台地部分は含まない。スレート・珪岩質土壌らしい柑橘とリンゴの香りを持ち、粘土質の深い隣接畑の桃のような果実味とは明確に異なる。乾きやすい土壌が貴腐を清浄に保つため、甘口も澄んだ香りになる。品種はリースリングのみ。"
+	},
+	{
+		"id": "rheinhessen",
+		"idApp": 924010,
+		"name": "Rheinhessen",
+		"shortName": "Rheinhessen",
+		"nameJa": "ラインヘッセン",
+		"region": "deutschland",
+		"subregionId": "rheinhessen-pfalz",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sylvaner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "dornfelder",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			}
+		],
+		"soil": "丘陵はレス(黄土)とレームが主体。ニーアシュタイン周辺のライン・テラッセには赤色スレートの急斜面「ローター・ハング」があり、石灰質土壌も広く分布する。",
+		"producers": [
+			{
+				"name": "Keller",
+				"searchKeyword": "ケラー"
+			},
+			{
+				"name": "Wittmann",
+				"searchKeyword": "ヴィットマン"
+			},
+			{
+				"name": "Battenfeld Spanier",
+				"searchKeyword": "バッテンフェルト・シュパニエル"
+			},
+			{
+				"name": "Kühling-Gillot",
+				"searchKeyword": "キューリング・ギロ"
+			},
+			{
+				"name": "Gunderloch",
+				"searchKeyword": "グンダーロッホ"
+			},
+			{
+				"name": "Wagner-Stempel",
+				"searchKeyword": "ヴァグナー・シュテンペル"
+			},
+			{
+				"name": "St. Antony",
+				"searchKeyword": "ザンクト・アントニー"
+			},
+			{
+				"name": "Schätzel",
+				"searchKeyword": "シェッツェル"
+			},
+			{
+				"name": "Sekthaus Raumland",
+				"searchKeyword": "ラウムラント"
+			}
+		],
+		"description": "アルツァイ・ヴォルムス・マインツ・ビンゲンに囲まれた27,657haの、ドイツ最大の指定栽培地域。リースリング(5,471ha)はドイツ第2位、シルヴァーナーの約43%(1,763ha)とミュラー・トゥルガウの約3分の1(3,761ha)がここにある。グラウブルグンダー(2,462ha)とシャルドネ(1,187ha)は国内最大で、赤の作付はこの10年で倍増しドルンフェルダーが牽引した。ドイツ最古の畑の記録(ニーアシュタイナー・グレック)が残る地でもある。"
+	},
+	{
+		"id": "pfalz",
+		"idApp": 924011,
+		"name": "Pfalz",
+		"shortName": "Pfalz",
+		"nameJa": "プファルツ",
+		"region": "deutschland",
+		"subregionId": "rheinhessen-pfalz",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "dornfelder",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "scheurebe",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "portugieser",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			}
+		],
+		"soil": "ハールト山地の縁からライン平野にかけて、砂岩・石灰岩・玄武岩・レスなど多様。河成堆積物の上にはレゴソルや褐色土、第三紀の堆積物の上にはフェラリット質・石灰質の土壌が発達する。",
+		"producers": [
+			{
+				"name": "Dr. Bürklin-Wolf",
+				"searchKeyword": "ビュルクリン・ヴォルフ"
+			},
+			{
+				"name": "Geheimer Rat Dr. von Bassermann-Jordan",
+				"searchKeyword": "バッサーマン・ヨルダン"
+			},
+			{
+				"name": "Reichsrat von Buhl",
+				"searchKeyword": "フォン・ブール"
+			},
+			{
+				"name": "Müller-Catoir",
+				"searchKeyword": "ミュラー・カトワール"
+			},
+			{
+				"name": "Ökonomierat Rebholz",
+				"searchKeyword": "レープホルツ"
+			},
+			{
+				"name": "A. Christmann",
+				"searchKeyword": "クリストマン"
+			},
+			{
+				"name": "Von Winning",
+				"searchKeyword": "フォン・ウィニング"
+			},
+			{
+				"name": "Knipser",
+				"searchKeyword": "クニプサー"
+			},
+			{
+				"name": "Friedrich Becker",
+				"searchKeyword": "フリードリッヒ・ベッカー"
+			},
+			{
+				"name": "Georg Mosbacher",
+				"searchKeyword": "モスバッハー"
+			}
+		],
+		"description": "ボッケンハイムからアルザス国境のシュヴァイゲンまで、ドイツワイン街道沿いに130のワイン村が連なる23,640haの産地(ドイツ第2位)。ミッテルハールト・ドイチェ・ヴァインシュトラーセと南部ズュートリッヒェ・ヴァインシュトラーセの2ベライヒからなる。リースリングは5,883haと国内最大。プファルツの森に守られた温暖な気候から赤も7,375haとドイツ最大で、メルロ・カベルネ・ソーヴィニヨン・シラーやソーヴィニヨン・ブラン(816ha、国内の約4割)といった国際品種の一大産地でもある。"
+	},
+	{
+		"id": "hessische-bergstrasse",
+		"idApp": 924012,
+		"name": "Hessische Bergstraße",
+		"shortName": "Hessische Bergstraße",
+		"nameJa": "ヘシッシェ・ベルクシュトラーセ",
+		"region": "deutschland",
+		"subregionId": "rheinhessen-pfalz",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sylvaner",
+				"role": "accessory"
+			}
+		],
+		"soil": "オーデンヴァルトの風化した結晶質岩の上に積もったレス・レーム。ライン平野に面した東側の斜面が朝日を受ける。",
+		"producers": [
+			{
+				"name": "Bergsträßer Winzer eG",
+				"searchKeyword": "ベルクシュトレーサー・ヴィンツァー"
+			},
+			{
+				"name": "Weingut der Stadt Bensheim",
+				"searchKeyword": "シュタット・ベンスハイム"
+			},
+			{
+				"name": "Weingut Simon-Bürkle",
+				"searchKeyword": "ジモン・ビュルクレ"
+			},
+			{
+				"name": "Weingut H. Freiberger",
+				"searchKeyword": "フライベルガー"
+			},
+			{
+				"name": "Griesel & Compagnie",
+				"searchKeyword": "グリーゼル"
+			},
+			{
+				"name": "Hessische Staatsweingüter Kloster Eberbach",
+				"note": "ベルクシュトラーセ州立醸造所を運営",
+				"searchKeyword": "ヘッシシェ・シュターツヴァインギューター"
+			}
+		],
+		"description": "「ドイツで最も早く春が訪れる」といわれるオーデンヴァルト西麓の、440haしかない産地(ザクセンに次いで2番目に小さい)。1971年にヘッセン州側が独立した指定栽培地域で、ダルムシュタット南方からヘッペンハイムに至るシュタルケンブルク地区と、グロース・ウムシュタット周辺の飛び地ウムシュタット地区に分かれる。リースリング(149ha)とグラウブルグンダー(56ha)を中心に白が主体。"
+	},
+	{
+		"id": "franken",
+		"idApp": 924013,
+		"name": "Franken",
+		"shortName": "Franken",
+		"nameJa": "フランケン",
+		"region": "deutschland",
+		"subregionId": "franken",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "sylvaner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "principal"
+			},
+			{
+				"varietyId": "bacchus",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "scheurebe",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "domina",
+				"role": "accessory"
+			}
+		],
+		"soil": "西部は斑岩砂岩(ブントザントシュタイン)、マイン川中流域は貝殻石灰岩(ムシェルカルク)、東部シュタイガーヴァルトは粘土質のコイパー。最西端フォアシュペッサルトだけは片麻岩・雲母片岩由来の土壌。",
+		"producers": [
+			{
+				"name": "Juliusspital Würzburg",
+				"searchKeyword": "ユリウスシュピタール"
+			},
+			{
+				"name": "Bürgerspital zum Hl. Geist",
+				"searchKeyword": "ビュルガーシュピタール"
+			},
+			{
+				"name": "Staatlicher Hofkeller Würzburg",
+				"searchKeyword": "シュタートリッヒャー・ホーフケラー"
+			},
+			{
+				"name": "Fürstlich Castell’sche Domäne",
+				"searchKeyword": "カステル"
+			},
+			{
+				"name": "Rudolf Fürst",
+				"searchKeyword": "ルドルフ・フュルスト"
+			},
+			{
+				"name": "Horst Sauer",
+				"searchKeyword": "ホルスト・ザウアー"
+			},
+			{
+				"name": "Hans Wirsching",
+				"searchKeyword": "ヴィルシング"
+			},
+			{
+				"name": "Am Stein - Ludwig Knoll",
+				"searchKeyword": "アム・シュタイン"
+			},
+			{
+				"name": "Schmitt's Kinder",
+				"searchKeyword": "シュミッツ・キンダー"
+			},
+			{
+				"name": "Rudolf May",
+				"searchKeyword": "ルドルフ・マイ"
+			}
+		],
+		"description": "シュペッサルト・レーン・シュタイガーヴァルト・タウバータールに囲まれた北バイエルンの産地。マイン川の蛇行が削った南〜西向きの急斜面に6,040haの畑が広がり、83%が白。貝殻石灰岩とコイパーで真価を発揮するシルヴァーナー(1,536ha=作付の4分の1)が看板品種で、ミュラー・トゥルガウ(1,298ha)、地域特産のバッカスが続く。ずんぐりした瓶「ボックスボイテル」と、ヴュルツブルク3大醸造所(ユリウスシュピタール・ビュルガーシュピタール・州立ホーフケラー)の歴史的な地下蔵で知られる。"
+	},
+	{
+		"id": "wuerzburger-stein-berg",
+		"idApp": 924014,
+		"name": "Würzburger Stein-Berg",
+		"shortName": "Würzburger Stein-Berg",
+		"nameJa": "ヴュルツブルガー・シュタイン・ベルク",
+		"region": "deutschland",
+		"subregionId": "franken",
+		"kind": "vineyard",
+		"colors": ["white", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "sylvaner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			}
+		],
+		"soil": "中部貝殻石灰岩(ムシェルカルク)。間隙が少なく密度が高いため蓄熱性に優れ、マイン川の熱だまりに面した急斜面と合わせて凝縮した果実をもたらす。",
+		"producers": [
+			{
+				"name": "Bürgerspital zum Hl. Geist",
+				"searchKeyword": "ビュルガーシュピタール"
+			},
+			{
+				"name": "Juliusspital Würzburg",
+				"searchKeyword": "ユリウスシュピタール"
+			},
+			{
+				"name": "Staatlicher Hofkeller Würzburg",
+				"searchKeyword": "シュタートリッヒャー・ホーフケラー"
+			}
+		],
+		"description": "ゲーテが愛したことで知られるヴュルツブルガー・シュタインのうち、傾斜75%を超える急斜面の区画だけを切り出した単一畑g.U.(2020年11月登録)。認められる品種はシルヴァーナー・リースリング・ヴァイサーブルグンダーの3つだけで(周囲のフランケンg.U.では70品種以上)、収量も50hl/haに制限される。辛口の白と、アウスレーゼ以上の残糖45g/l超の甘口だけを名乗れる。"
+	},
+	{
+		"id": "buergstadter-berg",
+		"idApp": 924015,
+		"name": "Bürgstadter Berg",
+		"shortName": "Bürgstadter Berg",
+		"nameJa": "ビュルクシュタッター・ベルク",
+		"region": "deutschland",
+		"subregionId": "franken",
+		"kind": "vineyard",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "fruehburgunder",
+				"role": "principal"
+			},
+			{
+				"varietyId": "zweigelt",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sylvaner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			}
+		],
+		"soil": "斑岩砂岩(ブントザントシュタイン)が風化した、軽く石がちの土壌。フランケンの典型的な粘着質土壌より結合が弱く石灰分が少ないため、pHが低い。",
+		"producers": [
+			{
+				"name": "Rudolf Fürst",
+				"searchKeyword": "ルドルフ・フュルスト"
+			},
+			{
+				"name": "Steintal",
+				"searchKeyword": "シュタインタール"
+			},
+			{
+				"name": "Josef Walter",
+				"searchKeyword": "ヨーゼフ・ヴァルター"
+			}
+		],
+		"description": "マイン川左岸、シュペッサルトとオーデンヴァルトに挟まれたビュルクシュタット村の南向き斜面を占める113.8haの単一畑g.U.。フュルスト家の主導で申請され、ドイツの畑として最初にEUの原産地呼称保護を得た区画。低いpHに由来する繊細な酸と塩気を帯びたミネラル感が、豊満さとは対極の緻密なスタイルを生む。シュペートブルグンダーとフリューブルグンダーの赤が中心だが、白・ロゼ(ヴァイスヘルプスト)・ブラン・ド・ノワール・ゼクトも認められる。"
+	},
+	{
+		"id": "baden",
+		"idApp": 924016,
+		"name": "Baden",
+		"shortName": "Baden",
+		"nameJa": "バーデン",
+		"region": "deutschland",
+		"subregionId": "baden-wuerttemberg",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chasselas",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "accessory"
+			}
+		],
+		"soil": "カイザーシュトゥールの火山岩とそれを覆う厚いレス(黄土)、オルテナウの花崗岩、ボーデン湖畔の氷河堆積物など、9つのベライヒで大きく異なる。",
+		"producers": [
+			{
+				"name": "Bernhard Huber",
+				"searchKeyword": "ベルンハルト・フーバー"
+			},
+			{
+				"name": "Dr. Heger",
+				"searchKeyword": "ドクター・ヘーガー"
+			},
+			{
+				"name": "Franz Keller",
+				"searchKeyword": "フランツ・ケラー"
+			},
+			{
+				"name": "Bercher",
+				"searchKeyword": "ベルヒャー"
+			},
+			{
+				"name": "Salwey",
+				"searchKeyword": "ザルヴァイ"
+			},
+			{
+				"name": "Andreas Laible",
+				"searchKeyword": "アンドレアス・ライブレ"
+			},
+			{
+				"name": "Seeger",
+				"searchKeyword": "ゼーガー"
+			},
+			{
+				"name": "Markgraf von Baden",
+				"searchKeyword": "マルクグラーフ・フォン・バーデン"
+			},
+			{
+				"name": "Stigler",
+				"searchKeyword": "シュティグラー"
+			}
+		],
+		"description": "北のタウバーから南のボーデン湖まで細長く延びる15,142haの産地で、ドイツで唯一EUのワイン生産地域ゾーンBに属する(=より高い糖度が求められる)温暖な土地。ブルグンダー系品種が9,162ha(61%)を占める「ブルグンダーの国」で、シュペートブルグンダー(4,765ha)とヴァイスブルグンダー(1,640ha)はいずれも国内最大。9つのベライヒごとに性格が異なり、スイス国境のマルクグレーフラーラントは白の特産グートエーデル(=シャスラ、971ha)を守っている。"
+	},
+	{
+		"id": "wuerttemberg",
+		"idApp": 924017,
+		"name": "Württemberg",
+		"shortName": "Württemberg",
+		"nameJa": "ヴュルテンベルク",
+		"region": "deutschland",
+		"subregionId": "baden-wuerttemberg",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lemberger",
+				"role": "principal"
+			},
+			{
+				"varietyId": "trollinger",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "meunier",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "kerner",
+				"role": "accessory"
+			}
+		],
+		"soil": "コッハー川・ヤクスト川・タウバー川沿いは化石を含む貝殻石灰岩、ホーエンローエの残りの丘陵は鉄分に富む赤いコイパーの泥灰土。",
+		"producers": [
+			{
+				"name": "Graf Adelmann",
+				"searchKeyword": "グラーフ・アーデルマン"
+			},
+			{
+				"name": "Aldinger",
+				"searchKeyword": "アルディンガー"
+			},
+			{
+				"name": "Dautel",
+				"searchKeyword": "ダウテル"
+			},
+			{
+				"name": "Karl Haidle",
+				"searchKeyword": "カール・ハイドレ"
+			},
+			{
+				"name": "Graf Neipperg",
+				"searchKeyword": "グラーフ・ナイペルク"
+			},
+			{
+				"name": "Rainer Schnaitmann",
+				"searchKeyword": "シュナイトマン"
+			},
+			{
+				"name": "Wöhrwag",
+				"searchKeyword": "ヴェールヴァーク"
+			},
+			{
+				"name": "Herzog von Württemberg",
+				"searchKeyword": "ヘルツォーク・フォン・ヴュルテンベルク"
+			},
+			{
+				"name": "Drautz-Able",
+				"searchKeyword": "ドラウツ・アーブレ"
+			},
+			{
+				"name": "Beurer",
+				"searchKeyword": "ボイラー"
+			}
+		],
+		"description": "ネッカー川と支流(レムス・エンツ・コッハー・ヤクスト・タウバー)の谷に広がる10,694haの産地。作付の約3分の2(6,721ha)が黒ぶどうというドイツ第4位の赤ワイン産地で、レンベルガー(1,661ha)とトロリンガー(1,614ha)はこの地方を象徴する品種。シュペートブルグンダー(1,242ha)とシュヴァルツリースリング(=ムニエ、1,030ha)が続き、白はリースリング(1,995ha)が中心。赤白のぶどうを一緒に仕込む「シラーヴァイン」も伝統的な特産で、50を超える醸造協同組合が州のワインの約8割を販売する。"
+	},
+	{
+		"id": "saale-unstrut",
+		"idApp": 924018,
+		"name": "Saale-Unstrut",
+		"shortName": "Saale-Unstrut",
+		"nameJa": "ザーレ・ウンストルート",
+		"region": "deutschland",
+		"subregionId": "ost",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sylvaner",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "dornfelder",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "bacchus",
+				"role": "accessory"
+			}
+		],
+		"soil": "フライブルク周辺を中心に風化した貝殻石灰岩が優勢で、レスの量によって乾燥度が変わる。斑岩砂岩やレス・レーム、銅頁岩も見られる。",
+		"producers": [
+			{
+				"name": "Pawis",
+				"searchKeyword": "パーヴィス"
+			},
+			{
+				"name": "Böhme & Töchter",
+				"searchKeyword": "ベーメ"
+			},
+			{
+				"name": "Landesweingut Kloster Pforta",
+				"searchKeyword": "クロスター・プフォルタ"
+			},
+			{
+				"name": "Hey"
+			}
+		],
+		"description": "北緯51度線上に位置するドイツ最北の高品質ワイン産地(868ha)。ハルツ山地の雨陰で年間降水量は約500mmとドイツで最も乾き、日照は約1,600時間。厳しい冬の寒さと晩霜を避けるため南向きの急斜面に石垣のテラスが築かれ、平均収量は50hl/haと低い。ヴァイスブルグンダー(116ha)とミュラー・トゥルガウ(110ha)が主力で、998年の記録に遡る1,000年以上の栽培史を持つ。"
+	},
+	{
+		"id": "sachsen",
+		"idApp": 924019,
+		"name": "Sachsen",
+		"shortName": "Sachsen",
+		"nameJa": "ザクセン",
+		"region": "deutschland",
+		"subregionId": "ost",
+		"kind": "regional",
+		"colors": ["red", "white", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "goldriesling",
+				"role": "accessory"
+			}
+		],
+		"soil": "エルベ川沿いの斜面に露出する風化した深成岩(花崗閃緑岩・閃長岩)とその上のレス。割石を積んだ石垣で段々に整えられた急斜面が特徴。",
+		"producers": [
+			{
+				"name": "Schloss Proschwitz - Prinz zur Lippe",
+				"searchKeyword": "シュロス・プロシュヴィッツ"
+			},
+			{
+				"name": "Klaus Zimmerling",
+				"searchKeyword": "クラウス・ツィマーリング"
+			},
+			{
+				"name": "Martin Schwarz",
+				"searchKeyword": "マルティン・シュヴァルツ"
+			},
+			{
+				"name": "Schloss Wackerbarth",
+				"searchKeyword": "シュロス・ヴァッカーバルト"
+			}
+		],
+		"description": "ピルナからドレスデン・ラーデボイルを経てマイセン、さらにディースバー・ゾイスリッツまで55kmのザクセン・ワイン街道沿いに畑が点在する531haの産地。1161年の記録に遡る800年の歴史があり、17世紀の最盛期には5,000haを数えた。大陸性気候の日較差が香りを育み、温暖化を受けて今はリースリング(75ha)が最大品種。ヴァイス/グラウブルグンダーとトラミナーが続き、ほぼザクセンでしか栽培されないゴールドリースリング(28ha)は地域固有の珍品種。"
 	}
 ]

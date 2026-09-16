@@ -721,6 +721,75 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Fonte Cal",
 		color: "white",
 	},
+	// --- ドイツ ---
+	// (リースリング=最重要品種、シルヴァーナー(Silvaner)・ピノ系(シュペート/
+	//  ヴァイス/グラウブルグンダー)・シャスラ(Gutedel)・ムニエ(Schwarzriesling)・
+	//  ゲヴュルツトラミネール(Traminer)はいずれも既出のIDを共有する)
+	{
+		id: "muller-thurgau",
+		nameJa: "ミュラー・トゥルガウ",
+		nameLocal: "Müller-Thurgau",
+		color: "white",
+	},
+	{
+		id: "elbling",
+		nameJa: "エルプリング",
+		nameLocal: "Elbling",
+		color: "white",
+	},
+	{ id: "kerner", nameJa: "ケルナー", nameLocal: "Kerner", color: "white" },
+	{
+		id: "scheurebe",
+		nameJa: "ショイレーベ",
+		nameLocal: "Scheurebe",
+		color: "white",
+	},
+	{ id: "bacchus", nameJa: "バッカス", nameLocal: "Bacchus", color: "white" },
+	{
+		id: "goldriesling",
+		nameJa: "ゴールドリースリング",
+		nameLocal: "Goldriesling",
+		color: "white",
+	},
+	{
+		id: "dornfelder",
+		nameJa: "ドルンフェルダー",
+		nameLocal: "Dornfelder",
+		color: "red",
+	},
+	{
+		id: "portugieser",
+		nameJa: "ポルトギーザー",
+		nameLocal: "Blauer Portugieser",
+		color: "red",
+	},
+	// シュペートブルグンダー(ピノ・ノワール)の早熟な変異種。ドイツでは別品種として
+	// 登録されており(Blauer Frühburgunder)、アールの特産。
+	{
+		id: "fruehburgunder",
+		nameJa: "フリューブルグンダー",
+		nameLocal: "Blauer Frühburgunder",
+		color: "red",
+	},
+	{
+		id: "lemberger",
+		nameJa: "レンベルガー",
+		nameLocal: "Lemberger (Blaufränkisch)",
+		color: "red",
+	},
+	{
+		id: "trollinger",
+		nameJa: "トロリンガー",
+		nameLocal: "Trollinger (Schiava)",
+		color: "red",
+	},
+	{ id: "domina", nameJa: "ドミナ", nameLocal: "Domina", color: "red" },
+	{
+		id: "zweigelt",
+		nameJa: "ツヴァイゲルト",
+		nameLocal: "Blauer Zweigelt",
+		color: "red",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);
