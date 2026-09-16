@@ -320,6 +320,37 @@ export const REGIONS: Region[] = [
 			"(Candiago et al. 2022, CC0)に基づく概略値で、単一畑のg.U.も" +
 			"畑の区画ではなく畑のある自治体の輪郭になる。",
 	},
+	{
+		id: "languedoc-roussillon",
+		nameJa: "ラングドック・ルーション",
+		nameLocal: "Languedoc-Roussillon",
+		country: "France",
+		countryJa: "フランス",
+		// AOPデータ投入中(#620)。投入後に bounds / geojsonPath / boundariesPath を
+		// 付けて enabled: true にする。
+		enabled: false,
+		// 地区はINAOの délégation territoriale(Narbonne / Montpellier)と県の
+		// 区切りに沿って西から東、そして国境側のルーションへと切る。ミュスカ・ド・
+		// サン・ジャン・ド・ミネルヴォワはエロー県だが、ミネルヴォワの一部であり
+		// INAOの délégation も Narbonne なのでオード側にまとめる。
+		subregions: [
+			{ id: "aude", nameJa: "オード(西ラングドック)" },
+			{ id: "herault-gard", nameJa: "エロー / ガール(東ラングドック)" },
+			{ id: "roussillon", nameJa: "ルーション" },
+			{ id: "languedoc-regional", nameJa: "地方名AOC(広域)" },
+		],
+		description:
+			"地中海沿いに弧を描く、フランス最大の栽培面積を持つ地方。グルナッシュ・" +
+			"シラー・ムールヴェードル・カリニャン・サンソーによる赤が軸で、" +
+			"コルビエールやミネルヴォワの広大な丘陵から、ブーテナック・" +
+			"ラ・リヴィニエール・ピク・サン・ルー・テラス・デュ・ラルザックのような" +
+			"限定された区域のAOCまで階層を持つ。ピレネーの東端に当たる南部の" +
+			"ルーションは、バニュルス・モーリー・リヴザルトという天然甘口ワイン" +
+			"(ヴァン・ドゥー・ナチュレル)の一大産地で、発酵途中の果汁にアルコールを" +
+			"加えて糖を残し、酸化熟成によるランシオの香りを育てる。リムーには" +
+			"瓶内二次発酵の起源とされるブランケットがあり、ピクプール・ド・ピネや" +
+			"各地のミュスカも含めて、1つの地方の中でスタイルの幅が最も広い。",
+	},
 ];
 
 export function getRegion(id: string): Region | undefined {
