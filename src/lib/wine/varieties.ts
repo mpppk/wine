@@ -790,6 +790,70 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Blauer Zweigelt",
 		color: "red",
 	},
+	// --- ラングドック・ルーション ---
+	// GSM(グルナッシュ/シラー/ムールヴェードル)＋カリニャン・サンソーという骨格も、
+	// 白のブールブーラン/クレレット/ルーサンヌ/マルサンヌ/ヴェルメンティーノ/
+	// ピクプールも、ローヌ側で既に登録済みのIDをそのまま使う。以下はこの地方の
+	// cahier des charges に現れて既存IDが無いものだけ。
+	//
+	// 既存IDを再利用するもの(同じ品種が別IDに割れると品種クイズ・品種フィルタが
+	// 分断されるため。現地名は各AOPの解説に併記する):
+	//   マカブー(macabeu B)           → viura(リオハのビウラと同一品種)
+	//   コット(cot N)                 → malbec
+	//   ミュスカ・ダレクサンドリー     → moscatel-graudo(マスカット・オブ・
+	//     (muscat d'Alexandrie B、        アレキサンドリア。小粒種とは別品種)
+	//      現地名 muscat romain)
+	//   モラステル(morrastel N)       → graciano(フランス公式カタログ Plantgrape が
+	//     スペインの Graciano・ポルトガルの Tinta Miúda と同一変種として登録)
+	{
+		// グルナッシュの葉裏に毛を持つ変異種だが、フランスの公式カタログでは
+		// 別変種として登録され、cahier des charges でも grenache N と並記される。
+		id: "lledoner-pelut",
+		nameJa: "リェドネル・プリュ",
+		nameLocal: "Lledoner Pelut",
+		color: "red",
+	},
+	{
+		id: "rivairenc",
+		nameJa: "リヴェランク(アスピラン)",
+		nameLocal: "Rivairenc",
+		color: "red",
+	},
+	{
+		// 南西地方のフェル・セルヴァドゥと同一。カバルデスの補助品種。
+		id: "fer",
+		nameJa: "フェル(フェル・セルヴァドゥ)",
+		nameLocal: "Fer",
+		color: "red",
+	},
+	{
+		id: "carignan-blanc",
+		nameJa: "カリニャン・ブラン",
+		nameLocal: "Carignan blanc",
+		color: "white",
+	},
+	{
+		id: "terret-blanc",
+		nameJa: "テレ・ブラン",
+		nameLocal: "Terret blanc",
+		color: "white",
+	},
+	{
+		// ルーションの酒精強化白の骨格。現地名はマルヴォワジー・デュ・ルーション
+		// だが、イタリア・ポルトガルのマルヴァジーア系とは別品種。
+		id: "tourbat",
+		nameJa: "トゥルバ(マルヴォワジー・デュ・ルーション)",
+		nameLocal: "Tourbat",
+		color: "white",
+	},
+	{
+		// リムーの歴史的品種。ブランケット・ド・リムー(méthode ancestrale を含む)の
+		// 主要品種で、南西地方のガイヤックとも共通する。
+		id: "mauzac",
+		nameJa: "モーザック",
+		nameLocal: "Mauzac",
+		color: "white",
+	},
 ];
 
 export const GRAPE_VARIETY_IDS = GRAPE_VARIETIES.map((v) => v.id);
