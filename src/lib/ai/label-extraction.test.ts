@@ -264,6 +264,25 @@ describe("matchRegionId", () => {
 		expect(matchRegionId(["Piedmont"])).toBe("piemonte");
 	});
 
+	// ラングドックとルーションは1地方として収録しているが、ラベルには片方しか
+	// 書かれないことが多い。日本語のルーション/ルシヨンの揺れも拾う。
+	it("ラングドック・ルーションは片側表記と日本語の揺れを解決する", () => {
+		expect(matchRegionId(["Languedoc-Roussillon"])).toBe(
+			"languedoc-roussillon",
+		);
+		expect(matchRegionId(["ラングドック・ルーション"])).toBe(
+			"languedoc-roussillon",
+		);
+		expect(matchRegionId(["Languedoc"])).toBe("languedoc-roussillon");
+		expect(matchRegionId(["Roussillon"])).toBe("languedoc-roussillon");
+		expect(matchRegionId(["ラングドック"])).toBe("languedoc-roussillon");
+		expect(matchRegionId(["ルーション"])).toBe("languedoc-roussillon");
+		expect(matchRegionId(["ルシヨン"])).toBe("languedoc-roussillon");
+		expect(matchRegionId(["ラングドック・ルシヨン"])).toBe(
+			"languedoc-roussillon",
+		);
+	});
+
 	it("一致しなければundefined", () => {
 		expect(matchRegionId(["Mosel"])).toBeUndefined();
 	});

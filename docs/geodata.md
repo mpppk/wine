@@ -22,8 +22,10 @@ bun run build:geodata
 ```
 
 - 村名/グラン・クリュ: INAO「Délimitation parcellaire des AOC viticoles」（data.gouv.fr、約270MBのShapefileを自動ダウンロードして `.cache/` にキャッシュ）
+- **`PARCEL_ZIP_URL` / `AIRES_CSV_URL` は版ごとに採番された静的URLをピン留めしており、data.gouv.fr が更新すると旧URLは404になる**（区画経路が丸ごと落ちる）。`https://www.data.gouv.fr/api/1/datasets/delimitation-parcellaire-des-aoc-viticoles-de-linao/` の `resources` から最新URLを引いて差し替える
 - 広域AOC: INAO「Aires géographiques des AOC/AOP」CSV × geo.api.gouv.fr のコミューン輪郭
 - コミューン結合・シャトー座標などのキュレーション表（`COMMUNES_BY_AOP_ID` / `WINERY_COORDS_BY_AOP_ID` 等）は `scripts/build-aop-geodata.mjs` 内で管理する
+- 広域（`kind: "regional"`）のAOCは `AIRES_CSV_NAME_BY_APP` に「aires CSV 上の名称 → `aops.json` の `name`」を足さないと `no aire géographique for …` で落ちる。区画数が少なく肥大化しないものは `PARCEL_REGIONAL_AOP_IDS` に入れて区画経路へ回す
 - 実行後に表示される bounds を `src/lib/wine/regions.ts` に反映する
 
 ## イタリア・スペイン・ポルトガル・ドイツ（EU PDO 由来）

@@ -441,8 +441,10 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		color: "red",
 	},
 	{
+		// リオハではビウラ、カタルーニャではマカベオ、ラングドック・ルーションでは
+		// マカブー(macabeu)と呼ぶ同一品種。
 		id: "viura",
-		nameJa: "ビウラ(マカベオ)",
+		nameJa: "ビウラ(マカベオ / マカブー)",
 		nameLocal: "Viura",
 		color: "white",
 	},
@@ -661,11 +663,14 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameLocal: "Verdelho",
 		color: "white",
 	},
-	// モスカテル・グラウド(= モスカテル・デ・セトゥーバル)はマスカット・オブ・
-	// アレキサンドリア。小粒種の muscat-blanc-a-petits-grains とは別品種。
+	// マスカット・オブ・アレキサンドリア。小粒種の muscat-blanc-a-petits-grains とは
+	// 別品種。ポルトガルではモスカテル・グラウド(= モスカテル・デ・セトゥーバル)、
+	// フランス(ルーション)ではミュスカ・ダレクサンドリー(現地名ミュスカ・ロマン)と
+	// 呼ぶ。**国ごとの現地名を nameJa に並べると表示が破綻するので、国際的な名前を
+	// 出して現地名は各AOPの解説に併記する**(varieties.ts の同一品種は1IDの規約)。
 	{
 		id: "moscatel-graudo",
-		nameJa: "モスカテル・グラウド(モスカテル・デ・セトゥーバル)",
+		nameJa: "マスカット・オブ・アレキサンドリア",
 		nameLocal: "Moscatel Graúdo",
 		color: "white",
 	},
@@ -789,6 +794,78 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		nameJa: "ツヴァイゲルト",
 		nameLocal: "Blauer Zweigelt",
 		color: "red",
+	},
+	// --- ラングドック・ルーション ---
+	// GSM(グルナッシュ/シラー/ムールヴェードル)＋カリニャン・サンソーという骨格も、
+	// 白のブールブーラン/クレレット/ルーサンヌ/マルサンヌ/ヴェルメンティーノ/
+	// ピクプールも、ローヌ側で既に登録済みのIDをそのまま使う。以下はこの地方の
+	// cahier des charges に現れて既存IDが無いものだけ。
+	//
+	// 既存IDを再利用するもの(同じ品種が別IDに割れると品種クイズ・品種フィルタが
+	// 分断されるため。現地名は各AOPの解説に併記する):
+	//   マカブー(macabeu B)           → viura(リオハのビウラと同一品種)
+	//   コット(cot N)                 → malbec
+	//   ミュスカ・ダレクサンドリー     → moscatel-graudo(マスカット・オブ・
+	//     (muscat d'Alexandrie B、        アレキサンドリア。小粒種とは別品種)
+	//      現地名 muscat romain)
+	//   モラステル(morrastel N)       → graciano(フランス公式カタログ Plantgrape が
+	//     スペインの Graciano・ポルトガルの Tinta Miúda と同一変種として登録)
+	{
+		// グルナッシュの葉裏に毛を持つ変異種だが、フランスの公式カタログでは
+		// 別変種として登録され、cahier des charges でも grenache N と並記される。
+		id: "lledoner-pelut",
+		nameJa: "リェドネル・プリュ",
+		nameLocal: "Lledoner Pelut",
+		color: "red",
+	},
+	{
+		id: "rivairenc",
+		nameJa: "リヴェランク(アスピラン)",
+		nameLocal: "Rivairenc",
+		color: "red",
+	},
+	{
+		// カベルネ・ソーヴィニヨン×グルナッシュの交配品種(1961年INRA)。
+		// サーブル・ド・カマルグの生産規約が認める品種のひとつ。
+		id: "marselan",
+		nameJa: "マルスラン",
+		nameLocal: "Marselan",
+		color: "red",
+	},
+	{
+		// 南西地方のフェル・セルヴァドゥと同一。カバルデスの補助品種。
+		id: "fer",
+		nameJa: "フェル(フェル・セルヴァドゥ)",
+		nameLocal: "Fer",
+		color: "red",
+	},
+	{
+		id: "carignan-blanc",
+		nameJa: "カリニャン・ブラン",
+		nameLocal: "Carignan blanc",
+		color: "white",
+	},
+	{
+		id: "terret-blanc",
+		nameJa: "テレ・ブラン",
+		nameLocal: "Terret blanc",
+		color: "white",
+	},
+	{
+		// ルーションの酒精強化白の骨格。現地名はマルヴォワジー・デュ・ルーション
+		// だが、イタリア・ポルトガルのマルヴァジーア系とは別品種。
+		id: "tourbat",
+		nameJa: "トゥルバ(マルヴォワジー・デュ・ルーション)",
+		nameLocal: "Tourbat",
+		color: "white",
+	},
+	{
+		// リムーの歴史的品種。ブランケット・ド・リムー(méthode ancestrale を含む)の
+		// 主要品種で、南西地方のガイヤックとも共通する。
+		id: "mauzac",
+		nameJa: "モーザック",
+		nameLocal: "Mauzac",
+		color: "white",
 	},
 ];
 

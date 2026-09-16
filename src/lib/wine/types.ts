@@ -45,6 +45,7 @@ export const REGION_ID_LIST = [
 	"rioja",
 	"portugal",
 	"deutschland",
+	"languedoc-roussillon",
 ] as const;
 
 export type RegionId = (typeof REGION_ID_LIST)[number];
