@@ -405,12 +405,19 @@ export const REGIONS: Region[] = [
 		nameLocal: "Österreich",
 		country: "Austria",
 		countryJa: "オーストリア",
-		// AOPデータ投入前なので「準備中」。bounds / geojsonPath / boundariesPath は
-		// build:geodata:eu の実行後に付けて有効化する。
-		enabled: false,
-		// 地区はオーストリアの公式階層 Weinbauregion(4つ)にそのまま合わせる。
-		// Weinbaugebiet(=DACの単位)の上位がこの4つで、各 Weinbaugebiet はちょうど
-		// 1つの Weinbauregion に属するため、地区の輪郭が重ならない。
+		enabled: true,
+		// build:geodata:eu の出力値を反映(西端はシュタイヤーマルク州西部、
+		// 東端はノイジードラーゼー/ヴァインフィアテルのハンガリー・スロヴァキア国境)。
+		bounds: [13.56295, 46.61205, 17.1608, 49.02053],
+		geojsonPath: "/data/aop/oesterreich.geojson",
+		boundariesPath: "/data/aop/oesterreich-boundaries.geojson",
+		boundaryAttribution:
+			"EU Wine PDO boundaries: Candiago et al. 2022 (Sci Data, CC0)",
+		// 地区は収録した19のWeinbaugebietが属する州(Bundesland)で切る。
+		// Weingesetz 2009 §21 は各Weinbaugebietを政治郡・市町村の一覧で定めており、
+		// どのWeinbaugebietもちょうど1つの州に収まるため地区の輪郭が重ならない。
+		// 州名そのものの広域Weinbaugebiet(ニーダーエスターライヒ等)も同じ地区に置く
+		// ため、地区の輪郭 = その広域呼称の輪郭になる。
 		subregions: [
 			{ id: "niederoesterreich", nameJa: "ニーダーエスターライヒ" },
 			{ id: "burgenland", nameJa: "ブルゲンラント" },
@@ -419,7 +426,17 @@ export const REGIONS: Region[] = [
 		],
 		description:
 			"ドナウ川とノイジードラー湖を軸に、ドイツ語圏で唯一DAC" +
-			"(Districtus Austriae Controllatus)という産地=スタイルの呼称体系を持つ国。",
+			"(Districtus Austriae Controllatus)という「産地=スタイル」の呼称を持つ国。" +
+			"ドイツのアンバウゲビートが品種を絞らない開かれたg.U.なのに対し、DACは" +
+			"呼称ごとに品種・辛口/甘口・熟成期間まで定め、条件を満たさないワインは" +
+			"州名の広域呼称(ニーダーエスターライヒ等)へ降りる。収録は15のDACと" +
+			"4つの州名Weinbaugebietの計19件。作付の3割を占める土着の" +
+			"グリューナー・ヴェルトリーナーと、ブルゲンラントのブラウフレンキッシュが" +
+			"2大品種で、ヴァッハウのシュタインフェーダー/フェーダーシュピール/" +
+			"スマラクト、ノイジードラー湖畔の貴腐、ヴェストシュタイヤーマルクの" +
+			"ロゼ「シルヒャー」と、州ごとに異なる物差しが並ぶ。境界はイタリア・" +
+			"スペイン・ドイツ同様、コミューン単位で集約された学術データセット" +
+			"(Candiago et al. 2022, CC0)に基づく概略値。",
 	},
 ];
 

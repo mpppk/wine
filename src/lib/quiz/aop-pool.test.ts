@@ -16,8 +16,12 @@ const openEndedAopIds = new Set(
 
 describe("開かれた広域呼称(IGT・アンバウゲビート)の出題除外", () => {
 	it("対象のAOPが実在する(データが消えたら以下のテストは無意味)", () => {
-		// トスカーナIGT 1件 + ドイツの13アンバウゲビート。ドイツの単一畑g.U.
-		// (ウーレン等)は品種を数種に限定する閉じた呼称なので含まれない。
+		// トスカーナIGT 1件 + ドイツの13アンバウゲビート + オーストリアの6件。
+		// ドイツの単一畑g.U.(ウーレン等)は品種を数種に限定する閉じた呼称なので
+		// 含まれない。オーストリアは州名の広域Weinbaugebiet 4件に加え、規約が
+		// 品種をカテゴリで認めるカルヌントゥム(残り1/3に全Qualitätsrebsorten)と
+		// ノイジードラーゼー(甘口が「白の全Qualitätsrebsorten」)が入る。
+		// 15のDACのうち残る13件は規約が品種を名指しで列挙する閉じた呼称。
 		expect([...openEndedAopIds].sort()).toEqual(
 			[
 				"ahr",
@@ -34,6 +38,12 @@ describe("開かれた広域呼称(IGT・アンバウゲビート)の出題除�
 				"sachsen",
 				"toscana-igt",
 				"wuerttemberg",
+				"burgenland",
+				"carnuntum",
+				"neusiedlersee",
+				"niederoesterreich",
+				"steiermark",
+				"wien",
 			].sort(),
 		);
 	});

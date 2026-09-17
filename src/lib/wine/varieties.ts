@@ -777,9 +777,13 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		color: "red",
 	},
 	{
+		// ドイツ(ヴュルテンベルク)ではレンベルガー、オーストリア/ハンガリーでは
+		// ブラウフレンキッシュ/ケークフランコシュと呼ばれる同一品種。IDは既存の
+		// まま据え置き、nameJa だけ国際的に通じる呼び名へそろえる(#620 と同じ規約。
+		// 国ごとの現地名は各AOPの解説に併記する)。
 		id: "lemberger",
-		nameJa: "レンベルガー",
-		nameLocal: "Lemberger (Blaufränkisch)",
+		nameJa: "ブラウフレンキッシュ",
+		nameLocal: "Blaufränkisch (Lemberger)",
 		color: "red",
 	},
 	{
@@ -1069,6 +1073,83 @@ export const GRAPE_VARIETIES: GrapeVariety[] = [
 		id: "casetta",
 		nameJa: "カゼッタ",
 		nameLocal: "Casetta",
+		color: "red",
+	},
+	// --- オーストリア ---
+	// (リースリング・ヴァイスブルグンダー=ピノ・ブラン・グラウブルグンダー=ピノ・グリ・
+	//  モリヨン=シャルドネ・ブラウブルグンダー=ピノ・ノワール・ツヴァイゲルト・
+	//  ブラウアー・ポルトギーザー・ミュラー・トゥルガウ・ショイレーベ(ゼムリング88)・
+	//  シルヴァーナーはいずれも既出のIDを共有する。ブラウフレンキッシュは
+	//  ヴュルテンベルクで登録済みの `lemberger`、ゲルバー・ムスカテラーは
+	//  `muscat-blanc-a-petits-grains`、トラミナーは `gewurztraminer` を使う)
+	{
+		// オーストリアの作付面積1位(14,296ha = 全国の32.3%)。世界の栽培のほぼ全量が
+		// オーストリアにある土着品種で、Traminer × St. Georgen の交配。
+		// 「グリューナー・シルヴァーナー」とは別品種なので `sylvaner` とは分ける。
+		id: "gruner-veltliner",
+		nameJa: "グリューナー・ヴェルトリーナー",
+		nameLocal: "Grüner Veltliner",
+		color: "white",
+	},
+	{
+		// イタリアのリースリング・イタリコ、ハンガリーのオラスリズリング。
+		// リースリングとは無縁の別品種なので `riesling` とは分ける。
+		id: "welschriesling",
+		nameJa: "ヴェルシュリースリング",
+		nameLocal: "Welschriesling",
+		color: "white",
+	},
+	{
+		// ロートギプフラー × ジルヴァーナーの自然交配。ヴァッハウ・ライタベルク・
+		// テルメンレギオンの規約が名指しする土着品種。
+		id: "neuburger",
+		nameJa: "ノイブルガー",
+		nameLocal: "Neuburger",
+		color: "white",
+	},
+	{
+		// ヴァーグラムの土着品種。名前は似るがグリューナー・ヴェルトリーナーの
+		// 色違いではなく、その片親(Traminer)側につながる別品種。
+		id: "roter-veltliner",
+		nameJa: "ローター・ヴェルトリーナー",
+		nameLocal: "Roter Veltliner",
+		color: "white",
+	},
+	{
+		// マルヴァジアーとも呼ばれる早熟品種(Roter Veltliner とも別品種)。
+		id: "fruehroter-veltliner",
+		nameJa: "フリューローター・ヴェルトリーナー",
+		nameLocal: "Frühroter Veltliner",
+		color: "white",
+	},
+	{
+		// テルメンレギオンの2大土着品種の一方(Traminer × Roter Veltliner)。
+		id: "rotgipfler",
+		nameJa: "ロートギプフラー",
+		nameLocal: "Rotgipfler",
+		color: "white",
+	},
+	{
+		// テルメンレギオンのもう一方。別名シュペートロート(Spätrot)。
+		// 米国のジンファンデル(Zinfandel)とは無関係の別品種。
+		id: "zierfandler",
+		nameJa: "ツィアファンドラー",
+		nameLocal: "Zierfandler (Spätrot)",
+		color: "white",
+	},
+	{
+		// ピノ系の黒品種。テルメンレギオン・ヴァーグラム・ヴァッハウの規約が名指しする。
+		id: "sankt-laurent",
+		nameJa: "ザンクト・ラウレント",
+		nameLocal: "St. Laurent",
+		color: "red",
+	},
+	{
+		// ヴェストシュタイヤーマルクのロゼ「シルヒャー」の原料。この品種から
+		// 造られるロゼだけが Schilcher を名乗れる。
+		id: "blauer-wildbacher",
+		nameJa: "ブラウアー・ヴィルトバッハー",
+		nameLocal: "Blauer Wildbacher",
 		color: "red",
 	},
 ];

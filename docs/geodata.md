@@ -9,7 +9,7 @@ AOPのメタデータ（土壌・品種・生産者）は `src/lib/wine/aops.jso
 | コマンド | 生成物 | 備考 |
 |---|---|---|
 | `bun run build:geodata` | フランス地域の `<region>.geojson` | node 実行 |
-| `bun run build:geodata:eu` | EU PDO 由来（イタリア・スペイン・ポルトガル・ドイツ）の `<region>.geojson` | node 実行 |
+| `bun run build:geodata:eu` | EU PDO 由来（イタリア・スペイン・ポルトガル・ドイツ・オーストリア）の `<region>.geojson` | node 実行 |
 | `bun run build:centroids` | `src/lib/wine/aop-centroids.json` | コミット済み GeoJSON のみを入力とする |
 | `bun run build:boundaries` | `<region>-boundaries.geojson`（地方・地区輪郭） | bun 実行（`regions.ts` を直接 import するため） |
 
@@ -28,9 +28,9 @@ bun run build:geodata
 - 広域（`kind: "regional"`）のAOCは `AIRES_CSV_NAME_BY_APP` に「aires CSV 上の名称 → `aops.json` の `name`」を足さないと `no aire géographique for …` で落ちる。区画数が少なく肥大化しないものは `PARCEL_REGIONAL_AOP_IDS` に入れて区画経路へ回す
 - 実行後に表示される bounds を `src/lib/wine/regions.ts` に反映する
 
-## イタリア・スペイン・ポルトガル・ドイツ（EU PDO 由来）
+## イタリア・スペイン・ポルトガル・ドイツ・オーストリア（EU PDO 由来）
 
-イタリア（ピエモンテ/トスカーナ/ヴェネト）・スペイン（リオハ/エブロ川流域）・ポルトガル（本土）・ドイツには公式の区画GISが存在しないため、別データソース・別スクリプトで生成する:
+イタリア（ピエモンテ/トスカーナ/ヴェネト）・スペイン（リオハ/エブロ川流域）・ポルトガル（本土）・ドイツ・オーストリアには公式の区画GISが存在しないため、別データソース・別スクリプトで生成する:
 
 ```bash
 bun run build:geodata:eu                       # figshareからgpkgをDL(キャッシュ)
@@ -64,6 +64,17 @@ bun run build:geodata:eu -- --source /path/to/EU_PDO.gpkg   # ローカル指定
   シュタイン・ベルク・ビュルクシュタッター・ベルク）を収録する。データセットの粒度は
   コミューン単位なので、単一畑 g.U. のポリゴンは**その畑がある自治体の輪郭**であり、
   畑そのものの区画ではない（ウーレンの2区画は同じヴィニンゲンの輪郭になる）
+- オーストリアは15の DAC と、州名そのものを名乗る広域 Weinbaugebiet 4件
+  （ニーダーエスターライヒ / ブルゲンラント / シュタイヤーマルク / ウィーン）を収録する。
+  法定地域の定義は **Weingesetz 2009 §21(3)**（RIS の消費者向け API
+  `https://data.bka.gv.at/ris/api/v2.6/Bundesrecht?...&Applikation=BrKons` で引ける）が
+  政治郡・市町村の一覧で与えるので、生成後の各フィーチャの bbox はこれと突合する。
+  **ヴァーグラムがウィーン北縁に持つ飛び地（ゲラスドルフ・バイ・ウィーン）は法定地域**
+  なので `pdoClipBbox` で落とさない。逆に「シュタイヤーマルク」は法定地域が8つの政治郡
+  なのに対しデータセットは州全域を返すため、地図は法定地域より広く塗られる
+  （AOPの解説文にその旨を書いてある）
+- 2020〜2021年に登録された Rosalia / Ruster Ausbruch / Wiener Gemischter Satz の3 DAC は
+  データセットに無いため収録していない（ピエモンテの Canelli と同じ）
 - 実行後に表示される bounds を `src/lib/wine/regions.ts` の該当地域に反映する
 
 ## 再生成時の注意

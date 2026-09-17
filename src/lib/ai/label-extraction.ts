@@ -1152,6 +1152,12 @@ const REGION_ALIASES: Record<string, string> = {
 	// 「Veneto IGT」等と書かれることも多いので、両表記を地域として解決する。
 	ベネト: "veneto",
 	ヴェネート: "veneto",
+	// オーストリアも1地方＝国全体。ラベルの英語表記("Austria")と、日本では
+	// 大使館・ÖWM日本事務所が使う「オーストリー」表記を拾う。値は正規化済みの
+	// ラベルと突き合わせるため、ウムラウトを落とした現地語表記
+	// (Österreich → osterreich)を書く(id の "oesterreich" ではない)。
+	austria: "osterreich",
+	オーストリー: "osterreich",
 };
 
 /** 地域テキスト群から enabled な地域の id を解決する。 */
@@ -1180,6 +1186,8 @@ const COUNTRY_ALIASES: Record<string, string> = {
 	allemagne: "germany",
 	germania: "germany",
 	独: "germany",
+	墺: "austria",
+	オーストリー: "austria",
 };
 
 /** 国テキスト群から国マスタの id を解決する。 */

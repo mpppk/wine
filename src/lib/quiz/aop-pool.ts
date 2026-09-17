@@ -23,6 +23,33 @@ import type { Aop } from "#/lib/wine/types";
  * 格付けクイズ(aop-classification)は「その呼称の格付けは何か」を問うだけで
  * 品種・色を主張しないため、この除外の対象外(IGT も出題してよい)。
  */
+/**
+ * オーストリアで「規約が品種を名前ではなくカテゴリで認める」呼称。
+ *
+ * 15のDACは DAC-Verordnung(RIS)が使える品種を名指しで列挙するので閉じた集合だが、
+ * 次の2種類だけは列挙にならない:
+ *  - 州名の広域Weinbaugebiet(ニーダーエスターライヒ/ブルゲンラント/
+ *    シュタイヤーマルク/ウィーン): Qualitätsweinrebsorten全部が使える受け皿の
+ *    呼称で、DACの条件から外れたワインがここへ降りる。ドイツのアンバウゲビートと
+ *    同じ形
+ *  - カルヌントゥム: 規約が主要品種の2/3ルールに続けて「darüber hinaus sind
+ *    sämtliche Qualitätsrebsorten zulässig」と書く
+ *  - ノイジードラーゼー: 甘口のカテゴリが「alle weißen Qualitätsrebsorten」
+ *
+ * 各DACに共通する「bezeichnungsunschädlicher Verschnitt(15%)」はこれに当たらない。
+ * こちらは品種の許可ではなく表示を損なわない混和の許容範囲で、イタリアの
+ * disciplinare が言う「州で認められた他品種を15%まで」と同じ扱いにする
+ * (アイゼンベルクのように明示的に禁じる規約もある)。
+ */
+const OESTERREICH_OPEN_ENDED_AOP_IDS: ReadonlySet<string> = new Set([
+	"niederoesterreich",
+	"burgenland",
+	"steiermark",
+	"wien",
+	"carnuntum",
+	"neusiedlersee",
+]);
+
 export function isOpenEndedAppellation(aop: Aop): boolean {
 	if (aop.tags?.includes("igt")) return true;
 	// ドイツの13のアンバウゲビート(産地単位の g.U.)も同じ形。生産規約が
@@ -31,6 +58,7 @@ export function isOpenEndedAppellation(aop: Aop): boolean {
 	// grapes(栽培面積上位)・colors は代表例であって網羅ではない。
 	// 単一畑の g.U.(ウーレン等)は規約が品種を数種に限定する閉じた集合なので対象外。
 	if (aop.region === "deutschland" && aop.kind === "regional") return true;
+	if (OESTERREICH_OPEN_ENDED_AOP_IDS.has(aop.id)) return true;
 	return false;
 }
 

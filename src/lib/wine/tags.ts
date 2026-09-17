@@ -52,6 +52,12 @@ export const AOP_TAGS = [
 	{ id: "doca", labelJa: "DOCa/DOQ" },
 	{ id: "do", labelJa: "DO" },
 	{ id: "vino-de-pago", labelJa: "VP(Vino de Pago)" },
+	// オーストリアのDAC(Districtus Austriae Controllatus)。イタリアのDOCG/DOCや
+	// スペインのDOCa/DOと違い**等級の上下ではない**: オーストリアのワインg.U.は
+	// すべて同じ「g.U.」で、DACは「その産地の典型的なスタイル(品種・辛口/甘口・
+	// 熟成)を満たす」ことを示す呼称の種類。DACを名乗れないワインは1つ上の
+	// Weinbauregion(ニーダーエスターライヒ等)の名前で売られる。
+	{ id: "dac", labelJa: "DAC" },
 ] as const;
 
 export type AopTagId = (typeof AOP_TAGS)[number]["id"];
@@ -106,6 +112,8 @@ const APPELLATION_NAME_TAGS: readonly AopTagId[] = [
 	"doca",
 	"do",
 	"vino-de-pago",
+	// DAC も「呼称そのもの」で階級ではない(呼称バッジ側が "DAC" を出す)。
+	"dac",
 ];
 
 export function classificationPanelBadgeJa(aop: Aop): string | undefined {

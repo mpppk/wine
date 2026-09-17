@@ -62,6 +62,9 @@ describe("原産地呼称の総称・バッジ(国ごとの出し分け)", () =>
 		expect(getAppellationTermJa("portugal")).toBe("DOC");
 		// ドイツは産地単位も単一畑も同じ g.U.(上下の等級が無い)
 		expect(getAppellationTermJa("deutschland")).toBe("g.U.");
+		// オーストリアも g.U. だが、産地の典型スタイルを満たすものだけが名乗れる
+		// DAC が同居する(等級の上下ではないので並べて出す)
+		expect(getAppellationTermJa("oesterreich")).toBe("DAC/g.U.");
 	});
 
 	it("ドイツのバッジは産地・単一畑とも g.U.", () => {
@@ -73,6 +76,11 @@ describe("原産地呼称の総称・バッジ(国ごとの出し分け)", () =>
 		expect(badge("mosel")).toBe("g.U.");
 		expect(badge("franken")).toBe("g.U.");
 		expect(badge("uhlen-roth-lay")).toBe("g.U.");
+		// オーストリアは DAC を名乗れる呼称だけ "DAC"、州名の広域呼称は "g.U."
+		expect(badge("weinviertel")).toBe("DAC");
+		expect(badge("wachau")).toBe("DAC");
+		expect(badge("niederoesterreich")).toBe("g.U.");
+		expect(badge("wien")).toBe("g.U.");
 		expect(badge("wuerzburger-stein-berg")).toBe("g.U.");
 	});
 

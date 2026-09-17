@@ -25,7 +25,13 @@ export const COLOR_LABELS_JA: Record<WineColor, string> = {
  * フランス(INAO)以外の収録国はこのデータセットに依存しており、出典注記も
  * 生成スクリプト(scripts/build-eu-geodata.mjs)もこの集合で分岐する。
  */
-const EU_PDO_COUNTRIES = new Set(["Italy", "Spain", "Portugal", "Germany"]);
+const EU_PDO_COUNTRIES = new Set([
+	"Italy",
+	"Spain",
+	"Portugal",
+	"Germany",
+	"Austria",
+]);
 
 /**
  * 地域IDに対応する原産地呼称の総称(日本語UI用)。
@@ -59,6 +65,10 @@ export function getAppellationTermJa(regionId: string): string {
 	// 等級が無い。収穫時の糖度で決まるプレディカーツは呼称ではなくワイン単位の
 	// 格付けなので、ここには並べない。
 	if (region?.country === "Germany") return "g.U.";
+	// オーストリアもドイツと同じ g.U. だが、産地の典型スタイルを満たすものだけが
+	// 名乗れるDACが同居する(DACを名乗れないワインは上位のWeinbauregion名で出る)。
+	// 等級の上下ではないので「DAC/g.U.」と並べる(IGTと同じ理由)。
+	if (region?.country === "Austria") return "DAC/g.U.";
 	return "AOP";
 }
 
@@ -78,12 +88,17 @@ export function getAppellationBadgeJa(aop: Aop): string {
 	// 判定はここに閉じ、呼び出し側でタグを見て出し分けない。
 	if (aop.tags?.includes("vino-de-pago")) return "VP";
 	if (aop.tags?.includes("doca")) return "DOCa";
+	// オーストリア: DACを名乗れる呼称だけ "DAC"、Weinbauregion単位のg.U.は "g.U."。
+	if (aop.tags?.includes("dac")) return "DAC";
 	const region = getRegion(aop.region);
 	if (region?.country === "Italy") return "DOC/DOCG";
 	if (region?.country === "Spain") return "DO";
 	if (region?.country === "Portugal") return "DOC";
 	// ドイツは産地単位も単一畑も等しく g.U.(バッジ文言も総称と同じ)。
 	if (region?.country === "Germany") return "g.U.";
+	// オーストリアでDACタグを持たないのは Weinbauregion 単位のg.U.(上の分岐で
+	// DACは処理済み)。
+	if (region?.country === "Austria") return "g.U.";
 	return "AOC";
 }
 
