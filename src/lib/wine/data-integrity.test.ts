@@ -751,6 +751,64 @@ describe("生産者名の表記ゆれ", () => {
 	});
 });
 
+// Aop.description / Region.description / ProducerInfo.description は、いずれも
+// プレーンテキストとして描画される(description-links.ts 冒頭の規約どおり、
+// buildDescriptionSegments はAOP名・地域名をリンクへ切り出すだけでマークダウンを
+// 解釈しない。地方カードと生産者ダイアログは素のJSXテキストとして出す)。
+// 解説文はマスタ上ではただの文字列なので、コミットメッセージやPR本文と同じ感覚で
+// 強調記法を書くとレビューもCIも素通りし、記号がそのまま利用者に出る。
+// #621(ラングドックのAOP解説2件)と #622(ヴェネトの地方解説1件)で独立に2回入った
+// ため、地域を足すたびに繰り返さないようここで固定する(#624)。
+describe("解説文にマークダウン記法が混ざらない(#624)", () => {
+	const MARKDOWN_PATTERNS = [
+		// `**強調**` も `*強調*` もそのまま出る。解説文にアスタリスクの正当な
+		// 用途は無いので、記法の形ではなく文字そのものを禁じる
+		{ name: "強調(*)", re: /\*/ },
+		{ name: "コード(`)", re: /`/ },
+		// 他AOP・地域へのリンクは description-links.ts が自動で張る。
+		// 手書きのリンク記法は常に誤り
+		{ name: "リンク([](...))", re: /\[[^\]]*\]\([^)]*\)/ },
+		{ name: "見出し(#)", re: /(^|\n)#{1,6}\s/ },
+		{ name: "強調(_)", re: /(^|\s)_[^_]+_(\s|$)/ },
+	];
+
+	const targets = [
+		...AOPS.map((a) => ({
+			label: `Aop(${a.id}).description`,
+			text: a.description,
+		})),
+		...REGIONS.map((r) => ({
+			label: `Region(${r.id}).description`,
+			text: r.description,
+		})),
+		...Object.entries(PRODUCER_INFO).flatMap(([name, info]) =>
+			info.description
+				? [
+						{
+							label: `ProducerInfo(${name}).description`,
+							text: info.description,
+						},
+					]
+				: [],
+		),
+	];
+
+	// 欄名の変更やリファクタで供給源が1つ落ちると、以降このテストは
+	// 「該当なし」で素通りし続ける。3つ揃っていることを先に固定する
+	it("3つの解説欄すべてを検査対象に含む", () => {
+		const sources = new Set(targets.map(({ label }) => label.split("(")[0]));
+		expect([...sources].sort()).toEqual(["Aop", "ProducerInfo", "Region"]);
+	});
+
+	// 失敗時に「どの欄が」まで出るよう、該当ラベルを集めてから比較する
+	it.each(MARKDOWN_PATTERNS)("$name を含まない", ({ re }) => {
+		const offenders = targets
+			.filter(({ text }) => re.test(text))
+			.map(({ label }) => label);
+		expect(offenders).toEqual([]);
+	});
+});
+
 describe("ピエモンテ(イタリア)の整合性", () => {
 	const piemonte = AOPS.filter((a) => a.region === "piemonte");
 
