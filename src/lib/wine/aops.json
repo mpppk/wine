@@ -24392,5 +24392,1351 @@
 		"soil": "ヴェネトとフリウリの9県にまたがる平野から山麓。沖積起源で粘土‐シルト質が卓越し、ドロミテの浸食と河川堆積による礫を含んで排水が良い。",
 		"producers": ["Villa Sandi", "Mionetto", "La Marca", "Astoria"],
 		"description": "2009年の制度改編で、それまで品種名だった「プロセッコ」を呼称名に移し、品種はグレーラと改めたうえでヴェネト5県＋フリウリ4県に区域を広げた広域DOC。大半はタンク内二次発酵(シャルマ方式)で造られ、2020年からはピノ・ネーロを10〜15%加えるロゼも認められている。"
+	},
+	{
+		"id": "wachau",
+		"idApp": 926001,
+		"name": "Wachau",
+		"shortName": "Wachau",
+		"nameJa": "ヴァッハウ",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "neuburger",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "fruehroter-veltliner",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roter-veltliner",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sankt-laurent",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "zweigelt",
+				"role": "accessory"
+			}
+		],
+		"soil": "ドナウが数百万年かけて刻んだ片麻岩・角閃岩・大理石・珪岩の結晶質岩。氷期に山陰へ吹き溜まったレスが結晶質斜面の東側を覆い、谷底にはドナウの砂礫が広がる。",
+		"producers": [
+			{
+				"name": "F.X. Pichler",
+				"searchKeyword": "エフ・エックス・ピヒラー"
+			},
+			{
+				"name": "Rudi Pichler",
+				"searchKeyword": "ルディ・ピヒラー"
+			},
+			{
+				"name": "Alzinger",
+				"searchKeyword": "アルツィンガー"
+			},
+			{
+				"name": "Tegernseerhof",
+				"searchKeyword": "テーゲルンゼーホフ"
+			},
+			{
+				"name": "Nikolaihof",
+				"searchKeyword": "ニコライホーフ"
+			},
+			{
+				"name": "Domäne Wachau",
+				"searchKeyword": "ドメーネ・ヴァッハウ"
+			},
+			{
+				"name": "Veyder-Malberg",
+				"searchKeyword": "ファイダー・マルベルク"
+			}
+		],
+		"description": "メルクとクレムスの間に約1,285haが連なる、ドナウ渓谷の世界文化遺産。中世に修道院が築いた石積みテラスの急斜面が景観の骨格で、結晶質岩のテラスはリースリング、東向き斜面のレスはグリューナー・ヴェルトリーナーの銘醸地になる。2020年からWachau DACとなり、地域名(Gebietswein)は17品種、村名(Ortswein)は9品種、畑名(Riedenwein)はグリューナー・ヴェルトリーナーとリースリングだけに絞られる。全段階で手摘みが義務づけられているのはオーストリアでここだけ。生産者団体ヴィネア・ヴァッハウが1980年代半ばから使う収穫時の自然アルコール度による3分類 — シュタインフェーダー(11.5%vol以下)/フェーダーシュピール(11.5〜12.5%)/スマラクト(12.5%以上) — はDACとは別の自主規格だが、ヴァッハウのワインを読み解く鍵になっている。"
+	},
+	{
+		"id": "kremstal",
+		"idApp": 926002,
+		"name": "Kremstal",
+		"shortName": "Kremstal",
+		"nameJa": "クレムスタール",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			}
+		],
+		"soil": "ドナウ北岸はヴァッハウに連なる原岩(パラ片麻岩に角閃岩・花崗片麻岩の帯)の風化土、南岸はグラニュライト。その上を石灰を含むレスが幾重にも覆い、レスの厚い東部ではより丸みのあるヴェルトリーナーになる。",
+		"producers": [
+			{
+				"name": "Weingut Stadt Krems",
+				"searchKeyword": "シュタット・クレムス"
+			},
+			{
+				"name": "Malat",
+				"searchKeyword": "マラート"
+			},
+			{
+				"name": "Sepp Moser",
+				"searchKeyword": "ゼップ・モーザー"
+			},
+			{
+				"name": "Geyerhof",
+				"searchKeyword": "ガイアーホフ"
+			},
+			{
+				"name": "Mantlerhof",
+				"searchKeyword": "マントラーホフ"
+			}
+		],
+		"description": "クレムス市とその西の「シュタイン」地区・東のレステラス・ドナウ南岸のゲットヴァイク修道院周辺という3つの異なる区域からなる2,242haの産地。2007年からKremstal DACとなり、グリューナー・ヴェルトリーナーとリースリングの2品種だけが名乗れる。地域名11.5%vol・村名12.0%・畑名12.5%・Reserve 13.0%という最低アルコール度で階層が分かれ、いずれも辛口。プファッフェンベルク、ヴァハトベルク、ガイスベルクなど著名な単一畑(リート)が並ぶ。"
+	},
+	{
+		"id": "kamptal",
+		"idApp": 926003,
+		"name": "Kamptal",
+		"shortName": "Kamptal",
+		"nameJa": "カンプタール",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			}
+		],
+		"soil": "レス・砂礫・結晶質岩の帯に加え、ハイリゲンシュタインの約2億7千万年前のペルム紀砂岩(火山性の要素を含む)という4種の岩が地域全体にモザイク状に散らばる。ドナウ寄りは幅広いレス・ローム質のテラス。",
+		"producers": [
+			{
+				"name": "Bründlmayer",
+				"searchKeyword": "ブリュンドルマイヤー"
+			},
+			{
+				"name": "Schloss Gobelsburg",
+				"searchKeyword": "シュロス・ゴベルスブルク"
+			},
+			{
+				"name": "Hirsch",
+				"searchKeyword": "ヒルシュ"
+			},
+			{
+				"name": "Jurtschitsch",
+				"searchKeyword": "ユルチッチ"
+			},
+			{
+				"name": "Fred Loimer",
+				"searchKeyword": "フレート・ロイマー"
+			},
+			{
+				"name": "Rudolf Rabl",
+				"searchKeyword": "ルドルフ・ラーブル"
+			},
+			{
+				"name": "Hiedler",
+				"searchKeyword": "ヒードラー"
+			}
+		],
+		"description": "カンプ川沿いに3,567haが広がる、ラングエンロイスを中心としたオーストリア屈指の銘醸地。南向きの急斜面ハイリゲンシュタインは砂漠性堆積物ゆえレスが積もらず、ミネラル感と長命さで知られるリースリングの畑になる。2008年からKamptal DACで、グリューナー・ヴェルトリーナーとリースリングに加え2024年の改正でシャルドネ・ヴァイスブルグンダー・グラウブルグンダーも認められた(ただしこの3品種は主ラベルにしか品種名を書けない)。2025年産からは全DACワインが有機または「Nachhaltig Austria」認証を要する。"
+	},
+	{
+		"id": "traisental",
+		"idApp": 926004,
+		"name": "Traisental",
+		"shortName": "Traisental",
+		"nameJa": "トライゼンタール",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			}
+		],
+		"soil": "アルプス・カルパチア弧の前縁にたまった石灰質の堆積岩。粘土・泥灰土・砂・砂岩・砂礫・礫岩・石灰岩が混ざり、根を深く張らせるためワインに強い骨格と酸を与える。",
+		"producers": [
+			{
+				"name": "Markus Huber",
+				"searchKeyword": "マルクス・フーバー"
+			},
+			{
+				"name": "Ludwig Neumayer",
+				"searchKeyword": "ルートヴィヒ・ノイマイヤー"
+			}
+		],
+		"description": "1995年に現在の形になったオーストリアで最も新しく、最も小さい部類の産地(861ha)。法定地域はザンクト・ペルテン市と同郡＋アッツェンブルク・ジッツェンベルク＝ライドリング・ヴュルムラで、ウィーン市境のプルカースドルフ周辺まで郡域が延びるため地図上の範囲は畑のある谷筋より広く見える。作付の6割超をグリューナー・ヴェルトリーナーが占め、その比率は国内最高水準。2006年からTraisental DACとなり、クレムスタールと同じくグリューナー・ヴェルトリーナーとリースリングだけが名乗れる。石灰質土壌ゆえのミネラル感が酸の骨格を支え、ツヴィルヒ、ベルク、アルテ・ゼッツェンといった単一畑からは長命なReserveが生まれる。東からのパンノニア的な暖気とアルプス前地からの冷気が重なり、昼夜の寒暖差が香りの繊細さを生む。"
+	},
+	{
+		"id": "wagram",
+		"idApp": 926005,
+		"name": "Wagram",
+		"shortName": "Wagram",
+		"nameJa": "ヴァーグラム",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "roter-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "fruehroter-veltliner",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sankt-laurent",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "zweigelt",
+				"role": "accessory"
+			}
+		],
+		"soil": "氷期に吹き積もったレスが幾層にも重なり、その下の海成堆積物と河川性の砂礫を覆う。地名の「ヴァーグラム」は「Wogenrain(波打ち際)」に由来し、かつて海だったことを示す。",
+		"producers": [
+			{
+				"name": "Bernhard Ott",
+				"searchKeyword": "ベルンハルト・オット"
+			},
+			{
+				"name": "Karl Fritsch",
+				"searchKeyword": "カール・フリッチュ"
+			},
+			{
+				"name": "Josef Ehmoser",
+				"searchKeyword": "ヨーゼフ・エーモーザー"
+			},
+			{
+				"name": "Wimmer-Czerny",
+				"searchKeyword": "ヴィマー・チェルニー"
+			},
+			{
+				"name": "Stift Klosterneuburg",
+				"searchKeyword": "シュティフト・クロスターノイブルク"
+			}
+		],
+		"description": "ドナウ北岸の厚いレステラスと、南岸のクロスターノイブルクを含む2,411haの産地。法定地域はトゥルン郡(アッツェンブルク・ジッツェンベルク＝ライドリング・ヴュルムラを除く)＋クロスターノイブルク・ゲラスドルフ・バイ・ウィーン・シュテッテルドルフ・アム・ヴァーグラムの3町村で、地図でウィーン北縁に飛び地のように見えるのがゲラスドルフ。2021年からWagram DACとなり、地域名は13品種、村名は7品種、畑名はグリューナー・ヴェルトリーナー・ローター・ヴェルトリーナー・リースリングの3品種だけと段階的に絞られる。土着のローター・ヴェルトリーナーは収量を抑えると長熟になる、この地方ならではの白。クロスターノイブルクには1860年創立の世界最古のワイン学校(HBLA)と、オーストリア最大級の歴史を持つクロスターノイブルク修道院の醸造所がある。"
+	},
+	{
+		"id": "weinviertel",
+		"idApp": 926006,
+		"name": "Weinviertel",
+		"shortName": "Weinviertel",
+		"nameJa": "ヴァインフィアテル",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			}
+		],
+		"soil": "畑の半分以上がレス。西端のレチュ周辺はモラヴィクムの酸性花崗岩が風化した石英質の砂、シュターツやファルケンシュタインにはヴァッシュベルク帯の明るく硬い石灰岩の岩塊が突き出し、東側のウィーン盆地は石灰質の礫・砂・シルトが主体。",
+		"producers": [
+			{
+				"name": "Ebner-Ebenauer",
+				"searchKeyword": "エブナー・エーベナウアー"
+			},
+			{
+				"name": "Pfaffl",
+				"searchKeyword": "プファッフル"
+			},
+			{
+				"name": "Setzer",
+				"searchKeyword": "ゼッツァー"
+			},
+			{
+				"name": "Gruber Röschitz",
+				"searchKeyword": "グルーバー・レーシッツ"
+			},
+			{
+				"name": "Graf Hardegg",
+				"searchKeyword": "グラーフ・ハルデック"
+			},
+			{
+				"name": "Taubenschuss",
+				"searchKeyword": "タウベンシュス"
+			}
+		],
+		"description": "ドナウからチェコ国境まで広がるオーストリア最大の産地(13,730ha)。2002年産から適用されたオーストリア初のDACで、グリューナー・ヴェルトリーナー1品種のみ、残糖6g/L以下、そして「白胡椒を思わせるpfeffrig(ペッパリー)な風味」という官能規定まで定める。ここのグリューナー・ヴェルトリーナーは約7,000haとオーストリア全体の半分、世界の作付のほぼ半分に当たる。2009年産からReserve(13.0%vol以上、軽い樽・貴腐のニュアンスも可)、2020年産からGroße Reserveが加わった。"
+	},
+	{
+		"id": "carnuntum",
+		"idApp": 926007,
+		"name": "Carnuntum",
+		"shortName": "Carnuntum",
+		"nameJa": "カルヌントゥム",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "zweigelt",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lemberger",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			}
+		],
+		"soil": "重いロームとレスが主体で、砂礫質の区画も混じる。ライタ山地・アルベスタール丘陵・ハインブルク山地という3つの丘陵に畑が分かれ、東端のシュピッツァーベルクはブラウフレンキッシュの中心地。",
+		"producers": [
+			{
+				"name": "Gerhard Markowitsch",
+				"searchKeyword": "ゲルハルト・マルコヴィッチュ"
+			},
+			{
+				"name": "Dorli Muhr",
+				"searchKeyword": "ドルリ・ムーア"
+			},
+			{
+				"name": "Netzl",
+				"searchKeyword": "ネッツル"
+			},
+			{
+				"name": "Walter Glatzer",
+				"searchKeyword": "ヴァルター・グラッツァー"
+			},
+			{
+				"name": "Artner",
+				"searchKeyword": "アルトナー"
+			}
+		],
+		"description": "ウィーンの東、ドナウ南岸からスロヴァキア国境までの812ha。ローマ軍団の駐屯地と都市の名を継ぐ産地で、2019年にDACとなった。赤はツヴァイゲルトとブラウフレンキッシュ、白はシャルドネ・ヴァイスブルグンダー・グリューナー・ヴェルトリーナーが主役で、ブレンドはこれらで2/3以上を占める必要がある。残り1/3には他のQualitätsweinrebsorten全部が使えるため、収録した品種は主要品種であって網羅ではない(「この品種は認められていない」と主張する形式のクイズからは自動的に外れる)。パンノニア気候の暑い夏と、ドナウ・ノイジードラー湖による温度緩和が完熟をもたらす。"
+	},
+	{
+		"id": "thermenregion",
+		"idApp": 926008,
+		"name": "Thermenregion",
+		"shortName": "Thermenregion",
+		"nameJa": "テルメンレギオン",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white", "red", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "rotgipfler",
+				"role": "principal"
+			},
+			{
+				"varietyId": "zierfandler",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sankt-laurent",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "neuburger",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "portugieser",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "zweigelt",
+				"role": "accessory"
+			}
+		],
+		"soil": "細粒堆積物由来のローム質土壌が主体で、貝や巻貝の化石を多く含む石灰質の礫・砂が粗粒分として混じる。斜面下部の崖錐が排水と地温を助け、シュタインフェルトの痩せた砂礫は赤ワイン品種の好適地。",
+		"producers": [
+			{
+				"name": "Johanneshof Reinisch",
+				"searchKeyword": "ヨハネスホフ・ライニッシュ"
+			},
+			{
+				"name": "Alphart",
+				"searchKeyword": "アルプハルト"
+			},
+			{
+				"name": "Stadlmann",
+				"searchKeyword": "シュタードルマン"
+			},
+			{
+				"name": "Freigut Thallern",
+				"searchKeyword": "フライグート・タラーン"
+			}
+		],
+		"description": "ウィーン南方、バーデンの硫黄泉(Aquae)に名を借りた1,821haの産地。中世にシトー会修道士が本山シトーの流儀で畑を拓いた歴史を持ち、年間1,800時間の日照とパンノニア気候に恵まれる。2023年産からのオーストリアで最も新しいDACで、土着のロートギプフラーとツィアファンドラー(シュペートロート)という2品種が看板。畑名(Riedenwein)はこの2品種＋ヴァイスブルグンダー・シャルドネ・ピノ・ノワール・ザンクト・ラウレントの6品種に限られる。村名(Ortswein)ではアウスレーゼ〜トロッケンベーレンアウスレーゼの甘口も認められる。"
+	},
+	{
+		"id": "niederoesterreich",
+		"idApp": 926009,
+		"name": "Niederösterreich",
+		"shortName": "Niederösterreich",
+		"nameJa": "ニーダーエスターライヒ",
+		"region": "oesterreich",
+		"subregionId": "niederoesterreich",
+		"kind": "regional",
+		"colors": ["white", "red", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "zweigelt",
+				"role": "principal"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "portugieser",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sankt-laurent",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "roter-veltliner",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "fruehroter-veltliner",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "neuburger",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "rotgipfler",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "zierfandler",
+				"role": "accessory"
+			}
+		],
+		"soil": "州全体に及ぶため単一の土壌はない。ドナウ沿いの原岩(片麻岩)とレス、ヴァインフィアテルの石灰岩とレス、テルメンレギオンの石灰質ローム、カルヌントゥムの重いロームまでを含む。",
+		"producers": [
+			{
+				"name": "Nikolaihof",
+				"searchKeyword": "ニコライホーフ"
+			},
+			{
+				"name": "Schloss Gobelsburg",
+				"searchKeyword": "シュロス・ゴベルスブルク"
+			},
+			{
+				"name": "Bernhard Ott",
+				"searchKeyword": "ベルンハルト・オット"
+			},
+			{
+				"name": "Gerhard Markowitsch",
+				"searchKeyword": "ゲルハルト・マルコヴィッチュ"
+			},
+			{
+				"name": "Johanneshof Reinisch",
+				"searchKeyword": "ヨハネスホフ・ライニッシュ"
+			},
+			{
+				"name": "Pfaffl",
+				"searchKeyword": "プファッフル"
+			}
+		],
+		"description": "州全域を範囲とする広域のWeinbaugebiet(26,732ha)。オーストリアの作付の6割を占める。同じ州内には8つのDAC産地(Weinbaugebiet)があり、産地呼称の階層ではDACの1つ下の受け皿にあたる。DACの規定から外れるワイン — 例えばカンプタールのツヴァイゲルト、トライゼンタールのシャルドネ、ヴァーグラムのアイスワイン — はこの「ニーダーエスターライヒ」名で売られる。したがって認められる品種はオーストリアのQualitätsweinrebsorten全部で、収録した品種は作付面積の上位を写した代表例にすぎない。グリューナー・ヴェルトリーナーだけで13,112haと州の半分近くを占める。なお、その上位にあるWeinbauregion「ヴァインラント」(ブルゲンラント・ニーダーエスターライヒ・ウィーン)はg.U.ではなくg.g.A.(PGI)なので、この地図には載せていない。"
+	},
+	{
+		"id": "neusiedlersee",
+		"idApp": 926010,
+		"name": "Neusiedlersee",
+		"shortName": "Neusiedlersee",
+		"nameJa": "ノイジードラーゼー",
+		"region": "oesterreich",
+		"subregionId": "burgenland",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["red", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "zweigelt",
+				"role": "principal"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "scheurebe",
+				"role": "accessory"
+			}
+		],
+		"soil": "砂質ロームに礫を様々な割合で含む。石灰質の礫、石灰分の乏しい純粋な礫、そして塩分を含む軽い砂質土壌まで幅がある。南のゼーヴィンケルには「ツィックラッケン」と呼ばれる小さな塩湖群が点在する。",
+		"producers": [
+			{
+				"name": "Kracher",
+				"searchKeyword": "クラッハー"
+			},
+			{
+				"name": "Angerhof-Tschida",
+				"searchKeyword": "アンガーホフ・チダ"
+			},
+			{
+				"name": "Umathum",
+				"searchKeyword": "ウマトゥム"
+			},
+			{
+				"name": "Pöckl",
+				"searchKeyword": "ペックル"
+			},
+			{
+				"name": "Gernot und Heike Heinrich",
+				"searchKeyword": "ハインリッヒ"
+			},
+			{
+				"name": "Claus Preisinger",
+				"searchKeyword": "クラウス・プライジンガー"
+			},
+			{
+				"name": "Judith Beck",
+				"searchKeyword": "ユーディット・ベック"
+			},
+			{
+				"name": "Paul Achs",
+				"searchKeyword": "パウル・アクス"
+			},
+			{
+				"name": "Pittnauer",
+				"searchKeyword": "ピットナウアー"
+			},
+			{
+				"name": "Hans Gsellmann",
+				"searchKeyword": "ハンス・グゼルマン"
+			}
+		],
+		"description": "ノイジードラー湖の北岸から東岸に広がるブルゲンラント最大の産地(5,959ha)。中央ヨーロッパ最大のステップ湖が夏の熱を夜に放出し、秋の霧と高い湿度が貴腐(ボトリティス・シネレア)を育てる。2011年産から辛口のツヴァイゲルト、2020年産から甘口がDACになった。甘口は「白のQualitätsweinrebsorten全部」が使えるため収録品種は代表例で、実際にはヴェルシュリースリングのトロッケンベーレンアウスレーゼが世界的に知られる。辛口はNeusiedlersee DAC(12.0%vol以上)とReserve(13.0%vol以上)の2段階。"
+	},
+	{
+		"id": "leithaberg",
+		"idApp": 926011,
+		"name": "Leithaberg",
+		"shortName": "Leithaberg",
+		"nameJa": "ライタベルク",
+		"region": "oesterreich",
+		"subregionId": "burgenland",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white", "red"],
+		"grapes": [
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "neuburger",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "lemberger",
+				"role": "principal"
+			}
+		],
+		"soil": "約1,500万年前の浅い海でできた明るい石灰藻岩「ライタカルク」と、その間に現れる東アルプス起源の酸性の結晶片岩・片麻岩。南のルストでは石英質の「ルスター・シュター」(砂礫)が断層を挟んで石灰岩と隣り合う。",
+		"producers": [
+			{
+				"name": "Prieler",
+				"searchKeyword": "プリーラー"
+			},
+			{
+				"name": "Kollwentz",
+				"searchKeyword": "コルヴェンツ"
+			},
+			{
+				"name": "Birgit Braunstein",
+				"searchKeyword": "ビルギット・ブラウンシュタイン"
+			},
+			{
+				"name": "Feiler-Artinger",
+				"searchKeyword": "ファイラー・アルティンガー"
+			},
+			{
+				"name": "Heidi Schröck",
+				"searchKeyword": "ハイディ・シュレック"
+			},
+			{
+				"name": "Leo Hillinger",
+				"searchKeyword": "レオ・ヒリンガー"
+			}
+		],
+		"description": "ノイジードラー湖の西、ライタ山地の斜面に広がる2,955ha(ルストを含む)。赤は2008年産、白は2009年産からLeithaberg DACとなり、赤はブラウフレンキッシュ100%、白はヴァイスブルグンダー・シャルドネ・ノイブルガー・グリューナー・ヴェルトリーナーとそのブレンドに限られる。赤白いずれも辛口で、石灰と片岩に由来するミネラル感と張りが共通の指紋。ルストでは貴腐の甘口Ruster Ausbruch DAC(2020年から)も造られ、かつてブルゲンラント最重要品種だったフルミントが復活しつつある。ハルシュタット文化のザガースドルフ古墳から出たぶどう種子は中欧最古級のワイン栽培の証拠。"
+	},
+	{
+		"id": "mittelburgenland",
+		"idApp": 926012,
+		"name": "Mittelburgenland",
+		"shortName": "Mittelburgenland",
+		"nameJa": "ミッテルブルゲンラント",
+		"region": "oesterreich",
+		"subregionId": "burgenland",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["red"],
+		"grapes": [
+			{
+				"varietyId": "lemberger",
+				"role": "principal"
+			}
+		],
+		"soil": "保水力の大きい重く深いローム。斜面上部には片麻岩・結晶片岩・雲母質の土壌、斜面下部には石灰岩の区画も点在し、砂質ロームに石灰の下層という軽めの土壌も広い。",
+		"producers": [
+			{
+				"name": "Albert Gesellmann",
+				"searchKeyword": "アルベルト・ゲゼルマン"
+			},
+			{
+				"name": "Weninger",
+				"searchKeyword": "ヴェニンガー"
+			},
+			{
+				"name": "Hans Igler",
+				"searchKeyword": "ハンス・イグラー"
+			},
+			{
+				"name": "Wellanschitz",
+				"searchKeyword": "ヴェランシッツ"
+			},
+			{
+				"name": "Iby",
+				"searchKeyword": "イビー"
+			}
+		],
+		"description": "「ブラウフレンキッシュラント」と呼ばれる2,026haの赤ワイン産地。ハンガリー国境に接するオーバープレンドルフ盆地で、西のブックリゲ・ヴェルト、北のエーデンブルク山地、南のギュンス山地に囲まれ、東のパンノニア平原から暖かく乾いた風が入る。年間300日以上の晴天と約600mmという少ない降水量がブラウフレンキッシュに理想的。2005年産からMittelburgenland DACとなり、ブラウフレンキッシュ100%・残糖2.5g/L以下と定める。ドイチュクロイツ、ホリチョン、ネッケンマルクト、ルッツマンスブルクの4村が中心。"
+	},
+	{
+		"id": "eisenberg",
+		"idApp": 926013,
+		"name": "Eisenberg",
+		"shortName": "Eisenberg",
+		"nameJa": "アイゼンベルク",
+		"region": "oesterreich",
+		"subregionId": "burgenland",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["red", "white"],
+		"grapes": [
+			{
+				"varietyId": "lemberger",
+				"role": "principal"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "accessory"
+			}
+		],
+		"soil": "急斜面は片岩(シーファー)で、明確な果実味とミネラルのワインを生む。丘の麓は鉄分の非常に多い深いロームで、土っぽさと独特のタンニン構造をもたらす。",
+		"producers": [
+			{
+				"name": "Uwe Schiefer",
+				"searchKeyword": "ウーヴェ・シーファー"
+			},
+			{
+				"name": "Wachter-Wiesler",
+				"searchKeyword": "ヴァハター・ヴィースラー"
+			},
+			{
+				"name": "Krutzler",
+				"searchKeyword": "クルツラー"
+			},
+			{
+				"name": "Kopfensteiner",
+				"searchKeyword": "コプフェンシュタイナー"
+			},
+			{
+				"name": "Jalits",
+				"searchKeyword": "ヤリッツ"
+			}
+		],
+		"description": "「ヴァインイディレ(ワインの牧歌)」を自称する南ブルゲンラントの525ha。大陸性気候と地中海性気候がぶつかる場所で、兼業農家が多く生産の多くはブッシェンシャンク(自家農家酒場)で売られる。2009年産からEisenberg DACとなり、地域名(Gebietswein)はブラウフレンキッシュ100%で他品種との混和を一切認めないという、オーストリアのDACで最も厳しい規定を持つ。村名・畑名ではヴェルシュリースリングも認められる。産地名の由来であるアイゼンベルクとドイチュ・シュッツェンのブドウ山が中心で、鉄分の多い土壌に由来する土っぽいピカンテさが土地の印。"
+	},
+	{
+		"id": "burgenland",
+		"idApp": 926014,
+		"name": "Burgenland",
+		"shortName": "Burgenland",
+		"nameJa": "ブルゲンラント",
+		"region": "oesterreich",
+		"subregionId": "burgenland",
+		"kind": "regional",
+		"colors": ["white", "red", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "lemberger",
+				"role": "principal"
+			},
+			{
+				"varietyId": "zweigelt",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "merlot",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "cabernet-sauvignon",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sankt-laurent",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-ottonel",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "scheurebe",
+				"role": "accessory"
+			}
+		],
+		"soil": "ノイジードラー湖周辺の砂質ローム・礫、ライタ山地の石灰岩と結晶片岩、ミッテルブルゲンラントの重いローム、南部アイゼンベルクの片岩と鉄分の多いロームまでを含む。",
+		"producers": [
+			{
+				"name": "Gernot und Heike Heinrich",
+				"searchKeyword": "ハインリッヒ"
+			},
+			{
+				"name": "Prieler",
+				"searchKeyword": "プリーラー"
+			},
+			{
+				"name": "Umathum",
+				"searchKeyword": "ウマトゥム"
+			},
+			{
+				"name": "Kollwentz",
+				"searchKeyword": "コルヴェンツ"
+			},
+			{
+				"name": "Albert Gesellmann",
+				"searchKeyword": "アルベルト・ゲゼルマン"
+			},
+			{
+				"name": "Krutzler",
+				"searchKeyword": "クルツラー"
+			}
+		],
+		"description": "州全域を範囲とする広域のWeinbaugebiet(11,538ha)。オーストリアの赤ワインの中心で、ブラウフレンキッシュ2,394ha・ツヴァイゲルト2,239haと2大黒ぶどうがそろって最大の作付を持つ。ニーダーエスターライヒと同じく州内の4つのDAC産地の受け皿にあたり、各DACの規定から外れるワイン — ライタベルクのピノ・ノワールやカベルネ、ノイジードラーゼーの辛口白、アイゼンベルクのヴァイスブルグンダー、そしてアウスレーゼやベーレンアウスレーゼの甘口 — はこの「ブルゲンラント」名で売られる。認められる品種はQualitätsweinrebsorten全部なので、収録品種は作付上位の代表例。ライタベルクとノイジードラーゼーは法律上およそ160haだけ重なっている(リート・ハウスベルクとノイベルク)。"
+	},
+	{
+		"id": "suedsteiermark",
+		"idApp": 926015,
+		"name": "Südsteiermark",
+		"shortName": "Südsteiermark",
+		"nameJa": "ジュートシュタイヤーマルク",
+		"region": "oesterreich",
+		"subregionId": "steiermark",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			}
+		],
+		"soil": "砂・片岩から泥灰土・石灰岩まで多彩。ザウザルの急斜面は緑色片岩と珪岩を挟むフィライト質粘板岩で、大半の畑はシュタイヤーマルク盆地の礫・礫岩、シュリーアの泥灰土・シルト・砂の上にある。",
+		"producers": [
+			{
+				"name": "Sattlerhof",
+				"searchKeyword": "ザトラーホフ"
+			},
+			{
+				"name": "Gross",
+				"searchKeyword": "ヴァイングート・グロス"
+			},
+			{
+				"name": "Lackner-Tinnacher",
+				"searchKeyword": "ラックナー・ティナッハー"
+			},
+			{
+				"name": "Wohlmuth",
+				"searchKeyword": "ヴォールムート"
+			},
+			{
+				"name": "Sepp Muster",
+				"searchKeyword": "ゼップ・ムスター"
+			}
+		],
+		"description": "スロヴェニア国境に沿う2,798haの白ワイン産地で、畑の多くが極端な急斜面。作付の約4分の1を占めるソーヴィニヨン・ブランは世界的な評価を得ており、2018年産から始まったSüdsteiermark DACでも筆頭に置かれる。使える品種はソーヴィニヨン・ブラン、ヴェルシュリースリング、ヴァイスブルグンダー、モリヨン(=シャルドネ)、グラウブルグンダー、リースリング、ムスカテラー、トラミナーの8種のみ。シュタイヤーマルクの3つのDACに共通する特徴として手摘みが義務で、残糖は4.0g/L以下。村名ワインの区域はキッツェック・ザウザル、アイヒベルク、ロイチャッハ、ガムリッツ、エーレンハウゼンの5つ。"
+	},
+	{
+		"id": "vulkanland-steiermark",
+		"idApp": 926016,
+		"name": "Vulkanland Steiermark",
+		"shortName": "Vulkanland Steiermark",
+		"nameJa": "フルカンラント・シュタイヤーマルク",
+		"region": "oesterreich",
+		"subregionId": "steiermark",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			}
+		],
+		"soil": "石灰質と非石灰質、砂質と粘土質、礫質と火山性が激しく入れ替わる。死火山の玄武岩・凝灰岩は目を引くが産地の岩の1割未満で、クレッヒ周辺だけは玄武岩と凝灰岩由来の赤色・褐色ロームがほぼ連続する。",
+		"producers": [
+			{
+				"name": "Neumeister",
+				"searchKeyword": "ノイマイスター"
+			},
+			{
+				"name": "Frauwallner",
+				"searchKeyword": "フラウヴァルナー"
+			},
+			{
+				"name": "Winkler-Hermaden",
+				"searchKeyword": "ヴィンクラー・ヘルマーデン"
+			},
+			{
+				"name": "Ploder-Rosenberg",
+				"searchKeyword": "プローダー・ローゼンベルク"
+			},
+			{
+				"name": "Krispel",
+				"searchKeyword": "クリスペル"
+			}
+		],
+		"description": "死火山の丘に小さな「ワインの島」が点在する1,657haの産地。畑はクレッヒ、ザンクト・アンナ・アム・アイゲン、シュトラーデン周辺に集中する。2018年産からのVulkanland Steiermark DACはジュートシュタイヤーマルクと同じ8品種で、辛口・手摘み・残糖4.0g/L以下という条件も共通。看板はクレッヒのトラミナーで、村名ワインに限り半辛口(halbtrocken)の仕上げも認められる。パンノニア気候とイリュリア(地中海)気候の移行帯にあり、大きな日較差が香りを育てる。北のハルトベルク近郊リンクコーゲルには標高650mとオーストリア有数の高地の畑がある。"
+	},
+	{
+		"id": "weststeiermark",
+		"idApp": 926017,
+		"name": "Weststeiermark",
+		"shortName": "Weststeiermark",
+		"nameJa": "ヴェストシュタイヤーマルク",
+		"region": "oesterreich",
+		"subregionId": "steiermark",
+		"kind": "regional",
+		"tags": ["dac"],
+		"colors": ["white", "rose"],
+		"grapes": [
+			{
+				"varietyId": "blauer-wildbacher",
+				"role": "principal"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "principal"
+			}
+		],
+		"soil": "大半が東アルプス起源の酸性の結晶質岩(硬いプラッテン片麻岩、ペグマタイト質の片麻岩、ざくろ石雲母片岩)。東側は盆地の粗い未固結堆積物で、コーラルペから舌状に張り出す巨礫の「シュヴァンベルク岩塊堆積物」が畑を支える。",
+		"producers": [
+			{
+				"name": "Langmann",
+				"searchKeyword": "ラングマン"
+			},
+			{
+				"name": "Christian Reiterer",
+				"searchKeyword": "クリスティアン・ライテラー"
+			},
+			{
+				"name": "Jöbstl",
+				"searchKeyword": "イェープストル"
+			}
+		],
+		"description": "コーラルペの山裾に標高600mまで細長く連なる、シュタイヤーマルク最小の655ha。作付の大半を土着の黒ぶどうブラウアー・ヴィルトバッハーが占め、そこから造られる鮮烈な酸のロゼシルヒャー(Schilcher)がこの地方の顔。2018年産からのWeststeiermark DACでは、シュタイヤーマルクで唯一シルヒャーに原産地呼称を付けられる(地域名で名乗る場合は「Schilcher Klassik」と表記する)。ほかの7品種(＋ソーヴィニヨン・ブランは村名ワインの中心)もDACを名乗れる。村名ワインの区域はリギスト、シュタインツ、ドイチュランツベルク、アイビスヴァルトの4つ。"
+	},
+	{
+		"id": "steiermark",
+		"idApp": 926018,
+		"name": "Steiermark",
+		"shortName": "Steiermark",
+		"nameJa": "シュタイヤーマルク",
+		"region": "oesterreich",
+		"subregionId": "steiermark",
+		"kind": "regional",
+		"colors": ["white", "red", "rose", "sparkling", "sweet-white"],
+		"grapes": [
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "principal"
+			},
+			{
+				"varietyId": "blauer-wildbacher",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "zweigelt",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "pinot-gris",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "scheurebe",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "accessory"
+			}
+		],
+		"soil": "ザウザルの粘板岩、盆地の礫・泥灰土・砂、フルカンラントの玄武岩・凝灰岩由来の赤色ローム、ヴェストシュタイヤーマルクの結晶質岩まで、3つのDAC産地の土壌をすべて含む。",
+		"producers": [
+			{
+				"name": "Sattlerhof",
+				"searchKeyword": "ザトラーホフ"
+			},
+			{
+				"name": "Gross",
+				"searchKeyword": "ヴァイングート・グロス"
+			},
+			{
+				"name": "Wohlmuth",
+				"searchKeyword": "ヴォールムート"
+			},
+			{
+				"name": "Neumeister",
+				"searchKeyword": "ノイマイスター"
+			},
+			{
+				"name": "Winkler-Hermaden",
+				"searchKeyword": "ヴィンクラー・ヘルマーデン"
+			},
+			{
+				"name": "Christian Reiterer",
+				"searchKeyword": "クリスティアン・ライテラー"
+			}
+		],
+		"description": "州の南部・東部に広がる広域のWeinbaugebiet(5,109ha)。オーストリアで唯一ソーヴィニヨン・ブラン(965ha)が最大品種の地域で、ヴェルシュリースリング・ヴァイスブルグンダー・ムスカテラーが続く。州内の3つのDAC産地の受け皿にあたり、フルカンラントの赤(主にツヴァイゲルト)やヴェストシュタイヤーマルクの稀少な赤・発泡・甘口など、各DACの8〜9品種・辛口という枠から外れるワインはこの「シュタイヤーマルク」名で売られる。若飲みの新酒「ユンカー」も地方の恒例。法定地域はライプニッツ・グラーツ市・グラーツ周辺・ドイチュランツベルク・フォイツベルク・ハルトベルク＝フュルステンフェルト・南東シュタイヤーマルク・ヴァイツの8つの政治郡だが、この地図が使う境界データ(Candiago et al. 2022)は州全域を1つの範囲として持つため、畑の無い西部・北部のアルプス側まで塗られている。"
+	},
+	{
+		"id": "wien",
+		"idApp": 926019,
+		"name": "Wien",
+		"shortName": "Wien",
+		"nameJa": "ウィーン",
+		"region": "oesterreich",
+		"subregionId": "wien",
+		"kind": "regional",
+		"colors": ["white", "red", "rose", "sparkling"],
+		"grapes": [
+			{
+				"varietyId": "gruner-veltliner",
+				"role": "principal"
+			},
+			{
+				"varietyId": "riesling",
+				"role": "principal"
+			},
+			{
+				"varietyId": "zweigelt",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-blanc",
+				"role": "principal"
+			},
+			{
+				"varietyId": "chardonnay",
+				"role": "principal"
+			},
+			{
+				"varietyId": "pinot-noir",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "welschriesling",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muscat-blanc-a-petits-grains",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "sauvignon-blanc",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "muller-thurgau",
+				"role": "accessory"
+			},
+			{
+				"varietyId": "gewurztraminer",
+				"role": "accessory"
+			}
+		],
+		"soil": "ビザンベルク・デープリング・ヌスベルクはペニン帯のフリッシュ(石灰質・石英質の砂岩に泥灰土と粘土の層)とウィーン盆地縁辺の海成堆積物。南のマウアーやオーバーラーはレンジナ・褐色土・黒色土、シュタンマースドルフはドナウ旧河岸段丘の石英質の礫。",
+		"producers": [
+			{
+				"name": "Wieninger",
+				"searchKeyword": "ヴィーニンガー"
+			},
+			{
+				"name": "Mayer am Pfarrplatz",
+				"searchKeyword": "マイヤー・アム・プファールプラッツ"
+			},
+			{
+				"name": "Christ",
+				"searchKeyword": "クリスト"
+			},
+			{
+				"name": "Zahel",
+				"searchKeyword": "ツァーヘル"
+			},
+			{
+				"name": "Weingut Cobenzl",
+				"searchKeyword": "コーベンツル"
+			}
+		],
+		"description": "市域そのものが1つのWeinbaugebietである588haの産地。観光用の見せる畑ではなく、市の緑地帯を支える現役の経済基盤で、ウィーン州法は畑の耕作を義務づけて不動産投機から守っている。名物は畑に3品種以上を混植し、一緒に収穫・醸造するウィーナー・ゲミシュター・サッツで、約240haがこの混植畑。2013年産からWiener Gemischter Satz DACになり、最大品種は50%以下・3番目の品種が10%以上、という混植比率まで定める(このDAC呼称は境界データの制約で本アプリには未収録で、地図上のウィーンは広域のWeinbaugebietを指す)。ホイリゲの文化は2019年にユネスコ無形文化遺産の国内リストに登録された。"
 	}
 ]

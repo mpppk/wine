@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// EU PDO データセット由来の地域(イタリア・スペイン・ポルトガル・ドイツ)の境界GeoJSON
+// EU PDO データセット由来の地域(イタリア・スペイン・ポルトガル・ドイツ・オーストリア)の境界GeoJSON
 // (public/data/aop/<region>.geojson)を生成する。
 //
 //   bun run build:geodata:eu                       # 対象地域すべてを生成(figshareからDL、キャッシュあり)
@@ -15,7 +15,7 @@
 //    protected designations of origin in Europe." Sci Data 9, 394 (2022).
 //    figshare: doi:10.6084/m9.figshare.19312094 (EU_PDO.gpkg, ライセンス CC0)
 //
-//  イタリア・スペイン・ポルトガル・ドイツにはフランスINAOのような公式の区画GISが存在しないため、上記の学術
+//  イタリア・スペイン・ポルトガル・ドイツ・オーストリアにはフランスINAOのような公式の区画GISが存在しないため、上記の学術
 //  データセット(各PDOをeAmbrosia登録の自治体一覧から集約した境界)を用いる。
 //  したがって粒度はコミューン(自治体)単位で、フランスの村名/畑AOC(区画単位)より粗い。
 //
@@ -300,6 +300,58 @@ const REGION_CONFIGS = {
 			// 注: ドイツのワイン g.U. は2021年時点で上記19件がすべて(13の
 			// アンバウゲビート＋単一畑6件)。Landwein は g.g.A.(PGI)なので
 			// このデータセット(PDOのみ)には無く、収録対象でもない。
+		},
+	},
+	oesterreich: {
+		out: "oesterreich.geojson",
+		// オーストリアの収録産地は東部に集中する(西端ヴェストシュタイヤーマルクの
+		// アイビスヴァルト 約15.0°E 〜 東端ヴァインフィアテル/ノイジードラーゼーの
+		// スロヴァキア・ハンガリー国境 約17.2°E、南端 約46.6°N 〜 北端チェコ国境
+		// 約48.8°N)。同名コミューン由来の他国・他州の飛び地を除く。
+		clipBbox: "13.4,46.3,17.4,49.2",
+		pdo: {
+			// ニーダーエスターライヒ州(8つのDAC＋州名の広域Weinbaugebiet)
+			wachau: "PDO-AT-A0205",
+			kremstal: "PDO-AT-A0208",
+			kamptal: "PDO-AT-A0209",
+			traisental: "PDO-AT-A0210",
+			wagram: "PDO-AT-A0233",
+			weinviertel: "PDO-AT-A0206",
+			carnuntum: "PDO-AT-A0217",
+			thermenregion: "PDO-AT-A0229",
+			niederoesterreich: "PDO-AT-A0221",
+			// ブルゲンラント州(4つのDAC＋州名の広域Weinbaugebiet)
+			neusiedlersee: "PDO-AT-A0219",
+			leithaberg: "PDO-AT-A0216",
+			mittelburgenland: "PDO-AT-A0214",
+			eisenberg: "PDO-AT-A0215",
+			burgenland: "PDO-AT-A0207",
+			// シュタイヤーマルク州(3つのDAC＋州名の広域Weinbaugebiet)
+			suedsteiermark: "PDO-AT-A0228",
+			"vulkanland-steiermark": "PDO-AT-A0226",
+			weststeiermark: "PDO-AT-A0234",
+			steiermark: "PDO-AT-A0225",
+			// ウィーン(市域がそのまま1つのWeinbaugebiet)
+			wien: "PDO-AT-A0235",
+			// 注: 18あるDACのうち Rosalia(PDO-AT-02594, 2020年登録)・
+			// Ruster Ausbruch(PDO-AT-02769, 2021年登録)・
+			// Wiener Gemischter Satz(PDO-AT-02593, 2020年登録)の3件は、
+			// 2021年時点の登録を対象とする本データセットにジオメトリが無いため
+			// 収録しない(ピエモンテの Canelli と同じ判断)。法定地域は
+			// ロザーリア=マッタースブルク周辺、ルスター・アウスブルフ=自由市ルスト、
+			// ウィーナー・ゲミシュター・ザッツ=ウィーン市全域なので、将来
+			// Statistik Austria の自治体境界等から別途生成できる。
+			// 注: Weinbauregion Bergland の5州(Kärnten / Oberösterreich /
+			// Salzburg / Tirol / Vorarlberg)もWeinbaugebietとしてg.U.登録がある
+			// が、5州あわせて243ha・231軒(ÖWM 2023/24)と極小で、実売のほとんどは
+			// Landwein「Bergland Österreich」(g.g.A.)として瓶詰めされるため
+			// 収録しない(ポルトガルのアルガルヴェ4DOPと同じ基準)。
+			// 注: Weinbauregion(Weinland / Bergland / Steirerland)はg.U.ではなく
+			// g.g.A.(PGI-AT-A0211/0212/0213)なので、PDOのみの本データセットには
+			// そもそも無い。
+			// 注: ヴァーグラムがウィーン北縁に飛び地(ゲラスドルフ・バイ・ウィーン)を
+			// 持つのは Weingesetz 2009 §21(3)1.d のとおりで、同名コミューン由来の
+			// 混入ではない(OSMの行政界で座標を突合済み)。pdoClipBbox で落とさない。
 		},
 	},
 };

@@ -1538,6 +1538,231 @@ const KEYWORD_EXCEPTIONS: Record<string, string> = {
 	"Quota 101": "クオータ 101",
 };
 
+describe("オーストリアの整合性", () => {
+	const austria = AOPS.filter((a) => a.region === "oesterreich");
+	const dacs = austria.filter((a) => a.tags?.includes("dac"));
+	const generic = austria.filter((a) => !a.tags?.includes("dac"));
+
+	it("件数スナップショット(DAC15 / 州名の広域Weinbaugebiet4 / 計19)", () => {
+		expect(austria.length).toBe(19);
+		expect(dacs.length).toBe(15);
+		expect(generic.length).toBe(4);
+	});
+
+	// 件数だけのスナップショットは中身の取り違えを検出できない(#216 の教訓)ため、
+	// 顔ぶれを固定する。出典は EU公式登録簿 eAmbrosia の fileNumber(PDO-AT-*)と
+	// Weingesetz 2009 §21(3)(RIS)。
+	it("収録した15のDACが公式の顔ぶれと一致する", () => {
+		expect(dacs.map((a) => a.name).sort()).toEqual(
+			[
+				"Carnuntum",
+				"Eisenberg",
+				"Kamptal",
+				"Kremstal",
+				"Leithaberg",
+				"Mittelburgenland",
+				"Neusiedlersee",
+				"Südsteiermark",
+				"Thermenregion",
+				"Traisental",
+				"Vulkanland Steiermark",
+				"Wachau",
+				"Wagram",
+				"Weinviertel",
+				"Weststeiermark",
+			].sort(),
+		);
+	});
+
+	// 州名そのものを名乗る広域のWeinbaugebiet。DACの条件を満たさないワインが
+	// ここへ降りる受け皿で、Weingesetz 2009 §21(3) が「das Bundesland …」と定める。
+	it("州名の広域Weinbaugebiet4件の顔ぶれが一致する", () => {
+		expect(generic.map((a) => a.id).sort()).toEqual([
+			"burgenland",
+			"niederoesterreich",
+			"steiermark",
+			"wien",
+		]);
+	});
+
+	it("収録した呼称の顔ぶれが地区ごとに一致する", () => {
+		const idsIn = (subregionId: string) =>
+			austria
+				.filter((a) => a.subregionId === subregionId)
+				.map((a) => a.id)
+				.sort();
+		expect(idsIn("niederoesterreich")).toEqual([
+			"carnuntum",
+			"kamptal",
+			"kremstal",
+			"niederoesterreich",
+			"thermenregion",
+			"traisental",
+			"wachau",
+			"wagram",
+			"weinviertel",
+		]);
+		expect(idsIn("burgenland")).toEqual([
+			"burgenland",
+			"eisenberg",
+			"leithaberg",
+			"mittelburgenland",
+			"neusiedlersee",
+		]);
+		expect(idsIn("steiermark")).toEqual([
+			"steiermark",
+			"suedsteiermark",
+			"vulkanland-steiermark",
+			"weststeiermark",
+		]);
+		expect(idsIn("wien")).toEqual(["wien"]);
+	});
+
+	it("区分は regional のみ(村・畑・ワイナリーは無し)", () => {
+		for (const aop of austria) {
+			expect(aop.kind, aop.id).toBe("regional");
+			expect(isLegalAppellation(aop), aop.id).toBe(true);
+		}
+	});
+
+	// DAC はイタリアのDOCG/DOCのような上下の等級ではなく「呼称の種類」。
+	// 格付けタグを高々1つという既存の制約に乗せるため、DACには dac タグだけを付け、
+	// 州名の広域呼称にはタグを付けない(呼称バッジが "g.U." を出す)。
+	it("dac タグはオーストリアのDACだけに付く", () => {
+		for (const aop of AOPS) {
+			if (aop.tags?.includes("dac")) {
+				expect(aop.region, aop.id).toBe("oesterreich");
+			}
+		}
+		for (const aop of dacs) expect(aop.tags, aop.id).toEqual(["dac"]);
+		for (const aop of generic) expect(aop.tags, aop.id).toBeUndefined();
+	});
+
+	// 2021年時点の登録を対象とする境界データセット(Candiago et al. 2022)に
+	// ジオメトリが無い3つのDACと、実売がほぼ g.g.A. の Bergland 5州は収録しない。
+	// 足し戻されると「gpkg に … のジオメトリが無い」でビルドが落ちるため、
+	// 理由をここに残す(ピエモンテの Canelli と同じ判断)。
+	it("調査で除外した呼称が復活していない", () => {
+		const ids = new Set(austria.map((a) => a.id));
+		// 境界データにジオメトリが無い3DAC
+		for (const id of ["rosalia", "ruster-ausbruch", "wiener-gemischter-satz"]) {
+			expect(ids.has(id), id).toBe(false);
+		}
+		// Weinbauregion Bergland の5州(5州あわせて243ha / 231軒, ÖWM 2023/24)
+		for (const id of [
+			"kaernten",
+			"oberoesterreich",
+			"salzburg",
+			"tirol",
+			"vorarlberg",
+		]) {
+			expect(ids.has(id), id).toBe(false);
+		}
+		// Weinbauregion は g.U. ではなく g.g.A.(PGI)なので呼称として収録しない
+		for (const id of ["weinland", "bergland", "steirerland"]) {
+			expect(ids.has(id), id).toBe(false);
+		}
+	});
+
+	// DAC-Verordnung(RIS)が品種を名指しで列挙する呼称は、その一覧が
+	// aops.json の grapes と一致していなければならない。ここを広げると
+	// 「この品種は認められていない」と主張するクイズが誤った事実を教える。
+	it("単一品種・二品種のDACが規約どおりの品種だけを持つ", () => {
+		const grapesOf = (id: string) =>
+			austria
+				.find((a) => a.id === id)
+				?.grapes.map((g) => g.varietyId)
+				.sort();
+		// ヴァインフィアテル: グリューナー・ヴェルトリーナー1品種のみ
+		expect(grapesOf("weinviertel")).toEqual(["gruner-veltliner"]);
+		// ミッテルブルゲンラント: ブラウフレンキッシュ1品種のみ
+		expect(grapesOf("mittelburgenland")).toEqual(["lemberger"]);
+		// クレムスタール / トライゼンタール: グリューナー・ヴェルトリーナーとリースリング
+		for (const id of ["kremstal", "traisental"]) {
+			expect(grapesOf(id), id).toEqual(["gruner-veltliner", "riesling"]);
+		}
+		// アイゼンベルク: 地域名はブラウフレンキッシュ100%、村名・畑名でヴェルシュリースリングも可
+		expect(grapesOf("eisenberg")).toEqual(["lemberger", "welschriesling"]);
+		// ライタベルク: 赤はブラウフレンキッシュ、白は4品種
+		expect(grapesOf("leithaberg")).toEqual([
+			"chardonnay",
+			"gruner-veltliner",
+			"lemberger",
+			"neuburger",
+			"pinot-blanc",
+		]);
+	});
+
+	// シュタイヤーマルクの3DACは同じ8品種を共有し、ヴェストシュタイヤーマルクだけが
+	// シルヒャーの原料であるブラウアー・ヴィルトバッハーを加えた9品種になる。
+	it("シュタイヤーマルクの3DACは8品種を共有し、シルヒャーは西部だけ", () => {
+		const grapesOf = (id: string) =>
+			new Set(
+				austria.find((a) => a.id === id)?.grapes.map((g) => g.varietyId) ?? [],
+			);
+		const base = [
+			"chardonnay",
+			"gewurztraminer",
+			"muscat-blanc-a-petits-grains",
+			"pinot-blanc",
+			"pinot-gris",
+			"riesling",
+			"sauvignon-blanc",
+			"welschriesling",
+		];
+		expect([...grapesOf("suedsteiermark")].sort()).toEqual([...base].sort());
+		expect([...grapesOf("vulkanland-steiermark")].sort()).toEqual(
+			[...base].sort(),
+		);
+		expect([...grapesOf("weststeiermark")].sort()).toEqual(
+			[...base, "blauer-wildbacher"].sort(),
+		);
+		// ロゼ(シルヒャー)を色に持つのはヴェストシュタイヤーマルクだけ
+		expect(
+			austria
+				.filter((a) => a.colors.includes("rose"))
+				.map((a) => a.id)
+				.sort(),
+		).toEqual([
+			"burgenland",
+			"niederoesterreich",
+			"steiermark",
+			"weststeiermark",
+			"wien",
+		]);
+	});
+
+	// ノイジードラーゼーだけが辛口赤(ツヴァイゲルト)と貴腐の甘口という
+	// 2つの顔を持つ。テルメンレギオンは村名ワインでのみ甘口を認める。
+	it("甘口を持つDACはノイジードラーゼーとテルメンレギオンだけ", () => {
+		expect(
+			dacs
+				.filter((a) => a.colors.includes("sweet-white"))
+				.map((a) => a.id)
+				.sort(),
+		).toEqual(["neusiedlersee", "thermenregion"]);
+	});
+
+	it("全生産者がカタカナの検索キーワードを持つ", () => {
+		for (const aop of austria) {
+			for (const producer of aop.producers) {
+				expect(producer.searchKeyword, `${aop.id}/${producer.name}`).toMatch(
+					/^[ァ-ヴー・]+$/,
+				);
+			}
+		}
+	});
+
+	// 実行環境から生産者の公式サイトへ到達して所在地まで突合できたものだけを
+	// 収録しているため、最小の産地では3件に届かない。理由を明示した1件に限る。
+	it("生産者が3件未満のAOPは理由を明示した1件に限られる", () => {
+		const few = austria.filter((a) => a.producers.length < 3).map((a) => a.id);
+		// トライゼンタール(861ha)は公式サイトで所在地まで確認できた造り手が
+		// マルクス・フーバーとルートヴィヒ・ノイマイヤーの2件だった。
+		expect(few).toEqual(["traisental"]);
+	});
+});
+
 describe("検索キーワードを整備済みの地域(#211)", () => {
 	it.each(KEYWORD_COMPLETE_REGIONS)(
 		"%s: 全生産者がカタカナ表記を持つ",

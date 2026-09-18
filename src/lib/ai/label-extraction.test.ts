@@ -291,6 +291,15 @@ describe("matchRegionId", () => {
 		expect(matchRegionId(["ヴェネート"])).toBe("veneto");
 	});
 
+	// オーストリアは1地方＝国全体。現地語(Österreich)はウムラウトを落として
+	// 照合され、英語表記と日本語の「オーストリー」は別名表で拾う(#626)。
+	it("オーストリアは英語・現地語・日本語表記を解決する", () => {
+		expect(matchRegionId(["Österreich"])).toBe("oesterreich");
+		expect(matchRegionId(["Austria"])).toBe("oesterreich");
+		expect(matchRegionId(["オーストリア"])).toBe("oesterreich");
+		expect(matchRegionId(["オーストリー"])).toBe("oesterreich");
+	});
+
 	it("一致しなければundefined", () => {
 		expect(matchRegionId(["Mosel"])).toBeUndefined();
 	});
