@@ -388,7 +388,7 @@ export async function answerRegionQuestion(
  * OpenRouter の接続が無い環境で返す利用不可メッセージ。キー未設定は推論・予約の
  * 前に検知し、予約せずこの 503 で返す(別モデルへの自動フォールバックはしない。#602)。
  */
-export const OPENROUTER_UNAVAILABLE_MESSAGE =
+const OPENROUTER_UNAVAILABLE_MESSAGE =
 	"この環境ではAI機能を利用できません。管理者にお問い合わせください。";
 
 /**
@@ -449,7 +449,7 @@ export function labelProviderAvailability(): {
  * (シークレットを D1 へ書かない)。経路は投入時に確定させて持ち回るので、ここで
  * 読むのは「その経路を実行するための鍵」だけになる。
  */
-export function openRouterApiKey(): string | undefined {
+function openRouterApiKey(): string | undefined {
 	return env.OPENROUTER_API_KEY?.trim() || undefined;
 }
 

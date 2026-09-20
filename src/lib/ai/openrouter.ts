@@ -39,7 +39,7 @@ export const OPENROUTER_API_URL =
  * web検索20回)でも打ち切らないよう余裕を持たせる。超過時は `OpenRouterError`
  * (code: "timeout") として投げ、呼び出し側の返却処理に載せる。
  */
-export const OPENROUTER_TIMEOUT_MS = 180_000;
+const OPENROUTER_TIMEOUT_MS = 180_000;
 
 /**
  * OpenRouter 内の配信プロバイダーのルーティング条件。**アプリによる別モデルへの
@@ -50,7 +50,7 @@ export const OPENROUTER_TIMEOUT_MS = 180_000;
  * モデルの別配信へ OpenRouter 側で振り替えることを明示的に許す。黙って別モデルへ
  * 切り替えることはない(OpenRouter の仕様)。
  */
-export const OPENROUTER_PROVIDER_ROUTING = {
+const OPENROUTER_PROVIDER_ROUTING = {
 	allow_fallbacks: true,
 } as const;
 
@@ -61,13 +61,13 @@ const OPENROUTER_TITLE = "wine";
 // ---- メッセージ・ツール・応答の形(OpenAI chat completions 互換) ----
 
 /** テキストパート。 */
-export interface OpenRouterTextPart {
+interface OpenRouterTextPart {
 	type: "text";
 	text: string;
 }
 
 /** 画像パート。data URI をそのまま渡す(HTTP URL は不可。parseImageDataUrl で強制)。 */
-export interface OpenRouterImagePart {
+interface OpenRouterImagePart {
 	type: "image_url";
 	image_url: { url: string };
 }
@@ -109,7 +109,7 @@ export interface OpenRouterFunctionTool {
  * (OpenAI / Anthropic / Google 等。それ以外は要確認のため native を明示し、
  *  黙って Exa 等へ落ちる余地を作らない)。
  */
-export interface OpenRouterWebSearchTool {
+interface OpenRouterWebSearchTool {
 	type: "openrouter:web_search";
 	parameters?: {
 		/** プロバイダのネイティブ検索を使う。未対応モデルではエラーになる。 */
@@ -159,7 +159,7 @@ export interface OpenRouterChatRequest {
 }
 
 /** モデルが返した function ツール呼び出し。引数は JSON 文字列(パースは呼び出し側)。 */
-export interface OpenRouterToolCall {
+interface OpenRouterToolCall {
 	id: string;
 	name: string;
 	arguments: string;
@@ -169,7 +169,7 @@ export interface OpenRouterToolCall {
  * 応答メッセージに付く引用アノテーション。web検索の結果 URL を含み、
  * 「見ていないサイトの引用」の検証と検索の軌跡の組み立てに使う。
  */
-export interface OpenRouterAnnotation {
+interface OpenRouterAnnotation {
 	type: string;
 	url_citation?: {
 		url?: string;
