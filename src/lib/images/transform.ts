@@ -34,7 +34,7 @@ const OUTPUT_FORMAT = "image/jpeg" as const;
  *
  * **無い環境でも解析そのものは通す**ための判定。バインディングの設定漏れで
  * エチケット解析が丸ごと落ちるより、拡大が使えないだけで済むほうが被害が小さい
- * (Workers AI へのフォールバックと同じ考え方)。呼び出し側は警告を出す。
+ * (失敗時に精度を下げて継続するのと同じ考え方)。呼び出し側は警告を出す。
  */
 export function isImageTransformAvailable(): boolean {
 	return !!(env as { IMAGES?: unknown }).IMAGES;

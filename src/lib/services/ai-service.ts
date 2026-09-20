@@ -1,13 +1,5 @@
 import { env } from "cloudflare:workers";
-import { createOpenAI } from "@ai-sdk/openai";
-import Anthropic from "@anthropic-ai/sdk";
-import { generateText, stepCountIs } from "ai";
-import OpenAI from "openai";
-import {
-	accumulateStepUsage,
-	countProviderExecutedCalls,
-	toAiSdkUsage,
-} from "#/lib/ai/ai-sdk-usage";
+import { z } from "zod";
 import {
 	AI_LABEL_AGENT_BUDGET_RATIO,
 	AI_LABEL_AGENT_MAX_STEPS,
@@ -18,7 +10,6 @@ import {
 	AI_LABEL_MODEL,
 	AI_LABEL_ROUTE_MODELS,
 	AI_LABEL_VIEW_MAX_DIMENSION,
-	AI_LABEL_WEB_MAX_CONTINUATIONS,
 	AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
 	AI_LABEL_WEB_MAX_SEARCHES,
 	AI_LABEL_WEB_MODEL,
@@ -26,11 +17,10 @@ import {
 	AI_REGION_QA_MODELS,
 	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE,
-	AI_WINE_LIST_MAX_CONTINUATIONS,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_SEARCHES,
 	AI_WINE_LIST_ROUTE_MODELS,
-	claudeThinkingForEffort,
+	anthropicReasoningForEffort,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REASONING_EFFORT,
 	DEFAULT_REGION_QA_MODEL,
@@ -43,7 +33,7 @@ import {
 	type RegionQaModelKey,
 	resolveLabelRoute,
 	resolveWineListRoute,
-	toLabelEngineKey,
+	toLabelEngineKeyWithCompat,
 	toReasoningEffortKey,
 	toRegionQaModelKey,
 	type WineListRoute,
@@ -58,6 +48,7 @@ import {
 	buildWebLabelPrompt,
 	extractJsonPayload,
 	LABEL_JSON_SCHEMA,
+	LABEL_WEB_JSON_SCHEMA,
 	type LabelExtraction,
 	type LabelFieldSources,
 	type LabelSuggestions,
@@ -68,24 +59,29 @@ import {
 import {
 	assertGptLabelFinished,
 	buildGptLabelMessages,
-	GPT_WEB_SEARCH_TOOL_NAME,
 } from "#/lib/ai/label-gpt-research";
 import {
 	type AnswerCollector,
 	buildLabelTools,
+	SUBMIT_ANSWER_TOOL_NAME,
 	ZOOM_OUTPUT_MAX_DIMENSION,
+	ZOOM_PHOTO_TOOL_NAME,
 } from "#/lib/ai/label-tools";
-import {
-	buildWebLabelMessages,
-	joinResponseText,
-	toAnthropicUsage,
-} from "#/lib/ai/label-web-research";
+import { buildWebLabelMessages } from "#/lib/ai/label-web-research";
 import {
 	LABEL_AGENT_RESEARCH_PROMPT,
 	LABEL_WEB_RESEARCH_PROMPT,
 	REGION_QA_SYSTEM_PROMPT,
 	WINE_LIST_RESEARCH_PROMPT,
 } from "#/lib/ai/managed-prompts";
+import {
+	chatCompletion,
+	type OpenRouterChatResult,
+	type OpenRouterFunctionTool,
+	type OpenRouterMessage,
+	type OpenRouterTool,
+	type OpenRouterUserContent,
+} from "#/lib/ai/openrouter";
 import {
 	buildRegionChatMessages,
 	buildRegionContext,
@@ -95,8 +91,8 @@ import {
 	stripReasoning,
 } from "#/lib/ai/region-qa";
 import {
-	extractAiSdkWebSearchTrace,
-	extractAnthropicTrace,
+	concatWebResearchTraces,
+	extractOpenRouterTrace,
 	type WebResearchTrace,
 } from "#/lib/ai/web-research-trace";
 import {
@@ -112,13 +108,10 @@ import {
 	type WineListSubject,
 } from "#/lib/ai/wine-list-extraction";
 import {
+	assertWineListChatFinished,
 	buildWineListGptInput,
 	buildWineListGptTextFormat,
-	countGptWebSearchCalls,
-	extractWineListGptText,
-	toGptUsage,
 } from "#/lib/ai/wine-list-gpt";
-import { toWorkersAiUsage } from "#/lib/ai/workers-ai-usage";
 import {
 	type AiUsage,
 	addUsage,
@@ -308,6 +301,12 @@ export async function answerRegionQuestion(
 	// モデル解決は予約と独立なので、先に済ませて「予約したら必ず try で囲まれている」形にする。
 	const modelKey = await resolveModelKey(userId, input.model);
 	const model = AI_REGION_QA_MODELS[modelKey];
+	// 接続キーは**予約より前**に解決する(#245)。未設定なら予約せず利用不可として
+	// 返す(別モデルへの自動フォールバックはしない。#602)。
+	const apiKey = openRouterApiKey();
+	if (!apiKey) {
+		throw new HttpError(503, OPENROUTER_UNAVAILABLE_MESSAGE);
+	}
 	// 見積はモデルが決まってから作る。gemma4 と llama4 で単価が3倍違うため、
 	// モデル解決より前に見積ると経路と原価が食い違う。
 	const estimate = estimateRegionQaReserveCharge(modelKey, promptTokens);
@@ -324,35 +323,29 @@ export async function answerRegionQuestion(
 		userId,
 		{ estimate, requestId, logBase },
 		async (ctx) => {
-			const raw = await env.AI.run(model.id, {
+			const response = await chatCompletion(apiKey, {
+				model: model.id,
 				messages,
-				max_completion_tokens: AI_MAX_OUTPUT_TOKENS,
-				// モデル固有オプションを展開。Gemma 4 は既定で thinking が有効で、放置すると
-				// reasoning が出力枠(512)を先に使い切り本文(content)が途中で切れる/空になるため
-				// extraOptions で enable_thinking=false を渡す(Llama 4 はこのオプション不要)。
-				...model.extraOptions,
+				maxTokens: AI_MAX_OUTPUT_TOKENS,
+				// モデル固有の推論設定。Gemma 4 は既定で thinking が有効で、放置すると
+				// reasoning が出力枠(512)を先に使い切り本文が途中で切れる/空になるため
+				// effort "none" で無効化する(Llama 4 はこの指定を持たない)。
+				...(model.reasoning ? { reasoning: model.reasoning } : {}),
 			});
-			// レスポンス形式はモデルで異なるため両対応する:
-			//  - Chat Completions 互換(Gemma 4 等): choices[0].message.content
-			//  - 従来テキスト生成(Llama 系等): response
-			// usage は両形式とも usage.total_tokens（無いモデルもあるため任意）。
-			const out = raw as {
-				response?: string;
-				choices?: Array<{ message?: { content?: string | null } }>;
-				usage?: { total_tokens?: number };
-			};
-			const rawText = out.choices?.[0]?.message?.content ?? out.response ?? "";
 			// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
-			const answer = stripReasoning(rawText).trim();
-			// Workers AI は入出力の内訳を返さないので、全量を出力単価で換算する(保守的=
-			// 過大請求側)。この経路は原価がほぼゼロなので実害は無い。実測が取れなければ
-			// 予約全量を実測とみなす —— **この機能は単経路で降格が無い**ので、予約額は
-			// そのまま「実行された経路の見積」でもある(#404 のエチケット解析とは違う)。
-			const measured = toWorkersAiUsage(out.usage);
-			const charge =
-				measured === undefined
-					? fallbackCharge(ctx.reservedMicroUsd)
-					: chargeFor(model.id, measured);
+			const answer = stripReasoning(response.text).trim();
+			// OpenRouter は入出力の内訳(prompt/completion + キャッシュ読み)を返す。
+			// 実測が空(すべて 0)の回は予約全量を実測とみなす —— **この機能は単経路で
+			// 降格が無い**ので、予約額はそのまま「実行された経路の見積」でもある
+			// (#404 のエチケット解析とは違う)。
+			const measured = response.usage;
+			const isEmpty =
+				(measured.inputTokens ?? 0) === 0 &&
+				(measured.outputTokens ?? 0) === 0 &&
+				(measured.cacheReadTokens ?? 0) === 0;
+			const charge = isEmpty
+				? fallbackCharge(ctx.reservedMicroUsd)
+				: chargeFor(model.id, measured);
 			// 単経路なので実行経路は選択経路と常に一致する。
 			ctx.addLogFields({ executedBy: modelKey });
 			ctx.recordGeneration({
@@ -393,16 +386,24 @@ export async function answerRegionQuestion(
 }
 
 /**
- * このユーザのエチケット解析で**実際に走る経路**を返す。
+ * OpenRouter の接続が無い環境で返す利用不可メッセージ。キー未設定は推論・予約の
+ * 前に検知し、予約せずこの 503 で返す(別モデルへの自動フォールバックはしない。#602)。
+ */
+export const OPENROUTER_UNAVAILABLE_MESSAGE =
+	"この環境ではAI機能を利用できません。管理者にお問い合わせください。";
+
+/**
+ * このユーザのエチケット解析で**実際に走る経路**を返す。OpenRouter の接続が無い
+ * 環境では `null`(利用不可)。
  *
  * 解析前に必要クレジットを出すために UI が要る情報だが、経路はシークレットの設定状況
- * (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY`)に依存するのでクライアントでは決められない。
- * 判定は analyzeWineLabel と**同じ resolveLabelRoute** を通すので、表示とサーバの
+ * (`OPENROUTER_API_KEY`)に依存するのでクライアントでは決められない。
+ * 判定は resolveLabelPlan と**同じ resolveLabelRoute** を通すので、表示とサーバの
  * 予約が食い違わない(経路ごとに条件を書き分けるとドリフトする。#354 の教訓)。
  */
 export async function resolveLabelRouteForUser(
 	userId: string,
-): Promise<LabelRoute> {
+): Promise<LabelRoute | null> {
 	return (await resolveLabelEngineAndRoute(userId)).route;
 }
 
@@ -414,14 +415,16 @@ export async function resolveLabelRouteForUser(
  */
 async function resolveLabelEngineAndRoute(userId: string): Promise<{
 	engine: LabelEngineKey;
-	route: LabelRoute;
+	route: LabelRoute | null;
 	effort: ReasoningEffortKey;
 }> {
 	const { preferredLabelEngine, preferredReasoningEffort } =
 		await userService.getCurrentUser(userId);
 	// 書き込み側(auth.ts の validator)と同じ許可リストで照合する。旧データ・不正値は
-	// 既定(高精度・low)へフォールバックする(resolveModelKey と同じ流儀)。
-	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
+	// 既定(高精度・low)へフォールバックする(resolveModelKey と同じ流儀)。旧
+	// `workers-ai` 値は `standard` へ読み替える(#602 の移行対応表)。
+	const engine =
+		toLabelEngineKeyWithCompat(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
 	return {
 		engine,
 		route: resolveLabelRoute(engine, labelProviderAvailability()),
@@ -431,15 +434,24 @@ async function resolveLabelEngineAndRoute(userId: string): Promise<{
 	};
 }
 
-/** 高精度経路が使える環境か(プロフィールの選択カードに目安消費を出すために使う)。 */
+/** OpenRouter 接続が使える環境か(全AI機能の単一の判定口)。 */
 export function labelProviderAvailability(): {
-	openai: boolean;
-	anthropic: boolean;
+	openrouter: boolean;
 } {
 	return {
-		openai: !!env.OPENAI_API_KEY?.trim(),
-		anthropic: !!env.ANTHROPIC_API_KEY?.trim(),
+		openrouter: openRouterApiKey() !== undefined,
 	};
+}
+
+/**
+ * OpenRouter のプロバイダキー(env から読む)。**予約より前に読むこと**(#245)。
+ *
+ * ジョブ経路のコンシューマも同じ関数を通す。キー**そのもの**はジョブ行に持たない
+ * (シークレットを D1 へ書かない)。経路は投入時に確定させて持ち回るので、ここで
+ * 読むのは「その経路を実行するための鍵」だけになる。
+ */
+export function openRouterApiKey(): string | undefined {
+	return env.OPENROUTER_API_KEY?.trim() || undefined;
 }
 
 /** 高精度経路が返す、抽出結果と観測情報。 */
@@ -561,29 +573,30 @@ async function resolveWineListResearchPrompt(
 }
 
 /**
- * AI SDK の応答 content を、Langfuse に載せてよい形へ畳む。
- * テキスト・ツール呼び出し(名前と引数)は残し、**バイナリを含いうる部分(file など)は
- * 種別だけ**を残す。写真の方針(docs/deployment.md)の裏返しで、モデル応答側にも
- * 同じ規律を適用する。
+ * OpenRouter の応答(本文 + function ツール呼び出し)を、Langfuse に載せてよい形へ畳む。
+ * テキストとツール呼び出し(名前と引数)は残す。引数にバイナリは入らない
+ * (zoom_photo の結果は画像パートとして別途メッセージに載り、ここには座標だけが残る)。
+ * 写真の方針(docs/deployment.md)の裏返しで、モデル応答側にも同じ規律を適用する。
  */
-function toSafeContentParts(content: readonly unknown[]): unknown {
-	return content.map((part) => {
-		if (!part || typeof part !== "object") return part;
-		const p = part as Record<string, unknown>;
-		if (p.type === "text" || p.type === "reasoning") {
-			return { type: p.type, text: p.text };
-		}
-		if (p.type === "tool-call") {
-			return { type: p.type, toolName: p.toolName, input: p.input };
-		}
-		return { type: p.type };
-	});
+function toSafeToolCalls(
+	toolCalls: OpenRouterChatResult["toolCalls"],
+): unknown {
+	return toolCalls.map((call) => ({
+		name: call.name,
+		arguments: call.arguments,
+	}));
 }
 
 /**
  * 高精度経路: Claude(マルチモーダル + サーバーサイドweb検索)で全写真を1リクエスト
  * 解析し、生産者公式サイト・ワインDBでの裏取り込みの抽出結果を返す。
- * env 非依存(apiKey を注入)で、失敗は throw する(フォールバック判断は呼び出し側)。
+ * env 非依存(apiKey を注入)で、失敗は throw する。
+ *
+ * #602 で Anthropic SDK 直接接続から OpenRouter 経由へ移した。web検索は
+ * `openrouter:web_search` サーバーツール(engine native → Anthropic ネイティブ検索)
+ * で、1リクエストの中で完結する。pause_turn の継続ループは要らない
+ * (回数上限は max_uses が Anthropic へ転送される)。使用回数は応答の
+ * `usage.server_tool_use.web_search_requests` に出る。
  */
 async function analyzeLabelWithWebResearch(
 	apiKey: string,
@@ -592,88 +605,63 @@ async function analyzeLabelWithWebResearch(
 	obs?: InferenceObserver,
 	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
 	promptText?: string,
-	/** ユーザ設定の推論の深さ。low は thinking 無指定(現行どおり)。 */
+	/** ユーザ設定の推論の深さ。low は reasoning 無指定(現行どおり)。 */
 	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<LabelResearchResult> {
-	const client = new Anthropic({ apiKey });
-	const thinking = claudeThinkingForEffort(effort);
-	const request = {
-		model: AI_LABEL_WEB_MODEL,
-		max_tokens: AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
-		...(thinking ? { thinking } : {}),
-		tools: [
-			{
-				type: "web_search_20260209",
-				name: "web_search",
-				max_uses: AI_LABEL_WEB_MAX_SEARCHES,
-			},
-		],
-	} satisfies Partial<Anthropic.MessageCreateParamsNonStreaming>;
 	const messages = buildWebLabelMessages(
 		imageDataUrls,
 		promptText ?? buildWebLabelPrompt(),
 	);
 	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#514)。ハッシュ計算の非同期は
-	// ここで済ませてあるので、以降の置き換えは同期で済む。継続で積まれる assistant
-	// 応答には写真が無いので、同じ写像で全体を畳める。
+	// ここで済ませてあるので、以降の置き換えは同期で済む。
 	const redact = await createPhotoRedactor(imageDataUrls);
 	// 写真インベントリはメタデータとして送る(入力が切り詰められても生きる)。
 	const photoSummaries = await describePhotoSummaries(imageDataUrls);
-	let callCount = 0;
-	/** 1リクエストぶんを generation として報告する(pause_turn の継続も1件ずつ)。 */
-	const reportGeneration = (
-		response: Anthropic.Message,
-		usage: AiUsage,
-	): void => {
-		if (!obs) return;
-		callCount += 1;
+	const response = await chatCompletion(apiKey, {
+		model: AI_LABEL_WEB_MODEL,
+		messages,
+		maxTokens: AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
+		reasoning: anthropicReasoningForEffort(effort),
+		tools: [
+			{
+				type: "openrouter:web_search",
+				parameters: {
+					engine: "native",
+					max_uses: AI_LABEL_WEB_MAX_SEARCHES,
+				},
+			},
+		],
+	});
+	const usage = response.usage;
+	const trace = extractOpenRouterTrace(response.annotations);
+	onTrace(trace);
+	if (obs) {
 		obs.recordGeneration({
-			name: `label_analysis:web-research#${callCount}`,
+			name: "label_analysis:web-research#1",
 			model: AI_LABEL_WEB_MODEL,
 			input: redact([...messages]),
-			output: response.content,
-			metadata: { photos: photoSummaries, continuation: callCount - 1 },
+			output: response.text,
+			metadata: { photos: photoSummaries },
 			usage: {
 				inputTokens: usage.inputTokens,
 				outputTokens: usage.outputTokens,
-				totalTokens:
-					(usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) || undefined,
+				totalTokens: totalTokens(usage),
 			},
 		});
-	};
-
-	let response = await client.messages.create({ ...request, messages });
-	// 継続のたびに入力を再送するので、**内訳ごとに**加算する(合算スカラーだと
-	// 入力・出力・web検索回数が混ざって原価を復元できない)。
-	let usage = toAnthropicUsage(response.usage);
-	reportGeneration(response, usage);
-	// 検索の軌跡は継続をまたいで積む。各レスポンスは新しいブロックだけを含むので、
-	// 全レスポンスぶんを連結すれば重複せず実行順のまま並ぶ。
-	const blocks: unknown[] = [...response.content];
-	onTrace(extractAnthropicTrace(blocks));
-	// サーバー側ツールループ(web検索)が上限に達すると pause_turn で返る。assistant 応答を
-	// 積んで再送すると続きから再開する(継続回数は原価ガードとして上限で打ち切る)。
-	for (
-		let i = 0;
-		i < AI_LABEL_WEB_MAX_CONTINUATIONS && response.stop_reason === "pause_turn";
-		i++
-	) {
-		messages.push({ role: "assistant", content: response.content });
-		response = await client.messages.create({ ...request, messages });
-		usage = addUsage(usage, toAnthropicUsage(response.usage));
-		blocks.push(...response.content);
-		onTrace(extractAnthropicTrace(blocks));
-		reportGeneration(response, toAnthropicUsage(response.usage));
+		if (trace.steps.length > 0) {
+			obs.recordSpan({
+				name: "web_search",
+				input: trace.steps.map((s) => ({ action: s.action, query: s.query })),
+				output: trace.steps,
+			});
+		}
 	}
-	// claude-opus-5 はセーフティ分類器が HTTP 200 + stop_reason: "refusal" で応答を
-	// 拒否しうる。content が空/不完全なので通常の失敗として扱う(Workers AI へフォールバック)。
-	if (response.stop_reason === "refusal") {
+	// セーフティ分類器が応答を拒否すると本文が空/不完全になる。通常の失敗として扱う。
+	if (response.finishReason === "content_filter" || !response.text.trim()) {
 		throw new Error("Claudeがエチケット解析の応答を拒否しました");
 	}
-	// 本文JSONは最終レスポンスに出る(pause_turn はツール実行中の中断で、その時点では
-	// まだ本文を書き始めていない)。**軌跡と違い連結しない**: 継続前のテキストを混ぜると
-	// extractJsonPayload の「最初の { 〜 最後の }」が別の断片を拾いうる。
-	const payload = extractJsonPayload(joinResponseText(response.content));
+	assertGptLabelFinished(response.finishReason);
+	const payload = extractJsonPayload(response.text);
 	return {
 		extraction: parseLabelResponse(payload),
 		usage,
@@ -684,9 +672,13 @@ async function analyzeLabelWithWebResearch(
 }
 
 /**
- * 高精度経路: OpenAI GPT-5.6 Luna を**エージェントループ**で回し、全写真を総合解析する。
- * Claude経路と同じ契約(env 非依存・失敗は throw してフォールバックは呼び出し側)で、
- * 返す形も揃える。
+ * 高精度経路: GPT-5.6 Luna を**エージェントループ**で回し、全写真を総合解析する。
+ * Claude経路と同じ契約(env 非依存・失敗は throw)で、返す形も揃える。
+ *
+ * #602 で OpenAI 直結 + AI SDK から OpenRouter の chat completions へ移した。
+ * ループ自体はアプリ側で回し、function ツールの実行だけを行う。web検索は
+ * `openrouter:web_search` サーバーツールとして OpenRouter 側で実行される
+ * (使用回数は各応答の usage に出る)。
  *
  * **1回で答えを出させない**のがこの経路の要点(#455)。同一写真の解析を4回繰り返すと
  * 毎回別の生産者を返し、そのすべてが `origin: "photo_and_web"` と参照URLを伴っていた。
@@ -718,145 +710,140 @@ async function analyzeLabelWithGptResearch(
 	/** ユーザ設定の推論の深さ。 */
 	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<LabelResearchResult> {
-	const openai = createOpenAI({ apiKey });
-	// クロージャで使うので、undefined の可能性を先に畳んでおく。
-	const cropSources = sourceDataUrls;
-	// 軌跡は**モデル呼び出しが終わった時点**で積む(`onStepFinish` ではない)。
-	//
-	// web検索はプロバイダ実行ツールなので、その結果は `submit_answer` と**同じ応答**に
-	// 載ってくる。`onStepFinish` はツール実行の後に発火するため、そこで積むと
-	// 「同じステップで検索してから提出した」回に検証器が空の軌跡を見てしまい、
-	// 実際には検索しているのに「web検索を実行していません」と誤って落とす。
-	// `onLanguageModelCallEnd` はツール実行の前に応答内容ごと渡ってくるので、
-	// 提出の検証に間に合う。
-	const contentParts: unknown[] = [];
-	let trace: WebResearchTrace | undefined;
+	// 軌跡は**モデル呼び出しが終わった時点**で積む。web検索はサーバーツールなので、
+	// その実行結果は同じ応答のアノテーションに載ってくる。提出の検証に間に合わせる
+	// ため、ツール実行の前に応答内容ごと軌跡へ畳む。
+	let trace: WebResearchTrace = { steps: [], stepCount: 0, hosts: [] };
 	const collector: AnswerCollector = {};
-	const usageOptions = {
-		// OpenAI はキャッシュ書き込みを課金しない(拾うと入力単価で過大請求になる)。
-		billCacheWrites: false,
-		webSearchToolName: GPT_WEB_SEARCH_TOOL_NAME,
-		webSearches: 0,
-	};
-	// Langfuse への報告(#514)。**報告点は onLanguageModelCallEnd**——ここなら
-	// パースや finishReason 検査で失敗して Workers AI へ降格する回にも、降格前の
-	// モデルが何を返していたかが残る(この Phase の主眼)。ハッシュ計算の非同期は
-	// ループ前に済ませてあるので、コールバックの中は同期で報告できる。
+	// ツール定義は label-tools.ts の SSOT をそのまま使う。実行関数(execute)は
+	// AI SDK の形だが、引数だけで呼べる(検証・収集・観測の閉じ込めはそのまま)。
+	const labelTools = buildLabelTools({
+		collector,
+		getVerifyContext: () => ({ trace }),
+		photoCount: imageDataUrls.length,
+		// **写真の拡大はこの経路の精度の要**(全体写真では読めない文字がある)。
+		// 元になるのは縮小前の版で、切り出した結果はモデルへ画像として返る。
+		// 画像変換が使えない環境では渡さない = ツールごと出さない。
+		...(sourceDataUrls
+			? {
+					cropPhoto: async (photoIndex, box) => {
+						const source = sourceDataUrls[photoIndex];
+						if (!source) throw new Error(`写真 ${photoIndex} がありません`);
+						const cropped = await cropImage(
+							source,
+							box,
+							ZOOM_OUTPUT_MAX_DIMENSION,
+						);
+						return { dataUrl: cropped.dataUrl, applied: cropped.applied };
+					},
+				}
+			: {}),
+		// ツール実行を span として報告する(#514)。`submit_answer` の検証結果
+		// (problems)は「どのステップで何を考えて収束しなかったか」の切り分けに
+		// 直結する。失敗した呼び出しは ERROR にして目立たせる。
+		...(obs
+			? {
+					observe: (event: {
+						tool: string;
+						input: unknown;
+						result?: unknown;
+						error?: string;
+					}) =>
+						obs.recordSpan({
+							name: event.tool,
+							input: event.input,
+							output: event.result ?? event.error,
+							...(event.error
+								? { level: "ERROR" as const, statusMessage: event.error }
+								: {}),
+						}),
+				}
+			: {}),
+	});
+	const functionTools: OpenRouterFunctionTool[] = Object.entries(
+		labelTools,
+	).map(([name, tool]) => ({
+		type: "function",
+		function: {
+			name,
+			// AI SDK の description は関数でも持てるが、OpenRouter へ送るのは文字列だけ。
+			description:
+				typeof tool.description === "string" ? tool.description : undefined,
+			// submit_answer のスキーマは LABEL_WEB_JSON_SCHEMA が正本。AI SDK の
+			// jsonSchema ラッパーではなく正本をそのまま渡す。
+			parameters:
+				name === SUBMIT_ANSWER_TOOL_NAME
+					? (LABEL_WEB_JSON_SCHEMA as unknown as Record<string, unknown>)
+					: (z.toJSONSchema(tool.inputSchema as z.ZodType) as unknown as Record<
+							string,
+							unknown
+						>),
+		},
+	}));
+	// Langfuse への報告(#514)。**報告点はモデル呼び出しの直後**——ここなら
+	// パースや finishReason 検査で失敗する回にも、失敗前のモデルが何を返していたかが
+	// 残る(この Phase の主眼)。ハッシュ計算の非同期はループ前に済ませてあるので、
+	// 報告の中は同期で済む。
 	const redact = await createPhotoRedactor(imageDataUrls);
 	// 写真インベントリはメタデータとして送る(入力が切り詰められても生きる)。
 	const photoSummaries = await describePhotoSummaries(imageDataUrls);
-	let callCount = 0;
+	const initialMessages = buildGptLabelMessages(
+		imageDataUrls,
+		promptText ?? buildAgentLabelPrompt(),
+	);
+	const messages: OpenRouterMessage[] = [...initialMessages];
+	const tools: OpenRouterTool[] = [
+		{
+			type: "openrouter:web_search",
+			parameters: {
+				engine: "native",
+				search_context_size: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
+			},
+		},
+		...functionTools,
+	];
+	let usage: AiUsage = {};
+	let steps = 0;
 	let reportedSearchSteps = 0;
-
-	const result = await generateText({
-		model: openai(AI_LABEL_GPT_MODEL),
-		messages: buildGptLabelMessages(
-			imageDataUrls,
-			promptText ?? buildAgentLabelPrompt(),
-		),
-		tools: {
-			[GPT_WEB_SEARCH_TOOL_NAME]: openai.tools.webSearch({
-				searchContextSize: AI_LABEL_GPT_SEARCH_CONTEXT_SIZE,
-			}),
-			...buildLabelTools({
-				collector,
-				getVerifyContext: () => ({ trace }),
-				photoCount: imageDataUrls.length,
-				// **写真の拡大はこの経路の精度の要**(全体写真では読めない文字がある)。
-				// 元になるのは縮小前の版で、切り出した結果はモデルへ画像として返る。
-				// 画像変換が使えない環境では渡さない = ツールごと出さない。
-				...(cropSources
-					? {
-							cropPhoto: async (photoIndex, box) => {
-								const source = cropSources[photoIndex];
-								if (!source) throw new Error(`写真 ${photoIndex} がありません`);
-								const cropped = await cropImage(
-									source,
-									box,
-									ZOOM_OUTPUT_MAX_DIMENSION,
-								);
-								return { dataUrl: cropped.dataUrl, applied: cropped.applied };
-							},
-						}
-					: {}),
-				// ツール実行を span として報告する(#514)。`submit_answer` の検証結果
-				// (problems)は「どのステップで何を考えて収束しなかったか」の切り分けに
-				// 直結する。失敗した呼び出しは ERROR にして目立たせる。
-				...(obs
-					? {
-							observe: (event: {
-								tool: string;
-								input: unknown;
-								result?: unknown;
-								error?: string;
-							}) =>
-								obs.recordSpan({
-									name: event.tool,
-									input: event.input,
-									output: event.result ?? event.error,
-									...(event.error
-										? { level: "ERROR" as const, statusMessage: event.error }
-										: {}),
-								}),
-						}
-					: {}),
-			}),
-		},
-		stopWhen: [
-			// 検証を通った回答が出たら、それ以上考えさせない。
-			() => collector.accepted !== undefined,
-			// 予約に対する原価の上限。次のステップを始める前にしか判定できないので、
-			// 比率には余裕を持たせてある(config の AI_LABEL_AGENT_BUDGET_RATIO)。
-			({ steps }) =>
-				usageToMicroUsd(
-					AI_LABEL_GPT_MODEL,
-					accumulateStepUsage(steps, usageOptions),
-				) >= budgetMicroUsd,
-			stepCountIs(AI_LABEL_AGENT_MAX_STEPS),
-		],
-		maxOutputTokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
-		providerOptions: {
-			openai: { reasoningEffort: effort },
-		},
-		// **Workers では明示的に切る**。AI SDK の telemetry は Node の
-		// `diagnostics_channel` を使うが、workerd(nodejs_compat)のシムは
-		// `hasSubscribers` を返さないため無効化の分岐が働かず、tracePromise が
-		// 呼び出しごとに派生 Promise を作る。その派生 Promise には誰も catch を
-		// 付けないので、**推論が失敗するたびに未処理の Promise 拒否が残る**
-		// (こちらは try/catch で受けて Workers AI へ降格しているのに、ランタイムには
-		// 未処理として記録される)。OpenTelemetry の連携は使っておらず、観測は
-		// logAiInference と Sentry で足りているので、切って困るものが無い。
-		telemetry: { isEnabled: false },
-		onLanguageModelCallEnd: ({ content, usage: callUsage }) => {
-			contentParts.push(...content);
-			trace = extractAiSdkWebSearchTrace(contentParts);
-			onTrace(trace);
-			if (!obs) return;
-			// モデル呼び出し1回 = generation 1件(#514)。usage は**この呼び出しぶん**
-			// (エージェントループの合算は result.usage の担当で、確定処理が使う)。
-			callCount += 1;
+	for (let step = 0; step < AI_LABEL_AGENT_MAX_STEPS; step++) {
+		// 予約に対する原価の上限。次のステップを始める前にしか判定できないので、
+		// 比率には余裕を持たせてある(config の AI_LABEL_AGENT_BUDGET_RATIO)。
+		if (usageToMicroUsd(AI_LABEL_GPT_MODEL, usage) >= budgetMicroUsd) break;
+		const response = await chatCompletion(apiKey, {
+			model: AI_LABEL_GPT_MODEL,
+			messages,
+			tools,
+			maxTokens: AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
+			reasoning: { effort },
+		});
+		steps += 1;
+		// 内訳ごとに加算する(合算スカラーだと入力・出力・web検索回数が混ざって
+		// 原価を復元できない)。
+		usage = addUsage(usage, response.usage);
+		trace = concatWebResearchTraces([
+			trace,
+			extractOpenRouterTrace(response.annotations),
+		]);
+		onTrace(trace);
+		if (obs) {
+			// モデル呼び出し1回 = generation 1件(#514)。usage は**この呼び出しぶん**。
 			obs.recordGeneration({
-				name: `label_analysis:gpt-luna#${callCount}`,
+				name: `label_analysis:gpt-luna#${steps}`,
 				model: AI_LABEL_GPT_MODEL,
 				// 入力は最初の呼び出しだけ(以降は蓄積した会話で、応答の連なりから読める)。
-				input:
-					callCount === 1
-						? redact(
-								buildGptLabelMessages(
-									imageDataUrls,
-									promptText ?? buildAgentLabelPrompt(),
-								),
-							)
-						: { step: callCount },
-				output: toSafeContentParts(content),
-				metadata: { photos: photoSummaries, step: callCount },
+				input: steps === 1 ? redact(initialMessages) : { step: steps },
+				output: {
+					text: response.text,
+					toolCalls: toSafeToolCalls(response.toolCalls),
+				},
+				metadata: { photos: photoSummaries, step: steps },
 				usage: {
-					inputTokens: callUsage.inputTokens,
-					outputTokens: callUsage.outputTokens,
-					totalTokens: callUsage.totalTokens,
+					inputTokens: response.usage.inputTokens,
+					outputTokens: response.usage.outputTokens,
+					totalTokens: totalTokens(response.usage),
 				},
 			});
-			// web検索はプロバイダ実行ツールなので span の取り得ない代わりに、
+			// web検索はサーバーツールなので span の取り得ない代わりに、
 			// **この呼び出しで新しく走った分**を1本の span に畳んで出す。
 			const newSteps = trace.steps.slice(
 				Math.min(reportedSearchSteps, trace.steps.length),
@@ -869,23 +856,67 @@ async function analyzeLabelWithGptResearch(
 					output: newSteps,
 				});
 			}
-		},
-	});
-	assertGptLabelFinished(result.finishReason);
-	// usage は全ステップ合算済み。**web検索の回数だけは usage に出ない**ので
-	// ツール呼び出しを数える($10/1000回 の回数課金で、Luna の原価の8割を占める)。
-	const usage = toAiSdkUsage(result.usage, {
-		webSearches: countProviderExecutedCalls(
-			result.toolCalls,
-			GPT_WEB_SEARCH_TOOL_NAME,
-		),
-		billCacheWrites: false,
-	});
+		}
+		assertGptLabelFinished(response.finishReason);
+		if (response.toolCalls.length === 0) break;
+		// function 呼び出しを実行し、結果を会話へ載せて次へ回す。サーバーツールは
+		// OpenRouter 側で実行済みなのでここには現れない。
+		messages.push({
+			role: "assistant",
+			content: response.text || null,
+			tool_calls: response.toolCalls,
+		});
+		for (const call of response.toolCalls) {
+			const tool = (
+				labelTools as Record<
+					string,
+					(typeof labelTools)[keyof typeof labelTools] | undefined
+				>
+			)[call.name];
+			if (!tool) {
+				messages.push({
+					role: "tool",
+					tool_call_id: call.id,
+					content: `未知のツール ${call.name} は使えません`,
+				});
+				continue;
+			}
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(call.arguments);
+			} catch {
+				messages.push({
+					role: "tool",
+					tool_call_id: call.id,
+					content: "引数のJSONを解釈できませんでした",
+				});
+				continue;
+			}
+			try {
+				const output = await (
+					tool.execute as unknown as (args: unknown) => Promise<unknown>
+				)(parsed);
+				messages.push({
+					role: "tool",
+					tool_call_id: call.id,
+					content: toToolResultContent(call.name, output),
+				});
+			} catch (e) {
+				messages.push({
+					role: "tool",
+					tool_call_id: call.id,
+					content: e instanceof Error ? e.message : String(e),
+				});
+			}
+		}
+		// 検証を通った回答が出たら、それ以上考えさせない。
+		if (collector.accepted !== undefined) break;
+	}
 
 	// 検証を通った回答を最優先。無ければ**検証を通らなかった最後の回答**を使う。
 	// これはフォームの自動入力候補であって確定値ではないので、「不完全でも候補を出す」
 	// ほうが「解析失敗」より利用者の得になる(利用者が画面で直せる)。どちらも無ければ
-	// 推論失敗として throw し、Workers AI へ降格する。
+	// 推論失敗として throw する。
 	const answer = collector.accepted ?? collector.last;
 	if (!answer) {
 		throw new Error("エージェントループが回答を提出しませんでした");
@@ -895,8 +926,34 @@ async function analyzeLabelWithGptResearch(
 		usage,
 		...(answer.fieldSources ? { fieldSources: answer.fieldSources } : {}),
 		verified: answer.verified,
-		steps: result.steps.length,
+		steps,
 	};
+}
+
+/**
+ * function ツールの実行結果をモデルへ返す形へ畳む。`zoom_photo` だけは切り出し画像を
+ * 画像パートとして載せる(座標だけ返しても読めるようにはならない)。それ以外は JSON
+ * テキストで返す。Langfuse には載せない経路なので、ここでの写真の扱いは会話用。
+ */
+function toToolResultContent(
+	toolName: string,
+	output: unknown,
+): string | OpenRouterUserContent {
+	if (toolName !== ZOOM_PHOTO_TOOL_NAME) {
+		return JSON.stringify(output);
+	}
+	const result = output as {
+		error?: string;
+		applied?: unknown;
+		dataUrl?: string;
+	};
+	if (result.error || !result.dataUrl) {
+		return result.error ?? "拡大に失敗しました";
+	}
+	return [
+		{ type: "text", text: `適用した範囲: ${JSON.stringify(result.applied)}` },
+		{ type: "image_url", image_url: { url: result.dataUrl } },
+	];
 }
 
 /**
@@ -944,8 +1001,8 @@ function buildLabelLogBase(options: {
 /**
  * エチケット解析の経路・見積・requestId を解決する。**予約より前に呼ぶ**(#245)。
  *
- * 高精度経路は「対応するシークレット設定あり かつ ユーザが標準を明示選択していない」
- * 場合のみ有効。env・ユーザ設定(D1読み)の解決をここに閉じ込めることで、呼び出し側は
+ * OpenRouter の接続が無い環境は 503——別モデルへの自動フォールバックはしない(#602)。
+ * env・ユーザ設定(D1読み)の解決をここに閉じ込めることで、呼び出し側は
  * 「plan を作る → 予約する」の順に並べるだけでよくなる。
  */
 export async function resolveLabelPlan(
@@ -953,9 +1010,11 @@ export async function resolveLabelPlan(
 	photoCount: number,
 ): Promise<LabelPlan> {
 	const { engine, route, effort } = await resolveLabelEngineAndRoute(userId);
-	// 見積は経路で大きく違う(実費で標準 約3 / Luna 約39 / Claude 約275 クレジット)。
-	// 経路 → 見積の対応は config.ts に寄せてあり、クライアントの必要クレジット表示も
-	// 同じ関数を通る。effort は出力見積の倍率に効く。
+	if (!route) {
+		throw new HttpError(503, OPENROUTER_UNAVAILABLE_MESSAGE);
+	}
+	// 見積は経路で大きく違う。経路 → 見積の対応は config.ts に寄せてあり、
+	// クライアントの必要クレジット表示も同じ関数を通る。effort は出力見積の倍率に効く。
 	return {
 		engine,
 		route,
@@ -1008,8 +1067,7 @@ async function runLabelInference(
 	input: {
 		imageDataUrls: string[];
 		plan: LabelPlan;
-		openaiApiKey?: string;
-		anthropicApiKey?: string;
+		openRouterApiKey: string;
 		/**
 		 * Langfuse 管理下から引いた高精度プロンプト。**呼び出し側
 		 * (`runLabelAnalysisForJob`)が推論の実行直前に解決して渡す**——ここで
@@ -1019,24 +1077,17 @@ async function runLabelInference(
 	},
 	ctx: MeteredInferenceContext,
 ): Promise<MeteredInferenceOutput<LabelSuggestions>> {
-	const { imageDataUrls, plan, openaiApiKey, anthropicApiKey } = input;
+	const { imageDataUrls, plan, openRouterApiKey } = input;
 	const { route, requestId } = plan;
-	// 実際に結果を出した経路。高精度経路が失敗すると route と食い違う(=フォールバック)。
-	// route だけを記録すると「GPTで成功」と「GPTが落ちてWorkers AIが拾った」を
-	// 区別できないため、別に持って実行記録に載せる。
-	let executedBy: LabelRoute | undefined;
-	/** 実行経路が確定したら実行記録にも反映する(降格した回も失敗した回も残る)。 */
-	const markExecutedBy = (executed: LabelRoute) => {
-		executedBy = executed;
-		ctx.addLogFields({
-			executedBy: executed,
-			model: AI_LABEL_ROUTE_MODELS[executed],
-		});
-	};
+	// 実行経路は plan で確定済みで、降格は無い(#602)。実行記録には選択と実行の
+	// 両方を載せる(旧フォールバック時代の `executedBy` と同じ見方で読めるよう)。
+	ctx.addLogFields({
+		executedBy: route,
+		model: AI_LABEL_ROUTE_MODELS[route],
+	});
 	// 裏取りの観測情報(webResearch / fieldSources)は**判明した時点で** ctx に積む。
-	// ラッパーが ok と failed の両方の実行記録に載せるので、高精度経路が落ちて
-	// Workers AI へ降格した回や推論そのものが失敗した回にも残る —— 「検索まで
-	// 到達したが結果を使えなかった」ことが分かるのはここだけ(#392)。
+	// ラッパーが ok と failed の両方の実行記録に載せるので、推論そのものが失敗した回にも
+	// 残る —— 「検索まで到達したが結果を使えなかった」ことが分かるのはここだけ(#392)。
 	let usage: AiUsage = {};
 	const extractions: LabelExtraction[] = [];
 	// Langfuse への報告口(#514)。キー未設定なら ctx 側が no-op するので、
@@ -1046,143 +1097,110 @@ async function runLabelInference(
 		recordSpan: (input) => ctx.recordSpan(input),
 	};
 
-	// 高精度経路: LLM + web検索で全写真を1リクエスト総合解析する。失敗しても全体を
-	// 落とさず、従来の Workers AI 経路へフォールバックする(可用性を落とさない)。
-	// **失敗時にもう一方の高精度プロバイダは試さない**: 予約は選んだ経路の見積で
-	// 取ってあり、2つ目の課金と待ち時間を積み増すより確実に応答を返す方を採る
-	// (キー未設定による降格は予約前の resolveLabelRoute が済ませている)。
-	// 世代の追跡は実行した高精度経路の解決結果で付ける。Workers AI へ降格した回は
-	// コードの版で動くので付けない(promptSource が混ざると版ごとの指標が汚れる)。
-	if (route === "gpt-luna" && openaiApiKey) {
+	// 経路ごとの推論は1回ずつ。**失敗しても他の経路へフォールバックしない**
+	// (#602。予約は選んだ経路の見積で取ってあり、2つ目の課金と待ち時間を積み増さない)。
+	// 世代の追跡は実行した経路の解決結果で付ける。
+	if (route === "gpt-luna") {
 		const researchObs = withPromptAttribution(obs, input.prompts?.agent);
-		try {
-			// **見せる版と切る版を分ける**。クライアントは拡大に耐える解像度で
-			// 送ってくるが、それをそのまま会話へ載せると入力トークンが毎ターン
-			// 効いてくる(しかも全体写真は解像度を上げても読めるようにならない
-			// ことが実測で分かっている)。会話には縮小版を載せ、`zoom_photo` は
-			// 元の版から切る。
-			// バインディングが無い環境では拡大を諦めて解析だけ通す。設定漏れで
-			// 機能が丸ごと落ちるより、精度が下がるだけで済むほうが被害が小さい。
-			const canTransform = isImageTransformAvailable();
-			if (!canTransform) {
-				logWarn("image transform unavailable; zoom_photo disabled", {
-					userId,
-					requestId,
-				});
-			}
-			const viewDataUrls = canTransform
-				? await Promise.all(
-						imageDataUrls.map((url) =>
-							downscaleImage(url, AI_LABEL_VIEW_MAX_DIMENSION),
-						),
-					)
-				: imageDataUrls;
-			const gpt = await analyzeLabelWithGptResearch(
-				openaiApiKey,
-				viewDataUrls,
-				canTransform ? imageDataUrls : undefined,
-				(t) => ctx.addLogFields({ webResearch: t }),
-				ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
-				researchObs,
-				input.prompts?.agent?.text,
-				plan.effort,
-			);
-			extractions.push(gpt.extraction);
-			usage = addUsage(usage, gpt.usage);
-			ctx.addLogFields({
-				fieldSources: gpt.fieldSources,
-				verified: gpt.verified,
-				steps: gpt.steps,
-			});
-			markExecutedBy("gpt-luna");
-		} catch (gptErr) {
-			logWarn("label gpt research failed; falling back to Workers AI", {
+		// **見せる版と切る版を分ける**。クライアントは拡大に耐える解像度で
+		// 送ってくるが、それをそのまま会話へ載せると入力トークンが毎ターン
+		// 効いてくる(しかも全体写真は解像度を上げても読めるようにならない
+		// ことが実測で分かっている)。会話には縮小版を載せ、`zoom_photo` は
+		// 元の版から切る。
+		// 画像変換が使えない環境では拡大を諦めて解析だけ通す。設定漏れで
+		// 機能が丸ごと落ちるより、精度が下がるだけで済むほうが被害が小さい。
+		const canTransform = isImageTransformAvailable();
+		if (!canTransform) {
+			logWarn("image transform unavailable; zoom_photo disabled", {
 				userId,
 				requestId,
-				err: gptErr,
 			});
 		}
-	} else if (route === "web-research" && anthropicApiKey) {
+		const viewDataUrls = canTransform
+			? await Promise.all(
+					imageDataUrls.map((url) =>
+						downscaleImage(url, AI_LABEL_VIEW_MAX_DIMENSION),
+					),
+				)
+			: imageDataUrls;
+		const gpt = await analyzeLabelWithGptResearch(
+			openRouterApiKey,
+			viewDataUrls,
+			canTransform ? imageDataUrls : undefined,
+			(t) => ctx.addLogFields({ webResearch: t }),
+			ctx.reservedMicroUsd * AI_LABEL_AGENT_BUDGET_RATIO,
+			researchObs,
+			input.prompts?.agent?.text,
+			plan.effort,
+		);
+		extractions.push(gpt.extraction);
+		usage = addUsage(usage, gpt.usage);
+		ctx.addLogFields({
+			fieldSources: gpt.fieldSources,
+			verified: gpt.verified,
+			steps: gpt.steps,
+		});
+	} else if (route === "web-research") {
 		const researchObs = withPromptAttribution(obs, input.prompts?.web);
-		try {
-			const web = await analyzeLabelWithWebResearch(
-				anthropicApiKey,
-				imageDataUrls,
-				(t) => ctx.addLogFields({ webResearch: t }),
-				researchObs,
-				input.prompts?.web?.text,
-				plan.effort,
-			);
-			extractions.push(web.extraction);
-			usage = addUsage(usage, web.usage);
-			ctx.addLogFields({ fieldSources: web.fieldSources });
-			markExecutedBy("web-research");
-		} catch (webErr) {
-			logWarn("label web research failed; falling back to Workers AI", {
-				userId,
-				requestId,
-				err: webErr,
-			});
-		}
-	}
-
-	if (extractions.length === 0) {
-		// Workers AI 経路: 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側)。
-		// 1枚ずつにするのは、複数画像を1リクエストに載せる方式の可否がモデル/環境で
-		// 不安定なのを避けるためと、ある1枚の解析失敗(モデルがJSONを返さない等)で
+		const web = await analyzeLabelWithWebResearch(
+			openRouterApiKey,
+			imageDataUrls,
+			(t) => ctx.addLogFields({ webResearch: t }),
+			researchObs,
+			input.prompts?.web?.text,
+			plan.effort,
+		);
+		extractions.push(web.extraction);
+		usage = addUsage(usage, web.usage);
+		ctx.addLogFields({ fieldSources: web.fieldSources });
+	} else {
+		// 標準経路: 写真は1枚ずつ解析して抽出結果をマージする(総合判断はマージ側)。
+		// 1枚ずつにするのは、ある1枚の解析失敗(モデルがJSONを返さない等)で
 		// 全体を落とさないため。個々の失敗はスキップし、全滅時のみ例外にする。
 		let anyCallOk = false;
 		let lastPhotoErr: unknown;
-		// 高精度経路が失敗して降格した場合、そこまでの usage は**破棄する**。
-		// 課金は実行したモデル1つの単価で行う(chargeFor に渡せるモデルは1つ)。
-		// 失敗した高精度呼び出しのぶんは原価としては発生しているが、ユーザには
-		// 「失敗した推論の料金」を負担させない(過小請求側=ユーザ有利に倒す)。
-		usage = {};
-		// Langfuse へ送る入力の写真を要約へ置き換える写像(#514)。降格した回も
-		// 「降格前の generation → 降格先の generation」が同じ trace に並ぶのが
-		// この Phase の主眼なので、ここでの報告も欠かさない。
+		// Langfuse へ送る入力の写真を要約へ置き換える写像(#514)。
 		const redact = await createPhotoRedactor(imageDataUrls);
 		// 写真インベントリはメタデータとして送る(入力が切り詰められても生きる)。
 		const photoSummaries = await describePhotoSummaries(imageDataUrls);
 		for (const [photoIndex, imageDataUrl] of imageDataUrls.entries()) {
 			try {
-				const raw = await env.AI.run(AI_LABEL_MODEL, {
-					messages: buildLabelMessages(imageDataUrl),
-					// JSON Schema準拠の出力を強制する(vLLM系のguided decoding)
-					guided_json: LABEL_JSON_SCHEMA,
-					max_tokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+				const message = buildLabelMessages(imageDataUrl);
+				const response = await chatCompletion(openRouterApiKey, {
+					model: AI_LABEL_MODEL,
+					messages: message,
+					// JSON Schema準拠の出力を強制する。型の揺れは parseLabelResponse が吸収する。
+					responseFormat: {
+						type: "json_schema",
+						json_schema: {
+							name: "label_extraction",
+							schema: LABEL_JSON_SCHEMA as unknown as Record<string, unknown>,
+							strict: false,
+						},
+					},
+					maxTokens: AI_LABEL_MAX_OUTPUT_TOKENS,
+					reasoning: { effort: plan.effort },
 				});
-				// guided_json 時の response は文字列とパース済みオブジェクトの両方がありうる
-				// (parseLabelResponse が両対応する)
-				const out = raw as {
-					response?: unknown;
-					usage?: { total_tokens?: number };
-				};
 				// **パースより先に報告する**。モデルが変な JSON を返した回こそ
 				// 「モデルの応答が悪いのか・パース側が悪いのか」の切り分け材料で、
 				// パース失敗で消えると写真1枚ぶんの推論が観測から漏れる。
-				const measured = toWorkersAiUsage(out.usage);
 				ctx.recordGeneration({
-					name: `label_analysis:workers-ai#photo${photoIndex + 1}`,
+					name: `label_analysis:standard#photo${photoIndex + 1}`,
 					model: AI_LABEL_MODEL,
-					input: redact(buildLabelMessages(imageDataUrl)),
-					output: out.response,
+					input: redact(message),
+					output: response.text,
 					metadata: {
 						photos: photoSummaries.slice(photoIndex, photoIndex + 1),
 					},
-					usage: measured
-						? {
-								inputTokens: measured.inputTokens,
-								outputTokens: measured.outputTokens,
-								totalTokens: totalTokens(measured),
-							}
-						: undefined,
+					usage: {
+						inputTokens: response.usage.inputTokens,
+						outputTokens: response.usage.outputTokens,
+						totalTokens: totalTokens(response.usage),
+					},
 				});
-				extractions.push(parseLabelResponse(out.response ?? ""));
-				// Workers AI は内訳を返さないので全量を出力単価で換算する(保守的)。
-				// 写真ごとの usage を足し込むので、欠落した回は 0 として素通しする
-				// (全滅時のみ measured.microUsd === 0 で予約見積の床に落ちる)。
-				usage = addUsage(usage, toWorkersAiUsage(out.usage) ?? {});
+				extractions.push(parseLabelResponse(response.text));
+				// 写真ごとの usage を足し込む。
+				usage = addUsage(usage, response.usage);
 				anyCallOk = true;
 			} catch (photoErr) {
 				// この1枚は読み取れなかった(モデル失敗/JSON化失敗)。他の写真で続行するが、
@@ -1203,59 +1221,30 @@ async function runLabelInference(
 				cause: lastPhotoErr,
 			});
 		}
-		markExecutedBy("workers-ai");
 	}
 	const suggestions = buildLabelSuggestions(mergeExtractions(extractions));
-	// **実際に結果を出した経路のモデル単価で課金する**。意図した経路(route)で換算すると、
-	// Claude が落ちて Workers AI が拾った回に Opus の単価で Llama の推論を課金してしまう。
-	const executedRoute = executedBy ?? route;
-	const executedModel = AI_LABEL_ROUTE_MODELS[executedRoute];
-	const measured = chargeFor(executedModel, usage);
+	// **実行した経路のモデル単価で課金する**(降格が無いので route = 実行経路)。
+	const measured = chargeFor(AI_LABEL_ROUTE_MODELS[route], usage);
 	let charge: CreditCharge;
 	if (measured.microUsd > 0) {
 		charge = measured;
 	} else {
-		// 実測が取れなかった回の床は**実行された経路の見積**にする(#404)。予約額
-		// (= 意図した経路の見積)を使うと、高精度経路が落ちて Workers AI が拾い、かつ
-		// Workers AI が usage を返さなかった回に、Llama 1回の推論へ高精度経路の予約全量
-		// (例: 275クレジット)を確定課金してしまう。単価換算(chargeFor)を実行経路に
-		// 揃えているのと同じ理由で、フォールバックの床も実行経路に揃える。
-		// 実行経路 = 予約した経路なら値は予約額と一致するので、降格が無い回の挙動は変わらない。
+		// 実測が取れなかった回の床は**実行した経路の見積**にする(#404)。
 		charge = fallbackCharge(
-			estimateLabelReserveCharge(
-				executedRoute,
-				imageDataUrls.length,
-				plan.effort,
-			).microUsd,
+			estimateLabelReserveCharge(route, imageDataUrls.length, plan.effort)
+				.microUsd,
 		);
-		// 実測欠落の頻度を観測できるようにする(Workers AI の usage は任意)。
+		// 実測欠落の頻度を観測できるようにする。
 		logWarn("label usage missing; charging the executed route estimate", {
 			userId,
 			requestId,
 			route,
-			executedBy: executedRoute,
+			executedBy: route,
 			reservedMicroUsd: ctx.reservedMicroUsd,
 			chargedMicroUsd: charge.microUsd,
 		});
 	}
 	return { value: suggestions, charge, usage };
-}
-
-/**
- * 高精度経路のプロバイダキー(env から読む)。**予約より前に読むこと**(#245)。
- *
- * ジョブ経路のコンシューマも同じ関数を通す。キー**そのもの**はジョブ行に持たない
- * (シークレットを D1 へ書かない)。経路は投入時に確定させて持ち回るので、ここで
- * 読むのは「その経路を実行するための鍵」だけになる。
- */
-function labelProviderApiKeys(): {
-	openaiApiKey?: string;
-	anthropicApiKey?: string;
-} {
-	return {
-		openaiApiKey: env.OPENAI_API_KEY?.trim() || undefined,
-		anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || undefined,
-	};
 }
 
 /**
@@ -1279,7 +1268,13 @@ export async function runLabelAnalysisForJob(
 	if (input.imageDataUrls.length === 0) {
 		throw new BadRequestError("画像が指定されていません");
 	}
-	const apiKeys = labelProviderApiKeys();
+	// 実行キーは予約後に読んでもよい(投入時の経路で予約が立っており、キーは
+	// シークレットを D1 へ書かないため都度読む)。未設定なら推論せず失敗として
+	// 返却する(経路の再解決はしない規約)。
+	const apiKey = openRouterApiKey();
+	if (!apiKey) {
+		throw new HttpError(503, OPENROUTER_UNAVAILABLE_MESSAGE);
+	}
 	// 高精度プロンプトは Langfuse 管理下から引く(IMPL-3 W3-2)。**予約は投入時に
 	// 済んでいる**が、`getManagedPrompt` は throw しない設計なので返却漏れは
 	// 起きない。取得に失敗した回はコードの fallback 本文で動く。
@@ -1297,7 +1292,7 @@ export async function runLabelAnalysisForJob(
 				{
 					imageDataUrls: input.imageDataUrls,
 					plan: input.plan,
-					...apiKeys,
+					openRouterApiKey: apiKey,
 					prompts,
 				},
 				ctx,
@@ -1326,7 +1321,7 @@ export interface WineListAnalysisSummary {
  * 一括抽出でユーザに対して**実際に走る経路**。返せる経路が無ければ `null`(#426)。
  *
  * エチケット解析と同じ `preferredLabelEngine` を読み、`resolveWineListRoute` で
- * 一括抽出用に解決する(Workers AI へは降格しない)。UI の必要クレジット表示と
+ * 一括抽出用に解決する(標準経路へは降格しない)。UI の必要クレジット表示と
  * `analyzeWineList` の予約が**同じ解決を通る**ようにするための単一の判定口。
  * 推論の深さも同じ D1 行から読むので一緒に戻す。
  */
@@ -1342,7 +1337,8 @@ async function resolveWineListRouteAndEffort(userId: string): Promise<{
 }> {
 	const { preferredLabelEngine, preferredReasoningEffort } =
 		await userService.getCurrentUser(userId);
-	const engine = toLabelEngineKey(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
+	const engine =
+		toLabelEngineKeyWithCompat(preferredLabelEngine) ?? DEFAULT_LABEL_ENGINE;
 	return {
 		route: resolveWineListRoute(engine, labelProviderAvailability()),
 		effort:
@@ -1352,27 +1348,26 @@ async function resolveWineListRouteAndEffort(userId: string): Promise<{
 }
 
 /**
- * 一括抽出が使える環境か(= OPENAI_API_KEY / ANTHROPIC_API_KEY のいずれかが
- * 設定されているか)。
+ * 一括抽出が使える環境か(= OPENROUTER_API_KEY が設定されているか)。
  *
- * **この経路は Workers AI へフォールバックしない**(Issue #358 の決定)ため、
- * どちらのキーも無い環境では機能そのものを出さない。UI の出し分けとサーバ側の拒否が
+ * **この経路は標準経路へフォールバックしない**(#358 の決定を維持)ため、
+ * キーが無い環境では機能そのものを出さない。UI の出し分けとサーバ側の拒否が
  * 同じ判定を見るよう、ここを単一の判定口にする。**ユーザ設定には依存しない**
- * (どのエンジンを選んでいても、キーがあるほうの高精度経路に載る)。
+ * (どのエンジンを選んでいても、OpenRouter 上の高精度経路に載る)。
  */
 export function isWineListAnalysisAvailable(): boolean {
-	const availability = labelProviderAvailability();
-	return availability.openai || availability.anthropic;
+	return labelProviderAvailability().openrouter;
 }
 
 /**
  * Claude で全写真を1リクエスト解析し、銘柄配列を取り出す。env 非依存(apiKey を注入)で
  * 失敗は throw する(エチケット解析の高精度経路と同じ契約)。
  *
+ * #602 で Anthropic SDK 直接接続から OpenRouter 経由へ移した。
+ *
  * **web検索で裏を取る**(#474)。銘柄ごとにリクエストを立てず、1回の推論のサーバー側
  * ツールループの中でまとめて調べさせる——これが「銘柄数 × 検索でコストが発散する」
  * (#358 が裏取りを外した理由)への歯止めで、回数自体も `max_uses` で縛る。
- * 継続(pause_turn)の扱いは `analyzeLabelWithWebResearch` と同じ形。
  */
 async function extractWineListWithClaude(
 	apiKey: string,
@@ -1380,102 +1375,87 @@ async function extractWineListWithClaude(
 	obs?: InferenceObserver,
 	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
 	promptText?: string,
-	/** ユーザ設定の推論の深さ。low は thinking 無指定(現行どおり)。 */
+	/** ユーザ設定の推論の深さ。low は reasoning 無指定(現行どおり)。 */
 	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
-	const client = new Anthropic({ apiKey });
-	const thinking = claudeThinkingForEffort(effort);
-	const request = {
-		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
-		max_tokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
-		...(thinking ? { thinking } : {}),
-		tools: [
-			{
-				type: "web_search_20260209",
-				name: "web_search",
-				max_uses: AI_WINE_LIST_MAX_SEARCHES,
-			},
-		],
-	} satisfies Partial<Anthropic.MessageCreateParamsNonStreaming>;
 	const messages = buildWineListMessages(
 		imageDataUrls,
 		promptText ?? buildWineListPrompt(imageDataUrls.length),
 	);
 	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#515)。写像の構築時に
-	// ハッシュ計算(非同期)を済ませるのはエチケット解析と同じ。継続で積まれる
-	// assistant 応答に写真は無いので、同じ写像で全体を畳める。
+	// ハッシュ計算(非同期)を済ませるのはエチケット解析と同じ。
 	const redact = await createPhotoRedactor(imageDataUrls);
 	const photoSummaries = await describePhotoSummaries(imageDataUrls);
-	let callCount = 0;
-	/** 1リクエストぶんを generation として報告する(pause_turn の継続も1件ずつ)。 */
-	const reportGeneration = (
-		response: Anthropic.Message,
-		usage: AiUsage,
-	): void => {
-		if (!obs) return;
-		callCount += 1;
+	const response = await chatCompletion(apiKey, {
+		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
+		messages,
+		maxTokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+		reasoning: anthropicReasoningForEffort(effort),
+		tools: [
+			{
+				type: "openrouter:web_search",
+				parameters: {
+					engine: "native",
+					max_uses: AI_WINE_LIST_MAX_SEARCHES,
+				},
+			},
+		],
+	});
+	const usage = response.usage;
+	const trace = extractOpenRouterTrace(response.annotations);
+	if (obs) {
+		// モデル呼び出し1回 = generation 1件。**パースより先に報告する**(エチケット解析の
+		// 標準経路と同じ理由で、応答の解釈に失敗してもモデルが何を返したかを残す)。
 		obs.recordGeneration({
-			name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}web-research#${callCount}`,
+			name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}web-research#1`,
 			model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
 			input: redact([...messages]),
-			output: response.content,
-			metadata: { photos: photoSummaries, continuation: callCount - 1 },
+			output: response.text,
+			metadata: { photos: photoSummaries },
 			usage: {
 				inputTokens: usage.inputTokens,
 				outputTokens: usage.outputTokens,
-				totalTokens:
-					(usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) || undefined,
+				totalTokens: totalTokens(usage),
 			},
 		});
-	};
-
-	let response = await client.messages.create({ ...request, messages });
-	// 継続のたびに入力を再送するので、**内訳ごとに**加算する(合算スカラーだと
-	// 入力・出力・web検索回数が混ざって原価を復元できない)。
-	let usage = toAnthropicUsage(response.usage);
-	reportGeneration(response, usage);
-	// サーバー側ツールループが上限に達すると pause_turn で返る。assistant 応答を積んで
-	// 再送すると続きから再開する(継続回数は原価ガードとして上限で打ち切る)。
-	for (
-		let i = 0;
-		i < AI_WINE_LIST_MAX_CONTINUATIONS && response.stop_reason === "pause_turn";
-		i++
-	) {
-		messages.push({ role: "assistant", content: response.content });
-		response = await client.messages.create({ ...request, messages });
-		usage = addUsage(usage, toAnthropicUsage(response.usage));
-		reportGeneration(response, toAnthropicUsage(response.usage));
+		if (trace.steps.length > 0) {
+			obs.recordSpan({
+				name: "web_search",
+				input: trace.steps.map((s) => ({ action: s.action, query: s.query })),
+				output: trace.steps,
+			});
+		}
 	}
-	if (response.stop_reason === "refusal") {
+	if (
+		response.finishReason === "content_filter" ||
+		(!response.text.trim() && response.finishReason !== "length")
+	) {
 		throw new Error("Claudeがワインリストの解析の応答を拒否しました");
 	}
 	// 出力上限で打ち切られた応答は JSON が途中で切れており、パースに回すと
 	// 「形式が不正」という無関係な例外になる。銘柄が多すぎることが原因だと
 	// ユーザが分かる形で返す(escape hatch: 写真を分けて再解析)。
-	if (response.stop_reason === "max_tokens") {
+	if (response.finishReason === "length") {
 		throw new BadRequestError(WINE_LIST_TRUNCATED_ERROR_MESSAGE);
 	}
-	const parsed = parseWineListResponse(
-		joinResponseText(response.content),
-		imageDataUrls.length,
-	);
+	assertGptLabelFinished(response.finishReason);
+	const parsed = parseWineListResponse(response.text, imageDataUrls.length);
 	return { parsed, usage };
 }
 
 /**
- * GPT(Responses API)で全写真を1リクエスト解析し、銘柄配列を取り出す(#426)。
+ * GPT(OpenRouter chat completions)で全写真を1リクエスト解析し、銘柄配列を取り出す(#426)。
  * Claude 経路と同じ契約(env 非依存・失敗は throw)で、返す形も揃える。
  *
  * Claude 経路との違い:
- *  - structured outputs(strict)で出力形式を強制する。指示文は共有しているので、
+ *  - structured outputs(response_format)で出力形式を強制する。指示文は共有しているので、
  *    形が保証されるぶんだけ Claude 経路より安全側になる
- *  - サーバー側ツールループを OpenAI が回すので pause_turn の継続が要らない
- *    (`web_search` はプロバイダ実行ツールで、1リクエストの中で完結する)
+ *  - サーバー側ツールループを OpenRouter が回すので継続処理が要らない
+ *    (`openrouter:web_search` はサーバーツールで、1リクエストの中で完結する)
  *
- * **web検索の回数は usage に出ない**($10/1000回 の回数課金)。応答の output に並ぶ
- * `web_search_call` を数えて計上する——ここを落とすと、この経路の原価の大きい部分が
- * 静かに漏れる(エチケット解析の GPT 経路が `countProviderExecutedCalls` で
- * 数えているのと同じ理由)。
+ * **web検索の回数は応答の `usage.server_tool_use.web_search_requests` に出る**
+ * ($10/1000回 の回数課金)。トークンとは別建てのため、`toOpenRouterUsage` が
+ * 拾う——ここを落とすと、この経路の原価の大きい部分が静かに漏れる。
  */
 async function extractWineListWithGpt(
 	apiKey: string,
@@ -1486,57 +1466,57 @@ async function extractWineListWithGpt(
 	/** ユーザ設定の推論の深さ。 */
 	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
-	const client = new OpenAI({ apiKey });
 	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#515)。ハッシュ計算の非同期は
 	// ここで済ませてあるので、置き換えは同期で済む。
 	const redact = await createPhotoRedactor(imageDataUrls);
 	const photoSummaries = await describePhotoSummaries(imageDataUrls);
-	const response = await client.responses.create({
+	const messages = buildWineListGptInput(
+		imageDataUrls,
+		promptText ?? buildWineListPrompt(imageDataUrls.length),
+	);
+	const response = await chatCompletion(apiKey, {
 		model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
-		input: buildWineListGptInput(
-			imageDataUrls,
-			promptText ?? buildWineListPrompt(imageDataUrls.length),
-		),
-		max_output_tokens: AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
+		messages,
+		maxTokens: AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
 		reasoning: { effort },
-		text: buildWineListGptTextFormat(),
+		responseFormat: buildWineListGptTextFormat(),
 		tools: [
 			{
-				type: "web_search",
-				search_context_size: AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE,
+				type: "openrouter:web_search",
+				parameters: {
+					engine: "native",
+					search_context_size: AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE,
+				},
 			},
 		],
 	});
-	const usage = toGptUsage(
-		response.usage,
-		countGptWebSearchCalls(response.output),
-	);
+	const usage = response.usage;
+	const trace = extractOpenRouterTrace(response.annotations);
 	if (obs) {
 		// モデル呼び出し1回 = generation 1件。**パースより先に報告する**(エチケット解析の
-		// Workers AI 経路と同じ理由で、応答の解釈に失敗してもモデルが何を返したかを残す)。
+		// 標準経路と同じ理由で、応答の解釈に失敗してもモデルが何を返したかを残す)。
 		obs.recordGeneration({
 			name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}gpt-luna#1`,
 			model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
-			input: redact(
-				buildWineListGptInput(
-					imageDataUrls,
-					promptText ?? buildWineListPrompt(imageDataUrls.length),
-				),
-			),
-			output: toSafeResponseOutput(response.output),
+			input: redact(messages),
+			output: response.text,
 			metadata: { photos: photoSummaries },
 			usage: {
 				inputTokens: usage.inputTokens,
 				outputTokens: usage.outputTokens,
-				totalTokens:
-					(usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) || undefined,
+				totalTokens: totalTokens(usage),
 			},
 		});
+		if (trace.steps.length > 0) {
+			obs.recordSpan({
+				name: "web_search",
+				input: trace.steps.map((s) => ({ action: s.action, query: s.query })),
+				output: trace.steps,
+			});
+		}
 	}
-	const parsed = parseWineListResponse(
-		extractWineListGptText(response),
-		imageDataUrls.length,
-	);
+	assertWineListChatFinished(response.finishReason, response.text);
+	const parsed = parseWineListResponse(response.text, imageDataUrls.length);
 	return { parsed, usage };
 }
 
@@ -1544,26 +1524,6 @@ async function extractWineListWithGpt(
 export interface WineListAnalysisOutcome {
 	candidates: WineListCandidate[];
 	summary: WineListAnalysisSummary;
-}
-
-/**
- * OpenAI Responses API の output を、Langfuse に載せてよい形へ畳む。
- * 本文(`message` の output_text)と web検索の呼び出しは残し、**`encrypted_content`
- * (reasoning の暗号化ブロック)などの不可読ペイロードは落とす**——トレースの可読性の
- * ためで、載せても観測上の価値が無い(#515)。
- */
-function toSafeResponseOutput(output: readonly unknown[]): unknown {
-	return output.map((item) => {
-		if (!item || typeof item !== "object") return item;
-		const o = item as Record<string, unknown>;
-		if (o.type === "message") {
-			return { type: o.type, role: o.role, content: o.content };
-		}
-		if (o.type === "web_search_call") {
-			return { type: o.type, status: o.status };
-		}
-		return { type: o.type };
-	});
 }
 
 /**
@@ -1734,9 +1694,7 @@ export async function runWineListAnalysisForJob(
 	if (input.imageDataUrls.length === 0) {
 		throw new BadRequestError("画像が指定されていません");
 	}
-	const apiKey = (
-		input.plan.route === "gpt-luna" ? env.OPENAI_API_KEY : env.ANTHROPIC_API_KEY
-	)?.trim();
+	const apiKey = openRouterApiKey();
 	// 投入から実行までの間にシークレットが外れた場合。経路は再解決しない規約なので、
 	// 実行できないことを失敗として扱う(予約は finishMeteredInference が返却する)。
 	if (!apiKey) {

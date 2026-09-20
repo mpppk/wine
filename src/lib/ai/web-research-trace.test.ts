@@ -1,47 +1,36 @@
 import { describe, expect, it } from "vitest";
 import {
-	extractAiSdkWebSearchTrace,
-	extractAnthropicTrace,
+	concatWebResearchTraces,
+	extractOpenRouterTrace,
 	WEB_RESEARCH_MAX_STEPS,
 	WEB_RESEARCH_MAX_URLS_PER_STEP,
 } from "./web-research-trace";
 
-// 高精度エチケット解析の裏取りを観測するための軌跡抽出。**プロバイダごとに全く違う
-// 応答の形を同じ型へ落とす**のがこのモジュールの仕事なので、両プロバイダで同じ
-// 期待値が出ることをテストで固定する(ログの読み手が経路ごとに別のフィールドを
-// 覚えなくて済む、が要件)。
+// 高精度経路の裏取りを観測するための軌跡抽出。#602 で全経路を OpenRouter の
+// chat completions へ集約したため、応答メッセージの `annotations`(url_citation)
+// から参照 URL を拾って同じ型へ落とす。検索語クエリは応答に出ない(回数は
+// `usage.server_tool_use.web_search_requests` で別に数える)。
 
-describe("extractAnthropicTrace", () => {
-	it("server_tool_use と web_search_tool_result を tool_use_id で対応づける", () => {
-		const trace = extractAnthropicTrace([
-			{ type: "text", text: "調べます" },
+describe("extractOpenRouterTrace", () => {
+	it("url_citation の URL を検索ステップとして拾う", () => {
+		const trace = extractOpenRouterTrace([
+			{ type: "text" },
 			{
-				type: "server_tool_use",
-				id: "srvtoolu_1",
-				name: "web_search",
-				input: { query: "Domaine Leflaive Chablis 2020" },
+				type: "url_citation",
+				url_citation: {
+					url: "https://leflaive.fr/vins",
+					title: "Vins",
+					content: "抜粋",
+				},
 			},
 			{
-				type: "web_search_tool_result",
-				tool_use_id: "srvtoolu_1",
-				content: [
-					{
-						type: "web_search_result",
-						url: "https://leflaive.fr/vins",
-						title: "Vins",
-					},
-					{
-						type: "web_search_result",
-						url: "https://www.wine-searcher.com/find/leflaive",
-						title: "Wine-Searcher",
-					},
-				],
+				type: "url_citation",
+				url_citation: { url: "https://www.wine-searcher.com/find/leflaive" },
 			},
 		]);
 		expect(trace.steps).toEqual([
 			{
 				action: "search",
-				query: "Domaine Leflaive Chablis 2020",
 				urls: [
 					"https://leflaive.fr/vins",
 					"https://www.wine-searcher.com/find/leflaive",
@@ -53,248 +42,70 @@ describe("extractAnthropicTrace", () => {
 		expect(trace.hosts).toEqual(["leflaive.fr", "www.wine-searcher.com"]);
 	});
 
-	it("ブロックの並び順ではなく id で紐づける(継続をまたいで連結されるため)", () => {
-		// pause_turn の継続では複数レスポンスの content を連結して渡すので、
-		// 「直近の未解決な server_tool_use」に寄せると取り違える
-		const trace = extractAnthropicTrace([
-			{
-				type: "server_tool_use",
-				id: "a",
-				name: "web_search",
-				input: { query: "q1" },
-			},
-			{
-				type: "server_tool_use",
-				id: "b",
-				name: "web_search",
-				input: { query: "q2" },
-			},
-			{
-				type: "web_search_tool_result",
-				tool_use_id: "b",
-				content: [{ url: "https://example.com/b" }],
-			},
-			{
-				type: "web_search_tool_result",
-				tool_use_id: "a",
-				content: [{ url: "https://example.com/a" }],
-			},
-		]);
-		expect(trace.steps.map((s) => [s.query, s.urls?.[0]])).toEqual([
-			["q1", "https://example.com/a"],
-			["q2", "https://example.com/b"],
-		]);
-	});
-
-	it("検索が失敗したときは error_code を残す(上限で裏取りを諦めたことが分かる)", () => {
-		const trace = extractAnthropicTrace([
-			{
-				type: "server_tool_use",
-				id: "x",
-				name: "web_search",
-				input: { query: "q" },
-			},
-			{
-				type: "web_search_tool_result",
-				tool_use_id: "x",
-				content: {
-					type: "web_search_tool_result_error",
-					error_code: "max_uses_exceeded",
-				},
-			},
-		]);
-		expect(trace.steps[0]).toMatchObject({
-			query: "q",
-			error: "max_uses_exceeded",
+	it("引用が無ければ空の軌跡(検索していない回と区別できる)", () => {
+		expect(extractOpenRouterTrace(undefined)).toEqual({
+			steps: [],
+			stepCount: 0,
+			hosts: [],
+		});
+		expect(extractOpenRouterTrace([{ type: "text" }])).toEqual({
+			steps: [],
+			stepCount: 0,
+			hosts: [],
 		});
 	});
 
-	it("web検索以外のブロック(thinking / tool_use)は無視する", () => {
-		const trace = extractAnthropicTrace([
-			{ type: "thinking", thinking: "..." },
-			{ type: "server_tool_use", id: "z", name: "code_execution", input: {} },
-			{ type: "text", text: "{}" },
-		]);
-		expect(trace).toEqual({ steps: [], stepCount: 0, hosts: [] });
+	it("想定外の要素が混ざっても壊れない", () => {
+		expect(extractOpenRouterTrace([null, "x", 1, { type: null }, {}])).toEqual({
+			steps: [],
+			stepCount: 0,
+			hosts: [],
+		});
 	});
 
-	it("URLは1操作あたり上限まで載せ、総数は urlCount に残す", () => {
-		const urls = Array.from({ length: 12 }, (_, i) => ({
-			url: `https://example.com/${i}`,
+	it("URLは上限まで詰め、総数は残す", () => {
+		const annotations = Array.from({ length: 8 }, (_, i) => ({
+			type: "url_citation",
+			url_citation: { url: `https://example.com/${i}` },
 		}));
-		const trace = extractAnthropicTrace([
-			{
-				type: "server_tool_use",
-				id: "x",
-				name: "web_search",
-				input: { query: "q" },
-			},
-			{ type: "web_search_tool_result", tool_use_id: "x", content: urls },
-		]);
+		const trace = extractOpenRouterTrace(annotations);
 		expect(trace.steps[0]?.urls).toHaveLength(WEB_RESEARCH_MAX_URLS_PER_STEP);
-		expect(trace.steps[0]?.urlCount).toBe(12);
-	});
-
-	it("操作数は上限で打ち切り、総数は stepCount に残す", () => {
-		const blocks = Array.from(
-			{ length: WEB_RESEARCH_MAX_STEPS + 5 },
-			(_, i) => ({
-				type: "server_tool_use",
-				id: `s${i}`,
-				name: "web_search",
-				input: { query: `q${i}` },
-			}),
-		);
-		const trace = extractAnthropicTrace(blocks);
-		expect(trace.steps).toHaveLength(WEB_RESEARCH_MAX_STEPS);
-		expect(trace.stepCount).toBe(WEB_RESEARCH_MAX_STEPS + 5);
-	});
-
-	it("応答が空でも throw せず空の軌跡を返す(観測が解析を壊さない)", () => {
-		expect(extractAnthropicTrace(undefined)).toEqual({
-			steps: [],
-			stepCount: 0,
-			hosts: [],
-		});
-		expect(extractAnthropicTrace([null, "text", 42])).toEqual({
-			steps: [],
-			stepCount: 0,
-			hosts: [],
-		});
+		expect(trace.steps[0]?.urlCount).toBe(8);
 	});
 });
 
-describe("extractAiSdkWebSearchTrace", () => {
-	it("search / openPage / findInPage を操作の種類として区別する", () => {
-		// AI SDK は action.type が camelCase で、検索結果のURLは action ではなく
-		// ツール結果の直下(output.sources)に入る。素の Responses API とは形が違う。
-		const trace = extractAiSdkWebSearchTrace([
-			{
-				type: "tool-result",
-				toolName: "web_search",
-				output: {
-					action: {
-						type: "search",
-						queries: ["Château Margaux 2015", "margaux cepage"],
-					},
-					sources: [
-						{ type: "url", url: "https://www.chateau-margaux.com/vins" },
-						{ type: "url", url: "https://www.vivino.com/margaux" },
-					],
+describe("concatWebResearchTraces", () => {
+	it("複数リクエストぶんを実行順に連結する", () => {
+		const trace = concatWebResearchTraces([
+			extractOpenRouterTrace([
+				{
+					type: "url_citation",
+					url_citation: { url: "https://a.example/x" },
 				},
-			},
-			{
-				type: "tool-result",
-				toolName: "web_search",
-				output: {
-					action: {
-						type: "openPage",
-						url: "https://www.chateau-margaux.com/vins",
-					},
+			]),
+			extractOpenRouterTrace(undefined),
+			extractOpenRouterTrace([
+				{
+					type: "url_citation",
+					url_citation: { url: "https://b.example/y" },
 				},
-			},
-			{
-				type: "tool-result",
-				toolName: "web_search",
-				output: {
-					action: {
-						type: "findInPage",
-						url: "https://www.chateau-margaux.com/vins",
-						pattern: "encépagement",
-					},
+			]),
+		]);
+		expect(trace.stepCount).toBe(2);
+		expect(trace.hosts).toEqual(["a.example", "b.example"]);
+	});
+
+	it("操作数が上限を超えたら切る(総数は残す)", () => {
+		const traces = Array.from({ length: WEB_RESEARCH_MAX_STEPS + 5 }, (_, i) =>
+			extractOpenRouterTrace([
+				{
+					type: "url_citation",
+					url_citation: { url: `https://${i}.example/` },
 				},
-			},
-		]);
-		expect(trace.steps).toEqual([
-			{
-				action: "search",
-				// 1回の呼び出しで複数語を投げることがあるので連結して残す
-				query: "Château Margaux 2015 | margaux cepage",
-				urls: [
-					"https://www.chateau-margaux.com/vins",
-					"https://www.vivino.com/margaux",
-				],
-				urlCount: 2,
-			},
-			{
-				action: "open",
-				urls: ["https://www.chateau-margaux.com/vins"],
-				urlCount: 1,
-			},
-			{
-				action: "find",
-				query: "encépagement",
-				urls: ["https://www.chateau-margaux.com/vins"],
-				urlCount: 1,
-			},
-		]);
-		expect(trace.hosts).toEqual(["www.chateau-margaux.com", "www.vivino.com"]);
-	});
-
-	it("非推奨の単数形 query もフォールバックとして拾う", () => {
-		const trace = extractAiSdkWebSearchTrace([
-			{
-				type: "tool-result",
-				output: { action: { type: "search", query: "q" } },
-			},
-		]);
-		expect(trace.steps[0]).toEqual({ action: "search", query: "q" });
-	});
-
-	it("sources が無い場合も検索語だけは残す", () => {
-		const trace = extractAiSdkWebSearchTrace([
-			{
-				type: "tool-result",
-				output: { action: { type: "search", queries: ["q"] } },
-			},
-		]);
-		expect(trace.steps[0]).toEqual({ action: "search", query: "q" });
-		expect(trace.hosts).toEqual([]);
-	});
-
-	it("失敗したツール呼び出しに error を立てる", () => {
-		const trace = extractAiSdkWebSearchTrace([
-			{
-				type: "tool-error",
-				toolName: "web_search",
-				error: "rate_limited",
-				output: { action: { type: "search", queries: ["q"] } },
-			},
-		]);
-		expect(trace.steps[0]?.error).toBe("rate_limited");
-	});
-
-	it("エラー内容が文字列でなくても軌跡は残る", () => {
-		const trace = extractAiSdkWebSearchTrace([
-			{ type: "tool-error", error: { message: "boom" }, output: {} },
-		]);
-		expect(trace.steps[0]?.error).toBe("failed");
-	});
-
-	it("空・null が混ざっても throw しない", () => {
-		expect(extractAiSdkWebSearchTrace([null, "x"])).toEqual({
-			steps: [],
-			stepCount: 0,
-			hosts: [],
-		});
-		expect(extractAiSdkWebSearchTrace(undefined)).toEqual({
-			steps: [],
-			stepCount: 0,
-			hosts: [],
-		});
-	});
-
-	it("解釈できないURLはホスト要約から落ちるが、軌跡には残る", () => {
-		const trace = extractAiSdkWebSearchTrace([
-			{
-				type: "tool-result",
-				output: {
-					action: { type: "search", queries: ["q"] },
-					sources: [{ url: "not a url" }],
-				},
-			},
-		]);
-		expect(trace.steps[0]?.urls).toEqual(["not a url"]);
-		expect(trace.hosts).toEqual([]);
+			]),
+		);
+		const trace = concatWebResearchTraces(traces);
+		expect(trace.steps).toHaveLength(WEB_RESEARCH_MAX_STEPS);
+		expect(trace.stepCount).toBe(WEB_RESEARCH_MAX_STEPS + 5);
 	});
 });

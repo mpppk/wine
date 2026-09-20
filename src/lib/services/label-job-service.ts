@@ -4,6 +4,7 @@ import { db } from "#/db";
 import { drunkWine, labelAnalysisJob, place } from "#/db/schema";
 import {
 	DEFAULT_REASONING_EFFORT,
+	isLabelRoute,
 	type ReasoningEffortKey,
 	toReasoningEffortKey,
 	type WineListRoute,
@@ -15,6 +16,7 @@ import {
 	LABEL_JOB_FAILED_ERROR_MESSAGE,
 	LABEL_JOB_PHOTO_RETENTION_MS,
 	LABEL_JOB_QUEUE_STALE_MS,
+	LABEL_JOB_RESUBMIT_ERROR_MESSAGE,
 	LABEL_JOB_STALE_ERROR_MESSAGE,
 	LABEL_JOB_STALE_MS,
 	type LabelJobKind,
@@ -362,6 +364,41 @@ export async function runLabelAnalysisJob(jobId: string): Promise<void> {
 	// 旧行・不正値は既定(low)へフォールバックする(ユーザ設定の読み取り側と同じ流儀)。
 	const jobEffort: ReasoningEffortKey =
 		toReasoningEffortKey(job.effort) ?? DEFAULT_REASONING_EFFORT;
+	// 移行前(#602)の旧経路で投入された未実行ジョブは OpenRouter へ黙って再解決しない。
+	// 予約額・推論設定が変わるため、予約を返却して再投入を案内する文言で終端する。
+	if (!isWineList && !isLabelRoute(job.route)) {
+		const reservation: MeteredInferenceReservation = {
+			requestId: job.requestId,
+			reservedCredits: job.reservedCredits,
+			reservedMicroUsd: job.reservedMicroUsd,
+		};
+		await abandonMeteredInference(
+			job.userId,
+			{
+				reservation,
+				logBase: {
+					feature: "label_analysis",
+					selected: job.selectedEngine,
+					route: job.route,
+					effort: jobEffort,
+					photoCount: job.photoCount,
+				},
+				startedAt,
+			},
+			new Error(`旧経路のジョブは実行しない: route=${job.route}`),
+		);
+		logError("label analysis job uses retired route; refunded", {
+			userId: job.userId,
+			jobId,
+			route: job.route,
+		});
+		await finishJob(
+			jobId,
+			{ error: LABEL_JOB_RESUBMIT_ERROR_MESSAGE },
+			job.photoKeys,
+		);
+		return;
+	}
 	const plan = isWineList
 		? restoreWineListPlan({
 				route: job.route as WineListRoute,

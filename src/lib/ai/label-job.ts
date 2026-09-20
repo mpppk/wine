@@ -109,3 +109,10 @@ export const LABEL_JOB_STALE_ERROR_MESSAGE =
 
 /** 推論が失敗したときの、利用者向けの文言。詳細はサーバ側のログにだけ残す。 */
 export const LABEL_JOB_FAILED_ERROR_MESSAGE = "エチケットの解析に失敗しました";
+
+/**
+ * 移行前(#602)の旧経路で投入された未実行ジョブの、利用者向けの文言。
+ * 旧 plan は OpenRouter へ黙って再解決せず、予約を返却してこの文言で終端する。
+ */
+export const LABEL_JOB_RESUBMIT_ERROR_MESSAGE =
+	"解析エンジンが更新されたため、このジョブは実行できませんでした。予約したクレジットは返却済みです。再投入してください。";

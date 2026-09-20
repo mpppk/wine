@@ -27,12 +27,13 @@ declare namespace Cloudflare {
 		// 既存プレミアム会員の期間延長キャンペーンコード。"CODE=days" をカンマ区切り。
 		// 推測による悪用を防ぐためシークレット扱い(wrangler secret put で投入)。
 		CAMPAIGN_EXTENSION_CODES?: string;
-		// エチケット解析の高精度経路(Claude + web検索)を有効にする Anthropic APIキー。
-		// 未設定でもアプリは動作し、GPT経路→従来の Workers AI 経路の順に引き継がれる。
-		ANTHROPIC_API_KEY?: string;
-		// エチケット解析の高精度経路(GPT-5.6 Luna + web検索)を有効にする OpenAI APIキー。
-		// 未設定でもアプリは動作し、Claude経路→従来の Workers AI 経路の順に引き継がれる。
-		OPENAI_API_KEY?: string;
+		// 全AI機能(地域Q&A・エチケット解析・ワインリスト解析)のLLM呼び出しを
+		// OpenRouter 経由で実行するための APIキー(#602)。未設定でもアプリは
+		// 起動するが、AI機能は予約の前に利用不可として扱う(503 / blocked)。
+		// 投入: `wrangler secret put OPENROUTER_API_KEY`(プレビューは
+		// `wrangler versions secret put OPENROUTER_API_KEY --env preview`)。
+		// ローカルは `.dev.vars` に記載。
+		OPENROUTER_API_KEY?: string;
 		// **サーバ側**の Sentry DSN(#395 / #486)。運用者が手を動かす必要がある事象
 		// (決済の宙吊り・返金失敗・監査記録の欠落・AI原価の異常)を Workers から
 		// 送る operator-alert と、予期しない例外を自動で拾う @sentry/cloudflare

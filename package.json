@@ -44,8 +44,6 @@
 		"@sentry/cli"
 	],
 	"dependencies": {
-		"@ai-sdk/openai": "^4.0.32",
-		"@anthropic-ai/sdk": "^0.124.0",
 		"@better-auth/stripe": "^1.6.23",
 		"@cloudflare/vite-plugin": "^1.45.0",
 		"@langfuse/client": "^5.11.0",
@@ -79,7 +77,6 @@
 		"drizzle-orm": "^0.45.1",
 		"lucide-react": "^1.0.0",
 		"maplibre-gl": "^6.8.0",
-		"openai": "^7.2.0",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
 		"stripe": "^22.3.1",

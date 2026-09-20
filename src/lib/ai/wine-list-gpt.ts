@@ -1,5 +1,3 @@
-import type OpenAI from "openai";
-import type { AiUsage } from "#/lib/billing/ai-pricing";
 import { BadRequestError } from "#/lib/errors";
 import {
 	LABEL_JSON_SCHEMA,
@@ -9,6 +7,11 @@ import {
 	type LabelReferenceKey,
 	parseImageDataUrl,
 } from "./label-extraction";
+import type {
+	OpenRouterMessage,
+	OpenRouterResponseFormat,
+	OpenRouterUserContent,
+} from "./openrouter";
 import {
 	buildWineListPrompt,
 	WINE_LIST_COMMENT_JSON_PROPERTIES,
@@ -21,11 +24,12 @@ import {
 } from "./wine-list-extraction";
 
 // 一括抽出(Issue #358)の GPT 経路(#426)の純ロジック。入力組み立てと structured
-// outputs のスキーマを DB/env 非依存で切り出し、単体テスト可能にする(OpenAI API の
+// outputs のスキーマを DB/env 非依存で切り出し、単体テスト可能にする(OpenRouter API の
 // 実行とクレジット処理は ai-service 側)。
 //
-// Claude 経路(wine-list-extraction.ts の buildWineListMessages)との違いは**APIの形と
-// 出力形式の強制手段だけ**で、指示文・マスタのグラウンディング・応答のパースは共有する
+// #602 で OpenAI Responses API 直接接続から OpenRouter の chat completions へ移した。
+// Claude 経路(wine-list-extraction.ts の buildWineListMessages)との違いは**出力形式の
+// 強制手段だけ**で、指示文・マスタのグラウンディング・応答のパースは共有する
 // (label-gpt-research.ts が label-web-research.ts と buildWebLabelPrompt を共有するのと
 // 同じ形)。ここで指示文を書き直すと、片方の経路だけ「price を読ませ忘れる」といった
 // 差が生まれる。
@@ -118,150 +122,73 @@ export const WINE_LIST_JSON_SCHEMA = {
 } as const;
 
 /**
- * 指示文 + 全写真を1つのユーザーメッセージに組み立てる。**写真ごとに直前へ
- * 「写真 N」のテキストブロックを挟む**のは Claude 経路と同じで、これが無いとモデルは
- * photo_indexes を当て推量で埋める(どの写真で見かけたか = 目撃記録の由来が壊れる)。
+ * 指示文 + 全写真を1つのユーザーメッセージに組み立てる(OpenAI chat 形式)。
+ * **写真ごとに直前へ「写真 N」のテキストを挟む**のは Claude 経路と同じで、これが無いと
+ * モデルは photo_indexes を当て推量で埋める(どの写真で見かけたか = 目撃記録の由来が壊れる)。
  *
  * data URI であることの強制は parseImageDataUrl が兼ねる(image_url には HTTP URL も
- * 渡せてしまうため。エチケット解析の GPT 経路と同じ境界)。detail は "auto" に任せる
- * (クライアントが長辺1600pxへ縮小済み)。
+ * 渡せてしまうため。エチケット解析の GPT 経路と同じ境界)。
  *
  * 指示文は差し替え可能にする(`buildWebLabelMessages` の promptText と同じ理由)。
  */
 export function buildWineListGptInput(
 	imageDataUrls: string[],
 	promptText: string = buildWineListPrompt(imageDataUrls.length),
-): OpenAI.Responses.ResponseInput {
-	const content: OpenAI.Responses.ResponseInputMessageContentList = [
-		{ type: "input_text", text: promptText },
-	];
+): OpenRouterMessage[] {
+	const content: OpenRouterUserContent = [{ type: "text", text: promptText }];
 	for (const [index, dataUrl] of imageDataUrls.entries()) {
 		// 戻り値は使わないが、data URI でなければここで throw する(境界の強制)
 		parseImageDataUrl(dataUrl);
-		content.push({ type: "input_text", text: `写真 ${index}` });
-		content.push({ type: "input_image", image_url: dataUrl, detail: "auto" });
+		content.push({ type: "text", text: `写真 ${index}` });
+		content.push({ type: "image_url", image_url: { url: dataUrl } });
 	}
 	return [{ role: "user", content }];
 }
 
-/** structured outputs の指定(strict)。 */
-export function buildWineListGptTextFormat(): OpenAI.Responses.ResponseTextConfig {
+/**
+ * structured outputs の指定(chat completions の response_format)。
+ * **strict にはしない**: スキーマが `type: ["integer", "null"]` の合併型を含むため、
+ * strict の条件(全 properties が単一型 + required)を満たさない。非 strict でも
+ * 形式の誘導として効き、最終的な型の揺れは `parseWineListResponse` が吸収する
+ * (旧 Workers AI 経路の guided_json と同じ役割分担)。
+ */
+export function buildWineListGptTextFormat(): OpenRouterResponseFormat {
 	return {
-		format: {
-			type: "json_schema",
+		type: "json_schema",
+		json_schema: {
 			name: GPT_WINE_LIST_SCHEMA_NAME,
 			schema: WINE_LIST_JSON_SCHEMA as unknown as Record<string, unknown>,
-			strict: true,
+			strict: false,
 		},
 	};
 }
 
 /**
- * 応答から本文JSONの文字列を取り出す。**「失敗しているのに空文字を返す」ことを避ける**のが
+ * 応答が使える形で完結したかを検査し、そうでなければ throw する(呼び出し側の
+ * 失敗扱いに載せる)。**「失敗しているのに空文字を返す」ことを避ける**のが
  * この関数の主目的(エチケット解析の `assertGptLabelFinished` と同じ役割)だが、
  * **打ち切りの扱いだけが違う**:
  *
- * 一括抽出の出力は銘柄数に比例して伸びるので、`max_output_tokens` での打ち切りは
+ * 一括抽出の出力は銘柄数に比例して伸びるので、`max_tokens` での打ち切りは
  * 「モデルの調子が悪い」ではなく「写真に写っているワインが多すぎる」であり、
- * ユーザには次の行動(写真を分ける)がある。Claude 経路が `stop_reason="max_tokens"` を
+ * ユーザには次の行動(写真を分ける)がある。Claude 経路が `length` を
  * `BadRequestError` に変えているのと同じ扱いに揃える(同じ文言 = 同じ escape hatch)。
  * それ以外の理由(content_filter 等)はユーザが行動できないので素の Error にする。
  */
-export function extractWineListGptText(response: {
-	status?: string | null;
-	incomplete_details?: { reason?: string | null } | null;
-	output_text?: string;
-	/** refusal ブロックの有無だけを見る(判別共用体に構造を合わせにいかない)。 */
-	output?: readonly unknown[];
-}): string {
-	if (response.status === "incomplete") {
-		const reason = response.incomplete_details?.reason ?? "unknown";
-		if (reason === "max_output_tokens") {
-			throw new BadRequestError(WINE_LIST_TRUNCATED_ERROR_MESSAGE);
-		}
-		throw new Error(`GPTの応答が途中で打ち切られました(${reason})`);
+export function assertWineListChatFinished(
+	finishReason: string,
+	text: string,
+): void {
+	if (finishReason === "length") {
+		throw new BadRequestError(WINE_LIST_TRUNCATED_ERROR_MESSAGE);
 	}
-	const refusal = findGptRefusal(response.output);
-	if (refusal) {
-		throw new Error(`GPTがワインリストの解析の応答を拒否しました: ${refusal}`);
+	if (finishReason === "content_filter") {
+		throw new Error("GPTがワインリストの解析の応答を拒否しました");
 	}
-	return response.output_text ?? "";
-}
-
-/**
- * 応答の output に並ぶ web検索の実行回数を数える(#474)。
- *
- * **usage には出ない**。web検索は $10/1000回 の回数課金で、トークンとは別建てのため、
- * ここを落とすとこの経路の原価が過小計上になる(Claude 経路は `server_tool_use` から
- * 取れるので、この関数は GPT 経路のためだけにある)。
- *
- * 型に構造を合わせにいかず `type` だけを見るのは `findGptRefusal` と同じ流儀
- * (SDK の判別共用体が版で動いても、数え漏れではなく型エラーにならない側に倒す)。
- */
-export function countGptWebSearchCalls(
-	output: readonly unknown[] | undefined,
-): number {
-	let count = 0;
-	for (const item of output ?? []) {
-		if (!item || typeof item !== "object") continue;
-		if ((item as { type?: unknown }).type === "web_search_call") count += 1;
+	if (finishReason === "error") {
+		throw new Error("GPTの応答がエラーで終了しました(error)");
 	}
-	return count;
-}
-
-/**
- * output の任意の階層に含まれる refusal ブロックの説明文を1つ返す。無ければ undefined。
- */
-export function findGptRefusal(
-	output: readonly unknown[] | undefined,
-): string | undefined {
-	for (const item of output ?? []) {
-		if (!item || typeof item !== "object") continue;
-		const content = (item as { content?: unknown }).content;
-		if (!Array.isArray(content)) continue;
-		for (const block of content) {
-			if (!block || typeof block !== "object") continue;
-			const { type, refusal } = block as { type?: unknown; refusal?: unknown };
-			if (type === "refusal" && typeof refusal === "string") return refusal;
-		}
+	if (!text.trim()) {
+		throw new Error("GPTの応答が空でした");
 	}
-	return undefined;
-}
-
-/**
- * OpenAI Responses API の usage をクレジット計上用の `AiUsage` へ変換する。
- *
- * `input_tokens` は**キャッシュヒットを内数として含む**ため、`cached_tokens` を
- * 差し引いてから非キャッシュ入力として計上する(二重計上を避ける)。web検索回数だけは
- * usage に無いので呼び出し側が渡す(`countGptWebSearchCalls` で数えた回数)。
- *
- * **`cache_write_tokens` は意図的に計上しない**。OpenAI はキャッシュ書き込みを課金せず
- * (割引は cached input 側だけ)、単価表にも `cacheWriteUsdPerMTok` を置いていない。
- * 一方 `usageToMicroUsd` は単価未定義のキャッシュ書き込みを**入力単価**で換算する
- * (割引を勝手に仮定しない安全側の既定)ので、拾うと無料のトークンに課金することになる。
- * 型に載せてあるのは「返ってくることを知った上で使っていない」ことを明示するため
- * (usage-accounting.test.ts が回帰を検出する)。
- */
-export function toGptUsage(
-	usage:
-		| {
-				input_tokens?: number | null;
-				output_tokens?: number | null;
-				input_tokens_details?: {
-					cached_tokens?: number | null;
-					/** 課金されないので計上しない(上のコメント参照)。 */
-					cache_write_tokens?: number | null;
-				} | null;
-		  }
-		| undefined,
-	webSearches: number,
-): AiUsage {
-	const cached = usage?.input_tokens_details?.cached_tokens ?? 0;
-	const input = usage?.input_tokens ?? 0;
-	return {
-		inputTokens: Math.max(0, input - cached),
-		outputTokens: usage?.output_tokens ?? 0,
-		cacheReadTokens: cached,
-		webSearches,
-	};
 }

@@ -60,9 +60,50 @@ export interface ModelPricing {
  * AI_REGION_QA_MODELS / AI_WINE_LIST_ROUTE_MODELS)がすべてこの表にある」ことを検証するので、
  * 単価の登録を忘れたまま経路を足すと CI が落ちる。
  *
- * 値の確認日: 2026-08-02(一次情報は各エントリの @see)。
+ * #602 で接続先を OpenRouter に集約したため、実際に呼ぶ ID は OpenRouter 形式
+ * (`プロバイダ/モデル`)。単価は OpenRouter のモデル価格と突合する
+ * (2026-09-20 確認)。旧・直接接続時代の ID(`claude-opus-5` 等)は台帳・観測の
+ * 読み取りのために残す(書き換えない)。
  */
 export const AI_MODEL_PRICING: Record<string, ModelPricing> = {
+	// ---- OpenRouter 経由(現行) ----
+	// @see https://openrouter.ai/api/v1/models (pricing フィールド)
+	// プロバイダネイティブ検索の回数課金は WEB_SEARCH_MICRO_USD_PER_CALL で別建て。
+	// プロンプトキャッシュの書き込みはこちらからは使わない(cache_control を
+	// 付けない)ので、書き込み単価は持たせない(usage-accounting.test.ts が固定)。
+	"anthropic/claude-opus-5": {
+		inputUsdPerMTok: 5,
+		outputUsdPerMTok: 25,
+		cacheReadUsdPerMTok: 0.5, // ヒット(0.1x)
+	},
+	/**
+	 * OpenRouter の実価は $2/$10。直接接続時代の標準価格($3/$15)ではなく
+	 * 実価を入れる(過大請求にしない)。
+	 */
+	"anthropic/claude-sonnet-5": {
+		inputUsdPerMTok: 2,
+		outputUsdPerMTok: 10,
+		cacheReadUsdPerMTok: 0.2,
+	},
+	// OpenAI ネイティブ検索の回数課金も $10/1000回で同額。
+	// キャッシュは「cached input」の割引のみで、書き込み側の課金は無い。
+	"openai/gpt-5.6-luna": {
+		inputUsdPerMTok: 0.2,
+		outputUsdPerMTok: 1.2,
+		cacheReadUsdPerMTok: 0.02,
+	},
+	"google/gemma-4-26b-a4b-it": {
+		inputUsdPerMTok: 0.09,
+		outputUsdPerMTok: 0.3,
+		cacheReadUsdPerMTok: 0.05,
+	},
+	"meta-llama/llama-4-scout": {
+		inputUsdPerMTok: 0.1,
+		outputUsdPerMTok: 0.3,
+	},
+
+	// ---- 直接接続時代の ID(履歴読み用。書き換えない) ----
+	// 値の確認日: 2026-08-02(一次情報は各エントリの @see)。
 	// ---- Anthropic ----
 	// @see https://platform.claude.com/docs/en/about-claude/pricing
 	"claude-opus-5": {

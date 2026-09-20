@@ -223,10 +223,10 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 | `feature` | `label_analysis` / `region_qa` / `wine_list_analysis` |
 | `outcome` | `ok`（確定）/ `blocked`（残高不足で推論せず）/ `failed`（返却済み） |
 | `selected` | ユーザ選択（または既定）のエンジン・モデルキー |
-| `route` | シークレットの設定状況を加味して**意図した**経路 |
-| `executedBy` | **実際に結果を出した**経路。`route` と食い違えばフォールバック |
+| `route` | **実際に走る**経路（キー未設定なら `null` で予約前に利用不可） |
+| `executedBy` | **実際に結果を出した**経路（フォールバック廃止後は `route` と一致） |
 | `fellBack` | 上記 2 つから導出。`true` なら高精度経路が落ちて拾われた |
-| `model` | 実際に呼んだモデル ID（`gpt-5.6-luna` 等） |
+| `model` | 実際に呼んだモデル ID（`openai/gpt-5.6-luna` 等。OpenRouter 形式） |
 | `actualTokens` / `reservedTokens` | 実測と予約。見積の妥当性の評価に使う |
 | `requestId` | `credit_ledger.request_id` と同値。台帳と突き合わせられる |
 | `webResearch` | 高精度エチケット解析の**検索の軌跡**。下記参照 |
@@ -235,9 +235,11 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 #### エチケット解析の裏取りを追う
 
 高精度経路（`gpt-luna` / `web-research`）は web 検索で生産者・呼称・品種を裏取りするが、
-**何を検索して何を読んだかは応答の外からは一切見えない**。検索結果は毎回変わるので、
-後から同じ写真で再実行しても再現しない。推定が外れたときに「写真の読み取りを間違えた」
-のか「拾った情報が間違っていた」のかを切り分けられるよう、実行時に拾って 1 行に載せている。
+**検索語クエリは応答に出ない**（`openrouter:web_search` サーバーツールとして OpenRouter
+側で実行されるため）。参照 URL は応答のアノテーションから拾い、実行時に 1 行に載せて
+いる。検索結果は毎回変わるので、後から同じ写真で再実行しても再現しない。推定が外れた
+ときに「写真の読み取りを間違えた」のか「拾った情報が間違っていた」のかを切り分けられる
+よう、実行時に拾って 1 行に載せている。
 
 ```jsonc
 {
@@ -258,8 +260,8 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 }
 ```
 
-- `webResearch.steps[].action` — `search`（検索）/ `open`（ページを開いた）/ `find`（ページ内検索）。
-  失敗時は `error`（`max_uses_exceeded` なら上限で裏取りを打ち切ったということ）。
+- `webResearch.steps[].action` — 現在は `search`（検索）のみ。URL は応答の
+  `url_citation` アノテーションから拾う（検索語クエリは応答に出ない）。
 - `steps` は 20 件、`urls` は 1 操作 5 件で打ち切る。総数は `stepCount` / `urlCount` に残るので、
   打ち切られたかどうかは差分で分かる。`hosts` は「どのサイトを見たか」の要約で、
   `bun run logs --grep vivino` のような雑な検索で引っかけるためのもの。
@@ -267,11 +269,11 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
   `photo_and_web`（写真の読み取りを検索で裏取り・修正した）/ `unknown`（特定できず null）。
   GPT 経路は structured outputs で強制されるので必ず出るが、**Claude 経路はプロンプトでしか
   要求できないので欠けることがある**。
-- **推論が失敗してフォールバックした回にも `webResearch` は出る**（応答のパースより先に
+- **推論が失敗した回にも `webResearch` は出る**（応答を受け取り次第、パースより先に
   軌跡を取っている）。「検索まで到達したが結果を使えなかった」のか「そもそも検索できな
   かった」のかは、このフィールドが空かどうかで分かる。
-- 検索をしない経路（`region_qa` / `wine_list_analysis` / `workers-ai` へのフォールバック）では
-  フィールドごと出ない。空の軌跡を出すと「検索したが何も見つからなかった」と誤読されるため。
+- 検索をしない経路（`region_qa` / 標準経路）ではフィールドごと出ない。空の軌跡を出すと
+  「検索したが何も見つからなかった」と誤読されるため。
 
 > [!NOTE]
 > **「警告が出ていないこと」を成功の証拠にしない。** 成功経路が無言だった頃は、
@@ -361,9 +363,10 @@ $ bun run traces --trace df94454ed3341035b077cf8d8fc3fd17
 コード変更なしで自動計装されるのは、**ハンドラ**（`fetch` / `queue`）・**バインディング**
 （D1・R2・Images・Queues・Rate limiting）・**外向き `fetch`** の呼び出し。
 
-**`env.AI`（Workers AI）は自動計装の対象外**で、このアプリで最も遅く最も壊れる経路が
-トレースに現れない。そこはカスタムスパン（`src/lib/observability/span.ts` の `withSpan`）で
-補っている。**スパンを張るのはこの3箇所だけ**で、`tracing.enterSpan` を経路ごとに直書きしない
+**`env.AI`（Workers AI バインディング）は #602 で廃止した**。LLM 呼び出しは OpenRouter
+への外向き `fetch`（`src/lib/ai/openrouter.ts` が唯一の入口）で行い、こちらは自動計装の
+対象になる。モデル呼び出し単位の区切り（どの推論がどれだけ掛かったか）はカスタムスパン
+（`src/lib/observability/span.ts` の `withSpan`）で補っている。**スパンを張るのはこの3箇所だけ**で、`tracing.enterSpan` を経路ごとに直書きしない
 （経路が増えたときに後発の経路で必ず漏れるため。#166 / #174 と同じ失敗の形）。
 
 | スパン名 | 張っている場所 | 主な属性 |
@@ -435,11 +438,11 @@ Langfuse Cloud **JPリージョン**（`https://jp.cloud.langfuse.com`）を使�
 | 機能 | 1回あたりの observation |
 |---|---|
 | 地域Q&A | 2（trace + generation） |
-| エチケット解析（Workers AI） | 2〜7（trace + 写真枚数ぶんの generation。最大6枚） |
-| エチケット解析（Claude 経路） | 2〜4（trace + リクエストごとの generation。pause_turn の継続も1件ずつ） |
+| エチケット解析（標準経路） | 2〜7（trace + 写真枚数ぶんの generation。最大6枚） |
+| エチケット解析（Claude 経路） | 2〜3（trace + リクエストの generation + web検索の span） |
 | エチケット解析（GPTエージェントループ） | **実測 4件（1ステップで収束）〜 11件（3ステップ: generation×3 + `submit_answer`×2 + web検索×3 + マスタ参照×2 + trace）**。`AI_LABEL_AGENT_MAX_STEPS = 8` まで回しきると 30 前後に達しうる |
 | 一括抽出（GPT経路） | 2（trace + generation） |
-| 一括抽出（Claude経路） | 2〜5（trace + リクエストごとの generation。pause_turn の継続も1件ずつ） |
+| 一括抽出（Claude経路） | 2〜3（trace + リクエストの generation + web検索の span） |
 
 **Phase 3(#515) で全AI経路の計装が揃った。** 新しい `AiFeature` を足すときは
 `AI_FEATURE_GENERATION_PREFIXES`（`src/lib/ai/inference-log.ts`）への登録が型で強制され、
@@ -567,15 +570,14 @@ GitHub Actions へ置かない。鍵の投入は Sentry / Stripe と同じく手
 
 #### Playground / Datasets / Experiments
 
-Langfuse Playground の LLM Connection に **Cloudflare Workers AI のプリセットは無い**。
-Cloudflare AI Gateway の OpenAI 互換エンドポイントを通す:
+Langfuse Playground の LLM Connection に **OpenRouter のプリセットは無い**。
+Provider は **OpenAI**、Advanced Settings の Base URL に
+`https://openrouter.ai/api/v1` を入れ、API Key に OpenRouter のキーを設定する
+（Langfuse が `/chat/completions` を付けるので**末尾に付けない**）。
 
-1. Cloudflare で AI Gateway を作る
-2. Langfuse の Project Settings → LLM Connections → Add new LLM API key
-3. Provider は **OpenAI**、Advanced Settings の Base URL に
-   `https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/compat` を入れる
-   （Langfuse が `/chat/completions` を付けるので**末尾に付けない**）
-4. モデル名は `workers-ai/@cf/google/gemma-4-26b-a4b-it` の形で指定する
+1. Langfuse の Project Settings → LLM Connections → Add new LLM API key
+2. Provider は **OpenAI**、Base URL に `https://openrouter.ai/api/v1`
+3. モデル名は `openai/gpt-5.6-luna` の形で指定する（`src/lib/ai/config.ts` の ID と同じ）
 
 Dataset は既存トレースから作れる（Traces の一覧で選択 → Add to dataset）。地域Q&Aの実リクエストを
 数十件拾って回帰用にしておくと、プロンプトを変えたときに Experiments で前後比較できる。
@@ -767,6 +769,26 @@ npx wrangler secret list --env preview
 
 **投入するとその環境の既存セッションは全て無効になる**（署名鍵が変わるため）。ログインし直しが
 必要になるだけで、データは失われない。
+
+### `OPENROUTER_API_KEY` はAI機能の利用に必須（#602）
+
+全AI機能（地域Q&A・エチケット解析・ワインリスト解析）のLLM呼び出しは OpenRouter 経由で
+実行する。OpenAI / Anthropic への個別接続と Workers AI バインディングは廃止した。
+**未設定でもアプリは起動する**が、AI機能は予約の前に利用不可として扱う
+（地域Q&A・ジョブ投入は 503、一括抽出の導線は非表示）。
+
+```bash
+npx wrangler secret put OPENROUTER_API_KEY                      # 本番 (wine)
+npx wrangler versions secret put OPENROUTER_API_KEY --env preview  # プレビュー (wine-preview)
+```
+
+ローカルは `.dev.vars` に記載（`.dev.vars.example` 参照）。
+使うモデル（`openai/gpt-5.6-luna` / `anthropic/claude-opus-5` /
+`anthropic/claude-sonnet-5` / `google/gemma-4-26b-a4b-it` /
+`meta-llama/llama-4-scout`）と単価は `src/lib/ai/config.ts` /
+`src/lib/billing/ai-pricing.ts` に集約してある。web検索は
+`openrouter:web_search` サーバーツール（engine native = プロバイダのネイティブ検索）
+で実行し、回数課金ぶんは応答の `usage.server_tool_use.web_search_requests` から取る。
 
 ### 環境ごとの非対称性
 

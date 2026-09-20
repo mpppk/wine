@@ -6,7 +6,6 @@ import { subscription, user } from "#/db/auth-schema";
 import { creditLedger } from "#/db/schema";
 import {
 	AI_LABEL_GPT_MODEL,
-	AI_LABEL_MODEL,
 	AI_LABEL_WEB_MODEL,
 	AI_REGION_QA_MODELS,
 	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
@@ -26,6 +25,7 @@ import {
 import { costToCredits } from "#/lib/credit/credit-math";
 import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { OpenRouterError } from "#/lib/ai/openrouter";
 import {
 	answerRegionQuestion,
 	isWineListAnalysisAvailable,
@@ -85,112 +85,46 @@ async function seedPremiumUser(): Promise<string> {
 }
 
 /**
- * env.AI を差し替える。答えの中身ではなく「AI 呼び出しが成功/失敗したときに
- * 台帳と残高がどうなるか」を固定するためのスタブ。
+ * OPENROUTER_API_KEY を立て、OpenRouter への outbound fetch をスタブする。
+ * **接続先は OpenRouter だけ**(直接接続の残存はここで throw して検出する)。
  */
-function stubAiRun(run: () => Promise<unknown>): void {
-	(env as unknown as { AI: { run: () => Promise<unknown> } }).AI = { run };
-}
-
-/**
- * ANTHROPIC_API_KEY を差し替え、Anthropic API への outbound fetch をスタブする。
- * SDK はクライアント構築時に globalThis.fetch を掴むため、呼び出し前の stubGlobal で
- * 差し替われば実ネットワークには出ない。
- */
-function stubAnthropic(respond: () => Promise<Response>): void {
-	(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
-		"sk-ant-test";
-	vi.stubGlobal("fetch", respond);
-}
-
-/** Anthropic Messages API の成功レスポンス(JSONテキスト + usage)を組み立てる。 */
-function anthropicMessage(
-	fields: Record<string, unknown>,
-	usage: {
-		input_tokens: number;
-		output_tokens: number;
-		server_tool_use?: { web_search_requests: number };
-	},
-): Response {
-	return Response.json({
-		id: "msg_test",
-		type: "message",
-		role: "assistant",
-		model: "claude-opus-5",
-		stop_reason: "end_turn",
-		stop_sequence: null,
-		content: [{ type: "text", text: JSON.stringify(fields) }],
-		usage,
+function stubOpenRouter(respond: () => Promise<Response>): void {
+	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+		"or-test";
+	vi.stubGlobal("fetch", async (input: unknown) => {
+		const url = typeof input === "string" ? input : String(input);
+		if (!url.startsWith("https://openrouter.ai/api/v1/")) {
+			throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
+		}
+		return await respond();
 	});
 }
 
-/**
- * OPENAI_API_KEY を差し替え、OpenAI API への outbound fetch をスタブする。
- * stubAnthropic と同じ流儀(SDK が掴む globalThis.fetch を差し替える)。両方を
- * スタブしたい場合は stubProviders を使う。
- */
-function stubOpenAi(respond: () => Promise<Response>): void {
-	(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
-	vi.stubGlobal("fetch", respond);
+/** OpenRouter のキーだけ立てる(応答は別途スタブする)。 */
+function stubOpenRouterKey(): void {
+	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+		"or-test";
 }
 
-/**
- * 両プロバイダのキーを立てた上で、リクエストURLで応答を振り分ける。
- * 「キーは両方あるが、走ってよいのは片方だけ」を検証するために要る
- * (vi.stubGlobal は後勝ちなので、stubAnthropic と stubOpenAi は併用できない)。
- */
-function stubProviders(handlers: {
-	openai: () => Promise<Response>;
-	anthropic: () => Promise<Response>;
-}): void {
-	(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
-	(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
-		"sk-ant-test";
-	vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
-		const url = typeof input === "string" ? input : input.toString();
-		return url.includes("openai.com")
-			? await handlers.openai()
-			: await handlers.anthropic();
-	});
+interface OrChatUsage {
+	prompt_tokens?: number;
+	completion_tokens?: number;
+	server_tool_use?: { web_search_requests?: number };
 }
 
-/**
- * OpenAI Responses API の成功レスポンス(JSONテキスト + usage)を組み立てる。
- * SDK は output[].content[] の output_text ブロックから本文を組み立てるので、
- * message アイテムの形で返す必要がある。**一括抽出(生の Responses API 経路)用**。
- */
-function openaiResponse(
-	fields: Record<string, unknown>,
-	usage: { input_tokens: number; output_tokens: number },
-	webSearchCalls = 0,
+/** OpenRouter chat completion の成功レスポンス(本文テキスト + usage)を組み立てる。 */
+function orChatMessage(
+	fields: Record<string, unknown> | string,
+	usage: OrChatUsage,
+	finishReason = "stop",
 ): Response {
 	return Response.json({
-		id: "resp_test",
-		object: "response",
-		created_at: 0,
-		model: "gpt-5.6-luna",
-		status: "completed",
-		error: null,
-		incomplete_details: null,
-		output: [
-			// web検索の実行回数は usage に出ないので output から数える(回数課金)。
-			...Array.from({ length: webSearchCalls }, (_, i) => ({
-				type: "web_search_call",
-				id: `ws_${i}`,
-				status: "completed",
-			})),
+		choices: [
 			{
-				type: "message",
-				id: "msg_test",
-				role: "assistant",
-				status: "completed",
-				content: [
-					{
-						type: "output_text",
-						text: JSON.stringify(fields),
-						annotations: [],
-					},
-				],
+				finish_reason: finishReason,
+				message: {
+					content: typeof fields === "string" ? fields : JSON.stringify(fields),
+				},
 			},
 		],
 		usage,
@@ -201,36 +135,61 @@ function openaiResponse(
  * エチケット解析(エージェントループ経路)の成功レスポンス。
  *
  * **最終回答は本文テキストではなく `submit_answer` ツールの呼び出し**として返る。
- * 検証を通れば `stopWhen` がその場でループを止めるので、応答は1回で足りる
- * (2回目のリクエストは発生しない)。一括抽出は生の Responses API のままなので
- * `openaiResponse` と分けて持つ。
+ * 検証を通ればその場でループを止めるので、応答は1回で足りる
+ * (2回目のリクエストは発生しない)。
  */
-function openaiSubmitAnswerResponse(
+function orSubmitAnswerResponse(
 	fields: Record<string, unknown>,
-	usage: { input_tokens: number; output_tokens: number },
-	webSearchCalls = 0,
+	usage: OrChatUsage,
 ): Response {
 	return Response.json({
-		id: "resp_test",
-		object: "response",
-		created_at: 0,
-		model: "gpt-5.6-luna",
-		status: "completed",
-		error: null,
-		incomplete_details: null,
-		output: [
-			...Array.from({ length: webSearchCalls }, (_, i) => ({
-				type: "web_search_call",
-				id: `ws_${i}`,
-				status: "completed",
-			})),
+		choices: [
 			{
-				type: "function_call",
-				id: "fc_test",
-				call_id: "call_test",
-				name: "submit_answer",
-				arguments: JSON.stringify(fields),
-				status: "completed",
+				finish_reason: "tool_calls",
+				message: {
+					content: "",
+					tool_calls: [
+						{
+							id: "call_test",
+							type: "function",
+							function: {
+								name: "submit_answer",
+								arguments: JSON.stringify(fields),
+							},
+						},
+					],
+				},
+			},
+		],
+		usage,
+	});
+}
+
+/** zoom_photo を1回呼ぶだけの応答。 */
+function orZoomResponse(usage: OrChatUsage): Response {
+	return Response.json({
+		choices: [
+			{
+				finish_reason: "tool_calls",
+				message: {
+					content: "",
+					tool_calls: [
+						{
+							id: "call_zoom",
+							type: "function",
+							function: {
+								name: "zoom_photo",
+								arguments: JSON.stringify({
+									photoIndex: 0,
+									x: 0.3,
+									y: 0.4,
+									width: 0.2,
+									height: 0.2,
+								}),
+							},
+						},
+					],
+				},
 			},
 		],
 		usage,
@@ -260,55 +219,25 @@ function stubImages(): void {
 	};
 }
 
-/** OpenAI への outbound を捕まえつつ応答を返す(リクエスト本文を検査するため)。 */
-function stubOpenAiCapturing(
+/** OpenRouter への outbound を捕まえつつ応答を返す(リクエスト本文を検査するため)。 */
+function stubOpenRouterCapturing(
 	requests: string[],
 	respond: () => Response,
 ): void {
-	(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
-	vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+		"or-test";
+	vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+		const url = typeof input === "string" ? input : String(input);
+		if (!url.startsWith("https://openrouter.ai/api/v1/")) {
+			throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
+		}
 		requests.push(typeof init?.body === "string" ? init.body : "");
 		return respond();
 	});
 }
 
-/** zoom_photo を1回呼ぶだけの応答。 */
-function openaiZoomResponse(usage: {
-	input_tokens: number;
-	output_tokens: number;
-}): Response {
-	return Response.json({
-		id: "resp_zoom",
-		object: "response",
-		created_at: 0,
-		model: "gpt-5.6-luna",
-		status: "completed",
-		error: null,
-		incomplete_details: null,
-		output: [
-			{
-				type: "function_call",
-				id: "fc_zoom",
-				call_id: "call_zoom",
-				name: "zoom_photo",
-				arguments: JSON.stringify({
-					photoIndex: 0,
-					x: 0.3,
-					y: 0.4,
-					width: 0.2,
-					height: 0.2,
-				}),
-				status: "completed",
-			},
-		],
-		usage,
-	});
-}
-
 afterEach(() => {
-	delete (env as unknown as { AI?: unknown }).AI;
-	delete (env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY;
-	delete (env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY;
+	delete (env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY;
 	delete (env as unknown as { IMAGES?: unknown }).IMAGES;
 	vi.unstubAllGlobals();
 });
@@ -325,13 +254,6 @@ const balanceAfter = (
 	usage: AiUsage,
 	grant = MONTHLY_CREDITS_FREE,
 ) => grant - costToCredits(usageToMicroUsd(model, usage));
-
-/**
- * Workers AI は usage の内訳を返さないため、実装は全量を出力単価で換算する(保守的)。
- * 期待値もその前提で作る。
- */
-const balanceAfterWorkersAi = (model: string, totalTokens: number) =>
-	balanceAfter(model, { outputTokens: totalTokens });
 
 // 同期APIは #480 で削除した。これらのテストが見ているのは**共有の推論本体**
 // (runLabelInference / runWineListInference)の挙動——経路の選択とフォールバック、
@@ -436,14 +358,15 @@ describe("plan の effort 解決", () => {
 			.run();
 	}
 
-	function stubOpenAiKey() {
-		(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+	function stubOpenRouterKey() {
+		(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+			"or-test";
 	}
 
 	it("設定値が plan・見積・実行記録に載る", async () => {
 		const userId = await seedUser();
 		await setEffort(userId, "high");
-		stubOpenAiKey();
+		stubOpenRouterKey();
 		const plan = await resolveLabelPlan(userId, 1);
 		expect(plan.effort).toBe("high");
 		expect(plan.estimate).toEqual(
@@ -453,7 +376,7 @@ describe("plan の effort 解決", () => {
 	});
 
 	it("未設定・不正値は low へフォールバックする", async () => {
-		stubOpenAiKey();
+		stubOpenRouterKey();
 		const unset = await seedUser();
 		expect((await resolveLabelPlan(unset, 1)).effort).toBe("low");
 		const invalid = await seedUser();
@@ -464,7 +387,7 @@ describe("plan の effort 解決", () => {
 	it("restore は effort を維持する(再解決しない)", async () => {
 		const userId = await seedUser();
 		await setEffort(userId, "medium");
-		stubOpenAiKey();
+		stubOpenRouterKey();
 		const plan = await resolveLabelPlan(userId, 2);
 		const restored = restoreLabelPlan({
 			engine: plan.engine,
@@ -480,7 +403,7 @@ describe("plan の effort 解決", () => {
 	it("一括抽出の plan にも effort が載る", async () => {
 		const userId = await seedUser();
 		await setEffort(userId, "medium");
-		stubOpenAiKey();
+		stubOpenRouterKey();
 		const plan = await resolveWineListPlan(userId, 1);
 		expect(plan.route).toBe("gpt-luna");
 		expect(plan.effort).toBe("medium");
@@ -496,14 +419,25 @@ describe("plan の effort 解決", () => {
 		expect(restored.effort).toBe("medium");
 	});
 
+	it("キー未設定なら plan を立てず 503 で拒否する(予約しない)", async () => {
+		// afterEach でキーを消している状態を使う。別モデルへの自動フォールバックは
+		// しない(#602)ので、予約の前に利用不可として扱う。
+		const userId = await seedUser();
+		expect(isWineListAnalysisAvailable()).toBe(false);
+		await expect(resolveLabelPlan(userId, 1)).rejects.toMatchObject({
+			status: 503,
+		});
+		expect(await ledgerRowsOf(userId)).toHaveLength(0);
+	});
+
 	it("high の設定は一括GPTリクエストの reasoning.effort と上限に載る", async () => {
 		const userId = await seedUser();
 		await setEffort(userId, "high");
 		const bodies: string[] = [];
-		(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+		stubOpenRouterKey();
 		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
 			if (typeof init?.body === "string") bodies.push(init.body);
-			return openaiResponse(
+			return orChatMessage(
 				{
 					wines: [
 						{
@@ -519,10 +453,9 @@ describe("plan の effort 解決", () => {
 					],
 					truncated: false,
 				},
-				{ input_tokens: 100, output_tokens: 20 },
+				{ prompt_tokens: 100, completion_tokens: 20 },
 			);
 		});
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
 
@@ -530,23 +463,27 @@ describe("plan の effort 解決", () => {
 		expect(bodies).toHaveLength(1);
 		const body = JSON.parse(bodies[0] ?? "{}") as {
 			reasoning?: unknown;
-			max_output_tokens?: unknown;
+			max_tokens?: unknown;
 		};
 		expect(body.reasoning).toEqual({ effort: "high" });
-		expect(body.max_output_tokens).toBe(AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS);
+		expect(body.max_tokens).toBe(AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS);
 	});
 
-	it("medium の設定はClaudeリクエストの thinking budget に載る", async () => {
+	it("medium の設定はClaudeリクエストの reasoning budget に載る", async () => {
 		const userId = await seedPremiumUser();
 		await setEffort(userId, "medium");
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
 		const bodies: string[] = [];
-		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
-			"sk-ant-test";
+		stubOpenRouterKey();
 		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
 			if (typeof init?.body === "string") bodies.push(init.body);
-			return anthropicMessage(
+			return orChatMessage(
 				{ wine_name: "Chablis" },
-				{ input_tokens: 100, output_tokens: 20 },
+				{ prompt_tokens: 100, completion_tokens: 20 },
 			);
 		});
 
@@ -555,12 +492,9 @@ describe("plan の effort 解決", () => {
 		expect(result).toMatchObject({ blocked: false });
 		expect(bodies.length).toBeGreaterThan(0);
 		const body = JSON.parse(bodies[0] ?? "{}") as {
-			thinking?: unknown;
+			reasoning?: unknown;
 		};
-		expect(body.thinking).toEqual({
-			type: "enabled",
-			budget_tokens: 8000,
-		});
+		expect(body.reasoning).toEqual({ max_tokens: 8000 });
 	});
 });
 
@@ -573,11 +507,11 @@ describe("answerRegionQuestion の予約 → 確定/返却", () => {
 
 	it("推論が失敗したら予約を全額返却し、残高を元に戻す", async () => {
 		const userId = await seedUser();
-		const boom = new Error("AI unavailable");
-		stubAiRun(() => Promise.reject(boom));
+		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
 
-		// 推論失敗はそのまま呼び出し側へ伝える(返却が例外を握り潰さない #158)
-		await expect(ask(userId)).rejects.toBe(boom);
+		// 推論失敗はそのまま呼び出し側へ伝える(返却が例外を握り潰さない #158)。
+		// fetch 層の失敗は OpenRouterError に畳まれる(呼び出し側の分岐用)。
+		await expect(ask(userId)).rejects.toBeInstanceOf(OpenRouterError);
 
 		// 当月付与ぶんが丸ごと残っている = 予約が焼き付いていない
 		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
@@ -595,24 +529,25 @@ describe("answerRegionQuestion の予約 → 確定/返却", () => {
 
 	it("推論が成功したら実測ぶんだけ消費し、差分を戻す", async () => {
 		const userId = await seedUser();
-		const actualTokens = 42;
-		stubAiRun(async () => ({
-			response: "キンメリジャンの石灰質土壌です。",
-			usage: { total_tokens: actualTokens },
-		}));
+		stubOpenRouter(async () =>
+			orChatMessage("キンメリジャンの石灰質土壌です。", {
+				prompt_tokens: 30,
+				completion_tokens: 12,
+			}),
+		);
 
 		const result = await ask(userId);
 
 		expect(result).toMatchObject({
 			blocked: false,
 			answer: "キンメリジャンの石灰質土壌です。",
-			actualTokens,
+			actualTokens: 42,
 		});
 		// 見積との差分は戻るので、最終的な消費は実測ぶんだけ
-		const expected = balanceAfterWorkersAi(
-			AI_REGION_QA_MODELS.gemma4.id,
-			actualTokens,
-		);
+		const expected = balanceAfter(AI_REGION_QA_MODELS.gemma4.id, {
+			inputTokens: 30,
+			outputTokens: 12,
+		});
 		expect(await balanceOf(userId)).toBe(expected);
 		expect((result as { balance: number }).balance).toBe(expected);
 
@@ -622,22 +557,40 @@ describe("answerRegionQuestion の予約 → 確定/返却", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
 	});
 
-	it("実測が取れないモデルでも予約全量を消費として確定する(返却0=安全側)", async () => {
+	it("実測が空の応答でも予約全量を消費として確定する(返却0=安全側)", async () => {
 		const userId = await seedUser();
-		// usage を返さないモデル。ここで「実測0」と扱うと予約全額が戻り、消費が無料になる
-		stubAiRun(async () => ({ response: "回答" }));
+		// usage を返さない応答。ここで「実測0」と扱うと予約全額が戻り、消費が無料になる
+		stubOpenRouter(async () => orChatMessage("回答", {}));
 
 		const result = await ask(userId);
 
 		expect(result).toMatchObject({ blocked: false });
 		expect(await balanceOf(userId)).toBeLessThan(MONTHLY_CREDITS_FREE);
 	});
+
+	it("キー未設定なら推論せず 503 で拒否する(予約しない)", async () => {
+		// afterEach でキーを消している状態を使う。別モデルへの自動フォールバックは
+		// しない(#602)。
+		const userId = await seedUser();
+
+		await expect(ask(userId)).rejects.toMatchObject({ status: 503 });
+
+		// 予約前に落ちるので台帳は空(月次付与すら走らない)
+		expect(await ledgerRowsOf(userId)).toHaveLength(0);
+	});
 });
 
 describe("エチケット解析の予約 → 返却", () => {
 	it("全ての写真の解析に失敗したら予約を全額返却する", async () => {
 		const userId = await seedUser();
-		stubAiRun(() => Promise.reject(new Error("model error")));
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'standard' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		stubOpenRouter(async () =>
+			Response.json({ error: { message: "provider error" } }, { status: 500 }),
+		);
 
 		// 個々の写真の失敗はスキップされるが、全滅なら推論失敗として throw する
 		await expect(
@@ -650,10 +603,15 @@ describe("エチケット解析の予約 → 返却", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
 	});
 
-	it("ANTHROPIC_API_KEY 設定時はClaude経路で解析し、usage合算で確定する", async () => {
+	it("OPENROUTER_API_KEY 設定時はClaude経路で解析し、usage合算で確定する", async () => {
 		const userId = await seedPremiumUser();
-		stubAnthropic(async () =>
-			anthropicMessage(
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		stubOpenRouter(async () =>
+			orChatMessage(
 				{
 					wine_name: "Chablis Les Clos",
 					producer: "Vincent Dauvissat",
@@ -662,11 +620,9 @@ describe("エチケット解析の予約 → 返却", () => {
 					region: "Bourgogne",
 					grape_varieties: ["Chardonnay"],
 				},
-				{ input_tokens: 1000, output_tokens: 200 },
+				{ prompt_tokens: 1000, completion_tokens: 200 },
 			),
 		);
-		// Claude経路が成功する限り Workers AI には触れない(触れたら失敗として検出される)
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		const result = await runLabelViaJob(userId, {
 			imageDataUrls: [PHOTO, PHOTO],
@@ -683,7 +639,7 @@ describe("エチケット解析の予約 → 返却", () => {
 			grapeVarietyIds: ["chardonnay"],
 		});
 		// 実測ぶんだけ消費し、予約との差分は返る。**Opus の単価で換算される**ので、
-		// 同じ 1,200 トークンでも Workers AI 経路より2桁多く消費する。
+		// 同じ 1,200 トークンでも標準経路より2桁多く消費する。
 		expect(await balanceOf(userId)).toBe(
 			balanceAfter(
 				AI_LABEL_WEB_MODEL,
@@ -702,132 +658,67 @@ describe("エチケット解析の予約 → 返却", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(false);
 	});
 
-	it("ユーザが標準(workers-ai)を選択していればキー設定時でもClaude経路を使わない", async () => {
+	it("旧 workers-ai の選択は standard へ読み替えて解析する(互換変換)", async () => {
+		// D1 に残る旧値は用途別の対応先へ解決する(#602 の移行対応表)。
 		const userId = await seedUser();
 		await env.DB.prepare(
 			"UPDATE user SET preferred_label_engine = 'workers-ai' WHERE id = ?",
 		)
 			.bind(userId)
 			.run();
-		// Claude経路に入ってしまった場合はこちらの usage(9999)で確定してしまうため、
-		// 最終的な actualTokens が Workers AI の実測(60)であることが経路選択の証明になる
-		// (fetch を失敗させる方式だとフォールバックと区別が付かない)
-		stubAnthropic(async () =>
-			anthropicMessage(
-				{ wine_name: "wrong path" },
-				{ input_tokens: 9000, output_tokens: 999 },
-			),
-		);
-		stubAiRun(async () => ({
-			response: JSON.stringify({
-				wine_name: "Chablis",
-				producer: null,
-				vintage: null,
-				appellation: null,
-				region: null,
-				grape_varieties: [],
-			}),
-			usage: { total_tokens: 60 },
-		}));
-
-		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
-
-		// Workers AI 経路の実測(60)で確定 = Claude経路のトークンが混ざっていない
-		expect(result).toMatchObject({ blocked: false, actualTokens: 60 });
-	});
-
-	it("Claude経路が失敗したら Workers AI へフォールバックして完了する", async () => {
-		const userId = await seedPremiumUser();
-		// 400 はSDKがリトライしない失敗。経路ごと諦めてフォールバックさせる
-		stubAnthropic(async () =>
-			Response.json(
+		stubOpenRouter(async () =>
+			orChatMessage(
 				{
-					type: "error",
-					error: { type: "invalid_request_error", message: "bad request" },
+					wine_name: "Chablis",
+					producer: null,
+					vintage: null,
+					appellation: null,
+					region: null,
+					grape_varieties: [],
 				},
-				{ status: 400 },
+				{ prompt_tokens: 1000, completion_tokens: 200 },
 			),
 		);
-		stubAiRun(async () => ({
-			response: JSON.stringify({
-				wine_name: "Chablis",
-				producer: null,
-				vintage: null,
-				appellation: "Chablis",
-				region: null,
-				grape_varieties: [],
-			}),
-			usage: { total_tokens: 55 },
-		}));
 
 		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
-		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
-		if (result.blocked) throw new Error("unreachable");
-		expect(result.suggestions.name).toBe("Chablis");
-		// フォールバック後も settle で確定し、予約が焼き付かない。**実際に結果を出した
-		// Workers AI の単価で課金する**(Opus の単価で Llama の推論を課金しない)。
-		expect(await balanceOf(userId)).toBe(
-			balanceAfter(
-				AI_LABEL_MODEL,
-				{ outputTokens: 55 },
-				MONTHLY_CREDITS_PREMIUM,
-			),
-		);
+		// 標準経路の実測(1200)で確定 = 旧値が既定の高精度経路に倒れていない
+		expect(result).toMatchObject({ blocked: false, actualTokens: 1200 });
 	});
 
-	// Issue #404: 実測が取れないときのフォールバックは「予約全量を実測とみなす」形
-	// だったが、**予約は意図した経路(Claude ≈275クレジット)の見積**。Workers AI が
-	// 拾った回にそれを課金すると、Llama 1回の推論に275クレジットを確定課金してしまう。
-	// Workers AI の usage は任意(返らないことがある)ので、経路の複合で実際に起きうる。
-	it("Claude経路の失敗をWorkers AIが拾い実測が取れなくても、課金はWorkers AIの見積で止まる", async () => {
+	it("高精度経路が失敗したら返却して失敗する(フォールバックしない)", async () => {
+		// #602 で OpenAI / Anthropic / Workers AI への直接フォールバックを廃止した。
+		// 失敗は予約の返却に載せ、別経路での再実行はしない。
 		const userId = await seedPremiumUser();
-		stubAnthropic(async () =>
-			Response.json(
-				{
-					type: "error",
-					error: { type: "invalid_request_error", message: "bad request" },
-				},
-				{ status: 400 },
-			),
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		stubOpenRouter(async () =>
+			Response.json({ error: { message: "provider error" } }, { status: 500 }),
 		);
-		// usage を返さない Workers AI 応答(実測 0 → フォールバック経路に入る)
-		stubAiRun(async () => ({
-			response: JSON.stringify({
-				wine_name: "Chablis",
-				producer: null,
-				vintage: null,
-				appellation: null,
-				region: null,
-				grape_varieties: [],
-			}),
-		}));
 
-		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
+		await expect(
+			runLabelViaJob(userId, { imageDataUrls: [PHOTO] }),
+		).rejects.toThrow();
 
-		expect(result).toMatchObject({ blocked: false });
-		const workersAi = costToCredits(
-			estimateLabelReserveCharge("workers-ai", 1).microUsd,
-		);
-		const webResearch = costToCredits(
-			estimateLabelReserveCharge("web-research", 1).microUsd,
-		);
-		// 予約額(高精度経路の見積)との差が大きいことを明示しておく。ここが縮むと
-		// このテストは「たまたま同じ値」で通ってしまい、回帰を検出できなくなる。
-		expect(webResearch).toBeGreaterThan(workersAi * 10);
-		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_PREMIUM - workersAi);
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_PREMIUM);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
 	});
 
-	// #404 の修正で「実測が取れないときは常に安い方」に倒しすぎていないことの裏側。
-	// 降格せず高精度経路が結果を出したなら、床は今まで通りその経路の見積(=予約額)。
-	it("Claude経路が結果を出したなら、実測が取れなくても床はClaude経路の見積のまま", async () => {
+	// Issue #404: 実測が取れないときの床は**実行した経路の見積**。予約額
+	// (= 実行した経路の見積。降格が無いので両者は一致する)を使う。
+	it("高精度経路が結果を出したなら、実測が空でも床はその経路の見積のまま", async () => {
 		const userId = await seedPremiumUser();
-		stubAnthropic(async () =>
-			anthropicMessage(
-				{ wine_name: "Chablis" },
-				{ input_tokens: 0, output_tokens: 0 },
-			),
-		);
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		stubOpenRouter(async () => orChatMessage({ wine_name: "Chablis" }, {}));
 
 		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
@@ -842,13 +733,13 @@ describe("エチケット解析の予約 → 返却", () => {
 	// 「予約せずに弾く」の回帰は label-job-service.workers.test.ts が見ている。
 });
 
-// GPT-5.6 Luna 経路。既定エンジンなので「キーがあれば黙って走る」ことと、
-// 「キーが無いときに何へ降格するか」の両方を固定する。
+// GPT-5.6 Luna 経路(OpenRouter)。既定エンジンなので「キーがあれば黙って走る」ことと、
+// 「キーが無いときに利用不可になる」ことの両方を固定する。
 describe("エチケット解析のGPT-5.6 Luna経路", () => {
-	it("OPENAI_API_KEY 設定時はGPT経路で解析し、usage内訳とweb検索回数で確定する", async () => {
+	it("OPENROUTER_API_KEY 設定時はGPT経路で解析し、usage内訳とweb検索回数で確定する", async () => {
 		const userId = await seedPremiumUser();
-		stubOpenAi(async () =>
-			openaiSubmitAnswerResponse(
+		stubOpenRouter(async () =>
+			orSubmitAnswerResponse(
 				{
 					wine_name: "Chablis Les Clos",
 					producer: "Vincent Dauvissat",
@@ -857,12 +748,13 @@ describe("エチケット解析のGPT-5.6 Luna経路", () => {
 					region: "Bourgogne",
 					grape_varieties: ["Chardonnay"],
 				},
-				{ input_tokens: 1300, output_tokens: 200 },
-				3,
+				{
+					prompt_tokens: 1300,
+					completion_tokens: 200,
+					server_tool_use: { web_search_requests: 3 },
+				},
 			),
 		);
-		// GPT経路が成功する限り Workers AI には触れない(触れたら失敗として検出される)
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		const result = await runLabelViaJob(userId, {
 			imageDataUrls: [PHOTO, PHOTO],
@@ -903,8 +795,8 @@ describe("エチケット解析のGPT-5.6 Luna経路", () => {
 		// 候補にするので、suggestions への到達は変わらない。
 		const userId = await seedPremiumUser();
 		const requests: string[] = [];
-		stubOpenAiCapturing(requests, () =>
-			openaiSubmitAnswerResponse(
+		stubOpenRouterCapturing(requests, () =>
+			orSubmitAnswerResponse(
 				{
 					wine_name: "Chablis Les Clos",
 					producer: "Vincent Dauvissat",
@@ -918,11 +810,9 @@ describe("エチケット解析のGPT-5.6 Luna経路", () => {
 					prices: [{ source: "aaa.com", amount_jpy: 2000, url: null }],
 					sources: {},
 				},
-				{ input_tokens: 1300, output_tokens: 200 },
-				0,
+				{ prompt_tokens: 1300, completion_tokens: 200 },
 			),
 		);
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		const result = await runLabelViaJob(userId, {
 			imageDataUrls: [PHOTO],
@@ -941,82 +831,50 @@ describe("エチケット解析のGPT-5.6 Luna経路", () => {
 		]);
 	});
 
-	it("GPT経路が失敗したら Workers AI へフォールバックして完了する", async () => {
+	it("GPT経路が失敗したら予約を全額返却する(フォールバックしない)", async () => {
 		const userId = await seedPremiumUser();
-		// 400 はSDKがリトライしない失敗。経路ごと諦めてフォールバックさせる
-		stubOpenAi(async () =>
-			Response.json(
-				{ error: { type: "invalid_request_error", message: "bad request" } },
-				{ status: 400 },
-			),
+		stubOpenRouter(async () =>
+			Response.json({ error: { message: "bad request" } }, { status: 400 }),
 		);
-		stubAiRun(async () => ({
-			response: JSON.stringify({
-				wine_name: "Chablis",
-				producer: null,
-				vintage: null,
-				appellation: "Chablis",
-				region: null,
-				grape_varieties: [],
-			}),
-			usage: { total_tokens: 55 },
-		}));
 
-		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
+		await expect(
+			runLabelViaJob(userId, { imageDataUrls: [PHOTO] }),
+		).rejects.toThrow();
 
-		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
-		if (result.blocked) throw new Error("unreachable");
-		expect(result.suggestions.name).toBe("Chablis");
-		// 実際に結果を出した Workers AI の単価で課金する(Luna の単価にしない)。
-		expect(await balanceOf(userId)).toBe(
-			balanceAfter(
-				AI_LABEL_MODEL,
-				{ outputTokens: 55 },
-				MONTHLY_CREDITS_PREMIUM,
-			),
-		);
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_PREMIUM);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
 	});
 
-	it("途中で打ち切られた応答(incomplete)は成功扱いせずフォールバックする", async () => {
+	it("出力上限で打ち切られた応答(length)は成功扱いせず返却する", async () => {
 		const userId = await seedPremiumUser();
-		// web検索と reasoning が出力枠を使い切ると、JSONが途中で切れたまま 200 で返る。
+		// web検索と reasoning が出力枠を使い切ると、本文が途中で切れたまま返る。
 		// これを成功として扱うと「形式が不正」という無関係な例外で解析全体が落ちる。
-		stubOpenAi(async () =>
-			Response.json({
-				id: "resp_test",
-				object: "response",
-				created_at: 0,
-				model: "gpt-5.6-luna",
-				status: "incomplete",
-				error: null,
-				incomplete_details: { reason: "max_output_tokens" },
-				output: [],
-				usage: { total_tokens: 16000 },
-			}),
+		stubOpenRouter(async () =>
+			orChatMessage('{"wine_name":"Chab', { prompt_tokens: 5000 }, "length"),
 		);
-		stubAiRun(async () => ({
-			response: JSON.stringify({
-				wine_name: "Chablis",
-				producer: null,
-				vintage: null,
-				appellation: "Chablis",
-				region: null,
-				grape_varieties: [],
-			}),
-			usage: { total_tokens: 55 },
-		}));
 
-		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
+		await expect(
+			runLabelViaJob(userId, { imageDataUrls: [PHOTO] }),
+		).rejects.toThrow("打ち切られました");
 
-		expect(result).toMatchObject({ blocked: false, actualTokens: 55 });
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_PREMIUM);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
 	});
 
-	it("OPENAI_API_KEY 未設定なら、既定のままでも Claude経路へ引き継ぐ", async () => {
-		// 既定を gpt-luna に変えたことで、ANTHROPIC_API_KEY だけ設定された環境
-		// (#354 時点の本番)が黙って Workers AI へ降格しないことの回帰テスト。
+	it("選択したエンジンで解析する(Claude選択時はClaudeが走る)", async () => {
 		const userId = await seedPremiumUser();
-		stubAnthropic(async () =>
-			anthropicMessage(
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		const bodies: string[] = [];
+		stubOpenRouterCapturing(bodies, () =>
+			orChatMessage(
 				{
 					wine_name: "Chablis",
 					producer: null,
@@ -1025,77 +883,44 @@ describe("エチケット解析のGPT-5.6 Luna経路", () => {
 					region: null,
 					grape_varieties: [],
 				},
-				{ input_tokens: 800, output_tokens: 100 },
+				{ prompt_tokens: 700, completion_tokens: 70 },
 			),
 		);
-		// Workers AI へ落ちたらここで失敗する
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
-		expect(result).toMatchObject({ blocked: false, actualTokens: 900 });
-	});
-
-	it("両キー設定時にユーザがClaudeを選んでいればGPT経路を使わない", async () => {
-		const userId = await seedPremiumUser();
-		await env.DB.prepare(
-			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
-		)
-			.bind(userId)
-			.run();
-		// 経路の証明は実測トークン: GPT経路に入ってしまえば 9999 で確定する
-		stubProviders({
-			openai: async () =>
-				openaiSubmitAnswerResponse(
-					{ wine_name: "wrong path" },
-					{ input_tokens: 9999, output_tokens: 0 },
-				),
-			anthropic: async () =>
-				anthropicMessage(
-					{
-						wine_name: "Chablis",
-						producer: null,
-						vintage: null,
-						appellation: "Chablis",
-						region: null,
-						grape_varieties: [],
-					},
-					{ input_tokens: 700, output_tokens: 70 },
-				),
-		});
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
-
-		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
-
+		// 実測(770)で確定 = GPT経路のトークンが混ざっていない
 		expect(result).toMatchObject({ blocked: false, actualTokens: 770 });
+		// 選んだ経路のモデルで呼んでいる
+		expect(bodies.length).toBeGreaterThan(0);
+		expect(JSON.parse(bodies[0] ?? "{}")).toMatchObject({
+			model: AI_LABEL_WEB_MODEL,
+		});
 	});
 
-	it("両キー設定時の既定(未選択)ではGPT経路を使う", async () => {
+	it("既定(未選択)ではGPT経路を使う", async () => {
 		const userId = await seedPremiumUser();
-		stubProviders({
-			openai: async () =>
-				openaiSubmitAnswerResponse(
-					{
-						wine_name: "Chablis",
-						producer: null,
-						vintage: null,
-						appellation: "Chablis",
-						region: null,
-						grape_varieties: [],
-					},
-					{ input_tokens: 1234, output_tokens: 0 },
-				),
-			anthropic: async () =>
-				anthropicMessage(
-					{ wine_name: "wrong path" },
-					{ input_tokens: 9000, output_tokens: 999 },
-				),
-		});
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
+		const bodies: string[] = [];
+		stubOpenRouterCapturing(bodies, () =>
+			orSubmitAnswerResponse(
+				{
+					wine_name: "Chablis",
+					producer: null,
+					vintage: null,
+					appellation: "Chablis",
+					region: null,
+					grape_varieties: [],
+				},
+				{ prompt_tokens: 1234, completion_tokens: 0 },
+			),
+		);
 
 		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false, actualTokens: 1234 });
+		expect(JSON.parse(bodies[0] ?? "{}")).toMatchObject({
+			model: AI_LABEL_GPT_MODEL,
+		});
 	});
 
 	it("画像変換が使えるときは zoom_photo を渡し、切り出した画像がモデルへ届く", async () => {
@@ -1106,12 +931,12 @@ describe("エチケット解析のGPT-5.6 Luna経路", () => {
 		stubImages();
 		const requests: string[] = [];
 		let call = 0;
-		stubOpenAiCapturing(requests, () => {
+		stubOpenRouterCapturing(requests, () => {
 			call += 1;
 			// 1回目: 拡大を要求する。2回目: 提出する。
 			return call === 1
-				? openaiZoomResponse({ input_tokens: 1000, output_tokens: 100 })
-				: openaiSubmitAnswerResponse(
+				? orZoomResponse({ prompt_tokens: 1000, completion_tokens: 100 })
+				: orSubmitAnswerResponse(
 						{
 							wine_name: "Chablis Les Clos",
 							producer: "Vincent Dauvissat",
@@ -1120,19 +945,18 @@ describe("エチケット解析のGPT-5.6 Luna経路", () => {
 							region: "Bourgogne",
 							grape_varieties: ["Chardonnay"],
 						},
-						{ input_tokens: 1300, output_tokens: 200 },
+						{ prompt_tokens: 1300, completion_tokens: 200 },
 					);
 		});
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		const result = await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 
 		expect(result).toMatchObject({ blocked: false });
 		// 1回目のリクエストに zoom_photo がツールとして載る
 		expect(requests[0]).toContain("zoom_photo");
-		// 2回目のリクエストには切り出した画像が input_image として載る
+		// 2回目のリクエストには切り出した画像が image_url として載る
 		// (JSONで座標だけ返しても読めるようにはならない)
-		expect(requests[1]).toContain("input_image");
+		expect(requests[1]).toContain("image_url");
 	});
 });
 
@@ -1160,8 +984,13 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		// 乗った Claude 経路(#474)の2枚は無料付与(200)を超えて blocked になる。
 		// 無料枠に収まるかどうかは wine-list-extraction.test.ts の不変条件が見ている。
 		const userId = await seedPremiumUser();
-		stubAnthropic(async () =>
-			anthropicMessage(
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		stubOpenRouter(async () =>
+			orChatMessage(
 				{
 					wines: [
 						wineJson({
@@ -1182,7 +1011,7 @@ describe("一括抽出の予約 → 確定/返却", () => {
 					],
 					truncated: false,
 				},
-				{ input_tokens: 3000, output_tokens: 500 },
+				{ prompt_tokens: 3000, completion_tokens: 500 },
 			),
 		);
 
@@ -1235,12 +1064,16 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		// 見たいのは「解決済みプロンプトの本文がリクエストに載る」配線と、
 		// 応答の reference_links/prices が候補まで届くこと。
 		const userId = await seedPremiumUser();
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
 		const requests: string[] = [];
-		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
-			"sk-ant-test";
+		stubOpenRouterKey();
 		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
 			requests.push(typeof init?.body === "string" ? init.body : "");
-			return anthropicMessage(
+			return orChatMessage(
 				{
 					wines: [
 						wineJson({
@@ -1261,7 +1094,7 @@ describe("一括抽出の予約 → 確定/返却", () => {
 					],
 					truncated: false,
 				},
-				{ input_tokens: 3000, output_tokens: 500 },
+				{ prompt_tokens: 3000, completion_tokens: 500 },
 			);
 		});
 
@@ -1284,10 +1117,10 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		]);
 	});
 
-	it("OPENAI_API_KEY だけの環境では GPT 経路で解析し、Luna の単価で確定する", async () => {
+	it("既定(gpt-luna)では GPT 経路で解析し、Luna の単価で確定する", async () => {
 		const userId = await seedUser();
-		stubOpenAi(async () =>
-			openaiResponse(
+		stubOpenRouter(async () =>
+			orChatMessage(
 				{
 					wines: [
 						wineJson({
@@ -1300,11 +1133,9 @@ describe("一括抽出の予約 → 確定/返却", () => {
 					subject: "wine_list",
 					truncated: false,
 				},
-				{ input_tokens: 3000, output_tokens: 500 },
+				{ prompt_tokens: 3000, completion_tokens: 500 },
 			),
 		);
-		// 一括抽出は Workers AI へ降格しない(触れたら失敗として検出される)
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
 
@@ -1327,20 +1158,21 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		);
 	});
 
-	it("両キーがあれば既定(gpt-luna)で GPT が走り、Claude は呼ばない", async () => {
+	it("選択した経路のモデルで呼ぶ(web-research 選択時は Sonnet)", async () => {
 		const userId = await seedUser();
-		// 経路の証明は実測トークン: Claude 経路に入ってしまえば 9999 で確定する
-		stubProviders({
-			openai: async () =>
-				openaiResponse(
-					{ wines: [wineJson({ wine_name: "Chablis" })], truncated: false },
-					{ input_tokens: 100, output_tokens: 20 },
-				),
-			anthropic: async () =>
-				anthropicMessage(
-					{ wines: [wineJson({ wine_name: "wrong path" })] },
-					{ input_tokens: 9999, output_tokens: 0 },
-				),
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		const bodies: string[] = [];
+		stubOpenRouterKey();
+		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+			if (typeof init?.body === "string") bodies.push(init.body);
+			return orChatMessage(
+				{ wines: [wineJson({ wine_name: "Chablis" })], truncated: false },
+				{ prompt_tokens: 100, completion_tokens: 20 },
+			);
 		});
 
 		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
@@ -1348,24 +1180,26 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		expect(result).toMatchObject({ blocked: false, actualTokens: 120 });
 		if (result.blocked) throw new Error("unreachable");
 		expect(result.candidates[0]?.suggestions.name).toBe("Chablis");
+		expect(JSON.parse(bodies[0] ?? "{}")).toMatchObject({
+			model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
+		});
 	});
 
-	it("標準(Workers AI)を選んでいても一括抽出は高精度経路で走る", async () => {
-		// エチケット解析は「標準」で Workers AI に落ちるが、一括抽出は降格しない
+	it("標準(standard)を選んでいても一括抽出は高精度経路で走る", async () => {
+		// エチケット解析は「標準」で単発抽出に落ちるが、一括抽出は降格しない
 		// (#358)。ここが落ちると、標準を選んだユーザだけ一括登録が使えなくなる。
 		const userId = await seedUser();
 		await env.DB.prepare(
-			"UPDATE user SET preferred_label_engine = 'workers-ai' WHERE id = ?",
+			"UPDATE user SET preferred_label_engine = 'standard' WHERE id = ?",
 		)
 			.bind(userId)
 			.run();
-		stubOpenAi(async () =>
-			openaiResponse(
+		stubOpenRouter(async () =>
+			orChatMessage(
 				{ wines: [wineJson({ wine_name: "Chablis" })], truncated: false },
-				{ input_tokens: 100, output_tokens: 20 },
+				{ prompt_tokens: 100, completion_tokens: 20 },
 			),
 		);
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		const result = await runWineListViaJob(userId, { imageDataUrls: [PHOTO] });
 
@@ -1373,22 +1207,15 @@ describe("一括抽出の予約 → 確定/返却", () => {
 	});
 
 	it("GPT の応答が出力上限で切れたら予約を全額返却し、写真を分ける案内を返す", async () => {
-		// Claude の stop_reason="max_tokens" と同じ扱いに揃える(#426)。
-		// structured outputs でも incomplete は起きるので、パースに回すと
-		// 「形式が不正」という無関係な例外になる。
+		// Claude の length と同じ扱いに揃える。structured outputs でも打ち切りは
+		// 起きるので、パースに回すと「形式が不正」という無関係な例外になる。
 		const userId = await seedUser();
-		stubOpenAi(async () =>
-			Response.json({
-				id: "resp_test",
-				object: "response",
-				created_at: 0,
-				model: "gpt-5.6-luna",
-				status: "incomplete",
-				error: null,
-				incomplete_details: { reason: "max_output_tokens" },
-				output: [],
-				usage: { input_tokens: 5000, output_tokens: 20000 },
-			}),
+		stubOpenRouter(async () =>
+			orChatMessage(
+				'{"wines":[{"wine_name":"Chab',
+				{ prompt_tokens: 5000, completion_tokens: 20000 },
+				"length",
+			),
 		);
 
 		await expect(
@@ -1409,8 +1236,8 @@ describe("一括抽出の予約 → 確定/返却", () => {
 			vintage: 2020,
 			status: "finished",
 		});
-		stubAnthropic(async () =>
-			anthropicMessage(
+		stubOpenRouter(async () =>
+			orChatMessage(
 				{
 					wines: [
 						wineJson({
@@ -1421,7 +1248,7 @@ describe("一括抽出の予約 → 確定/返却", () => {
 						wineJson({ wine_name: "Sancerre", producer: "Domaine Vacheron" }),
 					],
 				},
-				{ input_tokens: 1000, output_tokens: 200 },
+				{ prompt_tokens: 1000, completion_tokens: 200 },
 			),
 		);
 
@@ -1469,10 +1296,10 @@ describe("一括抽出の予約 → 確定/返却", () => {
 				sighting: { photoIndex: 0 },
 			})),
 		});
-		stubAnthropic(async () =>
-			anthropicMessage(
+		stubOpenRouter(async () =>
+			orChatMessage(
 				{ wines: wines.map(wineJson), truncated: false },
-				{ input_tokens: 1000, output_tokens: 200 },
+				{ prompt_tokens: 1000, completion_tokens: 200 },
 			),
 		);
 
@@ -1485,19 +1312,14 @@ describe("一括抽出の予約 → 確定/返却", () => {
 
 	it("出力が上限で打ち切られたら予約を全額返却し、写真を分ける案内を返す", async () => {
 		const userId = await seedUser();
-		// max_tokens で切れた応答は JSON が途中で終わっている。成功扱いすると
+		// length で切れた応答は JSON が途中で終わっている。成功扱いすると
 		// 「形式が不正」という無関係な例外になり、ユーザは次の行動を選べない
-		stubAnthropic(async () =>
-			Response.json({
-				id: "msg_test",
-				type: "message",
-				role: "assistant",
-				model: "claude-opus-5",
-				stop_reason: "max_tokens",
-				stop_sequence: null,
-				content: [{ type: "text", text: '{"wines":[{"wine_name":"Chab' }],
-				usage: { input_tokens: 5000, output_tokens: 32000 },
-			}),
+		stubOpenRouter(async () =>
+			orChatMessage(
+				'{"wines":[{"wine_name":"Chab',
+				{ prompt_tokens: 5000, completion_tokens: 32000 },
+				"length",
+			),
 		);
 
 		await expect(
@@ -1511,19 +1333,11 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
 	});
 
-	it("Claude 呼び出しが失敗したら予約を全額返却する(フォールバックしない)", async () => {
+	it("推論呼び出しが失敗したら予約を全額返却する(フォールバックしない)", async () => {
 		const userId = await seedUser();
-		stubAnthropic(async () =>
-			Response.json(
-				{
-					type: "error",
-					error: { type: "invalid_request_error", message: "bad request" },
-				},
-				{ status: 400 },
-			),
+		stubOpenRouter(async () =>
+			Response.json({ error: { message: "bad request" } }, { status: 400 }),
 		);
-		// エチケット解析と違い Workers AI への降格は無い(触れたら失敗として検出される)
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 
 		await expect(
 			runWineListViaJob(userId, { imageDataUrls: [PHOTO] }),
@@ -1534,9 +1348,9 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
 	});
 
-	it("両プロバイダのキーが未設定なら予約せずに 503 で拒否する", async () => {
-		// 一括抽出は Workers AI へ降格しない(#358)ので、高精度経路が1つも無ければ
-		// 機能ごと使えない。afterEach で両キーとも消えている状態を使う。
+	it("キーが未設定なら予約せずに 503 で拒否する", async () => {
+		// OpenRouter の接続が無い環境では機能ごと使えない。afterEach でキーを
+		// 消している状態を使う。
 		const userId = await seedUser();
 		expect(isWineListAnalysisAvailable()).toBe(false);
 
@@ -1574,8 +1388,8 @@ describe("エチケット解析の実行記録ログ", () => {
 
 	it("GPT経路の成功を1行残す(誰が・どのモデルで・成功したか)", async () => {
 		const userId = await seedUser();
-		stubOpenAi(async () =>
-			openaiSubmitAnswerResponse(
+		stubOpenRouter(async () =>
+			orSubmitAnswerResponse(
 				{
 					wine_name: "Chablis",
 					producer: null,
@@ -1584,10 +1398,9 @@ describe("エチケット解析の実行記録ログ", () => {
 					region: null,
 					grape_varieties: [],
 				},
-				{ input_tokens: 1234, output_tokens: 0 },
+				{ prompt_tokens: 1234, completion_tokens: 0 },
 			),
 		);
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 
 		try {
@@ -1600,8 +1413,7 @@ describe("エチケット解析の実行記録ログ", () => {
 				outcome: "ok",
 				route: "gpt-luna",
 				executedBy: "gpt-luna",
-				model: "gpt-5.6-luna",
-				fellBack: false,
+				model: "openai/gpt-5.6-luna",
 				actualTokens: 1234,
 				photoCount: 1,
 			});
@@ -1612,39 +1424,39 @@ describe("エチケット解析の実行記録ログ", () => {
 		}
 	});
 
-	it("フォールバックは成功ログ上で route と executedBy の食い違いとして見える", async () => {
+	it("標準経路の成功を1行残す(降格ではなく選択として記録される)", async () => {
 		const userId = await seedUser();
-		// GPT を 400 で落とし、Workers AI に拾わせる
-		stubOpenAi(async () =>
-			Response.json({ error: { message: "bad request" } }, { status: 400 }),
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'standard' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		stubOpenRouter(async () =>
+			orChatMessage(
+				{
+					wine_name: "Chablis",
+					producer: null,
+					vintage: null,
+					appellation: "Chablis",
+					region: null,
+					grape_varieties: [],
+				},
+				{ prompt_tokens: 1000, completion_tokens: 200 },
+			),
 		);
-		stubAiRun(async () => ({
-			response: JSON.stringify({
-				wine_name: "Chablis",
-				producer: null,
-				vintage: null,
-				appellation: "Chablis",
-				region: null,
-				grape_varieties: [],
-			}),
-			usage: { total_tokens: 55 },
-		}));
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 
 		try {
 			await runLabelViaJob(userId, { imageDataUrls: [PHOTO] });
 			const logs = captureInferenceLogs(spy);
 			expect(logs).toHaveLength(1);
-			// route(意図)は gpt-luna のまま、executedBy(実際)が workers-ai になる。
-			// executedBy を持たない実装だと、この2つが同じに見えて成功ログから
-			// フォールバックを検出できない。
+			// route(選択)と executedBy(実行)が一致する = フォールバックではない。
 			expect(logs[0]).toMatchObject({
 				outcome: "ok",
-				route: "gpt-luna",
-				executedBy: "workers-ai",
-				model: "@cf/meta/llama-4-scout-17b-16e-instruct",
-				fellBack: true,
-				actualTokens: 55,
+				route: "standard",
+				executedBy: "standard",
+				model: "openai/gpt-5.6-luna",
+				actualTokens: 1200,
 			});
 		} finally {
 			spy.mockRestore();
@@ -1663,9 +1475,12 @@ describe("エチケット解析の実行記録ログ", () => {
 			estimateLabelReserveCharge("web-research", 1).microUsd,
 		).toBeGreaterThan(MONTHLY_CREDITS_FREE * MICRO_USD_PER_CREDIT);
 		const photos = [PHOTO];
-		stubAnthropic(async () =>
-			anthropicMessage({}, { input_tokens: 1, output_tokens: 0 }),
-		);
+		stubOpenRouterKey();
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
 		const spy = vi.spyOn(console, "info").mockImplementation(() => {});
 
 		try {

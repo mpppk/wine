@@ -5,35 +5,27 @@ import {
 	toEstimateCharge,
 } from "#/lib/billing/ai-pricing";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
+import type { OpenRouterReasoning } from "./openrouter";
 
-// 地域チャットQ&A(Workers AI)の設定。モデルや上限はここに集約し、原価/品質を見て
+// 地域チャットQ&A(OpenRouter)の設定。モデルや上限はここに集約し、原価/品質を見て
 // 数値だけ差し替えられるようにする。クレジット消費の見積上限は plans.ts 側に置く。
 
 /**
- * 地域Q&Aに使う Workers AI モデルの許可リスト。ユーザがチャットで選択できる。
+ * 地域Q&Aに使う OpenRouter モデルの許可リスト。ユーザがチャットで選択できる。
  * クライアントにはキー(gemma4 / llama4)だけを送らせ、サーバ側でキー→実モデルID＋
- * 固有オプションに解決する(任意のモデルIDを env.AI.run へ直接渡さないための許可リスト)。
+ * 推論設定に解決する(任意のモデルIDを OpenRouter へ直接渡さないための許可リスト)。
  *
- * いずれも env.AI.run バインディングで呼べる(wrangler 4.111 / @cloudflare/vite-plugin 1.45
- * 世代で AiModels 型に登録済み)。
+ * #602 で Workers AI(env.AI.run)から OpenRouter へ移した。同一ファミリのモデルを
+ * OpenRouter 経由で呼ぶ(Gemma 4 / Llama 4 Scout)ので、回答品質の前提は変わらない。
+ * 応答は OpenAI chat completions 互換の choices[0].message.content。
+ * usage は prompt_tokens / completion_tokens(+ キャッシュ読み)をそのまま使う。
  *
- * 入出力形式はモデルで異なる:
- *  - Chat Completions 互換(Gemma 4 等): 回答は choices[0].message.content。
- *  - 従来テキスト生成(Llama 系等): 回答は response。
- *  ai-service 側は両形式を吸収する。出力上限は max_completion_tokens、トークンは
- *  usage.total_tokens(両形式共通)。
+ * モデル固有の推論設定(reasoning)は OpenRouter の統一パラメータで渡す。Gemma 4 は
+ * reasoning モデルで、既定の thinking が出力枠を食って本文が途中で切れる/空になるため
+ * effort "none" で無効化する(旧 extraOptions の chat_template_kwargs と同じ役割)。
+ * Llama 4 はこの指定が不要。
  *
- * モデル固有オプション(extraOptions)は env.AI.run へ展開して渡す。Gemma 4 は reasoning
- * モデルで、既定の thinking が出力枠を食って本文が途中で切れる/空になるため
- * chat_template_kwargs.enable_thinking=false で無効化する。Llama 4 はこのオプション不要。
- *
- * 補足: #100 時点では GLM-5.2 / Gemma 4 は env.AI.run で "#options" エラーになり呼べなかったが、
- * これはローンチ過渡期の Cloudflare 側バインディング不整合で、wrangler / @cloudflare/vite-plugin
- * を対応世代へ更新することで解消した(両者はバージョンロックされたペアで、必ず一緒に上げる)。
- * GLM-5.2 は本世代でもまだ AiModels 未登録のためバインディング不可
- * (REST /v1/chat/completions 経由の別実装が必要)。
- * @see https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/
- * @see https://developers.cloudflare.com/workers-ai/models/llama-4-scout-17b-16e-instruct/
+ * @see https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
  */
 export const REGION_QA_MODEL_KEYS = ["gemma4", "llama4"] as const;
 
@@ -43,23 +35,23 @@ export type RegionQaModelKey = (typeof REGION_QA_MODEL_KEYS)[number];
 export interface RegionQaModel {
 	/** UI表示名。 */
 	label: string;
-	/** Workers AI のモデルID。 */
+	/** OpenRouter のモデルID。 */
 	id: string;
-	/** env.AI.run に追加で渡すモデル固有オプション(Gemma の thinking 無効化など)。 */
-	extraOptions?: Record<string, unknown>;
+	/** OpenRouter の reasoning 指定(Gemma の thinking 無効化など)。 */
+	reasoning?: OpenRouterReasoning;
 }
 
-/** 選択可能なモデルの定義。キーはワイヤ値、値は解決先のID＋固有オプション。 */
+/** 選択可能なモデルの定義。キーはワイヤ値、値は解決先のID＋推論設定。 */
 export const AI_REGION_QA_MODELS: Record<RegionQaModelKey, RegionQaModel> = {
 	gemma4: {
 		label: "Gemma 4",
-		id: "@cf/google/gemma-4-26b-a4b-it",
+		id: "google/gemma-4-26b-a4b-it",
 		// 思考出力を無効化しないと reasoning が出力枠(512)を先に食い、本文が途中で切れる/空になる。
-		extraOptions: { chat_template_kwargs: { enable_thinking: false } },
+		reasoning: { effort: "none" },
 	},
 	llama4: {
 		label: "Llama 4",
-		id: "@cf/meta/llama-4-scout-17b-16e-instruct",
+		id: "meta-llama/llama-4-scout",
 	},
 };
 
@@ -91,18 +83,17 @@ export function toRegionQaModelKey(value: unknown): RegionQaModelKey | null {
 	return parsed.success ? parsed.data : null;
 }
 
-/** 1回の回答で生成する最大トークン(env.AI.run の max_completion_tokens)。予約はこれを含めて見積る。 */
+/** 1回の回答で生成する最大トークン(OpenRouter の max_tokens)。予約はこれを含めて見積る。 */
 export const AI_MAX_OUTPUT_TOKENS = 512;
 
 /**
- * エチケット(ラベル)画像解析に使う Workers AI モデル。Llama 4 Scout(マルチモーダル)を採用。
- * 画像は messages の content 配列に image_url(data URI)として渡す(HTTP URLは不可)。
- * guided_json で JSON Schema に沿った構造化出力を強制できる。
- * 出力は従来テキスト生成形式(response 文字列)+ usage.total_tokens。
- * 地域Q&AのGemma 4はAiModels上で画像入力を受けないため、ここだけ別モデルにする。
- * @see https://developers.cloudflare.com/workers-ai/models/llama-4-scout-17b-16e-instruct/
+ * エチケット(ラベル)画像解析の標準経路に使う OpenRouter モデル。
+ * マルチモーダル + structured outputs(response_format)で、写真1枚ずつ解析して
+ * マージする(旧 Workers AI 経路の proven な構造を OpenRouter 上で再現したもの)。
+ * 画像は OpenAI chat 形式の image_url(data URI)として渡す(HTTP URLは不可)。
+ * 地域Q&AのGemma 4は画像入力を受けないため、ここだけ別モデルにする。
  */
-export const AI_LABEL_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
+export const AI_LABEL_MODEL = "openai/gpt-5.6-luna";
 
 /** エチケット解析1回で生成する最大トークン(構造化JSONのみなので小さめ)。 */
 export const AI_LABEL_MAX_OUTPUT_TOKENS = 512;
@@ -115,7 +106,7 @@ export const AI_LABEL_MAX_OUTPUT_TOKENS = 512;
 const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
 
 /**
- * Workers AI 経路の指示文(LABEL_PROMPT)の入力トークン見積。
+ * 標準経路の指示文(LABEL_PROMPT)の入力トークン見積。
  *
  * **`LABEL_PROMPT` の実長から計算せずに定数で持つ**。見積は解析前の必要クレジット表示
  * のためにクライアントも読むが、`label-extraction.ts` は AOP/品種の全マスタを推移的に
@@ -123,31 +114,34 @@ const AI_LABEL_IMAGE_TOKEN_ESTIMATE = 4000;
  * ここへ置いたのと同じ理由)。実長(オーストリア19呼称・品種9件を追加した
  * 2026-09 時点で約7,500)がこの値を超えていないことは
  * `label-extraction.test.ts` が検証する。マスタ名一覧を同梱しているので、
- * **AOP/品種を増やすと伸びる**。下回ると Workers AI 経路の予約が実費を下回るため、
+ * **AOP/品種を増やすと伸びる**。下回ると標準経路の予約が実費を下回るため、
  * 地域を足すPRではこの定数の追随が要る(テストが落ちて気付ける)。
  */
 export const AI_LABEL_PROMPT_TOKEN_ESTIMATE = 8_000;
 
 // ---- エチケット解析の高精度経路(LLM + web検索) ----
-// 対応するプロバイダのAPIキーが設定されている場合のみ使う。未設定・失敗時は Workers AI
-// (AI_LABEL_MODEL)へフォールバックするため、ここの定数は任意機能の調整値。
+// いずれも OpenRouter 経由で呼ぶ。接続に必要なのはサーバ側の `OPENROUTER_API_KEY`
+// 1つだけで、OpenAI / Anthropic への個別接続は持たない(#602)。
 
 /**
  * エチケット解析エンジンの許可リスト。ユーザがプロフィール画面で選択できる。
  * クライアントにはキーだけを送らせ、サーバ側で経路に解決する(地域Q&Aの
  * REGION_QA_MODEL_KEYS と同じ流儀)。
- *  - gpt-luna: OpenAI GPT-5.6 Luna + web検索の高精度経路(OPENAI_API_KEY 必須)。
- *  - web-research: Anthropic Claude + web検索の高精度経路(ANTHROPIC_API_KEY 必須)。
- *  - workers-ai: 従来の Workers AI 経路。消費が小さい。
+ *  - gpt-luna: GPT-5.6 Luna のエージェントループ + web検索の高精度経路。
+ *  - web-research: Claude Opus + web検索の高精度経路。
+ *  - standard: 単発の構造化抽出(web検索なし)。消費が小さい。
  *
- * 高精度2経路はいずれもキー未設定・実行失敗時にフォールバックする(resolveLabelRoute)。
- * **キーは値のまま D1 の user 行に残る**ため、許可リストからキーを消しても読み取り側の
- * フォールバック(toLabelEngineKey → 既定)が効くようにしてある。
+ * #602 で接続先を OpenRouter に集約したため、キー名から接続先の区別は消えた。
+ * 選ぶのは「どのモデルで・どう調べるか」だけで、接続先の選択と混同しない。
+ * 旧 `workers-ai` を選んでいた行は `toLabelEngineKeyWithCompat` が `standard` へ
+ * 読み替える(安価・裏取りなしという性質の対応先)。
  */
+
+/** エンジンキーの許可リスト(ワイヤ値)。旧 `workers-ai` は下の互換で読む。 */
 export const LABEL_ENGINE_KEYS = [
 	"gpt-luna",
 	"web-research",
-	"workers-ai",
+	"standard",
 ] as const;
 
 /** ユーザが選択できるエチケット解析エンジンのキー。ワイヤ上の値(クライアント⇄サーバ)。 */
@@ -161,24 +155,25 @@ export const AI_LABEL_ENGINES: Record<
 	"gpt-luna": {
 		label: "高精度(GPT-5.6 Luna + web検索)",
 		description:
-			"AIがweb検索で生産者・呼称・品種を裏取りします。利用できない環境では自動的に他の経路で解析されます。",
+			"AIがweb検索で生産者・呼称・品種を裏取りします。OpenRouterの接続が無い環境では利用できません。",
 	},
 	"web-research": {
 		label: "高精度(Claude + web検索)",
 		description:
-			"AIがweb検索で生産者・呼称・品種を裏取りします。最も精度が高いぶん消費も最大です。利用できない環境では自動的に他の経路で解析されます。",
+			"AIがweb検索で生産者・呼称・品種を裏取りします。最も精度が高いぶん消費も最大です。OpenRouterの接続が無い環境では利用できません。",
 	},
-	"workers-ai": {
-		label: "標準(Workers AI)",
-		description: "写真の読み取りのみで解析します。裏取りはしません。",
+	standard: {
+		label: "標準(軽量)",
+		description:
+			"写真の読み取りのみで解析します。裏取りはしません。消費が最も小さいです。",
 	},
 };
 
 /**
  * 未設定・不正値のときの既定エンジン。高精度経路を既定にする方針は #354 から変えず、
  * 担い手を GPT-5.6 Luna にする(同等の裏取り精度をより低い原価で得るため)。
- * OPENAI_API_KEY 未設定の環境では resolveLabelRoute が Claude → Workers AI の順に
- * 引き継ぐので、既定を変えても「キーがある経路が使われる」性質は保たれる。
+ * OPENROUTER_API_KEY 未設定の環境では resolveLabelRoute が null を返し、
+ * 予約の前に利用不可として扱う(別モデルへの自動フォールバックはしない。#602)。
  */
 export const DEFAULT_LABEL_ENGINE: LabelEngineKey = "gpt-luna";
 
@@ -199,11 +194,36 @@ export function toLabelEngineKey(value: unknown): LabelEngineKey | null {
 }
 
 /**
- * 高精度エチケット解析に使う Claude のモデルID。マルチモーダル + サーバーサイド
- * web検索ツール(web_search_20260209)を1リクエストで使える世代であること。
- * 原価を下げたい場合は "claude-sonnet-5" 等へ数値だけ差し替える。
+ * 旧エンジン値を含む読み取り用の照合。D1 の user 行・ジョブ行に残る旧値を
+ * OpenRouter 後の対応先へ読み替える(#602 の移行対応表)。
+ *
+ * - `workers-ai`(旧・安価で裏取りなし) → `standard`(対応先)。
+ * - 対応先が無い旧値・不正値は `null`(呼び出し側が既定へ倒す)。
  */
-export const AI_LABEL_WEB_MODEL = "claude-opus-5";
+export function toLabelEngineKeyWithCompat(
+	value: unknown,
+): LabelEngineKey | null {
+	if (value === "workers-ai") return "standard";
+	return toLabelEngineKey(value);
+}
+
+/**
+ * 保存済みのジョブ行の route が現行の実行経路かを判定する。旧 `workers-ai` 経路の
+ * 未実行ジョブは OpenRouter へ黙って再解決せず、返却 + 再投入案内で終端する(#602)。
+ */
+export function isLabelRoute(value: unknown): value is LabelRoute {
+	return (
+		value === "gpt-luna" || value === "web-research" || value === "standard"
+	);
+}
+
+/**
+ * 高精度エチケット解析に使う Claude のモデルID(OpenRouter 経由)。マルチモーダル +
+ * サーバーサイド web検索(`openrouter:web_search` の engine native)を1リクエストで
+ * 使える世代であること。#602 で直接接続から OpenRouter 経由へ移した同一モデル。
+ * 原価を下げたい場合は "anthropic/claude-sonnet-5" 等へ数値だけ差し替える。
+ */
+export const AI_LABEL_WEB_MODEL = "anthropic/claude-opus-5";
 
 /**
  * 1レスポンスの最大出力トークン。claude-opus-5 は thinking が既定で有効で、
@@ -212,15 +232,8 @@ export const AI_LABEL_WEB_MODEL = "claude-opus-5";
  */
 export const AI_LABEL_WEB_MAX_OUTPUT_TOKENS = 16_000;
 
-/** 1回の解析で許可する web 検索回数の上限(tools の max_uses)。原価の上限化。 */
+/** 1回の解析で許可する web 検索回数の上限(`openrouter:web_search` の max_uses)。原価の上限化。 */
 export const AI_LABEL_WEB_MAX_SEARCHES = 8;
-
-/**
- * pause_turn(サーバー側ツールループの一時停止)からの再開回数の上限。
- * 再開ごとに入力を再送するためトークンを消費する。上限到達時はその時点の
- * 応答で打ち切る(通常は末尾にJSONが出力済み)。
- */
-export const AI_LABEL_WEB_MAX_CONTINUATIONS = 4;
 
 /**
  * Claude経路の予約見積の基礎入力トークン(プロンプト + 呼称/品種マスタのリスト +
@@ -250,19 +263,18 @@ const AI_LABEL_WEB_OUTPUT_TOKEN_ESTIMATE = 2_300;
 const AI_LABEL_WEB_SEARCH_ESTIMATE = 6;
 
 /**
- * 高精度エチケット解析に使う OpenAI のモデルID。マルチモーダル + サーバーサイドweb検索
- * (Responses API の web_search ツール)+ structured outputs を1リクエストで使える世代で
- * あること。上位が必要なら "gpt-5.6-terra" / "gpt-5.6-sol" へ数値だけ差し替える
- * (**"gpt-5.6" のエイリアスは Sol に解決されるため Luna 指定には使えない**)。
- * @see https://developers.openai.com/api/docs/models/gpt-5.6-luna
+ * 高精度エチケット解析に使う OpenAI のモデルID(OpenRouter 経由)。マルチモーダル +
+ * サーバーサイドweb検索 + structured outputs を1リクエストで使える世代であること。
+ * #602 で直接接続から OpenRouter 経由へ移した同一モデル。上位が必要なら
+ * "openai/gpt-5.6-terra" / "openai/gpt-5.6-sol" へ数値だけ差し替える。
  */
-export const AI_LABEL_GPT_MODEL = "gpt-5.6-luna";
+export const AI_LABEL_GPT_MODEL = "openai/gpt-5.6-luna";
 
 /**
- * 1レスポンスの最大出力トークン(Responses API の max_output_tokens)。
+ * 1レスポンスの最大出力トークン(OpenRouter の max_tokens)。
  * **reasoning トークンもこの枠から出る**ため、JSONだけの出力でも余裕を持たせる。
- * 小さすぎると web検索と推論で枠を使い切り、status="incomplete" で本文JSONが
- * 出ないまま返る(Claude経路の AI_LABEL_WEB_MAX_OUTPUT_TOKENS と同じ理由)。
+ * 小さすぎると web検索と推論で枠を使い切り、本文JSONが出ないまま返る(Claude経路の
+ * AI_LABEL_WEB_MAX_OUTPUT_TOKENS と同じ理由)。
  *
  * effort を medium/high に上げられるようにしたことに伴い、16k → 24k へ緩和する。
  * reasoning が枠を食っても本文JSONが途切れにくくするため。
@@ -270,9 +282,9 @@ export const AI_LABEL_GPT_MODEL = "gpt-5.6-luna";
 export const AI_LABEL_GPT_MAX_OUTPUT_TOKENS = 24_000;
 
 /**
- * web検索結果をどれだけコンテキストに載せるか(web_search ツールの search_context_size)。
- * Claude経路の max_uses と違い OpenAI は検索回数を直接は縛れないので、原価の上限化は
- * この値と max_output_tokens で行う。medium は既定値。
+ * GPT経路の web検索結果をどれだけコンテキストに載せるか。`openrouter:web_search`
+ * の search_context_size として渡す(ネイティブ検索では無視されるが、OpenAI の
+ * 既定 medium と同じ意味になる)。原価の上限化はこの値と max_tokens で行う。
  */
 export const AI_LABEL_GPT_SEARCH_CONTEXT_SIZE = "medium";
 
@@ -293,8 +305,9 @@ const AI_LABEL_GPT_IMAGE_TOKEN_ESTIMATE = 3_000;
 /**
  * GPT経路の web検索回数の見積。
  *
- * **この経路は検索回数に上限を掛けられない**(Responses API に Anthropic の
- * `max_uses` に相当する指定が無い)。Luna は原価の8割が web検索の回数課金なので、
+ * **この経路は検索回数に上限を掛けられない**(OpenAI ネイティブ検索に Anthropic の
+ * `max_uses` に相当する指定が無い。`openrouter:web_search` の max_uses も
+ * OpenAI ネイティブへは転送されない)。Luna は原価の8割が web検索の回数課金なので、
  * 上振れした回は予約を超えたぶんを取りこぼす(過小請求)。回数の上限化は別Issueで扱う。
  */
 
@@ -397,50 +410,37 @@ const AI_LABEL_AGENT_SEARCH_ESTIMATE = 5;
 export type LabelRoute = LabelEngineKey;
 
 /**
- * 経路 → 実際に呼ぶモデルID。**実行記録のログが「どのモデルで解析したか」を
+ * 経路 → 実際に呼ぶモデルID(OpenRouter)。**実行記録のログが「どのモデルで解析したか」を
  * 書くために参照する**。ログ側でモデル名をリテラル指定すると、モデルを差し替えた
  * ときにログだけ古い名前を出し続け、観測が静かに嘘になるため導出可能にしておく。
  */
 export const AI_LABEL_ROUTE_MODELS: Record<LabelRoute, string> = {
 	"gpt-luna": AI_LABEL_GPT_MODEL,
 	"web-research": AI_LABEL_WEB_MODEL,
-	"workers-ai": AI_LABEL_MODEL,
+	standard: AI_LABEL_MODEL,
 };
 
-/** 高精度経路の利用可否(= 対応するシークレットが設定されているか)。 */
+/** OpenRouter 接続の利用可否(= サーバ側の `OPENROUTER_API_KEY` が設定されているか)。 */
 export interface LabelProviderAvailability {
-	/** OPENAI_API_KEY が設定されている。 */
-	openai: boolean;
-	/** ANTHROPIC_API_KEY が設定されている。 */
-	anthropic: boolean;
+	/** OPENROUTER_API_KEY が設定されている。 */
+	openrouter: boolean;
 }
 
 /**
  * ユーザ選択のエンジンキーを、実際に走らせる経路へ解決する。**選択と実行の対応づけは
- * ここだけに置く**(ai-service が `!!key && engine === "..."` を経路ごとに書くと、
- * 経路が増えるたびに条件がドリフトし、片方のキーだけ設定された環境で黙って標準へ
- * 落ちる。#354 の `useWebResearch` を一般化したもの)。
+ * ここだけに置く**(ai-service が経路ごとに条件を書くと、経路が増えるたびに条件が
+ * ドリフトする。#354 の `useWebResearch` を一般化したもの)。
  *
- * 高精度が選ばれてキーが無い場合は、**標準へ落とす前にもう一方の高精度経路を試す**。
- * ユーザの意思表示は「web検索で裏取りしてほしい」であって特定ベンダーではないため、
- * 既定を gpt-luna に変えても ANTHROPIC_API_KEY だけの環境(#354 時点の本番)が
- * Workers AI へ降格しない。
+ * #602 で接続先を OpenRouter に集約したため、キー未設定時は **null を返す**
+ * (別モデルへの自動フォールバックはしない)。呼び出し側は予約の前に null を検知し、
+ * 利用不可として扱う(エチケット解析は 503、一括抽出は従来どおり null)。
  */
 export function resolveLabelRoute(
 	engine: LabelEngineKey,
 	availability: LabelProviderAvailability,
-): LabelRoute {
-	if (engine === "workers-ai") return "workers-ai";
-	// 高精度の希望順: 選択されたプロバイダ → もう一方 → 標準
-	const preferred: LabelRoute[] =
-		engine === "gpt-luna"
-			? ["gpt-luna", "web-research"]
-			: ["web-research", "gpt-luna"];
-	for (const route of preferred) {
-		if (route === "gpt-luna" && availability.openai) return route;
-		if (route === "web-research" && availability.anthropic) return route;
-	}
-	return "workers-ai";
+): LabelRoute | null {
+	if (!availability.openrouter) return null;
+	return engine;
 }
 
 // ---- 推論の深さ(effort)のユーザ設定 ----
@@ -497,35 +497,27 @@ export function toReasoningEffortKey(
 }
 
 /**
- * Claude経路の thinking budget(effort連動)。
+ * Claude経路の thinking budget(effort連動)。OpenRouter の統一 `reasoning.max_tokens`
+ * として渡し、Anthropic ネイティブの thinking budget へ分配させる。
  *
  * low はパラメータを付けず現行挙動のままにする。medium/high は extended thinking
  * を明示し、budget を max_tokens 未満に収める(ラベル16k・一括20kのどちらでも収まる値)。
- * `enabled` は SDK で非推奨警告が出るが、 adaptive には budget 指定が無く原価を
- * 上限化できないため、コスト予測可能なこちらを使う。
  */
 const AI_CLAUDE_THINKING_BUDGET_MEDIUM = 8_000;
 const AI_CLAUDE_THINKING_BUDGET_HIGH = 12_000;
 
 /**
- * effort に対応する Claude の thinking 指定。low は `undefined`
- * (= パラメータ無指定で現行どおり)。戻り値は Anthropic SDK の
- * `ThinkingConfigParam` と構造互換。
+ * effort に対応する OpenRouter の reasoning 指定。low は `undefined`
+ * (= パラメータ無指定で現行どおり)。
  */
-export function claudeThinkingForEffort(
+export function anthropicReasoningForEffort(
 	effort: ReasoningEffortKey,
-): { type: "enabled"; budget_tokens: number } | undefined {
+): OpenRouterReasoning | undefined {
 	switch (effort) {
 		case "medium":
-			return {
-				type: "enabled",
-				budget_tokens: AI_CLAUDE_THINKING_BUDGET_MEDIUM,
-			};
+			return { max_tokens: AI_CLAUDE_THINKING_BUDGET_MEDIUM };
 		case "high":
-			return {
-				type: "enabled",
-				budget_tokens: AI_CLAUDE_THINKING_BUDGET_HIGH,
-			};
+			return { max_tokens: AI_CLAUDE_THINKING_BUDGET_HIGH };
 		default:
 			return undefined;
 	}
@@ -553,12 +545,12 @@ function normalizeReasoningEffort(value: unknown): ReasoningEffortKey {
 
 /**
  * 一括抽出で走りうる経路。**エチケット解析のエンジン選択(`LABEL_ENGINE_KEYS`)から
- * `workers-ai` を除いたもの**(#426)。
+ * `standard` を除いたもの**。
  *
- * Workers AI を含めないのは #358 の決定を維持するため: Llama 4 Scout は配列の
- * guided_json が安定せず、小さな文字が並ぶリスト写真の読み取り品質も低い。降格すると
- * 「大量の欠落・でたらめな銘柄」が出て、レビュー画面での修正コストがユーザの手入力を
- * 上回る。落とすなら黙って質を下げるより失敗させる。
+ * 標準経路を含めないのは #358 の決定を維持するため: 単発の構造化抽出では、小さな
+ * 文字が並ぶリスト写真の読み取り品質が低く、大量の欠落・でたらめな銘柄が出て、
+ * レビュー画面での修正コストがユーザの手入力を上回る。落とすなら黙って質を
+ * 下げるより失敗させる。
  */
 export const WINE_LIST_ROUTE_KEYS = ["gpt-luna", "web-research"] as const;
 
@@ -566,30 +558,29 @@ export const WINE_LIST_ROUTE_KEYS = ["gpt-luna", "web-research"] as const;
 export type WineListRoute = (typeof WINE_LIST_ROUTE_KEYS)[number];
 
 /**
- * 一括抽出に使う Claude のモデルID。マルチモーダルで複数画像を1リクエストに載せ、
- * 写真横断の重複統合まで1回の推論でやらせる。
+ * 一括抽出に使う Claude のモデルID(OpenRouter 経由)。マルチモーダルで複数画像を
+ * 1リクエストに載せ、写真横断の重複統合まで1回の推論でやらせる。
  *
  * **Opus 5 ではなく Sonnet 5 を使う(#355)**。コスト基準の計上に切り替えると、Opus 5
  * ($5/$25 per MTok)では写真1枚の解析が無料会員の月次付与(150クレジット = $0.15)を
- * 超え、無料会員がこの機能を一度も使えなくなる。Sonnet 5($3/$15)なら1枚あたり
+ * 超え、無料会員がこの機能を一度も使えなくなる。Sonnet 5(OR実価 $2/$10)なら1枚あたり
  * 約126クレジットで付与内に収まる(#474 で web検索の裏取りが乗ったぶん実費は上がるが、
- * モデル選定の理由は変わらない)。Llama 4 Scout で問題になった「配列の構造化出力の
- * 安定性」は Sonnet 5 でも満たせる。
+ * モデル選定の理由は変わらない)。
  */
-const AI_WINE_LIST_CLAUDE_MODEL = "claude-sonnet-5";
+const AI_WINE_LIST_CLAUDE_MODEL = "anthropic/claude-sonnet-5";
 
 /**
- * 一括抽出に使う OpenAI のモデルID(#426)。エチケット解析の GPT 経路
+ * 一括抽出に使う OpenAI のモデルID(OpenRouter 経由、#426)。エチケット解析の GPT 経路
  * (`AI_LABEL_GPT_MODEL`)と**別定数で持つ**——あちらは web検索での裏取り精度、こちらは
  * 「小さな文字が数十行並ぶリスト写真の読み取り」で選ぶので、差し替えたい理由が独立している。
  *
  * Sonnet 5 に対する利点は2つ:
- *  - 原価が桁で下がる($0.2/$1.2 per MTok = Sonnet 5 の 1/15・1/12.5)。一括抽出は
- *    写真枚数に比例して伸びるので、ここが無料会員の月次付与を圧迫していた。
- *  - structured outputs(strict)で出力形式を強制できる。Claude 経路は形を
+ *  - 原価が桁で下がる($0.2/$1.2 per MTok)。一括抽出は写真枚数に比例して伸びるので、
+ *    ここが無料会員の月次付与を圧迫していた。
+ *  - structured outputs(response_format)で出力形式を強制できる。Claude 経路は形を
  *    `buildWineListPrompt` の指示文でしか担保できず、銘柄配列は壊れると全滅する。
  */
-const AI_WINE_LIST_GPT_MODEL = "gpt-5.6-luna";
+const AI_WINE_LIST_GPT_MODEL = "openai/gpt-5.6-luna";
 
 /**
  * 経路 → 実際に呼ぶモデルID。**予約見積・実測換算・実行記録のログがすべてここを引く**
@@ -613,7 +604,7 @@ export const AI_WINE_LIST_ROUTE_LABELS: Record<WineListRoute, string> = {
 
 /**
  * 一括抽出のエンジン選択を、実際に走らせる経路へ解決する(#426)。**返せる経路が
- * 無ければ `null`**——この機能は Workers AI へ降格しないので、「使えない」を
+ * 無ければ `null`**——この機能は標準経路へ降格しないので、「使えない」を
  * 型で表現する(呼び出し側は導線を隠す / 503 を返す)。
  *
  * 設定は**エチケット解析と同じ `preferredLabelEngine` を共有する**。一括専用の
@@ -621,7 +612,7 @@ export const AI_WINE_LIST_ROUTE_LABELS: Record<WineListRoute, string> = {
  * 増えるが、ユーザの意思表示は「web検索で裏取りしてほしいか」ではなく
  * 「どのベンダーの読み取りを信用するか」でどちらも同じであり、分ける実益がない。
  *
- * **`workers-ai` を選んでいるユーザも高精度経路に載せる**。その選択の動機はコスト抑制
+ * **`standard` を選んでいるユーザも高精度経路に載せる**。その選択の動機はコスト抑制
  * だが、一括抽出の従来の実装は Sonnet 5 固定で、Luna はそれより安い。降格先が無い以上
  * 「一括登録だけ使えない」にするより、より安い経路に載せるほうが選択の意図に沿う。
  */
@@ -629,17 +620,11 @@ export function resolveWineListRoute(
 	engine: LabelEngineKey,
 	availability: LabelProviderAvailability,
 ): WineListRoute | null {
+	if (!availability.openrouter) return null;
 	// 高精度の希望順: 選択されたプロバイダ → もう一方(resolveLabelRoute と同じ規則)。
-	// workers-ai 選択時は既定と同じ順(gpt-luna 優先)に載せる。
-	const preferred: WineListRoute[] =
-		engine === "web-research"
-			? ["web-research", "gpt-luna"]
-			: ["gpt-luna", "web-research"];
-	for (const route of preferred) {
-		if (route === "gpt-luna" && availability.openai) return route;
-		if (route === "web-research" && availability.anthropic) return route;
-	}
-	return null;
+	// standard 選択時は既定と同じ順(gpt-luna 優先)に載せる。
+	if (engine === "web-research") return "web-research";
+	return "gpt-luna";
 }
 
 /**
@@ -647,19 +632,11 @@ export function resolveWineListRoute(
  * 決定的な違いで、枠が足りないとリストの末尾が丸ごと落ちる。thinking も同じ枠から
  * 出る(AI_LABEL_WEB_MAX_OUTPUT_TOKENS と同じ事情)ため大きめに取る。
  * 打ち切りは truncated フラグとしてUIに出し、「写真を分けて再解析」を案内する。
- *
- * **Claude経路用の上限**。これ以上大きくするとストリーミングへの切り替えが要る。
- * Anthropic SDK は非ストリーミングの `messages.create` に対し max_tokens から
- * 推定所要時間を計算し、10分を超える見積(= おおよそ 21,000 トークン超)を
- * リクエスト送信前に throw する
- * ("Streaming is required for operations that may take longer than 10 minutes")。
- * 銘柄1件あたりの出力は 100 トークン弱で、件数上限(AI_WINE_LIST_MAX_WINES)ぶんでも
- * 1万トークンに届かないため、現状はこの枠で足りる。
  */
 export const AI_WINE_LIST_MAX_OUTPUT_TOKENS = 20_000;
 
 /**
- * 一括抽出の GPT経路用の上限(Responses API の max_output_tokens)。
+ * 一括抽出の GPT経路用の上限(OpenRouter の max_tokens)。
  * reasoning トークンもこの枠から出て銘柄数に比例して伸びるため、Claude用(20k)
  * とは別定数で大きく取る。effort を medium/high に上げた回でも本文JSONが
  * 途切れにくくする。
@@ -722,9 +699,9 @@ const AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE = 500;
 export const AI_WINE_LIST_MAX_SEARCHES = 20;
 
 /**
- * GPT経路の web検索結果をどれだけコンテキストに載せるか。OpenAI は Claude の
- * `max_uses` にあたる回数の上限を持たないので、原価の上限化はこの値と
- * `max_output_tokens` で行う(`AI_LABEL_GPT_SEARCH_CONTEXT_SIZE` と同じ考え方)。
+ * GPT経路の web検索結果をどれだけコンテキストに載せるか。`openrouter:web_search`
+ * の search_context_size として渡す(ネイティブ検索では無視されるが、OpenAI の
+ * 既定 medium と同じ意味)。原価の上限化はこの値と max_tokens で行う。
  */
 export const AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE = "medium";
 
@@ -734,13 +711,6 @@ export const AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE = "medium";
  * 1枚 = 1検索より多く見るが、上限 `AI_WINE_LIST_MAX_SEARCHES` でクランプする。
  */
 const AI_WINE_LIST_WEB_SEARCH_ESTIMATE_PER_IMAGE = 3;
-
-/**
- * pause_turn からの再開回数の上限(Claude経路)。エチケット解析
- * (`AI_LABEL_WEB_MAX_CONTINUATIONS` = 4)より多いのは、検索回数の上限が大きいぶん
- * ツールループが分割されやすいため。再開ごとに入力を再送するので無制限にはしない。
- */
-export const AI_WINE_LIST_MAX_CONTINUATIONS = 6;
 
 // ---- 予約見積(コスト単位) ----
 // 各経路の「中心値の使用量」を AiUsage として組み立て、単価表(ai-pricing.ts)で µUSD へ
@@ -809,7 +779,7 @@ export function estimateWineListReserveCharge(
 
 /**
  * エチケット解析の中心値使用量。**経路ごとに形が違う**ので経路で分ける: 高精度2経路は
- * 全写真を1リクエストにまとめて web検索で裏を取り、Workers AI 経路は1枚ずつ解析して
+ * 全写真を1リクエストにまとめて web検索で裏を取り、標準経路は1枚ずつ解析して
  * マージする(指示文も枚数ぶん送られる)。
  */
 export function estimateLabelReserveUsage(
@@ -819,7 +789,6 @@ export function estimateLabelReserveUsage(
 ): AiUsage {
 	const photos = Math.max(1, imageCount);
 	// reasoning/thinking も出力として課金されるため、深く考えさせるほど中心値が上がる。
-	// Workers AI 経路は reasoning を使わないので掛けない。
 	const outputMult =
 		REASONING_EFFORT_OUTPUT_MULTIPLIER[normalizeReasoningEffort(effort)];
 	switch (route) {
@@ -853,12 +822,14 @@ export function estimateLabelReserveUsage(
 				),
 				webSearches: AI_LABEL_WEB_SEARCH_ESTIMATE,
 			};
-		case "workers-ai":
+		case "standard":
 			return {
 				inputTokens:
 					(AI_LABEL_PROMPT_TOKEN_ESTIMATE + AI_LABEL_IMAGE_TOKEN_ESTIMATE) *
 					photos,
-				outputTokens: AI_LABEL_MAX_OUTPUT_TOKENS * photos,
+				outputTokens: Math.round(
+					AI_LABEL_MAX_OUTPUT_TOKENS * photos * outputMult,
+				),
 			};
 	}
 }

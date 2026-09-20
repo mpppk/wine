@@ -13,7 +13,7 @@ export const user = sqliteTable("user", {
 	// 地域Q&Aチャットで使うモデルのユーザ設定(プロフィール画面で変更)。null は既定モデル。
 	preferredAiModel: text("preferred_ai_model"),
 	// エチケット解析エンジンのユーザ設定(drizzle/0021)。null は既定
-	// (ANTHROPIC_API_KEY 設定時は高精度)。許可リストは ai/config.ts の LABEL_ENGINE_KEYS。
+	// (OPENROUTER_API_KEY 設定時は高精度)。許可リストは ai/config.ts の LABEL_ENGINE_KEYS。
 	preferredLabelEngine: text("preferred_label_engine"),
 	// ワイン分析の推論の深さのユーザ設定(drizzle/0037)。null は既定(low)。
 	// 許可リストは ai/config.ts の REASONING_EFFORT_KEYS。

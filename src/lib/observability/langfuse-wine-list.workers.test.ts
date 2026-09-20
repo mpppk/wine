@@ -135,58 +135,17 @@ async function seedUser(): Promise<string> {
 }
 
 /**
- * OpenAI Responses API の成功応答(structured outputs の message アイテム)。
- * 一括抽出の GPT 経路は生の Responses API を使う。**reasoning の encrypted_content
- * も返してくる**実態に合わせた形にして、サニタイズで落ちることを確かめる。
+ * OpenRouter chat completion の成功応答(本文テキスト)。
  */
-function openaiResponse(fields: Record<string, unknown>): Response {
+function orChatResponse(fields: Record<string, unknown>): Response {
 	return Response.json({
-		id: "resp_test",
-		object: "response",
-		created_at: 0,
-		model: "gpt-5.6-luna",
-		status: "completed",
-		error: null,
-		incomplete_details: null,
-		output: [
+		choices: [
 			{
-				type: "reasoning",
-				id: "rs_test",
-				content: [],
-				encrypted_content: "gAAAAABsuperlongencryptedblob",
-			},
-			{
-				type: "message",
-				id: "msg_test",
-				role: "assistant",
-				status: "completed",
-				content: [
-					{
-						type: "output_text",
-						text: JSON.stringify(fields),
-						annotations: [],
-					},
-				],
+				finish_reason: "stop",
+				message: { content: JSON.stringify(fields) },
 			},
 		],
-		usage: { input_tokens: 3000, output_tokens: 500 },
-	});
-}
-
-/** Anthropic Messages API の応答(stop_reason を差し替えられる)。 */
-function anthropicMessage(
-	fields: Record<string, unknown>,
-	stopReason = "end_turn",
-): Response {
-	return Response.json({
-		id: "msg_test",
-		type: "message",
-		role: "assistant",
-		model: "claude-opus-5",
-		stop_reason: stopReason,
-		stop_sequence: null,
-		content: [{ type: "text", text: JSON.stringify(fields) }],
-		usage: { input_tokens: 1000, output_tokens: 200 },
+		usage: { prompt_tokens: 3000, completion_tokens: 500 },
 	});
 }
 
@@ -200,9 +159,8 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
-		delete (env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY;
-		delete (env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY;
-		delete (env as unknown as { AI?: unknown }).AI;
+		delete (env as unknown as { OPENROUTER_API_KEY?: string })
+			.OPENROUTER_API_KEY;
 		setLangfuseKeys(undefined, undefined);
 		__resetLangfuseForTests();
 		__resetLangfusePromptForTests();
@@ -210,8 +168,8 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 
 	it("GPT経路がgenerationを報告し、写真インベントリがメタデータに載る", async () => {
 		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
-		(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
-		stubAiRunRejecting();
+		(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+			"or-test";
 		vi.stubGlobal(
 			"fetch",
 			async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -223,8 +181,8 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 					calls.push({ url, body: bodyToString(init?.body) });
 					return new Response("{}", { status: 200 });
 				}
-				if (url.includes("openai.com")) {
-					return openaiResponse({
+				if (url.startsWith("https://openrouter.ai/api/v1/")) {
+					return orChatResponse({
 						wines: [wineJson({ wine_name: "Chablis" })],
 						truncated: false,
 					});
@@ -282,17 +240,14 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 			.map((c) => c.body)
 			.join("\n");
 		expect(allBodies).not.toContain("data:image/jpeg;base64");
-		// reasoning の暗号化ブロック(encrypted_content)はサニタイズで落ちる
-		expect(allBodies).not.toContain("gAAAAAB");
-		// 本文(message の output_text)は残る
-		expect(allBodies).toContain("output_text");
+		// 本文(JSONテキスト)は残る
+		expect(allBodies).toContain("Chablis");
 	});
 
-	it("Claude経路はpause_turn継続ごとにgenerationを出す", async () => {
+	it("Claude経路は1リクエストでgenerationを出す", async () => {
 		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
-		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
-			"sk-ant-test";
-		let call = 0;
+		(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+			"or-test";
 		vi.stubGlobal(
 			"fetch",
 			async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -304,21 +259,22 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 					calls.push({ url, body: bodyToString(init?.body) });
 					return new Response("{}", { status: 200 });
 				}
-				if (url.includes("anthropic.com")) {
-					call += 1;
-					// 1回目は pause_turn(ツール実行中の中断)、2回目で本文を出す
-					return call === 1
-						? anthropicMessage({}, "pause_turn")
-						: anthropicMessage({
-								wines: [wineJson({ wine_name: "Chablis" })],
-								truncated: false,
-							});
+				if (url.startsWith("https://openrouter.ai/api/v1/")) {
+					return orChatResponse({
+						wines: [wineJson({ wine_name: "Chablis" })],
+						truncated: false,
+					});
 				}
 				throw new Error(`unexpected fetch: ${url}`);
 			},
 		);
 
 		const userId = await seedUser();
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
 		const plan = await resolveWineListPlan(userId, 1);
 		const begun = await beginMeteredInference(userId, {
 			estimate: plan.estimate,
@@ -337,22 +293,13 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 		const spans = spansOfCalls(calls);
 		const prefix = AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis;
 		const gens = spans.filter((s) => String(s.name).startsWith(prefix));
+		// サーバーツールは OpenRouter 側で完結するので、generation は1件だけ
 		const names = gens.map((s) => String(s.name)).sort();
-		expect(names).toEqual([
-			`${prefix}web-research#1`,
-			`${prefix}web-research#2`,
-		]);
-		// 継続2件とも同じ traceId
+		expect(names).toEqual([`${prefix}web-research#1`]);
+		// 同じ traceId
 		const expectedTraceId = await createTraceId(plan.requestId);
 		for (const g of gens) {
 			expect(String(g.traceId ?? g.trace_id)).toBe(expectedTraceId);
 		}
 	});
-
-	function stubAiRunRejecting(): void {
-		// 一括抽出は Workers AI へ降格しない(#358)。触れたら失敗として検出される。
-		(env as unknown as { AI: { run: () => Promise<unknown> } }).AI = {
-			run: () => Promise.reject(new Error("Workers AI must not be called")),
-		};
-	}
 });

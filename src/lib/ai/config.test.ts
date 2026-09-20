@@ -14,8 +14,8 @@ import {
 	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_SEARCHES,
+	anthropicReasoningForEffort,
 	chatHistorySchema,
-	claudeThinkingForEffort,
 	DEFAULT_LABEL_ENGINE,
 	DEFAULT_REASONING_EFFORT,
 	DEFAULT_REGION_QA_MODEL,
@@ -32,7 +32,9 @@ import {
 	reasoningEffortKeySchema,
 	regionQaModelKeySchema,
 	resolveLabelRoute,
+	resolveWineListRoute,
 	toLabelEngineKey,
+	toLabelEngineKeyWithCompat,
 	toReasoningEffortKey,
 	toRegionQaModelKey,
 	WINE_LIST_ROUTE_KEYS,
@@ -44,7 +46,8 @@ describe("AI_REGION_QA_MODELS", () => {
 		for (const key of REGION_QA_MODEL_KEYS) {
 			const model = AI_REGION_QA_MODELS[key];
 			expect(model).toBeDefined();
-			expect(model.id).toMatch(/^@cf\//);
+			// OpenRouter のモデルID(プロバイダ/モデル)。直接接続の @cf 形式ではない。
+			expect(model.id).toMatch(/^[a-z-]+\//);
 			expect(model.label.length).toBeGreaterThan(0);
 		}
 	});
@@ -53,11 +56,9 @@ describe("AI_REGION_QA_MODELS", () => {
 		expect(REGION_QA_MODEL_KEYS).toContain(DEFAULT_REGION_QA_MODEL);
 	});
 
-	it("Gemma 4 は thinking 無効化オプションを持ち、Llama 4 は持たない", () => {
-		expect(AI_REGION_QA_MODELS.gemma4.extraOptions).toEqual({
-			chat_template_kwargs: { enable_thinking: false },
-		});
-		expect(AI_REGION_QA_MODELS.llama4.extraOptions).toBeUndefined();
+	it("Gemma 4 は thinking 無効化を持ち、Llama 4 は持たない", () => {
+		expect(AI_REGION_QA_MODELS.gemma4.reasoning).toEqual({ effort: "none" });
+		expect(AI_REGION_QA_MODELS.llama4.reasoning).toBeUndefined();
 	});
 });
 
@@ -74,7 +75,8 @@ describe("regionQaModelKeySchema / toRegionQaModelKey", () => {
 	it("許可リスト外の文字列を拒否する", () => {
 		for (const value of [
 			"gpt-4",
-			"@cf/meta/llama-4-scout-17b-16e-instruct",
+			"google/gemma-4-26b-a4b-it",
+			"workers-ai",
 			"",
 		]) {
 			expect(regionQaModelKeySchema.safeParse(value).success).toBe(false);
@@ -179,22 +181,21 @@ describe("reasoningEffortKeySchema / toReasoningEffortKey", () => {
 	});
 });
 
-// effort → Claude thinking の対応づけ。budget は max_tokens 未満でなければならず、
+// effort → OpenRouter reasoning の対応づけ。budget は max_tokens 未満でなければならず、
 // ラベル(16k)・一括(20k)のどちらの上限でも収まる値を固定する。
-describe("claudeThinkingForEffort", () => {
-	it("low は thinking 無指定(現行挙動のまま)", () => {
-		expect(claudeThinkingForEffort("low")).toBeUndefined();
+describe("anthropicReasoningForEffort", () => {
+	it("low は reasoning 無指定(現行挙動のまま)", () => {
+		expect(anthropicReasoningForEffort("low")).toBeUndefined();
 	});
 
-	it("medium/high は budget 付きで返し、どちらの Claude 上限にも収まる", () => {
+	it("medium/high は max_tokens 付きで返し、どちらの Claude 上限にも収まる", () => {
 		for (const effort of ["medium", "high"] as const) {
-			const thinking = claudeThinkingForEffort(effort);
-			expect(thinking?.type).toBe("enabled");
-			expect(thinking?.budget_tokens).toBeGreaterThanOrEqual(1024);
-			expect(thinking?.budget_tokens).toBeLessThan(
+			const reasoning = anthropicReasoningForEffort(effort);
+			expect(reasoning?.max_tokens).toBeGreaterThanOrEqual(1024);
+			expect(reasoning?.max_tokens).toBeLessThan(
 				AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
 			);
-			expect(thinking?.budget_tokens).toBeLessThan(
+			expect(reasoning?.max_tokens).toBeLessThan(
 				AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 			);
 		}
@@ -202,9 +203,9 @@ describe("claudeThinkingForEffort", () => {
 
 	it("high の budget は medium 以上(深さの順序が逆転しない)", () => {
 		expect(
-			claudeThinkingForEffort("high")?.budget_tokens,
+			anthropicReasoningForEffort("high")?.max_tokens,
 		).toBeGreaterThanOrEqual(
-			claudeThinkingForEffort("medium")?.budget_tokens ?? 0,
+			anthropicReasoningForEffort("medium")?.max_tokens ?? 0,
 		);
 	});
 });
@@ -261,11 +262,14 @@ describe("estimate reserve usage の effort 倍率", () => {
 		}
 	});
 
-	it("標準(Workers AI)経路は effort で変わらない", () => {
+	it("標準(standard)経路も effort で出力見積が増える", () => {
+		// 標準経路は Luna の単発抽出で reasoning を使うため、深く考えさせるほど
+		// 出力の中心値が上がる(旧 Workers AI 経路は reasoning を使わなかった)。
 		const outputs = (["low", "medium", "high"] as ReasoningEffortKey[]).map(
-			(e) => estimateLabelReserveUsage("workers-ai", 1, e).outputTokens,
+			(e) => estimateLabelReserveUsage("standard", 1, e).outputTokens,
 		);
-		expect(new Set(outputs).size).toBe(1);
+		expect(outputs[1]).toBeGreaterThan(outputs[0] ?? 0);
+		expect(outputs[2]).toBeGreaterThan(outputs[1] ?? 0);
 	});
 
 	it("effort 省略時は low と同じ(既存呼び出しの互換性)", () => {
@@ -277,43 +281,65 @@ describe("estimate reserve usage の effort 倍率", () => {
 		);
 	});
 });
-// 選択されたエンジンと実際に走る経路の対応づけ。ai-service が経路ごとに
-// `!!key && engine === "..."` を書くと、経路が増えるたびに条件がドリフトして
-// 「片方のキーだけ設定された環境で黙って標準へ落ちる」が起きるため、ここが SSOT。
+// 選択されたエンジンと実際に走る経路の対応づけ。#602 で接続先を OpenRouter に
+// 集約したため、キーがあるかないかの二択になった。キー未設定時は null を返し、
+// 別モデルへの自動フォールバックはしない。表示と予約が食い違わないよう、ここが SSOT。
 describe("resolveLabelRoute", () => {
-	const both = { openai: true, anthropic: true };
-	const neither = { openai: false, anthropic: false };
-	const onlyOpenai = { openai: true, anthropic: false };
-	const onlyAnthropic = { openai: false, anthropic: true };
+	const available = { openrouter: true };
+	const unavailable = { openrouter: false };
 
-	it("キーが揃っていれば選択どおりの経路になる", () => {
-		expect(resolveLabelRoute("gpt-luna", both)).toBe("gpt-luna");
-		expect(resolveLabelRoute("web-research", both)).toBe("web-research");
+	it("接続があれば選択どおりの経路になる", () => {
+		expect(resolveLabelRoute("gpt-luna", available)).toBe("gpt-luna");
+		expect(resolveLabelRoute("web-research", available)).toBe("web-research");
+		expect(resolveLabelRoute("standard", available)).toBe("standard");
 	});
 
-	it("標準(workers-ai)の明示選択はキー設定時でも高精度に上がらない", () => {
-		expect(resolveLabelRoute("workers-ai", both)).toBe("workers-ai");
-		expect(resolveLabelRoute("workers-ai", neither)).toBe("workers-ai");
+	it("接続が無ければ null(利用不可)を返す", () => {
+		expect(resolveLabelRoute("gpt-luna", unavailable)).toBeNull();
+		expect(resolveLabelRoute("web-research", unavailable)).toBeNull();
+		expect(resolveLabelRoute("standard", unavailable)).toBeNull();
 	});
 
-	it("選んだプロバイダのキーが無ければ、標準へ落とす前にもう一方の高精度を使う", () => {
-		// 既定が gpt-luna でも、ANTHROPIC_API_KEY だけの環境が Workers AI へ
-		// 降格しない(#354 時点の本番構成に対する回帰テスト)
-		expect(resolveLabelRoute("gpt-luna", onlyAnthropic)).toBe("web-research");
-		expect(resolveLabelRoute("web-research", onlyOpenai)).toBe("gpt-luna");
+	it("既定エンジンは接続時に必ず解決先を持つ", () => {
+		expect(LABEL_ENGINE_KEYS).toContain(
+			resolveLabelRoute(DEFAULT_LABEL_ENGINE, available),
+		);
+	});
+});
+
+describe("resolveWineListRoute", () => {
+	it("接続があれば選択どおりの経路になる(standard は gpt-luna へ載る)", () => {
+		const available = { openrouter: true };
+		expect(resolveWineListRoute("gpt-luna", available)).toBe("gpt-luna");
+		expect(resolveWineListRoute("web-research", available)).toBe(
+			"web-research",
+		);
+		expect(resolveWineListRoute("standard", available)).toBe("gpt-luna");
 	});
 
-	it("高精度のキーが1つも無ければ標準へ降格する", () => {
-		expect(resolveLabelRoute("gpt-luna", neither)).toBe("workers-ai");
-		expect(resolveLabelRoute("web-research", neither)).toBe("workers-ai");
+	it("接続が無ければ null(利用不可)を返す", () => {
+		const unavailable = { openrouter: false };
+		expect(resolveWineListRoute("gpt-luna", unavailable)).toBeNull();
+		expect(resolveWineListRoute("web-research", unavailable)).toBeNull();
+	});
+});
+
+// 旧エンジン値の読み替え(#602 の移行対応表)。D1 に残る旧値は用途別の対応先へ
+// 解決し、対応先が無い旧値は既定へ倒す(呼び出し側の ?? DEFAULT)。
+describe("toLabelEngineKeyWithCompat", () => {
+	it("旧 workers-ai は standard へ読み替える", () => {
+		expect(toLabelEngineKeyWithCompat("workers-ai")).toBe("standard");
 	});
 
-	it("既定エンジンはどのキー構成でも必ず解決先を持つ", () => {
-		for (const availability of [both, neither, onlyOpenai, onlyAnthropic]) {
-			expect(LABEL_ENGINE_KEYS).toContain(
-				resolveLabelRoute(DEFAULT_LABEL_ENGINE, availability),
-			);
+	it("現行キーはそのまま通る", () => {
+		for (const key of LABEL_ENGINE_KEYS) {
+			expect(toLabelEngineKeyWithCompat(key)).toBe(key);
 		}
+	});
+
+	it("対応先が無い旧値・不正値は null", () => {
+		expect(toLabelEngineKeyWithCompat("web-research-legacy")).toBeNull();
+		expect(toLabelEngineKeyWithCompat("")).toBeNull();
 	});
 });
 
@@ -386,7 +412,7 @@ describe("estimateLabelReserveCharge", () => {
 
 	it("経路の実費差が見積に出る(標準 < Luna < Claude)", () => {
 		// 転換前は3経路とも同水準のトークン見積で、消費もほぼ同じだった。
-		expect(microUsd("workers-ai", 1)).toBeLessThan(microUsd("gpt-luna", 1));
+		expect(microUsd("standard", 1)).toBeLessThan(microUsd("gpt-luna", 1));
 		expect(microUsd("gpt-luna", 1)).toBeLessThan(microUsd("web-research", 1));
 	});
 
@@ -398,14 +424,14 @@ describe("estimateLabelReserveCharge", () => {
 			);
 		}
 		expect(
-			estimateLabelReserveUsage("workers-ai", 1).webSearches,
+			estimateLabelReserveUsage("standard", 1).webSearches,
 		).toBeUndefined();
 	});
 
 	it("標準経路は無料会員の月次付与で複数回使える", () => {
 		// 「高精度が高くて使えない」ときの逃げ道なので、ここが付与額に近づくと
 		// 無料会員は自動入力を実質使えなくなる。
-		expect(costToCredits(microUsd("workers-ai", 1)) * 10).toBeLessThanOrEqual(
+		expect(costToCredits(microUsd("standard", 1)) * 10).toBeLessThanOrEqual(
 			MONTHLY_CREDITS_FREE,
 		);
 	});
