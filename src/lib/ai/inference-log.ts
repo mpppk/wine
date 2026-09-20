@@ -89,7 +89,7 @@ export interface AiInferenceLog {
 	/**
 	 * 実際に結果を出した経路。フォールバックが起きると route と食い違う。
 	 * **この2つを別々に持つのが要点**で、1つしか記録しないと
-	 * 「GPTで成功した」と「GPTが落ちて Workers AI が拾った」が区別できない。
+	 * 「GPTで成功した」と「GPTが落ちた」が区別できない。
 	 */
 	executedBy?: string;
 	/** 実際に呼んだモデルID(例: gpt-5.6-luna)。 */

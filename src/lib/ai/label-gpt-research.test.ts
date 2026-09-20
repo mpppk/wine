@@ -7,7 +7,7 @@ import {
 } from "./label-gpt-research";
 
 describe("buildGptLabelMessages", () => {
-	it("指示文と全画像を1つのuserメッセージに載せる", () => {
+	it("指示文と全画像を1つのuserメッセージに載せる(OpenAI chat形式)", () => {
 		const messages = buildGptLabelMessages([
 			"data:image/jpeg;base64,AAAA",
 			"data:image/png;base64,BBBB",
@@ -18,26 +18,22 @@ describe("buildGptLabelMessages", () => {
 		expect(message.content).toHaveLength(3);
 		expect(message.content[0]).toMatchObject({ type: "text" });
 		expect(message.content[1]).toEqual({
-			type: "file",
-			mediaType: "image/jpeg",
-			data: "data:image/jpeg;base64,AAAA",
+			type: "image_url",
+			image_url: { url: "data:image/jpeg;base64,AAAA" },
 		});
 		expect(message.content[2]).toEqual({
-			type: "file",
-			mediaType: "image/png",
-			data: "data:image/png;base64,BBBB",
+			type: "image_url",
+			image_url: { url: "data:image/png;base64,BBBB" },
 		});
 	});
 
-	it("画像は file パートで渡す(image パートはプロンプトキャッシュを外す)", () => {
-		// 非推奨の image パートで渡すとシリアライズが変わり、キャッシュのプレフィクスが
-		// 一致しなくなる。実測でコストが約2倍になった(#455)。
+	it("画像は image_url パート(data URI)で渡す", () => {
 		const message = buildGptLabelMessages([
 			"data:image/jpeg;base64,AAAA",
 		])[0] as {
 			content: { type: string }[];
 		};
-		expect(message.content.map((c) => c.type)).toEqual(["text", "file"]);
+		expect(message.content.map((c) => c.type)).toEqual(["text", "image_url"]);
 	});
 
 	it("data URI 以外(HTTP URL)は弾く", () => {
@@ -81,8 +77,8 @@ describe("assertGptLabelFinished", () => {
 		expect(() => assertGptLabelFinished("stop")).not.toThrow();
 	});
 
-	it("ツール呼び出しで終わった応答も通す(web検索はプロバイダ実行ツール)", () => {
-		expect(() => assertGptLabelFinished("tool-calls")).not.toThrow();
+	it("ツール呼び出しで終わった応答も通す(web検索はサーバーツール)", () => {
+		expect(() => assertGptLabelFinished("tool_calls")).not.toThrow();
 	});
 
 	it("出力上限での打ち切りは理由つきでthrowする", () => {
@@ -91,8 +87,8 @@ describe("assertGptLabelFinished", () => {
 		expect(() => assertGptLabelFinished("length")).toThrow("length");
 	});
 
-	it("セーフティ拒否はthrowする(structured outputsでもスキーマに従わない)", () => {
-		expect(() => assertGptLabelFinished("content-filter")).toThrow(
+	it("セーフティ拒否はthrowする", () => {
+		expect(() => assertGptLabelFinished("content_filter")).toThrow(
 			"content-filter",
 		);
 	});
@@ -107,9 +103,9 @@ describe("assertGptLabelFinished", () => {
 });
 
 describe("GPT_WEB_SEARCH_TOOL_NAME", () => {
-	it("計上と軌跡の抽出が同じツール名を見る", () => {
-		// 回数課金の計上(countProviderExecutedCalls)がこの名前でツール呼び出しを
-		// 数えるので、リクエスト側の tools のキーと食い違うと原価が丸ごと漏れる。
+	it("サーバーツールの呼び出し名を見る", () => {
+		// OpenRouter の `openrouter:web_search` サーバーツールに対応する呼び出し名。
+		// リクエスト側の tools と食い違うと検索が実行されない。
 		expect(GPT_WEB_SEARCH_TOOL_NAME).toBe("web_search");
 	});
 });

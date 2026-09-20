@@ -76,10 +76,6 @@
 			"bucket_name": "avatars-wine"
 		}
 	],
-	// Workers AI(地域Q&Aの推論)。アカウントレベルのリソースのため env ごとの id は不要。
-	"ai": {
-		"binding": "AI"
-	},
 	// 画像変換(エチケット解析の zoom_photo)。アカウントレベルのリソースのため
 	// env ごとの id は不要。
 	//
@@ -171,9 +167,6 @@
 					"bucket_name": "avatars-wine-preview"
 				}
 			],
-			"ai": {
-				"binding": "AI"
-			},
 			// 画像変換(zoom_photo)。本番と同じくアカウントレベルのリソース。
 			"images": {
 				"binding": "IMAGES"

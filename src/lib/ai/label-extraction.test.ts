@@ -109,8 +109,8 @@ describe("LABEL_PROMPT", () => {
 });
 
 describe("parseLabelResponse", () => {
-	it("パース済みオブジェクトの応答も受け付ける(guided_json時のWorkers AIの実挙動)", () => {
-		// Workers AI は guided_json 指定時に response をJSON文字列ではなく
+	it("パース済みオブジェクトの応答も受け付ける(旧guided_json時の実挙動)", () => {
+		// 旧 Workers AI 経路は guided_json 指定時に response をJSON文字列ではなく
 		// オブジェクトで返すことがある。文字列前提だと TypeError で解析が全滅する。
 		const parsed = parseLabelResponse({
 			wine_name: "Chablis",
@@ -460,7 +460,7 @@ describe("buildLabelSuggestions", () => {
 describe("estimateLabelPromptTokens", () => {
 	// 予約見積は config.ts の定数 AI_LABEL_PROMPT_TOKEN_ESTIMATE を使う(クライアントにも
 	// 読ませるため、マスタを引くこのモジュールに依存させられない)。定数が実長を下回ると
-	// Workers AI 経路の予約が実費を下回るので、ここで境界を固定する。
+	// 標準経路の予約が実費を下回るので、ここで境界を固定する。
 	it("指示文の実長が config の見積定数を超えない", () => {
 		expect(estimateLabelPromptTokens()).toBeLessThanOrEqual(
 			AI_LABEL_PROMPT_TOKEN_ESTIMATE,
@@ -537,7 +537,7 @@ describe("buildWebLabelPrompt", () => {
 });
 
 describe("LABEL_WEB_JSON_SCHEMA", () => {
-	it("Workers AI 経路のスキーマは変えず、根拠だけを足した別スキーマにする", () => {
+	it("標準経路のスキーマは変えず、根拠だけを足した別スキーマにする", () => {
 		// guided_json は Llama 4 Scout では完全には効かず、出力上限も 512 と狭い。
 		// 裏取りをしない経路に情報量ゼロの根拠を書かせると本体JSONが溢れる危険だけが増える。
 		expect(LABEL_JSON_SCHEMA.properties).not.toHaveProperty("sources");
@@ -673,7 +673,7 @@ describe("コメント(tasting_comment / producer_comment)", () => {
 		expect(parsed.producerComment).toBe("シャブリの家族経営ドメーヌ。");
 	});
 
-	it("コメントを持たない応答(Workers AI 経路)も従来どおりパースできる", () => {
+	it("コメントを持たない応答(標準経路)も従来どおりパースできる", () => {
 		const parsed = parseLabelResponse({
 			wine_name: "Chablis",
 			producer: null,
@@ -787,7 +787,7 @@ describe("コメントの指示文", () => {
 		}
 	});
 
-	it("Workers AI 経路の指示文・スキーマにはコメントを載せない(裏取りが無く創作になる)", () => {
+	it("標準経路の指示文・スキーマにはコメントを載せない(裏取りが無く創作になる)", () => {
 		expect(LABEL_PROMPT).not.toContain("tasting_comment");
 		expect(LABEL_JSON_SCHEMA.properties).not.toHaveProperty("tasting_comment");
 		expect(LABEL_WEB_JSON_SCHEMA.properties).toHaveProperty("tasting_comment");
@@ -1053,7 +1053,7 @@ describe("参考サイト・価格の受け取り", () => {
 		]);
 	});
 
-	it("書かれていなければ持たない(Workers AI 経路は常に undefined)", () => {
+	it("書かれていなければ持たない(標準経路は常に undefined)", () => {
 		const parsed = parseLabelResponse({
 			wine_name: "Chablis",
 			producer: null,
@@ -1167,7 +1167,7 @@ describe("参考サイト・価格のスキーマ配置", () => {
 		}
 	});
 
-	it("Workers AI 経路の指示文・スキーマには載せない(裏取りが無く創作になる)", () => {
+	it("標準経路の指示文・スキーマには載せない(裏取りが無く創作になる)", () => {
 		expect(LABEL_PROMPT).not.toContain("reference_links");
 		expect(LABEL_JSON_SCHEMA.properties).not.toHaveProperty("reference_links");
 		expect(LABEL_JSON_SCHEMA.properties).not.toHaveProperty("prices");

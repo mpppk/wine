@@ -12,7 +12,7 @@ import { __resetLangfuseForTests } from "./langfuse";
 import { __resetLangfusePromptForTests } from "./langfuse-prompt";
 
 // エチケット解析の Langfuse 計装を workerd 上で検証する(#514)。
-// 主眼は**フォールバックの可視化**: 高精度経路が失敗して Workers AI へ降格した回に、
+// 主眼は**失敗した呼び出しの可視化**: 高精度経路の呼び出しが失敗した回に、
 // 「降格前の generation(失敗側経路の応答)」と「降格先の generation(成功)」が
 // **同じ trace に並ぶ**こと。実行記録の route と executedBy の食い違い(fellBack)は
 // 間接的な証拠でしかなく、「降格前のモデルが実際に何を返していたか」は Langfuse だけが残す。
@@ -125,19 +125,15 @@ async function seedPremiumUser(): Promise<string> {
 	return id;
 }
 
-function stubAiRun(run: () => Promise<unknown>): void {
-	(env as unknown as { AI: { run: () => Promise<unknown> } }).AI = { run };
-}
-
 /**
- * OpenAI へ incomplete(status: incomplete = 出力枠の打ち切り)を返させ、Langfuse への
- * OTLP を捕まえる。incomplete は assertGptLabelFinished が失敗とみなして throw し、
- * Workers AI へフォールバックする——**モデル呼び出しそのものは完了している**ので、
- * onLanguageModelCallEnd での報告(onLanguageModelCallEnd を報告点にする理由)が
- * 潰れていないことをこの応答で確かめられる。
+ * OpenRouter へ length(出力枠の打ち切り)を返させ、Langfuse への OTLP を捕まえる。
+ * length は assertGptLabelFinished が失敗とみなして throw する——**モデル呼び出し
+ * そのものは完了している**ので、呼び出し直後の報告点が潰れていないことを
+ * この応答で確かめられる。
  */
-function stubOpenAiIncompleteAndCapture(calls: FetchCall[]): void {
-	(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+function stubOpenRouterLengthAndCapture(calls: FetchCall[]): void {
+	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+		"or-test";
 	vi.stubGlobal(
 		"fetch",
 		async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -149,17 +145,15 @@ function stubOpenAiIncompleteAndCapture(calls: FetchCall[]): void {
 				calls.push({ url, body: bodyToString(init?.body) });
 				return new Response("{}", { status: 200 });
 			}
-			if (url.includes("openai.com")) {
+			if (url.startsWith("https://openrouter.ai/api/v1/")) {
 				return Response.json({
-					id: "resp_incomplete",
-					object: "response",
-					created_at: 0,
-					model: "gpt-5.6-luna",
-					status: "incomplete",
-					error: null,
-					incomplete_details: { reason: "max_output_tokens" },
-					output: [],
-					usage: { input_tokens: 4000, output_tokens: 16000 },
+					choices: [
+						{
+							finish_reason: "length",
+							message: { content: '{"wine_name":"Chab' },
+						},
+					],
+					usage: { prompt_tokens: 4000, completion_tokens: 16000 },
 				});
 			}
 			throw new Error(`unexpected fetch: ${url}`);
@@ -168,15 +162,16 @@ function stubOpenAiIncompleteAndCapture(calls: FetchCall[]): void {
 }
 
 /**
- * OpenAI へ `submit_answer` で検証を通る回答を返させる(1呼び出しでループが収束する)。
+ * OpenRouter へ `submit_answer` で検証を通る回答を返させる(1呼び出しでループが収束する)。
  * generation の出力にツール呼び出しが載り、ツール実行の span が1本立つことを
  * 確かめるための応答。
  */
-function stubOpenAiSubmitAndCapture(
+function stubOpenRouterSubmitAndCapture(
 	calls: FetchCall[],
 	answer: Record<string, unknown>,
 ): void {
-	(env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY = "sk-test";
+	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+		"or-test";
 	vi.stubGlobal(
 		"fetch",
 		async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -188,26 +183,27 @@ function stubOpenAiSubmitAndCapture(
 				calls.push({ url, body: bodyToString(init?.body) });
 				return new Response("{}", { status: 200 });
 			}
-			if (url.includes("openai.com")) {
+			if (url.startsWith("https://openrouter.ai/api/v1/")) {
 				return Response.json({
-					id: "resp_submit",
-					object: "response",
-					created_at: 0,
-					model: "gpt-5.6-luna",
-					status: "completed",
-					error: null,
-					incomplete_details: null,
-					output: [
+					choices: [
 						{
-							type: "function_call",
-							id: "fc_test",
-							call_id: "call_test",
-							name: "submit_answer",
-							arguments: JSON.stringify(answer),
-							status: "completed",
+							finish_reason: "tool_calls",
+							message: {
+								content: "",
+								tool_calls: [
+									{
+										id: "call_test",
+										type: "function",
+										function: {
+											name: "submit_answer",
+											arguments: JSON.stringify(answer),
+										},
+									},
+								],
+							},
 						},
 					],
-					usage: { input_tokens: 1200, output_tokens: 300 },
+					usage: { prompt_tokens: 1200, completion_tokens: 300 },
 				});
 			}
 			throw new Error(`unexpected fetch: ${url}`);
@@ -225,27 +221,16 @@ describe("エチケット解析の Langfuse 計装 (#514)", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
-		delete (env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY;
-		delete (env as unknown as { AI?: unknown }).AI;
+		delete (env as unknown as { OPENROUTER_API_KEY?: string })
+			.OPENROUTER_API_KEY;
 		setLangfuseKeys(undefined, undefined);
 		__resetLangfuseForTests();
 		__resetLangfusePromptForTests();
 	});
 
-	it("フォールバックした回に高精度経路のgenerationとWorkers AIのgenerationが同じtraceに並ぶ", async () => {
+	it("失敗した高精度呼び出しのgenerationがtraceに残る", async () => {
 		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
-		stubOpenAiIncompleteAndCapture(calls);
-		stubAiRun(async () => ({
-			response: JSON.stringify({
-				wine_name: "Chablis",
-				producer: null,
-				vintage: null,
-				appellation: null,
-				region: null,
-				grape_varieties: [],
-			}),
-			usage: { total_tokens: 55 },
-		}));
+		stubOpenRouterLengthAndCapture(calls);
 		const userId = await seedPremiumUser();
 
 		const plan = await resolveLabelPlan(userId, 1);
@@ -256,76 +241,55 @@ describe("エチケット解析の Langfuse 計装 (#514)", () => {
 		});
 		expect(begun.blocked).toBe(false);
 		if (begun.blocked) return;
-		const done = await runLabelAnalysisForJob(userId, {
-			imageDataUrls: [PHOTO],
-			plan,
-			reservation: begun.reservation,
-		});
-		// Workers AI が拾って解析自体は完了する
-		expect(done.value.name).toBe("Chablis");
+		// 打ち切りは失敗として返却される(フォールバックはしない #602)
+		await expect(
+			runLabelAnalysisForJob(userId, {
+				imageDataUrls: [PHOTO],
+				plan,
+				reservation: begun.reservation,
+			}),
+		).rejects.toThrow();
 
 		await Promise.resolve();
 		await new Promise((r) => setTimeout(r, 50));
 
 		const otlp = calls.filter(isLangfuseCall);
-		expect(otlp.length).toBeGreaterThanOrEqual(2);
+		expect(otlp.length).toBeGreaterThanOrEqual(1);
 		const spans = otlp.flatMap((c) => parseOtlpSpans(c.body));
 		// 同一 requestId から決定的に導出された traceId を**全スパンが共有する**
 		const expectedTraceId = await createTraceId(plan.requestId);
 		const traceIds = new Set(spans.map((s) => String(s.traceId ?? s.trace_id)));
 		expect(traceIds).toEqual(new Set([expectedTraceId]));
 
-		// 降格前(GPT)と降格先(Workers AI)の両方の generation が同じ trace にある
+		// 失敗した呼び出しの generation が残る = 報告点はパースや finishReason 検査より前
 		const names = spans.map((s) => String(s.name));
 		const gptGen = spans.find((s) =>
 			String(s.name).startsWith("label_analysis:gpt-luna#"),
 		);
-		const workersAiGen = spans.find((s) =>
-			String(s.name).startsWith("label_analysis:workers-ai#photo"),
-		);
 		expect(gptGen, `spans were: ${names.join(", ")}`).toBeDefined();
-		expect(workersAiGen).toBeDefined();
 		expect(String(gptGen!.traceId)).toBe(expectedTraceId);
-		expect(String(workersAiGen!.traceId)).toBe(expectedTraceId);
 
-		// どちらも root(ai:label_analysis)の直下
+		// root(ai:label_analysis)の直下
 		const root = spans.find((s) => s.name === "ai:label_analysis");
 		expect(root).toBeDefined();
 		const rootSpanId = String(root!.spanId ?? root!.span_id);
-		for (const gen of [gptGen!, workersAiGen!]) {
-			expect(String(gen.parentSpanId ?? gen.parent_span_id)).toBe(rootSpanId);
-		}
+		expect(String(gptGen!.parentSpanId ?? gptGen!.parent_span_id)).toBe(
+			rootSpanId,
+		);
 	});
 
 	it("写真のdata URIはOTLPボディに現れず、要約(MIME・寸法・ハッシュ)だけが載る", async () => {
 		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
-		// Workers AI 単独の経路(キー未設定 = 高精度経路は解決段階で外れる)。
-		// Langfuse への送信だけを捕まえる。
-		vi.stubGlobal(
-			"fetch",
-			async (input: RequestInfo | URL, init?: RequestInit) => {
-				const url = String(input);
-				if (
-					url.includes("langfuse") ||
-					url.includes("/api/public/otel/v1/traces")
-				) {
-					calls.push({ url, body: bodyToString(init?.body) });
-					return new Response("{}", { status: 200 });
-				}
-				throw new Error(`unexpected fetch: ${url}`);
-			},
-		);
-		stubAiRun(async () => ({
-			response: JSON.stringify({
-				wine_name: "Chablis",
-				producer: null,
-				vintage: null,
-				appellation: null,
-				region: null,
-				grape_varieties: [],
-			}),
-			usage: { total_tokens: 55 },
-		}));
+		// 標準経路の単発抽出で、Langfuse への送信だけを捕まえる。
+		stubOpenRouterSubmitAndCapture(calls, {
+			wine_name: "Chablis",
+			producer: null,
+			vintage: null,
+			appellation: "Chablis",
+			region: null,
+			grape_varieties: [],
+			sources: {},
+		});
 		const userId = await seedPremiumUser();
 
 		const plan = await resolveLabelPlan(userId, 1);
@@ -354,7 +318,7 @@ describe("エチケット解析の Langfuse 計装 (#514)", () => {
 		// 長いプロンプト(LABEL_PROMPT は既知呼称リストを含み mask の上限を超える)が
 		// 切り詰められてもインベントリは生きる。ここが写真インベントリの生存証明になる。
 		const gen = spansOfCalls(calls).find((s) =>
-			String(s.name).startsWith("label_analysis:workers-ai#photo"),
+			String(s.name).startsWith("label_analysis:gpt-luna#"),
 		);
 		expect(gen).toBeDefined();
 		const attrs = Object.fromEntries(
@@ -385,7 +349,7 @@ describe("エチケット解析の Langfuse 計装 (#514)", () => {
 
 	it("エージェントループのステップとツール実行(submit_answer)がspanとして立つ", async () => {
 		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
-		stubOpenAiSubmitAndCapture(calls, {
+		stubOpenRouterSubmitAndCapture(calls, {
 			wine_name: "Chablis",
 			producer: null,
 			vintage: null,
@@ -394,7 +358,6 @@ describe("エチケット解析の Langfuse 計装 (#514)", () => {
 			grape_varieties: [],
 			sources: {},
 		});
-		stubAiRun(() => Promise.reject(new Error("Workers AI must not be called")));
 		const userId = await seedPremiumUser();
 
 		const plan = await resolveLabelPlan(userId, 1);

@@ -3,8 +3,9 @@ import { tracing } from "cloudflare:workers";
 // カスタムスパンを張る**唯一の入口**(Issue #504)。
 //
 // なぜ要るか: `observability.traces` の自動計装は fetch/queue ハンドラ・D1・R2・Images・
-// Queues・Rate limiting・外向き fetch を拾うが、**Workers AI(`env.AI`)は対象外**で、
-// このアプリで最も遅く最も壊れる推論経路がトレースに現れない。キューのコンシューマも
+// Queues・Rate limiting・外向き fetch を拾う。LLM 呼び出しは OpenRouter への
+// 外向き fetch として自動計装の対象だが、モデル呼び出し単位の区切り(どの推論が
+// どれだけ掛かったか)は付かない。キューのコンシューマも
 // 「1バッチ = 1スパン」なので、バッチ内のどのジョブが遅かったかは分からない。
 //
 // なぜ1箇所に寄せるか: `tracing.enterSpan` を経路ごとに直書きすると、後から足した経路で

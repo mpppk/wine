@@ -9,7 +9,7 @@ export interface ChatMessage {
 	content: string;
 }
 
-/** Workers AI(env.AI.run)に渡すメッセージ。system を先頭に置ける。 */
+/** OpenRouter(chat completions)に渡すメッセージ。system を先頭に置ける。 */
 export interface AiMessage {
 	role: "system" | "user" | "assistant";
 	content: string;
@@ -104,7 +104,7 @@ export function clampHistory(history: ChatMessage[]): ChatMessage[] {
 }
 
 /**
- * Workers AI に渡す messages(system + 直近履歴 + 新規質問)を組み立てる。
+ * OpenRouter に渡す messages(system + 直近履歴 + 新規質問)を組み立てる。
  *
  * **system は組み上がった文字列を受け取る**(#512 Phase 4)。本文のSSOTは Langfuse 側へ
  * 移り、取得は `getManagedPrompt`(async)が担うため、この純ロジック層には持ち込まない。

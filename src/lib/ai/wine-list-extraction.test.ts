@@ -87,13 +87,13 @@ describe("buildWineListMessages", () => {
 		expect(content).toHaveLength(5);
 		expect(content[1]).toEqual({ type: "text", text: "写真 0" });
 		expect(content[2]).toEqual({
-			type: "image",
-			source: { type: "base64", media_type: "image/jpeg", data: "AAA" },
+			type: "image_url",
+			image_url: { url: "data:image/jpeg;base64,AAA" },
 		});
 		expect(content[3]).toEqual({ type: "text", text: "写真 1" });
 		expect(content[4]).toEqual({
-			type: "image",
-			source: { type: "base64", media_type: "image/png", data: "BBB" },
+			type: "image_url",
+			image_url: { url: "data:image/png;base64,BBB" },
 		});
 	});
 
@@ -758,39 +758,31 @@ describe("estimateWineListReserveCharge", () => {
 });
 
 describe("resolveWineListRoute", () => {
-	const both = { openai: true, anthropic: true };
+	const available = { openrouter: true };
 
-	it("既定(gpt-luna)は両キーがあれば GPT 経路になる", () => {
-		expect(resolveWineListRoute(DEFAULT_LABEL_ENGINE, both)).toBe("gpt-luna");
+	it("既定(gpt-luna)は接続があれば GPT 経路になる", () => {
+		expect(resolveWineListRoute(DEFAULT_LABEL_ENGINE, available)).toBe(
+			"gpt-luna",
+		);
 		expect(DEFAULT_LABEL_ENGINE).toBe("gpt-luna");
 	});
 
 	it("Claude を選んでいれば Claude 経路になる", () => {
-		expect(resolveWineListRoute("web-research", both)).toBe("web-research");
+		expect(resolveWineListRoute("web-research", available)).toBe(
+			"web-research",
+		);
 	});
 
-	it("標準(Workers AI)を選んでいても高精度経路に載せる(降格しない #358)", () => {
-		// 一括抽出は Llama 4 Scout では読み取り品質が足りず、降格すると
-		// 「大量の欠落・でたらめな銘柄」が出る。Workers AI は返さない。
-		expect(resolveWineListRoute("workers-ai", both)).toBe("gpt-luna");
-		expect(
-			resolveWineListRoute("workers-ai", { openai: false, anthropic: true }),
-		).toBe("web-research");
+	it("標準を選んでいても高精度経路に載せる(降格しない #358)", () => {
+		// 一括抽出は単発の構造化抽出では読み取り品質が足りず、降格すると
+		// 「大量の欠落・でたらめな銘柄」が出る。標準経路は返さない。
+		expect(resolveWineListRoute("standard", available)).toBe("gpt-luna");
 	});
 
-	it("選んだプロバイダのキーが無ければもう一方へ引き継ぐ", () => {
-		expect(
-			resolveWineListRoute("gpt-luna", { openai: false, anthropic: true }),
-		).toBe("web-research");
-		expect(
-			resolveWineListRoute("web-research", { openai: true, anthropic: false }),
-		).toBe("gpt-luna");
-	});
-
-	it("どちらのキーも無ければ null(機能ごと使えない)", () => {
+	it("接続が無ければ null(機能ごと使えない)", () => {
 		for (const engine of LABEL_ENGINE_KEYS) {
 			expect(
-				resolveWineListRoute(engine, { openai: false, anthropic: false }),
+				resolveWineListRoute(engine, { openrouter: false }),
 				engine,
 			).toBeNull();
 		}

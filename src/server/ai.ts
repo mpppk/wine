@@ -7,7 +7,7 @@ import * as labelJobService from "#/lib/services/label-job-service";
 import * as pushService from "#/lib/services/push-service";
 import { authMiddleware } from "./middleware";
 
-// 地域チャットQ&AのRPC。Workers AI で回答し、実測トークンでクレジットを消費する。認証必須。
+// 地域チャットQ&AのRPC。OpenRouter 経由で回答し、実測トークンでクレジットを消費する。認証必須。
 // 会話履歴はクライアントが保持し毎ターン渡す(サーバはステートレス)。
 // 使うモデルはユーザのプロフィール設定(preferredAiModel)からサーバ側で解決するため、
 // リクエストでは受け取らない。
@@ -29,9 +29,9 @@ export const askRegion = createServerFn({ method: "POST" })
 /**
  * 写真からの一括登録(Issue #358)で**実際に走る経路**。使えない環境では `null`。
  *
- * この経路は Workers AI へフォールバックしない(#358)ため、`OPENAI_API_KEY` /
- * `ANTHROPIC_API_KEY` のどちらも無い環境では**導線ごと隠す**。解決の実体は ai-service
- * 側と同じ関数で、UI の出し分けとサーバの 503 が食い違わないようにする。
+ * この経路は標準経路へフォールバックしない(#358)ため、`OPENROUTER_API_KEY` が無い
+ * 環境では**導線ごと隠す**。解決の実体は ai-service 側と同じ関数で、UI の出し分けと
+ * サーバの 503 が食い違わないようにする。
  *
  * 経路まで返すのは、解析前に必要クレジットを表示するため(#426)。GPT-5.6 Luna と
  * Claude Sonnet 5 では単価が桁で違い、経路はシークレットの設定状況とユーザ設定に
@@ -44,12 +44,13 @@ export const getWineListAnalysisPlan = createServerFn({ method: "GET" })
 	}));
 
 /**
- * エチケット解析で**実際に走る経路**と、高精度経路の利用可否。
+ * エチケット解析で**実際に走る経路**と、OpenRouter 接続の利用可否。
+ * 接続が無い環境では route が `null`(利用不可)になる。
  *
  * 解析前に必要クレジットを表示するために要る(#355)。コスト基準の計上では経路によって
- * 消費が 3 / 39 / 275 クレジットと2桁変わるので、押してから残高不足で弾かれると
- * 「なぜ足りないのか」が分からない。経路はシークレットの設定状況に依存し
- * クライアントでは決められないため、サーバから返す。
+ * 消費が大きく変わるので、押してから残高不足で弾かれると「なぜ足りないのか」が
+ * 分からない。経路はシークレットの設定状況に依存しクライアントでは決められないため、
+ * サーバから返す。
  */
 export const getLabelAnalysisPlan = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])

@@ -27,7 +27,7 @@ export const UNAUTHORIZED_MESSAGE = "Unauthorized";
  *
  * server function の例外はクライアントへ渡る途中で素の `Error` に平坦化されるが
  * **`message` だけは保持される**。各画面はそれを `err.message` のまま描画するので、
- * 素通しすると失敗SQL・バインドパラメータ・内部ID・各SDK(D1/R2/Stripe/Workers AI)の
+ * 素通しすると失敗SQL・バインドパラメータ・内部ID・各SDK(D1/R2/Stripe/OpenRouter)の
  * 例外文がそのまま利用者の画面に出る。露出の関門は `runWithHttpStatus` の1箇所に寄せ、
  * そこでこの文言へ差し替える(原因は同じ場所の `logError` に残る)。
  */

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { subscription } from "#/db/auth-schema";
 import {
@@ -9,7 +9,7 @@ import {
 	importBatch,
 	labelAnalysisJob,
 } from "#/db/schema";
-import { AI_LABEL_MODEL } from "#/lib/ai/config";
+import { AI_LABEL_GPT_MODEL } from "#/lib/ai/config";
 import {
 	LABEL_JOB_PHOTO_RETENTION_MS,
 	LABEL_JOB_STALE_MS,
@@ -113,25 +113,100 @@ async function jobRow(jobId: string) {
 	return row;
 }
 
-/** env.AI を差し替える(答えの中身ではなく台帳と状態を固定するためのスタブ)。 */
-function stubAiRun(run: () => Promise<unknown>): void {
-	(env as unknown as { AI: { run: () => Promise<unknown> } }).AI = { run };
-}
-
-/** Workers AI 経路の成功応答。usage を返すので実測で確定する。 */
-function workersAiOk(totalTokens = 300) {
-	return async () => ({
-		response: JSON.stringify({
-			wine_name: "Chablis Les Clos",
-			producer: "Vincent Dauvissat",
-			vintage: 2020,
-		}),
-		usage: { total_tokens: totalTokens },
+/** OpenRouter の chat completion 応答を組み立てる。 */
+function orChat(options: {
+	text?: string;
+	toolCalls?: Array<{ id: string; name: string; arguments: string }>;
+	usage?: {
+		prompt_tokens?: number;
+		completion_tokens?: number;
+		server_tool_use?: { web_search_requests?: number };
+	};
+	finishReason?: string;
+}): Response {
+	return Response.json({
+		choices: [
+			{
+				finish_reason: options.finishReason ?? "stop",
+				message: {
+					content: options.text ?? "",
+					...(options.toolCalls
+						? {
+								tool_calls: options.toolCalls.map((call) => ({
+									id: call.id,
+									type: "function",
+									function: { name: call.name, arguments: call.arguments },
+								})),
+							}
+						: {}),
+				},
+			},
+		],
+		usage: {
+			prompt_tokens: 0,
+			completion_tokens: 0,
+			...options.usage,
+		},
 	});
 }
 
-/** 投入 → 成功。ユーザは標準経路(Workers AI)に固定する(高精度キーを立てない)。 */
+/** 標準経路・高精度経路の既定の抽出フィールド。検証器を通る形。 */
+function labelFields(): Record<string, unknown> {
+	return {
+		wine_name: "Chablis Les Clos",
+		producer: "Vincent Dauvissat",
+		vintage: 2020,
+		appellation: "Chablis Grand Cru",
+		region: "Bourgogne",
+		grape_varieties: ["Chardonnay"],
+	};
+}
+
+/**
+ * OpenRouter への outbound fetch をスタブする。**接続先は OpenRouter だけ**
+ * (直接接続の残存はここで throw して検出する)。応答はリクエストの形で振り分ける:
+ * `submit_answer` を含むエージェントループには提出呼び出しを、それ以外(単発の
+ * 構造化抽出)には本文JSONを返す。どちらも実測 usage(計300トークン)を付ける。
+ */
+function stubOpenRouter(
+	respond?: (body: Record<string, unknown>) => Promise<Response> | Response,
+): void {
+	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+		"or-test";
+	vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+		const url = typeof input === "string" ? input : String(input);
+		if (!url.startsWith("https://openrouter.ai/api/v1/")) {
+			throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
+		}
+		const body =
+			typeof init?.body === "string"
+				? (JSON.parse(init.body) as Record<string, unknown>)
+				: {};
+		if (respond) return await respond(body);
+		const tools = (body.tools ?? []) as Array<{
+			function?: { name?: string };
+		}>;
+		const usage = { prompt_tokens: 250, completion_tokens: 50 };
+		if (tools.some((t) => t.function?.name === "submit_answer")) {
+			return orChat({
+				toolCalls: [
+					{
+						id: "call_test",
+						name: "submit_answer",
+						arguments: JSON.stringify(labelFields()),
+					},
+				],
+				usage,
+			});
+		}
+		return orChat({ text: JSON.stringify(labelFields()), usage });
+	});
+}
+
+/** 投入 → 成功。OpenRouter の接続を立ててから投入する(キー無しでは 503)。 */
 async function submitOne(userId: string, photos = 1) {
+	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+		"or-test";
 	const result = await submitLabelAnalysisJob(
 		userId,
 		Array.from({ length: photos }, photo),
@@ -141,11 +216,16 @@ async function submitOne(userId: string, photos = 1) {
 }
 
 afterEach(() => {
-	delete (env as unknown as { AI?: unknown }).AI;
-	delete (env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY;
-	delete (env as unknown as { OPENAI_API_KEY?: string }).OPENAI_API_KEY;
+	delete (env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY;
 	vi.unstubAllGlobals();
 	vi.useRealTimers();
+});
+
+// 投入は OpenRouter の接続を前提にする(キー無しでは 503)。キー要否そのものを
+// 見るテスト以外は、接続ありで回す。
+beforeEach(() => {
+	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+		"or-test";
 });
 
 describe("ジョブの投入", () => {
@@ -160,7 +240,7 @@ describe("ジョブの投入", () => {
 			userId,
 			status: "queued",
 			photoCount: 2,
-			route: "workers-ai",
+			route: "gpt-luna",
 		});
 		// 予約が立っている = 残高が引かれ、consume 台帳がある。
 		expect(await balanceOf(userId)).toBeLessThan(MONTHLY_CREDITS_FREE);
@@ -177,10 +257,15 @@ describe("ジョブの投入", () => {
 	});
 
 	it("残高不足なら blocked を返し、ジョブ行を作らない", async () => {
-		// 高精度経路(Claude)は写真1枚でも無料枠を超える見積になる。
+		// 高精度経路(web-research)は写真1枚でも無料枠を超える見積になる。
 		const userId = await seedUser();
-		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
-			"sk-ant-test";
+		(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+			"or-test";
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
 
 		const result = await submitLabelAnalysisJob(userId, [photo()]);
 
@@ -327,7 +412,7 @@ describe("ジョブの実行", () => {
 		const { jobId } = await submitOne(userId);
 		const reserved = (await jobRow(jobId))?.reservedCredits ?? 0;
 		const keys = (await jobRow(jobId))?.photoKeys ?? [];
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 
 		await runLabelAnalysisJob(jobId);
 
@@ -357,7 +442,7 @@ describe("ジョブの実行", () => {
 	it("推論が失敗したら failed にして予約を全額返却する", async () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
-		stubAiRun(() => Promise.reject(new Error("model error")));
+		stubOpenRouter(() => Promise.reject(new Error("model error")));
 
 		// コンシューマは throw しない(再配信は claim ガードで空振りするため)。
 		await runLabelAnalysisJob(jobId);
@@ -376,9 +461,25 @@ describe("ジョブの実行", () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
 		let calls = 0;
-		stubAiRun(async () => {
+		stubOpenRouter(async (body) => {
 			calls += 1;
-			return await workersAiOk(300)();
+			const tools = (body.tools ?? []) as Array<{
+				function?: { name?: string };
+			}>;
+			const usage = { prompt_tokens: 250, completion_tokens: 50 };
+			if (tools.some((t) => t.function?.name === "submit_answer")) {
+				return orChat({
+					toolCalls: [
+						{
+							id: "call_test",
+							name: "submit_answer",
+							arguments: JSON.stringify(labelFields()),
+						},
+					],
+					usage,
+				});
+			}
+			return orChat({ text: JSON.stringify(labelFields()), usage });
 		});
 
 		await runLabelAnalysisJob(jobId);
@@ -398,7 +499,7 @@ describe("ジョブの実行", () => {
 		for (const key of (await jobRow(jobId))?.photoKeys ?? []) {
 			await env.AVATARS.delete(key);
 		}
-		stubAiRun(() => Promise.reject(new Error("must not be called")));
+		stubOpenRouter(() => Promise.reject(new Error("must not be called")));
 
 		await runLabelAnalysisJob(jobId);
 
@@ -481,7 +582,7 @@ describe("stale の決着", () => {
 		await settleStaleLabelAnalysisJobs(userId);
 
 		// 決着後に届いた再配信。claim は queued の間しか成立しないので何も起きない。
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 
 		expect((await jobRow(jobId))?.status).toBe("failed");
@@ -492,7 +593,7 @@ describe("状態の取得", () => {
 	it("終端に達したら残高も返す(UI が完了時に残高表示を更新できる)", async () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 
 		const queued = await getLabelAnalysisJob(userId, jobId);
 		// 未終端のポーリングでは残高を引かない(getBalance は月次付与の書き込みを伴う)。
@@ -522,7 +623,7 @@ describe("状態の取得", () => {
 		const userId = await seedUser();
 		const queued = await submitOne(userId);
 		const finished = await submitOne(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(finished.jobId);
 
 		// 完了しても**受け取るまでは**一覧に残る(そうしないと結果を渡す先が無くなる)。
@@ -535,7 +636,7 @@ describe("状態の取得", () => {
 	it("失敗したジョブは一覧に溜めない", async () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
-		stubAiRun(() => Promise.reject(new Error("model error")));
+		stubOpenRouter(() => Promise.reject(new Error("model error")));
 		await runLabelAnalysisJob(jobId);
 
 		// 失敗は投入した画面でその場で見せるもの。後から一覧に出しても利用者が取れる
@@ -548,7 +649,7 @@ describe("完了の受け取り (#462)", () => {
 	it("受け取ると候補が返り、バッジから消える", async () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 
 		// 受け取る前: 完了1件としてバッジに出る。
@@ -576,7 +677,7 @@ describe("完了の受け取り (#462)", () => {
 	it("二重に受け取っても候補は返るが、既読であることが分かる", async () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		await consumeLabelAnalysisJob(userId, jobId);
 
@@ -599,7 +700,7 @@ describe("完了の受け取り (#462)", () => {
 		const owner = await seedUser();
 		const other = await seedUser();
 		const { jobId } = await submitOne(owner);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 
 		await expect(consumeLabelAnalysisJob(other, jobId)).rejects.toThrow(
@@ -621,7 +722,7 @@ describe("完了の受け取り (#462)", () => {
 			await attachLabelAnalysisJobEntry(userId, jobId, entryId),
 		).toMatchObject({ attached: true });
 
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 
 		// 受け取り導線はここを見て「新規登録」ではなく「そのワインを編集」を選ぶ。
@@ -675,7 +776,7 @@ describe("完了の受け取り (#462)", () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId, 2);
 		const keys = (await jobRow(jobId))?.photoKeys ?? [];
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 
 		// 終端でも消えない(従来は解析の入力として捨てていた)。
@@ -712,7 +813,7 @@ describe("完了の受け取り (#462)", () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
 		const keys = (await jobRow(jobId))?.photoKeys ?? [];
-		stubAiRun(() => Promise.reject(new Error("model error")));
+		stubOpenRouter(() => Promise.reject(new Error("model error")));
 
 		await runLabelAnalysisJob(jobId);
 
@@ -727,7 +828,7 @@ describe("完了の受け取り (#462)", () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId, 2);
 		const keys = (await jobRow(jobId))?.photoKeys ?? [];
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		const entryId = await seedEntry(userId);
 
@@ -757,7 +858,7 @@ describe("完了の受け取り (#462)", () => {
 		expect((await jobRow(jobId))?.photoKeys).not.toEqual([]);
 
 		// 完了後に受け取って保存すると、そこで引き継がれる。
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		expect(
 			(await attachLabelAnalysisJobEntry(userId, jobId, entryId)).adoptedPhotos,
@@ -768,7 +869,7 @@ describe("完了の受け取り (#462)", () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId, 2);
 		const keys = (await jobRow(jobId))?.photoKeys ?? [];
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		const entryId = await seedEntry(userId);
 
@@ -793,7 +894,7 @@ describe("完了の受け取り (#462)", () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
 		const keys = (await jobRow(jobId))?.photoKeys ?? [];
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		const entryId = await seedEntry(userId);
 		await attachLabelAnalysisJobEntry(userId, jobId, entryId, {
@@ -820,7 +921,7 @@ describe("完了の受け取り (#462)", () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
 		const keys = (await jobRow(jobId))?.photoKeys ?? [];
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		await consumeLabelAnalysisJob(userId, jobId);
 
@@ -844,7 +945,7 @@ describe("完了の受け取り (#462)", () => {
 	it("記録に使われたジョブは保持期間を過ぎても回収しない (#474)", async () => {
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		const entryId = await seedEntry(userId);
 		await attachLabelAnalysisJobEntry(userId, jobId, entryId);
@@ -872,7 +973,7 @@ describe("完了の受け取り (#462)", () => {
 		const userId = await seedPremiumUser();
 		const { jobId } = await submitOne(userId, 2);
 		const keys = (await jobRow(jobId))?.photoKeys ?? [];
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		const batchId = await seedBatch(userId);
 
@@ -899,7 +1000,7 @@ describe("完了の受け取り (#462)", () => {
 		// (バッチに載る → 銘柄まで届く)を押さえる。
 		const userId = await seedPremiumUser();
 		const { jobId } = await submitOne(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		// レビュー画面の確定と同じ順序: 先に銘柄・体験記録・バッチを作り、その後で写真を渡す。
 		const { batchId } = await bulkRegisterFromScan(userId, {
@@ -928,7 +1029,7 @@ describe("完了の受け取り (#462)", () => {
 		// (`saveImportBatchPhotos` と同じ排他)。
 		const userId = await seedPremiumUser();
 		const { jobId } = await submitOne(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		const batchId = await seedBatch(userId);
 		await db
@@ -948,7 +1049,7 @@ describe("完了の受け取り (#462)", () => {
 		const userId = await seedPremiumUser();
 		const { jobId } = await submitOne(userId);
 		const batchId = await seedBatch(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 
 		// 上限より1枚多いキーをジョブに持たせる(投入の上限は別途 API 側で効くので、
@@ -987,7 +1088,7 @@ describe("完了の受け取り (#462)", () => {
 		const owner = await seedPremiumUser();
 		const other = await seedPremiumUser();
 		const { jobId } = await submitOne(owner);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(jobId);
 		const othersBatch = await seedBatch(other);
 
@@ -1022,7 +1123,7 @@ describe("完了の受け取り (#462)", () => {
 	it("解析中と完了を別々に数える", async () => {
 		const userId = await seedPremiumUser();
 		const done = await submitOne(userId);
-		stubAiRun(workersAiOk(300));
+		stubOpenRouter();
 		await runLabelAnalysisJob(done.jobId);
 		await submitOne(userId);
 		await submitOne(userId);
@@ -1036,29 +1137,30 @@ describe("完了の受け取り (#462)", () => {
 });
 
 describe("一括抽出のジョブ (#474)", () => {
-	/** Anthropic の応答をスタブする(SDK が掴む globalThis.fetch を差し替える)。 */
-	function stubAnthropicWineList(wines: Record<string, unknown>[]): void {
-		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
-			"sk-ant-test";
-		vi.stubGlobal("fetch", async () =>
-			Response.json({
-				content: [
-					{ type: "text", text: JSON.stringify({ wines, truncated: false }) },
-				],
-				stop_reason: "end_turn",
+	/** OpenRouter の応答をスタブする(接続先は OpenRouter だけ)。 */
+	function stubOpenRouterWineList(wines: Record<string, unknown>[]): void {
+		(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+			"or-test";
+		vi.stubGlobal("fetch", async (input: unknown) => {
+			const url = typeof input === "string" ? input : String(input);
+			if (!url.startsWith("https://openrouter.ai/api/v1/")) {
+				throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
+			}
+			return orChat({
+				text: JSON.stringify({ wines, truncated: false }),
 				usage: {
-					input_tokens: 3000,
-					output_tokens: 500,
+					prompt_tokens: 3000,
+					completion_tokens: 500,
 					server_tool_use: { web_search_requests: 2 },
 				},
-			}),
-		);
+			});
+		});
 	}
 
 	it("同じ器で投入・実行され、結果は候補配列として載る", async () => {
 		// 一括抽出は無料枠に収まらない見積になるのでプレミアムで回す。
 		const userId = await seedPremiumUser();
-		stubAnthropicWineList([
+		stubOpenRouterWineList([
 			{
 				wine_name: "Chablis Les Clos",
 				producer: "Vincent Dauvissat",
@@ -1091,7 +1193,7 @@ describe("一括抽出のジョブ (#474)", () => {
 
 	it("バッジ・受け取り・stale の決着は種別によらず共通で効く", async () => {
 		const userId = await seedPremiumUser();
-		stubAnthropicWineList([
+		stubOpenRouterWineList([
 			{
 				wine_name: "Meursault",
 				producer: "Coche-Dury",
@@ -1131,7 +1233,7 @@ describe("一括抽出のジョブ (#474)", () => {
 			BadRequestError,
 		);
 		// 一括抽出では受け付けられる(リストや棚を分割して撮るため)。
-		stubAnthropicWineList([]);
+		stubOpenRouterWineList([]);
 		const submitted = await submitLabelAnalysisJob(userId, photos, "wine_list");
 		expect(submitted.blocked).toBe(false);
 	});
@@ -1139,28 +1241,74 @@ describe("一括抽出のジョブ (#474)", () => {
 
 describe("実行経路", () => {
 	it("投入時に解決した経路をコンシューマが再解決しない", async () => {
-		// 投入時はキー未設定 = workers-ai で予約する。
+		// 投入時は既定(gpt-luna)で予約する。
 		const userId = await seedUser();
 		const { jobId } = await submitOne(userId);
-		expect((await jobRow(jobId))?.route).toBe("workers-ai");
+		expect((await jobRow(jobId))?.route).toBe("gpt-luna");
 
-		// 実行までの間にシークレットが増えても、予約は workers-ai の見積で立っている。
-		// 経路を再解決すると予約と実行が食い違う(Claude の推論に Llama の予約)。
-		(env as unknown as { ANTHROPIC_API_KEY?: string }).ANTHROPIC_API_KEY =
-			"sk-ant-test";
-		vi.stubGlobal("fetch", () => {
-			throw new Error("Anthropic must not be called");
+		// 実行までの間にユーザ設定が変わっても、予約は投入時の見積で立っている。
+		// 経路を再解決すると予約と実行が食い違う。
+		await env.DB.prepare(
+			"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+		)
+			.bind(userId)
+			.run();
+		const bodies: string[] = [];
+		stubOpenRouter(async (body) => {
+			bodies.push(JSON.stringify(body));
+			const tools = (body.tools ?? []) as Array<{
+				function?: { name?: string };
+			}>;
+			const usage = { prompt_tokens: 250, completion_tokens: 50 };
+			if (tools.some((t) => t.function?.name === "submit_answer")) {
+				return orChat({
+					toolCalls: [
+						{
+							id: "call_test",
+							name: "submit_answer",
+							arguments: JSON.stringify(labelFields()),
+						},
+					],
+					usage,
+				});
+			}
+			return orChat({ text: JSON.stringify(labelFields()), usage });
 		});
-		stubAiRun(workersAiOk(300));
 
 		await runLabelAnalysisJob(jobId);
 
 		expect((await jobRow(jobId))?.status).toBe("succeeded");
-		// 実行記録・課金も Workers AI の単価。
-		const settle = (await ledgerRowsOf(userId)).find((r) =>
-			r.requestId?.endsWith(SETTLE_SUFFIX),
-		);
-		expect(settle).toBeDefined();
-		expect(AI_LABEL_MODEL).toContain("llama");
+		// 設定変更後も投入時の経路(gpt-luna)のモデルで実行する。
+		expect(bodies.length).toBeGreaterThan(0);
+		expect(JSON.parse(bodies[0] ?? "{}")).toMatchObject({
+			model: AI_LABEL_GPT_MODEL,
+		});
+	});
+
+	it("旧 workers-ai 経路の未実行ジョブは返却して再投入を案内する(#602)", async () => {
+		// 移行前に投入された旧 plan は OpenRouter へ黙って再解決しない。
+		// 予約額・推論設定が変わるため、既存の失敗終了・予約返却で決着し、
+		// 再投入を案内する。
+		const userId = await seedUser();
+		const { jobId } = await submitOne(userId);
+		await env.DB.prepare(
+			"UPDATE label_analysis_job SET route = 'workers-ai', selected_engine = 'workers-ai' WHERE id = ?",
+		)
+			.bind(jobId)
+			.run();
+		stubOpenRouter(() => {
+			throw new Error("旧経路のジョブで推論してはいけない");
+		});
+
+		await runLabelAnalysisJob(jobId);
+
+		const job = await jobRow(jobId);
+		expect(job?.status).toBe("failed");
+		expect(job?.error).toMatch(/再投入/);
+		// 予約は全額返却し、確定はしない。
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+		const rows = await ledgerRowsOf(userId);
+		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+		expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(false);
 	});
 });

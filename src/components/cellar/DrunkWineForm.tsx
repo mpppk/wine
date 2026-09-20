@@ -407,12 +407,14 @@ export function DrunkWineForm({
 		queryFn: () => getLabelAnalysisPlan(),
 		staleTime: 5 * 60 * 1000,
 	});
-	// 経路が分かるまでは金額を出さない(取得中に誤った数字を見せない)
-	const requiredCredits = labelPlan
-		? costToCredits(
-				estimateLabelReserveCharge(labelPlan.route, photos.length).microUsd,
-			)
-		: null;
+	// 経路が分かるまでは金額を出さない(取得中に誤った数字を見せない)。
+	// 経路が無い環境(null = OpenRouter 未接続で利用不可)のときも出さない。
+	const requiredCredits =
+		labelPlan?.route != null
+			? costToCredits(
+					estimateLabelReserveCharge(labelPlan.route, photos.length).microUsd,
+				)
+			: null;
 	// null = 未ログイン・取得中・取得失敗。残高0と区別できないので不足判定には使わない
 	const balance = useCreditBalanceValue();
 	const insufficientCredits =

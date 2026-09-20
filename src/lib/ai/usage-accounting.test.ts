@@ -1,17 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-	countProviderExecutedCalls,
-	toAiSdkUsage,
-} from "#/lib/ai/ai-sdk-usage";
-import {
 	AI_LABEL_ROUTE_MODELS,
 	AI_REGION_QA_MODELS,
 	AI_WINE_LIST_ROUTE_MODELS,
 } from "#/lib/ai/config";
-import { GPT_WEB_SEARCH_TOOL_NAME } from "#/lib/ai/label-gpt-research";
-import { toAnthropicUsage } from "#/lib/ai/label-web-research";
-import { toGptUsage } from "#/lib/ai/wine-list-gpt";
-import { toWorkersAiUsage } from "#/lib/ai/workers-ai-usage";
+import { toOpenRouterUsage } from "#/lib/ai/openrouter";
 import {
 	type AiUsage,
 	getModelPricing,
@@ -72,124 +65,95 @@ interface RouteAccounting {
 }
 
 /**
- * エチケット解析の GPT 経路は **AI SDK 経由**(#455)。usage はプロバイダ横断の共通形で
- * 返り、内訳は `inputTokenDetails` / `outputTokenDetails` に分かれる。トークン数は
- * 2026-08-06 に `gpt-5.6-luna` の実応答から採った値(scripts/spike-label-usage.ts)。
- *
- * **`cacheWriteTokens` も非ゼロにしてある**(実測ではキャッシュのヒット回とミス回で
- * 片方ずつだった)。プロバイダが返しうる項目をすべて埋めておかないと、「宣言していない
- * 項目を黙って計上し始めていない」の検査が素通りしてしまうため。前方のプレフィクスが
- * ヒットしつつ後続が新たにキャッシュされれば、実際に両方が同時に載る。
+ * #602 で全経路を OpenRouter の chat completions へ集約した。usage は OpenRouter が
+ * 正規化した共通形で返る。トークン数は旧・直接接続時代の実応答から採った値
+ * (scripts/spike-label-usage.ts)。web検索の回数は応答の
+ * `usage.server_tool_use.web_search_requests` に出る(旧 GPT 経路のように
+ * ツール呼び出しを数える必要は無い)。
  */
-const GPT_LABEL_AI_SDK_USAGE = {
-	inputTokens: 23_247,
-	inputTokenDetails: {
-		noCacheTokens: 11_022,
-		cacheReadTokens: 12_225,
-		cacheWriteTokens: 3_100,
-	},
-	outputTokens: 746,
-} as const;
-
-/** web検索はプロバイダ実行ツール。回数は usage に出ないので呼び出しを数える。 */
-const GPT_LABEL_TOOL_CALLS = [
-	{ toolName: GPT_WEB_SEARCH_TOOL_NAME, toolCallId: "ws_1" },
-	{ toolName: GPT_WEB_SEARCH_TOOL_NAME, toolCallId: "ws_2" },
-] as const;
-
-/**
- * 一括抽出の GPT 経路は**生の Responses API を直接叩く**ので usage の形が違う
- * (キャッシュヒットは input の内数)。エチケット解析と同じモデルでも、マッパーが
- * 別なら別の経路として検査する。
- */
-const GPT_WINE_LIST_RAW_USAGE = {
-	input_tokens: 23_247,
-	input_tokens_details: { cached_tokens: 12_225, cache_write_tokens: 3_100 },
-	output_tokens: 746,
+const OR_AGENT_LOOP_USAGE = {
+	prompt_tokens: 23_247,
+	completion_tokens: 746,
+	prompt_tokens_details: { cached_tokens: 12_225 },
+	completion_tokens_details: { reasoning_tokens: 400 },
+	server_tool_use: { web_search_requests: 2 },
 } as const;
 
 /**
- * Claude経路。`server_tool_use.web_search_requests` に web検索の回数が載る
- * (GPT経路と違い usage の中に出る)。キャッシュは読み・書きが別項目で、単価も別。
+ * Claude経路。`server_tool_use.web_search_requests` に web検索の回数が載る。
+ * プロンプトキャッシュの書き込みはこちらからは使わない(cache_control を付けない)
+ * ので、書き込みトークンが来ても計上しない(下の専用テスト参照)。
  */
-const CLAUDE_LABEL_RAW_USAGE = {
-	input_tokens: 18_400,
-	output_tokens: 2_100,
+const OR_CLAUDE_RAW_USAGE = {
+	prompt_tokens: 18_400,
+	completion_tokens: 2_100,
+	prompt_tokens_details: { cached_tokens: 11_800 },
 	cache_creation_input_tokens: 6_200,
-	cache_read_input_tokens: 11_800,
 	server_tool_use: { web_search_requests: 6 },
 } as const;
 
-/** Workers AI は内訳を返さず total_tokens のみ。全量を出力として計上する。 */
-const WORKERS_AI_RAW_USAGE = { total_tokens: 812 } as const;
+/** 単発の構造化抽出(web検索なし)。 */
+const OR_SINGLE_SHOT_USAGE = {
+	prompt_tokens: 11_500,
+	completion_tokens: 320,
+	prompt_tokens_details: { cached_tokens: 0 },
+} as const;
+
+/** 地域Q&A。短文回答で web検索は使わない。 */
+const OR_REGION_QA_USAGE = {
+	prompt_tokens: 1_200,
+	completion_tokens: 65,
+	prompt_tokens_details: { cached_tokens: 800 },
+} as const;
 
 const ROUTE_ACCOUNTING: readonly RouteAccounting[] = [
 	{
 		name: "エチケット解析 / gpt-luna",
 		model: AI_LABEL_ROUTE_MODELS["gpt-luna"],
-		usage: toAiSdkUsage(GPT_LABEL_AI_SDK_USAGE, {
-			webSearches: countProviderExecutedCalls(
-				GPT_LABEL_TOOL_CALLS,
-				GPT_WEB_SEARCH_TOOL_NAME,
-			),
-			// OpenAI はキャッシュ**書き込み**を課金しない(下の専用テスト参照)。
-			billCacheWrites: false,
-		}),
+		usage: toOpenRouterUsage(OR_AGENT_LOOP_USAGE),
 		billed: ["inputTokens", "outputTokens", "cacheReadTokens", "webSearches"],
 	},
 	{
 		name: "エチケット解析 / web-research",
 		model: AI_LABEL_ROUTE_MODELS["web-research"],
-		usage: toAnthropicUsage(CLAUDE_LABEL_RAW_USAGE),
-		billed: [
-			"inputTokens",
-			"outputTokens",
-			"cacheReadTokens",
-			"cacheWriteTokens",
-			"webSearches",
-		],
+		usage: toOpenRouterUsage(OR_CLAUDE_RAW_USAGE),
+		billed: ["inputTokens", "outputTokens", "cacheReadTokens", "webSearches"],
 	},
 	{
-		name: "エチケット解析 / workers-ai",
-		model: AI_LABEL_ROUTE_MODELS["workers-ai"],
-		usage: toWorkersAiUsage(WORKERS_AI_RAW_USAGE) ?? {},
-		billed: ["outputTokens"],
+		name: "エチケット解析 / standard",
+		model: AI_LABEL_ROUTE_MODELS.standard,
+		usage: toOpenRouterUsage(OR_SINGLE_SHOT_USAGE),
+		billed: ["inputTokens", "outputTokens"],
 	},
 	{
-		// 一括抽出も**web検索で裏を取る**(#474)ので、エチケット解析の GPT 経路と同じ
-		// 課金対象になる。回数は usage に出ないため countGptWebSearchCalls で数えた値を
-		// 渡す——ここが 0 のまま固定されていると原価が静かに過小計上される。
 		name: "一括抽出 / gpt-luna",
 		model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
-		usage: toGptUsage(GPT_WINE_LIST_RAW_USAGE, 4),
+		usage: toOpenRouterUsage({
+			...OR_AGENT_LOOP_USAGE,
+			server_tool_use: { web_search_requests: 4 },
+		}),
 		billed: ["inputTokens", "outputTokens", "cacheReadTokens", "webSearches"],
 	},
 	{
 		name: "一括抽出 / web-research",
 		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
-		usage: toAnthropicUsage({
-			...CLAUDE_LABEL_RAW_USAGE,
+		usage: toOpenRouterUsage({
+			...OR_CLAUDE_RAW_USAGE,
 			server_tool_use: { web_search_requests: 4 },
 		}),
-		billed: [
-			"inputTokens",
-			"outputTokens",
-			"cacheReadTokens",
-			"cacheWriteTokens",
-			"webSearches",
-		],
+		billed: ["inputTokens", "outputTokens", "cacheReadTokens", "webSearches"],
 	},
 	{
 		name: "地域Q&A / gemma4",
 		model: AI_REGION_QA_MODELS.gemma4.id,
-		usage: toWorkersAiUsage(WORKERS_AI_RAW_USAGE) ?? {},
-		billed: ["outputTokens"],
+		usage: toOpenRouterUsage(OR_REGION_QA_USAGE),
+		billed: ["inputTokens", "outputTokens", "cacheReadTokens"],
 	},
 	{
 		name: "地域Q&A / llama4",
 		model: AI_REGION_QA_MODELS.llama4.id,
-		usage: toWorkersAiUsage(WORKERS_AI_RAW_USAGE) ?? {},
-		billed: ["outputTokens"],
+		usage: toOpenRouterUsage(OR_REGION_QA_USAGE),
+		billed: ["inputTokens", "outputTokens", "cacheReadTokens"],
 	},
 ];
 
@@ -249,44 +213,26 @@ describe("経路ごとの会計の取りこぼし検知", () => {
 	});
 });
 
-describe("OpenAI経路のキャッシュ書き込み", () => {
-	// OpenAI は cached input の**割引**だけで書き込み側の課金が無く、単価表にも
-	// cacheWriteUsdPerMTok を持たせていない。一方 usageToMicroUsd は単価未定義の
-	// キャッシュ書き込みを**入力単価**で換算する(割引を勝手に仮定しない安全側の既定)。
-	// つまり cache_write_tokens を計上すると、無料のトークンに入力単価が乗って過大請求になる。
+describe("OpenRouter経路のキャッシュ書き込み", () => {
+	// プロンプトキャッシュの書き込みはこちらからは使わない(cache_control を付けない)。
+	// 一方 usageToMicroUsd は単価未定義のキャッシュ書き込みを**入力単価**で換算する
+	// (割引を勝手に仮定しない安全側の既定)。つまり cache_creation 系のトークンを
+	// 計上すると、無料のトークンに入力単価が乗って過大請求になる。
 	// 「マッパーが拾っていない」のは取りこぼしではなく意図した判断であることを、
 	// テストとして固定しておく。
 	const model = AI_LABEL_ROUTE_MODELS["gpt-luna"];
 
-	it("単価表は OpenAI のキャッシュ書き込みに単価を持たない", () => {
+	it("単価表は OpenRouter モデルのキャッシュ書き込みに単価を持たない", () => {
 		expect(getModelPricing(model)?.cacheWriteUsdPerMTok).toBeUndefined();
 	});
 
-	it("AI SDK 経路: 実応答に cacheWriteTokens があっても計上しない", () => {
-		const usage = toAiSdkUsage(
-			{
-				inputTokens: 25_684,
-				inputTokenDetails: {
-					noCacheTokens: 25_684,
-					cacheReadTokens: 0,
-					cacheWriteTokens: 12_772,
-				},
-				outputTokens: 822,
-			},
-			{ webSearches: 2, billCacheWrites: false },
-		);
-		expect(usage.cacheWriteTokens ?? 0).toBe(0);
-	});
-
-	it("生の Responses API 経路(一括抽出): cache_write_tokens を計上しない", () => {
-		const usage = toGptUsage(
-			{
-				input_tokens: 25_684,
-				input_tokens_details: { cached_tokens: 0, cache_write_tokens: 12_772 },
-				output_tokens: 822,
-			},
-			0,
-		);
+	it("実応答に書き込みトークンがあっても計上しない", () => {
+		const usage = toOpenRouterUsage({
+			prompt_tokens: 25_684,
+			completion_tokens: 822,
+			prompt_tokens_details: { cached_tokens: 0 },
+			cache_creation_input_tokens: 12_772,
+		});
 		expect(usage.cacheWriteTokens ?? 0).toBe(0);
 	});
 

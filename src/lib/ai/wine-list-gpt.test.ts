@@ -1,122 +1,92 @@
 import { describe, expect, it } from "vitest";
+import { BadRequestError } from "#/lib/errors";
+import { WINE_LIST_TRUNCATED_ERROR_MESSAGE } from "./wine-list-extraction";
 import {
-	countGptWebSearchCalls,
-	findGptRefusal,
-	toGptUsage,
+	assertWineListChatFinished,
+	buildWineListGptInput,
+	buildWineListGptTextFormat,
 	WINE_LIST_JSON_SCHEMA,
 } from "./wine-list-gpt";
 
-// 一括抽出の GPT 経路は**生の Responses API を直接叩く**(エチケット解析は #455 の実測を
-// 受けて AI SDK へ移行済み)。応答の形が違うので、refusal の判定と usage の変換も
-// こちら側に置いてある。
+// 一括抽出の GPT 経路は**OpenRouter の chat completions で呼ぶ**(#602 で Responses API
+// 直接接続から移行)。終了理由の判定は OpenRouter が正規化した finish_reason で行い、
+// web検索の回数は応答の usage(`toOpenRouterUsage`)から取る。
 
-describe("findGptRefusal", () => {
-	it("入れ子の refusal ブロックの説明文を返す", () => {
-		expect(
-			findGptRefusal([
-				{ type: "reasoning", summary: [] },
-				{
-					type: "message",
-					content: [{ type: "refusal", refusal: "できません" }],
-				},
-			]),
-		).toBe("できません");
-	});
-
-	it("refusal が無ければ undefined", () => {
-		expect(
-			findGptRefusal([
-				{ type: "message", content: [{ type: "output_text", text: "{}" }] },
-			]),
-		).toBeUndefined();
-		expect(findGptRefusal(undefined)).toBeUndefined();
-	});
-
-	it("content を持たない要素(ツール呼び出し・reasoning)が混ざっても壊れない", () => {
-		expect(
-			findGptRefusal([
-				null,
-				"x",
-				{ type: "web_search_call" },
-				{ type: "message" },
-			]),
-		).toBeUndefined();
-	});
-});
-
-describe("countGptWebSearchCalls (#474)", () => {
-	it("web_search_call の件数を数える", () => {
-		expect(
-			countGptWebSearchCalls([
-				{ type: "reasoning", summary: [] },
-				{ type: "web_search_call", status: "completed" },
-				{ type: "web_search_call", status: "completed" },
-				{ type: "message", content: [{ type: "output_text", text: "{}" }] },
-			]),
-		).toBe(2);
-	});
-
-	it("検索が無ければ 0", () => {
-		expect(countGptWebSearchCalls([{ type: "message" }])).toBe(0);
-		expect(countGptWebSearchCalls([])).toBe(0);
-		expect(countGptWebSearchCalls(undefined)).toBe(0);
-	});
-
-	it("想定外の要素が混ざっても壊れない", () => {
-		expect(countGptWebSearchCalls([null, "x", 1, { type: null }])).toBe(0);
-	});
-});
-
-describe("toGptUsage", () => {
-	it("キャッシュヒットを input の内数から外へ出す(二重計上を避ける)", () => {
-		expect(
-			toGptUsage(
-				{
-					input_tokens: 1_000,
-					output_tokens: 200,
-					input_tokens_details: { cached_tokens: 400 },
-				},
-				3,
-			),
-		).toEqual({
-			inputTokens: 600,
-			outputTokens: 200,
-			cacheReadTokens: 400,
-			webSearches: 3,
-		});
-	});
-
-	it("usage が無くても検索回数は残る", () => {
-		expect(toGptUsage(undefined, 2)).toEqual({
-			inputTokens: 0,
-			outputTokens: 0,
-			cacheReadTokens: 0,
-			webSearches: 2,
-		});
-	});
-
-	it("cache_write_tokens は計上しない(OpenAIは課金せず、拾うと過大請求になる)", () => {
-		const usage = toGptUsage(
-			{
-				input_tokens: 1_000,
-				output_tokens: 200,
-				input_tokens_details: { cached_tokens: 0, cache_write_tokens: 500 },
-			},
-			0,
+describe("assertWineListChatFinished", () => {
+	it("length は銘柄数超過として BadRequest(写真を分ける案内)にする", () => {
+		expect(() => assertWineListChatFinished("length", '{"wines":[')).toThrow(
+			BadRequestError,
 		);
-		expect(usage.cacheWriteTokens ?? 0).toBe(0);
+		expect(() => assertWineListChatFinished("length", '{"wines":[')).toThrow(
+			WINE_LIST_TRUNCATED_ERROR_MESSAGE,
+		);
+	});
+
+	it("content_filter/error は素の Error(利用者が行動できない)", () => {
+		expect(() => assertWineListChatFinished("content_filter", "")).toThrow(
+			"拒否",
+		);
+		expect(() => assertWineListChatFinished("error", "")).toThrow(Error);
+	});
+
+	it("空の本文は失敗として扱う(空の成功を作らない)", () => {
+		expect(() => assertWineListChatFinished("stop", "  ")).toThrow();
+	});
+
+	it("正常な完結は通す", () => {
+		expect(() =>
+			assertWineListChatFinished("stop", '{"wines":[]}'),
+		).not.toThrow();
+		expect(() =>
+			assertWineListChatFinished("tool_calls", '{"wines":[]}'),
+		).not.toThrow();
+	});
+});
+
+describe("buildWineListGptInput", () => {
+	it("指示文と写真番号付きの画像を載せる", () => {
+		const messages = buildWineListGptInput([
+			"data:image/jpeg;base64,AAAA",
+			"data:image/png;base64,BBBB",
+		]);
+		expect(messages).toHaveLength(1);
+		const content = messages[0]?.content;
+		expect(Array.isArray(content)).toBe(true);
+		if (!Array.isArray(content)) throw new Error("unreachable");
+		expect(content[0]).toMatchObject({ type: "text" });
+		expect(content[1]).toEqual({ type: "text", text: "写真 0" });
+		expect(content[2]).toEqual({
+			type: "image_url",
+			image_url: { url: "data:image/jpeg;base64,AAAA" },
+		});
+		expect(content[3]).toEqual({ type: "text", text: "写真 1" });
+		expect(content[4]).toEqual({
+			type: "image_url",
+			image_url: { url: "data:image/png;base64,BBBB" },
+		});
+	});
+
+	it("HTTP URLは境界で拒否する", () => {
+		expect(() =>
+			buildWineListGptInput(["https://example.com/photo.jpg"]),
+		).toThrow();
+	});
+});
+
+describe("buildWineListGptTextFormat", () => {
+	it("response_format の json_schema でスキーマを渡す(strict ではない)", () => {
+		// スキーマが合併型(type: ["integer", "null"])を含むため strict の条件を
+		// 満たさない。strict にするとリクエストごと 400 になる。
+		const format = buildWineListGptTextFormat();
+		expect(format.type).toBe("json_schema");
+		expect(format.json_schema.name).toBe("wine_list_extraction");
+		expect(format.json_schema.strict).toBe(false);
+		expect(format.json_schema.schema).toBe(WINE_LIST_JSON_SCHEMA);
 	});
 });
 
 describe("WINE_LIST_JSON_SCHEMA", () => {
-	it("strict の要件(全 properties が required + 追加禁止)を銘柄1件でも満たす", () => {
-		// strict:true は満たさないとリクエストごと 400 になる。フィールドを足したときに
-		// required への追加を忘れると、ここで落ちる。
-		const item = WINE_LIST_JSON_SCHEMA.properties.wines.items;
-		expect(item.additionalProperties).toBe(false);
-		expect([...item.required].sort()).toEqual(
-			Object.keys(item.properties).sort(),
-		);
+	it("出力の骨格(銘柄配列・被写体・打ち切り)を定義する", () => {
 		expect(WINE_LIST_JSON_SCHEMA.additionalProperties).toBe(false);
 		expect([...WINE_LIST_JSON_SCHEMA.required].sort()).toEqual(
 			Object.keys(WINE_LIST_JSON_SCHEMA.properties).sort(),

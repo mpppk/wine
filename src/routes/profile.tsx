@@ -31,7 +31,7 @@ import {
 	type RegionQaModelKey,
 	resolveLabelRoute,
 	resolveWineListRoute,
-	toLabelEngineKey,
+	toLabelEngineKeyWithCompat,
 	toReasoningEffortKey,
 	toRegionQaModelKey,
 	type WineListRoute,
@@ -334,11 +334,11 @@ function AiModelCard() {
  * **エチケット解析(analyzeWineLabel)と写真からの一括登録(analyzeWineList)の両方**が
  * この設定を使う(#426)。
  *
- * 高精度経路は対応するAPIキーがサーバに設定されている場合のみ実際に使われる。
- * エチケット解析はキーが無ければ標準(Workers AI)へ降格するが、**一括登録は降格せず、
- * 高精度経路が無い環境では機能ごと使えない**(#358)。逆に「標準」を選んでいても
- * 一括登録だけは高精度経路で走る。この食い違いは黙っていると「標準を選んだのに
- * 消費が大きい」になるので、カード内で明示する。
+ * 全経路が OpenRouter 経由で動く。サーバに `OPENROUTER_API_KEY` が無い環境では
+ * エチケット解析・一括登録とも利用できない(別経路への自動フォールバックはしない。
+ * #602)。逆に「標準」を選んでいても一括登録だけは高精度経路で走る(#358 の決定を
+ * 維持)。この食い違いは黙っていると「標準を選んだのに消費が大きい」になるので、
+ * カード内で明示する。
  */
 /**
  * エンジンごとの目安消費(写真1枚)。**サーバの予約見積と同じ関数から算出する**ので、
@@ -368,7 +368,7 @@ function LabelEngineCard() {
 	const effort =
 		toReasoningEffortKey(session?.user.preferredReasoningEffort) ??
 		DEFAULT_REASONING_EFFORT;
-	// 高精度経路はサーバにAPIキーが無いと使えず、選択に関わらず降格する。
+	// OpenRouter の接続が無い環境では経路が無く、選択に関わらず利用できない。
 	// **その環境で消費の目安として選択エンジンの数字を出すと嘘になる**ので、
 	// 実際に走る経路を出して食い違いを明示する(判定はサーバと同じ resolveLabelRoute)。
 	const { data: labelPlan } = useQuery({
@@ -379,7 +379,7 @@ function LabelEngineCard() {
 	const effectiveRoute = labelPlan
 		? resolveLabelRoute(engine, labelPlan.availability)
 		: null;
-	// 一括登録は Workers AI へ降格しないので、解決結果が null(= 使えない)になりうる
+	// 一括登録は標準経路へ降格しないので、解決結果が null(= 使えない)になりうる
 	const wineListRoute = labelPlan
 		? resolveWineListRoute(engine, labelPlan.availability)
 		: null;
@@ -387,7 +387,7 @@ function LabelEngineCard() {
 	const [successMessage, setSuccessMessage] = useState("");
 
 	useEffect(() => {
-		const pref = toLabelEngineKey(session?.user.preferredLabelEngine);
+		const pref = toLabelEngineKeyWithCompat(session?.user.preferredLabelEngine);
 		if (pref) setEngine(pref);
 	}, [session?.user.preferredLabelEngine]);
 
@@ -450,28 +450,21 @@ function LabelEngineCard() {
 						).join(" / ")}{" "}
 						クレジット
 					</p>
-					{effectiveRoute && (
+					{effectiveRoute ? (
 						<p className="text-xs text-muted-foreground">
-							{effectiveRoute === engine ? (
-								<>
-									写真1枚あたり約
-									{creditsPerPhoto(engine, effort).toLocaleString("ja-JP")}
-									クレジットを消費します。
-								</>
-							) : (
-								<>
-									この環境では「{AI_LABEL_ENGINES[effectiveRoute].label}
-									」で解析されます(写真1枚あたり約
-									{creditsPerPhoto(effectiveRoute, effort).toLocaleString(
-										"ja-JP",
-									)}
-									クレジット)。
-								</>
-							)}
-							月次付与は無料{MONTHLY_CREDITS_FREE}／プレミアム
+							写真1枚あたり約
+							{creditsPerPhoto(effectiveRoute, effort).toLocaleString("ja-JP")}
+							クレジットを消費します。 月次付与は無料{MONTHLY_CREDITS_FREE}
+							／プレミアム
 							{MONTHLY_CREDITS_PREMIUM}
 							。消費はAIの実費に比例するため、経路によって大きく変わります。
 						</p>
+					) : (
+						labelPlan && (
+							<p className="text-xs text-muted-foreground">
+								この環境ではエチケット解析を利用できません。
+							</p>
+						)
 					)}
 					{labelPlan && (
 						<p className="text-xs text-muted-foreground">
@@ -485,8 +478,8 @@ function LabelEngineCard() {
 										effort,
 									).toLocaleString("ja-JP")}
 									クレジット)。
-									{engine === "workers-ai" &&
-										"一括登録は標準(Workers AI)では読み取り精度が足りないため、この機能だけ高精度経路で解析します。"}
+									{engine === "standard" &&
+										"一括登録は標準では読み取り精度が足りないため、この機能だけ高精度経路で解析します。"}
 								</>
 							) : (
 								<>この環境では写真からまとめて登録する機能を利用できません。</>

@@ -14,10 +14,11 @@ import {
 import { normalizeLabelText } from "#/lib/wine/text-normalize";
 import type { Aop } from "#/lib/wine/types";
 import { CHARS_PER_TOKEN_ESTIMATE } from "./config";
+import type { OpenRouterMessage } from "./openrouter";
 
 // エチケット(ラベル)画像からのマイセラー項目抽出。プロンプト・出力スキーマ・応答パース・
 // 静的マスタ(AOP/地域/品種)へのマッチングを DB/env 非依存の純ロジックとして切り出し、
-// 単体テスト可能にする(Workers AI の実行とクレジット処理は ai-service 側)。
+// 単体テスト可能にする(OpenRouter の実行とクレジット処理は ai-service 側)。
 
 /**
  * guided_json でモデルに強制する出力スキーマ。ラベルから読み取れない項目は null を
@@ -117,7 +118,7 @@ const LABEL_FIELD_SOURCE_PROPERTIES = Object.fromEntries(
 /**
  * 銘柄のコメント(#471)のフィールド。**高精度経路だけが出す**。
  *
- * `LABEL_JSON_SCHEMA`(Workers AI 経路)には足さない。あちらは裏取りをしないので
+ * `LABEL_JSON_SCHEMA`(標準経路)には足さない。あちらは裏取りをしないので
  * 「web検索で見つかった表現を踏まえた」コメントを書きようがなく、書かせれば創作に
  * なるだけで、出力上限(512トークン)を本体JSONと奪い合うことになる。
  */
@@ -142,7 +143,7 @@ const LABEL_COMMENT_KEYS = Object.keys(
 /**
  * 参考サイト・価格一覧(IMPL-3)の出力スキーマ。**高精度経路だけが出す**。
  *
- * `LABEL_COMMENT_JSON_PROPERTIES` と同じ位置づけ: Workers AI 経路は裏取りを
+ * `LABEL_COMMENT_JSON_PROPERTIES` と同じ位置づけ: 標準経路は裏取りを
  * しないので書く材料が無く、出力上限(512トークン)を圧迫するだけになる。
  * 受け取り側の zod(`labelReferenceShape`)と正規化は下で共有する。
  *
@@ -227,7 +228,7 @@ export const LABEL_PRICES_MAX = 3;
  * 高精度経路(LLM + web検索)の出力スキーマ。`LABEL_JSON_SCHEMA` に**フィールドごとの
  * 根拠(`sources`)とコメント(#471)を足したもの**で、GPT経路の structured outputs に渡す。
  *
- * **Workers AI 経路の `LABEL_JSON_SCHEMA` は変えない**のが要点。あちらは
+ * **標準経路の `LABEL_JSON_SCHEMA` は変えない**のが要点。あちらは
  * `guided_json` で Llama 4 Scout に形を強制する経路だが、guided_json は完全には
  * 効かず(型の揺れは `labelExtractionShape` が吸収している)、出力上限も 512 トークンと
  * 狭い。7フィールドぶんの根拠オブジェクトを足すと、裏取りをしないので `origin` が
@@ -263,7 +264,7 @@ export const LABEL_WEB_JSON_SCHEMA = {
 /**
  * マスタ名の一覧をプロンプト用に整形する(呼称は正式名 name、品種は現地語名)。
  * モデルの出力表記をマスタへ寄せ、matchAop / matchGrapeVarietyIds のヒット率を
- * 上げるグラウンディング。Workers AI 経路(LABEL_PROMPT)と Claude + web検索経路
+ * 上げるグラウンディング。標準経路(LABEL_PROMPT)と Claude + web検索経路
  * (label-web-research.ts)の両方がこれを同梱する(SSOT)。
  */
 export function buildKnownListsSection(): string {
@@ -321,7 +322,7 @@ const LABEL_RESEARCH_RULES = [
 ];
 
 /**
- * 出力フィールドの定義。**全経路で共有する**(Workers AI 経路の `LABEL_JSON_SCHEMA` と
+ * 出力フィールドの定義。**全経路で共有する**(標準経路の `LABEL_JSON_SCHEMA` と
  * 同じキーで、応答パースを `parseLabelResponse` に一本化するため)。
  */
 const LABEL_OUTPUT_FIELD_RULES = [
@@ -348,7 +349,7 @@ const LABEL_OUTPUT_FIELD_RULES = [
 ];
 
 /**
- * コメント(#471)の出力規範。**裏取りをする経路だけが使う**(Workers AI 経路は
+ * コメント(#471)の出力規範。**裏取りをする経路だけが使う**(標準経路は
  * このフィールド自体を持たない)。
  *
  * 引き写しを避けさせるのは著作権への配慮。テイスティングコメントの表現そのものは
@@ -471,17 +472,8 @@ export function parseImageDataUrl(dataUrl: string): {
 	return { mediaType, data };
 }
 
-/** Workers AI(マルチモーダル)に渡すメッセージのcontent要素。 */
-interface LabelContentPart {
-	type: "text" | "image_url";
-	text?: string;
-	image_url?: { url: string };
-}
-
-export interface LabelAiMessage {
-	role: "user";
-	content: LabelContentPart[];
-}
+/** 標準経路(単発の構造化抽出)に渡すメッセージ。OpenAI chat 形式。 */
+export type LabelAiMessage = Extract<OpenRouterMessage, { role: "user" }>;
 
 /**
  * 指示文 + エチケット画像(data URI)1枚の1メッセージを組み立てる。
@@ -674,7 +666,7 @@ export interface LabelExtraction {
 	grapeVarieties: string[];
 	/**
 	 * 香り・味わいのコメント(#471)。web検索で裏取りする経路だけが持つ
-	 * (Workers AI 経路は常に undefined)。
+	 * (標準経路は常に undefined)。
 	 */
 	tastingComment?: string;
 	/** 生産者についてのコメント(#471)。同上。 */
@@ -721,7 +713,7 @@ function cleanComment(value: string | null | undefined): string | undefined {
 /**
  * モデルの生出力からJSONオブジェクトを取り出す。guided_json / structured outputs で
  * JSON が強制される想定だが、コードフェンスや前後の文が混ざるケースに備えて
- * 最初の { 〜 最後の } を取り出す。Workers AI は guided_json 時に response を
+ * 最初の { 〜 最後の } を取り出す。旧 Workers AI 経路は guided_json 時に response を
  * **パース済みオブジェクト**で返すことがあるため(文字列前提だと TypeError で解析が
  * 全滅する)、オブジェクトはそのまま返す。解釈できない場合は throw(呼び出し側で
  * クレジット返却の上エラー応答にする)。
@@ -754,7 +746,7 @@ export function toLabelExtraction(d: {
 	region?: string | null;
 	country?: string | null;
 	grape_varieties?: string[] | null;
-	/** 高精度経路のみ(#471)。Workers AI 経路・一括抽出では未指定になる。 */
+	/** 高精度経路のみ(#471)。標準経路・一括抽出では未指定になる。 */
 	tasting_comment?: string | null;
 	producer_comment?: string | null;
 	/**
@@ -993,7 +985,7 @@ function toFieldOrigin(value: unknown): LabelFieldOrigin {
 
 /**
  * モデルの生出力から `sources` を取り出す。**決して throw しない**(取れなければ
- * undefined)。高精度経路のみが出力するフィールドで、Workers AI 経路では常に
+ * undefined)。高精度経路のみが出力するフィールドで、標準経路では常に
  * undefined になる。生の応答文字列と `extractJsonPayload` 済みのオブジェクトの
  * どちらを渡してもよい。
  */

@@ -141,14 +141,21 @@ describe("preferredAiModel の書き込みは許可リストで検証される (
 // スキーマ自体の正しさは config.test.ts、ここでは auth.options への配線を見る。
 describe("preferredLabelEngine の書き込みは許可リストで検証される", () => {
 	it("許可リストのキーは D1 に保存される", async () => {
-		const res = await updateUser({ preferredLabelEngine: "workers-ai" });
+		const res = await updateUser({ preferredLabelEngine: "standard" });
 		expect(res.status).toBe(200);
 		const row = await env.DB.prepare(
 			"SELECT preferred_label_engine AS e FROM user WHERE id = ?",
 		)
 			.bind(userId)
 			.first<{ e: string | null }>();
-		expect(row?.e).toBe("workers-ai");
+		expect(row?.e).toBe("standard");
+	});
+
+	it("旧 workers-ai は許可リスト外で 400 になる(読み取り側の互換で解決する)", async () => {
+		// 書き込みは新キーのみ。D1 に残る旧値は toLabelEngineKeyWithCompat が読む。
+		const result = parseUpdate({ preferredLabelEngine: "workers-ai" });
+		expect(result.status).toBe(400);
+		expect(result.parsed).toBeUndefined();
 	});
 
 	it("許可リスト外・巨大な文字列は 400 で弾かれる", () => {

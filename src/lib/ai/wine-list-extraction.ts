@@ -1,4 +1,3 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
 import type { WineStatus } from "#/lib/drunk-wine/status";
@@ -24,6 +23,7 @@ import {
 	parseImageDataUrl,
 	toLabelExtraction,
 } from "./label-extraction";
+import type { OpenRouterMessage, OpenRouterUserContent } from "./openrouter";
 
 // レストランのワインリスト・ショップの陳列など「複数銘柄が写った複数の写真」から
 // 銘柄の配列を抽出する純ロジック(Issue #358)。指示文・応答パース・重複統合・
@@ -301,8 +301,8 @@ export function buildWineListPrompt(
 }
 
 /**
- * 指示文 + 全写真を1つのユーザーメッセージに組み立てる。**写真ごとに直前へ
- * 「写真 N」のテキストブロックを挟む**のが要点で、これが無いとモデルは
+ * 指示文 + 全写真を1つのユーザーメッセージに組み立てる(OpenAI chat 形式)。
+ * **写真ごとに直前へ「写真 N」のテキストを挟む**のが要点で、これが無いとモデルは
  * photo_indexes を当て推量で埋める(どの写真で見かけたか = 目撃記録の由来が壊れる)。
  *
  * data URI であることの強制は parseImageDataUrl が兼ねる(HTTP URL を渡させない
@@ -313,22 +313,13 @@ export function buildWineListPrompt(
 export function buildWineListMessages(
 	imageDataUrls: string[],
 	promptText: string = buildWineListPrompt(imageDataUrls.length),
-): Anthropic.MessageParam[] {
-	const content: Anthropic.ContentBlockParam[] = [
-		{ type: "text", text: promptText },
-	];
+): OpenRouterMessage[] {
+	const content: OpenRouterUserContent = [{ type: "text", text: promptText }];
 	for (const [index, dataUrl] of imageDataUrls.entries()) {
-		const { mediaType, data } = parseImageDataUrl(dataUrl);
+		// 戻り値は使わないが、data URI でなければここで throw する(境界の強制)
+		parseImageDataUrl(dataUrl);
 		content.push({ type: "text", text: `写真 ${index}` });
-		content.push({
-			type: "image",
-			source: {
-				type: "base64",
-				// クライアントは jpeg/png/webp 等に限定して送る(validateDeclaredPhotoFiles)
-				media_type: mediaType as "image/jpeg",
-				data,
-			},
-		});
+		content.push({ type: "image_url", image_url: { url: dataUrl } });
 	}
 	return [{ role: "user", content }];
 }

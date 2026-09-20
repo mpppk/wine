@@ -116,7 +116,7 @@ export interface LangfuseGenerationInput {
 	 * 入力が長くて mask に切り詰められてもここは生きる(#514)。
 	 */
 	metadata?: Record<string, unknown>;
-	/** トークン内訳。Workers AI のように内訳が無い場合は total のみにしてよい。 */
+	/** トークン内訳。内訳が無い場合は total のみにしてよい。 */
 	usage?: {
 		inputTokens?: number;
 		outputTokens?: number;

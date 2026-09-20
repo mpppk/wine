@@ -58,7 +58,7 @@ export const getAopInput = {
 		.describe("AOPのID (list_aops の id。例: 'gevrey-chambertin')"),
 };
 
-// 地域チャットQ&A。Workers AI で回答し、ユーザのAIクレジットを消費する。
+// 地域チャットQ&A。OpenRouter 経由で回答し、ユーザのAIクレジットを消費する。
 // マルチターンにしたい場合は history に直前までの往復を渡す(サーバは保持しない)。
 export const askRegionInput = {
 	region_id: z
