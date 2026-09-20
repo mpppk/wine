@@ -159,8 +159,8 @@ import { getAop, getRegion, getVariety, listAops } from "#/lib/wine/service";
  * 実測 usage を計上量へ畳む**唯一の関門**(#355)。
  *
  * `model` は「意図した経路」ではなく**実際に推論したモデル**を渡すこと。エチケット解析は
- * 高精度経路が失敗すると Workers AI へフォールバックするので、意図した経路のモデルで
- * 換算すると Opus の単価で Llama の推論を課金してしまう。
+ * 経路ごとにモデルが違うので、別の経路のモデルで換算すると単価を取り違える(例: Opus の
+ * 単価で Luna の推論を課金してしまう)。
  *
  * 単価未登録のモデルはここで警告を出す(換算自体はフォールバック単価で続行する。理由は
  * ai-pricing.ts の FALLBACK_PRICING を参照)。**経路ごとに書かず1箇所に寄せる**ので、
@@ -184,9 +184,8 @@ function chargeFor(model: string, usage: AiUsage): CreditCharge {
  * トークンは観測できていないので 0 のままにし、**推定値を実測として台帳に残さない**。
  *
  * **渡すのは「実際に走った経路」の見積**であって予約額ではない(#404)。単経路の機能
- * (地域Q&A・ワインリスト解析)では両者は同じ値だが、エチケット解析は高精度経路が
- * 失敗すると Workers AI へ降格するため、予約額を渡すと Llama 1回の推論に高精度経路の
- * 予約全量(例: 275クレジット)を課金してしまう。
+ * (地域Q&A・ワインリスト解析)では両者は同じ値なので予約額を渡してよいが、
+ * エチケット解析は実行した経路の見積を渡す(降格は無いので route = 実行経路。#602)。
  */
 function fallbackCharge(estimateMicroUsd: number): CreditCharge {
 	return { microUsd: estimateMicroUsd, tokens: 0 };
@@ -209,7 +208,7 @@ async function resolveModelKey(
 }
 
 // 地域チャットQ&Aのサービス層。Web サーバfn と MCP ツールの両方から呼ぶ単一の入口。
-// グラウンディング材料を wine サービスから解決し、クレジット予約→(Workers AI 実行)→
+// グラウンディング材料を wine サービスから解決し、クレジット予約→(OpenRouter 実行)→
 // 実測確定/失敗時返却の骨格で1ターンを処理する。
 
 export interface AskRegionInput {
@@ -269,7 +268,7 @@ function buildContext(regionId: string, aopId?: string): RegionContextInput {
 }
 
 /**
- * 地域についての質問に Workers AI で答え、実測トークンでクレジットを確定消費する。
+ * 地域についての質問に OpenRouter 経由で答え、実測トークンでクレジットを確定消費する。
  * 残高不足なら推論せず blocked を返す(throw しない)。推論失敗時は予約全額を返却して再throw。
  */
 export async function answerRegionQuestion(
@@ -365,7 +364,7 @@ export async function answerRegionQuestion(
 						}
 					: undefined,
 			});
-			// Workers AI は内訳を返さない(usage が無い回は空)。web検索も使わないので
+			// OpenRouter は内訳を返すが、usage が無い回は空。web検索も使わないので
 			// `webSearches` は載らない——「検索できたのにしなかった 0」とは意味が違う。
 			return { value: answer, charge, usage: measured ?? {} };
 		},

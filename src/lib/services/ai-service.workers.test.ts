@@ -13,6 +13,7 @@ import {
 	estimateLabelReserveCharge,
 	estimateWineListReserveCharge,
 } from "#/lib/ai/config";
+import { OpenRouterError } from "#/lib/ai/openrouter";
 import {
 	type AiUsage,
 	MICRO_USD_PER_CREDIT,
@@ -25,7 +26,6 @@ import {
 import { costToCredits } from "#/lib/credit/credit-math";
 import { REFUND_SUFFIX, SETTLE_SUFFIX } from "#/lib/credit/reservation";
 import { BadRequestError, NotFoundError } from "#/lib/errors";
-import { OpenRouterError } from "#/lib/ai/openrouter";
 import {
 	answerRegionQuestion,
 	isWineListAnalysisAvailable,
