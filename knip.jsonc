@@ -14,6 +14,9 @@
 	"ignore": ["public/sw.js", "scripts/geo-bands.d.mts"],
 	// cloudflare:workers は Cloudflare ランタイムの仮想モジュール
 	"ignoreDependencies": ["cloudflare"],
+	// op は 1Password CLI(外部ツール)。`dev:vars` スクリプトで使うが npm パッケージ
+	// ではないため、knip の未登録バイナリ検出から除外する
+	"ignoreBinaries": ["op"],
 	// auth-schema の export は better-auth の drizzleAdapter が schema オブジェクト全体を
 	// 構造的に参照する(rateLimit テーブル・relations)。knip には個別メンバーの参照として
 	// 見えないため、このファイルの export/type 指摘だけ除外する
