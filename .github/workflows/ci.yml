@@ -93,19 +93,27 @@ jobs:
         run: bun install --frozen-lockfile
 
       # 依存パッケージの既知の脆弱性を検査する。--audit-level=high は high 以上の
-      # advisory があると exit 1 になる。
+      # advisory があると exit 1 になる。--ignore は使わない(ゼロ件を維持する)。
       #
-      # 現状の high 8件は全て推移的依存で、--ignore で明示的に許可している:
-      #  - adm-zip / image-size×2: mapshaper(geodata ビルド専用の dev 依存)経由。
-      #    修正版が存在せず、親の mapshaper が更新されるまで解消しない。
-      #  - sharp: miniflare(vite-plugin / vitest-pool-workers / wrangler 経由)が
-      #    0.35.2 にピン留めしており、最新の miniflare でも解消しない。
-      #    ローカル実行・ビルド専用で Workers ランタイムには同梱されないため許可し、
-      #    miniflare 側の更新で解消するため Renovate 任せ。
-      #  - fast-uri / js-yaml / nanoid / undici: 修正版は存在するが親パッケージの
-      #    range 内で bun が拾わない(lockfile 再生成で拾うと better-auth 等の
-      #    breaking bump が混入する)。親の更新で解消するため Renovate 任せ。
-      # ignore に載っていない**新しい** high advisory はここで fail する。
+      # 推移的依存の脆弱性は package.json の `overrides` で修正版に寄せる:
+      #  - adm-zip 0.6.1: mapshaper(geodata ビルド専用の dev 依存)が ^0.5.9 を要求し、
+      #    最新の mapshaper でも上がらないため。mapshaper 本体の zip 読み書きは
+      #    node 実行で動作確認済み(bun 直実行時の `new require('adm-zip')` 失敗は
+      #    override 前からある bun 側の quirk で、geodata スクリプトは node 実行のため無関係)。
+      #  - image-size 2.0.4: @ngageoint/geopackage(mapshaper 経由)が 0.8.3 に
+      #    ピン留めしており、最新版でも上がらないため。geopackage の getImageSize
+      #    呼び出し元はアイコン読み限定で、本リポジトリのスクリプト(shp/geojson・
+      #    gpkg は node:sqlite 直読み)はその経路を通らない。
+      #  - sharp 0.35.4: miniflare(vite-plugin / vitest-pool-workers / wrangler
+      #    経由)が 0.35.2 にピン留めしており、最新の miniflare でも解消しないため。
+      #    patch 上げのみでネイティブバインディングの読み込みを確認済み。
+      #  - miniflare>undici 7.29.0: wrangler/vite-plugin 配下の miniflare 4.x が
+      #    7.28.0 にピン留めしているため。miniflare 配下のみに絞り、jsdom の
+      #    undici 8.x には触れない。miniflare 5.x は既に 7.29.0 のため対象外。
+      # 親パッケージ側が修正版を取り込んだら override は外すこと(古い pin が残り続ける)。
+      # 目安: Renovate の親更新PR(mapshaper / miniflare 系)の際に `bun audit` で確認する。
+      # 範囲内で解消できるものは `bun audit fix` で上げる。新規の high advisory は
+      # ここで fail する。
       - name: Check dependency vulnerabilities (bun audit)
         run: bun run check:audit
 
