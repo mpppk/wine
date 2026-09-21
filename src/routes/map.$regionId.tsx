@@ -743,6 +743,9 @@ function MapPage() {
 			/>
 
 			<RegionChatDialog
+				// 地域・AOPごとに会話の文脈を分ける。文脈が変わったら状態ごと作り直し、
+				// 前の履歴を引き継がない(#603。会話の地域・AOPは作成時に固定する)
+				key={`${region.id}:${selectedAop?.id ?? "-"}`}
 				open={chatOpen}
 				onOpenChange={setChatOpen}
 				regionId={region.id}

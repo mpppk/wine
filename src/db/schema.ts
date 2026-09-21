@@ -769,3 +769,179 @@ export const adminAuditLog = sqliteTable(
 		),
 	],
 );
+
+/**
+ * 地域Q&Aの会話(Issue #603)。ログイン必須で、地域を起点に複数作れる。
+ *
+ * 会話の地域・AOPは作成時の文脈として固定する(別地域の履歴を引き継がない)。
+ * 同時実行制御は `activeRunId` の条件付き更新で行う——同一会話で未完了runを
+ * 複数作らないことをD1の制約で担保し、競合に負けたリクエストは課金・推論を
+ * 開始しない。会話単位の削除はメッセージ/runへ cascade するが、課金台帳には
+ * 触れない(台帳は request_id 文字列参照のみでFKを持たない)。
+ */
+export const aiConversation = sqliteTable(
+	"ai_conversation",
+	{
+		/** crypto.randomUUID() */
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 静的マスタの Region.id(作成時の文脈。FKは張らずサービス層で検証) */
+		regionId: text("region_id").notNull(),
+		/** 静的マスタの Aop.id(任意。作成時の文脈。FKは張らずサービス層で検証) */
+		aopId: text("aop_id"),
+		/** 最初の質問の先頭切り出し(LLM不使用) */
+		title: text("title").notNull(),
+		/** 現在実行中の run の id。NULL = アイドル(送信・再試行・削除可) */
+		activeRunId: text("active_run_id"),
+		/** 実行中の試行の期限。Worker中断後の再試行可否の判定に使う */
+		activeRunExpiresAt: integer("active_run_expires_at", {
+			mode: "timestamp_ms",
+		}),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		// 履歴一覧は「自分の会話を更新日時降順」で引く
+		index("ai_conversation_user_updated_idx").on(table.userId, table.updatedAt),
+		// 地域絞り込み付きの一覧用。所有権の user_id を先頭に置く
+		index("ai_conversation_user_region_updated_idx").on(
+			table.userId,
+			table.regionId,
+			table.updatedAt,
+		),
+	],
+);
+
+/** 地域Q&Aの試行の状態。値のSSOTは src/lib/ai/chat.ts の CHAT_RUN_STATUSES。 */
+export type AiChatRunStatus =
+	| "running"
+	| "succeeded"
+	| "failed"
+	| "blocked"
+	| "interrupted";
+
+/**
+ * 地域Q&Aの送信/試行(Issue #603)。質問の実行状態をメッセージから分離し、
+ * 質問本文を重複追加せずに再試行できるようにする。
+ *
+ * - `sendId` はクライアント採番の冪等キー。同一送信IDの再送は再推論・再課金しない
+ * - `billingRequestId` はクレジット台帳の request_id。settle / refund はここから導出
+ * - 明示的な再試行は新しい試行ID・課金requestIdを使い、質問(run.question)を参照する
+ */
+export const aiChatRun = sqliteTable(
+	"ai_chat_run",
+	{
+		/** 試行ID。初回は送信と1対1、再試行は新しいID */
+		id: text("id").primaryKey(),
+		conversationId: text("conversation_id")
+			.notNull()
+			.references(() => aiConversation.id, { onDelete: "cascade" }),
+		/** 所有権チェックを JOIN 無しで行うため冗長に持つ(WHERE id AND user_id の規約) */
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** クライアント採番の送信ID。冪等キー */
+		sendId: text("send_id").notNull(),
+		/** 状態。値のSSOTは src/lib/ai/chat.ts */
+		status: text("status")
+			.notNull()
+			.$type<AiChatRunStatus>()
+			.default("running"),
+		/** 対象の質問(再試行用のスナップショット。本文の正本はメッセージ側) */
+		question: text("question").notNull(),
+		/** 回答対象のユーザ発言の sequence */
+		userSequence: integer("user_sequence").notNull(),
+		/** 解決済みのモデルキー(例: gemma4) */
+		modelKey: text("model_key").notNull(),
+		/** 実際に呼ぶ OpenRouter モデルID */
+		modelId: text("model_id").notNull(),
+		/** 実行したプロンプトの版。fallback の回は version が NULL */
+		promptName: text("prompt_name"),
+		promptVersion: integer("prompt_version"),
+		promptSource: text("prompt_source"),
+		/** クレジット台帳の request_id(予約の冪等キー) */
+		billingRequestId: text("billing_request_id").notNull(),
+		/** 予約した表示クレジット・原価(µUSD)。確定・返却に必要 */
+		reservedCredits: integer("reserved_credits"),
+		reservedMicroUsd: integer("reserved_micro_usd"),
+		/** 成功時の実測(観測値で課金の根拠ではない) */
+		actualTokens: integer("actual_tokens"),
+		actualMicroUsd: integer("actual_micro_usd"),
+		/** 失敗時の利用者向けの種別。詳細はサーバ側のログにだけ残す */
+		errorKind: text("error_kind"),
+		/** この試行の実行期限。過ぎた running は中断へ遷移させ再試行可能にする */
+		expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+		/** 終端(succeeded/failed/blocked/interrupted)に到達した時刻 */
+		finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		// 送信IDの冪等キー。二重クリック・通信再送・2タブ競合をここで弾く
+		unique("ai_chat_run_send_id_uq").on(table.sendId),
+		// 課金予約の冪等キーと1対1。二重送信で同じ予約に2つの run がぶら下がらない
+		unique("ai_chat_run_billing_request_id_uq").on(table.billingRequestId),
+		// 会話の試行履歴(再試行の対象列挙・再接続時の状態復元)
+		index("ai_chat_run_conv_created_idx").on(
+			table.conversationId,
+			table.createdAt,
+		),
+		// 期限切れ run の走査用
+		index("ai_chat_run_status_expires_idx").on(table.status, table.expiresAt),
+	],
+);
+
+/**
+ * 地域Q&Aの会話内の発言(Issue #603)。ユーザの質問は推論開始前に保存し、
+ * assistant本文は完了時に保存する。
+ *
+ * `runId` はこの発言を生んだ試行で、失敗試行の assistant 発言を履歴から除外する
+ * 手掛かり。runを消しても発言自体は残す(削除は会話単位の cascade に任せる)。
+ */
+export const aiChatMessage = sqliteTable(
+	"ai_chat_message",
+	{
+		/** crypto.randomUUID() */
+		id: text("id").primaryKey(),
+		conversationId: text("conversation_id")
+			.notNull()
+			.references(() => aiConversation.id, { onDelete: "cascade" }),
+		/** 所有権チェックを JOIN 無しで行うため冗長に持つ(WHERE id AND user_id の規約) */
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** 発言者。値のSSOTは src/lib/ai/region-qa.ts の ChatMessage */
+		role: text("role").notNull().$type<"user" | "assistant">(),
+		content: text("content").notNull(),
+		/** 会話内の順序。1始まりの連番 */
+		sequence: integer("sequence").notNull(),
+		/** この発言を生んだ run */
+		runId: text("run_id").references(() => aiChatRun.id, {
+			onDelete: "set null",
+		}),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		// 会話内の順序付けと一意性の両方を担う
+		unique("ai_chat_message_conv_seq_uq").on(
+			table.conversationId,
+			table.sequence,
+		),
+		// run から生まれた発言の引き当て(成功時の回答の復元・失敗試行の除外)
+		index("ai_chat_message_run_idx").on(table.runId),
+	],
+);

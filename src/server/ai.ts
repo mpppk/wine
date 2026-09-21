@@ -1,29 +1,105 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { AI_MAX_QUESTION_CHARS, chatHistorySchema } from "#/lib/ai/config";
+import { CHAT_SEND_ID_MAX_CHARS } from "#/lib/ai/chat";
+import { AI_MAX_QUESTION_CHARS, regionQaModelKeySchema } from "#/lib/ai/config";
 import { pushSubscriptionInputSchema } from "#/lib/push/notification";
+import type {
+	ConversationDetail,
+	ConversationList,
+	SendChatResult,
+} from "#/lib/services/ai-conversation-service";
+import * as conversationService from "#/lib/services/ai-conversation-service";
 import * as aiService from "#/lib/services/ai-service";
 import * as labelJobService from "#/lib/services/label-job-service";
 import * as pushService from "#/lib/services/push-service";
 import { authMiddleware } from "./middleware";
 
-// 地域チャットQ&AのRPC。OpenRouter 経由で回答し、実測トークンでクレジットを消費する。認証必須。
-// 会話履歴はクライアントが保持し毎ターン渡す(サーバはステートレス)。
-// 使うモデルはユーザのプロフィール設定(preferredAiModel)からサーバ側で解決するため、
-// リクエストでは受け取らない。
-export const askRegion = createServerFn({ method: "POST" })
+// ---- 地域Q&Aの永続会話(Issue #603) ----
+//
+// ブラウザは新しい質問・会話ID・送信IDだけを送り、履歴本文は送らない。
+// 所有者は認証コンテキストから決め、会話ID・run IDを指定する全操作で
+// 所有権を検証する。MCP の `ask_region`(単発/履歴指定)は上のまま変えず、
+// 会話一覧等の新規ツールも増やさない。
+
+const chatSendIdSchema = z.string().min(1).max(CHAT_SEND_ID_MAX_CHARS);
+
+/** 会話の一覧(更新日時降順・ページング)。 */
+export const listAiConversations = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.inputValidator(
 		z.object({
+			regionId: z.string().min(1).optional(),
+			limit: z.number().int().min(1).max(50).optional(),
+			cursor: z.string().min(1).optional(),
+		}),
+	)
+	.handler(
+		({ data, context }): Promise<ConversationList> =>
+			conversationService.listAiConversations(context.user.id, data),
+	);
+
+/** 会話1件の取得(メッセージは最新ページのみ・試行の状態付き)。 */
+export const getAiConversation = createServerFn({ method: "GET" })
+	.middleware([authMiddleware])
+	.inputValidator(
+		z.object({
+			conversationId: z.string().min(1).max(80),
+			messageLimit: z.number().int().min(1).max(50).optional(),
+			beforeSequence: z.number().int().min(1).optional(),
+		}),
+	)
+	.handler(
+		({ data, context }): Promise<ConversationDetail> =>
+			conversationService.getAiConversation(
+				context.user.id,
+				data.conversationId,
+				data,
+			),
+	);
+
+/** 新規質問の送信。新規会話は最初の送信で作成する(開いただけでは作らない)。 */
+export const sendAiChat = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(
+		z.object({
+			conversationId: z.string().min(1).max(80).nullable().optional(),
 			regionId: z.string().min(1),
 			aopId: z.string().min(1).optional(),
 			question: z.string().trim().min(1).max(AI_MAX_QUESTION_CHARS),
-			// 境界の定義はドメイン lib と共有する(MCP 層と食い違わせない。#340)
-			history: chatHistorySchema.optional(),
+			sendId: chatSendIdSchema,
+			model: regionQaModelKeySchema.optional(),
 		}),
 	)
+	.handler(
+		({ data, context }): Promise<SendChatResult> =>
+			conversationService.sendAiChatMessage(context.user.id, data),
+	);
+
+/** 失敗した質問への明示的な再試行(新しい試行ID・課金requestIdを使う)。 */
+export const retryAiChat = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(
+		z.object({
+			conversationId: z.string().min(1).max(80),
+			runId: z.string().min(1).max(80),
+			sendId: chatSendIdSchema,
+			model: regionQaModelKeySchema.optional(),
+		}),
+	)
+	.handler(
+		({ data, context }): Promise<SendChatResult> =>
+			conversationService.retryAiChatRun(context.user.id, data),
+	);
+
+/** 会話単位の削除(課金台帳や残高は変更しない)。生成中は競合エラーになる。 */
+export const deleteAiConversation = createServerFn({ method: "POST" })
+	.middleware([authMiddleware])
+	.inputValidator(z.object({ conversationId: z.string().min(1).max(80) }))
 	.handler(({ data, context }) =>
-		aiService.answerRegionQuestion(context.user.id, data),
+		conversationService.deleteAiConversation(
+			context.user.id,
+			data.conversationId,
+		),
 	);
 
 /**

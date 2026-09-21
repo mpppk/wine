@@ -30,6 +30,7 @@ import {
 	type LabelEngineKey,
 	type LabelRoute,
 	type ReasoningEffortKey,
+	type RegionQaModel,
 	type RegionQaModelKey,
 	resolveLabelRoute,
 	resolveWineListRoute,
@@ -229,7 +230,10 @@ export type AskRegionResult =
 	| { blocked: false; answer: string; actualTokens: number; balance: number };
 
 /** region/aop の静的データからグラウンディング材料を組み立てる。 */
-function buildContext(regionId: string, aopId?: string): RegionContextInput {
+export function resolveRegionContext(
+	regionId: string,
+	aopId?: string,
+): RegionContextInput {
 	const region = getRegion(regionId);
 	if (!region) throw new BadRequestError(`Unknown region: ${regionId}`);
 	if (!region.enabled)
@@ -275,7 +279,7 @@ export async function answerRegionQuestion(
 	userId: string,
 	input: AskRegionInput,
 ): Promise<AskRegionResult> {
-	const context = buildContext(input.regionId, input.aopId);
+	const context = resolveRegionContext(input.regionId, input.aopId);
 	// system プロンプトは Langfuse が正(#512 Phase 4)。地域情報は変数として注入する。
 	// **予約より前**に取る: 予約の後・try の外で await すると、その throw が下の
 	// catch(refundReservationOnFailure)へ届かない(モデル解決を先に済ませるのと同じ理由)。
@@ -298,76 +302,24 @@ export async function answerRegionQuestion(
 	// NotFoundError で throw しうる。予約の後・try の外でこれを await すると、その throw が
 	// 下の catch(refundReservationOnFailure)に届かず、予約が返却も記録もされずに消える。
 	// モデル解決は予約と独立なので、先に済ませて「予約したら必ず try で囲まれている」形にする。
-	const modelKey = await resolveModelKey(userId, input.model);
-	const model = AI_REGION_QA_MODELS[modelKey];
+	const { modelKey, model } = await resolveRegionQaModel(userId, input.model);
 	// 接続キーは**予約より前**に解決する(#245)。未設定なら予約せず利用不可として
 	// 返す(別モデルへの自動フォールバックはしない。#602)。
-	const apiKey = openRouterApiKey();
-	if (!apiKey) {
-		throw new HttpError(503, OPENROUTER_UNAVAILABLE_MESSAGE);
-	}
+	const apiKey = requireOpenRouterApiKey();
 	// 見積はモデルが決まってから作る。gemma4 と llama4 で単価が3倍違うため、
 	// モデル解決より前に見積ると経路と原価が食い違う。
 	const estimate = estimateRegionQaReserveCharge(modelKey, promptTokens);
 	// 実行記録の共通部分。経路ごとに組み立て直すとフィールドがドリフトするため1つ持つ。
-	const logBase = {
-		feature: "region_qa",
-		selected: modelKey,
-		// 地域Q&Aはフォールバック経路が無いので、意図した経路＝実行経路。
-		route: modelKey,
-		model: model.id,
-	} as const;
+	const logBase = buildRegionQaLogBase(modelKey, model.id);
 
 	const result = await runMeteredInference(
 		userId,
 		{ estimate, requestId, logBase },
-		async (ctx) => {
-			const response = await chatCompletion(apiKey, {
-				model: model.id,
-				messages,
-				maxTokens: AI_MAX_OUTPUT_TOKENS,
-				// モデル固有の推論設定。Gemma 4 は既定で thinking が有効で、放置すると
-				// reasoning が出力枠(512)を先に使い切り本文が途中で切れる/空になるため
-				// effort "none" で無効化する(Llama 4 はこの指定を持たない)。
-				...(model.reasoning ? { reasoning: model.reasoning } : {}),
-			});
-			// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
-			const answer = stripReasoning(response.text).trim();
-			// OpenRouter は入出力の内訳(prompt/completion + キャッシュ読み)を返す。
-			// 実測が空(すべて 0)の回は予約全量を実測とみなす —— **この機能は単経路で
-			// 降格が無い**ので、予約額はそのまま「実行された経路の見積」でもある
-			// (#404 のエチケット解析とは違う)。
-			const measured = response.usage;
-			const isEmpty =
-				(measured.inputTokens ?? 0) === 0 &&
-				(measured.outputTokens ?? 0) === 0 &&
-				(measured.cacheReadTokens ?? 0) === 0;
-			const charge = isEmpty
-				? fallbackCharge(ctx.reservedMicroUsd)
-				: chargeFor(model.id, measured);
-			// 単経路なので実行経路は選択経路と常に一致する。
-			ctx.addLogFields({ executedBy: modelKey });
-			ctx.recordGeneration({
-				name: `region_qa:${model.id}`,
-				model: model.id,
-				input: messages,
-				output: answer,
-				// どの版で答えたかを残す。fallback で動いた回は ref が null になり
-				// prompt 属性が載らないので、版ごとの指標が汚れない。
-				...(managedPrompt.ref ? { prompt: managedPrompt.ref } : {}),
-				metadata: { promptSource: managedPrompt.source },
-				usage: measured
-					? {
-							inputTokens: measured.inputTokens,
-							outputTokens: measured.outputTokens,
-							totalTokens: totalTokens(measured),
-						}
-					: undefined,
-			});
-			// OpenRouter は内訳を返すが、usage が無い回は空。web検索も使わないので
-			// `webSearches` は載らない——「検索できたのにしなかった 0」とは意味が違う。
-			return { value: answer, charge, usage: measured ?? {} };
-		},
+		(ctx) =>
+			runRegionQaTurn(
+				{ apiKey, modelKey, model, messages, managedPrompt },
+				ctx,
+			),
 	);
 	if (result.blocked) {
 		return {
@@ -382,6 +334,113 @@ export async function answerRegionQuestion(
 		actualTokens: result.charge.tokens,
 		balance: result.balance,
 	};
+}
+
+/**
+ * 地域Q&Aのモデル解決(プロフィール設定または明示指定 → モデルキー＋実モデル)。
+ * **予約より前に呼ぶこと**(#245)。D1を読むため throw しうる。
+ */
+export async function resolveRegionQaModel(
+	userId: string,
+	explicit?: RegionQaModelKey,
+): Promise<{ modelKey: RegionQaModelKey; model: RegionQaModel }> {
+	const modelKey = await resolveModelKey(userId, explicit);
+	return { modelKey, model: AI_REGION_QA_MODELS[modelKey] };
+}
+
+/**
+ * OpenRouter の接続キーを返す。**予約より前に呼ぶこと**(#245)。
+ * 未設定なら予約せず 503 を投げる(別モデルへの自動フォールバックはしない。#602)。
+ */
+export function requireOpenRouterApiKey(): string {
+	const apiKey = openRouterApiKey();
+	if (!apiKey) {
+		throw new HttpError(503, OPENROUTER_UNAVAILABLE_MESSAGE);
+	}
+	return apiKey;
+}
+
+/** 地域Q&Aの実行記録の共通部分。単発(MCP/旧Web)と永続会話で同じ組み立てにする。 */
+export function buildRegionQaLogBase(
+	modelKey: RegionQaModelKey,
+	modelId: string,
+): MeteredInferenceLogBase {
+	return {
+		feature: "region_qa",
+		selected: modelKey,
+		// 地域Q&Aはフォールバック経路が無いので、意図した経路＝実行経路。
+		route: modelKey,
+		model: modelId,
+	};
+}
+
+/** 地域Q&Aの推論1ターン分の材料。予約・プロンプト取得まで済ませた状態。 */
+export interface RegionQaTurn {
+	apiKey: string;
+	modelKey: RegionQaModelKey;
+	model: RegionQaModel;
+	messages: { role: "system" | "user" | "assistant"; content: string }[];
+	managedPrompt: ManagedPromptResult;
+}
+
+/**
+ * 地域Q&Aの推論本体。単発(`answerRegionQuestion`)と永続会話(#603)で共有する。
+ *
+ * この関数は「予約が既に立っていて、ここでの throw は必ず返却に届く」ことを前提にする
+ * (`runMeteredInference` / `finishMeteredInference` の infer として呼ばれる)。
+ * **D1 読み・env 解決はここに書かない**——書くと予約後の await が増え、#245 の順序制約が
+ * 経路ごとに崩れる余地を作る。必要な材料は turn で渡し切る。
+ */
+export async function runRegionQaTurn(
+	turn: RegionQaTurn,
+	ctx: MeteredInferenceContext,
+): Promise<MeteredInferenceOutput<string>> {
+	const { apiKey, modelKey, model, messages, managedPrompt } = turn;
+	const response = await chatCompletion(apiKey, {
+		model: model.id,
+		messages,
+		maxTokens: AI_MAX_OUTPUT_TOKENS,
+		// モデル固有の推論設定。Gemma 4 は既定で thinking が有効で、放置すると
+		// reasoning が出力枠(512)を先に使い切り本文が途中で切れる/空になるため
+		// effort "none" で無効化する(Llama 4 はこの指定を持たない)。
+		...(model.reasoning ? { reasoning: model.reasoning } : {}),
+	});
+	// thinking 無効化済みだが、reasoning モデルへ差し替えても <think>…</think> を表示に出さない
+	const answer = stripReasoning(response.text).trim();
+	// OpenRouter は入出力の内訳(prompt/completion + キャッシュ読み)を返す。
+	// 実測が空(すべて 0)の回は予約全量を実測とみなす —— **この機能は単経路で
+	// 降格が無い**ので、予約額はそのまま「実行された経路の見積」でもある
+	// (#404 のエチケット解析とは違う)。
+	const measured = response.usage;
+	const isEmpty =
+		(measured.inputTokens ?? 0) === 0 &&
+		(measured.outputTokens ?? 0) === 0 &&
+		(measured.cacheReadTokens ?? 0) === 0;
+	const charge = isEmpty
+		? fallbackCharge(ctx.reservedMicroUsd)
+		: chargeFor(model.id, measured);
+	// 単経路なので実行経路は選択経路と常に一致する。
+	ctx.addLogFields({ executedBy: modelKey });
+	ctx.recordGeneration({
+		name: `region_qa:${model.id}`,
+		model: model.id,
+		input: messages,
+		output: answer,
+		// どの版で答えたかを残す。fallback で動いた回は ref が null になり
+		// prompt 属性が載らないので、版ごとの指標が汚れない。
+		...(managedPrompt.ref ? { prompt: managedPrompt.ref } : {}),
+		metadata: { promptSource: managedPrompt.source },
+		usage: measured
+			? {
+					inputTokens: measured.inputTokens,
+					outputTokens: measured.outputTokens,
+					totalTokens: totalTokens(measured),
+				}
+			: undefined,
+	});
+	// OpenRouter は内訳を返すが、usage が無い回は空。web検索も使わないので
+	// `webSearches` は載らない——「検索できたのにしなかった 0」とは意味が違う。
+	return { value: answer, charge, usage: measured ?? {} };
 }
 
 /**
