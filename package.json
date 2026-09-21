@@ -9,6 +9,7 @@
 	},
 	"scripts": {
 		"dev": "vite dev --port 3000",
+		"dev:vars": "op inject -i .dev.vars.example -o .dev.vars",
 		"build": "vite build",
 		"preview": "bun run build && vite preview",
 		"test": "vitest run",
