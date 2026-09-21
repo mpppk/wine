@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
 	AI_CHAT_RUN_TIMEOUT_MS,
 	buildChatTitle,
+	CHAT_RUN_ERROR_KINDS,
+	CHAT_RUN_STATUSES,
 	CHAT_TITLE_MAX_CHARS,
 	filterCompletedMessages,
 	isRetryableChatRunStatus,
 	isTerminalChatRunStatus,
 	selectLlmHistory,
+	toChatRunErrorKind,
 	validateChatQuestion,
 	validateChatSendId,
 } from "./chat";
@@ -169,6 +172,30 @@ describe("run status", () => {
 		// credit-service の ORPHAN_GRACE_MS(10分)と同じ値にすること。
 		// 短くすると「runは中断表示なのに予約は未回収」の窓ができる。
 		expect(AI_CHAT_RUN_TIMEOUT_MS).toBe(10 * 60 * 1000);
+	});
+});
+
+describe("語彙の固定", () => {
+	it("試行の状態は5値で固定する", () => {
+		// DB の status 列・UI の出し分け・再試行可否がこの語彙に依存するため、
+		// 増減時は全経路の追随が必要。黙って変えない。
+		expect(CHAT_RUN_STATUSES).toEqual([
+			"running",
+			"succeeded",
+			"failed",
+			"blocked",
+			"interrupted",
+		]);
+	});
+
+	it("失敗種別は3値で固定する", () => {
+		expect(CHAT_RUN_ERROR_KINDS).toEqual(["llm", "conflict", "persistence"]);
+	});
+
+	it("toChatRunErrorKind は未知値を落とす", () => {
+		expect(toChatRunErrorKind("llm")).toBe("llm");
+		expect(toChatRunErrorKind("evil")).toBeNull();
+		expect(toChatRunErrorKind(null)).toBeNull();
 	});
 });
 

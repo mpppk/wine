@@ -63,6 +63,14 @@ export const CHAT_RUN_ERROR_KINDS = ["llm", "conflict", "persistence"] as const;
 
 export type ChatRunErrorKind = (typeof CHAT_RUN_ERROR_KINDS)[number];
 
+/** DBの値を安全な種別へ絞る。未知値は null(詳細はサーバログのみに残す規律のため)。 */
+export function toChatRunErrorKind(value: unknown): ChatRunErrorKind | null {
+	if (typeof value !== "string") return null;
+	return (CHAT_RUN_ERROR_KINDS as readonly string[]).includes(value)
+		? (value as ChatRunErrorKind)
+		: null;
+}
+
 /**
  * 会話タイトルを最初の質問から切り出す。タイトル生成のためのLLM呼び出しは行わない。
  * 空白の正規化だけを行い、意味の切り詰めはしない。

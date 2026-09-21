@@ -17,6 +17,11 @@ import {
 	CREDIT_BALANCE_QUERY_KEY,
 	useCreditBalanceValue,
 } from "#/lib/credit/use-credit";
+import type {
+	ChatMessageView,
+	ChatRunView,
+	ConversationSummary,
+} from "#/lib/services/ai-conversation-service";
 import { getRegion } from "#/lib/wine/regions";
 import {
 	deleteAiConversation,
@@ -328,7 +333,7 @@ export function RegionChatDialog({
 									まだ会話がありません。最初の質問を送るとここに保存されます。
 								</p>
 							) : (
-								historyQuery.data?.items.map((c) => (
+								historyQuery.data?.items.map((c: ConversationSummary) => (
 									<div
 										key={c.id}
 										className="flex items-center gap-2 rounded-lg border px-3 py-2"
@@ -412,9 +417,9 @@ export function RegionChatDialog({
 												例:「主なブドウ品種は?」「どんな土壌?」など、この地域について質問できます。
 											</p>
 										)}
-										{messages.map((m) => {
+										{messages.map((m: ChatMessageView) => {
 											const failedRun = runs.find(
-												(r) =>
+												(r: ChatRunView) =>
 													r.retryable &&
 													r.userSequence === m.sequence &&
 													m.role === "user",

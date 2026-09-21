@@ -12,11 +12,11 @@ import {
 	type ChatRunStatus,
 	filterCompletedMessages,
 	isRetryableChatRunStatus,
+	toChatRunErrorKind,
 	validateChatQuestion,
 	validateChatSendId,
 } from "#/lib/ai/chat";
 import {
-	AI_MAX_QUESTION_CHARS,
 	estimateRegionQaReserveCharge,
 	type RegionQaModelKey,
 } from "#/lib/ai/config";
@@ -507,7 +507,7 @@ export async function getAiConversation(
 			status: r.status,
 			userSequence: r.userSequence,
 			modelKey: r.modelKey,
-			errorKind: r.errorKind,
+			errorKind: toChatRunErrorKind(r.errorKind),
 			retryable: isRetryableChatRunStatus(r.status),
 			createdAtMs: r.createdAt.getTime(),
 			updatedAtMs: r.updatedAt.getTime(),
@@ -592,7 +592,7 @@ async function replayRunResult(
 				status: "interrupted",
 				conversationId: next.conversationId,
 				runId: next.id,
-				errorKind: next.errorKind,
+				errorKind: toChatRunErrorKind(next.errorKind),
 				retryable: true,
 			};
 		}
@@ -617,7 +617,7 @@ async function replayRunResult(
 		status: run.status,
 		conversationId: run.conversationId,
 		runId: run.id,
-		errorKind: run.errorKind,
+		errorKind: toChatRunErrorKind(run.errorKind),
 		retryable: true,
 	};
 }
@@ -1135,6 +1135,3 @@ export async function retryAiChatRun(
 		throw new HttpError(500, toUserErrorMessage(kind));
 	}
 }
-
-/** 質問文の上限を Boundary と共有するための再エクスポート */
-export const CHAT_QUESTION_MAX_CHARS = AI_MAX_QUESTION_CHARS;
