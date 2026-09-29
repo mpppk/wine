@@ -8,6 +8,7 @@ import {
 	drunkWine,
 	importBatch,
 	labelAnalysisJob,
+	pushSubscription,
 } from "#/db/schema";
 import { AI_LABEL_GPT_MODEL } from "#/lib/ai/config";
 import {
@@ -27,6 +28,7 @@ import {
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import { bulkRegisterFromScan } from "#/lib/services/drunk-wine-service";
 import { createPlace, listPlaces } from "#/lib/services/place-service";
+import { savePushSubscription } from "#/lib/services/push-service";
 import {
 	adoptLabelJobPhotosToBatch,
 	attachLabelAnalysisJobEntry,
@@ -507,6 +509,99 @@ describe("ジョブの実行", () => {
 		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
 		const rows = await ledgerRowsOf(userId);
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+	});
+});
+
+describe("完了通知の切り離し(#634)", () => {
+	/** push-service.workers.test.ts と同じテスト専用 VAPID 鍵ペア。 */
+	const PUSH_TEST_VAPID_PUBLIC =
+		"BDE48t-TAG4btM4wIJqbb9ooz-n4VjJXAF8IjNoCoTzlYWtF7l9rAIq57GceUM2aWL98Ckq6PaVo2TXJDSZJMPU"; // gitleaks:allow(テスト専用の生成キー)
+	const PUSH_TEST_VAPID_PRIVATE =
+		"MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgKJM-c2C7YuOPa4LE6Zx-95oQVz-kIEdHrZI8OL5l1KmhRANCAAQxOPLfkwBuG7TOMCCam2_aKM_p-FYyVwBfCIzaAqE85WFrRe5fawCKuexnHlDNmli_fApKuj2laNk1yQ0mSTD1";
+
+	it("プッシュ送信が遅くてもジョブの終端化は待たない", {
+		timeout: 30_000,
+	}, async () => {
+		const userId = await seedUser();
+		await savePushSubscription(userId, {
+			endpoint: "https://fcm.googleapis.com/fcm/send/label-job-gated",
+			p256dh:
+				"BDW6GYofjHUah10yVVsE46Kuv8ymEDTKdmCWbbx8fuCU44iszSq_WZ4ssHAc0zmdXC_4izIpe3d4fbtZufD624U",
+			auth: "_uUrYO9c6_VfLfLJD7KRQg", // gitleaks:allow(テスト専用の購読鍵)
+		});
+		const e = env as unknown as {
+			VAPID_PUBLIC_KEY?: string;
+			VAPID_PRIVATE_KEY?: string;
+		};
+		e.VAPID_PUBLIC_KEY = PUSH_TEST_VAPID_PUBLIC;
+		e.VAPID_PRIVATE_KEY = PUSH_TEST_VAPID_PRIVATE;
+		try {
+			const { jobId } = await submitOne(userId);
+			let pushAttempts = 0;
+			let releasePush!: () => void;
+			const pushGate = new Promise<void>((resolve) => {
+				releasePush = resolve;
+			});
+			vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+				const url = typeof input === "string" ? input : String(input);
+				if (url.startsWith("https://openrouter.ai/api/v1/")) {
+					// 推論は通常どおり即応答(成功テストと同じ形)
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					const tools = (body.tools ?? []) as Array<{
+						function?: { name?: string };
+					}>;
+					const usage = { prompt_tokens: 250, completion_tokens: 50 };
+					if (tools.some((t) => t.function?.name === "submit_answer")) {
+						return orChat({
+							toolCalls: [
+								{
+									id: "call_test",
+									name: "submit_answer",
+									arguments: JSON.stringify(labelFields()),
+								},
+							],
+							usage,
+						});
+					}
+					return orChat({ text: JSON.stringify(labelFields()), usage });
+				}
+				if (url.startsWith("https://fcm.googleapis.com/")) {
+					pushAttempts += 1;
+					// プッシュだけゲートで止める。終端化がこれを待つなら、
+					// runLabelAnalysisJob はここで止まって返ってこない
+					await pushGate;
+					return new Response(null, { status: 201 });
+				}
+				throw new Error(`想定外の接続: ${url}`);
+			});
+
+			await runLabelAnalysisJob(jobId);
+
+			// ゲートを閉じたまま終端化が済んでいる = 通知を待っていない
+			expect((await jobRow(jobId))?.status).toBe("succeeded");
+			// プッシュはバックグラウンドで試みられる
+			await vi.waitFor(() => expect(pushAttempts).toBe(1), {
+				timeout: 10_000,
+			});
+			// ゲートを開けると送信が完走する
+			releasePush();
+			await vi.waitFor(
+				async () => {
+					const [row] = await db
+						.select()
+						.from(pushSubscription)
+						.where(eq(pushSubscription.userId, userId));
+					expect(row?.lastNotifiedAt).not.toBeNull();
+				},
+				{ timeout: 10_000 },
+			);
+		} finally {
+			delete e.VAPID_PUBLIC_KEY;
+			delete e.VAPID_PRIVATE_KEY;
+		}
 	});
 });
 

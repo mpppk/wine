@@ -153,7 +153,10 @@ export const pushSubscriptionInputSchema = z.object({
 				if (!isAllowedExternalHost(url.hostname)) return false;
 				return isKnownPushServiceHost(url.hostname);
 			},
-			{ message: "endpoint は対応しているプッシュサービスのURLである必要があります" },
+			{
+				message:
+					"endpoint は対応しているプッシュサービスのURLである必要があります",
+			},
 		),
 	p256dh: z.string().min(1).max(500),
 	auth: z.string().min(1).max(500),

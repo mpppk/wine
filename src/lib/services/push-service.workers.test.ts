@@ -13,6 +13,8 @@ import {
 	deletePushSubscription,
 	hasPushSubscription,
 	isWebPushConfigured,
+	MAX_PUSH_SUBSCRIPTIONS_PER_USER,
+	PUSH_FETCH_TIMEOUT_MS,
 	savePushSubscription,
 	sendPushToUser,
 	webPushPublicKey,
@@ -41,6 +43,10 @@ const SUB = {
 		"BDW6GYofjHUah10yVVsE46Kuv8ymEDTKdmCWbbx8fuCU44iszSq_WZ4ssHAc0zmdXC_4izIpe3d4fbtZufD624U",
 	auth: "_uUrYO9c6_VfLfLJD7KRQg", // gitleaks:allow(テスト専用の購読鍵)
 };
+
+/** テスト用の VAPID 秘密鍵(pkcs8/base64url)。公開鍵 TEST_VAPID_PUBLIC と対。 */
+const TEST_VAPID_PRIVATE =
+	"MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgKJM-c2C7YuOPa4LE6Zx-95oQVz-kIEdHrZI8OL5l1KmhRANCAAQxOPLfkwBuG7TOMCCam2_aKM_p-FYyVwBfCIzaAqE85WFrRe5fawCKuexnHlDNmli_fApKuj2laNk1yQ0mSTD1";
 
 async function seedUser(): Promise<string> {
 	const id = crypto.randomUUID();
@@ -141,10 +147,6 @@ describe("鍵が無い環境", () => {
 });
 
 describe("送信", () => {
-	/** テスト用の VAPID 秘密鍵(pkcs8/base64url)。公開鍵 TEST_VAPID_PUBLIC と対。 */
-	const TEST_VAPID_PRIVATE =
-		"MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgKJM-c2C7YuOPa4LE6Zx-95oQVz-kIEdHrZI8OL5l1KmhRANCAAQxOPLfkwBuG7TOMCCam2_aKM_p-FYyVwBfCIzaAqE85WFrRe5fawCKuexnHlDNmli_fApKuj2laNk1yQ0mSTD1";
-
 	it("本文なしのリクエストを購読の endpoint へ送り、署名が検証できる", async () => {
 		const userId = await seedUser();
 		await savePushSubscription(userId, SUB);
@@ -276,5 +278,164 @@ describe("送信", () => {
 		// 署名付きリクエスト自体を飛ばさない
 		expect(fetchSpy).not.toHaveBeenCalled();
 		expect(await subsOf(userId)).toHaveLength(0);
+	});
+});
+
+describe("購読の上限(#634)", () => {
+	it("6件目の登録で古いものから置換される", async () => {
+		const userId = await seedUser();
+		// createdAt をずらして直接置く(同時刻登録の順序不定を避ける)
+		const base = Date.now() - 60_000;
+		for (let i = 0; i < MAX_PUSH_SUBSCRIPTIONS_PER_USER; i++) {
+			await db.insert(pushSubscription).values({
+				id: crypto.randomUUID(),
+				userId,
+				endpoint: `https://fcm.googleapis.com/fcm/send/old-${i}`,
+				p256dh: SUB.p256dh,
+				auth: SUB.auth,
+				createdAt: new Date(base + i * 1000),
+			});
+		}
+
+		await savePushSubscription(userId, {
+			...SUB,
+			endpoint: "https://fcm.googleapis.com/fcm/send/new",
+		});
+
+		const rows = await subsOf(userId);
+		expect(rows).toHaveLength(MAX_PUSH_SUBSCRIPTIONS_PER_USER);
+		const endpoints = rows.map((row) => row.endpoint);
+		expect(endpoints).toContain("https://fcm.googleapis.com/fcm/send/new");
+		expect(endpoints).not.toContain(
+			"https://fcm.googleapis.com/fcm/send/old-0",
+		);
+		expect(endpoints).toContain("https://fcm.googleapis.com/fcm/send/old-4");
+	});
+
+	it("サービス経由の連続登録でも上限に頭打ちになり、新しい登録は残る", async () => {
+		const userId = await seedUser();
+		for (let i = 0; i <= MAX_PUSH_SUBSCRIPTIONS_PER_USER; i++) {
+			await savePushSubscription(userId, {
+				...SUB,
+				endpoint: `https://fcm.googleapis.com/fcm/send/s-${i}`,
+			});
+		}
+
+		const rows = await subsOf(userId);
+		expect(rows).toHaveLength(MAX_PUSH_SUBSCRIPTIONS_PER_USER);
+		// 今回保存した endpoint は追い出しの対象外
+		expect(rows.map((row) => row.endpoint)).toContain(
+			`https://fcm.googleapis.com/fcm/send/s-${MAX_PUSH_SUBSCRIPTIONS_PER_USER}`,
+		);
+	});
+
+	it("同じ endpoint の再購読では追い出しが起きない", async () => {
+		const userId = await seedUser();
+		const endpoints = Array.from(
+			{ length: MAX_PUSH_SUBSCRIPTIONS_PER_USER },
+			(_, i) => `https://fcm.googleapis.com/fcm/send/r-${i}`,
+		);
+		for (const endpoint of endpoints) {
+			await savePushSubscription(userId, { ...SUB, endpoint });
+		}
+
+		// 件数は増えない上書き。再購読を理由に他が消えてはならない
+		const firstEndpoint = endpoints[0];
+		if (!firstEndpoint) throw new Error("unreachable");
+		await savePushSubscription(userId, {
+			...SUB,
+			endpoint: firstEndpoint,
+			auth: "dXBkYXRlZA",
+		});
+
+		const rows = await subsOf(userId);
+		expect(rows).toHaveLength(MAX_PUSH_SUBSCRIPTIONS_PER_USER);
+		expect(rows.map((row) => row.endpoint).sort()).toEqual(
+			[...endpoints].sort(),
+		);
+	});
+
+	it("所有者の移転でも上限を守り、移転した購読は残る", async () => {
+		const first = await seedUser();
+		const second = await seedUser();
+		const moved = "https://fcm.googleapis.com/fcm/send/moved";
+		await savePushSubscription(first, { ...SUB, endpoint: moved });
+		for (let i = 0; i < MAX_PUSH_SUBSCRIPTIONS_PER_USER; i++) {
+			await savePushSubscription(second, {
+				...SUB,
+				endpoint: `https://fcm.googleapis.com/fcm/send/b-${i}`,
+			});
+		}
+
+		await savePushSubscription(second, { ...SUB, endpoint: moved });
+
+		expect(await subsOf(first)).toHaveLength(0);
+		const rows = await subsOf(second);
+		expect(rows).toHaveLength(MAX_PUSH_SUBSCRIPTIONS_PER_USER);
+		expect(rows.map((row) => row.endpoint)).toContain(moved);
+	});
+});
+
+describe("送信の制限(#634)", () => {
+	it("許可リスト外の endpoint には送らず消す", async () => {
+		const userId = await seedUser();
+		// SSRF ガードは通るがプッシュサービスではない旧行を直接保存した想定
+		await savePushSubscription(userId, {
+			...SUB,
+			endpoint: "https://example.com/push",
+		});
+		setVapid(TEST_VAPID_PRIVATE);
+		const fetchSpy = vi.fn();
+		vi.stubGlobal("fetch", fetchSpy);
+
+		expect(await sendPushToUser(userId)).toBe(0);
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(await subsOf(userId)).toHaveLength(0);
+	});
+
+	it("送信fetchにタイムアウト信号を付ける", async () => {
+		const userId = await seedUser();
+		await savePushSubscription(userId, SUB);
+		setVapid(TEST_VAPID_PRIVATE);
+		const signals: unknown[] = [];
+		vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+			signals.push(init?.signal);
+			return new Response(null, { status: 201 });
+		});
+
+		expect(await sendPushToUser(userId)).toBe(1);
+		expect(signals).toHaveLength(1);
+		expect(signals[0]).toBeInstanceOf(AbortSignal);
+	});
+
+	it("応答の無い endpoint でもタイムアウトで終端化する", {
+		timeout: 20_000,
+	}, async () => {
+		const userId = await seedUser();
+		await savePushSubscription(userId, SUB);
+		setVapid(TEST_VAPID_PRIVATE);
+		vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+			// 実fetch同様、signal の中断でのみ失敗させる(中断されなければ永遠に止まる)
+			await new Promise<void>((_resolve, reject) => {
+				const signal = init?.signal;
+				if (!(signal instanceof AbortSignal)) {
+					reject(new Error("タイムアウト信号が付いていない"));
+					return;
+				}
+				signal.addEventListener("abort", () => reject(signal.reason), {
+					once: true,
+				});
+			});
+			throw new Error("到達しない");
+		});
+
+		const startedAt = Date.now();
+		expect(await sendPushToUser(userId)).toBe(0);
+		const elapsed = Date.now() - startedAt;
+		// タイムアウトで打ち切られる(無制限に待たないことの固定)
+		expect(elapsed).toBeGreaterThanOrEqual(PUSH_FETCH_TIMEOUT_MS - 1000);
+		expect(elapsed).toBeLessThan(PUSH_FETCH_TIMEOUT_MS + 10_000);
+		// 一時的な失敗なので購読は消さない
+		expect(await subsOf(userId)).toHaveLength(1);
 	});
 });
