@@ -1,11 +1,12 @@
 import { env } from "cloudflare:workers";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "#/db";
 import { pushSubscription } from "#/db/schema";
 import { logError, logInfo, logWarn } from "#/lib/logger";
 import { isAllowedExternalHost } from "#/lib/net/ssrf-guard";
 import {
 	isGonePushStatus,
+	isKnownPushServiceHost,
 	type PushSubscriptionInput,
 } from "#/lib/push/notification";
 import {
@@ -45,6 +46,24 @@ const VAPID_SUBJECT = "mailto:niboshiporipori@gmail.com";
  * もはや行動につながらない**(利用者はとっくにアプリを開いている)。半日にしておく。
  */
 const PUSH_TTL_SECONDS = 12 * 60 * 60;
+
+/**
+ * 1ユーザが持てる購読の上限(#634)。
+ *
+ * PC・スマホ・ブラウザごとに購読が増えるが、通常は片手で数えられる数に収まる。
+ * 無制限だと応答の無い endpoint の大量登録で送信が止まり、キューのコンシューマを
+ * 塞いで他ユーザのジョブまで滞留させる。購読の送信は1ユーザあたり最大この件数に
+ * 抑えられるので、1呼び出しのサブリクエスト数も頭打ちになる。
+ */
+export const MAX_PUSH_SUBSCRIPTIONS_PER_USER = 5;
+
+/**
+ * プッシュサービスへの1送信あたりのタイムアウト(ミリ秒)(#634)。
+ *
+ * 応答の無い endpoint があっても送信全体が止まらないようにする。購読は直列に
+ * 送るので、最悪の足止めは `上限 × この値` で頭打ちになる。
+ */
+export const PUSH_FETCH_TIMEOUT_MS = 5_000;
 
 /**
  * Web Push が使える環境か(= VAPID 鍵が両方設定されているか)。
@@ -97,6 +116,34 @@ export async function savePushSubscription(
 				...(userAgent ? { userAgent: userAgent.slice(0, 200) } : {}),
 			},
 		});
+	// 上限を超えたぶんは古いものから消す(#634)。新しい端末を登録できないより、
+	// 使わなくなった古い端末が外れるほうがまし、という置換の判断。
+	// **今回保存した endpoint は除外**する——別ユーザからの移転で古い createdAt を
+	// 引き継いだ行が、その場で追い出されないようにする。再購読(同じ endpoint の
+	// 上書き)では件数が増えないので、ここは空振りする。
+	const rows = await db
+		.select({
+			id: pushSubscription.id,
+			endpoint: pushSubscription.endpoint,
+		})
+		.from(pushSubscription)
+		.where(eq(pushSubscription.userId, userId))
+		.orderBy(asc(pushSubscription.createdAt));
+	if (rows.length > MAX_PUSH_SUBSCRIPTIONS_PER_USER) {
+		const excess = rows.length - MAX_PUSH_SUBSCRIPTIONS_PER_USER;
+		const victims = rows
+			.filter((row) => row.endpoint !== input.endpoint)
+			.slice(0, excess);
+		for (const victim of victims) {
+			await db
+				.delete(pushSubscription)
+				.where(eq(pushSubscription.id, victim.id));
+		}
+		logInfo("push subscriptions evicted", {
+			userId,
+			evicted: victims.length,
+		});
+	}
 	logInfo("push subscription saved", { userId });
 }
 
@@ -125,7 +172,7 @@ export async function hasPushSubscription(userId: string): Promise<boolean> {
 	return rows.length > 0;
 }
 
-/** 送信してよい endpoint か(共通SSRFガードの厳しい側)。DBに残る旧行の送出前検査用。 */
+/** 送信してよい endpoint か(DBに残る旧行の送出前検査用)。 */
 function isPushEndpointSendable(endpoint: string): boolean {
 	let url: URL;
 	try {
@@ -134,7 +181,12 @@ function isPushEndpointSendable(endpoint: string): boolean {
 		return false;
 	}
 	if (url.protocol !== "https:") return false;
-	return isAllowedExternalHost(url.hostname);
+	// SSRF ガード(#545)は共通チョークポイントの厳しい側に寄せたままにし、
+	// 宛先が既知のプッシュサービスであることを重ねる(#634)。どちらも
+	// 受け取り口(`pushSubscriptionInputSchema`)と同じ組み合わせで、
+	// 強化前に登録された旧行は送らずに消す(下記)。
+	if (!isAllowedExternalHost(url.hostname)) return false;
+	return isKnownPushServiceHost(url.hostname);
 }
 
 /**
@@ -176,9 +228,10 @@ export async function sendPushToUser(userId: string): Promise<number> {
 
 	let sent = 0;
 	for (const subscription of subscriptions) {
-		// ガード強化(#545)前に登録された内部向け endpoint が残っていても送らない。
-		// 送らずに消す: 受け取り口の検証を通らない宛先に署名付きリクエストを
-		// 飛ばすこと自体が SSRF の送信リレーになる。許可リスト化は #634 の範囲。
+		// ガード強化(#545・#634)前に登録された旧行は送らずに消す: 受け取り口の
+		// 検証を通らない宛先に署名付きリクエストを飛ばすこと自体が SSRF の
+		// 送信リレーになり、応答の無いホストへの送信はコンシューマを塞ぐ。
+		// 許可リスト化(#634)は受け取り口とここの両方で見る。
 		if (!isPushEndpointSendable(subscription.endpoint)) {
 			await db
 				.delete(pushSubscription)
@@ -204,6 +257,10 @@ export async function sendPushToUser(userId: string): Promise<number> {
 					"Content-Length": "0",
 					Urgency: "normal",
 				},
+				// 応答の無い endpoint にいつまでも止まらないよう、1送信ごとに
+				// 区切る(#634)。購読は直列に送るので、最悪の足止めは
+				// `上限 × PUSH_FETCH_TIMEOUT_MS` で頭打ちになる。
+				signal: AbortSignal.timeout(PUSH_FETCH_TIMEOUT_MS),
 			});
 			if (res.ok) {
 				sent += 1;

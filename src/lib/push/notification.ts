@@ -91,12 +91,50 @@ export interface PushSubscriptionInput {
 }
 
 /**
+ * 既知のプッシュサービスのホストか(#634)。
+ *
+ * Web Push の endpoint はブラウザが生成するプッシュサービスURLで、実在のベンダは
+ * 有限個。任意の https ホストを受けると、サーバが署名付き POST を任意先へ送る
+ * 中継になり、応答の無いホストの大量登録で送信が止まってキューのコンシューマを
+ * 塞ぐ(可用性)。
+ *
+ * SSRF 側の判定は `isAllowedExternalHost` が担い(#545)、ここはその上に「宛先が
+ * プッシュサービスであること」を重ねる。**境界を混ぜない**: ホストの危険性は
+ * あちら、宛先の正当性はこちらの責務で、どちらか片方だけの強化では塞がらない。
+ *
+ * 判定は完全一致とサフィックス一致で、なりすまし
+ * (`fcm.googleapis.com.evil.test`・`evil-fcm.googleapis.com` 等)を通さない。
+ * 一般ホスト(`example.com` 等)は弾く。
+ */
+export function isKnownPushServiceHost(hostname: string): boolean {
+	const host = hostname.toLowerCase().replace(/\.+$/, "");
+	if (host === "") return false;
+	// FCM(Chromium 系: Chrome / Edge / Opera)
+	if (host === "fcm.googleapis.com") return true;
+	// Mozilla autopush(Firefox)。`updates.` が現行。配信用サブドメインの違いに
+	// 備えてサフィックスで見る
+	if (
+		host === "push.services.mozilla.com" ||
+		host.endsWith(".push.services.mozilla.com")
+	)
+		return true;
+	// Apple Push(Safari)。`web.` が現行
+	if (host === "push.apple.com" || host.endsWith(".push.apple.com"))
+		return true;
+	// Windows Notification Service。地域別のサブドメインで来る
+	if (host === "notify.windows.com" || host.endsWith(".notify.windows.com"))
+		return true;
+	return false;
+}
+
+/**
  * 購読の受け取り口の検証。`endpoint` は**外部から渡されるURL**なので、
  * ここで https のみに絞る(送信は endpoint へ fetch するため、任意スキームを
  * 通すとサーバを任意先へのリクエスト発火装置にできてしまう)。
  * ホスト判定は共通チョークポイント(`isAllowedExternalHost`、既定の厳しい側)に
- * 寄せる(#545)。プッシュサービス自体の許可リスト化は #634 の範囲で、ここでは
- * SSRFガードの共通化に留める。
+ * 寄せる(#545)。その上に、宛先が既知のプッシュサービスであることを重ねる
+ * (`isKnownPushServiceHost`。#634)。前者が SSRF、後者が可用性の層で、
+ * どちらも通らない endpoint は受け取らない。
  */
 export const pushSubscriptionInputSchema = z.object({
 	endpoint: z
@@ -112,9 +150,13 @@ export const pushSubscriptionInputSchema = z.object({
 					return false;
 				}
 				if (url.protocol !== "https:") return false;
-				return isAllowedExternalHost(url.hostname);
+				if (!isAllowedExternalHost(url.hostname)) return false;
+				return isKnownPushServiceHost(url.hostname);
 			},
-			{ message: "endpoint は https のURLである必要があります" },
+			{
+				message:
+					"endpoint は対応しているプッシュサービスのURLである必要があります",
+			},
 		),
 	p256dh: z.string().min(1).max(500),
 	auth: z.string().min(1).max(500),

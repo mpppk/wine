@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildLabelAnalysisDonePayload,
 	isGonePushStatus,
+	isKnownPushServiceHost,
 	pushNotificationPayloadSchema,
 	pushSubscriptionInputSchema,
 } from "./notification";
@@ -103,6 +104,20 @@ describe("pushSubscriptionInputSchema", () => {
 		}
 	});
 
+	it("許可リスト外の https ホストを拒否する(#634)", () => {
+		// SSRF ガードは通るがプッシュサービスではない。受け取り口で弾くことで、
+		// 応答の無いホストの大量登録による送信の足止めを入口で塞ぐ。
+		for (const endpoint of [
+			"https://example.com/push",
+			"https://cdn.example.com/push/abc",
+		]) {
+			expect(
+				pushSubscriptionInputSchema.safeParse({ ...valid, endpoint }).success,
+				endpoint,
+			).toBe(false);
+		}
+	});
+
 	it("鍵が空なら拒否する", () => {
 		expect(
 			pushSubscriptionInputSchema.safeParse({ ...valid, p256dh: "" }).success,
@@ -110,6 +125,47 @@ describe("pushSubscriptionInputSchema", () => {
 		expect(
 			pushSubscriptionInputSchema.safeParse({ ...valid, auth: "" }).success,
 		).toBe(false);
+	});
+});
+
+describe("isKnownPushServiceHost", () => {
+	it("既知のプッシュサービスを通す(#634)", () => {
+		for (const h of [
+			"fcm.googleapis.com",
+			"updates.push.services.mozilla.com",
+			"push.services.mozilla.com",
+			"web.push.apple.com",
+			"db5.notify.windows.com",
+			"notify.windows.com",
+		]) {
+			expect(isKnownPushServiceHost(h), h).toBe(true);
+		}
+	});
+
+	it("大文字・末尾ドットは正規化して受ける", () => {
+		expect(isKnownPushServiceHost("FCM.GoogleAPIS.com")).toBe(true);
+		expect(isKnownPushServiceHost("fcm.googleapis.com.")).toBe(true);
+	});
+
+	it("一般ホストは弾く", () => {
+		for (const h of ["example.com", "cdn.example.com", "localhost", ""]) {
+			expect(isKnownPushServiceHost(h), h).toBe(false);
+		}
+	});
+
+	it("なりすましホストは弾く", () => {
+		// サフィックス一致は「ドット区切り」のときだけ。末尾に付け足しただけの
+		// 文字列や、別ラベルでの類似名は通さない。
+		for (const h of [
+			"fcm.googleapis.com.evil.test",
+			"evil-fcm.googleapis.com",
+			"fcm.googleapis.comevil.test",
+			"updates.push.services.mozilla.com.evil.test",
+			"web.push.apple.com.evil.test",
+			"db5.notify.windows.com.evil.test",
+		]) {
+			expect(isKnownPushServiceHost(h), h).toBe(false);
+		}
 	});
 });
 
