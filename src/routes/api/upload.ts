@@ -12,6 +12,7 @@ import {
 	requireApiSession,
 	validateDeclaredPhotoFile,
 } from "#/lib/images/form-api";
+import { deleteStaleAvatars, sanitizeAvatarImage } from "#/lib/images/sanitize";
 import { logError } from "#/lib/logger";
 
 export const Route = createFileRoute("/api/upload")({
@@ -61,9 +62,17 @@ export const Route = createFileRoute("/api/upload")({
 					return apiJsonError(API_ERROR_MESSAGES.unsupportedImageType, 400);
 				}
 
+				// #641: 公開配信のアバターはサーバ側で必ず再エンコードしてメタデータ
+				// (GPS等)を落とす。クライアントの再エンコードだけに頼らない(直接APIを
+				// 叩く経路がある)。IMAGESが無い環境は可逆な除去へフォールバックする。
+				const clean = await sanitizeAvatarImage(
+					new Uint8Array(buffer),
+					storedMime,
+				);
+
 				const r2Key = `avatars/${session.user.id}.${ext}`;
 				try {
-					await env.AVATARS.put(r2Key, buffer, {
+					await env.AVATARS.put(r2Key, clean, {
 						httpMetadata: { contentType: storedMime },
 					});
 				} catch (e) {
@@ -74,6 +83,11 @@ export const Route = createFileRoute("/api/upload")({
 					});
 					return apiJsonError("Upload failed", 500);
 				}
+
+				// png→jpgのように拡張子が変わると旧オブジェクトが残り、旧URLから配信され
+				// 続ける(「消したつもりの写真」が残る)。同ユーザの他拡張子を掃除する。
+				// best-effort(新アバターは保存済みなので失敗で500にしない)。
+				await deleteStaleAvatars(session.user.id, r2Key);
 
 				// Cache-busting query param so browsers refetch after re-upload
 				const imageUrl = `/api/images/${r2Key}?v=${Date.now()}`;

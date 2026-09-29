@@ -11,8 +11,10 @@ import {
 	PHOTO_FORMATS_LABEL_JA,
 	photoExtForMime,
 	photoKeyForThumbKey,
+	readJpegOrientation,
 	resolveStoredPhotoMime,
 	sniffImageMime,
+	stripImageMetadata,
 	thumbKeyForPhotoKey,
 } from "./photo";
 
@@ -239,5 +241,252 @@ describe("サムネイルキーの導出 (#237)", () => {
 	it("所有者の判定は原寸キーと同じ経路で通る(セグメント数を変えない)", () => {
 		// wines/{userId}/{entryId}/{photoId}.{ext} の4セグメントを保つ
 		expect(thumbKeyForPhotoKey(photoKey).split("/")).toHaveLength(4);
+	});
+});
+
+// 画像メタデータの除去(#641)。アバターは無認証の公開配信なので、GPS等のEXIFを
+// サーバ側で落とす。ワイン写真(非公開)も同じ関数で揃える。
+describe("stripImageMetadata", () => {
+	// GPS付きJPEG(Orientation=6)。SOI→APP0→APP1(Exif)→SOS→EOIの最小構成。
+	// Exif内は Orientation=6・DateTimeOriginal・GPS(35°39'30"N 139°41'30"E)。
+	const GPS_JPEG = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQAAAQABAAD/4QDGRXhpZgAASUkqAAgAAAADABIBAwABAAAABgAAAGmHBAABAAAAMgAAACWIBAABAAAAWAAAAAAAAAABAAOQAgAUAAAARAAAAAAAAAAyMDI0OjA1OjA2IDEyOjM0OjU2AAQAAQACAAIAAABOAAAAAgAFAAMAAACOAAAAAwACAAIAAABFAAAABAAFAAMAAACmAAAAAAAAACMAAAABAAAAJwAAAAEAAAAeAAAAAQAAAIsAAAABAAAAKQAAAAEAAAAeAAAAAQAAAP/aAAYBAQAAPwCqu//Z",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	/** バイト列にASCII文字列が含まれるか。 */
+	function containsBytes(haystack: Uint8Array, needle: string): boolean {
+		const tag = Array.from(needle, (c) => c.charCodeAt(0));
+		outer: for (let i = 0; i + tag.length <= haystack.length; i++) {
+			for (let j = 0; j < tag.length; j++) {
+				if (haystack[i + j] !== tag[j]) continue outer;
+			}
+			return true;
+		}
+		return false;
+	}
+
+	it("前提: 入力JPEGはGPS・日時・向き(6)を持つ", () => {
+		expect(readJpegOrientation(GPS_JPEG)).toBe(6);
+		expect(containsBytes(GPS_JPEG, "2024:05:06")).toBe(true);
+	});
+
+	it("GPS・日時を除去し、向きは残す(横倒しにしない)", () => {
+		const stripped = stripImageMetadata(GPS_JPEG);
+		expect(stripped.length).toBeLessThan(GPS_JPEG.length);
+		// 日時・GPS由来の文字列が消える
+		expect(containsBytes(stripped, "2024:05:06")).toBe(false);
+		// 向きは最小EXIFに残る(ブラウザの自動回転が効き続ける)
+		expect(readJpegOrientation(stripped)).toBe(6);
+		// 画像データ(SOS以降)は無加工
+		expect(stripped.subarray(stripped.length - 4)).toEqual(
+			GPS_JPEG.subarray(GPS_JPEG.length - 4),
+		);
+		// 冪等(2回目は何も変わらない)
+		expect(stripImageMetadata(stripped)).toEqual(stripped);
+	});
+
+	it("向きが無いJPEGはAPP1を丸ごと落とす", () => {
+		// SOI + XMPのAPP1(Exifでない) + EOI
+		const xmp = new Uint8Array([
+			0xff, 0xd8, 0xff, 0xe1, 0x00, 0x0a, 0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f,
+			0x2f, 0x78, 0xff, 0xd9,
+		]);
+		expect(stripImageMetadata(xmp)).toEqual(
+			new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+		);
+	});
+
+	it("PNGの所在・作者・日時チャンクを落とし、本文・透過は残す", () => {
+		const chunk = (type: string, data: number[]): number[] => {
+			const len = data.length;
+			return [
+				(len >>> 24) & 0xff,
+				(len >>> 16) & 0xff,
+				(len >>> 8) & 0xff,
+				len & 0xff,
+				...Array.from(type, (c) => c.charCodeAt(0)),
+				...data,
+				0,
+				0,
+				0,
+				0, // CRCは検証しないのでダミー
+			];
+		};
+		const ihdr = [
+			0,
+			0,
+			0,
+			1,
+			0,
+			0,
+			0,
+			1,
+			8,
+			2,
+			0,
+			0,
+			0, // 1x1 RGB
+		];
+		const png = new Uint8Array([
+			0x89,
+			0x50,
+			0x4e,
+			0x47,
+			0x0d,
+			0x0a,
+			0x1a,
+			0x0a,
+			...chunk("IHDR", ihdr),
+			...chunk("tEXt", [...Array.from("Title\0Hi!", (c) => c.charCodeAt(0))]),
+			...chunk("eXIf", [0x4d, 0x4d, 0x00, 0x2a]),
+			...chunk("IDAT", [0x11, 0x22, 0x33, 0x44]),
+			...chunk("IEND", []),
+		]);
+		const stripped = stripImageMetadata(png);
+		expect(containsBytes(stripped, "tEXt")).toBe(false);
+		expect(containsBytes(stripped, "eXIf")).toBe(false);
+		expect(containsBytes(stripped, "IDAT")).toBe(true);
+		expect(Array.from(stripped.subarray(stripped.length - 12))).toEqual(
+			Array.from(png.subarray(png.length - 12)),
+		);
+	});
+
+	it("WebPのEXIF・XMPチャンクを落とし、フラグとRIFFサイズを直す", () => {
+		const chunk = (fourcc: string, data: number[]): number[] => {
+			const out = [
+				...Array.from(fourcc, (c) => c.charCodeAt(0)),
+				data.length & 0xff,
+				(data.length >> 8) & 0xff,
+				(data.length >> 16) & 0xff,
+				(data.length >> 24) & 0xff,
+				...data,
+			];
+			if (data.length % 2 === 1) out.push(0);
+			return out;
+		};
+		const body = [
+			...chunk("VP8X", [0x0c, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+			...chunk("EXIF", [1, 2, 3, 4]),
+			...chunk("XMP ", [5, 6, 7]),
+			...chunk("VP8 ", [8, 9, 10, 11]),
+		];
+		const riffSize = 4 + body.length;
+		const webp = new Uint8Array([
+			0x52,
+			0x49,
+			0x46,
+			0x46,
+			riffSize & 0xff,
+			(riffSize >> 8) & 0xff,
+			(riffSize >> 16) & 0xff,
+			(riffSize >> 24) & 0xff,
+			0x57,
+			0x45,
+			0x42,
+			0x50,
+			...body,
+		]);
+		const stripped = stripImageMetadata(webp);
+		expect(containsBytes(stripped, "EXIF")).toBe(false);
+		expect(containsBytes(stripped, "XMP ")).toBe(false);
+		expect(containsBytes(stripped, "VP8 ")).toBe(true);
+		// VP8Xの存在ビット(EXIF=0x08・XMP=0x04)が落ちる
+		expect(stripped[20]).toBe(0x00);
+		// RIFFサイズ(全体-8)が付け直される
+		const size = new DataView(stripped.buffer, stripped.byteOffset).getUint32(
+			4,
+			true,
+		);
+		expect(size).toBe(stripped.length - 8);
+	});
+
+	it("GIFのコメント・XMPを落とし、ループ指定と画像は残す", () => {
+		const ascii = (s: string): number[] =>
+			Array.from(s, (c) => c.charCodeAt(0));
+		const gif = new Uint8Array([
+			...ascii("GIF89a"),
+			0x01,
+			0x00,
+			0x01,
+			0x00,
+			0x70,
+			0x00,
+			0x00, // LSD(GCTなし)
+			0x21,
+			0xfe,
+			0x03,
+			...ascii("hi!"),
+			0x00, // コメント
+			0x21,
+			0xff,
+			0x0b,
+			...ascii("XMP DataXMP"),
+			0x04,
+			1,
+			2,
+			3,
+			4,
+			0x00,
+			0x21,
+			0xff,
+			0x0b,
+			...ascii("NETSCAPE2.0"),
+			0x03,
+			1,
+			0,
+			0,
+			0x00,
+			0x2c,
+			0,
+			0,
+			0,
+			0,
+			1,
+			0,
+			1,
+			0,
+			0,
+			0x02,
+			0x02,
+			0xaa,
+			0xbb,
+			0x00,
+			0x3b,
+		]);
+		const stripped = stripImageMetadata(gif);
+		expect(containsBytes(stripped, "hi!")).toBe(false);
+		expect(containsBytes(stripped, "XMP Data")).toBe(false);
+		expect(containsBytes(stripped, "NETSCAPE2.0")).toBe(true);
+		expect(stripped.at(-1)).toBe(0x3b);
+	});
+
+	it("壊れた入力は無加工で返す(さらに壊さない)", () => {
+		// 長さだけあって実体の無いAPP1
+		const truncated = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x64]);
+		expect(stripImageMetadata(truncated)).toEqual(truncated);
+		// PNGのチャンク長が実体を超える
+		const badPng = new Uint8Array([
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0x10, 0x00, 0x49,
+			0x48, 0x44, 0x52,
+		]);
+		expect(stripImageMetadata(badPng)).toEqual(badPng);
+		// 画像でない入力は触らない
+		const text = new TextEncoder().encode("<html>not an image</html>");
+		expect(stripImageMetadata(text)).toBe(text);
+	});
+});
+
+describe("readJpegOrientation", () => {
+	it("向きが無い・壊れた入力はnull", () => {
+		expect(
+			readJpegOrientation(new Uint8Array([0xff, 0xd8, 0xff, 0xd9])),
+		).toBeNull();
+		expect(readJpegOrientation(new Uint8Array([]))).toBeNull();
+		expect(
+			readJpegOrientation(new TextEncoder().encode("not a jpeg")),
+		).toBeNull();
 	});
 });

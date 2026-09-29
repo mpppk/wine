@@ -156,6 +156,427 @@ export function resolveStoredPhotoMime(
 	return sniffed;
 }
 
+// ---- 画像メタデータの除去 (#641) --------------------------------------------
+// アバターは無認証の公開配信なので、GPS等のEXIFをサーバ側で必ず落とす。
+// クライアント側の再エンコードだけに頼らない(直接APIを叩く経路がある)。
+//
+// 第一経路は IMAGES バインディングでの再エンコード(src/lib/images/sanitize.ts)で、
+// ここは「それが無い環境(dev等)のフォールバック」と「ワイン写真(非公開・原寸の
+// 画質を保ちたい)の除去」に使う**可逆な除去**。画像データ本体(JPEGのSOS以降・
+// PNGのIDAT等)には触らず、メタデータのセグメント/チャンクだけを落とす。構造が
+// 読めない入力は無加工で返す(壊れた画像をさらに壊さない)。
+//
+// JPEG の EXIF回転(Orientation)だけは例外で、2〜8なら向きだけを残した最小APP1に
+// 建て替える。向きまで落とすと縦向きの写真が横倒しで表示される(ブラウザはEXIFの
+// 向きを適用して描くため)。GPS・日時・端末情報は残らない。
+
+/** 複数のバイト列をつなげる。 */
+function concatBytes(parts: Uint8Array[]): Uint8Array {
+	let total = 0;
+	for (const p of parts) total += p.length;
+	const out = new Uint8Array(total);
+	let at = 0;
+	for (const p of parts) {
+		out.set(p, at);
+		at += p.length;
+	}
+	return out;
+}
+
+interface JpegSegment {
+	marker: number;
+	start: number;
+	end: number;
+}
+
+/** バイト列の数値読みに使う DataView。subarray のビューにも対応する。 */
+function viewOf(bytes: Uint8Array): DataView {
+	return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+
+/**
+ * SOI直後からSOS/EOI手前までのセグメント列を辿る。SOS/EOIに着いたら、そこから
+ * 末尾まで(エントロピーデータ・EOI)を無加工で残す起点と一緒に返す。壊れていたら
+ * null(呼び出し側は無加工で返す)。
+ */
+function walkJpegSegments(
+	bytes: Uint8Array,
+): { segments: JpegSegment[]; imageStart: number } | null {
+	if (bytes.length < 2) return null;
+	const view = viewOf(bytes);
+	if (view.getUint8(0) !== 0xff || view.getUint8(1) !== 0xd8) return null;
+	const segments: JpegSegment[] = [];
+	let pos = 2;
+	while (pos + 1 < bytes.length) {
+		if (view.getUint8(pos) !== 0xff) return null;
+		const marker = view.getUint8(pos + 1);
+		if (marker === 0xff) {
+			pos += 1; // フィルバイト
+			continue;
+		}
+		// SOS/EOI以降は画像データなので解釈せず丸ごと残す
+		if (marker === 0xd9 || marker === 0xda) {
+			return { segments, imageStart: pos };
+		}
+		// 長さを持たないマーカー(TEM / RSTn)
+		if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) {
+			segments.push({ marker, start: pos, end: pos + 2 });
+			pos += 2;
+			continue;
+		}
+		if (pos + 3 >= bytes.length) return null;
+		const segLen = view.getUint16(pos + 2);
+		if (segLen < 2 || pos + 2 + segLen > bytes.length) return null;
+		segments.push({ marker, start: pos, end: pos + 2 + segLen });
+		pos += 2 + segLen;
+	}
+	return null;
+}
+
+/**
+ * APP1のExifボディからOrientationタグ値(1〜8)を読む。ExifでないAPP1(XMP等)・
+ * Orientationが無い・壊れている場合は null。
+ */
+function readExifOrientationTag(body: Uint8Array): number | null {
+	if (body.length < 6) return null;
+	const head = viewOf(body);
+	if (
+		head.getUint8(0) !== 0x45 || // E
+		head.getUint8(1) !== 0x78 || // x
+		head.getUint8(2) !== 0x69 || // i
+		head.getUint8(3) !== 0x66 || // f
+		head.getUint8(4) !== 0x00 ||
+		head.getUint8(5) !== 0x00
+	) {
+		return null;
+	}
+	const tiff = body.subarray(6);
+	if (tiff.length < 8) return null;
+	const view = viewOf(tiff);
+	const le = view.getUint8(0) === 0x49 && view.getUint8(1) === 0x49;
+	const be = view.getUint8(0) === 0x4d && view.getUint8(1) === 0x4d;
+	if (!le && !be) return null;
+	const u16 = (at: number): number | undefined =>
+		at + 2 <= tiff.length ? view.getUint16(at, le) : undefined;
+	const u32 = (at: number): number | undefined =>
+		at + 4 <= tiff.length ? view.getUint32(at, le) : undefined;
+	if (u16(2) !== 42) return null;
+	const ifd0offset = u32(4);
+	if (ifd0offset === undefined) return null;
+	const ifd0 = ifd0offset;
+	if (ifd0 < 8 || ifd0 + 2 > tiff.length) return null;
+	const n = u16(ifd0);
+	if (n === undefined || n > 64) return null;
+	for (let i = 0; i < n; i++) {
+		const e = ifd0 + 2 + i * 12;
+		if (e + 12 > tiff.length) return null;
+		if (u16(e) !== 0x0112) continue;
+		if (u16(e + 2) !== 3) return null; // SHORT以外は想定外
+		if (u32(e + 4) !== 1) return null;
+		const value = u16(e + 8); // count×2バイトなのでインライン
+		if (value === undefined || value < 1 || value > 8) return null;
+		return value;
+	}
+	return null;
+}
+
+/**
+ * JPEG内の最初のExif APP1からOrientationタグ値(1〜8)を読む。無い・壊れている
+ * 場合は null。向きの保持(最小APP1への建て替え要否)の判定に使う。
+ */
+export function readJpegOrientation(bytes: Uint8Array): number | null {
+	const walked = walkJpegSegments(bytes);
+	if (!walked) return null;
+	for (const seg of walked.segments) {
+		if (seg.marker !== 0xe1) continue;
+		const value = readExifOrientationTag(
+			bytes.subarray(seg.start + 4, seg.end),
+		);
+		if (value !== null) return value;
+	}
+	return null;
+}
+
+/** 向きだけを残した最小のAPP1 Exif(TIFFは常にLEで建てる)。 */
+function buildMinimalExifApp1(orientation: number): Uint8Array {
+	const body = new Uint8Array([
+		0x45,
+		0x78,
+		0x69,
+		0x66,
+		0x00,
+		0x00, // "Exif\0\0"
+		0x49,
+		0x49,
+		0x2a,
+		0x00,
+		0x08,
+		0x00,
+		0x00,
+		0x00, // TIFF LE, 42, IFD0@8
+		0x01,
+		0x00, // 1 entry
+		0x12,
+		0x01,
+		0x03,
+		0x00,
+		0x01,
+		0x00,
+		0x00,
+		0x00, // tag 0x0112 SHORT×1
+		orientation & 0xff,
+		(orientation >> 8) & 0xff,
+		0x00,
+		0x00, // value inline
+		0x00,
+		0x00,
+		0x00,
+		0x00, // next IFD
+	]);
+	const len = body.length + 2;
+	return Uint8Array.from([0xff, 0xe1, (len >> 8) & 0xff, len & 0xff, ...body]);
+}
+
+function stripJpegMetadata(bytes: Uint8Array): Uint8Array {
+	const walked = walkJpegSegments(bytes);
+	if (!walked) return bytes;
+	const orientation = readJpegOrientation(bytes);
+	const parts: Uint8Array[] = [bytes.subarray(0, 2)];
+	let dropped = false;
+	for (const seg of walked.segments) {
+		const m = seg.marker;
+		// APP0(JFIF)・APP2(ICC等)・APP14(Adobe)は色の再現に要るので残す。
+		// APP1(Exif/XMP)・APP13(Photoshop/IPTC)・COM・その他のAPPnは落とす。
+		if (
+			m === 0xe1 ||
+			m === 0xed ||
+			m === 0xfe ||
+			(m >= 0xe0 && m <= 0xef && m !== 0xe0 && m !== 0xe2 && m !== 0xee)
+		) {
+			dropped = true;
+			continue;
+		}
+		parts.push(bytes.subarray(seg.start, seg.end));
+	}
+	if (!dropped) return bytes;
+	// 向きが1以外なら向きだけ残す(向きのAPP1は上で落とし済み)
+	if (orientation !== null && orientation !== 1) {
+		parts.push(buildMinimalExifApp1(orientation));
+	}
+	parts.push(bytes.subarray(walked.imageStart));
+	return concatBytes(parts);
+}
+
+function stripPngMetadata(bytes: Uint8Array): Uint8Array {
+	const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+	if (bytes.length < 8) return bytes;
+	const head = viewOf(bytes);
+	for (let i = 0; i < 8; i++) {
+		if (head.getUint8(i) !== sig[i]) return bytes;
+	}
+	// 落とすのは所在・作者・撮影日時の入るチャンクだけ。本文(IDAT等)・透過(tRNS)・
+	// 色(sRGB/gAMA/cHRM/iCCP)・アニメ(acTL/fcTL/fdAT)は残す。
+	const DROP = new Set(["tEXt", "zTXt", "iTXt", "eXIf", "tIME"]);
+	const parts: Uint8Array[] = [bytes.subarray(0, 8)];
+	let pos = 8;
+	let dropped = false;
+	let seenIend = false;
+	while (pos + 8 <= bytes.length) {
+		const len = head.getUint32(pos);
+		const type = String.fromCharCode(
+			head.getUint8(pos + 4),
+			head.getUint8(pos + 5),
+			head.getUint8(pos + 6),
+			head.getUint8(pos + 7),
+		);
+		if (pos + 12 + len > bytes.length) return bytes;
+		if (DROP.has(type)) {
+			dropped = true;
+		} else {
+			parts.push(bytes.subarray(pos, pos + 12 + len));
+		}
+		pos += 12 + len;
+		if (type === "IEND") {
+			seenIend = true;
+			break;
+		}
+	}
+	// IENDまで辿り着かない・IENDの後にゴミがある入力は触らない
+	if (!seenIend || pos !== bytes.length) return bytes;
+	if (!dropped) return bytes;
+	return concatBytes(parts);
+}
+
+function stripWebpMetadata(bytes: Uint8Array): Uint8Array {
+	if (bytes.length < 12) return bytes;
+	const head = viewOf(bytes);
+	if (
+		head.getUint8(0) !== 0x52 || // R
+		head.getUint8(1) !== 0x49 || // I
+		head.getUint8(2) !== 0x46 || // F
+		head.getUint8(3) !== 0x46 || // F
+		head.getUint8(8) !== 0x57 || // W
+		head.getUint8(9) !== 0x45 || // E
+		head.getUint8(10) !== 0x42 || // B
+		head.getUint8(11) !== 0x50 // P
+	) {
+		return bytes;
+	}
+	const header = bytes.slice(0, 12);
+	const parts: Uint8Array[] = [header];
+	const view = viewOf(bytes);
+	let pos = 12;
+	let droppedExif = false;
+	let droppedXmp = false;
+	let vp8x: Uint8Array | null = null;
+	while (pos + 8 <= bytes.length) {
+		const fourcc = String.fromCharCode(
+			view.getUint8(pos),
+			view.getUint8(pos + 1),
+			view.getUint8(pos + 2),
+			view.getUint8(pos + 3),
+		);
+		const size = view.getUint32(pos + 4, true);
+		const end = pos + 8 + size + (size % 2);
+		if (end > bytes.length) return bytes;
+		if (fourcc === "EXIF") {
+			droppedExif = true;
+		} else if (fourcc === "XMP ") {
+			droppedXmp = true;
+		} else if (fourcc === "VP8X") {
+			// フラグ(VP8Xペイロード先頭)を後で直すためコピーして保持する
+			vp8x = bytes.slice(pos, end);
+			parts.push(vp8x);
+		} else {
+			parts.push(bytes.subarray(pos, end));
+		}
+		pos = end;
+	}
+	if (pos !== bytes.length) return bytes;
+	if (!droppedExif && !droppedXmp) return bytes;
+	// 削ったチャンクの存在ビット(VP8XのEXIF=0x08・XMP=0x04)を落とす
+	if (vp8x && vp8x.length >= 9) {
+		let flags = viewOf(vp8x).getUint8(8);
+		if (droppedExif) flags &= ~0x08;
+		if (droppedXmp) flags &= ~0x04;
+		vp8x[8] = flags;
+	}
+	const out = concatBytes(parts);
+	// RIFFサイズ(全体-8)を付け直す
+	viewOf(out).setUint32(4, out.length - 8, true);
+	return out;
+}
+
+/** GIFのサブブロック列(サイズ+データの繰り返し・0x00終端)の末尾。壊れていたら-1。 */
+function skipGifSubBlocks(view: DataView, length: number, pos: number): number {
+	let p = pos;
+	for (;;) {
+		if (p >= length) return -1;
+		const n = view.getUint8(p);
+		p += 1;
+		if (n === 0) return p;
+		p += n;
+		if (p > length) return -1;
+	}
+}
+
+/** GIFのApplication ExtensionがNETSCAPE2.0(アニメのループ指定)か。 */
+function isNetscapeAppExt(
+	view: DataView,
+	dataStart: number,
+	blockEnd: number,
+): boolean {
+	if (dataStart + 12 > blockEnd) return false;
+	if (view.getUint8(dataStart) !== 0x0b) return false;
+	const id = "NETSCAPE2.0";
+	for (let i = 0; i < 11; i++) {
+		if (view.getUint8(dataStart + 1 + i) !== id.charCodeAt(i)) return false;
+	}
+	return true;
+}
+
+function stripGifMetadata(bytes: Uint8Array): Uint8Array {
+	if (bytes.length < 13) return bytes;
+	const view = viewOf(bytes);
+	if (
+		view.getUint8(0) !== 0x47 ||
+		view.getUint8(1) !== 0x49 ||
+		view.getUint8(2) !== 0x46
+	) {
+		return bytes;
+	}
+	let pos = 6 + 7;
+	const packedLsd = view.getUint8(10);
+	if (packedLsd & 0x80) {
+		pos += 3 * (1 << ((packedLsd & 0x07) + 1));
+	}
+	if (pos > bytes.length) return bytes;
+	const parts: Uint8Array[] = [bytes.subarray(0, pos)];
+	let dropped = false;
+	while (pos < bytes.length) {
+		const sep = view.getUint8(pos);
+		if (sep === 0x3b) {
+			parts.push(bytes.subarray(pos, pos + 1));
+			pos += 1;
+			break;
+		}
+		if (sep === 0x21) {
+			if (pos + 2 > bytes.length) return bytes;
+			const label = view.getUint8(pos + 1);
+			const blockEnd = skipGifSubBlocks(view, bytes.length, pos + 2);
+			if (blockEnd < 0) return bytes;
+			// コメント拡張は落とす。アプリケーション拡張はXMP(`XMP DataXMP`等)を
+			// 落としつつ、アニメのループ指定(NETSCAPE2.0)だけ残す。
+			if (label === 0xfe) {
+				dropped = true;
+			} else if (label === 0xff && !isNetscapeAppExt(view, pos + 2, blockEnd)) {
+				dropped = true;
+			} else {
+				parts.push(bytes.subarray(pos, blockEnd));
+			}
+			pos = blockEnd;
+			continue;
+		}
+		if (sep === 0x2c) {
+			if (pos + 10 > bytes.length) return bytes;
+			let p = pos + 10;
+			const packedImg = view.getUint8(pos + 9);
+			if (packedImg & 0x80) p += 3 * (1 << ((packedImg & 0x07) + 1));
+			if (p >= bytes.length) return bytes;
+			p += 1; // LZW最小コードサイズ
+			const end = skipGifSubBlocks(view, bytes.length, p);
+			if (end < 0) return bytes;
+			parts.push(bytes.subarray(pos, end));
+			pos = end;
+			continue;
+		}
+		return bytes;
+	}
+	if (pos !== bytes.length) return bytes;
+	if (!dropped) return bytes;
+	return concatBytes(parts);
+}
+
+/**
+ * 画像バイト列からメタデータ(GPS等のEXIF・XMP・コメント等)を取り除く。
+ * 画像データ本体には触らない可逆な除去で、形式も変わらない。
+ * 構造が読めない入力は無加工で返す(呼び出し側のMIME検証は別途行う)。
+ */
+export function stripImageMetadata(bytes: Uint8Array): Uint8Array {
+	switch (sniffImageMime(bytes)) {
+		case "image/jpeg":
+			return stripJpegMetadata(bytes);
+		case "image/png":
+			return stripPngMetadata(bytes);
+		case "image/webp":
+			return stripWebpMetadata(bytes);
+		case "image/gif":
+			return stripGifMetadata(bytes);
+		default:
+			return bytes;
+	}
+}
+
 /**
  * base64文字列をバイト列にデコードする。MIME不正・base64不正・デコード後5MB超は
  * いずれもクライアント入力起因なので BadRequestError を投げる(#250)。素の Error だと

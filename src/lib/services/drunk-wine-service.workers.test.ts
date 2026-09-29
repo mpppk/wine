@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { and, desc, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parseExifFromBytes } from "#/components/cellar/photo-exif";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { drunkWine, wineEncounter } from "#/db/schema";
@@ -1253,6 +1254,37 @@ describe("写真サムネイルの保存と削除", () => {
 		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
 		expect(await objectExists(photoKey)).toBe(true);
 		expect(await objectExists(thumbKeyForPhotoKey(photoKey))).toBe(false);
+	});
+});
+
+// 写真のEXIF除去(#641)。MCPの photo_base64 経路を含む全経路が
+// syncDrunkWinePhotos を通るため、ここで落とせば方針が揃う。
+describe("写真のEXIF除去", () => {
+	// GPS付きJPEG(Orientation=6)。SOI→APP0→APP1(Exif)→SOS→EOIの最小構成。
+	const GPS_JPEG = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQAAAQABAAD/4QDGRXhpZgAASUkqAAgAAAADABIBAwABAAAABgAAAGmHBAABAAAAMgAAACWIBAABAAAAWAAAAAAAAAABAAOQAgAUAAAARAAAAAAAAAAyMDI0OjA1OjA2IDEyOjM0OjU2AAQAAQACAAIAAABOAAAAAgAFAAMAAACOAAAAAwACAAIAAABFAAAABAAFAAMAAACmAAAAAAAAACMAAAABAAAAJwAAAAEAAAAeAAAAAQAAAIsAAAABAAAAKQAAAAEAAAAeAAAAAQAAAP/aAAYBAQAAPwCqu//Z",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	it("新規写真のGPS・撮影日時は保存時に除去される", async () => {
+		// 前提: 入力は実際にGPSを持つ
+		expect(parseExifFromBytes(GPS_JPEG).gps).not.toBeNull();
+
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "EXIF除去" });
+		const saved = await syncDrunkWinePhotos(userId, entry.id, [
+			{ kind: "new", bytes: GPS_JPEG, mimeType: "image/jpeg" },
+		]);
+		const photoKey = imageKeyFromPath(saved.photoUrls[0] as string);
+		const object = await env.AVATARS.get(photoKey);
+		if (object === null) throw new Error("expected stored photo");
+		const stored = new Uint8Array(await object.arrayBuffer());
+		expect(parseExifFromBytes(stored)).toEqual({
+			takenOn: null,
+			gps: null,
+		});
 	});
 });
 
