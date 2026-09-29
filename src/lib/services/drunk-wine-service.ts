@@ -44,14 +44,9 @@ import {
 	updateWineEncounterInput,
 } from "#/lib/place/schema";
 import { prepareNewPlace } from "#/lib/services/place-service";
+import { assertValidRefs, resolveAopIdOrThrow } from "#/lib/wine/assert";
 import { countryForRegion, getCountry } from "#/lib/wine/countries";
-import {
-	getAop,
-	getRegion,
-	getVariety,
-	legacyAopIdsFor,
-	resolveAopId,
-} from "#/lib/wine/service";
+import { getAop, getRegion, legacyAopIdsFor } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
 // マイセラーのサービス層。Webのserver fnとMCPツールの共通入口で、
@@ -486,27 +481,9 @@ async function assertOwnsDrunkWine(
 	if (!row) throw new NotFoundError("Entry not found");
 }
 
-export function assertValidRefs(input: {
-	aopId?: string | null;
-	regionId?: string | null;
-	countryId?: string | null;
-	grapeVarietyIds?: string[];
-}) {
-	if (input.aopId && !getAop(input.aopId)) {
-		throw new BadRequestError(`Unknown AOP: ${input.aopId}`);
-	}
-	if (input.regionId && !getRegion(input.regionId)) {
-		throw new BadRequestError(`Unknown region: ${input.regionId}`);
-	}
-	if (input.countryId && !getCountry(input.countryId)) {
-		throw new BadRequestError(`Unknown country: ${input.countryId}`);
-	}
-	for (const id of input.grapeVarietyIds ?? []) {
-		if (!getVariety(id)) {
-			throw new BadRequestError(`Unknown grape variety: ${id}`);
-		}
-	}
-}
+// 静的マスタ参照の存在検証は `#/lib/wine/assert` が単一情報源(#548)。
+// import-batch-service(#406分離)がここ経由で参照するため再エクスポートする。
+export { assertValidRefs } from "#/lib/wine/assert";
 
 /**
  * 産地紐付けの排他(「最も細かい1つだけを保存する」)の正規化。
@@ -527,9 +504,11 @@ export function provenanceInsertValues(input: {
 	countryId: string | null;
 } {
 	if (input.aopId) {
-		// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)
+		// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)。
+		// 解決できないIDは400にする。`?? input.aopId` の生値フォールバックは
+		// 不正なIDほど素通しさせるため廃止した(#548)。
 		return {
-			aopId: resolveAopId(input.aopId) ?? input.aopId,
+			aopId: resolveAopIdOrThrow(input.aopId),
 			regionId: null,
 			countryId: null,
 		};
@@ -559,7 +538,7 @@ function provenanceUpdateValues(patch: {
 } {
 	if (typeof patch.aopId === "string") {
 		return {
-			aopId: resolveAopId(patch.aopId) ?? patch.aopId,
+			aopId: resolveAopIdOrThrow(patch.aopId),
 			regionId: null,
 			countryId: null,
 		};
