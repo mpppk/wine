@@ -8,7 +8,7 @@ import {
 import { Button } from "#/components/ui/button";
 import { formatDateTimeJst } from "#/lib/date/display";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
-import type { ImportBatchDetail } from "#/lib/services/drunk-wine-service";
+import type { ImportBatchDetail } from "#/lib/services/import-batch-service";
 
 // 一括登録バッチ1件の詳細(履歴の行からの遷移先)。**読み取り専用**——
 // 分析完了後の一覧(レビューカード)と同等の項目を、保存済みの値から出す。

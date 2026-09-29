@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ImportBatchDetail } from "#/lib/services/drunk-wine-service";
+import type { ImportBatchDetail } from "#/lib/services/import-batch-service";
 
 // ルーターは Cloudflare 依存を引き込むため、共有スタブに差し替える
 // (router-test-stub。定型を直接書くと jscpd の重複検出で落ちる)。

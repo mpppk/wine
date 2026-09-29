@@ -25,7 +25,7 @@ import {
 	TooManyRequestsError,
 } from "#/lib/errors";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
-import { bulkRegisterFromScan } from "#/lib/services/drunk-wine-service";
+import { bulkRegisterFromScan } from "#/lib/services/import-batch-service";
 import { createPlace, listPlaces } from "#/lib/services/place-service";
 import {
 	adoptLabelJobPhotosToBatch,
