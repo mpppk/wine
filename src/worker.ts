@@ -4,6 +4,7 @@ import {
 	defaultStreamHandler,
 } from "@tanstack/react-start/server";
 import { labelJobMessageSchema } from "#/lib/ai/label-job";
+import { enforceBodyLimit } from "#/lib/http/body-limit";
 import { logError, logInfo } from "#/lib/logger";
 import { resolveServerEnvironment } from "#/lib/observability/sentry-envelope";
 import { withSpan } from "#/lib/observability/span";
@@ -30,8 +31,18 @@ const startFetch = createStartHandler(defaultStreamHandler);
 // workerd の `(request, env, ctx)` と型が噛み合わない。`withSentry`(後述)がハンドラに
 // `ExportedHandler` の型を要求するため、ここで一度だけ workerd のシグネチャに合わせる。
 // 実行時の挙動は変わらない(env / ctx は使われない)。
-const fetch: ExportedHandlerFetchHandler<Cloudflare.Env> = (request) =>
-	startFetch(request);
+//
+// リクエスト本文のバイト上限はこの1箇所で掛ける(Issue #639)。フォーム系以外の
+// 入口(`/api/mcp`・`/api/auth/*`・server fn)は本文を全量メモリに載せてから検証
+// するため、`Transfer-Encoding: chunked` の大きな本文の並行送信で isolate の
+// メモリを圧迫できた。`enforceBodyLimit` が Content-Length の早期拒否 +
+// ストリームの打ち切りを行い、超過ならボディを読まずに 413 を返す。
+// フォーム系ルートは独自の上限(`readImageFormData`)を持つため対象外。
+const fetch: ExportedHandlerFetchHandler<Cloudflare.Env> = async (request) => {
+	const limited = await enforceBodyLimit(request);
+	if (limited instanceof Response) return limited;
+	return startFetch(limited);
+};
 
 // サーバ側の予期しない例外を Sentry に自動送信する(Issue #486)。
 // `withSentry` は fetch / scheduled / queue / email / tail を自動計装し、ハンドラが
