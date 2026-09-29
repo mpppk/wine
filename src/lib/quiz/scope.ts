@@ -2,7 +2,7 @@ import { getAop, listAops } from "#/lib/wine/service";
 import type { Aop, RegionId } from "#/lib/wine/types";
 import { candidateCountsByAopId, listCandidates } from "./generators";
 import { parseKey } from "./keys";
-import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
+import { OUT_OF_SCOPE_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
 
 // 地図の「選択中AOPに関連するクイズ」の出題スコープ。階層エッジを子方向にのみ辿る:
 // 自身 + 配下の畑/ワイナリー + そこに内包される個別クリマ。
@@ -19,10 +19,14 @@ import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
 // 無ければ自身のみ(地域全体クイズとの重複を避ける)。
 //
 // 例外は「自身が主語の候補問題を1問も持たない畑」。色・品種・地区が上位AOPと同一の
-// 畑は設問が上位側の1問に集約される(aop-pool.ts)ため、シャンベルタンやロマネ・コンティの
-// ように固有の設問が1つも残らないことがある。この場合だけ上位方向へ辿り、集約先
-// (ジュヴレ・シャンベルタン等)の設問を借りる。設問キーは集約先のものなので、同じ村の
-// 畑同士・村自身とクイズと進捗をそのまま共有する。
+// 畑は設問が上位側の1問に集約される(aop-pool.ts)ため、固有の設問が1つも残らないことが
+// ある。この場合だけ上位方向へ辿り、集約先の設問を借りる(借りないと詳細パネルから
+// クイズボタンが消える)。設問キーは集約先のものなので、同じ村の畑同士・村自身と
+// クイズと進捗をそのまま共有する。
+// なお #485 でグラン・クリュ形式を関連クイズに含めたため、ブルゴーニュの特級畑は
+// 固有の特級形式(grand-cru-select:{畑})を持ち、この例外には該当しなくなった
+// (シャンベルタンやロマネ・コンティも自身のみのスコープになる)。借用が残るのは
+// 固有の設問が0問のAOP(シャブリ・グラン・クリュのような傘AOC等)のみ。
 //
 // 借りる条件を「固有の設問が0問」に限るのは、リストの各行の進捗(AOP単位の solved/total を
 // スコープ集合で合算)とパネルの問題数を一致させ続けるため。固有の設問を持つ畑まで上位の
@@ -72,7 +76,7 @@ function countOwnQuestions(aop: Aop): number {
 /**
  * 設問を借りる先の上位AOP。自身に固有の設問が無いときだけ、設問を持つ上位AOPに
  * 行き当たるまで階層エッジを上へ辿る。傘AOC自身も上位へ集約されていることがある
- * (シャブリ・グラン・クリュのクリマ → 傘AOC → シャブリ)ため、1ホップでは足りない。
+ * ため、1ホップでは足りない(例: 固有の設問が0問のシャブリ・グラン・クリュ → シャブリ)。
  */
 function listShareableUmbrellaAopIds(aop: Aop): string[] {
 	if (countOwnQuestions(aop) > 0) return [];
@@ -115,11 +119,12 @@ export function listScopedCandidates(
 	return listCandidates(regionId, quizTypes).filter((key) => {
 		const parsed = parseKey(key);
 		if (parsed === null || !subjects.has(parsed.aopId)) return false;
-		// 「その地域に関連するクイズ」= 設問文の主語がスコープ内AOPの形式だけ。
+		// 「その地域に関連するクイズ」= 設問文の主語がスコープ内AOPの形式 +
+		// グラン・クリュ形式(正解AOP自身の特級性を問うため関連とみなす #485)。
 		// AOPが4択の正解にすぎない形式(odd-one-out / variety / location)は、
 		// たまたま正解が近傍AOPになるだけで設問はそのAOPに関する問いではないため除外。
 		// (これにより、選択AOPやその親子が正解になる自明問題も自動的に消える)
-		return !AOP_ANSWER_QUIZ_TYPES.has(parsed.quizType);
+		return !OUT_OF_SCOPE_QUIZ_TYPES.has(parsed.quizType);
 	});
 }
 

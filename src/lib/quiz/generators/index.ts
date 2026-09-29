@@ -3,7 +3,7 @@ import type { RegionId } from "#/lib/wine/types";
 import { parseKey } from "../keys";
 import type { Rng } from "../rng";
 import {
-	AOP_ANSWER_QUIZ_TYPES,
+	OUT_OF_SCOPE_QUIZ_TYPES,
 	QUIZ_TYPE_IDS,
 	type QuizQuestion,
 	type QuizType,
@@ -81,11 +81,12 @@ export function candidateCountsByType(
 	) as Record<QuizType, number>;
 }
 
-// 進捗の分母に数える形式 = 「設問の主語がそのAOP」の形式のみ。AOPが4択の正解に
-// すぎない回答側形式(odd-one-out/variety/location)は、そのAOP自身について問う設問
-// ではないため進捗(そのAOPをどれだけ学んだか)の母数から除外する。
+// 進捗の分母に数える形式 = 関連クイズ(地図の選択AOPスコープ)に出す形式。
+// 主語形式(colors等)に加え、グラン・クリュ形式(正解AOP自身の特級性を問う)を含む(#485)。
+// たまたま正解が近傍AOPになるだけの回答側形式(odd-one-out/variety/location)は、
+// そのAOP自身について問う設問ではないため進捗(そのAOPをどれだけ学んだか)の母数から除外する。
 const SUBJECT_QUIZ_TYPES: QuizType[] = QUIZ_TYPE_IDS.filter(
-	(t) => !AOP_ANSWER_QUIZ_TYPES.has(t),
+	(t) => !OUT_OF_SCOPE_QUIZ_TYPES.has(t),
 );
 
 /**

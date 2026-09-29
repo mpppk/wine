@@ -7,7 +7,12 @@ import {
 	expandScopeAopIds,
 	listScopedCandidates,
 } from "./scope";
-import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
+import {
+	AOP_ANSWER_QUIZ_TYPES,
+	OUT_OF_SCOPE_QUIZ_TYPES,
+	QUIZ_TYPE_IDS,
+	type QuizType,
+} from "./types";
 
 const ALL_TYPES: QuizType[] = [...QUIZ_TYPE_IDS];
 
@@ -42,22 +47,37 @@ describe("expandScopeAopIds", () => {
 	});
 
 	// 色・品種・地区が村と同一の独立AOC(シャンベルタン群・ヴォーヌのGC等)は設問が
-	// 村側の1問に集約され、固有の設問が1つも残らない。この場合だけ上位方向へ辿り、
-	// 集約先の設問を借りる(借りないと詳細パネルからクイズボタンが消える)。
-	it("集約されて固有の設問が0問になった畑は、集約先の村を含む", () => {
-		expect(expandScopeAopIds("chambertin")).toEqual(
-			new Set(["chambertin", "gevrey-chambertin"]),
-		);
+	// 村側の1問に集約され、#485以前は固有の設問が1つも残らず集約先の設問を借りていた。
+	// #485でグラン・クリュ形式を関連クイズに含めたため、各畑が固有の1問
+	// (grand-cru-select:{畑})を持ち、借りる必要がなくなった。借用機構自体は
+	// 固有の設問が0問のAOP(シャブリ・グラン・クリュのような傘AOC)のために残る。
+	it("特級形式を持つ畑は自身のみで親の村名AOCを含まない(#485)", () => {
+		expect(expandScopeAopIds("chambertin")).toEqual(new Set(["chambertin"]));
 		expect(expandScopeAopIds("romanee-conti")).toEqual(
-			new Set(["romanee-conti", "vosne-romanee"]),
+			new Set(["romanee-conti"]),
 		);
 	});
 
-	it("集約先自身も集約されている場合は、設問を持つAOPまで辿る", () => {
-		// シャブリのクリマ → 傘AOC(シャブリ・グラン・クリュ) → シャブリ。
-		// 傘AOC自身もシャブリと同一内容で集約されるため、1ホップでは0問のまま。
+	it("固有の設問が0問の傘AOCは、設問を持つAOPまで辿る", () => {
+		// シャブリ・グラン・クリュは色・品種・地区のいずれも固有の設問を持たず
+		// (シャブリと同一内容で集約される)、特級形式の主語にもならないため0問のまま。
+		// この場合だけ上位方向へ辿り、集約先のシャブリの設問を借りる。
+		// なお個別クリマ(les-clos等)は #485 以降は固有の特級形式を持つため借りない。
+		expect(expandScopeAopIds("chablis-grand-cru")).toEqual(
+			new Set([
+				"chablis-grand-cru",
+				"chablis-gc-les-clos",
+				"chablis-gc-vaudesir",
+				"chablis-gc-valmur",
+				"chablis-gc-grenouilles",
+				"chablis-gc-blanchot",
+				"chablis-gc-bougros",
+				"chablis-gc-preuses",
+				"chablis",
+			]),
+		);
 		expect(expandScopeAopIds("chablis-gc-les-clos")).toEqual(
-			new Set(["chablis-gc-les-clos", "chablis-grand-cru", "chablis"]),
+			new Set(["chablis-gc-les-clos"]),
 		);
 	});
 
@@ -148,8 +168,9 @@ describe("listScopedCandidates", () => {
 		expect(scoped).toContain("colors:gevrey-chambertin");
 	});
 
-	it("設問文の主語がAOPの形式(colors等)だけを残し、AOPが答えの形式は全除外する", () => {
-		// 「その地域に関連するクイズ」= 問題文そのものがスコープ内AOPに関する設問。
+	it("設問文の主語がAOPの形式 + 特級形式だけを残し、たまたま正解になる形式は全除外する", () => {
+		// 「その地域に関連するクイズ」= 問題文そのものがスコープ内AOPに関する設問 +
+		// グラン・クリュ形式(正解AOP自身の特級性を問うため関連とみなす #485)。
 		// 正解がたまたま近傍AOPになるだけの形式(odd-one-out/variety/location)は、
 		// 対象自身でも配下の畑でも一律に除外する。
 		const scoped = listScopedCandidates(
@@ -161,8 +182,8 @@ describe("listScopedCandidates", () => {
 		for (const key of scoped!) {
 			const parsed = parseKey(key);
 			expect(parsed).not.toBeNull();
-			// 残っているのは answerIsAop=false の形式のみ
-			expect(AOP_ANSWER_QUIZ_TYPES.has(parsed!.quizType), key).toBe(false);
+			// 残っているのはスコープ内形式のみ
+			expect(OUT_OF_SCOPE_QUIZ_TYPES.has(parsed!.quizType), key).toBe(false);
 		}
 		// 設問文の主語がAOPの各形式が残っている。配下9クリュは色・品種・地区が村と
 		// 同一で村側の1問に集約されるため、主語は村になる。
@@ -171,6 +192,9 @@ describe("listScopedCandidates", () => {
 		expect(scoped).toContain("colors:gevrey-chambertin");
 		expect(scoped).toContain("aop-variety:gevrey-chambertin");
 		expect(scoped).toContain("aop-subregion:gevrey-chambertin");
+		// 特級形式も残る(#485): 村自身の仲間外れ + 配下9クリュぶんの特級選択
+		expect(scoped).toContain("grand-cru-odd:gevrey-chambertin");
+		expect(scoped).toContain("grand-cru-select:chambertin");
 		expect(scoped).not.toContain("aop-classification:chambertin");
 		// フィルタ前は対象/配下が正解の AOP-answer キーが実在することを確認(回帰防止)
 		const unfiltered = listCandidates("bourgogne", ALL_TYPES).filter((key) => {
@@ -193,14 +217,15 @@ describe("listScopedCandidates", () => {
 		expect(scoped).toContain("aop-classification:chateau-la-lagune");
 	});
 
-	it("配下を持たない村は自身の主語形式のみ(AOPが答えの形式は残らない)", () => {
+	it("配下を持たない村は自身の主語形式のみ(たまたま正解になる形式は残らない)", () => {
 		// アンボネイ(champagne / montagne-de-reims の村)は配下を持たないのでスコープは自身のみ。
+		// グラン・クリュ形式はブルゴーニュのみの出題なのでここには現れない。
 		const scoped = listScopedCandidates("champagne", ALL_TYPES, "ambonnay");
 		expect(scoped).not.toBeNull();
 		expect(scoped).toContain("colors:ambonnay");
 		for (const key of scoped!) {
 			const parsed = parseKey(key);
-			expect(AOP_ANSWER_QUIZ_TYPES.has(parsed!.quizType), key).toBe(false);
+			expect(OUT_OF_SCOPE_QUIZ_TYPES.has(parsed!.quizType), key).toBe(false);
 		}
 	});
 
@@ -224,10 +249,11 @@ describe("listScopedCandidates", () => {
 		expect(climatKeys.length).toBeGreaterThan(0);
 	});
 
-	it("上位AOPと同一内容になる畑の設問は上位側の1問に集約される", () => {
+	it("上位AOPと同一内容になる畑の主語形式は上位側の1問に集約される", () => {
 		// シャブリ・グラン・クリュの7クリマは色・品種・地区が全て親と同じで、
 		// クリマごとに出すと名前だけ違う同一内容のクイズが7回並ぶ。
-		// クリマ主語のキーは列挙されず、集約先(シャブリ)の設問だけがスコープに残る。
+		// クリマ主語の主語形式キーは列挙されず、集約先(シャブリ)の設問だけが残る。
+		// ただし特級形式は各クリマ固有の1問として残る(#485)。
 		const scoped = listScopedCandidates(
 			"bourgogne",
 			ALL_TYPES,
@@ -236,31 +262,51 @@ describe("listScopedCandidates", () => {
 		expect(scoped).not.toBeNull();
 		expect(scoped).toContain("colors:chablis");
 		expect(
-			scoped!.filter((key) => parseKey(key)?.aopId.startsWith("chablis-gc-")),
+			scoped!.filter(
+				(key) =>
+					parseKey(key)?.aopId.startsWith("chablis-gc-") &&
+					!key.startsWith("grand-cru-select:"),
+			),
 		).toEqual([]);
 		expect(scoped).not.toContain("colors:chablis-grand-cru");
+		// 各クリマの特級選択は固有の設問として残る
+		expect(scoped).toContain("grand-cru-select:chablis-gc-les-clos");
 	});
 
 	// #373 が parentAopId しか見ておらず、法的な親AOCを持たない独立AOCのGCが
 	// 素通りしていた。ジュヴレの9クリュは30問出て実質3種類の事実の反復だった。
-	it("独立AOCのグラン・クリュも村側の1問に集約される(#436)", () => {
+	// #437で村側の3問に集約し、#485で各クリュ固有の特級形式1問を加えた。
+	it("独立AOCのグラン・クリュも村側の1問に集約される(#436)。村スコープには各クリュの特級形式が入る(#485)", () => {
 		const scoped = listScopedCandidates(
 			"bourgogne",
 			ALL_TYPES,
 			"gevrey-chambertin",
 		);
 		expect(scoped).not.toBeNull();
-		// 村自身の色・品種・地区の3問だけになる(9クリュぶんの反復が消える)
-		expect([...scoped!].sort()).toEqual([
-			"aop-subregion:gevrey-chambertin",
-			"aop-variety:gevrey-chambertin",
-			"colors:gevrey-chambertin",
-		]);
+		// 村自身の色・品種・地区3問 + 村の仲間外れ1問 + 9クリュぶんの特級選択9問
+		expect([...scoped!].sort()).toEqual(
+			[
+				"aop-subregion:gevrey-chambertin",
+				"aop-variety:gevrey-chambertin",
+				"colors:gevrey-chambertin",
+				"grand-cru-odd:gevrey-chambertin",
+				"grand-cru-select:chambertin",
+				"grand-cru-select:chambertin-clos-de-beze",
+				"grand-cru-select:chapelle-chambertin",
+				"grand-cru-select:charmes-chambertin",
+				"grand-cru-select:griotte-chambertin",
+				"grand-cru-select:latricieres-chambertin",
+				"grand-cru-select:mazis-chambertin",
+				"grand-cru-select:mazoyeres-chambertin",
+				"grand-cru-select:ruchottes-chambertin",
+			].sort(),
+		);
 	});
 
-	it("集約された畑のスコープでは集約先の設問を共有する(#436)", () => {
-		// 固有の設問が0問になった畑は集約先の設問を借りる。設問キーが集約先のものなので
-		// 同じ村の畑同士・村自身と進捗もそのまま共有される。
+	it("特級形式を持つ畑のスコープは自身の特級形式のみで、兄弟間で共有されない(#485)", () => {
+		// #436以前は固有の設問が0問で集約先の村の3問を借りていたため、
+		// 同じ村の畑同士・村自身が全く同じ候補集合になっていた。
+		// #485で各畑が固有の特級形式を持つため借用は起きず、候補は畑ごとに変わる。
 		const chambertin = listScopedCandidates(
 			"bourgogne",
 			ALL_TYPES,
@@ -271,37 +317,70 @@ describe("listScopedCandidates", () => {
 			ALL_TYPES,
 			"charmes-chambertin",
 		);
-		expect([...chambertin!].sort()).toEqual([
-			"aop-subregion:gevrey-chambertin",
-			"aop-variety:gevrey-chambertin",
-			"colors:gevrey-chambertin",
+		expect([...chambertin!].sort()).toEqual(["grand-cru-select:chambertin"]);
+		expect([...charmes!].sort()).toEqual([
+			"grand-cru-select:charmes-chambertin",
 		]);
-		expect([...charmes!].sort()).toEqual([...chambertin!].sort());
+	});
+
+	it("ヴォーヌ=ロマネの各グラン・クリュは固有の特級形式を持ち、毎回同じ村の3問にはならない(#485)", () => {
+		// 回帰テスト: 7つのGCは村と事実が完全一致するため主語形式が0問だった。
+		// 各GCのスコープが村の3キーに潰れていると、どの畑を開いても同じ問題が出る。
+		const village = listScopedCandidates(
+			"bourgogne",
+			ALL_TYPES,
+			"vosne-romanee",
+		);
+		expect(village).not.toBeNull();
+		// 村スコープは村の3問 + 村の仲間外れ + 8GCぶんの特級選択
+		expect(village!.length).toBe(12);
+		for (const gc of [
+			"echezeaux",
+			"grands-echezeaux",
+			"la-grande-rue",
+			"la-romanee",
+			"la-tache",
+			"richebourg",
+			"romanee-conti",
+			"romanee-saint-vivant",
+		]) {
+			const scoped = listScopedCandidates("bourgogne", ALL_TYPES, gc);
+			expect(scoped, gc).not.toBeNull();
+			// 各GCは自身の特級選択1問のみ。村のキー(colors:vosne-romanee等)は含まない
+			expect([...scoped!].sort(), gc).toEqual([`grand-cru-select:${gc}`]);
+		}
 	});
 
 	it("複数村にまたがる畑は、値が全村と一致する形式だけ集約される(#436)", () => {
 		// ボンヌ・マールはシャンボール・ミュジニー(赤のみ)とモレ・サン・ドニ(赤・白)に
 		// またがる。地区は両村ともコート・ド・ニュイなので集約するが、色・品種はモレと
 		// 違うため残す(集約するとモレのスコープからこの事実が消える)。
+		// 特級形式は畑固有の1問として残る(#485)。
 		const scoped = listScopedCandidates("bourgogne", ALL_TYPES, "bonnes-mares");
-		expect([...scoped!].sort()).toEqual([
-			"aop-variety:bonnes-mares",
-			"colors:bonnes-mares",
-		]);
+		expect([...scoped!].sort()).toEqual(
+			[
+				"aop-variety:bonnes-mares",
+				"colors:bonnes-mares",
+				"grand-cru-select:bonnes-mares",
+			].sort(),
+		);
 	});
 });
 
-describe("AOP_ANSWER_QUIZ_TYPES", () => {
-	it("設問文の主語がAOPの形式は含まず、AOPが正解になる形式を含む", () => {
-		// 主語がAOP(=関連クイズに出す形式)
-		expect(AOP_ANSWER_QUIZ_TYPES.has("colors")).toBe(false);
-		expect(AOP_ANSWER_QUIZ_TYPES.has("aop-variety")).toBe(false);
-		expect(AOP_ANSWER_QUIZ_TYPES.has("aop-subregion")).toBe(false);
-		expect(AOP_ANSWER_QUIZ_TYPES.has("aop-classification")).toBe(false);
-		// AOPが4択の正解にすぎない(=関連クイズから除外する)形式
-		expect(AOP_ANSWER_QUIZ_TYPES.has("location")).toBe(true);
-		expect(AOP_ANSWER_QUIZ_TYPES.has("odd-one-out")).toBe(true);
-		expect(AOP_ANSWER_QUIZ_TYPES.has("variety")).toBe(true);
+describe("OUT_OF_SCOPE_QUIZ_TYPES", () => {
+	it("主語形式と特級形式は含まず、たまたま正解になる形式のみ含む(#485)", () => {
+		// スコープに残る(=関連クイズに出す)形式
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("colors")).toBe(false);
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("aop-variety")).toBe(false);
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("aop-subregion")).toBe(false);
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("aop-classification")).toBe(false);
+		// 正解AOP自身の特級性を問うため関連とみなす形式
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("grand-cru-select")).toBe(false);
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("grand-cru-odd")).toBe(false);
+		// たまたま正解が近傍AOPになるだけ(=関連クイズから除外する)形式
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("location")).toBe(true);
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("odd-one-out")).toBe(true);
+		expect(OUT_OF_SCOPE_QUIZ_TYPES.has("variety")).toBe(true);
 	});
 });
 
@@ -317,15 +396,16 @@ describe("countScopedQuestions", () => {
 		expect(countScopedQuestions("bourgogne", "no-such-aop")).toBe(0);
 	});
 
-	it("集約された畑も集約先の設問を借りるので0問にならない(#436)", () => {
+	it("固有の設問を持たないAOPは0問にならない(借用機構 #436 / 特級形式 #485)", () => {
+		// 固有の設問が0問の傘AOC(シャブリ・グラン・クリュ)は集約先の設問を借りる。
 		// 借りる前は0問でクイズボタン自体が出なかった。
-		expect(countScopedQuestions("bourgogne", "chablis-gc-les-clos")).toBe(
-			countScopedQuestions("bourgogne", "chablis"),
-		);
-		expect(countScopedQuestions("bourgogne", "chambertin")).toBe(
-			countScopedQuestions("bourgogne", "gevrey-chambertin"),
-		);
-		expect(countScopedQuestions("bourgogne", "chambertin")).toBeGreaterThan(0);
+		expect(
+			countScopedQuestions("bourgogne", "chablis-grand-cru"),
+		).toBeGreaterThan(0);
+		// ヴォーヌの各GCは #485 で固有の特級形式を持つため借用なしで1問になる。
+		expect(countScopedQuestions("bourgogne", "chablis-gc-les-clos")).toBe(1);
+		expect(countScopedQuestions("bourgogne", "chambertin")).toBe(1);
+		expect(countScopedQuestions("bourgogne", "romanee-conti")).toBe(1);
 	});
 
 	// リストの各行の進捗は AOP 単位の solved/total をスコープ集合で合算して出す

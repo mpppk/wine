@@ -31,6 +31,24 @@ export const AOP_ANSWER_QUIZ_TYPES: ReadonlySet<QuizType> = new Set(
 	QUIZ_TYPES.filter((t) => t.answerIsAop).map((t) => t.id),
 );
 
+/**
+ * 地図の「関連クイズ」(選択AOPスコープ)から除外する形式(#485)。
+ * グラン・クリュ形式(grand-cru-select/grand-cru-odd)は正解が対象AOP自身で
+ * 「その畑が特級か」を問うため、たまたま正解が近傍AOPになるだけの
+ * odd-one-out/variety/location とは異なりスコープに含める。
+ * ヴォーヌ=ロマネの各グラン・クリュは色・品種・地区が村と完全一致するため
+ * 主語形式だけでは村の3問に潰れ、各畑を開くたび同じ3問が出続けていた。
+ * 特級形式を含めることで各畑が固有の1問(grand-cru-select:{畑})を持ち、
+ * スコープ間で設問が変わる。
+ * 進捗の分母(candidateCountsByAopId)・分子(getAopSolvedProgress)も
+ * この定義に揃える(3箇所が食い違うとパネルの問題数と進捗の分母がずれる)。
+ */
+export const OUT_OF_SCOPE_QUIZ_TYPES: ReadonlySet<QuizType> = new Set([
+	"odd-one-out",
+	"variety",
+	"location",
+]);
+
 export const QUIZ_TYPE_LABELS_JA: Record<QuizType, string> = Object.fromEntries(
 	QUIZ_TYPES.map((t) => [t.id, t.labelJa]),
 ) as Record<QuizType, string>;
