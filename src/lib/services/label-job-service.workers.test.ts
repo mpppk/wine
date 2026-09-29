@@ -165,10 +165,41 @@ function labelFields(): Record<string, unknown> {
 }
 
 /**
- * OpenRouter への outbound fetch をスタブする。**接続先は OpenRouter だけ**
- * (直接接続の残存はここで throw して検出する)。応答はリクエストの形で振り分ける:
+ * OpenRouter の既定応答を組み立てる。リクエストの形で振り分ける:
  * `submit_answer` を含むエージェントループには提出呼び出しを、それ以外(単発の
  * 構造化抽出)には本文JSONを返す。どちらも実測 usage(計300トークン)を付ける。
+ */
+function openRouterDefaultResponse(body: Record<string, unknown>): Response {
+	const tools = (body.tools ?? []) as Array<{
+		function?: { name?: string };
+	}>;
+	const usage = { prompt_tokens: 250, completion_tokens: 50 };
+	if (tools.some((t) => t.function?.name === "submit_answer")) {
+		return orChat({
+			toolCalls: [
+				{
+					id: "call_test",
+					name: "submit_answer",
+					arguments: JSON.stringify(labelFields()),
+				},
+			],
+			usage,
+		});
+	}
+	return orChat({ text: JSON.stringify(labelFields()), usage });
+}
+
+/** fetch スタブが受けたリクエスト本文を取り出す。 */
+function requestBodyOf(init?: RequestInit): Record<string, unknown> {
+	return typeof init?.body === "string"
+		? (JSON.parse(init.body) as Record<string, unknown>)
+		: {};
+}
+
+/**
+ * OpenRouter への outbound fetch をスタブする。**接続先は OpenRouter だけ**
+ * (直接接続の残存はここで throw して検出する)。既定応答の振り分けは
+ * `openRouterDefaultResponse` に寄せる。
  */
 function stubOpenRouter(
 	respond?: (body: Record<string, unknown>) => Promise<Response> | Response,
@@ -180,28 +211,9 @@ function stubOpenRouter(
 		if (!url.startsWith("https://openrouter.ai/api/v1/")) {
 			throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
 		}
-		const body =
-			typeof init?.body === "string"
-				? (JSON.parse(init.body) as Record<string, unknown>)
-				: {};
+		const body = requestBodyOf(init);
 		if (respond) return await respond(body);
-		const tools = (body.tools ?? []) as Array<{
-			function?: { name?: string };
-		}>;
-		const usage = { prompt_tokens: 250, completion_tokens: 50 };
-		if (tools.some((t) => t.function?.name === "submit_answer")) {
-			return orChat({
-				toolCalls: [
-					{
-						id: "call_test",
-						name: "submit_answer",
-						arguments: JSON.stringify(labelFields()),
-					},
-				],
-				usage,
-			});
-		}
-		return orChat({ text: JSON.stringify(labelFields()), usage });
+		return openRouterDefaultResponse(body);
 	});
 }
 
@@ -465,23 +477,7 @@ describe("ジョブの実行", () => {
 		let calls = 0;
 		stubOpenRouter(async (body) => {
 			calls += 1;
-			const tools = (body.tools ?? []) as Array<{
-				function?: { name?: string };
-			}>;
-			const usage = { prompt_tokens: 250, completion_tokens: 50 };
-			if (tools.some((t) => t.function?.name === "submit_answer")) {
-				return orChat({
-					toolCalls: [
-						{
-							id: "call_test",
-							name: "submit_answer",
-							arguments: JSON.stringify(labelFields()),
-						},
-					],
-					usage,
-				});
-			}
-			return orChat({ text: JSON.stringify(labelFields()), usage });
+			return openRouterDefaultResponse(body);
 		});
 
 		await runLabelAnalysisJob(jobId);
@@ -546,27 +542,7 @@ describe("完了通知の切り離し(#634)", () => {
 				const url = typeof input === "string" ? input : String(input);
 				if (url.startsWith("https://openrouter.ai/api/v1/")) {
 					// 推論は通常どおり即応答(成功テストと同じ形)
-					const body =
-						typeof init?.body === "string"
-							? (JSON.parse(init.body) as Record<string, unknown>)
-							: {};
-					const tools = (body.tools ?? []) as Array<{
-						function?: { name?: string };
-					}>;
-					const usage = { prompt_tokens: 250, completion_tokens: 50 };
-					if (tools.some((t) => t.function?.name === "submit_answer")) {
-						return orChat({
-							toolCalls: [
-								{
-									id: "call_test",
-									name: "submit_answer",
-									arguments: JSON.stringify(labelFields()),
-								},
-							],
-							usage,
-						});
-					}
-					return orChat({ text: JSON.stringify(labelFields()), usage });
+					return openRouterDefaultResponse(requestBodyOf(init));
 				}
 				if (url.startsWith("https://fcm.googleapis.com/")) {
 					pushAttempts += 1;
@@ -1351,23 +1327,7 @@ describe("実行経路", () => {
 		const bodies: string[] = [];
 		stubOpenRouter(async (body) => {
 			bodies.push(JSON.stringify(body));
-			const tools = (body.tools ?? []) as Array<{
-				function?: { name?: string };
-			}>;
-			const usage = { prompt_tokens: 250, completion_tokens: 50 };
-			if (tools.some((t) => t.function?.name === "submit_answer")) {
-				return orChat({
-					toolCalls: [
-						{
-							id: "call_test",
-							name: "submit_answer",
-							arguments: JSON.stringify(labelFields()),
-						},
-					],
-					usage,
-				});
-			}
-			return orChat({ text: JSON.stringify(labelFields()), usage });
+			return openRouterDefaultResponse(body);
 		});
 
 		await runLabelAnalysisJob(jobId);

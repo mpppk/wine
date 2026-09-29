@@ -76,6 +76,26 @@ async function subsOf(userId: string) {
 		.where(eq(pushSubscription.userId, userId));
 }
 
+/**
+ * 送出前検査で弾かれる endpoint は送らず消す(#545/#634)。
+ *
+ * 受け取り口の検証を通らない旧行を直接保存した想定で、送りにいかず行を消す
+ * ことまでを一まとまりで見る。SSRF ガード(#545)と許可リスト(#634)のどちらで
+ * 弾かれても扱いは同じなので、両方のテストでこのヘルパーを使う。
+ */
+async function expectUnsentEndpointDropped(endpoint: string): Promise<void> {
+	const userId = await seedUser();
+	await savePushSubscription(userId, { ...SUB, endpoint });
+	setVapid(TEST_VAPID_PRIVATE);
+	const fetchSpy = vi.fn();
+	vi.stubGlobal("fetch", fetchSpy);
+
+	expect(await sendPushToUser(userId)).toBe(0);
+	// 署名付きリクエスト自体を飛ばさない
+	expect(fetchSpy).not.toHaveBeenCalled();
+	expect(await subsOf(userId)).toHaveLength(0);
+}
+
 afterEach(() => {
 	const e = env as unknown as Record<string, unknown>;
 	e.VAPID_PUBLIC_KEY = undefined;
@@ -264,20 +284,8 @@ describe("送信", () => {
 	});
 
 	it("ガード強化前に登録された内部向け endpoint には送らず消す(#545)", async () => {
-		const userId = await seedUser();
 		// 受け取り口の検証を通らない旧行を直接保存した想定
-		await savePushSubscription(userId, {
-			...SUB,
-			endpoint: "https://127.0.0.1/push",
-		});
-		setVapid(TEST_VAPID_PRIVATE);
-		const fetchSpy = vi.fn();
-		vi.stubGlobal("fetch", fetchSpy);
-
-		expect(await sendPushToUser(userId)).toBe(0);
-		// 署名付きリクエスト自体を飛ばさない
-		expect(fetchSpy).not.toHaveBeenCalled();
-		expect(await subsOf(userId)).toHaveLength(0);
+		await expectUnsentEndpointDropped("https://127.0.0.1/push");
 	});
 });
 
@@ -378,19 +386,8 @@ describe("購読の上限(#634)", () => {
 
 describe("送信の制限(#634)", () => {
 	it("許可リスト外の endpoint には送らず消す", async () => {
-		const userId = await seedUser();
 		// SSRF ガードは通るがプッシュサービスではない旧行を直接保存した想定
-		await savePushSubscription(userId, {
-			...SUB,
-			endpoint: "https://example.com/push",
-		});
-		setVapid(TEST_VAPID_PRIVATE);
-		const fetchSpy = vi.fn();
-		vi.stubGlobal("fetch", fetchSpy);
-
-		expect(await sendPushToUser(userId)).toBe(0);
-		expect(fetchSpy).not.toHaveBeenCalled();
-		expect(await subsOf(userId)).toHaveLength(0);
+		await expectUnsentEndpointDropped("https://example.com/push");
 	});
 
 	it("送信fetchにタイムアウト信号を付ける", async () => {
