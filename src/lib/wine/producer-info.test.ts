@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AOPS } from "./aops-data";
 import {
+	findProducerInfoByName,
 	getProducerAwardHighlight,
 	sortProducersByAward,
 } from "./producer-info";
@@ -8,6 +9,76 @@ import {
 // 生産者リストの「受賞者を上位に・受賞歴をタップ前に見せる」表示ロジック。
 // 辞書(PRODUCER_INFO)の実データを使う。実在の生産者名を参照するため、辞書から
 // エントリが消えるとテストが落ちる(意図した削除ならテスト側も直す)。
+
+describe("findProducerInfoByName", () => {
+	it("完全一致・表記揺れ(アクセント/大小文字)は従来どおり引ける", () => {
+		expect(findProducerInfoByName("Domaine de la Romanée-Conti")?.name).toBe(
+			"Domaine de la Romanée-Conti",
+		);
+		expect(findProducerInfoByName("domaine de la romanee conti")?.name).toBe(
+			"Domaine de la Romanée-Conti",
+		);
+		expect(findProducerInfoByName("Château Margaux")?.name).toBe(
+			"Château Margaux",
+		);
+	});
+
+	// #492: モデルが正式表記へ正して足す接尾辞は剥がして辞書を引く。
+	// 実データの `Domaine Armand Rousseau`(MICHELIN 1グレープ)を使う。
+	it.each([
+		"Domaine Armand Rousseau Père et Fils",
+		"Domaine Armand Rousseau et Fils",
+		"Domaine Armand Rousseau & Fils",
+		"Domaine Armand Rousseau SARL",
+		"Domaine Armand Rousseau S.A.S.",
+		"Domaine Armand Rousseau S.r.l.",
+		"Domaine Armand Rousseau Estate",
+		"Domaine Armand Rousseau Winery",
+	])("%s は辞書の Domaine Armand Rousseau を引く", (extracted) => {
+		expect(findProducerInfoByName(extracted)?.name).toBe(
+			"Domaine Armand Rousseau",
+		);
+	});
+
+	it("辞書キー自体が接尾辞を含む生産者にも接尾辞を重ねて引ける", () => {
+		// `Domaine Trapet Père et Fils` は辞書キー。法人格がさらに付いても引ける
+		expect(
+			findProducerInfoByName("Domaine Trapet Père et Fils SARL")?.name,
+		).toBe("Domaine Trapet Père et Fils");
+	});
+
+	// #471 の判断は維持: 単なる前方一致では引かない(残りが地名・畑名など)。
+	it("残りが既知接尾辞でなければ引かない", () => {
+		expect(
+			findProducerInfoByName("Domaine Armand Rousseau Gevrey-Chambertin"),
+		).toBeUndefined();
+		expect(
+			findProducerInfoByName("Domaine Armand Rousseau Grand Cru"),
+		).toBeUndefined();
+	});
+
+	// 逆向き(抽出名のほうが短い)は引かない。情報が減る方向は取り違えやすい。
+	it("抽出名が辞書キーより短い逆向きは引かない", () => {
+		// 辞書には `Domaine Trapet Père et Fils` があるが `Domaine Trapet` は無い
+		expect(findProducerInfoByName("Domaine Trapet")).toBeUndefined();
+	});
+
+	// #471 の回帰条件: 別の生産者を取り違えない。
+	it("別の生産者を取り違えない", () => {
+		// `Margaux` だけでは `Château Margaux` を掴まない
+		expect(findProducerInfoByName("Margaux")).toBeUndefined();
+		// `Léoville Barton` は辞書に無く、`Léoville Las Cases` とも混同しない
+		expect(findProducerInfoByName("Léoville Barton")).toBeUndefined();
+		expect(findProducerInfoByName("Chateau Leoville Las Cases")?.name).toBe(
+			"Château Léoville-Las Cases",
+		);
+	});
+
+	it("空文字は引かない", () => {
+		expect(findProducerInfoByName("")).toBeUndefined();
+		expect(findProducerInfoByName("   ")).toBeUndefined();
+	});
+});
 
 describe("getProducerAwardHighlight", () => {
 	it("階級を持つ賞はバッジに階級、ラベルに制度名+階級を出す", () => {

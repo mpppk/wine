@@ -772,6 +772,22 @@ describe("buildLabelSuggestions のコメント", () => {
 		expect(s.note).not.toContain("モデルがその場で書いた説明");
 	});
 
+	it("接尾辞付きの正式表記でもアプリの解説を流用する(#492)", () => {
+		// 解析が `Domaine Armand Rousseau Père et Fils` を返しても、辞書の
+		// `Domaine Armand Rousseau` の解説を使う(モデルの作文より優先)
+		const known = findProducerInfoByName("Domaine Armand Rousseau");
+		expect(known?.info.description).toBeTruthy();
+		const s = buildLabelSuggestions(
+			extraction({
+				wineName: "Gevrey-Chambertin",
+				producer: "Domaine Armand Rousseau Père et Fils",
+				producerComment: "モデルがその場で書いた説明",
+			}),
+		);
+		expect(s.note).toContain(known?.info.description as string);
+		expect(s.note).not.toContain("モデルがその場で書いた説明");
+	});
+
 	it("コメントが無ければ note を持たない", () => {
 		const s = buildLabelSuggestions(extraction({ wineName: "Chablis" }));
 		expect(s.note).toBeUndefined();
