@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { drunkWine, labelAnalysisJob, place } from "#/db/schema";
@@ -1004,10 +1004,23 @@ async function finishJob(
 	// 失敗した回は送らない: 利用者が取れる行動が無く(クレジットは返却済み)、
 	// 「失敗しました」の通知はロック画面に出るだけの雑音になる。
 	//
-	// **送信は throw しない**(push-service が内部で握る)。通知は付随物で、
-	// 届かないことより届かないせいで終端化が巻き戻るほうが悪い。
+	// **コンシューマのクリティカルパスから外す**(#634): 行の終端化は上で済んで
+	// いるので、通知のために次のメッセージを待たせない。応答の無い endpoint が
+	// あっても、ここで止まるのはバックグラウンドの送信だけで、キューの進行と
+	// ジョブ行の終端化は先に済む。`waitUntil` に載せて打ち切り後も完走させ、
+	// 呼び出し側は待たない(通知は付随物)。リクエスト文脈の外(workers テスト)では
+	// waitUntil が使えないため、その場合は素通しする(credit-service の keepAlive・
+	// operator-alert の send と同じ流儀)。
+	//
+	// sendPushToUser は throw しない契約だが、将来の変更で reject が生じても
+	// コンシューマを巻き込まないよう `.catch` で閉じる。
 	if (row && !("error" in outcome)) {
-		await sendPushToUser(row.userId);
+		const push = sendPushToUser(row.userId).catch(() => 0);
+		try {
+			waitUntil(push);
+		} catch {
+			// リクエスト文脈の外。promise は走っているのでそのままにする。
+		}
 	}
 }
 
