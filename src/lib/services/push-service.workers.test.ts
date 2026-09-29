@@ -260,4 +260,21 @@ describe("送信", () => {
 
 		expect(await sendPushToUser(userId)).toBe(0);
 	});
+
+	it("ガード強化前に登録された内部向け endpoint には送らず消す(#545)", async () => {
+		const userId = await seedUser();
+		// 受け取り口の検証を通らない旧行を直接保存した想定
+		await savePushSubscription(userId, {
+			...SUB,
+			endpoint: "https://127.0.0.1/push",
+		});
+		setVapid(TEST_VAPID_PRIVATE);
+		const fetchSpy = vi.fn();
+		vi.stubGlobal("fetch", fetchSpy);
+
+		expect(await sendPushToUser(userId)).toBe(0);
+		// 署名付きリクエスト自体を飛ばさない
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(await subsOf(userId)).toHaveLength(0);
+	});
 });

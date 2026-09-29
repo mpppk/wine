@@ -72,6 +72,37 @@ describe("pushSubscriptionInputSchema", () => {
 		}
 	});
 
+	it("内部向けホストの endpoint を拒否する(共通SSRFガード・#545)", () => {
+		// https でも内部アドレス・特別用途TLDへは送らない。許可リスト化(#634)の
+		// 前段として、少なくとも3経路共通のガードは通す。
+		for (const endpoint of [
+			"https://localhost/push",
+			"https://foo.localhost/push",
+			"https://printer.local/push",
+			"https://intranet.internal/push",
+			"https://127.0.0.1/push",
+			"https://10.0.0.1/push",
+			"https://169.254.169.254/latest/meta-data",
+			"https://8.8.8.8/push",
+			"https://[::1]/push",
+		]) {
+			expect(
+				pushSubscriptionInputSchema.safeParse({ ...valid, endpoint }).success,
+				endpoint,
+			).toBe(false);
+		}
+		// 既知のプッシュサービスは通す
+		for (const endpoint of [
+			"https://fcm.googleapis.com/fcm/send/abc",
+			"https://updates.push.services.mozilla.com/wpush/v2/xyz",
+		]) {
+			expect(
+				pushSubscriptionInputSchema.safeParse({ ...valid, endpoint }).success,
+				endpoint,
+			).toBe(true);
+		}
+	});
+
 	it("鍵が空なら拒否する", () => {
 		expect(
 			pushSubscriptionInputSchema.safeParse({ ...valid, p256dh: "" }).success,

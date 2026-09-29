@@ -3,6 +3,7 @@ import {
 	resolveStoredPhotoMime,
 } from "#/lib/drunk-wine/photo";
 import { logWarn } from "#/lib/logger";
+import { isAllowedExternalHost } from "#/lib/net/ssrf-guard";
 
 // web上の画像URLから写真を1枚取り込む(Issue #473)。一括登録で「その銘柄の適切な写真が
 // 手元に無い」ときに、解析が見つけたボトル/エチケットの画像を取りに行くための唯一の入口。
@@ -12,9 +13,10 @@ import { logWarn } from "#/lib/logger";
 // 叩かせる」機能そのものなので、関門をこの1モジュールに閉じる:
 //
 //  - https のみ(http・data:・blob: 等は拒否)。平文の取得は中間者に差し替えられる
-//  - ホスト名がIPリテラル・localhost・内部向けTLDなら拒否。Workers から社内網へは
-//    そもそも到達しないが、**将来この関数が別のランタイムから呼ばれても壊れない**よう、
-//    「名前で公開ホストを指している」ことをここで要求する
+//  - ホスト判定は共通チョークポイント(`isAllowedExternalHost`、既定の厳しい側)に
+//    寄せる。Workers 前提の判断はあちらに一元化し、ここでは持ち直さない(#545)
+//  - リダイレクトは `redirect: "manual"` で1ホップずつ辿り、毎回ホストを再検証
+//    する(#148 と同等。初回URLだけ検証して内部アドレスへ素通しさせない)
 //  - 取得はタイムアウト付き。1銘柄の画像のために登録の確定を待たせない
 //  - 実バイトのサイズ上限(MAX_PHOTO_BYTES)。Content-Length は申告値なので信用せず、
 //    読み込んだ実バイトでも確認する
@@ -37,21 +39,8 @@ export interface RemotePhoto {
 	url: string;
 }
 
-/**
- * 内部向けに見えるホスト名。IPリテラル(v4/v6)と、名前解決が環境依存になる特別名を弾く。
- * ここを通ったホスト名でも公開DNSが内部アドレスを返す可能性は残るが、Workers の fetch は
- * 内部網へ到達しないため、実効的な多層防御としてはこの段で十分。
- */
-function isBlockedHost(hostname: string): boolean {
-	const host = hostname.toLowerCase();
-	if (host === "localhost" || host.endsWith(".localhost")) return true;
-	// IPv6 リテラルは URL 上 [..] で囲まれるが、hostname では括弧が外れる
-	if (host.includes(":")) return true;
-	// IPv4 リテラル
-	if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
-	// 名前解決が環境依存/内部向けの特別用途TLD(RFC 6761 / 8375)
-	return /\.(local|internal|localdomain|home\.arpa)$/.test(host);
-}
+/** 追跡するリダイレクトの最大ホップ数。これを超えたら取得を諦める。 */
+const MAX_REDIRECTS = 5;
 
 /** 取得してよいURLか。文字列を検証して URL を返す(不可なら undefined)。 */
 export function parseRemotePhotoUrl(raw: string): URL | undefined {
@@ -62,7 +51,8 @@ export function parseRemotePhotoUrl(raw: string): URL | undefined {
 		return undefined;
 	}
 	if (url.protocol !== "https:") return undefined;
-	if (!url.hostname || isBlockedHost(url.hostname)) return undefined;
+	// ホスト判定は共通ガードの既定(厳しい側: IPリテラルは公開IPでも拒否)に寄せる。
+	if (!url.hostname || !isAllowedExternalHost(url.hostname)) return undefined;
 	return url;
 }
 
@@ -114,30 +104,80 @@ export async function fetchRemotePhoto(
 	rawUrl: string,
 	fields: Record<string, unknown> = {},
 ): Promise<RemotePhoto | undefined> {
-	const url = parseRemotePhotoUrl(rawUrl);
-	if (!url) {
+	let current = parseRemotePhotoUrl(rawUrl);
+	if (!current) {
 		logWarn("remote photo url rejected", { ...fields, url: rawUrl });
 		return undefined;
 	}
 
-	let response: Response;
+	let response: Response | undefined;
 	try {
-		response = await fetch(url, {
-			// リダイレクトの先も同じ検証に掛けたいが、fetch の manual リダイレクトは
-			// ランタイム差が大きい。追跡は許し、**最終的に取れたバイトの中身**で
-			// 判定する(検証の重心を「どこから来たか」より「何が来たか」に置く)。
-			redirect: "follow",
-			headers: { accept: "image/*" },
-			signal: AbortSignal.timeout(REMOTE_PHOTO_TIMEOUT_MS),
-		});
+		// リダイレクトは follow せず manual で1ホップずつ辿り、毎回 SSRF ガードで
+		// 再検証する。follow だと初回URLだけ検証してリダイレクト先(内部アドレス)を
+		// 素通ししてしまう(#148 と同じ穴)。最終バイトのMIME判定(resolveStoredPhotoMime
+		// が実バイトから確定)は「保存されるもの」の安全を担い、こちらは「内部アドレスへ
+		// リクエストが飛ぶこと自体」を塞ぐ。両輪である。
+		for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+			if (current.protocol !== "https:") {
+				logWarn("remote photo redirect rejected", {
+					...fields,
+					url: current.href,
+				});
+				return undefined;
+			}
+			if (!isAllowedExternalHost(current.hostname)) {
+				logWarn("remote photo redirect rejected", {
+					...fields,
+					url: current.href,
+				});
+				return undefined;
+			}
+			const hop = await fetch(current, {
+				redirect: "manual",
+				headers: { accept: "image/*" },
+				signal: AbortSignal.timeout(REMOTE_PHOTO_TIMEOUT_MS),
+			});
+			if (hop.status >= 300 && hop.status < 400) {
+				const location = hop.headers.get("location");
+				// 中間レスポンスのボディは読み捨てて接続を解放する
+				await hop.body?.cancel().catch(() => {});
+				if (!location) {
+					logWarn("remote photo redirect without location", {
+						...fields,
+						url: current.href,
+						status: hop.status,
+					});
+					return undefined;
+				}
+				try {
+					current = new URL(location, current);
+				} catch {
+					logWarn("remote photo redirect rejected", {
+						...fields,
+						url: current.href,
+					});
+					return undefined;
+				}
+				continue;
+			}
+			response = hop;
+			break;
+		}
 	} catch (err) {
-		logWarn("remote photo fetch failed", { ...fields, url: url.href, err });
+		logWarn("remote photo fetch failed", { ...fields, url: current.href, err });
+		return undefined;
+	}
+	if (!response) {
+		logWarn("remote photo too many redirects", {
+			...fields,
+			url: current.href,
+		});
 		return undefined;
 	}
 	if (!response.ok) {
 		logWarn("remote photo fetch not ok", {
 			...fields,
-			url: url.href,
+			url: current.href,
 			status: response.status,
 		});
 		return undefined;
@@ -153,7 +193,10 @@ export async function fetchRemotePhoto(
 		return undefined;
 	});
 	if (!bytes || bytes.length === 0) {
-		logWarn("remote photo too large or empty", { ...fields, url: url.href });
+		logWarn("remote photo too large or empty", {
+			...fields,
+			url: current.href,
+		});
 		return undefined;
 	}
 
@@ -164,10 +207,10 @@ export async function fetchRemotePhoto(
 		// 画像を装ったHTML・許可外の形式(SVG等)・申告と実体の食い違い。
 		logWarn("remote photo rejected by mime check", {
 			...fields,
-			url: url.href,
+			url: current.href,
 			declared,
 		});
 		return undefined;
 	}
-	return { bytes, mimeType, url: url.href };
+	return { bytes, mimeType, url: current.href };
 }
