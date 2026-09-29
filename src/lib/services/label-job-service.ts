@@ -782,11 +782,12 @@ export async function adoptLabelJobPhotosToBatch(
 		return { adopted: 0 };
 	}
 
-	const { adopted, dropped } = await importBatchService.adoptImportBatchPhotoKeys(
-		userId,
-		batchId,
-		job.photoKeys,
-	);
+	const { adopted, dropped } =
+		await importBatchService.adoptImportBatchPhotoKeys(
+			userId,
+			batchId,
+			job.photoKeys,
+		);
 	// エントリ側と同じ順序: 宛先へ渡してから所有を外す。
 	await db
 		.update(labelAnalysisJob)

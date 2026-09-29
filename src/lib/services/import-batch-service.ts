@@ -41,18 +41,18 @@ import {
 } from "#/lib/import-batch/schema";
 import { logInfo, logWarn } from "#/lib/logger";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
-import { prepareNewPlace } from "#/lib/services/place-service";
 import {
 	assertOwnsEncounterRefs,
 	assertValidRefs,
+	type BatchStatement,
 	buildEncounterValues,
 	cleanupPhotoObjects,
 	encounterPhotoIndexes,
 	provenanceInsertValues,
 	recomputeDrunkWineAggregatesBulk,
 	toSightingEntry,
-	type BatchStatement,
 } from "#/lib/services/drunk-wine-service";
+import { prepareNewPlace } from "#/lib/services/place-service";
 
 /**
  * 既に R2 にある写真キーを一括登録バッチへ渡す(#474)。エントリ側の
