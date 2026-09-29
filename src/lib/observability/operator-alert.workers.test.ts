@@ -1,20 +1,24 @@
-import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { alertOperator } from "./operator-alert";
 
-// 運用者向け通知の配線を workerd 上で検証する(#395)。見るのは
-// 「ログに残るか」「DSN があるときだけ送るか」「送信の失敗で呼び出し元を壊さないか」。
-// envelope の中身そのものは sentry-envelope.test.ts が固定している。
+// 運用者向け通知の配線を workerd 上で検証する(#395 / #649)。見るのは
+// 「ログに残るか」「SDK に level/tags/extra 付きで渡るか」
+// 「送信の失敗で呼び出し元を壊さないか」。送信の実体(DSN・environment・
+// PII 抑止・再試行)は `withSentry` の初期化(`src/worker.ts`)に委ねるため、
+// ここでは SDK の呼び口だけを固定する。
 
-const DSN = "https://pub@o1.ingest.sentry.io/42";
+const { captureMessage, captureException } = vi.hoisted(() => ({
+	captureMessage: vi.fn(),
+	captureException: vi.fn(),
+}));
 
-function setDsn(value: string | undefined): void {
-	if (value === undefined) {
-		delete (env as { SENTRY_DSN?: string }).SENTRY_DSN;
-		return;
-	}
-	(env as { SENTRY_DSN?: string }).SENTRY_DSN = value;
-}
+vi.mock("@sentry/cloudflare", () => ({
+	captureMessage: (...args: unknown[]) =>
+		(captureMessage as (...a: unknown[]) => unknown)(...args),
+	captureException: (...args: unknown[]) =>
+		(captureException as (...a: unknown[]) => unknown)(...args),
+}));
+
+const { alertOperator } = await import("./operator-alert");
 
 /** 構造化ログ(1行JSON)を msg で拾う。 */
 function logged(lines: string[], msg: string): Record<string, unknown>[] {
@@ -32,74 +36,52 @@ function logged(lines: string[], msg: string): Record<string, unknown>[] {
 describe("alertOperator", () => {
 	let errorLines: string[] = [];
 	let warnLines: string[] = [];
-	let requests: { url: string; body: string; headers: Headers }[] = [];
 
 	beforeEach(() => {
 		errorLines = [];
 		warnLines = [];
-		requests = [];
+		captureMessage.mockClear();
+		captureException.mockClear();
+		// 一度だけ throw させる指定が残らないよう、既定の実装に戻す。
+		captureMessage.mockImplementation(() => "msg-id");
+		captureException.mockImplementation(() => "exc-id");
 		vi.spyOn(console, "error").mockImplementation((line: unknown) => {
 			errorLines.push(String(line));
 		});
 		vi.spyOn(console, "warn").mockImplementation((line: unknown) => {
 			warnLines.push(String(line));
 		});
-		vi.stubGlobal(
-			"fetch",
-			async (input: RequestInfo | URL, init?: RequestInit) => {
-				requests.push({
-					url: String(input),
-					body: String(init?.body ?? ""),
-					headers: new Headers(init?.headers),
-				});
-				return new Response("{}", { status: 200 });
-			},
-		);
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
-		vi.unstubAllGlobals();
-		setDsn(undefined);
 	});
 
-	it("DSN 未設定でもログは出す(送信だけしない)", async () => {
-		setDsn(undefined);
-
-		alertOperator("credit refund failed after inference error", {
-			userId: "u1",
-		});
-
-		expect(
-			logged(errorLines, "credit refund failed after inference error"),
-		).toHaveLength(1);
-		expect(requests).toHaveLength(0);
-	});
-
-	it("DSN があれば envelope を1本 POST し、ログにも残す", async () => {
-		setDsn(DSN);
-
+	it("Error が無ければ captureMessage で送り、ログにも残す", () => {
 		alertOperator(
 			"credit refund failed after inference error",
 			{ userId: "u1", reservedCredits: 30 },
 			{ tags: { kind: "credit_refund_failed" } },
 		);
-		// 送信は待たない設計なので、マイクロタスクを1周させてから観測する。
-		await Promise.resolve();
 
-		expect(requests).toHaveLength(1);
-		const sent = requests[0];
-		expect(sent?.url).toBe("https://o1.ingest.sentry.io/api/42/envelope/");
-		expect(sent?.headers.get("Content-Type")).toBe(
-			"application/x-sentry-envelope",
-		);
-		expect(sent?.headers.get("X-Sentry-Auth")).toContain("sentry_key=pub");
-		const event = JSON.parse(
-			(sent?.body ?? "").trimEnd().split("\n")[2] as string,
-		);
-		expect(event.level).toBe("error");
-		expect(event.tags).toMatchObject({ kind: "credit_refund_failed" });
-		expect(event.extra).toMatchObject({ userId: "u1", reservedCredits: 30 });
+		expect(captureMessage).toHaveBeenCalledTimes(1);
+		expect(captureException).not.toHaveBeenCalled();
+		const [msg, context] = captureMessage.mock.calls[0] as [
+			string,
+			{
+				level: string;
+				tags: Record<string, string>;
+				extra: Record<string, unknown>;
+			},
+		];
+		expect(msg).toBe("credit refund failed after inference error");
+		expect(context.level).toBe("error");
+		expect(context.tags).toMatchObject({
+			kind: "credit_refund_failed",
+			runtime: "workers",
+		});
+		// 部分集合だけが送られる(呼び出し側が選んだ fields のみ。余計な付帯情報は載せない)
+		expect(context.extra).toEqual({ userId: "u1", reservedCredits: 30 });
 
 		// ログ側には `operator: true` が立つ(`bun run logs --grep operator` で絞れる)
 		const rows = logged(
@@ -109,60 +91,92 @@ describe("alertOperator", () => {
 		expect(rows[0]).toMatchObject({ level: "error", operator: true });
 	});
 
-	it("level: warning は warn として記録し、イベントも warning で送る", async () => {
-		setDsn(DSN);
-
+	it("level: warning は warn として記録し、warning で送る", () => {
 		alertOperator(
 			"ai inference failed",
 			{ feature: "label_analysis" },
 			{ level: "warning", tags: { kind: "ai_inference_failed" } },
 		);
-		await Promise.resolve();
 
 		expect(logged(warnLines, "ai inference failed")).toHaveLength(1);
 		expect(logged(errorLines, "ai inference failed")).toHaveLength(0);
-		const event = JSON.parse(
-			(requests[0]?.body ?? "").trimEnd().split("\n")[2] as string,
-		);
-		expect(event.level).toBe("warning");
+		const [, context] = captureMessage.mock.calls[0] as [
+			string,
+			{ level: string },
+		];
+		expect(context.level).toBe("warning");
 	});
 
-	it("Error は文字列へ畳んでから載せる(JSON化で消えない)", async () => {
-		setDsn(DSN);
-
+	it("fields.err が Error なら captureException で送り、表題は運用メッセージのまま", () => {
+		const cause = new TypeError("boom");
 		alertOperator("credit refund failed after inference error", {
-			err: new TypeError("boom"),
+			userId: "u1",
+			err: cause,
 		});
-		await Promise.resolve();
 
-		const event = JSON.parse(
-			(requests[0]?.body ?? "").trimEnd().split("\n")[2] as string,
-		);
-		expect(event.extra.err).toBe("TypeError: boom");
+		expect(captureMessage).not.toHaveBeenCalled();
+		expect(captureException).toHaveBeenCalledTimes(1);
+		const [exc, context] = captureException.mock.calls[0] as [
+			Error,
+			{
+				level: string;
+				tags: Record<string, string>;
+				extra: Record<string, unknown>;
+			},
+		];
+		// 表題は運用メッセージ(グルーピングのキー)。原因のスタックは cause に残る。
+		expect(exc.message).toBe("credit refund failed after inference error");
+		expect(exc.cause).toBe(cause);
+		expect(context.level).toBe("error");
+		expect(context.tags).toMatchObject({ runtime: "workers" });
+		// Error は文字列へ畳んでから載せる(JSON化で消えない。検索用)
+		expect(context.extra).toMatchObject({
+			userId: "u1",
+			err: "TypeError: boom",
+		});
+	});
+
+	it("err 以外のキーにある Error も文字列へ畳む", () => {
+		alertOperator("extension code compensation failed", {
+			userId: "u1",
+			originalErr: new TypeError("boom"),
+		});
+
+		expect(captureMessage).toHaveBeenCalledTimes(1);
+		const [, context] = captureMessage.mock.calls[0] as [
+			string,
+			{ extra: Record<string, unknown> },
+		];
+		expect(context.extra).toMatchObject({
+			userId: "u1",
+			originalErr: "TypeError: boom",
+		});
 	});
 
 	// 通知は失敗パスから呼ばれる。ここで throw すると元のエラー処理を壊す。
-	it("送信が失敗しても throw せず、警告だけ残す", async () => {
-		setDsn(DSN);
-		vi.stubGlobal("fetch", async () => {
-			throw new Error("network down");
+	it("SDK が失敗しても throw せず、警告だけ残す", () => {
+		captureMessage.mockImplementationOnce(() => {
+			throw new Error("sentry down");
 		});
 
 		expect(() =>
 			alertOperator("credit refund failed after inference error", {}),
 		).not.toThrow();
-		await Promise.resolve();
-		await Promise.resolve();
 
 		expect(logged(warnLines, "operator alert delivery failed")).toHaveLength(1);
 	});
 
-	it("DSN の形が壊れていても throw せず、送信しない", async () => {
-		setDsn("not-a-dsn");
+	it("captureException の失敗でも throw しない", () => {
+		captureException.mockImplementationOnce(() => {
+			throw new Error("sentry down");
+		});
 
 		expect(() =>
-			alertOperator("credit refund failed after inference error", {}),
+			alertOperator("credit refund failed after inference error", {
+				err: new TypeError("boom"),
+			}),
 		).not.toThrow();
-		expect(requests).toHaveLength(0);
+
+		expect(logged(warnLines, "operator alert delivery failed")).toHaveLength(1);
 	});
 });

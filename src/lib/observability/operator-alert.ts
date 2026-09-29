@@ -1,11 +1,5 @@
-import { env, waitUntil } from "cloudflare:workers";
+import * as Sentry from "@sentry/cloudflare";
 import { errToString, type LogFields, logError, logWarn } from "#/lib/logger";
-import {
-	buildSentryEnvelope,
-	parseSentryDsn,
-	resolveServerEnvironment,
-	type SentryLevel,
-} from "./sentry-envelope";
 
 // **運用者が手を動かさないと直らない**サーバ側の事象を、ログに加えて外部へ通知する
 // 唯一の入口(Issue #395)。
@@ -13,66 +7,30 @@ import {
 // なぜ要るか: サーバの `logError` は Workers Logs への fire-and-forget で、消費するのは
 // 人が `bun run logs --level error` を叩いたときだけ。シークレットのローテーション後に
 // Stripe webhook の署名検証が静かに壊れる、返金が失敗してユーザが失敗した推論の料金を
-// 負担したまま——といった事象は、**誰も見ていない間ログが増え続ける**。Sentry(#382)は
-// 意図的にクライアント専用だったので、サーバ側には通知経路が1本も無かった。
+// 負担したまま——といった事象は、**誰も見ていない間ログが増え続ける**。予期しない例外は
+// `withSentry`(#486)が自動で拾うが、「意図して選んだ少数の事象」はここを通す。
 //
 // なぜ全部の logError を送らないか: 24箇所ある `logError` の多くは D1 の一時障害や
 // ユーザ入力起因で、**自動で回復するか、人が何かしても直らない**。全部送ると通知が
 // 形骸化して、本当に手を動かすべき5件が埋もれる。ここを通すのは
 // 「**放置するとユーザの金銭・権利が宙に浮いたままになる**」ものに限る。
 //
-// なぜ Sentry か: 既に導入済みで(クライアント側 #381/#382)、重複集約・アラートルール・
-// 通知先連携という「通知を運用する」部分が既にある。ここで作るのは envelope を1本
-// POST するだけの薄い口で、SDK は読み込まない(sentry-envelope.ts の冒頭参照)。
+// なぜ SDK か(#649): #395 当時は `@sentry/cloudflare` が無く、envelope を手で組んで
+// `fetch` していた。`src/worker.ts` の `withSentry` 導入(#486)で同じプロジェクトへの
+// 送信が2系統になり、環境名の導出・PII の方針・リトライやフラッシュの挙動が別々に
+// 保守されていた。片方だけ直すとドリフトするので、送信は SDK に寄せる。
+// DSN 未設定の判定・environment(`resolveServerEnvironment` を `worker.ts` で解決済み)・
+// PII の抑止(`dataCollection` を全閉じ)・送信の待機はすべて `withSentry` の初期化に
+// 委ね、ここでは environment を手で付けない。片方だけ足すと同じ障害が2つの
+// environment に割れて見えるドリフトを繰り返さないため。
 
 /** 送信に失敗しても呼び出し元へ伝播させないための印(テストから観測する)。 */
 const ALERT_SEND_FAILED = "operator alert delivery failed";
 
-/**
- * サーバ側の DSN。**クライアントの `VITE_SENTRY_DSN`(ビルド変数)とは別に、
- * Worker のシークレット/変数として渡す**。未設定なら送信しない(ログは出る)。
- */
-function dsn(): string {
-	return (env as { SENTRY_DSN?: string }).SENTRY_DSN?.trim() ?? "";
-}
-
-function eventId(): string {
-	return crypto.randomUUID().replaceAll("-", "");
-}
-
-/**
- * envelope を1本送る。**待たない**が、レスポンス返却でリクエストが打ち切られると
- * fetch ごと捨てられるため `waitUntil` に載せる(credit-service の #246 と同じ理由)。
- * `waitUntil` が使えない文脈(テスト・Cron)では素通しする。
- */
-function send(body: string, endpoint: string, publicKey: string): void {
-	const work = fetch(endpoint, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/x-sentry-envelope",
-			"X-Sentry-Auth": `Sentry sentry_version=7, sentry_key=${publicKey}, sentry_client=wine-worker/1`,
-		},
-		body,
-	})
-		.then((res) => {
-			// 送信の失敗は**ログにだけ**残す。ここで throw すると、元のエラー処理中の
-			// 呼び出し元に別の失敗が被さる。
-			if (!res.ok) logWarn(ALERT_SEND_FAILED, { status: res.status });
-		})
-		.catch((e) => {
-			logWarn(ALERT_SEND_FAILED, { err: errToString(e) });
-		});
-	try {
-		waitUntil(work);
-	} catch {
-		// リクエスト文脈の外(テスト等)。fetch は走っているのでそのままにする。
-	}
-}
-
 /** 通知に載せるタグ。検索とアラート条件に使うので短い値だけ。 */
 export interface OperatorAlertOptions {
 	/** 既定は "error"。恒常監視だが即時対応でないものは "warning"。 */
-	level?: SentryLevel;
+	level?: "error" | "warning";
 	/** アラートルールで絞るためのタグ(例: kind, feature)。 */
 	tags?: Record<string, string>;
 }
@@ -99,28 +57,31 @@ export function alertOperator(
 	else logWarn(msg, logFields);
 
 	try {
-		const parsed = parseSentryDsn(dsn());
-		if (!parsed) return;
-		const body = buildSentryEnvelope({
-			message: msg,
-			level,
-			environment: resolveServerEnvironment(
-				(env as { BETTER_AUTH_URL?: string }).BETTER_AUTH_URL,
-			),
-			tags: options.tags ?? {},
-			// Error はそのままでは JSON にならないので、ログと同じ畳み方で文字列にする。
-			extra: Object.fromEntries(
-				Object.entries(fields).map(([k, v]) => [
-					k,
-					v instanceof Error ? errToString(v) : v,
-				]),
-			),
-			eventId: eventId(),
-			timestampMs: Date.now(),
-		});
-		send(body, parsed.endpoint, parsed.publicKey);
+		// Error はそのままでは JSON にならないので、ログと同じ畳み方で文字列にする。
+		const extra = Object.fromEntries(
+			Object.entries(fields).map(([k, v]) => [
+				k,
+				v instanceof Error ? errToString(v) : v,
+			]),
+		);
+		// クライアント由来のイベントと同じプロジェクトに送っても区別できるよう
+		// `runtime: "workers"` を必ず付ける(Sentry 側は `tags[runtime]` で絞れる)。
+		const tags = { runtime: "workers", ...options.tags };
+		const err = fields.err;
+		if (err instanceof Error) {
+			// 運用メッセージを表題に残したまま、原因のスタックも辿れるようにする。
+			// `linkedErrorsIntegration`(SDK 既定)が `cause` の連鎖を辿るので、
+			// 元の例外のスタックはそちらに残り、extra 側の文字列は検索用になる。
+			Sentry.captureException(new Error(msg, { cause: err }), {
+				level,
+				tags,
+				extra,
+			});
+		} else {
+			Sentry.captureMessage(msg, { level, tags, extra });
+		}
 	} catch (e) {
-		// DSN の形が壊れている等。通知の失敗で元の処理を巻き込まない。
+		// 収集基盤の失敗で元の処理を巻き込まない。
 		logWarn(ALERT_SEND_FAILED, { err: errToString(e) });
 	}
 }
