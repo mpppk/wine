@@ -126,7 +126,7 @@ export async function hasPushSubscription(userId: string): Promise<boolean> {
 }
 
 /** 送信してよい endpoint か(共通SSRFガードの厳しい側)。DBに残る旧行の送出前検査用。 */
-export function isPushEndpointSendable(endpoint: string): boolean {
+function isPushEndpointSendable(endpoint: string): boolean {
 	let url: URL;
 	try {
 		url = new URL(endpoint);
