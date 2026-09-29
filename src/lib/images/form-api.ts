@@ -12,6 +12,7 @@ import {
 	maxFormDataBytes,
 } from "#/lib/drunk-wine/photo";
 import { TOO_MANY_REQUESTS_MESSAGE } from "#/lib/errors";
+import { withBodyLimit } from "#/lib/http/body-limit";
 import { withinRateLimit } from "#/lib/rate-limit";
 
 // formData() はボディ全体をメモリに載せるため、明らかに大きいリクエストはパース前に弾く。
@@ -99,59 +100,6 @@ export async function requireApiSession(
 		return apiJsonError(TOO_MANY_REQUESTS_MESSAGE, 429);
 	}
 	return session;
-}
-
-/**
- * ボディを読みながら上限バイト数で打ち切るリクエストを作る。
- *
- * `exceeded()` は「上限超過で打ち切ったか」を返す。ストリームのエラーは
- * `formData()` の例外として出てくるが、**例外の型・メッセージはランタイム依存**なので
- * 種類の判別には使わず、このフラグで見る。
- */
-function withBodyLimit(
-	request: Request,
-	limit: number,
-): { request: Request; exceeded: () => boolean } {
-	const body = request.body;
-	// ボディの無いリクエストは打ち切りようがない(formData() 側が 400 にする)。
-	if (!body) return { request, exceeded: () => false };
-
-	let seen = 0;
-	let over = false;
-	const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
-		transform(chunk, controller) {
-			if (over) return;
-			seen += chunk.byteLength;
-			if (seen > limit) {
-				over = true;
-				// **error ではなく terminate で打ち切る**。error にすると下流に例外が伝播する
-				// 経路が増え、どこかで未処理の rejection としてランタイムに漏れて
-				// 「超過リクエストのたびにエラーログが出る」(攻撃者が任意に量産できる
-				// ログノイズになる)。terminate なら下流は「本文が途中で終わった」だけを見る。
-				// 打ち切ったかどうかは over フラグで判る。
-				controller.terminate();
-				return;
-			}
-			controller.enqueue(chunk);
-		},
-	});
-
-	// 打ち切り時は書き込み側が閉じ、pipeTo は reject して上流の読み取りをキャンセルする
-	// (= 上限を超えたバイトはメモリに載らない)。その reject は想定内なので握りつぶす。
-	void body.pipeTo(writable).catch(() => {});
-
-	return {
-		request: new Request(request.url, {
-			method: request.method,
-			// multipart の boundary を含む content-type を保つ(無いとパースできない)。
-			headers: request.headers,
-			body: readable,
-			// ストリームをボディにする場合に必須。workerd の型には無いが、
-			// Request の初期化オプションとしては受け付ける。
-			duplex: "half",
-		} as RequestInit),
-		exceeded: () => over,
-	};
 }
 
 /**
