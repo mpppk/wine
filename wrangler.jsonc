@@ -61,7 +61,14 @@
 		}
 	},
 	"upload_source_maps": true,
-	"preview_urls": true,
+	// 本番(`wine`)の公開URLはカスタムドメイン `wine.nibo.sh` のみ(#640)。
+	// `workers_dev: false` で `wine.niboshi.workers.dev` を閉じ、
+	// `preview_urls: false` で `<version>-wine.*.workers.dev` を閉じる。
+	// 片方だけではもう片方が残る(Cloudflare の既定では preview_urls が
+	// workers_dev に追随するため、両方を明示する)。env.preview 側は
+	// 逆に両方 true で維持する(継承されるため再掲が必要)。
+	"workers_dev": false,
+	"preview_urls": false,
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -142,6 +149,10 @@
 	"env": {
 		"preview": {
 			"name": "wine-preview",
+			// プレビューは workers.dev 公開が前提の環境なので有効のまま(#640)。
+			// トップレベルが false のため継承では閉じてしまうので再掲する。
+			"workers_dev": true,
+			"preview_urls": true,
 			"vars": {
 				"BETTER_AUTH_URL": "https://wine-preview.niboshi.workers.dev",
 				"RAKUTEN_AFFILIATE_ID": "",

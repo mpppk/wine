@@ -7,14 +7,14 @@
 
 | Worker | 用途 | URL | D1 | R2 | Queue |
 |---|---|---|---|---|---|
-| `wine` | 本番 | https://wine.nibo.sh （カスタムドメイン。https://wine.niboshi.workers.dev でも可） | `wine-db` | `avatars-wine` | `wine-label-jobs` |
-| `wine-preview` | プレビュー（PRごと / main のミラー） | `https://<branch>-wine-preview.niboshi.workers.dev`（PR作成後に自動発行。URLはPRコメントに記載） | `wine-preview-db`（プレビュー共通） | `avatars-wine-preview`（プレビュー共通） | `wine-label-jobs-preview`（プレビュー共通） |
+| `wine` | 本番 | https://wine.nibo.sh （カスタムドメインのみ。`workers_dev` / `preview_urls` は無効化しており、`*.workers.dev` では到達できない。#640） | `wine-db` | `avatars-wine` | `wine-label-jobs` |
+| `wine-preview` | プレビュー（PRごと / main のミラー） | `https://<branch>-wine-preview.niboshi.workers.dev`（PR作成後に自動発行。URLはPRコメントに記載。`env.preview` の `workers_dev` / `preview_urls` は有効のまま） | `wine-preview-db`（プレビュー共通） | `avatars-wine-preview`（プレビュー共通） | `wine-label-jobs-preview`（プレビュー共通） |
 
 - プレビューの D1/R2/Queue は全PRで共有されるため、あるプレビュー環境で作成したデータは他のプレビュー環境からも見える。また PR に含まれるマイグレーションは、マージ前でもプレビュー共通DBへ先行適用される。
 - Queue はエチケット解析のジョブ化（#460）で追加した。**producer と consumer は同じ Worker に同居**しており（`src/worker.ts` が `fetch` と `queue` の両方を export する）、別 Worker は立てていない。キュー自体は Terraform 管理外なので、環境を作り直すときは `wrangler queues create <name>` で先に作る（存在しないキューを参照するとデプロイが失敗する）。
 - **Web Push の VAPID 鍵**（#466）は本番・プレビューで**同じ鍵ペア**を使う。公開鍵は `wrangler.jsonc` の `vars.VAPID_PUBLIC_KEY`（そもそもブラウザまで届く公開情報）、秘密鍵は `wrangler secret put VAPID_PRIVATE_KEY`（プレビューは `--env preview`）。購読は origin ごとに別なので、鍵を共有しても本番とプレビューの通知が混ざることはない。鍵ペアは `node scripts/generate-vapid-keys.mjs` で作る。**入れ替えると既存の購読は全て無効になる**ので、入れ替えたら `push_subscription` を空にして購読し直してもらう。
 - **PRごとのプレビューURLではキュー・コンシューマが動かない**（#460 で実測）。ブランチプレビューの deploy command は `wrangler versions upload` で、これは*バージョン*を上げるだけで*デプロイ*を作らない。producer バインディングは付くのでジョブの投入・予約・状態取得までは動くが、consumer はキューに登録されず（`wrangler queues info wine-label-jobs-preview` が `Number of Consumers: 0` を返す）、投入したジョブは `queued` のまま `LABEL_JOB_QUEUE_STALE_MS` で失敗として決着する。ログが取れないのと同じ制約（CLAUDE.md）で回避策は無い。**キューを跨ぐ経路の実機確認はローカル（`bun run dev`。miniflare が producer/consumer 両方を張る）で行い、デプロイ済み環境での確認はマージ後**（`main` の2トリガーは `wrangler deploy` なので consumer が付く）。
-- ログイン等で origin を検証するため、公開ドメインを追加/変更したら `src/lib/auth.ts` の `trustedOrigins` にも登録する（プレビューはダッシュ連結ホスト名 `https://*-wine-preview.niboshi.workers.dev` 用のワイルドカードが別途必要）。
+- ログイン等で origin を検証するため、公開ドメインを追加/変更したら `src/lib/auth.ts` の `trustedOrigins` にも登録する（プレビューはダッシュ連結ホスト名 `https://*-wine-preview.niboshi.workers.dev` 用のワイルドカードが別途必要）。本番の workers.dev（`wine.niboshi.workers.dev` / `*-wine.niboshi.workers.dev`）は公開しない方針のため登録しない（#640）。
 
 ## DB マイグレーションの自動実行
 
