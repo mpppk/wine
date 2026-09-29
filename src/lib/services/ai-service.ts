@@ -1501,10 +1501,15 @@ async function extractWineListWithClaude(
 	let truncated = false;
 	let succeededChunks = 0;
 	let firstError: unknown;
+	// いずれかのチャンクで失敗があったか。先頭チャンクの失敗 + 後続成功でも
+	// 欠落があるため `truncated` に OR する(B1)。全滅時は throw するので
+	// 表示に影響なし。
+	let hadChunkFailure = false;
 	// チャンクの失敗を記録する。取れたぶんがある回は残りを諦めて部分結果で
 	// 返す(`truncated: true` + warn ログ)ため false を返し、全滅の回はループを
 	// 続けて最後に最初の例外を投げるため true を返す。
 	const noteChunkFailure = (chunkIndex: number, e: unknown): boolean => {
+		hadChunkFailure = true;
 		if (succeededChunks > 0) {
 			logWarn("wine list chunk failed; returning partial results", {
 				chunkIndex,
@@ -1626,6 +1631,7 @@ async function extractWineListWithClaude(
 	if (succeededChunks === 0) {
 		throw firstError ?? new Error("Claudeがワインリストの解析に失敗しました");
 	}
+	truncated = truncated || hadChunkFailure;
 	return {
 		parsed: {
 			wines: allWines,

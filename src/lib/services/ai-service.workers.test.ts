@@ -1487,6 +1487,54 @@ describe("一括抽出の予約 → 確定/返却", () => {
 			);
 		});
 
+		it("1チャンク目が失敗し2チャンク目が成功したら欠落つき部分結果を truncated で返す", async () => {
+			// B1 の回帰網: 先頭チャンクの失敗 + 後続成功でも、欠落があるため
+			// truncated なしで返してはならない(利用者が欠落に気づけない)。
+			const userId = await seedClaudeUser();
+			let call = 0;
+			stubOpenRouter(async () => {
+				call += 1;
+				return call === 1
+					? Response.json(
+							{ error: { message: "provider error" } },
+							{ status: 500 },
+						)
+					: orChatMessage(
+							{
+								wines: [
+									wineJson({
+										wine_name: "Barolo",
+										photo_indexes: [0],
+										bottle_photo_index: 0,
+									}),
+								],
+								truncated: false,
+							},
+							{ prompt_tokens: 500, completion_tokens: 100 },
+						);
+			});
+
+			const result = await runWineListViaJob(userId, {
+				imageDataUrls: [PHOTO, PHOTO, PHOTO],
+			});
+
+			expect(result).toMatchObject({ blocked: false });
+			if (result.blocked) throw new Error("unreachable");
+			// 1チャンク目ぶんは欠落し、2件目ぶん(全体通し [2])だけ返す。
+			expect(result.candidates).toHaveLength(1);
+			expect(result.candidates[0]?.suggestions.name).toBe("Barolo");
+			expect(result.candidates[0]?.photoIndexes).toEqual([2]);
+			expect(result.candidates[0]?.bottlePhotoIndex).toBe(2);
+			expect(result.summary).toMatchObject({ detected: 1, truncated: true });
+			// 成功したチャンクぶんは実測で確定し(返却ではない)、失敗ぶんは請求しない。
+			expect(result.actualTokens).toBe(600);
+			const rows = await ledgerRowsOf(userId);
+			expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
+			expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(
+				false,
+			);
+		});
+
 		it("全チャンクが失敗したら最初の例外で失敗し全額返却する", async () => {
 			const userId = await seedClaudeUser();
 			stubOpenRouter(async () =>
