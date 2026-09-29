@@ -934,8 +934,10 @@ export const aiChatRun = sqliteTable(
 			.notNull(),
 	},
 	(table) => [
-		// 送信IDの冪等キー。二重クリック・通信再送・2タブ競合をここで弾く
-		unique("ai_chat_run_send_id_uq").on(table.sendId),
+		// 送信IDの冪等キー。スコープは「このユーザのこの送信」で、
+		// 他ユーザの send_id とは衝突しない(Issue #643)。二重クリック・通信再送・
+		// 2タブ競合をここで弾く
+		unique("ai_chat_run_user_send_id_uq").on(table.userId, table.sendId),
 		// 課金予約の冪等キーと1対1。二重送信で同じ予約に2つの run がぶら下がらない
 		unique("ai_chat_run_billing_request_id_uq").on(table.billingRequestId),
 		// 会話の試行履歴(再試行の対象列挙・再接続時の状態復元)

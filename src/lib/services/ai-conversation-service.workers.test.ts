@@ -343,6 +343,21 @@ describe("送信IDの冪等と同時実行制御", () => {
 		expect(consumes).toHaveLength(1);
 	});
 
+	it("異なるユーザの同一送信IDは衝突しない(Issue #643)", async () => {
+		const a = await seedUser();
+		const b = await seedUser();
+		stubOpenRouter(okAnswer("回答"));
+		const sendId = crypto.randomUUID();
+
+		const ra = await sendAiChatMessage(a, { ...SEND_BASE, sendId });
+		const rb = await sendAiChatMessage(b, { ...SEND_BASE, sendId });
+		expect(ra.status).toBe("ok");
+		expect(rb.status).toBe("ok");
+		if (ra.status === "ok" && rb.status === "ok") {
+			expect(ra.conversationId).not.toBe(rb.conversationId);
+		}
+	});
+
 	it("別会話への同時送信は互いに干渉しない", async () => {
 		const userId = await seedUser();
 		stubOpenRouter(okAnswer("回答"));
