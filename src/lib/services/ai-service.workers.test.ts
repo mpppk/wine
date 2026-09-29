@@ -36,7 +36,8 @@ import {
 	runLabelAnalysisForJob,
 	runWineListAnalysisForJob,
 } from "./ai-service";
-import { bulkRegisterFromScan, createDrunkWine } from "./drunk-wine-service";
+import { createDrunkWine } from "./drunk-wine-service";
+import { bulkRegisterFromScan } from "./import-batch-service";
 import { beginMeteredInference } from "./metered-inference";
 
 // ai-service のクレジット予約まわりを実D1で検証する。vitest.config.ts は AI バインディングを

@@ -49,6 +49,7 @@ import {
 } from "#/lib/services/ai-service";
 import * as creditService from "#/lib/services/credit-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
+import * as importBatchService from "#/lib/services/import-batch-service";
 import {
 	abandonMeteredInference,
 	beginMeteredInference,
@@ -781,7 +782,7 @@ export async function adoptLabelJobPhotosToBatch(
 		return { adopted: 0 };
 	}
 
-	const { adopted, dropped } = await drunkWineService.adoptImportBatchPhotoKeys(
+	const { adopted, dropped } = await importBatchService.adoptImportBatchPhotoKeys(
 		userId,
 		batchId,
 		job.photoKeys,

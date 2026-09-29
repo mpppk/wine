@@ -18,7 +18,7 @@ import {
 } from "#/components/ui/dialog";
 import { formatDateTimeJst } from "#/lib/date/display";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
-import type { ImportBatchSummary } from "#/lib/services/drunk-wine-service";
+import type { ImportBatchSummary } from "#/lib/services/import-batch-service";
 import { listImportBatches, undoImportBatch } from "#/server/place";
 
 // 過去の一括登録バッチの一覧・後からの取り消し(Issue #380)。#378 は取り消し導線を

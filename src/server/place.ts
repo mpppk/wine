@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { bulkRegisterFromScanInput } from "#/lib/import-batch/schema";
-import * as drunkWineService from "#/lib/services/drunk-wine-service";
+import * as importBatchService from "#/lib/services/import-batch-service";
 import * as placeService from "#/lib/services/place-service";
 import { authMiddleware } from "./middleware";
 
@@ -22,7 +22,7 @@ export const bulkRegisterFromScan = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
 	.inputValidator(bulkRegisterFromScanInput)
 	.handler(({ data, context }) =>
-		drunkWineService.bulkRegisterFromScan(context.user.id, data),
+		importBatchService.bulkRegisterFromScan(context.user.id, data),
 	);
 
 /**
@@ -34,7 +34,7 @@ export const undoImportBatch = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
 	.inputValidator(z.object({ batchId: z.string().min(1).max(80) }))
 	.handler(({ data, context }) =>
-		drunkWineService.undoImportBatch(context.user.id, data.batchId),
+		importBatchService.undoImportBatch(context.user.id, data.batchId),
 	);
 
 /**
@@ -43,7 +43,7 @@ export const undoImportBatch = createServerFn({ method: "POST" })
 export const listImportBatches = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.handler(({ context }) =>
-		drunkWineService.listImportBatches(context.user.id),
+		importBatchService.listImportBatches(context.user.id),
 	);
 
 /**
@@ -54,7 +54,7 @@ export const getImportBatch = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.inputValidator(z.object({ batchId: z.string().min(1).max(80) }))
 	.handler(({ data, context }) =>
-		drunkWineService.getImportBatch(context.user.id, data.batchId),
+		importBatchService.getImportBatch(context.user.id, data.batchId),
 	);
 
 /**
@@ -66,5 +66,5 @@ export const getImportBatchDetail = createServerFn({ method: "GET" })
 	.middleware([authMiddleware])
 	.inputValidator(z.object({ batchId: z.string().min(1).max(80) }))
 	.handler(({ data, context }) =>
-		drunkWineService.getImportBatchDetail(context.user.id, data.batchId),
+		importBatchService.getImportBatchDetail(context.user.id, data.batchId),
 	);

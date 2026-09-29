@@ -9,7 +9,7 @@ import {
 } from "#/lib/images/form-api";
 import { logError } from "#/lib/logger";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
-import { saveImportBatchPhotos } from "#/lib/services/drunk-wine-service";
+import { saveImportBatchPhotos } from "#/lib/services/import-batch-service";
 
 // 一括登録バッチの写真アップロード(Issue #358 の2段階目)。R2キーが batchId 依存
 // なので、bulkRegisterFromScan でバッチが確定してからこちらへ送る。
