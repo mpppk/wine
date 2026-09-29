@@ -11,6 +11,7 @@ import {
 import {
 	getImageSigningKey,
 	resetImageSigningKeyCache,
+	SIGNING_KEY_OBJECT,
 } from "#/lib/images/signing-key";
 
 // 非公開のマイセラー写真(wines/)の認可を、実D1(better-auth のセッション)と
@@ -150,6 +151,92 @@ describe("getImageSigningKey", () => {
 		for (const o of listed.objects) {
 			expect(o.key).not.toMatch(/^(avatars|wines)\//);
 		}
+	});
+});
+
+// 初回生成の競合 (#642)。2つの isolate が同時に初期化すると、旧実装の
+// 無条件 PUT では「A が PUT(keyA)→GET で keyA を掴む→B が PUT(keyB)で
+// 上書き→B は keyB を掴む」と鍵が割れ、A の署名が B で検証できなくなる。
+// 条件付き put(無ければ作る)+負けた側の読み直しで1つの鍵に収束させる。
+describe("署名鍵の初回生成の競合 (#642)", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		resetImageSigningKeyCache();
+	});
+
+	it("2つの isolate が同時に初期化しても1つの鍵に収束する", async () => {
+		// 新しい環境の初回アクセスを再現: R2 に鍵が無い状態から始める。
+		// 実R2に残っていると条件付き put が両方とも負け扱いになり、
+		// 競合そのものを再現できない。
+		await env.AVATARS.delete(SIGNING_KEY_OBJECT);
+		resetImageSigningKeyCache();
+
+		const realGet = env.AVATARS.get.bind(env.AVATARS);
+		const realPut = env.AVATARS.put.bind(env.AVATARS);
+
+		// 両者の初回 GET は「鍵なし」を観測する(同時初期化の再現)。
+		// 3回目以降の GET(負けた側の読み直し)は実R2へ通す。
+		let getCalls = 0;
+		vi.spyOn(env.AVATARS, "get").mockImplementation((async (key: string) => {
+			if (key !== SIGNING_KEY_OBJECT) return realGet(key);
+			getCalls += 1;
+			if (getCalls <= 2) return null;
+			return realGet(key);
+		}) as typeof env.AVATARS.get);
+
+		// PUT は呼び出し順に溜め、テストが順番に実R2へ流して決定的な
+		// interleaving を作る。「A の PUT→A の完了→B の PUT→B の完了」は、
+		// A が keyA を掴んだ後に B が keyB で上書きする旧バグの手順そのもの。
+		// コードが put に渡した options ごと再生するので、無条件 PUT のままなら
+		// B が上書きして鍵が割れ(このテストが落ち)、条件付きなら B が負けて
+		// 読み直す(このテストが通る)。
+		type DeferredPut = {
+			value: Uint8Array;
+			options: R2PutOptions | undefined;
+			resolve: (result: R2Object | null) => void;
+		};
+		const putCalls: DeferredPut[] = [];
+		vi.spyOn(env.AVATARS, "put").mockImplementation(((
+			key: string,
+			value: Uint8Array,
+			options?: R2PutOptions,
+		) => {
+			if (key !== SIGNING_KEY_OBJECT) return realPut(key, value);
+			return new Promise<R2Object | null>((resolve) => {
+				putCalls.push({ value, options, resolve });
+			});
+		}) as unknown as typeof env.AVATARS.put);
+
+		// isolate 境界を跨ぐ2つの初期化を、共有キャッシュを外して再現する。
+		const pendingA = getImageSigningKey();
+		resetImageSigningKeyCache();
+		const pendingB = getImageSigningKey();
+
+		// 両者の PUT が出揃うまで待つ(初回 GET はどちらも null を見ている)。
+		await vi.waitFor(() => expect(putCalls.length).toBe(2));
+		const first = putCalls[0];
+		const second = putCalls[1];
+		if (!first || !second) throw new Error("unreachable");
+		// 両者が別々の乱数を掴んでいること(同じ値なら競合の再現にならない)。
+		expect(first.value).not.toEqual(second.value);
+
+		// A を先に通して完了させる。
+		first.resolve(
+			await realPut(SIGNING_KEY_OBJECT, first.value, first.options),
+		);
+		const keyA = await pendingA;
+		// B を後に通す。R2 は既に A の鍵。旧実装なら上書きで鍵が割れる。
+		second.resolve(
+			await realPut(SIGNING_KEY_OBJECT, second.value, second.options),
+		);
+		const keyB = await pendingB;
+
+		// 両者が同じ鍵を掴んだことを署名で確認する。
+		const exp = expiresAtFrom(Date.now());
+		const path = "wines/u/e/p.jpg";
+		expect(await signImageKey(keyB, path, exp)).toBe(
+			await signImageKey(keyA, path, exp),
+		);
 	});
 });
 

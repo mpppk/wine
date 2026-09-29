@@ -10,7 +10,7 @@ import { importImageSigningKey } from "#/lib/images/signed-url";
 //
 // このオブジェクトキーは avatars/ でも wines/ でもないため、/api/images/$ の
 // isAllowedImageKey が弾き、配信経路からは絶対に読み出せない。
-const SIGNING_KEY_OBJECT = "_internal/image-url-signing-key";
+export const SIGNING_KEY_OBJECT = "_internal/image-url-signing-key";
 
 /** HMAC-SHA256 の鍵長。 */
 const KEY_BYTES = 32;
@@ -35,13 +35,27 @@ async function loadOrCreateSigningKey(): Promise<CryptoKey> {
 	if (existing) return importImageSigningKey(await existing.arrayBuffer());
 
 	const material = crypto.getRandomValues(new Uint8Array(KEY_BYTES));
-	await env.AVATARS.put(SIGNING_KEY_OBJECT, material);
-	// 複数 isolate が同時に初期化しても1つの鍵に収束させるため、
-	// 自分が書いた値ではなく書き込み後に読める値を採用する。
+	// 「無ければ作る」を条件付き put で原子的に行う。複数 isolate が同時に
+	// 初期化しても勝者は1つに決まり、負けた put は null を返して上書きしない。
+	// 勝った後は誰も上書きできない(生成はこの条件付き put だけ)ので、
+	// 勝者は自分が書いた値をそのまま使う。
+	const created = await env.AVATARS.put(SIGNING_KEY_OBJECT, material, {
+		onlyIf: { etagDoesNotMatch: "*" },
+	});
+	if (created) return importImageSigningKey(material);
+	// 負けた側は必ず読み直し、勝者の鍵に収束させる。自分の乱数は捨てる。
+	// R2 の書き込みは強整合なので、負けが確定した時点で勝者の値は読めるはず。
+	// 万が一読めなければ例外にして fail-closed(呼び出し側が署名経路を諦める)に
+	// 任せる。自分の乱数で署名し続けると isolate ごとに鍵が割れる(#642)ため、
+	// フォールバックとして使わない。reject された Promise は getImageSigningKey
+	// がキャッシュから捨てるので、次のリクエストで作り直す。
 	const stored = await env.AVATARS.get(SIGNING_KEY_OBJECT);
-	return importImageSigningKey(
-		stored ? await stored.arrayBuffer() : material.buffer,
-	);
+	if (!stored) {
+		throw new Error(
+			"image signing key lost the creation race and is unreadable",
+		);
+	}
+	return importImageSigningKey(await stored.arrayBuffer());
 }
 
 /** テスト用: isolate 内キャッシュを捨てる。 */
