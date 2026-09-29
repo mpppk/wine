@@ -7,6 +7,7 @@ import {
 import type { DrunkWinePatch } from "#/lib/drunk-wine/fields";
 import type { ReceivedDrunkWineEntry } from "#/lib/mcp-app/entry";
 import { connectHostBridge, type HostBridge } from "#/lib/mcp-app/host-bridge";
+import { buildCsp } from "#/lib/security/csp";
 
 // エントリを受信できないホストだと分かるまでの猶予。
 const ENTRY_WAIT_MS = 10_000;
@@ -36,15 +37,17 @@ function selfOrigin(): string {
 // allow-same-origin 無し(不透明オリジン)で動く前提にする: localStorage も
 // server fn も使わず、描画に必要なデータは静的マスタとホストからの受信のみ。
 export const Route = createFileRoute("/embed/drunk-wine")({
-	// ルート既定の frame-ancestors 'none' を打ち消して埋め込みを許可する。
-	// `frame-ancestors *` では足りない: MCP Apps ホストは App のHTMLを sandbox
+	// ルート既定の frame-ancestors 'none' を外して埋め込みを許可する。
+	// 他のディレクティブ(base-uri / object-src / form-action)は維持する。
+	// 組み立ては buildCsp が唯一の入口(#550)。`frame-ancestors *` では足りない:
+	// MCP Apps ホストは App のHTMLを sandbox
 	// (allow-same-origin 無し)の iframe で描画するため、その中から開くこの
 	// ページの祖先オリジンは不透明("null")になり、ネットワークスキームのURLしか
-	// 一致しない `*` にマッチせず読み込み自体が拒否される。空のポリシー(=祖先の
-	// 制限なし)にして、どんな祖先からでも埋め込めるようにする。認証情報も
+	// 一致しない `*` にマッチせず読み込み自体が拒否される。ディレクティブ自体を
+	// 省いて、どんな祖先からでも埋め込めるようにする。認証情報も
 	// ユーザ固有データも持たないページなので、埋め込みで奪えるものは無い。
 	headers: () => ({
-		"Content-Security-Policy": "",
+		"Content-Security-Policy": buildCsp({ allowEmbedding: true }),
 	}),
 	component: EmbedDrunkWinePage,
 });

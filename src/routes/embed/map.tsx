@@ -6,6 +6,7 @@ import { AopMapView } from "#/components/wine/AopMapView";
 import { MobileDetailSheet } from "#/components/wine/MobileDetailSheet";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
+import { buildCsp } from "#/lib/security/csp";
 import {
 	buildAopTree,
 	flattenAopTree,
@@ -28,14 +29,16 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/embed/map")({
 	validateSearch: searchSchema,
 	// このビューは MCP Apps ホスト(Claude 等)のサードパーティ iframe に埋め込まれる
-	// 前提なので、ルート既定の frame-ancestors 'none' を打ち消して埋め込みを許可する。
-	// 公開データのみを表示する読み取り専用ビューのため任意オリジンからの埋め込みを許す。
-	// `frame-ancestors *` では足りない: ホストは App のHTMLを sandbox
+	// 前提なので、ルート既定の frame-ancestors 'none' を外して埋め込みを許可する。
+	// 他のディレクティブ(base-uri / object-src / form-action)は維持する。
+	// 組み立ては buildCsp が唯一の入口(#550)。`frame-ancestors *` では足りない:
+	// ホストは App のHTMLを sandbox
 	// (allow-same-origin 無し)の iframe で描画するため、その中から開くこのページの
 	// 祖先オリジンは不透明("null")になり、ネットワークスキームのURLしか一致しない
-	// `*` にマッチせず読み込み自体が拒否される(#189)。空のポリシーで祖先を問わない。
+	// `*` にマッチせず読み込み自体が拒否される(#189)。ディレクティブ自体を
+	// 省いて祖先を問わない。
 	headers: () => ({
-		"Content-Security-Policy": "",
+		"Content-Security-Policy": buildCsp({ allowEmbedding: true }),
 	}),
 	loaderDeps: ({ search }) => ({ region: search.region }),
 	loader: async ({ deps }) => {

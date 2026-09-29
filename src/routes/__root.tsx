@@ -12,6 +12,7 @@ import { CommandPaletteProvider } from "../components/CommandPaletteContext";
 import Header from "../components/Header";
 import { STARTER_GUIDE_INIT_SCRIPT } from "../lib/dashboard/guide-dismissal";
 import { isEmbedPath } from "../lib/embed";
+import { buildCsp } from "../lib/security/csp";
 import {
 	resolveInitialMode,
 	STATUS_BAR_STYLES,
@@ -100,14 +101,19 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 		],
 	}),
 	// 全SSRページ共通のセキュリティレスポンスヘッダ(多層防御)。
+	// CSP の組み立ては `src/lib/security/csp.ts` の buildCsp が唯一の入口
+	// (#550)。経路ごとに文字列を手書きしない。
 	// - frame-ancestors 'none': 第三者サイトの iframe への埋め込みを禁止し、
 	//   /oauth/consent(認可の Allow ボタン)等でのクリックジャッキングを防ぐ。
-	//   X-Frame-Options より新しく、埋め込みを許可したい /embed/map では
+	//   X-Frame-Options より新しく、埋め込みを許可したい /embed/* では
 	//   ルート単位で上書きできる(下位マッチのヘッダが後勝ちで優先される)。
+	// - base-uri / object-src / form-action: 注入時の被害拡大を抑える。
+	//   script-src は TanStack Start の動的インラインと BOOT_SCRIPT の nonce 化
+	//   が要るため段階的導入として見送り(csp.ts のコメント参照)。
 	// - nosniff: HTML応答の MIME スニッフィングを抑止する。
 	// - Referrer-Policy: クロスオリジン遷移時に参照元パスを送らない。
 	headers: () => ({
-		"Content-Security-Policy": "frame-ancestors 'none'",
+		"Content-Security-Policy": buildCsp(),
 		"X-Content-Type-Options": "nosniff",
 		"Referrer-Policy": "strict-origin-when-cross-origin",
 	}),

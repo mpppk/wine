@@ -15,6 +15,7 @@
 - **Web Push の VAPID 鍵**（#466）は本番・プレビューで**同じ鍵ペア**を使う。公開鍵は `wrangler.jsonc` の `vars.VAPID_PUBLIC_KEY`（そもそもブラウザまで届く公開情報）、秘密鍵は `wrangler secret put VAPID_PRIVATE_KEY`（プレビューは `--env preview`）。購読は origin ごとに別なので、鍵を共有しても本番とプレビューの通知が混ざることはない。鍵ペアは `node scripts/generate-vapid-keys.mjs` で作る。**入れ替えると既存の購読は全て無効になる**ので、入れ替えたら `push_subscription` を空にして購読し直してもらう。
 - **PRごとのプレビューURLではキュー・コンシューマが動かない**（#460 で実測）。ブランチプレビューの deploy command は `wrangler versions upload` で、これは*バージョン*を上げるだけで*デプロイ*を作らない。producer バインディングは付くのでジョブの投入・予約・状態取得までは動くが、consumer はキューに登録されず（`wrangler queues info wine-label-jobs-preview` が `Number of Consumers: 0` を返す）、投入したジョブは `queued` のまま `LABEL_JOB_QUEUE_STALE_MS` で失敗として決着する。ログが取れないのと同じ制約（CLAUDE.md）で回避策は無い。**キューを跨ぐ経路の実機確認はローカル（`bun run dev`。miniflare が producer/consumer 両方を張る）で行い、デプロイ済み環境での確認はマージ後**（`main` の2トリガーは `wrangler deploy` なので consumer が付く）。
 - ログイン等で origin を検証するため、公開ドメインを追加/変更したら `src/lib/auth.ts` の `trustedOrigins` にも登録する（プレビューはダッシュ連結ホスト名 `https://*-wine-preview.niboshi.workers.dev` 用のワイルドカードが別途必要）。本番の workers.dev（`wine.niboshi.workers.dev` / `*-wine.niboshi.workers.dev`）は公開しない方針のため登録しない（#640）。
+- セキュリティヘッダの担保点（#550）。CSP と `nosniff` / `Referrer-Policy` はアプリ側（`src/lib/security/csp.ts` の `buildCsp` が唯一の入口。`__root.tsx` と `/embed/*` が共用）で付ける。`Strict-Transport-Security` はアプリ・Cloudflare のどちらでも未設定（2026-09-29 時点で本番応答に含まれないことを確認）。付けるときは Cloudflare 側（SSL/TLS の HSTS 設定）で担保し、アプリからは送らない。
 
 ## DB マイグレーションの自動実行
 
