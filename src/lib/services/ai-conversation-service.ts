@@ -76,6 +76,9 @@ const CONVERSATION_NOT_FOUND_MESSAGE = "会話が見つかりません。";
 const CONVERSATION_BUSY_MESSAGE =
 	"回答を生成中です。完了または中断の確定後に操作してください。";
 
+/** 送信IDの競合で勝者の再読込が見つからないときの利用者向け文言(Issue #643) */
+const SEND_CONFLICT_MESSAGE = "送信が競合しました。再試行してください。";
+
 export interface ConversationSummary {
 	id: string;
 	regionId: string;
@@ -241,6 +244,38 @@ async function findSettledRunBySendId(
 		await new Promise((resolve) => setTimeout(resolve, 20));
 	}
 	return null;
+}
+
+/**
+ * D1 の一意制約違反かどうか(Issue #643)。
+ * Drizzle 経由の D1 エラーは "UNIQUE constraint failed" / "SQLITE_CONSTRAINT_UNIQUE"
+ * を含む文字列で届く。cause に包まれる形に備えて Error 全体を文字列化して判定する。
+ */
+function isUniqueViolation(e: unknown): boolean {
+	const text =
+		e instanceof Error
+			? `${e.message} ${String((e as { cause?: unknown }).cause ?? "")}`
+			: String(e);
+	return (
+		/UNIQUE constraint failed/i.test(text) ||
+		/SQLITE_CONSTRAINT_UNIQUE/i.test(text)
+	);
+}
+
+/**
+ * 送信IDの競合に負けたときの決着。勝者の再読込が見つかれば保存結果を返し、
+ * 見つからなければ一意制約違反は 409 に写す(生の D1 エラーを 500 にしない)。
+ * 制約違反以外の失敗はそのまま投げる。
+ */
+async function replayOrConflict(
+	userId: string,
+	sendId: string,
+	cause: unknown,
+): Promise<SendChatResult> {
+	const raced = await findSettledRunBySendId(userId, sendId);
+	if (raced) return replayRunResult(userId, raced);
+	if (isUniqueViolation(cause)) throw new ConflictError(SEND_CONFLICT_MESSAGE);
+	throw cause;
 }
 
 /** 会話内の最大 sequence。0始まりの集計が空なら 0 を返す */
@@ -727,9 +762,8 @@ export async function sendAiChatMessage(
 			]);
 		} catch (e) {
 			// 同一送信IDの競合に負けた場合は保存結果を返す(課金・推論は開始しない)。
-			const raced = await findSettledRunBySendId(userId, input.sendId);
-			if (raced) return replayRunResult(userId, raced);
-			throw e;
+			// 勝者が見つからない一意制約違反は 409 に写す(Issue #643)。
+			return replayOrConflict(userId, input.sendId, e);
 		}
 	} else {
 		conversationId = conv.id;
@@ -781,9 +815,7 @@ export async function sendAiChatMessage(
 			]);
 		} catch (e) {
 			await releaseActiveRun(userId, conversationId, runId);
-			const raced = await findSettledRunBySendId(userId, input.sendId);
-			if (raced) return replayRunResult(userId, raced);
-			throw e;
+			return replayOrConflict(userId, input.sendId, e);
 		}
 	}
 
@@ -1038,9 +1070,7 @@ export async function retryAiChatRun(
 		});
 	} catch (e) {
 		await releaseActiveRun(userId, conv.id, runId);
-		const raced = await findSettledRunBySendId(userId, input.sendId);
-		if (raced) return replayRunResult(userId, raced);
-		throw e;
+		return replayOrConflict(userId, input.sendId, e);
 	}
 
 	const begun = await beginMeteredInference(userId, {
