@@ -1349,6 +1349,168 @@ describe("一括抽出の予約 → 確定/返却", () => {
 		expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
 	});
 
+	// Claude 経路のチャンク分割(#491)。全写真を1リクエストに載せると web検索20回 +
+	// 20k出力のツールループが約378秒で 524 に切られるため、2枚ずつに割って逐次に呼ぶ。
+	describe("Claude経路のチャンク分割 (#491)", () => {
+		async function seedClaudeUser(): Promise<string> {
+			const userId = await seedPremiumUser();
+			await env.DB.prepare(
+				"UPDATE user SET preferred_label_engine = 'web-research' WHERE id = ?",
+			)
+				.bind(userId)
+				.run();
+			return userId;
+		}
+
+		it("3枚の写真は2リクエストに分割し、写真番号を全体通しで返す", async () => {
+			const userId = await seedClaudeUser();
+			const bodies: string[] = [];
+			let call = 0;
+			stubOpenRouterKey();
+			vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+				if (typeof init?.body === "string") bodies.push(init.body);
+				call += 1;
+				return call === 1
+					? orChatMessage(
+							{
+								wines: [
+									wineJson({ wine_name: "Chablis", photo_indexes: [0] }),
+									wineJson({ wine_name: "Sancerre", photo_indexes: [1] }),
+								],
+								truncated: false,
+							},
+							{ prompt_tokens: 1000, completion_tokens: 200 },
+						)
+					: orChatMessage(
+							{
+								wines: [
+									wineJson({
+										wine_name: "Barolo",
+										photo_indexes: [0],
+										bottle_photo_index: 0,
+									}),
+								],
+								truncated: false,
+							},
+							{ prompt_tokens: 500, completion_tokens: 100 },
+						);
+			});
+
+			const result = await runWineListViaJob(userId, {
+				imageDataUrls: [PHOTO, PHOTO, PHOTO],
+			});
+
+			expect(result).toMatchObject({ blocked: false });
+			if (result.blocked) throw new Error("unreachable");
+			// 2枚 + 1枚の2リクエスト。各チャンクの検索上限は単体解析と同じ8回。
+			expect(bodies).toHaveLength(2);
+			for (const raw of bodies) {
+				const body = JSON.parse(raw) as {
+					model?: unknown;
+					tools?: Array<{ parameters?: { max_uses?: unknown } }>;
+				};
+				expect(body.model).toBe(AI_WINE_LIST_ROUTE_MODELS["web-research"]);
+				expect(body.tools?.[0]?.parameters?.max_uses).toBe(8);
+			}
+			expect((bodies[0]?.match(/data:image\/jpeg/g) ?? []).length).toBe(2);
+			expect((bodies[1]?.match(/data:image\/jpeg/g) ?? []).length).toBe(1);
+			// 指示文の枚数もチャンクの実枚数で解決される(全3枚の本文を使い回すと
+			// photo_indexes の当て推量を誘発する)。
+			expect(bodies[0]).toContain("全2枚");
+			expect(bodies[1]).toContain("全1枚");
+			// チャンク2の `photo_indexes: [0]` は全体通しの [2] へ付け替わる。
+			// bottle_photo_index も同じく通し番号になる。
+			expect(result.summary).toMatchObject({
+				detected: 3,
+				subject: "wine_list",
+				truncated: false,
+			});
+			const byName = new Map(
+				result.candidates.map((c) => [c.suggestions.name, c]),
+			);
+			expect(byName.get("Chablis")?.photoIndexes).toEqual([0]);
+			expect(byName.get("Sancerre")?.photoIndexes).toEqual([1]);
+			expect(byName.get("Barolo")?.photoIndexes).toEqual([2]);
+			expect(byName.get("Barolo")?.bottlePhotoIndex).toBe(2);
+			// usage はチャンク合算で確定する((1000+200) + (500+100))。
+			expect(result.actualTokens).toBe(1800);
+			expect(await balanceOf(userId)).toBe(
+				balanceAfter(
+					AI_WINE_LIST_ROUTE_MODELS["web-research"],
+					{
+						inputTokens: 1500,
+						outputTokens: 300,
+						cacheWriteTokens: 0,
+						cacheReadTokens: 0,
+						webSearches: 0,
+					},
+					MONTHLY_CREDITS_PREMIUM,
+				),
+			);
+		});
+
+		it("2チャンク目が失敗したら部分結果を truncated で返す", async () => {
+			const userId = await seedClaudeUser();
+			let call = 0;
+			stubOpenRouter(async () => {
+				call += 1;
+				return call === 1
+					? orChatMessage(
+							{
+								wines: [wineJson({ wine_name: "Chablis", photo_indexes: [0] })],
+								truncated: false,
+							},
+							{ prompt_tokens: 1000, completion_tokens: 200 },
+						)
+					: Response.json(
+							{ error: { message: "provider error" } },
+							{ status: 500 },
+						);
+			});
+
+			const result = await runWineListViaJob(userId, {
+				imageDataUrls: [PHOTO, PHOTO, PHOTO],
+			});
+
+			expect(result).toMatchObject({ blocked: false });
+			if (result.blocked) throw new Error("unreachable");
+			// 取れた1チャンクぶんだけ返し、残りは「写真を分けて再解析」の案内に載る。
+			expect(result.candidates).toHaveLength(1);
+			expect(result.candidates[0]?.suggestions.name).toBe("Chablis");
+			expect(result.summary).toMatchObject({ detected: 1, truncated: true });
+			// 成功したチャンクぶんは実測で確定し(返却ではない)、失敗ぶんは請求しない。
+			expect(result.actualTokens).toBe(1200);
+			const rows = await ledgerRowsOf(userId);
+			expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
+			expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(
+				false,
+			);
+		});
+
+		it("全チャンクが失敗したら最初の例外で失敗し全額返却する", async () => {
+			const userId = await seedClaudeUser();
+			stubOpenRouter(async () =>
+				Response.json(
+					{ error: { message: "provider error" } },
+					{ status: 500 },
+				),
+			);
+
+			await expect(
+				runWineListViaJob(userId, {
+					imageDataUrls: [PHOTO, PHOTO, PHOTO],
+				}),
+			).rejects.toThrow();
+
+			expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_PREMIUM);
+			const rows = await ledgerRowsOf(userId);
+			expect(rows.some((r) => r.requestId?.endsWith(REFUND_SUFFIX))).toBe(true);
+			expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(
+				false,
+			);
+		});
+	});
+
 	it("キーが未設定なら予約せずに 503 で拒否する", async () => {
 		// OpenRouter の接続が無い環境では機能ごと使えない。afterEach でキーを
 		// 消している状態を使う。

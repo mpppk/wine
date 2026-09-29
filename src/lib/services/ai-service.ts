@@ -15,10 +15,11 @@ import {
 	AI_LABEL_WEB_MODEL,
 	AI_MAX_OUTPUT_TOKENS,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_CLAUDE_MAX_SEARCHES_PER_REQUEST,
+	AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST,
 	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
-	AI_WINE_LIST_MAX_SEARCHES,
 	AI_WINE_LIST_ROUTE_MODELS,
 	anthropicReasoningForEffort,
 	DEFAULT_LABEL_ENGINE,
@@ -1418,87 +1419,221 @@ export function isWineListAnalysisAvailable(): boolean {
 }
 
 /**
- * Claude で全写真を1リクエスト解析し、銘柄配列を取り出す。env 非依存(apiKey を注入)で
- * 失敗は throw する(エチケット解析の高精度経路と同じ契約)。
+ * Claude で写真をチャンクに割って逐次に解析し、銘柄配列を取り出す。env 非依存
+ * (apiKey を注入)で失敗は throw する(エチケット解析の高精度経路と同じ契約)。
  *
  * #602 で Anthropic SDK 直接接続から OpenRouter 経由へ移した。
  *
  * **web検索で裏を取る**(#474)。銘柄ごとにリクエストを立てず、1回の推論のサーバー側
  * ツールループの中でまとめて調べさせる——これが「銘柄数 × 検索でコストが発散する」
  * (#358 が裏取りを外した理由)への歯止めで、回数自体も `max_uses` で縛る。
+ *
+ * **写真は `AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST` 枚ずつに割って逐次に呼ぶ**
+ * (#491)。全写真を1リクエストに載せると web検索20回 + 最大20k出力の
+ * ツールループが1応答に畳まれ、銘柄数に依らず約378秒で Cloudflare の上限
+ * (524)に切られる。1チャンクぶんを単体解析と同じ時間スケール(8検索・41秒で
+ * 完走の実績)に収めることで、完走可能な複数回のリクエストにする。計測は
+ * 外側の `finishMeteredInference` と同じ(ctx へ generation をチャンクごとに
+ * 記録し、usage を合算する)ため、実行記録・Langfuse の形は保たれる。
+ *
+ * チャンクのパース結果は写真番号を全体通しへ付け替えて束ねる。各チャンクの
+ * プロンプトは「写真 0..チャンク内枚数」で番号を振るため、そのまま束ねると
+ * 別チャンクの銘柄が同じ写真を指す。`photo_indexes` と `bottle_photo_index`
+ * にチャンク先頭の通し番号を足してから束ね、チャンク間の重複統合は呼び出し側の
+ * 既存処理(`dedupeWineListItems`)に任せる。
+ *
+ * 2チャンク目以降の失敗は**その時点までの結果で打ち切って返す**
+ * (`truncated: true`)。6分待たせた末の全損より、取れたぶんに「写真を分けて
+ * 再解析」の案内を載せるほうが復旧可能。全チャンクが失敗した回だけ throw する。
  */
 async function extractWineListWithClaude(
 	apiKey: string,
 	imageDataUrls: string[],
 	obs?: InferenceObserver,
-	/** Langfuse 管理下から引いた本文。省略時はコードの版を使う。 */
-	promptText?: string,
+	/**
+	 * Langfuse 管理下のプロンプトをチャンクの写真枚数ごとに解決する入口。
+	 * 指示文の冒頭に「全N枚」と入るため、固定の本文を使い回すとチャンクの
+	 * 実枚数と食い違い、photo_indexes の当て推量を誘発する。`getManagedPrompt`
+	 * が唯一の入口という規約は保ち、呼び出し側が解決関数を渡す
+	 * (`runWineListAnalysisForJob` が `resolveWineListResearchPrompt` を差す)。
+	 */
+	resolvePrompt: (photoCount: number) => Promise<ResolvedPrompt> = (n) =>
+		resolveWineListResearchPrompt(n),
 	/** ユーザ設定の推論の深さ。low は reasoning 無指定(現行どおり)。 */
 	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): Promise<{ parsed: WineListParseResult; usage: AiUsage }> {
-	const messages = buildWineListMessages(
-		imageDataUrls,
-		promptText ?? buildWineListPrompt(imageDataUrls.length),
-	);
 	// Langfuse へ送る入力は**写真を要約へ置き換えた版**(#515)。写像の構築時に
-	// ハッシュ計算(非同期)を済ませるのはエチケット解析と同じ。
+	// ハッシュ計算(非同期)を済ませるのはエチケット解析と同じ。写像は全写真ぶんを
+	// 持つので、チャンクごとの部分メッセージの置き換えにもそのまま使える。
 	const redact = await createPhotoRedactor(imageDataUrls);
 	const photoSummaries = await describePhotoSummaries(imageDataUrls);
-	const response = await chatCompletion(apiKey, {
-		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
-		messages,
-		maxTokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
-		reasoning: anthropicReasoningForEffort(effort),
-		tools: [
-			{
-				type: "openrouter:web_search",
-				parameters: {
-					engine: "native",
-					max_uses: AI_WINE_LIST_MAX_SEARCHES,
+	const reasoning = anthropicReasoningForEffort(effort);
+	// チャンクの区切りは決定的なので、プロンプトの解決は先に並列で済ませる。
+	// `getManagedPrompt` は throw しない(fallback へ落とす)ため、ここに置いても
+	// 予約の返却漏れは起きない。版の追跡はチャンクごとの generation に載る。
+	const chunks = await Promise.all(
+		(() => {
+			const ranges: { start: number; size: number }[] = [];
+			for (
+				let start = 0;
+				start < imageDataUrls.length;
+				start += AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST
+			) {
+				ranges.push({
+					start,
+					size: Math.min(
+						AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST,
+						imageDataUrls.length - start,
+					),
+				});
+			}
+			return ranges.map(async (range, chunkIndex) => ({
+				chunkIndex,
+				start: range.start,
+				images: imageDataUrls.slice(range.start, range.start + range.size),
+				prompt: await resolvePrompt(range.size),
+			}));
+		})(),
+	);
+	let totalUsage: AiUsage = {};
+	const allWines: WineListParseResult["wines"] = [];
+	let subject: WineListSubject = "single_wine";
+	let truncated = false;
+	let succeededChunks = 0;
+	let firstError: unknown;
+	// チャンクの失敗を記録する。取れたぶんがある回は残りを諦めて部分結果で
+	// 返す(`truncated: true` + warn ログ)ため false を返し、全滅の回はループを
+	// 続けて最後に最初の例外を投げるため true を返す。
+	const noteChunkFailure = (chunkIndex: number, e: unknown): boolean => {
+		if (succeededChunks > 0) {
+			logWarn("wine list chunk failed; returning partial results", {
+				chunkIndex,
+				err: e,
+			});
+			truncated = true;
+			return false;
+		}
+		firstError ??= e;
+		return true;
+	};
+	for (const chunk of chunks) {
+		const {
+			chunkIndex,
+			start,
+			images: chunkImages,
+			prompt: chunkPrompt,
+		} = chunk;
+		const chunkObs =
+			obs === undefined ? undefined : withPromptAttribution(obs, chunkPrompt);
+		const messages = buildWineListMessages(chunkImages, chunkPrompt.text);
+		let response: OpenRouterChatResult;
+		try {
+			response = await chatCompletion(apiKey, {
+				model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
+				messages,
+				maxTokens: AI_WINE_LIST_MAX_OUTPUT_TOKENS,
+				reasoning,
+				tools: [
+					{
+						type: "openrouter:web_search",
+						parameters: {
+							engine: "native",
+							max_uses: AI_WINE_LIST_CLAUDE_MAX_SEARCHES_PER_REQUEST,
+						},
+					},
+				],
+			});
+		} catch (e) {
+			if (!noteChunkFailure(chunkIndex, e)) break;
+			continue;
+		}
+		const usage = response.usage;
+		totalUsage = addUsage(totalUsage, usage);
+		const trace = extractOpenRouterTrace(response.annotations);
+		if (chunkObs) {
+			// モデル呼び出し1回 = generation 1件。**パースより先に報告する**(エチケット解析の
+			// 標準経路と同じ理由で、応答の解釈に失敗してもモデルが何を返したかを残す)。
+			// チャンクごとに `#n` を付けて区別する。
+			chunkObs.recordGeneration({
+				name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}web-research#${chunkIndex + 1}`,
+				model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
+				input: redact([...messages]),
+				output: response.text,
+				metadata: { photos: photoSummaries },
+				usage: {
+					inputTokens: usage.inputTokens,
+					outputTokens: usage.outputTokens,
+					totalTokens: totalTokens(usage),
 				},
-			},
-		],
-	});
-	const usage = response.usage;
-	const trace = extractOpenRouterTrace(response.annotations);
-	if (obs) {
-		// モデル呼び出し1回 = generation 1件。**パースより先に報告する**(エチケット解析の
-		// 標準経路と同じ理由で、応答の解釈に失敗してもモデルが何を返したかを残す)。
-		obs.recordGeneration({
-			name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}web-research#1`,
-			model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
-			input: redact([...messages]),
-			output: response.text,
-			metadata: { photos: photoSummaries },
-			usage: {
-				inputTokens: usage.inputTokens,
-				outputTokens: usage.outputTokens,
-				totalTokens: totalTokens(usage),
-			},
-		});
-		if (trace.steps.length > 0) {
-			obs.recordSpan({
-				name: "web_search",
-				input: trace.steps.map((s) => ({ action: s.action, query: s.query })),
-				output: trace.steps,
+			});
+			if (trace.steps.length > 0) {
+				chunkObs.recordSpan({
+					name: "web_search",
+					input: trace.steps.map((s) => ({ action: s.action, query: s.query })),
+					output: trace.steps,
+				});
+			}
+		}
+		// チャンクの応答検査は「使えないチャンク」として一様に扱う。従来は種類ごとに
+		// 直接 throw していたが、チャンク化した後は「そのチャンクぶんが無い」だけの
+		// 部分失敗になりうるため、ここでは例外へ畳んで noteChunkFailure に寄せる。
+		let chunkError: unknown;
+		if (
+			response.finishReason === "content_filter" ||
+			(!response.text.trim() && response.finishReason !== "length")
+		) {
+			chunkError = new Error("Claudeがワインリストの解析の応答を拒否しました");
+		} else if (response.finishReason === "length") {
+			// 出力上限で打ち切られた応答は JSON が途中で切れており、パースに回すと
+			// 「形式が不正」という無関係な例外になる。銘柄が多すぎることが原因だと
+			// ユーザが分かる形で返す(escape hatch: 写真を分けて再解析)。チャンク化
+			// した後も1チャンクぶんが枠に収まらない回は同じ案内に載せる。
+			chunkError = new BadRequestError(WINE_LIST_TRUNCATED_ERROR_MESSAGE);
+		} else {
+			try {
+				assertGptLabelFinished(response.finishReason);
+			} catch (e) {
+				chunkError = e;
+			}
+		}
+		let parsed: WineListParseResult | undefined;
+		if (!chunkError) {
+			try {
+				parsed = parseWineListResponse(response.text, chunkImages.length);
+			} catch (e) {
+				chunkError = e;
+			}
+		}
+		if (chunkError || !parsed) {
+			if (!noteChunkFailure(chunkIndex, chunkError)) break;
+			continue;
+		}
+		succeededChunks += 1;
+		if (parsed.subject !== "single_wine" || parsed.truncated) {
+			subject = "wine_list";
+		}
+		truncated = truncated || parsed.truncated;
+		for (const wine of parsed.wines) {
+			allWines.push({
+				...wine,
+				photoIndexes: wine.photoIndexes.map((i) => i + start),
+				...(wine.bottlePhotoIndex !== undefined
+					? { bottlePhotoIndex: wine.bottlePhotoIndex + start }
+					: {}),
 			});
 		}
 	}
-	if (
-		response.finishReason === "content_filter" ||
-		(!response.text.trim() && response.finishReason !== "length")
-	) {
-		throw new Error("Claudeがワインリストの解析の応答を拒否しました");
+	if (succeededChunks === 0) {
+		throw firstError ?? new Error("Claudeがワインリストの解析に失敗しました");
 	}
-	// 出力上限で打ち切られた応答は JSON が途中で切れており、パースに回すと
-	// 「形式が不正」という無関係な例外になる。銘柄が多すぎることが原因だと
-	// ユーザが分かる形で返す(escape hatch: 写真を分けて再解析)。
-	if (response.finishReason === "length") {
-		throw new BadRequestError(WINE_LIST_TRUNCATED_ERROR_MESSAGE);
-	}
-	assertGptLabelFinished(response.finishReason);
-	const parsed = parseWineListResponse(response.text, imageDataUrls.length);
-	return { parsed, usage };
+	return {
+		parsed: {
+			wines: allWines,
+			subject: truncated ? "wine_list" : subject,
+			truncated,
+		},
+		usage: totalUsage,
+	};
 }
 
 /**
@@ -1601,38 +1736,41 @@ async function runWineListInference(
 		apiKey: string;
 		entries: DrunkWineEntry[];
 		/**
-		 * Langfuse 管理下から引いたプロンプト。**呼び出し側
-		 * (`runWineListAnalysisForJob`)が推論の実行直前に解決して渡す**
-		 * (`runLabelInference` の prompts と同じ理由)。省略時はコードの版を使う。
+		 * Langfuse 管理下のプロンプトを写真枚数ごとに解決する入口。Claude 経路は
+		 * チャンクごとに枚数が違う(#491)ため、固定の解決済み本文ではなく関数で
+		 * 受け取る。**呼び出し側(`runWineListAnalysisForJob`)が推論の実行直前に
+		 * 差す**(`runLabelInference` の prompts と同じ理由)。解決自体は
+		 * `resolveWineListResearchPrompt`(`getManagedPrompt` が唯一の入口)に
+		 * 寄せ、ここで `LangfuseClient` を直書きしない。
 		 */
-		prompt?: ResolvedPrompt;
+		resolvePrompt: (photoCount: number) => Promise<ResolvedPrompt>;
 	},
 	ctx: MeteredInferenceContext,
 ): Promise<MeteredInferenceOutput<WineListAnalysisOutcome>> {
 	// **フォールバックは持たない**。片方の失敗でもう一方を叩くと、失敗した推論の
 	// 原価に加えてもう1回ぶんの消費が乗る(#404 と同種の問題を作らない)。
 	// Langfuse への報告口(#515)。キー未設定なら ctx 側が no-op するので常に定義してよい。
-	const obs = withPromptAttribution(
-		{
-			recordGeneration: (gen) => ctx.recordGeneration(gen),
-			recordSpan: (span) => ctx.recordSpan(span),
-		},
-		input.prompt,
-	);
+	const obs: InferenceObserver = {
+		recordGeneration: (gen) => ctx.recordGeneration(gen),
+		recordSpan: (span) => ctx.recordSpan(span),
+	};
 	const { parsed, usage } =
 		input.route === "gpt-luna"
-			? await extractWineListWithGpt(
-					input.apiKey,
-					input.imageDataUrls,
-					obs,
-					input.prompt?.text,
-					input.effort,
-				)
+			? await (async () => {
+					const prompt = await input.resolvePrompt(input.imageDataUrls.length);
+					return extractWineListWithGpt(
+						input.apiKey,
+						input.imageDataUrls,
+						withPromptAttribution(obs, prompt),
+						prompt.text,
+						input.effort,
+					);
+				})()
 			: await extractWineListWithClaude(
 					input.apiKey,
 					input.imageDataUrls,
 					obs,
-					input.prompt?.text,
+					input.resolvePrompt,
 					input.effort,
 				);
 	const deduped = dedupeWineListItems(parsed.wines);
@@ -1763,11 +1901,6 @@ export async function runWineListAnalysisForJob(
 	}
 	// 既存セラーとの突合材料。予約は投入時に済んでいるので、ここで読んでよい。
 	const { entries } = await drunkWineService.listDrunkWines(userId);
-	// プロンプトは Langfuse 管理下から引く(IMPL-3 W3-2。`runLabelAnalysisForJob`
-	// と同じく throw しないので、予約済みのここに置いても返却漏れは起きない)。
-	const prompt = await resolveWineListResearchPrompt(
-		input.imageDataUrls.length,
-	);
 	return finishMeteredInference(
 		userId,
 		{
@@ -1783,7 +1916,12 @@ export async function runWineListAnalysisForJob(
 					effort: input.plan.effort,
 					apiKey,
 					entries,
-					prompt,
+					// プロンプトは Langfuse 管理下から引く(IMPL-3 W3-2。`runLabelAnalysisForJob`
+					// と同じく throw しないので、予約済みのここに置いても返却漏れは起きない)。
+					// Claude 経路はチャンクごとに枚数が違う(#491)ため、解決済み本文では
+					// なく解決関数を渡し、各チャンクの実枚数で引く。
+					resolvePrompt: (photoCount: number) =>
+						resolveWineListResearchPrompt(photoCount),
 				},
 				ctx,
 			),

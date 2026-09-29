@@ -695,8 +695,35 @@ const AI_WINE_LIST_OUTPUT_TOKEN_PER_IMAGE = 500;
  * 銘柄ごとにリクエストを立てず1回の推論の中でまとめて調べさせ、その回数をここで縛る。
  * エチケット解析(1本で上限8)より大きいのは、対象が最大 `AI_WINE_LIST_MAX_WINES` 銘柄
  * あるため。**銘柄数に比例はさせない**——比例させると上限の意味が無くなる。
+ *
+ * Claude 経路は写真を分割して複数回に分けて呼ぶ(#491)ため、1リクエストあたりの
+ * 上限は下の `AI_WINE_LIST_CLAUDE_MAX_SEARCHES_PER_REQUEST` が受け持つ。こちらは
+ * 予約見積のクランプと GPT 経路の実態(上限を掛けられない)の説明に残る。
  */
 export const AI_WINE_LIST_MAX_SEARCHES = 20;
+
+/**
+ * 一括抽出の Claude 経路で1リクエストに載せる写真の枚数(#491)。
+ *
+ * 全写真を1リクエストに載せると、web検索20回 + 最大20k出力のサーバー側
+ * ツールループが1回の応答に畳まれ、銘柄数に依らず約378秒で Cloudflare の
+ * 上限(524)に切られて写真の一括登録が使えなくなる。写真を few枚ずつの
+ * チャンクに割って逐次に複数回呼ぶことで、1回ぶんを完走可能な大きさに収める。
+ * チャンク間の重複統合は呼び出し側の既存処理(`dedupeWineListItems`)が担うため、
+ * ここでは写真番号の付け替えだけを行い、推論の意味は変えない。
+ */
+export const AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST = 2;
+
+/**
+ * 一括抽出の Claude 経路で1リクエスト(1チャンク)に許可する web検索回数の上限(#491)。
+ *
+ * エチケット解析の Claude 経路(`AI_LABEL_WEB_MAX_SEARCHES` = 8)と同じ値にする——
+ * 同じ8検索 + 同程度の出力で単体解析は41秒で完走しており、1チャンクぶんを
+ * その時間スケールに収めるのが 524 を避ける要点。銘柄数が多い写真でも、
+ * チャンクあたりの検索はここで打ち切られ、残りは `truncated` として
+ * 「写真を分けて再解析」の案内に載る(出力上限の打ち切りと同じ escape hatch)。
+ */
+export const AI_WINE_LIST_CLAUDE_MAX_SEARCHES_PER_REQUEST = 8;
 
 /**
  * GPT経路の web検索結果をどれだけコンテキストに載せるか。`openrouter:web_search`

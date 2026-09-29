@@ -2,15 +2,19 @@ import { describe, expect, it } from "vitest";
 import { AI_MAX_ESTIMATE_MICRO_USD } from "#/lib/billing/ai-pricing";
 import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
 import { costToCredits } from "#/lib/credit/credit-math";
+import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import {
 	AI_HISTORY_CONTENT_MAX_CHARS,
 	AI_HISTORY_INPUT_MAX_MESSAGES,
 	AI_LABEL_ENGINES,
 	AI_LABEL_GPT_MAX_OUTPUT_TOKENS,
 	AI_LABEL_WEB_MAX_OUTPUT_TOKENS,
+	AI_LABEL_WEB_MAX_SEARCHES,
 	AI_MAX_HISTORY_MESSAGES,
 	AI_REASONING_EFFORTS,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_CLAUDE_MAX_SEARCHES_PER_REQUEST,
+	AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST,
 	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_SEARCHES,
@@ -460,6 +464,20 @@ describe("estimateWineListReserveUsage (#474)", () => {
 				AI_WINE_LIST_MAX_SEARCHES,
 			);
 		}
+	});
+});
+
+describe("一括抽出Claude経路のチャンク分割 (#491)", () => {
+	it("1チャンクは単体解析と同じ時間スケール(検索8回・写真は複数枚まで)", () => {
+		// 単体の Claude + web検索は上限8回で41秒完走の実績がある。チャンクあたりの
+		// 検索を同じ8回に抑えることが、524 を避ける要点。
+		expect(AI_WINE_LIST_CLAUDE_MAX_SEARCHES_PER_REQUEST).toBe(
+			AI_LABEL_WEB_MAX_SEARCHES,
+		);
+		expect(AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST).toBeGreaterThanOrEqual(1);
+		expect(AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST).toBeLessThanOrEqual(
+			MAX_PHOTOS_PER_IMPORT_BATCH,
+		);
 	});
 });
 
