@@ -364,9 +364,11 @@ $ bun run traces --trace df94454ed3341035b077cf8d8fc3fd17
 （D1・R2・Images・Queues・Rate limiting）・**外向き `fetch`** の呼び出し。
 
 **`env.AI`（Workers AI バインディング）は #602 で廃止した**。LLM 呼び出しは OpenRouter
-への外向き `fetch`（`src/lib/ai/openrouter.ts` が唯一の入口）で行い、こちらは自動計装の
-対象になる。モデル呼び出し単位の区切り（どの推論がどれだけ掛かったか）はカスタムスパン
-（`src/lib/observability/span.ts` の `withSpan`）で補っている。**スパンを張るのはこの3箇所だけ**で、`tracing.enterSpan` を経路ごとに直書きしない
+への外向き `fetch`（`src/lib/ai/openrouter.ts` が唯一の入口）で行い、fetch 自体は自動計装の
+対象になる。`ai_inference` スパンは「推論だけ」ではなく確定・返却まで含めた `finishMeteredInference`
+全体を 1 つにまとめるために張っている（settle の D1 書き込みや返却の再試行で起きる遅さ・失敗を
+トレースから消さないため。範囲の理由は `src/lib/services/metered-inference.ts` のコメントが正）。
+カスタムスパンの入口は `src/lib/observability/span.ts` の `withSpan`。**スパンを張るのは下の3箇所だけ**で、`tracing.enterSpan` を経路ごとに直書きしない
 （経路が増えたときに後発の経路で必ず漏れるため。#166 / #174 と同じ失敗の形）。
 
 | スパン名 | 張っている場所 | 主な属性 |

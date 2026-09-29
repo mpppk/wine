@@ -39,7 +39,7 @@ wine/
 │   │   ├── quiz/           # クイズ純ロジック（ジェネレータ・スケジューラ・キー）
 │   │   ├── billing/ credit/ dashboard/ drunk-wine/ admin/ ads/ ai/ images/ reference-link/
 │   │   │                   # 各ドメインの DB 非依存の純ロジック + zod スキーマ + テスト
-│   │   ├── services/       # サービス層（D1/R2/Stripe/Workers AI への唯一のアクセス点）
+│   │   ├── services/       # サービス層（D1/R2/Stripe/OpenRouter への唯一のアクセス点）
 │   │   ├── mcp/            # MCP サーバー（ツール・スキーマ・埋め込み UI）
 │   │   ├── auth.ts         # better-auth サーバー構成（trustedOrigins・プラグイン）
 │   │   └── auth-client.ts  # better-auth クライアント
@@ -64,7 +64,7 @@ graph TD
     S --> SV["src/lib/services/<br>サービス層"]
     A["src/routes/api/*<br>バイナリ系 API ルート"] --> SV
     SV --> DB["src/db/<br>Drizzle + D1"]
-    SV --> EXT["R2 / Stripe / Workers AI"]
+    SV --> EXT["R2 / Stripe / OpenRouter（外向き fetch）"]
     SV --> L
     S --> L["src/lib/&lt;domain&gt;/<br>純ロジック + 静的マスタ"]
     C --> L
@@ -75,7 +75,7 @@ graph TD
 
 1. **`src/routes/`（ページ / HTTP 境界）** — ページルートは `beforeLoad` で認証ガード（`getSession()` サーバ関数）、`loader` でデータ取得。API ルートは `createFileRoute` の `server.handlers` で Web 標準 Response を返す。
 2. **`src/server/`（RPC 層）** — `createServerFn` の薄い層。各関数は (a) `middleware([authMiddleware | adminMiddleware | optionalAuthMiddleware])` で認可、(b) `inputValidator(zod スキーマ)` で入力検証、(c) `handler` でサービス層への 1 行委譲、の 3 点だけを持つ。**ビジネスロジックと DB アクセスをここに書かない**。`userId` は必ず `context.user.id` から取り、クライアント申告の値を信用しない。
-3. **`src/lib/services/`（サービス層）** — D1（`#/db`）・R2（`env.AVATARS`）・Stripe・Workers AI（`env.AI`）に触れる**唯一の層**。全関数が操作主体の `userId` を第 1 引数で受ける規約。Web の server fn と MCP ツール（`src/lib/mcp/tools.ts`）とバイナリ系 API ルートがこの層を共用する。判定・換算ロジックは持たず「D1 との薄い橋渡し」に徹する。
+3. **`src/lib/services/`（サービス層）** — D1（`#/db`）・R2（`env.AVATARS`）・Stripe・OpenRouter（外向き fetch。`src/lib/ai/openrouter.ts` が唯一の入口）に触れる**唯一の層**。全関数が操作主体の `userId` を第 1 引数で受ける規約。Web の server fn と MCP ツール（`src/lib/mcp/tools.ts`）とバイナリ系 API ルートがこの層を共用する。判定・換算ロジックは持たず「D1 との薄い橋渡し」に徹する。
 4. **`src/lib/<domain>/`（純ロジック層）** — DB・`cloudflare:workers` 非依存の純関数と静的マスタデータ。**jsdom 上の単体テスト（`*.test.ts`）はこの層にのみ置かれる**。テストしたいロジックは基本この層へ切り出す（`cloudflare:workers` を import するモジュールは vitest(jsdom) でロードできないため）。
 
    なお D1・`env` に触れる層（`src/lib/services/*` の生SQL断片や `src/lib/mcp/tools.ts` のハンドラ）は、**`@cloudflare/vitest-pool-workers` を使う `*.workers.test.ts`** で workerd 上に実D1(miniflare)を用意して検証する（`vitest.config.ts` の `workers` プロジェクト。マイグレーションは `test/apply-migrations.ts` が適用）。純ロジックに切り出せない「実際にクエリを走らせないと守れない挙動」（onConflict の加算・streak リセット・case-when 集計など）はこちらでテストする。テストは分離D1を使い本番/プレビューには触れない。
@@ -212,7 +212,7 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 - **会員区分は導出値**: DB に plan カラムは持たず、better-auth/stripe の `subscription` テーブルから `resolvePlan()`（`entitlements.ts`）で `"free" | "premium"` を導出する。プラン・料金・クレジット数値は `plans.ts` に集約。
 - **クレジットは「追記専用台帳 + 残高キャッシュ」**: `credit_ledger`（unique な `requestId` が冪等キー）と `credit_balance` を同一 `db.batch` で更新。残高は `WHERE balance >= required` の条件付き UPDATE でのみ減算し、負値を構造的に禁止。残高不足は throw せず `{ blocked: true }` を返す（アップグレード誘導 UI につなげるため）。
 - **月次付与は Cron ではなく遅延付与**: 残高参照・消費の入口で必ず `ensureCurrentMonthGranted` を呼ぶ。繰越なし。管理画面のような「閲覧が付与を起こしてはいけない」文脈では `credit_balance` を生 SELECT する（`admin-service.ts`）。
-- **AI 消費はコスト基準で計上する**: クレジットの根拠は実原価（µUSD）で、トークン数ではない（#355）。モデル/プロバイダの単価は `src/lib/billing/ai-pricing.ts` が SSOT で、**モデルを足したら単価も足す**（`ai-pricing.test.ts` が強制）。使用量は `AiUsage`（入力/出力/キャッシュ/web検索回数）で表し、見積と実測が同じ換算関数を通る。**課金は「意図した経路」ではなく実際に推論したモデルの単価で行う**（フォールバック時に高い単価で課金しない）。
+- **AI 消費はコスト基準で計上する**: クレジットの根拠は実原価（µUSD）で、トークン数ではない（#355）。モデル/プロバイダの単価は `src/lib/billing/ai-pricing.ts` が SSOT で、**モデルを足したら単価も足す**（`ai-pricing.test.ts` が強制）。使用量は `AiUsage`（入力/出力/キャッシュ/web検索回数）で表し、見積と実測が同じ換算関数を通る。**課金は「意図した経路」ではなく実際に推論したモデルの単価で行う**（降格が無いため両者は一致するが、単価換算は「実際に推論したモデル」で行う規律は維持する）。
 - **AI 消費の骨格は `runMeteredInference` に閉じている**（`src/lib/services/metered-inference.ts`, #392）: `reserveCredits`（中心値見積で予約）→ 推論 → `settleReservation`（実測で確定）/ 失敗時 `refundReservation`（全額返却して再 throw）。**クレジットを消費する新機能はこの関数を呼ぶ**（骨格を書き写さない）。呼び出し側が渡すのは「見積・`requestId`（用途プレフィックス付き一意キー）・実行記録の静的部分・推論本体」だけで、下記の順序制約はラッパー側が構造で守る。推論中に判明した実行経路や裏取り情報は `ctx.addLogFields` で積むと **ok と failed の両方**の実行記録に載る。**予約は必ず `:settle` か `:refund` のどちらかで決着させる**（差分 0 の確定も `amount=0` の `:settle` 行を残す）。後始末は `waitUntil` で打ち切りから守り、それでも宙に浮いた予約は次回の `reserveCredits` が回収する（#246。詳細は [docs/ai-credit-system.md](./ai-credit-system.md)）。**予約と独立な準備（モデル解決などの D1 読み）は予約より前に済ませる**。予約の後・返却を担う `try` の外に `await` を置くと、そこでの throw が返却に届かず予約が無記録で消える（#245）。
 - **推論と確定がリクエストを跨ぐ場合は `beginMeteredInference` / `finishMeteredInference` に開く**（#460）。`runMeteredInference` はこの2つの合成そのもので、同期経路の挙動は変わらない。非同期のジョブ（エチケット解析）は「投入リクエストで `begin` → 予約を D1 に永続化 → キューへ投入」「コンシューマで予約を復元 → `finish`」の2段階になるが、予約後の順序制約は `finish` の中に閉じたままになる。**予約したが推論に到達できない結末**（写真の保存失敗・投入の失敗）は `abandonMeteredInference` で返却と `failed` の実行記録をセットにして閉じる。プロセスごと死んで返却できなかった予約は、ここに別の回収ループを作らず `reclaimOrphanReservations`（#246）に任せる（二重回収になる）。
 - 管理画面の金銭的操作は理由必須 + `admin_audit_log` への記録をセットにし、可能な限り `requestId` で冪等化する（プレミアム延長は例外的に非冪等で、UI 側の二重送信防止に依存）。
@@ -309,7 +309,7 @@ Langfuse へも報告すること（`src/lib/observability/langfuse.ts` が唯�
 - **整形・lint**: Biome（タブインデント・ダブルクォート・organizeImports）。`routeTree.gen.ts` と `styles.css` は対象外。TypeScript は strict + `noUncheckedIndexedAccess` + `verbatimModuleSyntax`（型 import は `import type` 必須）等。
 - **言語**: 識別子・ファイル名は英語、コメントは設計理由（why)を日本語で書く文化。UI 文言・zod の `.describe()`・MCP ツールの description・ドキュメントも日本語。エラーメッセージは英語（"Unauthorized" 等）。
 - **定数の一元管理**: 上限値などの数値定数はドメイン lib に置き、zod スキーマ・サービス層・UI の全員が同じ定数を import する（二重管理禁止）。
-- **開発フロー**: `bun run db:migrate:local`（初回・スキーマ変更後）→ `bun run dev`。マージ前に `bun run typecheck` / `check` / `build` / `test`。`.claude/hooks/stop-check.sh` が typecheck+check 未通過での Claude Code セッション終了をブロックする。PR には実装プラン（details タグ）と Test Plan を記載し、ブラウザ実機確認 + Gyazo スクリーンショットを添付する（CLAUDE.md）。
+- **開発フロー**: `bun run db:migrate:local`（初回・スキーマ変更後）→ `bun run dev`。マージ前に `bun run typecheck` / `check` / `build` / `test`。`.claude/hooks/stop-check.sh` が typecheck+check 未通過での Claude Code セッション終了をブロックする。PR には実装プラン（details タグ）と Test Plan を記載し、ブラウザ実機確認 + スクリーンショットを `gh` の `--attach` フラグで PR に直接添付する（Gyazo は使わない。CLAUDE.md）。
 
 ## 新しい機能ドメインを追加するときの定型
 
