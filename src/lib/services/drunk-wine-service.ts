@@ -29,7 +29,7 @@ import type {
 	UpdateWineTastingInput,
 } from "#/lib/drunk-wine/schema";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
-import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
 import { type LogFields, logError, logInfo, logWarn } from "#/lib/logger";
 import {
@@ -1637,6 +1637,25 @@ export type PhotoLayoutItem =
 			thumbBytes?: Uint8Array | ArrayBuffer;
 	  };
 
+// ---- 写真集合の並行更新対策 (Issue #637) ------------------------------------
+// `photo_keys` / `photo_kinds` は並列 JSON 配列で、更新が read-modify-write のため
+// フォーム保存(sync)と解析ジョブの引き継ぎ(append)が並行すると後勝ちになり、
+// 片方が足した写真キーが集合から消える。ジョブ側は引き継ぎ時に所有を手放すので、
+// 消えたキーはどこからも参照されない R2 オブジェクトになる。
+//
+// つなぎとして写真更新2関数に楽観ロックを入れる: 読んだ `updated_at` と
+// `photo_keys` を WHERE に含め、0行なら読み直して再試行する。`updated_at`
+// だけだと同一ms内の連続更新で値が変わらず衝突を見逃すため、`photo_keys` の
+// 一致も併せて見る(写真に触らない更新での空振り再試行は1回で収束する)。
+// sync の再試行では layout 外で増えたキー(並行する引き継ぎの追加)を末尾に残し、
+// 並行して消された layout キーは蘇らせない(R2実体は既に消えている)。
+//
+// #406 の import-batch 分離後・#645 の子テーブル化前のつなぎ。子テーブル化で
+// 追加・削除が行単位になればこのロックは不要になる。
+
+/** 写真集合の楽観ロックが競合したときの再試行上限。 */
+const PHOTO_WRITE_MAX_RETRIES = 5;
+
 /**
  * エントリの写真集合を layout(最終並び順)へ全置換で同期する。追加・削除・並べ替え・
  * 差し替えを1回で反映する。新規はR2へ保存し、旧配列にあって残らないキーは削除して
@@ -1655,37 +1674,33 @@ export async function syncDrunkWinePhotos(
 		.select({
 			photoKeys: drunkWine.photoKeys,
 			photoKinds: drunkWine.photoKinds,
+			updatedAt: drunkWine.updatedAt,
 		})
 		.from(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
 	if (!existing) throw new NotFoundError("Entry not found");
 
-	const currentKeys = existing.photoKeys;
-	const currentSet = new Set(currentKeys);
+	const baseKeys = existing.photoKeys;
+	const baseSet = new Set(baseKeys);
 	// 既存キーの由来は正規化して写す(長さ不一致・未知値は bottle に倒れる)。
 	// 新規追加は利用者自身の撮影 = bottle。
-	const currentKinds = resolveStoredPhotoKinds(
-		currentKeys,
-		existing.photoKinds,
-	);
-	const kindByKey = new Map(
-		currentKeys.map((key, i) => [key, currentKinds[i] as PhotoKind]),
-	);
+	const baseKinds = resolveStoredPhotoKinds(baseKeys, existing.photoKinds);
 	for (const item of layout) {
-		if (item.kind === "existing" && !currentSet.has(item.key)) {
+		if (item.kind === "existing" && !baseSet.has(item.key)) {
 			throw new BadRequestError("Unknown photo");
 		}
 	}
+	// layout 順のスロット(既存キー or 今回putした新規キー)は後段で組み立てる。
 
-	// 新規をR2へ保存しつつ最終キー配列を組み立てる。put途中で失敗したら今回put分を巻き戻す
+	// 新規をR2へ保存しつつ、layout 順のスロット(既存キー or 今回putした新規キー)を
+	// 組み立てる。put途中で失敗したら今回put分を巻き戻す
 	const putKeys: string[] = [];
-	const nextKeys: string[] = [];
-	const nextKinds: PhotoKind[] = [];
+	const layoutSlots: string[] = [];
+	const newSlotKeys = new Set<string>();
 	try {
 		for (const item of layout) {
 			if (item.kind === "existing") {
-				nextKeys.push(item.key);
-				nextKinds.push(kindByKey.get(item.key) ?? "bottle");
+				layoutSlots.push(item.key);
 				continue;
 			}
 			// 保存するContent-Typeは申告値ではなく実バイト(マジックバイト)から確定する。
@@ -1705,10 +1720,10 @@ export async function syncDrunkWinePhotos(
 				httpMetadata: { contentType: mime },
 			});
 			putKeys.push(key);
-			nextKeys.push(key);
+			layoutSlots.push(key);
+			newSlotKeys.add(key);
 			// 以降の追加(フォーム・MCP からの撮影)は利用者自身の写真 = bottle。
 			// web 由来は adoptWebPhotos 経路でのみ付く。
-			nextKinds.push("bottle");
 			// サムネイルは原寸キーから導出したキーに置く。失敗しても原寸で表示できるので
 			// 保存自体は必須にしない(ここで throw すると写真そのものが保存できなくなる)。
 			if (item.thumbBytes) {
@@ -1737,33 +1752,107 @@ export async function syncDrunkWinePhotos(
 		throw e;
 	}
 
-	const [row] = await db
-		.update(drunkWine)
-		.set({ photoKeys: nextKeys, photoKinds: nextKinds })
-		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
-		.returning();
-	// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する
-	if (!row) {
-		await cleanupPhotoObjects(putKeys, {
+	// 楽観ロックの compare-and-swap(#637)。読んだ版と一致するときだけ書き込み、
+	// 並行更新に負けたら読み直して layout 外で増えたキー(並行する引き継ぎの追加)を
+	// 末尾に残して書き直す。初回は layout そのまま(従来どおり)なので、競合が無い
+	// 限り挙動は変わらない。
+	let writeBaseKeys = baseKeys;
+	let writeBaseKinds = baseKinds;
+	let writeBaseUpdatedAt = existing.updatedAt;
+	for (let attempt = 0; ; attempt++) {
+		const writeBaseSet = new Set(writeBaseKeys);
+		const writeKindByKey = new Map(
+			writeBaseKeys.map((key, i) => [key, writeBaseKinds[i] as PhotoKind]),
+		);
+		// 並行して消された layout キーは蘇らせない(R2実体は既に消えている)。
+		const keptSlots = layoutSlots.filter(
+			(key) => newSlotKeys.has(key) || writeBaseSet.has(key),
+		);
+		// layout の起点以降に増えたキー = 並行する引き継ぎの追加。末尾に残す。
+		const keptSet = new Set(keptSlots);
+		const mergedExtras = writeBaseKeys.filter(
+			(key) => !baseSet.has(key) && !keptSet.has(key),
+		);
+		const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - keptSlots.length);
+		if (mergedExtras.length > room) {
+			logWarn("drunk wine photo sync dropped concurrent additions", {
+				userId,
+				entryId: id,
+				droppedCount: mergedExtras.length - room,
+			});
+		}
+		const nextKeys = [...keptSlots, ...mergedExtras.slice(0, room)];
+		const nextKinds = nextKeys.map(
+			(key) => writeKindByKey.get(key) ?? "bottle",
+		);
+
+		const [row] = await db
+			.update(drunkWine)
+			.set({ photoKeys: nextKeys, photoKinds: nextKinds })
+			.where(
+				and(
+					eq(drunkWine.id, id),
+					eq(drunkWine.userId, userId),
+					eq(drunkWine.updatedAt, writeBaseUpdatedAt),
+					eq(drunkWine.photoKeys, writeBaseKeys),
+				),
+			)
+			.returning({ id: drunkWine.id });
+		if (row) {
+			// 旧配列にあって新配列に残らないキーを削除(削除・差し替え・並べ替えを一括反映)。
+			// サムネイルは原寸に追随させる(消し忘れるとR2に孤児が残り続ける)。
+			const nextSet = new Set(nextKeys);
+			const removed = writeBaseKeys.filter((key) => !nextSet.has(key));
+			await cleanupPhotoObjects(
+				removed.length > 0
+					? [...removed, ...removed.map(thumbKeyForPhotoKey)]
+					: [],
+				{ userId, entryId: id, phase: "orphan-sweep" },
+			);
+
+			// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
+			// 返却用に読み直す(R2 の後始末が済んでから)。
+			return getDrunkWine(userId, id);
+		}
+		// 0行 = 並行更新に負けたか、エントリが消えた。読み直して区別する。
+		const [fresh] = await db
+			.select({
+				photoKeys: drunkWine.photoKeys,
+				photoKinds: drunkWine.photoKinds,
+				updatedAt: drunkWine.updatedAt,
+			})
+			.from(drunkWine)
+			.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
+		// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する
+		if (!fresh) {
+			await cleanupPhotoObjects(putKeys, {
+				userId,
+				entryId: id,
+				phase: "entry-deleted",
+			});
+			throw new NotFoundError("Entry not found");
+		}
+		if (attempt >= PHOTO_WRITE_MAX_RETRIES) {
+			// put分はどこからも参照されないので掃除し、競合として返す(黙って
+			// 上書きすると相手の追加を消す元の不具合に戻る)。
+			await cleanupPhotoObjects(putKeys, {
+				userId,
+				entryId: id,
+				phase: "conflict",
+			});
+			throw new ConflictError(
+				"写真の更新が競合しました。もう一度お試しください",
+			);
+		}
+		logInfo("drunk wine photo sync conflict; retrying", {
 			userId,
 			entryId: id,
-			phase: "entry-deleted",
+			attempt: attempt + 1,
 		});
-		throw new NotFoundError("Entry not found");
+		writeBaseKeys = fresh.photoKeys;
+		writeBaseKinds = resolveStoredPhotoKinds(fresh.photoKeys, fresh.photoKinds);
+		writeBaseUpdatedAt = fresh.updatedAt;
 	}
-
-	// 旧配列にあって新配列に残らないキーを削除(削除・差し替え・並べ替えを一括反映)。
-	// サムネイルは原寸に追随させる(消し忘れるとR2に孤児が残り続ける)。
-	const nextSet = new Set(nextKeys);
-	const removed = currentKeys.filter((key) => !nextSet.has(key));
-	await cleanupPhotoObjects(
-		removed.length > 0 ? [...removed, ...removed.map(thumbKeyForPhotoKey)] : [],
-		{ userId, entryId: id, phase: "orphan-sweep" },
-	);
-
-	// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
-	// 返却用に読み直す(R2 の後始末が済んでから)。
-	return getDrunkWine(userId, id);
 }
 
 /**
@@ -1791,41 +1880,72 @@ export async function appendDrunkWinePhotoKeys(
 	id: string,
 	keys: string[],
 ): Promise<{ entry: DrunkWineEntry; adopted: string[]; dropped: string[] }> {
-	const [existing] = await db
-		.select({
-			photoKeys: drunkWine.photoKeys,
-			photoKinds: drunkWine.photoKinds,
-		})
-		.from(drunkWine)
-		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
-	if (!existing) throw new NotFoundError("Entry not found");
+	// 楽観ロックの compare-and-swap(#637)。読んだ版と一致するときだけ足し、
+	// 0行なら並行更新に負けたので読み直して再試行する(丸ごと書戻しで相手の
+	// 追加を消さない)。上限・重複の判定は読み直した最新で毎回やり直す。
+	for (let attempt = 0; ; attempt++) {
+		const [existing] = await db
+			.select({
+				photoKeys: drunkWine.photoKeys,
+				photoKinds: drunkWine.photoKinds,
+				updatedAt: drunkWine.updatedAt,
+			})
+			.from(drunkWine)
+			.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
+		if (!existing) throw new NotFoundError("Entry not found");
 
-	// 既に持っているキーは足さない(二重に開いた・再送された回で重複させない)。
-	const current = existing.photoKeys;
-	const currentSet = new Set(current);
-	const currentKinds = resolveStoredPhotoKinds(current, existing.photoKinds);
-	const incoming = keys.filter((key) => !currentSet.has(key));
-	const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - current.length);
-	const adopted = incoming.slice(0, room);
-	const dropped = incoming.slice(room);
+		// 既に持っているキーは足さない(二重に開いた・再送された回で重複させない)。
+		const current = existing.photoKeys;
+		const currentSet = new Set(current);
+		const currentKinds = resolveStoredPhotoKinds(current, existing.photoKinds);
+		const incoming = keys.filter((key) => !currentSet.has(key));
+		const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - current.length);
+		const adopted = incoming.slice(0, room);
+		const dropped = incoming.slice(room);
 
-	if (adopted.length === 0) {
-		return { entry: await getDrunkWine(userId, id), adopted, dropped };
+		if (adopted.length === 0) {
+			return { entry: await getDrunkWine(userId, id), adopted, dropped };
+		}
+		// 解析ジョブの引き継ぎは利用者自身が撮った写真 = bottle。
+		const [row] = await db
+			.update(drunkWine)
+			.set({
+				photoKeys: [...current, ...adopted],
+				photoKinds: [
+					...currentKinds,
+					...adopted.map(() => "bottle" as PhotoKind),
+				],
+			})
+			.where(
+				and(
+					eq(drunkWine.id, id),
+					eq(drunkWine.userId, userId),
+					eq(drunkWine.updatedAt, existing.updatedAt),
+					eq(drunkWine.photoKeys, current),
+				),
+			)
+			.returning({ id: drunkWine.id });
+		if (row) {
+			return { entry: await getDrunkWine(userId, id), adopted, dropped };
+		}
+		if (attempt >= PHOTO_WRITE_MAX_RETRIES) {
+			// 読み直しで消えていたら NotFound、残っていれば競合のまま返す(黙って
+			// 上書きすると相手の追加を消す元の不具合に戻る)。
+			const [gone] = await db
+				.select({ id: drunkWine.id })
+				.from(drunkWine)
+				.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
+			if (!gone) throw new NotFoundError("Entry not found");
+			throw new ConflictError(
+				"写真の更新が競合しました。もう一度お試しください",
+			);
+		}
+		logInfo("drunk wine photo append conflict; retrying", {
+			userId,
+			entryId: id,
+			attempt: attempt + 1,
+		});
 	}
-	// 解析ジョブの引き継ぎは利用者自身が撮った写真 = bottle。
-	const [row] = await db
-		.update(drunkWine)
-		.set({
-			photoKeys: [...current, ...adopted],
-			photoKinds: [
-				...currentKinds,
-				...adopted.map(() => "bottle" as PhotoKind),
-			],
-		})
-		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
-		.returning();
-	if (!row) throw new NotFoundError("Entry not found");
-	return { entry: await getDrunkWine(userId, id), adopted, dropped };
 }
 
 /**

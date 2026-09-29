@@ -2552,6 +2552,74 @@ describe("写真由来の永続化", () => {
 	});
 });
 
+// 写真集合の並行更新 (#637)。`photo_keys` / `photo_kinds` の read-modify-write に
+// 楽観ロック(updated_at + photo_keys の照合・0行なら再試行)を入れ、フォーム保存と
+// 引き継ぎが時間的に重なっても後勝ちで写真を失わない。#406 分離後・#645
+// 子テーブル化前のつなぎで、行単位になったらこの describe ごと不要になる。
+describe("写真集合の並行更新 (#637)", () => {
+	// 1x1 JPEG(マジックバイト検証を通る最小の実データ)
+	const JPEG_1X1 = Uint8Array.from(
+		atob(
+			"/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+		),
+		(c) => c.charCodeAt(0),
+	);
+
+	it("並行した引き継ぎ(append同士)で両方の写真が残る", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "並行append" });
+		const keyA = `wines/${userId}/job-a/photo-a.jpg`;
+		const keyB = `wines/${userId}/job-b/photo-b.jpg`;
+		// 両方とも同じ空集合を読んでから書く。ロック無しだと後勝ちで1枚になる。
+		const [ra, rb] = await Promise.all([
+			appendDrunkWinePhotoKeys(userId, entry.id, [keyA]),
+			appendDrunkWinePhotoKeys(userId, entry.id, [keyB]),
+		]);
+		expect([...ra.adopted, ...rb.adopted].sort()).toEqual([keyA, keyB].sort());
+		const saved = await getDrunkWine(userId, entry.id);
+		expect(saved.photoUrls.map((url) => imageKeyFromPath(url)).sort()).toEqual(
+			[keyA, keyB].sort(),
+		);
+		expect(saved.photoKinds).toEqual(["bottle", "bottle"]);
+	});
+
+	it("フォーム保存(sync)と引き継ぎ(append)が並行しても両方の写真が残る", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "並行sync-append" });
+		const jobKey = `wines/${userId}/job/photo.jpg`;
+		// sync は R2 への put を挟むぶん書き込みが遅れ、その間に append が割り込む。
+		// ロック無しだと遅い側が相手の追加を消す(どちらが勝っても1枚が失われる)。
+		await Promise.all([
+			syncDrunkWinePhotos(userId, entry.id, [
+				{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+			]),
+			appendDrunkWinePhotoKeys(userId, entry.id, [jobKey]),
+		]);
+		const saved = await getDrunkWine(userId, entry.id);
+		expect(saved.photoUrls).toHaveLength(2);
+		const keys = saved.photoUrls.map((url) => imageKeyFromPath(url));
+		expect(keys).toContain(jobKey);
+		expect(saved.photoKinds).toEqual(["bottle", "bottle"]);
+	});
+
+	it("並行したフォーム保存(sync同士)で両方の新規写真が残る", async () => {
+		const userId = await freshUser();
+		const entry = await createDrunkWine(userId, { name: "並行sync" });
+		// どちらも空集合起点の「1枚追加」。ロック無しだと後勝ちで1枚になる。
+		await Promise.all([
+			syncDrunkWinePhotos(userId, entry.id, [
+				{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+			]),
+			syncDrunkWinePhotos(userId, entry.id, [
+				{ kind: "new", bytes: JPEG_1X1, mimeType: "image/jpeg" },
+			]),
+		]);
+		const saved = await getDrunkWine(userId, entry.id);
+		expect(saved.photoUrls).toHaveLength(2);
+		expect(saved.photoKinds).toEqual(["bottle", "bottle"]);
+	});
+});
+
 // ---- undoImportBatch(バッチ単位の取り消し, Issue #363 案A) -----------------
 
 // ---- getImportBatch(履歴からの再解析の材料, Issue #427) --------------------
