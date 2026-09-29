@@ -7,14 +7,13 @@ import {
 	type QuizQuestion,
 	type QuizType,
 } from "#/lib/quiz/types";
-import type { AnswerSnapshot } from "#/lib/services/quiz-service";
 import type { RegionId } from "#/lib/wine/types";
 import { getNextQuestions, recordAnswer, revertAnswer } from "#/server/quiz";
 
 // エンドレス出題のキュー管理フック。
 // - 初回に5問取得し、残り2問以下になったら追加をプリフェッチする
-// - 解答は即座に記録する(失敗しても出題は続行)。記録時に更新直前の行スナップショットを
-//   受け取り、リセット(回答を取り消す)時にそれでサーバ側を復元する。
+// - 解答は即座に記録する(失敗しても出題は続行)。取り消しはサーバ側の保留
+//   (quiz_pending_revert)を使うため、クライアントはスナップショットを持ち回らない。
 //   未ログイン時は記録をスキップする(回答はできるが実績は残らない)
 // - excludeKeys(キュー内 + 直近解答分)で同じ問題の連続出題を防ぐ
 
@@ -109,11 +108,12 @@ export function useQuizSession(
 	const recentKeysRef = useRef<string[]>([]);
 	const fetchingRef = useRef(false);
 	const exhaustedRef = useRef(false);
-	// 直近の解答記録(リセット用)。promise は更新前スナップショットに解決する。
-	// 記録失敗時は null に解決し、その場合は復元不要
+	// 直近の解答記録(リセット用)。promise は記録の成否に解決する。
+	// 記録失敗時は null に解決し、その場合は復元不要。復元に使うスナップショットは
+	// サーバ側が持つため、クライアントは内容を持ち回らない(#544)
 	const recordRef = useRef<{
 		questionKey: string;
-		promise: Promise<AnswerSnapshot | null>;
+		promise: Promise<unknown | null>;
 	} | null>(null);
 	// 記録・取り消しを直列化する。同じ行を read-then-write するため、リセット直後の
 	// 再回答でも record→revert→record の順序を保ち、最終状態が壊れないようにする
@@ -440,14 +440,15 @@ export function useQuizSession(
 		}
 		// サーバ復元: 復元処理を同じチェーンへ繋ぐ(await はチェーン内で行い、
 		// enqueue 自体は同期。これでリセット直後の再回答より前に revert が並ぶ)。
-		// revert は実行時に記録のスナップショットを待って確定する。記録失敗なら不要
+		// 復元に使うスナップショットはサーバ側の保留から取るため、questionKey だけ送る。
+		// 記録失敗なら復元不要
 		const pending = recordRef.current;
 		recordRef.current = null;
 		if (pending && pending.questionKey === current.key) {
 			enqueueMutation(async () => {
-				const prior = await pending.promise;
-				if (prior) {
-					await revertAnswer({ data: { questionKey: current.key, prior } });
+				const result = await pending.promise;
+				if (result) {
+					await revertAnswer({ data: { questionKey: current.key } });
 				}
 			}).catch((error) => {
 				// 取り消しの失敗もサーバ側が実際と食い違う状態なので、記録失敗と同じく表示する。

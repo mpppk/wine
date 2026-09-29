@@ -60,6 +60,51 @@ export const quizQuestionStat = sqliteTable(
 );
 
 /**
+ * 直前のクイズ解答の取り消し(revertAnswer)用に、回答前の行スナップショットを
+ * サーバ側に短命に保持する(Issue #544)。
+ *
+ * 従来は recordAnswer が返したスナップショットをクライアントが持ち回って
+ * revertAnswer へ送り返していたが、サーバが検証しない申告値をそのまま
+ * UPDATE/DELETE していたため、自分の成績・活動記録を任意に書き換えられた。
+ * 現在は recordAnswer がこの表へ上書き保存し、revertAnswer は questionKey
+ * だけを受けてここから復元する。クライアント申告値は使わない。
+ *
+ * PK を userId 単独にして「取り消せるのは直前(全体で最後)の1回答だけ」に絞る。
+ * 新しい解答が来たら上書きされ、古い取り消しは無効になる。revert 成功時は行を
+ * 削除して消費するので二重取り消しは弾かれる。退会時は user 行の削除に連動する。
+ */
+export const quizPendingRevert = sqliteTable("quiz_pending_revert", {
+	userId: text("user_id")
+		.primaryKey()
+		.references(() => user.id, { onDelete: "cascade" }),
+	/** 直前に解答した問題キー。revert はこのキーと一致したときだけ通す */
+	questionKey: text("question_key").notNull(),
+	/** 解答前に対象行が存在したか */
+	existed: integer("existed", { mode: "boolean" }).notNull(),
+	/** 以下、解答前の行の値。!existed のときは 0 / null */
+	correctCount: integer("correct_count").notNull().default(0),
+	incorrectCount: integer("incorrect_count").notNull().default(0),
+	streak: integer("streak").notNull().default(0),
+	lastAnsweredAt: integer("last_answered_at", { mode: "timestamp_ms" }),
+	lastCorrectAt: integer("last_correct_at", { mode: "timestamp_ms" }),
+	/** この解答を計上した日次集計の日(JST "YYYY-MM-DD")。revert時の減算対象 */
+	activityDay: text("activity_day").notNull(),
+	/** この解答が正解だったか。revert時に correctCount を戻すために保持 */
+	activityWasCorrect: integer("activity_was_correct", {
+		mode: "boolean",
+	}).notNull(),
+	/** 解答適用後の lastAnsweredAt。対象行が上書きされていないことの確認用 */
+	answeredAt: integer("answered_at", { mode: "timestamp_ms" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
  * ユーザのマイセラー(銘柄/ボトル)。AOP・ブドウ品種は静的マスタ
  * (src/lib/wine/)への文字列参照でFKは張れないため、存在検証はサービス層で行う。
  * 写真は複数枚をR2(AVATARSバケット)にキー "wines/{userId}/{id}/{photoId}.{ext}" で
