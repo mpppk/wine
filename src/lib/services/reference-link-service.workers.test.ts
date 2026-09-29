@@ -57,6 +57,22 @@ describe("listReferenceLinks", () => {
 			BadRequestError,
 		);
 	});
+
+	it("作成でも未知のAOPは弾き、生値は保存されない(#548)", async () => {
+		const userId = await freshUser();
+		await expect(
+			createReferenceLink(userId, {
+				aopId: "no-such-aop",
+				url: "https://example.com/unknown",
+				title: "未知",
+			}),
+		).rejects.toThrow(BadRequestError);
+		const rows = await db
+			.select()
+			.from(aopReferenceLink)
+			.where(eq(aopReferenceLink.userId, userId));
+		expect(rows).toEqual([]);
+	});
 });
 
 // #333: マスタから ID が消えると、その AOP に保存したリンクは

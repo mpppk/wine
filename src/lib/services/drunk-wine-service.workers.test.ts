@@ -1108,6 +1108,66 @@ describe("産地の粗い紐付け(region_id / country_id)", () => {
 		).rejects.toBeInstanceOf(BadRequestError);
 	});
 
+	// #548: aopId / regionId / countryId / grapeVarietyIds の存在検証は共通関門
+	// (#/lib/wine/assert) が担い、解決できないIDは生値フォールバックせず400にする。
+	// AI/MCP由来の不正ID(AIの幻覚スラッグ・外部クライアントの任意文字列)を
+	// 保存前に弾くことを、作成・更新・一括の全経路で固定する。
+	it("未知のAOP・品種は BadRequest で、生値は保存されない(#548)", async () => {
+		const before = await countEntries(userId);
+		await expect(
+			createDrunkWine(userId, {
+				name: "x",
+				aopId: "chablis-grand-cru-les-clos",
+			}),
+		).rejects.toBeInstanceOf(BadRequestError);
+		await expect(
+			createDrunkWine(userId, {
+				name: "x",
+				grapeVarietyIds: ["no-such-variety"],
+			}),
+		).rejects.toBeInstanceOf(BadRequestError);
+		// 失敗した作成は何も残さない(フォールバック保存の廃止)
+		expect(await countEntries(userId)).toBe(before);
+	});
+
+	it("更新で未知の静的マスタIDは BadRequest(#548)", async () => {
+		const entry = await createDrunkWine(userId, { name: "更新前" });
+		const patches: Array<Parameters<typeof updateDrunkWine>[1]> = [
+			{ id: entry.id, aopId: "no-such-aop" },
+			{ id: entry.id, regionId: "no-such-region" },
+			{ id: entry.id, countryId: "no-such-country" },
+			{ id: entry.id, grapeVarietyIds: ["no-such-variety"] },
+		];
+		for (const patch of patches) {
+			await expect(updateDrunkWine(userId, patch)).rejects.toBeInstanceOf(
+				BadRequestError,
+			);
+		}
+		// 失敗した更新は保存値を変えない
+		const row = await wineRow(entry.id);
+		expect(row?.aopId).toBeNull();
+		expect(row?.regionId).toBeNull();
+		expect(row?.countryId).toBeNull();
+		expect(row?.grapeVarietyIds).toEqual([]);
+	});
+
+	it("一括登録でも未知の静的マスタIDは BadRequest(#548)", async () => {
+		await expect(
+			bulkRegisterFromScan(userId, {
+				photoCount: 0,
+				items: [{ wine: { name: "不正AOP", aopId: "no-such-aop" } }],
+			} as BulkRegisterFromScanInput),
+		).rejects.toBeInstanceOf(BadRequestError);
+		await expect(
+			bulkRegisterFromScan(userId, {
+				photoCount: 0,
+				items: [
+					{ wine: { name: "不正品種", grapeVarietyIds: ["no-such-variety"] } },
+				],
+			} as BulkRegisterFromScanInput),
+		).rejects.toBeInstanceOf(BadRequestError);
+	});
+
 	it("一括登録でも地域単位の紐付けが保存される", async () => {
 		const result = await bulkRegisterFromScan(userId, {
 			photoCount: 0,

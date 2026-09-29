@@ -1,18 +1,19 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { aopReferenceLink } from "#/db/schema";
-import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { NotFoundError } from "#/lib/errors";
 import { withinRateLimit } from "#/lib/rate-limit";
 import { fetchPageTitle } from "#/lib/reference-link/fetch-title";
 import type {
 	CreateReferenceLinkInput,
 	UpdateReferenceLinkInput,
 } from "#/lib/reference-link/schema";
-import { getAop, legacyAopIdsFor, resolveAopId } from "#/lib/wine/service";
+import { assertKnownAop, resolveAopIdOrThrow } from "#/lib/wine/assert";
+import { legacyAopIdsFor } from "#/lib/wine/service";
 
 // 参考リンク(村・畑・地方・シャトーごと・非公開)のサービス層。全関数が userId で
 // スコープし、他ユーザのリンクは読めない/触れない。AOPは静的マスタ参照(FKなし)の
-// ため、ここで getAop() 存在検証する。getAop() は退役ID(改名・削除された旧スラッグ)を
+// ため、共通関門 `#/lib/wine/assert` で存在検証する(#548)。getAop() は退役IDを
 // 後継 AOP へ解決するので、旧IDで保存済みのリンクも後継 AOP の画面から扱える(#333)。
 
 export interface ReferenceLinkEntry {
@@ -36,12 +37,6 @@ function toEntry(row: ReferenceLinkRow): ReferenceLinkEntry {
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
-}
-
-function assertKnownAop(aopId: string) {
-	if (!getAop(aopId)) {
-		throw new BadRequestError(`Unknown AOP: ${aopId}`);
-	}
 }
 
 // タイトルを確定する。ユーザ入力があればそれを使い、無ければリンク先ページから
@@ -98,8 +93,9 @@ export async function createReferenceLink(
 		.values({
 			id,
 			userId,
-			// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)
-			aopId: resolveAopId(input.aopId) ?? input.aopId,
+			// 退役IDで送られてきた場合は現行IDへ正規化して保存する(#333)。
+			// 解決できないIDは400にする。生値フォールバックは廃止(#548)。
+			aopId: resolveAopIdOrThrow(input.aopId),
 			url: input.url,
 			title,
 		})
