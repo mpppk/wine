@@ -7,7 +7,8 @@ import {
 	avatarPrefixForUser,
 	privateImagePrefixForUser,
 } from "#/lib/images/signed-url";
-import { logError, logInfo } from "#/lib/logger";
+import { logInfo } from "#/lib/logger";
+import { alertOperator } from "#/lib/observability/operator-alert";
 
 // ユーザ削除に伴う後始末(#252)。
 //
@@ -130,22 +131,70 @@ export async function cleanupBeforeUserDelete(userId: string): Promise<void> {
  * 削除の前に置かない理由: 前に置くと、この後の user 行削除が失敗したときに
  * 「生きているユーザの写真だけ消えた」状態になり復旧できない。後なら失敗しても
  * 残るのは「消し損ねた個人データ」で、userId をログに残せば後から消せる。
- * よって失敗しても throw せず error ログに倒す(削除自体は既に成立している)。
+ * よって失敗しても throw せず通知に倒す(削除自体は既に成立している)。
+ * ここで throw すると既に消えたユーザの削除APIが 500 になり、実態
+ * (ユーザは消えた・R2 に残骸がある)と食い違う。
  */
 export async function cleanupAfterUserDelete(userId: string): Promise<void> {
+	// 復旧に要る最小限だけを通知の extra に載せる。userId と試した prefix
+	// (`privateImagePrefixForUser` / `avatarPrefixForUser` の戻り)。
+	// 本来 alertOperator は PII を入れない取り決めだが、ここでは明示的に許容する:
+	// user 行は既に削除済みで D1 から「消し残した userId」を再構成できず、R2 の
+	// キーは `wines/{userId}/…` / `avatars/{userId}.{ext}` なので userId が無いと
+	// どのオブジェクトが孤児かを判定できない(生きているユーザの写真と区別が付かない)。
+	// Sentry の保持は Workers Logs の7日より長く、7日で復旧手段ごと失う(#547)を避ける。
+	const photoPrefix = privateImagePrefixForUser(userId);
+	const avatarPrefix = avatarPrefixForUser(userId);
+
+	// 写真とアバターで別々に try する。1つの try にまとめると写真の失敗で
+	// アバターの削除ごとスキップされ、消せたはずの分まで残る。
+	let deletedPhotoObjects = 0;
+	let deletedAvatarObjects = 0;
+	let photoErr: unknown;
+	let avatarErr: unknown;
 	try {
-		const photos = await deleteObjectsByPrefix(
-			privateImagePrefixForUser(userId),
-		);
-		const avatars = await deleteObjectsByPrefix(avatarPrefixForUser(userId));
+		deletedPhotoObjects = await deleteObjectsByPrefix(photoPrefix);
+	} catch (e) {
+		photoErr = e;
+	}
+	try {
+		deletedAvatarObjects = await deleteObjectsByPrefix(avatarPrefix);
+	} catch (e) {
+		avatarErr = e;
+	}
+
+	if (photoErr === undefined && avatarErr === undefined) {
 		logInfo("user delete cleanup (after)", {
 			userId,
-			deletedPhotoObjects: photos,
-			deletedAvatarObjects: avatars,
+			deletedPhotoObjects,
+			deletedAvatarObjects,
 		});
-	} catch (e) {
-		// ここで throw すると既に消えたユーザの削除APIが 500 になり、実態
-		// (ユーザは消えた・R2 に残骸がある)と食い違う。userId を残して復旧可能にする。
-		logError("failed to delete user objects from R2", { userId, err: e });
+		return;
 	}
+
+	// どこまで消えたかを件数で残し、失敗した範囲を区別する。両方失敗時は
+	// 先発の写真側を `err`(captureException の原因)にし、アバター側は
+	// `avatarErr` として文字列化して extra に残す(alertOperator が畳む)。
+	const failedScope =
+		photoErr !== undefined && avatarErr !== undefined
+			? "photos,avatars"
+			: photoErr !== undefined
+				? "photos"
+				: "avatars";
+	alertOperator(
+		"failed to delete user objects from R2",
+		{
+			userId,
+			photoPrefix,
+			avatarPrefix,
+			deletedPhotoObjects,
+			deletedAvatarObjects,
+			failedScope,
+			err: photoErr ?? avatarErr,
+			...(photoErr !== undefined && avatarErr !== undefined
+				? { avatarErr }
+				: {}),
+		},
+		{ tags: { kind: "user_delete_cleanup", feature: "privacy" } },
+	);
 }

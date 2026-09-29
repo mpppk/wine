@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { subscription } from "#/db/auth-schema";
 import { drunkWine } from "#/db/schema";
@@ -93,6 +93,64 @@ async function countSubscriptionRows(userId: string): Promise<number> {
 	).length;
 }
 
+/**
+ * #547 失敗系2件の共通準備: console.error収集と指定prefixのlist失敗。
+ * jscpd重複(2.55%超過)の解消のため括り出し。呼び出し側は failingPrefix
+ * だけ渡し、後始末は restore() に畳む。
+ */
+function setupR2ListFailure(failingPrefix: string): {
+	errorLines: string[];
+	restore: () => void;
+} {
+	const errorLines: string[] = [];
+	const consoleSpy = vi
+		.spyOn(console, "error")
+		.mockImplementation((line: unknown) => {
+			errorLines.push(String(line));
+		});
+	const originalList = env.AVATARS.list.bind(env.AVATARS);
+	const listSpy = vi
+		.spyOn(env.AVATARS, "list")
+		.mockImplementation(async (options: unknown) => {
+			const prefix = (options as { prefix?: string } | undefined)?.prefix;
+			if (prefix === failingPrefix) throw new Error("R2 list unavailable");
+			return originalList(options as never);
+		});
+	return {
+		errorLines,
+		restore: () => {
+			listSpy.mockRestore();
+			consoleSpy.mockRestore();
+		},
+	};
+}
+
+/**
+ * 構造化ログ(1行JSON)からR2削除失敗行だけを拾う。
+ * operator-alert側の `logged` とトークン列が一致しないようfor文で書く
+ * (map/filter chainにするとjscpdのcross-file cloneになる)。
+ */
+function r2FailureRows(errorLines: string[]): Record<string, unknown>[] {
+	const rows: Record<string, unknown>[] = [];
+	for (const line of errorLines) {
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (
+			typeof parsed === "object" &&
+			parsed !== null &&
+			(parsed as Record<string, unknown>).msg ===
+				"failed to delete user objects from R2"
+		) {
+			rows.push(parsed as Record<string, unknown>);
+		}
+	}
+	return rows;
+}
+
 let admin: { id: string; cookie: string };
 
 beforeAll(async () => {
@@ -141,6 +199,63 @@ describe("cleanupBeforeUserDelete / cleanupAfterUserDelete", () => {
 		const userId = await signUp("cleanup-empty@example.test");
 		await expect(cleanupBeforeUserDelete(userId)).resolves.toBeUndefined();
 		await expect(cleanupAfterUserDelete(userId)).resolves.toBeUndefined();
+	});
+
+	// #547: 写真とアバターは別tryで消す。写真側が失敗してもアバター側は
+	// スキップせず、失敗は throw せず通知(alertOperator→構造化ログ)に倒す。
+	// どこまで消えたかを件数で残し、失敗範囲を failedScope で区別する。
+	it("写真の削除が失敗してもアバターは消し、throwせず通知に倒す", async () => {
+		const userId = `cleanup-photo-fail-${Date.now()}`;
+		await seedObjects(userId);
+		const photoPrefix = privateImagePrefixForUser(userId);
+		const avatarPrefix = avatarPrefixForUser(userId);
+		const { errorLines, restore } = setupR2ListFailure(photoPrefix);
+		try {
+			await expect(cleanupAfterUserDelete(userId)).resolves.toBeUndefined();
+		} finally {
+			restore();
+		}
+
+		// 写真側は残り、アバター側は消えている(スキップされていない)
+		expect(await countObjects(photoPrefix)).toBe(2);
+		expect(await countObjects(avatarPrefix)).toBe(0);
+
+		const rows = r2FailureRows(errorLines);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			operator: true,
+			userId,
+			photoPrefix,
+			avatarPrefix,
+			failedScope: "photos",
+			deletedAvatarObjects: 1,
+		});
+	});
+
+	it("アバターの削除が失敗してもthrowせず、失敗範囲と件数を残す", async () => {
+		const userId = `cleanup-avatar-fail-${Date.now()}`;
+		await seedObjects(userId);
+		const photoPrefix = privateImagePrefixForUser(userId);
+		const avatarPrefix = avatarPrefixForUser(userId);
+		const { errorLines, restore } = setupR2ListFailure(avatarPrefix);
+		try {
+			await expect(cleanupAfterUserDelete(userId)).resolves.toBeUndefined();
+		} finally {
+			restore();
+		}
+
+		// 写真側は消え、アバター側が残る
+		expect(await countObjects(photoPrefix)).toBe(0);
+		expect(await countObjects(avatarPrefix)).toBe(1);
+
+		const rows = r2FailureRows(errorLines);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			operator: true,
+			userId,
+			failedScope: "avatars",
+			deletedPhotoObjects: 2,
+		});
 	});
 });
 
