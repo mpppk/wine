@@ -6,6 +6,7 @@
 // (fetchPageTitle)はサーバ専用で、失敗しても例外を投げず null を返す。
 
 import { logWarn } from "#/lib/logger";
+import { isAllowedExternalHost } from "#/lib/net/ssrf-guard";
 
 const MAX_TITLE_LENGTH = 200;
 // タイトル抽出のために読むHTMLの上限(先頭にある <head> だけ読めれば十分)
@@ -63,55 +64,17 @@ export function extractTitleFromHtml(html: string): string | null {
 	return null;
 }
 
-/** IPv4ドット10進アドレスが内部/予約帯(ループバック・プライベート・リンクローカル)なら true。 */
-function isBlockedIpv4(ip: string): boolean {
-	const nums = ip.split(".").map((p) => Number(p));
-	if (nums.length !== 4) return false;
-	// 範囲外・非数値を含む見かけ上のIPv4は保守的に弾く(fetchでどのみち失敗する)
-	if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
-	const [a, b] = nums as [number, number, number, number];
-	if (a === 0) return true; // 0.0.0.0/8(このホスト)
-	if (a === 127) return true; // ループバック 127.0.0.0/8
-	if (a === 10) return true; // プライベート 10.0.0.0/8
-	if (a === 169 && b === 254) return true; // リンクローカル 169.254.0.0/16
-	if (a === 192 && b === 168) return true; // プライベート 192.168.0.0/16
-	if (a === 172 && b >= 16 && b <= 31) return true; // プライベート 172.16.0.0/12
-	return false;
-}
-
 /**
- * IPv6アドレス(ブラケット除去済み)が内部/予約帯なら true。ループバック(::1)・未指定(::)・
- * ULA(fc00::/7)・リンクローカル(fe80::/10)、および IPv4-mapped/compatible(::ffff:a.b.c.d)
- * で内部IPv4を偽装したものを弾く。
- */
-function isBlockedIpv6(addr: string): boolean {
-	const a = addr.split("%")[0] ?? ""; // %eth0 等の zone id を除去
-	if (a === "::1" || a === "::") return true;
-	// IPv4-mapped(::ffff:a.b.c.d)/IPv4-compatible(::a.b.c.d)は埋め込みIPv4で判定する
-	const mappedIpv4 = a.match(/^::(?:ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/i)?.[1];
-	if (mappedIpv4) return isBlockedIpv4(mappedIpv4);
-	const firstHextet = a.split(":")[0] ?? "";
-	if (firstHextet === "") return true; // "::" で始まる短縮形は上記以外まれ。保守的に弾く
-	const n = Number.parseInt(firstHextet, 16);
-	if (Number.isNaN(n)) return true; // パース不能は保守的に弾く
-	if (n >= 0xfc00 && n <= 0xfdff) return true; // ULA fc00::/7
-	if (n >= 0xfe80 && n <= 0xfebf) return true; // リンクローカル fe80::/10
-	return false;
-}
-
-/**
- * 明らかに外部公開でないホスト(内部アドレス)への取得を防ぐ簡易SSRFガード。
- * Workers の fetch は基本的にパブリック向けだが、念のためローカル/プライベート帯を弾く。
+ * 明らかに外部公開でないホスト(内部アドレス)への取得を防ぐSSRFガード。
+ * 実体は共通チョークポイント(`isAllowedExternalHost`)への委譲。この関数は
+ * 後方互換のための薄いラッパーで、新しい経路では直接あちらを使うこと(#545)。
+ *
+ * 参考リンクは公開IPリテラルへのリンクも正当な参考資料になりうるため、
+ * `allowPublicIpLiteral: true` で使う(8.8.8.8 は許可。テストで固定済み)。
  * リダイレクト先も含め毎ホップこの関数で再検証すること(初回URLだけの検証では不十分)(#148)。
  */
 export function isFetchableHost(hostname: string): boolean {
-	let host = hostname.toLowerCase();
-	// URL.hostname は IPv6 リテラルを [..] 付きで返す。ブラケットを外して判定する
-	if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
-	if (host === "localhost" || host.endsWith(".local")) return false;
-	if (host.includes(":")) return !isBlockedIpv6(host);
-	if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return !isBlockedIpv4(host);
-	return true;
+	return isAllowedExternalHost(hostname, { allowPublicIpLiteral: true });
 }
 
 /** 追跡するリダイレクトの最大ホップ数。これを超えたら取得を諦める。 */

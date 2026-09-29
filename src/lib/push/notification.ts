@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAllowedExternalHost } from "#/lib/net/ssrf-guard";
 
 // Web Push の通知ペイロードとブラウザ購読の語彙(Issue #466)。
 //
@@ -93,6 +94,9 @@ export interface PushSubscriptionInput {
  * 購読の受け取り口の検証。`endpoint` は**外部から渡されるURL**なので、
  * ここで https のみに絞る(送信は endpoint へ fetch するため、任意スキームを
  * 通すとサーバを任意先へのリクエスト発火装置にできてしまう)。
+ * ホスト判定は共通チョークポイント(`isAllowedExternalHost`、既定の厳しい側)に
+ * 寄せる(#545)。プッシュサービス自体の許可リスト化は #634 の範囲で、ここでは
+ * SSRFガードの共通化に留める。
  */
 export const pushSubscriptionInputSchema = z.object({
 	endpoint: z
@@ -101,11 +105,14 @@ export const pushSubscriptionInputSchema = z.object({
 		.max(2000)
 		.refine(
 			(value) => {
+				let url: URL;
 				try {
-					return new URL(value).protocol === "https:";
+					url = new URL(value);
 				} catch {
 					return false;
 				}
+				if (url.protocol !== "https:") return false;
+				return isAllowedExternalHost(url.hostname);
 			},
 			{ message: "endpoint は https のURLである必要があります" },
 		),

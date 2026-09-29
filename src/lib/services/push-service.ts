@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "#/db";
 import { pushSubscription } from "#/db/schema";
 import { logError, logInfo, logWarn } from "#/lib/logger";
+import { isAllowedExternalHost } from "#/lib/net/ssrf-guard";
 import {
 	isGonePushStatus,
 	type PushSubscriptionInput,
@@ -124,6 +125,18 @@ export async function hasPushSubscription(userId: string): Promise<boolean> {
 	return rows.length > 0;
 }
 
+/** 送信してよい endpoint か(共通SSRFガードの厳しい側)。DBに残る旧行の送出前検査用。 */
+export function isPushEndpointSendable(endpoint: string): boolean {
+	let url: URL;
+	try {
+		url = new URL(endpoint);
+	} catch {
+		return false;
+	}
+	if (url.protocol !== "https:") return false;
+	return isAllowedExternalHost(url.hostname);
+}
+
 /**
  * 1ユーザの全購読へ「何かあった」を送る(本文なし)。**throw しない**——通知は付随物で、
  * 呼び出し元(ジョブの終端化)を巻き込ませない。送れた件数を返す。
@@ -163,6 +176,16 @@ export async function sendPushToUser(userId: string): Promise<number> {
 
 	let sent = 0;
 	for (const subscription of subscriptions) {
+		// ガード強化(#545)前に登録された内部向け endpoint が残っていても送らない。
+		// 送らずに消す: 受け取り口の検証を通らない宛先に署名付きリクエストを
+		// 飛ばすこと自体が SSRF の送信リレーになる。許可リスト化は #634 の範囲。
+		if (!isPushEndpointSendable(subscription.endpoint)) {
+			await db
+				.delete(pushSubscription)
+				.where(eq(pushSubscription.id, subscription.id));
+			logWarn("push subscription endpoint rejected; removed", { userId });
+			continue;
+		}
 		try {
 			// **VAPID の `aud` は endpoint のオリジン**なので、購読ごとに署名し直す。
 			const authorization = await createVapidAuthorization({
