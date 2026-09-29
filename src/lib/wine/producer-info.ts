@@ -1323,19 +1323,101 @@ const PRODUCER_INFO_BY_NORMALIZED_NAME: Map<
 );
 
 /**
+ * 生産者名の末尾に付く既知の接尾辞(#492)。**正規化済みの形**で持つ
+ * (`normalizeLabelText` を通すので `Père et Fils`→`pere et fils`、
+ * `&`→区切り化で `& Fils`→`fils`、`S.r.l.`→`s r l` になる)。
+ *
+ * モデルが正式表記へ正す際に足す家族表記(Père et Fils / et Fils / & Fils 等)と
+ * 法人格(SARL / SAS / SCEA / SA / S.r.l. 等)、英語圏の Estate / Winery を列挙する。
+ * 地名・畑名・キュヴェ名は含めない(単なる前方一致を許すと #471 の取り違えに戻る)。
+ *
+ * 新しい接尾辞を足すときは、辞書キー＋接尾辞の形で誤って別生産者を掴まないことを
+ * テストで確認する(`Château Margaux` / `Margaux`、`Léoville Barton` /
+ * `Léoville Las Cases` の取り違え防止が回帰条件)。
+ */
+const PRODUCER_NAME_SUFFIXES: ReadonlySet<string> = new Set(
+	[
+		// 家族経営の表記。`Père & Fils` は辞書キーにもある表記
+		// (`Maison Bouchard Père & Fils`)なので `et` 形と両方持つ
+		"Père et Fils",
+		"Père & Fils",
+		"et Fils",
+		"& Fils",
+		"Fils",
+		"Père et Fille",
+		"Père et Filles",
+		"et Fille",
+		"et Filles",
+		"Fille",
+		"Filles",
+		"et Frères",
+		"Frères",
+		// フランスの法人格。ドット付き(`S.A.R.L.`)は正規化で `s a r l` になるため別掲
+		"SARL",
+		"S.A.R.L.",
+		"SAS",
+		"S.A.S.",
+		"SCEA",
+		"S.C.E.A.",
+		"SA",
+		"S.A.",
+		"EARL",
+		"E.A.R.L.",
+		"EURL",
+		"E.U.R.L.",
+		"GAEC",
+		"G.A.E.C.",
+		// イタリアの法人格
+		"S.r.l.",
+		"S.R.L.",
+		"Srl",
+		"S.p.A.",
+		"Spa",
+		// 英語圏の接尾辞
+		"Estate",
+		"Estates",
+		"Winery",
+	].map(normalizeLabelText),
+);
+
+/**
  * 表記揺れに耐える生産者の逆引き(#471)。解析が読み取った生産者名から、このアプリが
  * 既に持っている解説(地域情報の生産者ダイアログに出しているもの)を引く。
  *
  * **部分一致では引かない**。"Château Margaux" と "Margaux" のような包含関係は別の
  * 生産者を指しうるため、誤った解説をコメントとして付けるより引けないほうがよい
  * (`lookupProducer` はモデルに候補を見せる探索なので緩い一致でよい、というのと逆の判断)。
+ *
+ * ただし正式表記への正し直しで付く接尾辞は例外(#492)。モデルは「正式表記に正す」
+ * 指示に従い `Domaine Armand Rousseau` を `Domaine Armand Rousseau Père et Fils`
+ * のように返すことがあり、完全一致では辞書を引けない。**辞書のキーが抽出名の
+ * 前方一致で、かつ残りが {@link PRODUCER_NAME_SUFFIXES} のいずれかだけ**のときに
+ * 限って一致とみなす。単なる前方一致(残りが地名・畑名など)や逆向き(抽出名のほうが
+ * 短い)は引かない。
  */
 export function findProducerInfoByName(
 	name: string,
 ): { name: string; info: ProducerInfo } | undefined {
 	const normalized = normalizeLabelText(name);
 	if (!normalized) return undefined;
-	return PRODUCER_INFO_BY_NORMALIZED_NAME.get(normalized);
+	const exact = PRODUCER_INFO_BY_NORMALIZED_NAME.get(normalized);
+	if (exact) return exact;
+	// #492: 抽出名の末尾から既知接尾辞を剥がし、残りが辞書キーなら一致とみなす。
+	// 剥がした残りが最も長い(＝元の抽出名に最も近い)候補を採る。
+	let best: { name: string; info: ProducerInfo } | undefined;
+	for (const suffix of PRODUCER_NAME_SUFFIXES) {
+		if (!normalized.endsWith(` ${suffix}`)) continue;
+		const base = normalized.slice(0, -(suffix.length + 1));
+		if (!base) continue;
+		const candidate = PRODUCER_INFO_BY_NORMALIZED_NAME.get(base);
+		if (
+			candidate &&
+			(!best || base.length > normalizeLabelText(best.name).length)
+		) {
+			best = candidate;
+		}
+	}
+	return best;
 }
 
 /**
