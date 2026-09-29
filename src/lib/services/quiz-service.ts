@@ -1,6 +1,10 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { dailyActivity, quizQuestionStat } from "#/db/schema";
+import {
+	dailyActivity,
+	quizPendingRevert,
+	quizQuestionStat,
+} from "#/db/schema";
 import { jstDayKey } from "#/lib/dashboard/jst";
 import { BadRequestError } from "#/lib/errors";
 import {
@@ -137,9 +141,13 @@ export interface RecordAnswerOptions {
 }
 
 /**
- * 記録直前の行スナップショット。リセット(revertAnswer)で回答前へ完全復元するために
+ * 記録直前の行スナップショット。revertAnswer で回答前へ完全復元するために
  * recordAnswer が返す。streak やタイムスタンプは単純なデクリメントでは戻せないため、
  * 更新前の値そのものを保持する。タイムスタンプは epoch ms。
+ *
+ * 互換のために残す: revertAnswer はサーバ側の quiz_pending_revert を使うため、
+ * この値を送り返す必要は無い(クライアントは成功可否だけ見ればよい)。旧バンドルが
+ * キャッシュされている間の取り消しを壊さないよう、返却自体は維持する。
  */
 export interface AnswerSnapshot {
 	existed: boolean;
@@ -154,19 +162,20 @@ export interface AnswerSnapshot {
 	activityWasCorrect: boolean;
 }
 
-export async function recordAnswer(
+type QuestionStatRow = {
+	correctCount: number;
+	incorrectCount: number;
+	streak: number;
+	lastAnsweredAt: Date;
+	lastCorrectAt: Date | null;
+};
+
+/** recordAnswer の更新前スナップショット取得と revertAnswer の現在値確認で共有する */
+async function fetchQuestionStatRow(
 	userId: string,
-	options: RecordAnswerOptions,
-): Promise<AnswerSnapshot> {
-	const { questionKey, wasCorrect } = options;
-	// クライアント申告の形式・地域は信用せず、キーから導出・検証する
-	const info = getQuestionKeyInfo(questionKey);
-	if (!info) {
-		// クライアント申告のキー形式が不正 = 入力エラー(400)。
-		throw new BadRequestError(`invalid question key: ${questionKey}`);
-	}
-	// 更新直前の行を控えておき、リセット時にこの値へ復元できるようにする
-	const existing = await db
+	questionKey: string,
+): Promise<QuestionStatRow | undefined> {
+	const rows = await db
 		.select({
 			correctCount: quizQuestionStat.correctCount,
 			incorrectCount: quizQuestionStat.incorrectCount,
@@ -182,9 +191,44 @@ export async function recordAnswer(
 			),
 		)
 		.limit(1);
+	return rows[0];
+}
+
+/** quiz_pending_revert の values/set で共有する回答前スナップショット由来の項目 */
+function pendingRevertFields(
+	priorRow: QuestionStatRow | undefined,
+	questionKey: string,
+	activityDay: string,
+	wasCorrect: boolean,
+) {
+	return {
+		questionKey,
+		existed: !!priorRow,
+		correctCount: priorRow?.correctCount ?? 0,
+		incorrectCount: priorRow?.incorrectCount ?? 0,
+		streak: priorRow?.streak ?? 0,
+		lastAnsweredAt: priorRow?.lastAnsweredAt ?? null,
+		lastCorrectAt: priorRow?.lastCorrectAt ?? null,
+		activityDay,
+		activityWasCorrect: wasCorrect,
+	};
+}
+
+export async function recordAnswer(
+	userId: string,
+	options: RecordAnswerOptions,
+): Promise<AnswerSnapshot> {
+	const { questionKey, wasCorrect } = options;
+	// クライアント申告の形式・地域は信用せず、キーから導出・検証する
+	const info = getQuestionKeyInfo(questionKey);
+	if (!info) {
+		// クライアント申告のキー形式が不正 = 入力エラー(400)。
+		throw new BadRequestError(`invalid question key: ${questionKey}`);
+	}
+	// 更新直前の行を控えておき、リセット時にこの値へ復元できるようにする
+	const priorRow = await fetchQuestionStatRow(userId, questionKey);
 	const now = new Date();
 	const activityDay = jstDayKey(now);
-	const priorRow = existing[0];
 	const snapshot: AnswerSnapshot = priorRow
 		? {
 				existed: true,
@@ -207,9 +251,12 @@ export async function recordAnswer(
 				activityWasCorrect: wasCorrect,
 			};
 
-	// 問題別 stat と日次サマリーの2更新を単一の db.batch(=1トランザクション)で原子化する。
+	// 問題別 stat と日次サマリーと取り消し用スナップショットの3更新を単一の
+	// db.batch(=1トランザクション)で原子化する。
 	// 逐次 await だと1つ目成功・2つ目失敗の部分失敗で、問題別実績とヒートマップ/streak が
 	// 恒久的にずれる(修復手段なし)。D1 batch は暗黙トランザクションなので追加機構は不要(#154)。
+	// 取り消し用スナップショットはサーバ側(quiz_pending_revert)に置き、クライアントには
+	// 往復させない。PK=userId 単独の上書きで「直前の1回答だけ」を表す(#544)。
 	await db.batch([
 		db
 			.insert(quizQuestionStat)
@@ -252,34 +299,115 @@ export async function recordAnswer(
 					updatedAt: now,
 				},
 			}),
+		// 取り消し用に回答前の値をサーバ側へ保存(クライアント申告にしない #544)
+		db
+			.insert(quizPendingRevert)
+			.values({
+				userId,
+				...pendingRevertFields(priorRow, questionKey, activityDay, wasCorrect),
+				answeredAt: now,
+			})
+			.onConflictDoUpdate({
+				target: quizPendingRevert.userId,
+				set: {
+					...pendingRevertFields(
+						priorRow,
+						questionKey,
+						activityDay,
+						wasCorrect,
+					),
+					answeredAt: now,
+					updatedAt: now,
+				},
+			}),
 	]);
 	return snapshot;
 }
 
 export interface RevertAnswerOptions {
 	questionKey: string;
-	prior: AnswerSnapshot;
 }
 
 /**
  * 直前の recordAnswer を取り消し、行を回答前の状態へ戻す(誤タップ救済)。
- * prior は recordAnswer が返したスナップショット。回答で新規作成された行は削除し、
- * 既存行は保持していた値へ復元する。復元対象は認証済みユーザ本人の行のみ。
+ * 復元に使うスナップショットはサーバ側の quiz_pending_revert から取り、
+ * クライアント申告値は受け取らない(#544)。回答で新規作成された行は削除し、
+ * 既存行は保存していた値へ復元する。復元対象は認証済みユーザ本人の行のみ。
+ *
+ * 取り消せるのは全体で最後の1回答だけ。保留行が無い・キーが違う・対象行の
+ * lastAnsweredAt が解答時の値と合わない(二重取り消し・上書き後の取り消し)・
+ * 現在値が「保留+1回答」と合わない場合は 400 で弾く。日次サマリーの減算日も
+ * 保留行の activityDay(サーバが記録した日)を使い、任意日の指定はできない。
  */
 export async function revertAnswer(
 	userId: string,
 	options: RevertAnswerOptions,
 ): Promise<void> {
-	const { questionKey, prior } = options;
+	const { questionKey } = options;
 	// キーの妥当性を検証(recordAnswer と同じ防御)
 	const info = getQuestionKeyInfo(questionKey);
 	if (!info) {
 		// クライアント申告のキー形式が不正 = 入力エラー(400)。
 		throw new BadRequestError(`invalid question key: ${questionKey}`);
 	}
-	// stat の復元/削除と日次サマリーの減算を単一の db.batch(=1トランザクション)で原子化する。
+	// 保留中の取り消し(直前の1回答)。無ければ取り消す対象が無い
+	const pendingRows = await db
+		.select()
+		.from(quizPendingRevert)
+		.where(eq(quizPendingRevert.userId, userId))
+		.limit(1);
+	const pending = pendingRows[0];
+	if (!pending) {
+		throw new BadRequestError("no revertable answer");
+	}
+	// 直前以外のキーへの取り消しは不可(未回答行のDELETE・別問題の書き換えを防ぐ)
+	if (pending.questionKey !== questionKey) {
+		throw new BadRequestError("only the last answer can be reverted");
+	}
+	// 対象回答の存在確認
+	const current = await fetchQuestionStatRow(userId, questionKey);
+	if (!current) {
+		throw new BadRequestError("answer not found");
+	}
+	// 解答時から対象行が上書きされていないこと(二重取り消し・再回答後の取り消しを防ぐ)
+	if (current.lastAnsweredAt.getTime() !== pending.answeredAt.getTime()) {
+		throw new BadRequestError("answer already reverted or overwritten");
+	}
+	// prior一致確認: 現在値が「保留スナップショット+1回答」と合うこと。
+	// 合わなければ保留と実態が食い違っており、安全に巻き戻せない
+	if (!pending.existed) {
+		const expectedCorrect = pending.activityWasCorrect ? 1 : 0;
+		const expectedIncorrect = pending.activityWasCorrect ? 0 : 1;
+		const expectedStreak = pending.activityWasCorrect ? 1 : 0;
+		if (
+			current.correctCount !== expectedCorrect ||
+			current.incorrectCount !== expectedIncorrect ||
+			current.streak !== expectedStreak
+		) {
+			throw new BadRequestError("answer state mismatch");
+		}
+	} else {
+		// existed=true なのに回答前時刻が欠けている保留は壊れているので巻き戻さない
+		if (!pending.lastAnsweredAt) {
+			throw new BadRequestError("answer state mismatch");
+		}
+		const expectedCorrect =
+			pending.correctCount + (pending.activityWasCorrect ? 1 : 0);
+		const expectedIncorrect =
+			pending.incorrectCount + (pending.activityWasCorrect ? 0 : 1);
+		const expectedStreak = pending.activityWasCorrect ? pending.streak + 1 : 0;
+		if (
+			current.correctCount !== expectedCorrect ||
+			current.incorrectCount !== expectedIncorrect ||
+			current.streak !== expectedStreak
+		) {
+			throw new BadRequestError("answer state mismatch");
+		}
+	}
+	// stat の復元/削除と日次サマリーの減算と保留行の消費を単一の
+	// db.batch(=1トランザクション)で原子化する。
 	// 逐次 await だと部分失敗でヒートマップ/streak と問題別実績が恒久的にずれる(#154)。
-	const restoreStat = !prior.existed
+	const restoreStat = !pending.existed
 		? // 回答で初めて作られた行なので、丸ごと削除すれば回答前(未出題)に戻る
 			db
 				.delete(quizQuestionStat)
@@ -292,16 +420,12 @@ export async function revertAnswer(
 		: db
 				.update(quizQuestionStat)
 				.set({
-					correctCount: prior.correctCount,
-					incorrectCount: prior.incorrectCount,
-					streak: prior.streak,
-					// existed=true の行は lastAnsweredAt が非null。型の都合でフォールバックを置く
-					lastAnsweredAt:
-						prior.lastAnsweredAt != null
-							? new Date(prior.lastAnsweredAt)
-							: new Date(),
-					lastCorrectAt:
-						prior.lastCorrectAt != null ? new Date(prior.lastCorrectAt) : null,
+					correctCount: pending.correctCount,
+					incorrectCount: pending.incorrectCount,
+					streak: pending.streak,
+					// existed=true の行は lastAnsweredAt が非null。欠けていたら壊れた保留なので弾く
+					lastAnsweredAt: pending.lastAnsweredAt ?? current.lastAnsweredAt,
+					lastCorrectAt: pending.lastCorrectAt ?? null,
 					updatedAt: new Date(),
 				})
 				.where(
@@ -313,21 +437,24 @@ export async function revertAnswer(
 
 	await db.batch([
 		restoreStat,
-		// 日次サマリーも対称的に減算(recordAnswer が計上した1件・正誤を戻す)。
+		// 日次サマリーも対称的に減算。減算日・正誤はサーバが記録した保留行から取り、
+		// クライアントは指定できない(任意日減算を防ぐ)。
 		// 負値ガードで下限0に丸める。行が無ければ何もしない(max(0,...) が保証)。
 		db
 			.update(dailyActivity)
 			.set({
 				answeredCount: sql`max(0, ${dailyActivity.answeredCount} - 1)`,
-				correctCount: sql`max(0, ${dailyActivity.correctCount} - ${prior.activityWasCorrect ? 1 : 0})`,
+				correctCount: sql`max(0, ${dailyActivity.correctCount} - ${pending.activityWasCorrect ? 1 : 0})`,
 				updatedAt: new Date(),
 			})
 			.where(
 				and(
 					eq(dailyActivity.userId, userId),
-					eq(dailyActivity.day, prior.activityDay),
+					eq(dailyActivity.day, pending.activityDay),
 				),
 			),
+		// 保留を消費する(二重取り消しを防ぐ)
+		db.delete(quizPendingRevert).where(eq(quizPendingRevert.userId, userId)),
 	]);
 }
 

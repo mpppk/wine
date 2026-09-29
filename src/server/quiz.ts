@@ -36,7 +36,7 @@ export const getNextQuestions = createServerFn({ method: "GET" })
 	);
 
 const recordAnswerInput = z.object({
-	questionKey: z.string().max(120),
+	questionKey: z.string().min(1).max(120),
 	wasCorrect: z.boolean(),
 });
 
@@ -47,20 +47,13 @@ export const recordAnswer = createServerFn({ method: "POST" })
 		quizService.recordAnswer(context.user.id, data),
 	);
 
-// 直前の recordAnswer を取り消す(誤タップ救済)。prior は recordAnswer が返した
-// 更新前スナップショット。userId はサーバの認証コンテキストから取り、本人の行のみ戻す
+// 直前の recordAnswer を取り消す(誤タップ救済)。復元に使うスナップショットは
+// サーバ側(quiz_pending_revert)に置き、クライアントからは questionKey だけを受ける。
+// userId はサーバの認証コンテキストから取り、本人の直前の1回答のみ戻す(#544)。
+// 学習アプリなので正解・解説の即時返却は維持するが、サーバの永続状態の巻き戻しを
+// クライアント申告に委ねない(アンチチート不要論とは別の問題)。
 const revertAnswerInput = z.object({
-	questionKey: z.string().max(120),
-	prior: z.object({
-		existed: z.boolean(),
-		correctCount: z.number().int().min(0),
-		incorrectCount: z.number().int().min(0),
-		streak: z.number().int().min(0),
-		lastAnsweredAt: z.number().int().nullable(),
-		lastCorrectAt: z.number().int().nullable(),
-		activityDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-		activityWasCorrect: z.boolean(),
-	}),
+	questionKey: z.string().min(1).max(120),
 });
 
 export const revertAnswer = createServerFn({ method: "POST" })

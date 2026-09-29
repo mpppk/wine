@@ -7,7 +7,7 @@ import { candidateCountsByType, listCandidates } from "#/lib/quiz/generators";
 import type { QuizType } from "#/lib/quiz/types";
 import { listRegions } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
-import { getProgress, recordAnswer } from "./quiz-service";
+import { getProgress, recordAnswer, revertAnswer } from "./quiz-service";
 
 // D1(実SQLite)上で quiz-service を検証する。型チェックでは守れない生SQL断片
 // (onConflictDoUpdate の加算・streak リセット・case-when 集計)の符号や条件の
@@ -218,5 +218,145 @@ describe("getProgress", () => {
 		expect(target?.masteredCount).toBe(0);
 		// 候補数(分母)は実績と無関係に静的データ由来で正の値
 		expect(target?.candidateCount).toBeGreaterThan(0);
+	});
+});
+
+// Issue #544: revertAnswer はサーバ側の保留(quiz_pending_revert)だけを使い、
+// クライアント申告値を一切受け取らない。任意値への書き換え・未回答行の削除・
+// 任意日の減算・二重取り消し・直前以外の取り消しは全て 400 で弾く。
+describe("revertAnswer", () => {
+	let userId: string;
+	let keyA: string;
+	let keyB: string;
+	beforeEach(async () => {
+		userId = await freshUser();
+		if (realKeys.length < 2) {
+			throw new Error("revert テストに実在キーが2件要る");
+		}
+		keyA = realKeys[0] as string;
+		keyB = realKeys[1] as string;
+	});
+
+	async function dailyTotal(targetUserId: string) {
+		const rows = await db
+			.select()
+			.from(dailyActivity)
+			.where(eq(dailyActivity.userId, targetUserId));
+		return {
+			answered: rows.reduce((a, r) => a + r.answeredCount, 0),
+			correct: rows.reduce((a, r) => a + r.correctCount, 0),
+			rows,
+		};
+	}
+
+	it("初回回答の取り消しで行が削除され、日次が1件戻る", async () => {
+		await recordAnswer(userId, { questionKey: keyA, wasCorrect: true });
+		expect(await statRow(userId, keyA)).toBeDefined();
+		expect((await dailyTotal(userId)).answered).toBe(1);
+
+		await revertAnswer(userId, { questionKey: keyA });
+		expect(await statRow(userId, keyA)).toBeUndefined();
+		expect((await dailyTotal(userId)).answered).toBe(0);
+		expect((await dailyTotal(userId)).correct).toBe(0);
+	});
+
+	it("既存行への回答の取り消しで回答前の値へ完全復元する", async () => {
+		await recordAnswer(userId, { questionKey: keyA, wasCorrect: true });
+		await recordAnswer(userId, { questionKey: keyA, wasCorrect: false });
+		const before = await statRow(userId, keyA);
+		expect(before?.correctCount).toBe(1);
+		expect(before?.incorrectCount).toBe(1);
+		expect(before?.streak).toBe(0);
+		expect((await dailyTotal(userId)).answered).toBe(2);
+
+		await revertAnswer(userId, { questionKey: keyA });
+		const row = await statRow(userId, keyA);
+		expect(row?.correctCount).toBe(1);
+		expect(row?.incorrectCount).toBe(0);
+		expect(row?.streak).toBe(1);
+		expect((await dailyTotal(userId)).answered).toBe(1);
+		expect((await dailyTotal(userId)).correct).toBe(1);
+	});
+
+	it("保留が無い取り消しは弾く(未回答の問題は消せない)", async () => {
+		await expect(revertAnswer(userId, { questionKey: keyA })).rejects.toThrow();
+		expect(await statRow(userId, keyA)).toBeUndefined();
+	});
+
+	it("保留無しに直接置いた行は消せない(未回答行DELETE不可)", async () => {
+		const now = new Date();
+		await db.insert(quizQuestionStat).values({
+			userId,
+			questionKey: keyA,
+			quizType,
+			regionId,
+			correctCount: 3,
+			incorrectCount: 1,
+			streak: 2,
+			lastAnsweredAt: now,
+			lastCorrectAt: now,
+		});
+		await expect(revertAnswer(userId, { questionKey: keyA })).rejects.toThrow();
+		// 任意値の書き換え・削除は起きない
+		const row = await statRow(userId, keyA);
+		expect(row?.correctCount).toBe(3);
+		expect(row?.streak).toBe(2);
+	});
+
+	it("二重の取り消しは2回目を弾く", async () => {
+		await recordAnswer(userId, { questionKey: keyA, wasCorrect: true });
+		await revertAnswer(userId, { questionKey: keyA });
+		await expect(revertAnswer(userId, { questionKey: keyA })).rejects.toThrow();
+		expect(await statRow(userId, keyA)).toBeUndefined();
+		expect((await dailyTotal(userId)).answered).toBe(0);
+	});
+
+	it("直前以外のキーへの取り消しは弾く(全体で最後の1回答だけ)", async () => {
+		await recordAnswer(userId, { questionKey: keyA, wasCorrect: true });
+		await recordAnswer(userId, { questionKey: keyB, wasCorrect: true });
+		// 古い方の取り消しは通らない
+		await expect(revertAnswer(userId, { questionKey: keyA })).rejects.toThrow();
+		expect(await statRow(userId, keyA)).toBeDefined();
+		// 直前(最後)の取り消しは通る
+		await revertAnswer(userId, { questionKey: keyB });
+		expect(await statRow(userId, keyB)).toBeUndefined();
+		// keyA の行は残る
+		expect(await statRow(userId, keyA)).toBeDefined();
+	});
+
+	it("キー書式が不正な取り消しは弾く", async () => {
+		await recordAnswer(userId, { questionKey: keyA, wasCorrect: true });
+		await expect(
+			revertAnswer(userId, { questionKey: "not-a-valid-key" }),
+		).rejects.toThrow();
+		expect(await statRow(userId, keyA)).toBeDefined();
+	});
+
+	it("他日の daily_activity には触らない(任意日減算不可)", async () => {
+		await recordAnswer(userId, { questionKey: keyA, wasCorrect: true });
+		const before = await dailyTotal(userId);
+		expect(before.rows.length).toBe(1);
+		const today = before.rows[0]?.day as string;
+		// 別日(固定の過去日)に手で積んだ活動量。revert で減ってはならない
+		const yesterday = "2000-01-01";
+		expect(today).not.toBe(yesterday);
+		await db.insert(dailyActivity).values({
+			userId,
+			day: yesterday,
+			answeredCount: 5,
+			correctCount: 3,
+		});
+		await revertAnswer(userId, { questionKey: keyA });
+		const after = await db
+			.select()
+			.from(dailyActivity)
+			.where(eq(dailyActivity.userId, userId));
+		const other = after.find((r) => r.day === yesterday);
+		expect(other?.answeredCount).toBe(5);
+		expect(other?.correctCount).toBe(3);
+		// 当日分だけ1件戻る
+		const todayRow = after.find((r) => r.day === today);
+		expect(todayRow?.answeredCount).toBe(0);
+		expect(todayRow?.correctCount).toBe(0);
 	});
 });
