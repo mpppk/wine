@@ -85,12 +85,9 @@ export const auth = betterAuth({
 		"http://localhost:3001",
 		// カスタムドメイン(本番公開用)。
 		"https://wine.nibo.sh",
-		"https://wine.niboshi.workers.dev",
-		"https://*.wine.niboshi.workers.dev",
-		// wrangler の versions preview / Workers Builds のプレビューURLは
-		// 「<version|branch>-<worker名>.niboshi.workers.dev」というダッシュ連結の
-		// ホスト名になるため、ドット区切りのワイルドカードとは別に許可する。
-		"https://*-wine.niboshi.workers.dev",
+		// 本番 Worker の workers.dev は公開しない(#640。wrangler.jsonc で
+		// workers_dev / preview_urls を false にしている)。ここに登録するのは
+		// プレビュー(`wine-preview`)の workers.dev のみ。
 		"https://wine-preview.niboshi.workers.dev",
 		"https://*-wine-preview.niboshi.workers.dev",
 	],
