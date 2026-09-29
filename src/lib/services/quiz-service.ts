@@ -162,19 +162,20 @@ export interface AnswerSnapshot {
 	activityWasCorrect: boolean;
 }
 
-export async function recordAnswer(
+type QuestionStatRow = {
+	correctCount: number;
+	incorrectCount: number;
+	streak: number;
+	lastAnsweredAt: Date;
+	lastCorrectAt: Date | null;
+};
+
+/** recordAnswer の更新前スナップショット取得と revertAnswer の現在値確認で共有する */
+async function fetchQuestionStatRow(
 	userId: string,
-	options: RecordAnswerOptions,
-): Promise<AnswerSnapshot> {
-	const { questionKey, wasCorrect } = options;
-	// クライアント申告の形式・地域は信用せず、キーから導出・検証する
-	const info = getQuestionKeyInfo(questionKey);
-	if (!info) {
-		// クライアント申告のキー形式が不正 = 入力エラー(400)。
-		throw new BadRequestError(`invalid question key: ${questionKey}`);
-	}
-	// 更新直前の行を控えておき、リセット時にこの値へ復元できるようにする
-	const existing = await db
+	questionKey: string,
+): Promise<QuestionStatRow | undefined> {
+	const rows = await db
 		.select({
 			correctCount: quizQuestionStat.correctCount,
 			incorrectCount: quizQuestionStat.incorrectCount,
@@ -190,9 +191,44 @@ export async function recordAnswer(
 			),
 		)
 		.limit(1);
+	return rows[0];
+}
+
+/** quiz_pending_revert の values/set で共有する回答前スナップショット由来の項目 */
+function pendingRevertFields(
+	priorRow: QuestionStatRow | undefined,
+	questionKey: string,
+	activityDay: string,
+	wasCorrect: boolean,
+) {
+	return {
+		questionKey,
+		existed: !!priorRow,
+		correctCount: priorRow?.correctCount ?? 0,
+		incorrectCount: priorRow?.incorrectCount ?? 0,
+		streak: priorRow?.streak ?? 0,
+		lastAnsweredAt: priorRow?.lastAnsweredAt ?? null,
+		lastCorrectAt: priorRow?.lastCorrectAt ?? null,
+		activityDay,
+		activityWasCorrect: wasCorrect,
+	};
+}
+
+export async function recordAnswer(
+	userId: string,
+	options: RecordAnswerOptions,
+): Promise<AnswerSnapshot> {
+	const { questionKey, wasCorrect } = options;
+	// クライアント申告の形式・地域は信用せず、キーから導出・検証する
+	const info = getQuestionKeyInfo(questionKey);
+	if (!info) {
+		// クライアント申告のキー形式が不正 = 入力エラー(400)。
+		throw new BadRequestError(`invalid question key: ${questionKey}`);
+	}
+	// 更新直前の行を控えておき、リセット時にこの値へ復元できるようにする
+	const priorRow = await fetchQuestionStatRow(userId, questionKey);
 	const now = new Date();
 	const activityDay = jstDayKey(now);
-	const priorRow = existing[0];
 	const snapshot: AnswerSnapshot = priorRow
 		? {
 				existed: true,
@@ -268,29 +304,18 @@ export async function recordAnswer(
 			.insert(quizPendingRevert)
 			.values({
 				userId,
-				questionKey,
-				existed: !!priorRow,
-				correctCount: priorRow?.correctCount ?? 0,
-				incorrectCount: priorRow?.incorrectCount ?? 0,
-				streak: priorRow?.streak ?? 0,
-				lastAnsweredAt: priorRow?.lastAnsweredAt ?? null,
-				lastCorrectAt: priorRow?.lastCorrectAt ?? null,
-				activityDay,
-				activityWasCorrect: wasCorrect,
+				...pendingRevertFields(priorRow, questionKey, activityDay, wasCorrect),
 				answeredAt: now,
 			})
 			.onConflictDoUpdate({
 				target: quizPendingRevert.userId,
 				set: {
-					questionKey,
-					existed: !!priorRow,
-					correctCount: priorRow?.correctCount ?? 0,
-					incorrectCount: priorRow?.incorrectCount ?? 0,
-					streak: priorRow?.streak ?? 0,
-					lastAnsweredAt: priorRow?.lastAnsweredAt ?? null,
-					lastCorrectAt: priorRow?.lastCorrectAt ?? null,
-					activityDay,
-					activityWasCorrect: wasCorrect,
+					...pendingRevertFields(
+						priorRow,
+						questionKey,
+						activityDay,
+						wasCorrect,
+					),
 					answeredAt: now,
 					updatedAt: now,
 				},
@@ -340,23 +365,7 @@ export async function revertAnswer(
 		throw new BadRequestError("only the last answer can be reverted");
 	}
 	// 対象回答の存在確認
-	const currentRows = await db
-		.select({
-			correctCount: quizQuestionStat.correctCount,
-			incorrectCount: quizQuestionStat.incorrectCount,
-			streak: quizQuestionStat.streak,
-			lastAnsweredAt: quizQuestionStat.lastAnsweredAt,
-			lastCorrectAt: quizQuestionStat.lastCorrectAt,
-		})
-		.from(quizQuestionStat)
-		.where(
-			and(
-				eq(quizQuestionStat.userId, userId),
-				eq(quizQuestionStat.questionKey, questionKey),
-			),
-		)
-		.limit(1);
-	const current = currentRows[0];
+	const current = await fetchQuestionStatRow(userId, questionKey);
 	if (!current) {
 		throw new BadRequestError("answer not found");
 	}
