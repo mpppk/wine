@@ -17,6 +17,7 @@ import {
 	buildWinePhotoKey,
 	MAX_PHOTOS_PER_ENTRY,
 	resolveStoredPhotoMime,
+	stripImageMetadata,
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
 import {
@@ -1715,8 +1716,12 @@ export async function syncDrunkWinePhotos(
 					"画像として認識できないか、形式が申告値と一致しないファイルが含まれています",
 				);
 			}
+			// #641: 非公開写真もサーバ側でメタデータを落とす。MCPの photo_base64 経路を
+			// 含め、全経路がこの1関数を通るためここで揃う。可逆な除去(再エンコード
+			// しない)で画質を保ち、EXIF回転は向きだけ残して表示を保つ。
+			const clean = stripImageMetadata(bytes);
 			const key = buildWinePhotoKey(userId, id, crypto.randomUUID(), mime);
-			await env.AVATARS.put(key, bytes, {
+			await env.AVATARS.put(key, clean, {
 				httpMetadata: { contentType: mime },
 			});
 			putKeys.push(key);
