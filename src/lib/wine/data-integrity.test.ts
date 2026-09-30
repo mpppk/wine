@@ -91,6 +91,22 @@ describe("地域マスタ(REGIONS)とRegionId SSOTの整合性", () => {
 	it("REGION_IDS は REGION_ID_LIST を参照している", () => {
 		expect([...REGION_IDS]).toEqual([...REGION_ID_LIST]);
 	});
+
+	it("学習パス(REGIONS.learningOrder)は1〜地域数で一意(#207)", () => {
+		const orders = REGIONS.map((r) => r.learningOrder);
+		expect([...orders].sort((a, b) => a - b)).toEqual(
+			REGIONS.map((_, i) => i + 1),
+		);
+	});
+
+	it("学習パスに根拠メモがある(#207: 順序は説明可能にする)", () => {
+		for (const region of REGIONS) {
+			expect(
+				region.learningNote.trim().length,
+				`${region.id} の learningNote が空`,
+			).toBeGreaterThan(0);
+		}
+	});
 });
 
 describe("AOPメタデータの整合性", () => {

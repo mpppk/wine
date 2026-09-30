@@ -3,13 +3,13 @@ import { db } from "#/db";
 import { dailyActivity } from "#/db/schema";
 import { DAILY_GOAL, HEATMAP_DAYS } from "#/lib/dashboard/constants";
 import { jstDayKey, lastNDayKeys } from "#/lib/dashboard/jst";
+import { summarizeRegionProgress } from "#/lib/dashboard/learning-path";
 import {
 	pickRecommendation,
 	type Recommendation,
 	type RegionStat,
 } from "#/lib/dashboard/recommend";
 import { computeStreak } from "#/lib/dashboard/streak";
-import type { RegionId } from "#/lib/wine/types";
 import { type DrunkWineEntry, getCellarSummary } from "./drunk-wine-service";
 import { getProgress } from "./quiz-service";
 
@@ -78,30 +78,17 @@ export async function getDashboard(userId: string): Promise<DashboardData> {
 		answered: answeredByDay.get(day) ?? 0,
 	}));
 
-	// クイズ習熟度: 既存の getProgress(地域×形式)を横断集計する
+	// クイズ習熟度: 既存の getProgress(地域×形式)を横断集計する。
+	// 地域単位の畳み込みは learning-path と共用し、複製を作らない(#207)
 	const { regions } = await getProgress(userId);
 	const mastery = { total: 0, seen: 0, mastered: 0, weak: 0 };
 	const regionStats: RegionStat[] = regions.map((region) => {
-		const agg = region.quizTypes.reduce(
-			(acc, t) => ({
-				candidate: acc.candidate + t.candidateCount,
-				seen: acc.seen + t.seenCount,
-				mastered: acc.mastered + t.masteredCount,
-				weak: acc.weak + t.weakCount,
-			}),
-			{ candidate: 0, seen: 0, mastered: 0, weak: 0 },
-		);
-		mastery.total += agg.candidate;
-		mastery.seen += agg.seen;
-		mastery.mastered += agg.mastered;
-		mastery.weak += agg.weak;
-		return {
-			regionId: region.regionId as RegionId,
-			candidateCount: agg.candidate,
-			seenCount: agg.seen,
-			weakCount: agg.weak,
-			masteredCount: agg.mastered,
-		};
+		const stat = summarizeRegionProgress(region);
+		mastery.total += stat.candidateCount;
+		mastery.seen += stat.seenCount;
+		mastery.mastered += stat.masteredCount;
+		mastery.weak += stat.weakCount;
+		return stat;
 	});
 
 	const cellar = await getCellarSummary(userId);

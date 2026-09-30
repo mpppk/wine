@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { MapIcon } from "lucide-react";
+import { PathBadge } from "#/components/learning-path/PathBadge";
 import {
 	Card,
 	CardContent,
@@ -7,18 +8,41 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import {
+	type LearningPathStep,
+	pickLearningPathStep,
+	regionPathStatus,
+	summarizeRegionProgress,
+} from "#/lib/dashboard/learning-path";
 import { groupRegionsByCountry } from "#/lib/wine/countries";
-import { listRegions } from "#/lib/wine/service";
+import { listRegions, type RegionSummary } from "#/lib/wine/service";
 import { getAppellationTermJa } from "#/lib/wine/terminology";
+import { getRouteSession } from "#/server/auth";
+import { getQuizProgress } from "#/server/quiz";
 
 export const Route = createFileRoute("/regions")({
-	// 静的データなのでサーバ関数は不要。loaderで直接返すとSSRにも乗る。
-	loader: () => ({ regions: listRegions() }),
+	// 進捗バッジはユーザ固有データなのでログイン時のみ取得する
+	beforeLoad: async () => {
+		const session = await getRouteSession();
+		return { isAuthenticated: !!session };
+	},
+	// 静的データはそのまま返し、学習パスの現在地/次だけ被せる(SSRにも乗る)
+	loader: async ({
+		context,
+	}): Promise<{ regions: RegionSummary[]; step: LearningPathStep | null }> => {
+		const regions = listRegions();
+		if (!context.isAuthenticated) return { regions, step: null };
+		const { regions: progress } = await getQuizProgress();
+		return {
+			regions,
+			step: pickLearningPathStep(progress.map(summarizeRegionProgress)),
+		};
+	},
 	component: RegionsPage,
 });
 
 function RegionsPage() {
-	const { regions } = Route.useLoaderData();
+	const { regions, step } = Route.useLoaderData();
 	const enabled = regions.filter((r) => r.enabled);
 	// 国の並び順は WINE_COUNTRIES 定義順、国内は REGIONS 定義順(決定的)。#586
 	const groups = groupRegionsByCountry(enabled);
@@ -60,6 +84,7 @@ function RegionsPage() {
 											<span className="text-sm font-normal text-muted-foreground">
 												{region.nameLocal}
 											</span>
+											<PathBadge status={regionPathStatus(region.id, step)} />
 										</CardTitle>
 										<CardDescription>
 											{region.aopCount} {getAppellationTermJa(region.id)}

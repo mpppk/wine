@@ -207,4 +207,15 @@ export interface Region {
 	boundaryAttribution?: string;
 	subregions: Subregion[];
 	description: string;
+	/**
+	 * 推奨学習順(1始まり)。「学びやすさ・前の地域で覚えたことが次に効くか」で
+	 * 並べた静的な順序(#207)。試験の出題頻度は根拠に使わない。
+	 * 1〜地域数で一意になることは data-integrity テストで固定する。
+	 */
+	learningOrder: number;
+	/**
+	 * なぜこの順番か(前の地域の何が次に効くか)を説明するメモ。
+	 * 学習パスUIの説明文・順序の根拠開示に使う。
+	 */
+	learningNote: string;
 }

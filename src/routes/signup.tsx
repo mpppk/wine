@@ -45,7 +45,9 @@ function SignUpPage() {
 		if (result.error) {
 			setError(result.error.message ?? "Sign up failed");
 		} else {
-			await router.navigate({ to: "/" });
+			// 新規登録は必ずウェルカムフローへ。既存ユーザの再訪判定
+			// (初回判定 + dismiss)は `/` 側が行うのでここでは無条件でよい。
+			await router.navigate({ to: "/welcome" });
 		}
 	};
 

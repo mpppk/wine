@@ -1,15 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BarChart3Icon, PlayIcon } from "lucide-react";
 import { useState } from "react";
+import { PathBadge } from "#/components/learning-path/PathBadge";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { Checkbox } from "#/components/ui/checkbox";
+import {
+	type LearningPathStep,
+	pickLearningPathStep,
+	regionPathStatus,
+	summarizeRegionProgress,
+} from "#/lib/dashboard/learning-path";
 import { candidateCountsByType } from "#/lib/quiz/generators";
 import { QUIZ_TYPES, type QuizType } from "#/lib/quiz/types";
 import { cn } from "#/lib/utils";
 import { listRegions } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 import { getRouteSession } from "#/server/auth";
+import { getQuizProgress } from "#/server/quiz";
 
 export const Route = createFileRoute("/quiz/")({
 	// 未ログインでも利用可能。ログイン状態はバナー表示の出し分けに使う
@@ -17,24 +25,31 @@ export const Route = createFileRoute("/quiz/")({
 		const session = await getRouteSession();
 		return { isAuthenticated: !!session };
 	},
-	// 静的データなのでサーバ関数は不要。loaderで直接返すとSSRにも乗る。
-	loader: () => {
+	// 静的データはそのまま返し、学習パスの現在地/次だけ被せる(SSRにも乗る)
+	loader: async ({ context }) => {
 		const regions = listRegions().filter((r) => r.enabled);
+		const step: LearningPathStep | null = context.isAuthenticated
+			? pickLearningPathStep(
+					(await getQuizProgress()).regions.map(summarizeRegionProgress),
+				)
+			: null;
 		return {
 			regions,
 			countsByRegion: Object.fromEntries(
 				regions.map((r) => [r.id, candidateCountsByType(r.id)]),
 			),
+			step,
 		};
 	},
 	component: QuizSetupPage,
 });
 
 function QuizSetupPage() {
-	const { regions, countsByRegion } = Route.useLoaderData();
+	const { regions, countsByRegion, step } = Route.useLoaderData();
 	const { isAuthenticated } = Route.useRouteContext();
+	// 学習パスの現在地を初期選択にする(自由な選び直しは残す)
 	const [regionId, setRegionId] = useState<RegionId>(
-		regions[0]?.id as RegionId,
+		(step?.currentRegionId ?? regions[0]?.id) as RegionId,
 	);
 	const counts = countsByRegion[regionId];
 	// 地域を切り替えたら、その地域で成立する形式を全選択に戻す
@@ -95,7 +110,10 @@ function QuizSetupPage() {
 								: "hover:border-foreground/40",
 						)}
 					>
-						<span className="font-medium">{region.nameJa}</span>
+						<span className="flex items-center gap-2">
+							<span className="font-medium">{region.nameJa}</span>
+							<PathBadge status={regionPathStatus(region.id, step)} />
+						</span>
 						<span className="mt-0.5 block text-xs text-muted-foreground">
 							{region.nameLocal} ・ {region.aopCount} AOP
 						</span>
