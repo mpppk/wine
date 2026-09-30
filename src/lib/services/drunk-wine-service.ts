@@ -460,8 +460,8 @@ export async function listEntryPhotosBulk(
 	return out;
 }
 
-/** 1エントリぶんの写真。`entryFromBatch`(単件の読み直し)が使う単件版。 */
-export async function listEntryPhotos(
+/** 1エントリぶんの写真。単件の読み直し(entryFromBatch・単件取得・削除前読み等)が使う内部版。 */
+async function listEntryPhotos(
 	userId: string,
 	id: string,
 ): Promise<EntryPhoto[]> {
