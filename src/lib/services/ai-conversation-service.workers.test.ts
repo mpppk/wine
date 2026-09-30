@@ -22,6 +22,7 @@ import {
 	reserveCredits,
 	settleReservation,
 } from "./credit-service";
+import * as metered from "./metered-inference";
 
 // 地域Q&Aの会話永続化(Issue #603)を実D1で検証する。
 // 見るのは「所有権・順序・一意制約・同時実行・課金との整合・期限切れの決着」——
@@ -128,6 +129,7 @@ function captureOpenRouterBodies(text: string): string[] {
 afterEach(() => {
 	delete (env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY;
 	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
 });
 
 async function waitFor(
@@ -960,5 +962,169 @@ describe("履歴の上限分離と課金の整合", () => {
 		expect(run?.promptName).toBe("region-qa-system");
 		expect(run?.promptSource).toBeDefined();
 		expect(run?.billingRequestId.startsWith("ask_region_chat:")).toBe(true);
+	});
+});
+
+describe("予約漏れの回帰(Issue #638)", () => {
+	/**
+	 * reserved_* 列への UPDATE を D1 一時エラーで落とす。
+	 * 旧コードの「予約後・返却を担う try の外の UPDATE」だけがここに当たる。
+	 * 修正後のコードはその列に書かないため影響を受けない。
+	 */
+	async function armReservedUpdateFailure(): Promise<() => Promise<unknown>> {
+		await env.DB.prepare(
+			`CREATE TRIGGER IF NOT EXISTS ai_chat_run_reserved_fail_638
+			BEFORE UPDATE OF reserved_credits ON ai_chat_run
+			BEGIN SELECT RAISE(ABORT, 'D1_ERROR: transient reserved update failure'); END;`,
+		).run();
+		return () =>
+			env.DB.prepare(
+				`DROP TRIGGER IF EXISTS ai_chat_run_reserved_fail_638;`,
+			).run();
+	}
+
+	/** begin が実予約を立てた直後に落ちたふりをする(予約直後の失敗を再現)。 */
+	function mockBeginThrowAfterReserve(): void {
+		const real = metered.beginMeteredInference;
+		vi.spyOn(metered, "beginMeteredInference").mockImplementationOnce(
+			async (userId, options) => {
+				const begun = await real(userId, options);
+				if (!begun.blocked)
+					throw new Error("D1_ERROR: transient begin failure");
+				return begun;
+			},
+		);
+	}
+
+	/**
+	 * (a) の共通アサーション: 予約は全額返却され、確定は起きない。
+	 * 予約の数だけ返却がある(再試行経路では種の分だけ重なる)。
+	 */
+	async function expectFullyRefunded(userId: string): Promise<void> {
+		expect(await balanceOf(userId)).toBe(MONTHLY_CREDITS_FREE);
+		const rows = await ledgerRowsOf(userId);
+		const consumes = rows.filter((r) => r.type === "consume");
+		expect(consumes.length).toBeGreaterThan(0);
+		expect(
+			rows.filter((r) => r.requestId?.endsWith(SETTLE_SUFFIX)),
+		).toHaveLength(0);
+		expect(
+			rows.filter((r) => r.requestId?.endsWith(REFUND_SUFFIX)),
+		).toHaveLength(consumes.length);
+	}
+
+	/**
+	 * (b)(c) の共通アサーション: 指定 run は再試行可能な failed で残り、
+	 * 直ちに再試行できる(10分ロックされない)。
+	 */
+	async function expectFailedRunResendable(
+		userId: string,
+		conversationId: string,
+		failedRunId: string,
+	): Promise<void> {
+		const detail = await getAiConversation(userId, conversationId);
+		const failed = detail.runs.find((r) => r.id === failedRunId);
+		expect(failed?.status).toBe("failed");
+		expect(failed?.retryable).toBe(true);
+		stubOpenRouter(okAnswer("復旧回答"));
+		const retried = await retryAiChatRun(userId, {
+			conversationId,
+			runId: failedRunId,
+			sendId: crypto.randomUUID(),
+		});
+		expect(retried.status).toBe("ok");
+	}
+
+	it("送信: reserved_* UPDATE の一時エラーでも予約・実行権が漏れない", async () => {
+		const userId = await seedUser();
+		stubOpenRouter(okAnswer("回答"));
+		const disarm = await armReservedUpdateFailure();
+		try {
+			// 旧コードではここの UPDATE が落ち、予約と実行権が宙に浮く。
+			// 修正後はその列に書かないため成功する。
+			const sent = await sendAiChatMessage(userId, {
+				...SEND_BASE,
+				sendId: crypto.randomUUID(),
+			});
+			expect(sent.status).toBe("ok");
+			if (sent.status !== "ok")
+				throw new Error(`expected ok, got ${sent.status}`);
+			// 予約は確定され、run は成功し、reserved_* 列は触らない
+			const rows = await ledgerRowsOf(userId);
+			expect(rows.some((r) => r.requestId?.endsWith(SETTLE_SUFFIX))).toBe(true);
+			const detail = await getAiConversation(userId, sent.conversationId);
+			expect(detail.runs[0]?.status).toBe("succeeded");
+			const [run] = await db
+				.select({
+					reservedCredits: aiChatRun.reservedCredits,
+					reservedMicroUsd: aiChatRun.reservedMicroUsd,
+				})
+				.from(aiChatRun)
+				.where(eq(aiChatRun.id, sent.runId))
+				.limit(1);
+			expect(run?.reservedCredits).toBeNull();
+			expect(run?.reservedMicroUsd).toBeNull();
+			// 会話は直ちに次を受け付けられる(実行権が残っていない)
+			const second = await sendAiChatMessage(userId, {
+				...SEND_BASE,
+				conversationId: sent.conversationId,
+				question: "2問目",
+				sendId: crypto.randomUUID(),
+			});
+			expect(second.status).toBe("ok");
+		} finally {
+			await disarm();
+		}
+	});
+
+	it("再試行: reserved_* UPDATE の一時エラーでも予約・実行権が漏れない", async () => {
+		const { userId, conversationId, runId } = await seedFailedConversation();
+		stubOpenRouter(okAnswer("復旧回答"));
+		const disarm = await armReservedUpdateFailure();
+		try {
+			// 旧コードでは再試行経路の UPDATE が落ち、予約と実行権が宙に浮く。
+			const retried = await retryAiChatRun(userId, {
+				conversationId,
+				runId,
+				sendId: crypto.randomUUID(),
+			});
+			expect(retried.status).toBe("ok");
+		} finally {
+			await disarm();
+		}
+	});
+
+	it("送信: begin が予約直後に落ちても返却・決着・再送信できる", async () => {
+		const userId = await seedUser();
+		stubOpenRouter(okAnswer("回答"));
+		mockBeginThrowAfterReserve();
+		await expect(
+			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
+		).rejects.toThrow("回答の生成に失敗しました");
+		const conversationId =
+			(await listAiConversations(userId, {})).items[0]?.id ?? "";
+		const runId =
+			(await getAiConversation(userId, conversationId)).runs[0]?.id ?? "";
+		await expectFullyRefunded(userId);
+		await expectFailedRunResendable(userId, conversationId, runId);
+	});
+
+	it("再試行: begin が予約直後に落ちても返却・決着・再送信できる", async () => {
+		const { userId, conversationId, runId } = await seedFailedConversation();
+		stubOpenRouter(okAnswer("復旧回答"));
+		mockBeginThrowAfterReserve();
+		await expect(
+			retryAiChatRun(userId, {
+				conversationId,
+				runId,
+				sendId: crypto.randomUUID(),
+			}),
+		).rejects.toThrow("回答の生成に失敗しました");
+		const failedRunId =
+			(await getAiConversation(userId, conversationId)).runs.find(
+				(r) => r.id !== runId,
+			)?.id ?? "";
+		await expectFullyRefunded(userId);
+		await expectFailedRunResendable(userId, conversationId, failedRunId);
 	});
 });
