@@ -1,5 +1,6 @@
+import { env } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { drunkWine, importBatch } from "#/db/schema";
@@ -15,10 +16,15 @@ import {
 import { listRegions } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 import {
+	appendDrunkWinePhotoKeys,
 	createDrunkWine,
+	listDrunkWines,
 	syncDrunkWinePhotos,
 } from "./services/drunk-wine-service";
-import { bulkRegisterFromScan } from "./services/import-batch-service";
+import {
+	adoptImportBatchPhotoKeys,
+	bulkRegisterFromScan,
+} from "./services/import-batch-service";
 import { recordAnswer } from "./services/quiz-service";
 
 // ユーザあたり容量クォータ(#397)を実D1で検証する。件数・バイト数の上限は
@@ -114,6 +120,10 @@ describe("entry quota", () => {
 });
 
 describe("photo quota", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	/** 写真キーだけを D1 直書きで積む(R2 実体は要らない。見積もりは枚数×上限で行う)。 */
 	async function fillPhotoKeys(userId: string, count: number): Promise<string> {
 		const entry = await createDrunkWine(userId, { name: "写真枠" });
@@ -124,6 +134,41 @@ describe("photo quota", () => {
 			})
 			.where(eq(drunkWine.id, entry.id));
 		return entry.id;
+	}
+
+	/** 写真枠を上限超え(410枚 × 5MB)まで積んだユーザ。全バイパス回帰テストの起点。 */
+	async function overQuotaUser(): Promise<string> {
+		const userId = await freshUser();
+		await fillPhotoKeys(userId, 410);
+		return userId;
+	}
+
+	/** このユーザの R2 オブジェクトキー一覧(残骸の有無の判定用)。 */
+	async function r2Keys(userId: string): Promise<string[]> {
+		return (await env.AVATARS.list({ prefix: `wines/${userId}/` })).objects
+			.map((object) => object.key)
+			.sort();
+	}
+
+	/** 解析ジョブが投入時に置いた写真を模す(引き継ぎは既存R2オブジェクトの参照)。 */
+	async function seedJobPhoto(
+		userId: string,
+		bytes: Uint8Array = JPEG_1X1,
+	): Promise<string> {
+		const jobKey = `wines/${userId}/${crypto.randomUUID()}/${crypto.randomUUID()}.jpg`;
+		await env.AVATARS.put(jobKey, bytes, {
+			httpMetadata: { contentType: "image/jpeg" },
+		});
+		return jobKey;
+	}
+
+	/** バッチの確定済み写真キー。引き継ぎの成否で変わるのはここ。 */
+	async function storedBatchPhotoKeys(batchId: string): Promise<string[]> {
+		const [batch] = await db
+			.select({ photoKeys: importBatch.photoKeys })
+			.from(importBatch)
+			.where(eq(importBatch.id, batchId));
+		return batch?.photoKeys ?? [];
 	}
 
 	it("上限内は写真を保存できる", async () => {
@@ -165,6 +210,131 @@ describe("photo quota", () => {
 		});
 		const err = await assertPhotoQuota(userId, 1).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(ConflictError);
+	});
+
+	it("web写真の取り込みも写真クォータの対象(超過時は409・fetchもR2 putもしない)", async () => {
+		// bulkRegisterFromScan は adoptWebPhotos の R2 put を素通りできた旧バイパス。
+		// 関門は R2 put 層(adoptWebPhotos の fetch 前)に寄せてある。
+		const userId = await freshUser();
+		const seedId = await fillPhotoKeys(userId, 410);
+		const requested: string[] = [];
+		vi.spyOn(globalThis, "fetch").mockImplementation(
+			async (input: RequestInfo | URL) => {
+				requested.push(
+					typeof input === "string"
+						? input
+						: input instanceof URL
+							? input.href
+							: input.url,
+				);
+				return new Response(JPEG_1X1, {
+					headers: { "content-type": "image/jpeg" },
+				});
+			},
+		);
+		const err = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [
+				{
+					wine: { name: "web写真つき" },
+					webPhoto: { url: "https://example.com/a.jpg" },
+				},
+			],
+		}).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ConflictError);
+		expect((err as ConflictError).status).toBe(409);
+		// 判定は fetch の前なので、外部取得にも行かず R2 にも書かない。
+		// 登録自体も成立しない(種まきの1件だけが残る)。
+		expect(requested).toEqual([]);
+		const { entries } = await listDrunkWines(userId);
+		expect(entries.map((entry) => entry.id)).toEqual([seedId]);
+		expect(await r2Keys(userId)).toEqual([]);
+	});
+
+	it("引き継ぎ経路も写真クォータの対象(超過時は409・バッチも複製も不変)", async () => {
+		// 通常のジョブ写真経路(adoptImportBatchPhotoKeys → attachImportBatchPhotoKeys)は
+		// フォールバックの saveImportBatchPhotos だけが検査していた旧バイパス。
+		// 関門はバッチに写真が載る唯一の関門(attachImportBatchPhotoKeys)に寄せてある。
+		const userId = await overQuotaUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [{ wine: { name: "棚の1本" }, sighting: { photoIndex: 0 } }],
+		});
+		const jobKey = await seedJobPhoto(userId);
+		const before = await r2Keys(userId);
+
+		const err = await adoptImportBatchPhotoKeys(userId, result.batchId, [
+			jobKey,
+		]).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ConflictError);
+		expect((err as ConflictError).status).toBe(409);
+		// D1 は更新せず、銘柄への複製 put も起きない(ジョブ写真の1件だけが残る)。
+		expect(await storedBatchPhotoKeys(result.batchId)).toEqual([]);
+		expect(await r2Keys(userId)).toEqual(before);
+		const { entries } = await listDrunkWines(userId);
+		expect(
+			entries.find((entry) => entry.name === "棚の1本")?.photoUrls,
+		).toEqual([]);
+	});
+
+	it("エントリへの引き継ぎも写真クォータの対象(超過時は409・D1もR2も不変)", async () => {
+		// 解析ジョブの写真をエントリへ移す appendDrunkWinePhotoKeys も同じく関門に寄せる。
+		const userId = await overQuotaUser();
+		const entry = await createDrunkWine(userId, { name: "引き継ぎ先" });
+		const jobKey = await seedJobPhoto(userId);
+		const before = await r2Keys(userId);
+
+		const err = await appendDrunkWinePhotoKeys(userId, entry.id, [
+			jobKey,
+		]).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ConflictError);
+		expect((err as ConflictError).status).toBe(409);
+		const [row] = await db
+			.select({ photoKeys: drunkWine.photoKeys })
+			.from(drunkWine)
+			.where(eq(drunkWine.id, entry.id));
+		expect(row?.photoKeys).toEqual([]);
+		expect(await r2Keys(userId)).toEqual(before);
+	});
+
+	it("銘柄への複製も写真クォータの対象(attach通過後の超過は複製だけを見送る)", async () => {
+		// 1枚のバッチ写真が複数銘柄へ複製されると、attach の関門で数えたぶんを
+		// 上回る。複製 put 層(adoptBatchPhotosForWines)の実バイト判定が最後の関門で、
+		// 超過時は複製だけを見送り、バッチ写真の保存自体は成功として返す。
+		const userId = await freshUser();
+		// 408枚 × 5MB = 2040MiB。1枚の attach(2045MiB)は通るが、2枚ぶんの複製
+		// (2050MiB)は通らない境界。
+		await fillPhotoKeys(userId, 408);
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{ wine: { name: "棚の1本目" }, sighting: { photoIndex: 0 } },
+				{ wine: { name: "棚の2本目" }, sighting: { photoIndex: 0 } },
+			],
+		});
+		// R2 の読み出しは保存時の contentType だけ見るため、中身は JPEG の
+		// マジックバイトから始まる5MBのダミーでよい。
+		const bigPhoto = new Uint8Array(5 * 1024 * 1024);
+		bigPhoto[0] = 0xff;
+		bigPhoto[1] = 0xd8;
+		bigPhoto[2] = 0xff;
+		const jobKey = await seedJobPhoto(userId, bigPhoto);
+
+		const { adopted } = await adoptImportBatchPhotoKeys(
+			userId,
+			result.batchId,
+			[jobKey],
+		);
+		expect(adopted).toEqual([jobKey]);
+		// バッチ写真は載るが、銘柄への複製は起きない(ジョブ写真の1件だけが残る)。
+		expect(await storedBatchPhotoKeys(result.batchId)).toEqual([jobKey]);
+		const { entries } = await listDrunkWines(userId);
+		for (const name of ["棚の1本目", "棚の2本目"]) {
+			expect(entries.find((entry) => entry.name === name)?.photoUrls).toEqual(
+				[],
+			);
+		}
+		expect(await r2Keys(userId)).toEqual([jobKey]);
 	});
 });
 

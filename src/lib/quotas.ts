@@ -12,10 +12,17 @@ import { logWarn } from "#/lib/logger";
 // 「1ユーザあたりのエントリ数・写真総バイト数」のような累積の上限は D1 で数えて判定する。
 //
 // 経路(Web の server function / API ルート / MCP ツール)ごとに上限を書き散らさない。
-// 全経路がサービス層(`createDrunkWine` / `bulkRegisterFromScan` /
-// `syncDrunkWinePhotos` / `saveImportBatchPhotos` / `recordAnswer`)を通るため、
-// 判定はこの1ファイルに閉じ、サービス層が呼ぶ。後から経路を足しても自動的に通る
-// (#546 の MCP 追加も同じ構造で足せる)。
+// 全経路がサービス層を通るため、判定はこの1ファイルに閉じ、写真を確定保存する
+// 共通の関門が呼ぶ。後から経路を足しても自動的に通る(#546 の MCP 追加も同じ構造で
+// 足せる)。関門の一覧:
+//  - エントリ数: `createDrunkWine`(1件) / `bulkRegisterFromScan`(直接 INSERT する
+//    ため素通り防止・新規0件は通す)
+//  - 写真総バイト: `syncDrunkWinePhotos`(R2 書き込み前) / `adoptWebPhotos`(fetch・
+//    put の前。bulkRegisterFromScan の内部) / `attachImportBatchPhotoKeys`(バッチに
+//    写真が載る唯一の関門。adopt/up の両入口を束ねる) / `adoptBatchPhotosForWines`
+//    (バッチ写真の銘柄への複製 put の前) / `appendDrunkWinePhotoKeys`(ジョブ写真の
+//    エントリへの引き継ぎ)。呼び出し側に個別に足さず、R2 put/コピーを行う層・
+//    キーを確定させる層に寄せる(#174 と同じ類型の適用漏れを防ぐ)
 //
 // 超過は 409(ConflictError)。429 はスロットル用に取っておき、種別を混ぜない
 // (クライアントが文言・ステータスで種別を判定できるようにする)。
@@ -74,7 +81,14 @@ export async function assertEntryQuota(
  * 写真を R2 へ書く前に呼ぶ。`newBytes` は今回書き込む実バイト数の合計。
  * 既存ぶんはエントリ写真(`drunk_wine.photo_keys`)とバッチ写真
  * (`import_batch.photo_keys`)の枚数 × 1枚上限で見積もる。
- * `syncDrunkWinePhotos` と `saveImportBatchPhotos` の両方が呼ぶ。
+ *
+ * 呼ぶのは写真を確定保存する共通の関門だけにする(呼び出し側に個別に足さない):
+ * `syncDrunkWinePhotos`(実バイト) / `adoptWebPhotos`(1枚上限×枚数。取得前に数える。
+ * `fetchRemotePhoto` が1枚上限を保証する) / `attachImportBatchPhotoKeys`(1枚上限×
+ * 枚数。キー確定後の唯一の関門で、adopt/up の両入口を束ねる) /
+ * `adoptBatchPhotosForWines`(複製する実バイト) / `appendDrunkWinePhotoKeys`
+ * (1枚上限×枚数)。`saveImportBatchPhotos` の R2 書き込み前検査は attach の関門へ
+ * 到る前の早期ゲートで、権威は attach 側にある。
  */
 export async function assertPhotoQuota(
 	userId: string,

@@ -21,6 +21,7 @@ import {
 import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import {
 	buildWinePhotoKey,
+	MAX_PHOTO_BYTES,
 	MAX_PHOTOS_PER_ENTRY,
 	resolveStoredPhotoMime,
 	stripImageMetadata,
@@ -2141,6 +2142,11 @@ export async function syncDrunkWinePhotos(
  * 上限(`MAX_PHOTOS_PER_ENTRY`)を超えるぶんは**足さずに捨てる**。引き継ぎは付随的な処理で、
  * ここで例外にすると「記録は出来たのに写真のせいで失敗した」ことになる。捨てたキーは
  * 呼び出し側が掃除できるよう返す。
+ *
+ * ただしユーザあたり写真総バイト上限(#397)は捨てずに 409 で断る。引き継ぐキーの実バイトは
+ * 未知のため、足す枚数 × 1枚上限で保守的に見積もる(D1 の既存ぶんの見積もりと同じ流儀)。
+ * D1 更新の前なので、拒否しても R2・D1 ともに不変。呼び出し側に個別に足さず、この
+ * 引き継ぎの関門に寄せる(クォータの SSOT は `#/lib/quotas`)。
  */
 
 export async function appendDrunkWinePhotoKeys(
@@ -2175,9 +2181,13 @@ export async function appendDrunkWinePhotoKeys(
 	const adopted = incoming.slice(0, room);
 	const dropped = incoming.slice(room);
 
-	if (adopted.length === 0) {
+<	if (adopted.length === 0) {
 		return { entry: await getDrunkWine(userId, id), adopted, dropped };
 	}
+	// ユーザあたり写真総バイト上限(#397)。引き継ぎは R2 への新規書き込みでは
+	// ないが、エントリの写真枚数が増えて見積もりが膨らむため、D1 更新の前に
+	// 断る(クォータの SSOT は `#/lib/quotas`)。
+	await assertPhotoQuota(userId, adopted.length * MAX_PHOTO_BYTES);
 	// 解析ジョブの引き継ぎは利用者自身が撮った写真 = bottle。
 	// 旧列への二重化も子テーブル由来の集合そのまま(repair 済みなので旧列だけの
 	// キーは残っていない)。
