@@ -1,4 +1,5 @@
 import type { RegionId } from "#/lib/wine/types";
+import { pickLearningPathStep } from "./learning-path";
 
 // 「今日はどこから学べばよいか」を1件選ぶ純関数。DBアクセスはサービス層が担う。
 
@@ -34,8 +35,14 @@ export interface Recommendation {
 }
 
 /**
- * 優先度「苦手が最も多い地域 → 未出題が最も多い地域 → 習熟度が最も低い地域」で
- * 1地域を選ぶ。候補問題を持つ地域が無ければ reason: "empty"。
+ * 優先度は次の通り。新規学習の向き先は学習パス(#207)に寄せ、苦手の復習は
+ * 割り込み(escape hatch)として最優先に残す:
+ *   0) starter: まだ1問も解いていない(起点を固定)
+ *   1) weak: 苦手が最も多い地域(直近の間違いの復習を最優先)
+ *   2) unseen: パス上の現在地に未出題があればそこへ(積み上げを優先)
+ *   3) mastery: 現在地は出題済みだが習熟が足りない場合は現在地の復習へ。
+ *      パス完了時は全体で習熟度最低の地域へフォールバックする
+ * 候補問題を持つ地域が無ければ reason: "empty"。
  */
 export function pickRecommendation(
 	regions: readonly RegionStat[],
@@ -70,19 +77,26 @@ export function pickRecommendation(
 		};
 	}
 
-	// 2) 未出題が最も多い地域(新規学習を促す)
+	// 2) 未出題はパス上の現在地を優先する(「今の地域を固めてから次へ」)。
+	//    現在地に出題できる問題が無い(見たが習得が足りない)場合は 3) へ進む。
 	const unseen = (r: RegionStat) => r.candidateCount - r.seenCount;
-	const byUnseen = [...playable].sort((a, b) => unseen(b) - unseen(a));
-	const topUnseen = byUnseen[0];
-	if (topUnseen && unseen(topUnseen) > 0) {
+	const step = pickLearningPathStep(playable);
+	const current = step
+		? playable.find((r) => r.regionId === step.currentRegionId)
+		: undefined;
+	if (current && unseen(current) > 0) {
 		return {
-			regionId: topUnseen.regionId,
+			regionId: current.regionId,
 			reason: "unseen",
-			count: unseen(topUnseen),
+			count: unseen(current),
 		};
 	}
 
-	// 3) 全問出題済み: 習熟度(習得率)が最も低い地域を復習対象にする
+	// 3) 現在地が出題済みなら現在地の復習。パス完了時(step なし)は全体で
+	//    習熟度(習得率)が最も低い地域を復習対象にする。
+	if (current) {
+		return { regionId: current.regionId, reason: "mastery", count: 0 };
+	}
 	const mastery = (r: RegionStat) => r.masteredCount / r.candidateCount;
 	const byMastery = [...playable].sort((a, b) => mastery(a) - mastery(b));
 	const topMastery = byMastery[0];
