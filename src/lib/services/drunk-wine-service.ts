@@ -2181,7 +2181,7 @@ export async function appendDrunkWinePhotoKeys(
 	const adopted = incoming.slice(0, room);
 	const dropped = incoming.slice(room);
 
-<	if (adopted.length === 0) {
+	if (adopted.length === 0) {
 		return { entry: await getDrunkWine(userId, id), adopted, dropped };
 	}
 	// ユーザあたり写真総バイト上限(#397)。引き継ぎは R2 への新規書き込みでは

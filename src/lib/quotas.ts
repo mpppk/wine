@@ -82,6 +82,11 @@ export async function assertEntryQuota(
  * 既存ぶんはエントリ写真(`drunk_wine.photo_keys`)とバッチ写真
  * (`import_batch.photo_keys`)の枚数 × 1枚上限で見積もる。
  *
+ * **#645 の expand 期間中**: エントリ写真の正本は `wine_photo` 子テーブルだが、
+ * 書き込みは旧列へ二重化されるため、旧列の枚数で数えてよい(旧コードが書いた
+ * legacy 行も旧列に載る。子テーブルで数えると deploy window のぶんを取りこぼす)。
+ * 旧列を DROP する contract 段階では、ここを子テーブルの行数で数える形へ変えること。
+ *
  * 呼ぶのは写真を確定保存する共通の関門だけにする(呼び出し側に個別に足さない):
  * `syncDrunkWinePhotos`(実バイト) / `adoptWebPhotos`(1枚上限×枚数。取得前に数える。
  * `fetchRemotePhoto` が1枚上限を保証する) / `attachImportBatchPhotoKeys`(1枚上限×

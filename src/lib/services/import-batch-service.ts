@@ -1303,7 +1303,7 @@ async function adoptBatchPhotosForWines(
 				db.insert(winePhoto).values(
 					buildWinePhotoValues(
 						userId,
-						row.id,
+						rowId,
 						newKeys.map((key) => ({ key, kind: "bottle" as PhotoKind })),
 					),
 				),

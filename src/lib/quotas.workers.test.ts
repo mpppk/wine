@@ -171,6 +171,15 @@ describe("photo quota", () => {
 		return batch?.photoKeys ?? [];
 	}
 
+	/** エントリの確定済み写真キー(旧列。expand 期間中は二重化で一致する)。 */
+	async function storedEntryPhotoKeys(entryId: string): Promise<string[]> {
+		const [row] = await db
+			.select({ photoKeys: drunkWine.photoKeys })
+			.from(drunkWine)
+			.where(eq(drunkWine.id, entryId));
+		return row?.photoKeys ?? [];
+	}
+
 	it("上限内は写真を保存できる", async () => {
 		const userId = await freshUser();
 		const entry = await createDrunkWine(userId, { name: "写真つき" });
@@ -217,20 +226,12 @@ describe("photo quota", () => {
 		// 関門は R2 put 層(adoptWebPhotos の fetch 前)に寄せてある。
 		const userId = await freshUser();
 		const seedId = await fillPhotoKeys(userId, 410);
-		const requested: string[] = [];
-		vi.spyOn(globalThis, "fetch").mockImplementation(
-			async (input: RequestInfo | URL) => {
-				requested.push(
-					typeof input === "string"
-						? input
-						: input instanceof URL
-							? input.href
-							: input.url,
-				);
-				return new Response(JPEG_1X1, {
-					headers: { "content-type": "image/jpeg" },
-				});
-			},
+		// 旧コードはここから外部取得→R2 putへ進む。新コードは判定が先なので
+		// fetch に呼ばれない(呼ばれたら旧バイパスが残っている)。
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(JPEG_1X1, {
+				headers: { "content-type": "image/jpeg" },
+			}),
 		);
 		const err = await bulkRegisterFromScan(userId, {
 			photoCount: 0,
@@ -245,7 +246,7 @@ describe("photo quota", () => {
 		expect((err as ConflictError).status).toBe(409);
 		// 判定は fetch の前なので、外部取得にも行かず R2 にも書かない。
 		// 登録自体も成立しない(種まきの1件だけが残る)。
-		expect(requested).toEqual([]);
+		expect(fetchSpy).not.toHaveBeenCalled();
 		const { entries } = await listDrunkWines(userId);
 		expect(entries.map((entry) => entry.id)).toEqual([seedId]);
 		expect(await r2Keys(userId)).toEqual([]);
@@ -289,11 +290,7 @@ describe("photo quota", () => {
 		]).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(ConflictError);
 		expect((err as ConflictError).status).toBe(409);
-		const [row] = await db
-			.select({ photoKeys: drunkWine.photoKeys })
-			.from(drunkWine)
-			.where(eq(drunkWine.id, entry.id));
-		expect(row?.photoKeys).toEqual([]);
+		expect(await storedEntryPhotoKeys(entry.id)).toEqual([]);
 		expect(await r2Keys(userId)).toEqual(before);
 	});
 
