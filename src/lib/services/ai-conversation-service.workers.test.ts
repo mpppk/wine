@@ -81,6 +81,50 @@ function okAnswer(text: string): () => Promise<Response> {
 		orChatMessage(text, { prompt_tokens: 30, completion_tokens: 12 });
 }
 
+/**
+ * 失敗した初回送信の会話を用意する(Issue #635 回帰の前提)。
+ * seedUser → 失敗スタブ → 初回送信(失敗) → 会話IDと失敗runIDの取り出し、までを
+ * まとめる。4件の回帰テストで同じ手順を繰り返すと jscpd の重複閾値に触れるため、
+ * ここに寄せる(アサーション自体は各テストに残す)。
+ */
+async function seedFailedConversation(): Promise<{
+	userId: string;
+	conversationId: string;
+	runId: string;
+}> {
+	const userId = await seedUser();
+	stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
+	await expect(
+		sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
+	).rejects.toThrow();
+	const conversationId =
+		(await listAiConversations(userId, {})).items[0]?.id ?? "";
+	const detail = await getAiConversation(userId, conversationId);
+	return { userId, conversationId, runId: detail.runs[0]?.id ?? "" };
+}
+
+/**
+ * OpenRouter への投入本文を捕捉しつつ固定回答を返す。
+ * 戻り値の配列にリクエスト本文が溜まる。LLM未呼び出しの検証は
+ * `expect(bodies).toHaveLength(0)` で行う(呼び出しカウンタと同等)。
+ */
+function captureOpenRouterBodies(text: string): string[] {
+	const bodies: string[] = [];
+	stubOpenRouterKey();
+	vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+		const url = typeof input === "string" ? input : String(input);
+		if (!url.startsWith("https://openrouter.ai/api/v1/")) {
+			throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
+		}
+		bodies.push(typeof init?.body === "string" ? init.body : "");
+		return orChatMessage(text, {
+			prompt_tokens: 30,
+			completion_tokens: 12,
+		});
+	});
+	return bodies;
+}
+
 afterEach(() => {
 	delete (env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY;
 	vi.unstubAllGlobals();
@@ -508,34 +552,15 @@ describe("失敗・再試行", () => {
 
 describe("再試行の回帰(Issue #635)", () => {
 	it("再試行で同じ質問をLLMに二重送信しない", async () => {
-		const userId = await seedUser();
-		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
-		await expect(
-			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
-		).rejects.toThrow();
-		const failed = await getAiConversation(
-			userId,
-			(await listAiConversations(userId, {})).items[0]?.id ?? "",
-		);
+		const { userId, conversationId, runId } = await seedFailedConversation();
+		const failed = await getAiConversation(userId, conversationId);
 		const targetQuestion = SEND_BASE.question;
 
 		// 再試行時のLLM投入ボディを捕捉する
-		const bodies: string[] = [];
-		stubOpenRouterKey();
-		vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
-			const url = typeof input === "string" ? input : String(input);
-			if (!url.startsWith("https://openrouter.ai/api/v1/")) {
-				throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
-			}
-			bodies.push(typeof init?.body === "string" ? init.body : "");
-			return orChatMessage("復旧回答", {
-				prompt_tokens: 30,
-				completion_tokens: 12,
-			});
-		});
+		const bodies = captureOpenRouterBodies("復旧回答");
 		const retried = await retryAiChatRun(userId, {
 			conversationId: failed.id,
-			runId: failed.runs[0]?.id ?? "",
+			runId: runId || (failed.runs[0]?.id ?? ""),
 			sendId: crypto.randomUUID(),
 		});
 		expect(retried.status).toBe("ok");
@@ -559,18 +584,11 @@ describe("再試行の回帰(Issue #635)", () => {
 	});
 
 	it("再試行成功後は元の失敗runのretryableがfalseになる", async () => {
-		const userId = await seedUser();
-		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
-		await expect(
-			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
-		).rejects.toThrow();
+		const { userId, conversationId, runId } = await seedFailedConversation();
 
 		stubOpenRouter(okAnswer("復旧回答"));
-		const failed = await getAiConversation(
-			userId,
-			(await listAiConversations(userId, {})).items[0]?.id ?? "",
-		);
-		const failedRunId = failed.runs[0]?.id ?? "";
+		const failed = await getAiConversation(userId, conversationId);
+		const failedRunId = runId || (failed.runs[0]?.id ?? "");
 		const retried = await retryAiChatRun(userId, {
 			conversationId: failed.id,
 			runId: failedRunId,
@@ -588,18 +606,11 @@ describe("再試行の回帰(Issue #635)", () => {
 	});
 
 	it("回答済みの質問の再試行は409で拒否され回答・課金が増えない", async () => {
-		const userId = await seedUser();
-		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
-		await expect(
-			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
-		).rejects.toThrow();
+		const { userId, conversationId, runId } = await seedFailedConversation();
 
 		stubOpenRouter(okAnswer("復旧回答"));
-		const failed = await getAiConversation(
-			userId,
-			(await listAiConversations(userId, {})).items[0]?.id ?? "",
-		);
-		const failedRunId = failed.runs[0]?.id ?? "";
+		const failed = await getAiConversation(userId, conversationId);
+		const failedRunId = runId || (failed.runs[0]?.id ?? "");
 		const first = await retryAiChatRun(userId, {
 			conversationId: failed.id,
 			runId: failedRunId,
@@ -614,19 +625,7 @@ describe("再試行の回帰(Issue #635)", () => {
 		).length;
 		const runsBefore = (await getAiConversation(userId, failed.id)).runs.length;
 
-		let calls = 0;
-		stubOpenRouterKey();
-		vi.stubGlobal("fetch", async (input: unknown) => {
-			const url = typeof input === "string" ? input : String(input);
-			if (!url.startsWith("https://openrouter.ai/api/v1/")) {
-				throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
-			}
-			calls += 1;
-			return orChatMessage("二重回答", {
-				prompt_tokens: 30,
-				completion_tokens: 12,
-			});
-		});
+		const bodies = captureOpenRouterBodies("二重回答");
 		await expect(
 			retryAiChatRun(userId, {
 				conversationId: failed.id,
@@ -636,7 +635,7 @@ describe("再試行の回帰(Issue #635)", () => {
 		).rejects.toBeInstanceOf(ConflictError);
 
 		// LLM は呼ばれず、回答の二重追加も課金の再消費も起きない
-		expect(calls).toBe(0);
+		expect(bodies).toHaveLength(0);
 		const after = await getAiConversation(userId, failed.id);
 		expect(after.messages.map((m) => m.role)).toEqual(
 			messagesBefore.map((m) => m.role),
@@ -649,12 +648,7 @@ describe("再試行の回帰(Issue #635)", () => {
 	});
 
 	it("最新でない質問の再試行は400で拒否される", async () => {
-		const userId = await seedUser();
-		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
-		await expect(
-			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
-		).rejects.toThrow();
-		const convId = (await listAiConversations(userId, {})).items[0]?.id ?? "";
+		const { userId, conversationId: convId } = await seedFailedConversation();
 
 		// 失敗したQ1の後にQ2を成功させ、Q1を「最新でない質問」にする
 		stubOpenRouter(okAnswer("Q2回答"));
@@ -670,19 +664,7 @@ describe("再試行の回帰(Issue #635)", () => {
 		const q1Failed = detail.runs.find((r) => r.userSequence === 1);
 		expect(q1Failed?.status).toBe("failed");
 
-		let calls = 0;
-		stubOpenRouterKey();
-		vi.stubGlobal("fetch", async (input: unknown) => {
-			const url = typeof input === "string" ? input : String(input);
-			if (!url.startsWith("https://openrouter.ai/api/v1/")) {
-				throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
-			}
-			calls += 1;
-			return orChatMessage("古い質問への回答", {
-				prompt_tokens: 30,
-				completion_tokens: 12,
-			});
-		});
+		const bodies = captureOpenRouterBodies("古い質問への回答");
 		await expect(
 			retryAiChatRun(userId, {
 				conversationId: convId,
@@ -690,7 +672,7 @@ describe("再試行の回帰(Issue #635)", () => {
 				sendId: crypto.randomUUID(),
 			}),
 		).rejects.toBeInstanceOf(BadRequestError);
-		expect(calls).toBe(0);
+		expect(bodies).toHaveLength(0);
 	});
 });
 
