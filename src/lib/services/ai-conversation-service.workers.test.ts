@@ -506,6 +506,194 @@ describe("失敗・再試行", () => {
 	});
 });
 
+describe("再試行の回帰(Issue #635)", () => {
+	it("再試行で同じ質問をLLMに二重送信しない", async () => {
+		const userId = await seedUser();
+		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
+		await expect(
+			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
+		).rejects.toThrow();
+		const failed = await getAiConversation(
+			userId,
+			(await listAiConversations(userId, {})).items[0]?.id ?? "",
+		);
+		const targetQuestion = SEND_BASE.question;
+
+		// 再試行時のLLM投入ボディを捕捉する
+		const bodies: string[] = [];
+		stubOpenRouterKey();
+		vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+			const url = typeof input === "string" ? input : String(input);
+			if (!url.startsWith("https://openrouter.ai/api/v1/")) {
+				throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
+			}
+			bodies.push(typeof init?.body === "string" ? init.body : "");
+			return orChatMessage("復旧回答", {
+				prompt_tokens: 30,
+				completion_tokens: 12,
+			});
+		});
+		const retried = await retryAiChatRun(userId, {
+			conversationId: failed.id,
+			runId: failed.runs[0]?.id ?? "",
+			sendId: crypto.randomUUID(),
+		});
+		expect(retried.status).toBe("ok");
+		expect(bodies).toHaveLength(1);
+		const sent = JSON.parse(bodies[0] ?? "{}") as {
+			messages: { role: string; content: string }[];
+		};
+		const userTurns = sent.messages.filter(
+			(m) => m.role === "user" && m.content === targetQuestion,
+		);
+		// 履歴に対象の質問が混ざったうえでの末尾追加だと2件になる
+		expect(userTurns).toHaveLength(1);
+		// 末尾が今回の質問であること(履歴側に重複が無いことの裏付け)
+		expect(sent.messages[sent.messages.length - 1]).toMatchObject({
+			role: "user",
+			content: targetQuestion,
+		});
+		expect(
+			sent.messages.slice(1, -1).filter((m) => m.role === "user"),
+		).toHaveLength(0);
+	});
+
+	it("再試行成功後は元の失敗runのretryableがfalseになる", async () => {
+		const userId = await seedUser();
+		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
+		await expect(
+			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
+		).rejects.toThrow();
+
+		stubOpenRouter(okAnswer("復旧回答"));
+		const failed = await getAiConversation(
+			userId,
+			(await listAiConversations(userId, {})).items[0]?.id ?? "",
+		);
+		const failedRunId = failed.runs[0]?.id ?? "";
+		const retried = await retryAiChatRun(userId, {
+			conversationId: failed.id,
+			runId: failedRunId,
+			sendId: crypto.randomUUID(),
+		});
+		expect(retried.status).toBe("ok");
+
+		const after = await getAiConversation(userId, failed.id);
+		expect(after.runs).toHaveLength(2);
+		// 同じ質問(userSequence)に成功 run があるので、失敗 run 側も再試行不可になる
+		for (const r of after.runs) {
+			expect(r.retryable).toBe(false);
+		}
+		expect(after.runs.filter((r) => r.retryable)).toHaveLength(0);
+	});
+
+	it("回答済みの質問の再試行は409で拒否され回答・課金が増えない", async () => {
+		const userId = await seedUser();
+		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
+		await expect(
+			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
+		).rejects.toThrow();
+
+		stubOpenRouter(okAnswer("復旧回答"));
+		const failed = await getAiConversation(
+			userId,
+			(await listAiConversations(userId, {})).items[0]?.id ?? "",
+		);
+		const failedRunId = failed.runs[0]?.id ?? "";
+		const first = await retryAiChatRun(userId, {
+			conversationId: failed.id,
+			runId: failedRunId,
+			sendId: crypto.randomUUID(),
+		});
+		expect(first.status).toBe("ok");
+
+		const messagesBefore = (await getAiConversation(userId, failed.id))
+			.messages;
+		const consumesBefore = (await ledgerRowsOf(userId)).filter(
+			(r) => r.type === "consume",
+		).length;
+		const runsBefore = (await getAiConversation(userId, failed.id)).runs.length;
+
+		let calls = 0;
+		stubOpenRouterKey();
+		vi.stubGlobal("fetch", async (input: unknown) => {
+			const url = typeof input === "string" ? input : String(input);
+			if (!url.startsWith("https://openrouter.ai/api/v1/")) {
+				throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
+			}
+			calls += 1;
+			return orChatMessage("二重回答", {
+				prompt_tokens: 30,
+				completion_tokens: 12,
+			});
+		});
+		await expect(
+			retryAiChatRun(userId, {
+				conversationId: failed.id,
+				runId: failedRunId,
+				sendId: crypto.randomUUID(),
+			}),
+		).rejects.toBeInstanceOf(ConflictError);
+
+		// LLM は呼ばれず、回答の二重追加も課金の再消費も起きない
+		expect(calls).toBe(0);
+		const after = await getAiConversation(userId, failed.id);
+		expect(after.messages.map((m) => m.role)).toEqual(
+			messagesBefore.map((m) => m.role),
+		);
+		expect(after.messages).toHaveLength(2);
+		expect(after.runs).toHaveLength(runsBefore);
+		expect(
+			(await ledgerRowsOf(userId)).filter((r) => r.type === "consume"),
+		).toHaveLength(consumesBefore);
+	});
+
+	it("最新でない質問の再試行は400で拒否される", async () => {
+		const userId = await seedUser();
+		stubOpenRouter(() => Promise.reject(new Error("AI unavailable")));
+		await expect(
+			sendAiChatMessage(userId, { ...SEND_BASE, sendId: crypto.randomUUID() }),
+		).rejects.toThrow();
+		const convId = (await listAiConversations(userId, {})).items[0]?.id ?? "";
+
+		// 失敗したQ1の後にQ2を成功させ、Q1を「最新でない質問」にする
+		stubOpenRouter(okAnswer("Q2回答"));
+		const second = await sendAiChatMessage(userId, {
+			...SEND_BASE,
+			conversationId: convId,
+			question: "2問目",
+			sendId: crypto.randomUUID(),
+		});
+		expect(second.status).toBe("ok");
+
+		const detail = await getAiConversation(userId, convId);
+		const q1Failed = detail.runs.find((r) => r.userSequence === 1);
+		expect(q1Failed?.status).toBe("failed");
+
+		let calls = 0;
+		stubOpenRouterKey();
+		vi.stubGlobal("fetch", async (input: unknown) => {
+			const url = typeof input === "string" ? input : String(input);
+			if (!url.startsWith("https://openrouter.ai/api/v1/")) {
+				throw new Error(`OpenRouter 以外への接続は禁止: ${url}`);
+			}
+			calls += 1;
+			return orChatMessage("古い質問への回答", {
+				prompt_tokens: 30,
+				completion_tokens: 12,
+			});
+		});
+		await expect(
+			retryAiChatRun(userId, {
+				conversationId: convId,
+				runId: q1Failed?.id ?? "",
+				sendId: crypto.randomUUID(),
+			}),
+		).rejects.toBeInstanceOf(BadRequestError);
+		expect(calls).toBe(0);
+	});
+});
+
 describe("期限切れと遅延完了", () => {
 	async function startGatedSend(userId: string, conversationId?: string) {
 		let release!: (v: Response) => void;

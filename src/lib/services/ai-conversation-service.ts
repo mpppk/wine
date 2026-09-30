@@ -72,6 +72,13 @@ const CHAT_BILLING_PREFIX = "ask_region_chat:";
 /** 他人の会話の存在を推測させないための統一メッセージ */
 const CONVERSATION_NOT_FOUND_MESSAGE = "会話が見つかりません。";
 
+/** 同じ質問に成功済みの回答があるときに再試行を拒否する文言(Issue #635) */
+const ALREADY_ANSWERED_MESSAGE = "この質問は既に回答済みです。";
+
+/** 最新でない質問の再試行を拒否する文言(Issue #635) */
+const NOT_LATEST_QUESTION_MESSAGE =
+	"最新の質問のみ再試行できます。新しい質問がある場合はそちらをお使いください。";
+
 /** 生成中の会話への操作を拒否するときの利用者向け文言 */
 const CONVERSATION_BUSY_MESSAGE =
 	"回答を生成中です。完了または中断の確定後に操作してください。";
@@ -312,10 +319,22 @@ async function findAssistantMessageByRun(
 /**
  * 保存済みメッセージを会話順で読む。LLM投入用は最新ページだけを使う
  * (履歴全件を毎回読み込まない)。
+ *
+ * 再試行時は `beforeSequence` に対象の userSequence を渡し、
+ * `sequence < beforeSequence` の範囲だけで組み立てる(Issue #635)。
+ * 失敗試行の user 発言も保存に残るため、上限なしで読むと対象の質問が
+ * 履歴に入ったうえで末尾にもう一度足されて二重送信になる。
  */
 async function loadRecentSavedMessages(
 	conversationId: string,
+	beforeSequence?: number,
 ): Promise<{ role: "user" | "assistant"; content: string }[]> {
+	const conditions = [
+		eq(aiChatMessage.conversationId, conversationId),
+		...(beforeSequence !== undefined
+			? [lt(aiChatMessage.sequence, beforeSequence)]
+			: []),
+	];
 	const rows = await db
 		.select({
 			role: aiChatMessage.role,
@@ -326,7 +345,7 @@ async function loadRecentSavedMessages(
 		})
 		.from(aiChatMessage)
 		.leftJoin(aiChatRun, eq(aiChatMessage.runId, aiChatRun.id))
-		.where(eq(aiChatMessage.conversationId, conversationId))
+		.where(and(...conditions))
 		.orderBy(desc(aiChatMessage.sequence))
 		.limit(CHAT_SAVED_HISTORY_PAGE_SIZE);
 	const saved = rows.reverse().map((r) => ({
@@ -526,6 +545,8 @@ export async function getAiConversation(
 		)
 		.orderBy(desc(aiChatRun.createdAt))
 		.limit(20);
+	// 同じ質問に成功 run があれば失敗 run の再試行ボタンは消す(Issue #635)。
+	// UI は retryable な run を拾うだけなので、ここで導出すれば UI 変更は要らない。
 	return {
 		...toSummary(conv),
 		messages: visible.map((m) => ({
@@ -543,7 +564,11 @@ export async function getAiConversation(
 			userSequence: r.userSequence,
 			modelKey: r.modelKey,
 			errorKind: toChatRunErrorKind(r.errorKind),
-			retryable: isRetryableChatRunStatus(r.status),
+			retryable:
+				isRetryableChatRunStatus(r.status) &&
+				!runRows.some(
+					(o) => o.userSequence === r.userSequence && o.status === "succeeded",
+				),
 			createdAtMs: r.createdAt.getTime(),
 			updatedAtMs: r.updatedAt.getTime(),
 		})),
@@ -1012,6 +1037,35 @@ export async function retryAiChatRun(
 	if (!isRetryableChatRunStatus(target.status)) {
 		throw new BadRequestError("この試行は再試行できません。");
 	}
+	// 同じ質問に成功済みの run があれば拒否する(Issue #635)。
+	// 再試行成功後に元の失敗 run をもう一度押すと回答が二重になり、
+	// クレジットも再消費されるため、409 で弾く。
+	const succeededSameQuestion = await db
+		.select({ id: aiChatRun.id })
+		.from(aiChatRun)
+		.where(
+			and(
+				eq(aiChatRun.conversationId, conv.id),
+				eq(aiChatRun.userId, userId),
+				eq(aiChatRun.userSequence, target.userSequence),
+				eq(aiChatRun.status, "succeeded"),
+			),
+		)
+		.limit(1);
+	if (succeededSameQuestion.length > 0) {
+		throw new ConflictError(ALREADY_ANSWERED_MESSAGE);
+	}
+	// 再試行は最新の質問に限定する(Issue #635)。古い質問を再試行すると回答が
+	// 会話末尾(maxSequence + 1)に付き、順序が崩れて以降の履歴にも混入する。
+	const [latestRun] = await db
+		.select({ maxSeq: sql<number | null>`max(${aiChatRun.userSequence})` })
+		.from(aiChatRun)
+		.where(
+			and(eq(aiChatRun.conversationId, conv.id), eq(aiChatRun.userId, userId)),
+		);
+	if ((latestRun?.maxSeq ?? target.userSequence) > target.userSequence) {
+		throw new BadRequestError(NOT_LATEST_QUESTION_MESSAGE);
+	}
 	await interruptExpiredAiRuns(userId, conv.id);
 
 	const { modelKey, model } = await resolveRegionQaModel(userId, input.model);
@@ -1020,8 +1074,10 @@ export async function retryAiChatRun(
 	const managedPrompt = await getManagedPrompt(REGION_QA_SYSTEM_PROMPT, {
 		region_context: buildRegionContext(context),
 	});
-	// 会話を再開したときも保存済みの完了した往復から履歴を組み立てる。
-	const history = await loadRecentSavedMessages(conv.id);
+	// 対象の質問より前の範囲だけで履歴を組み立てる(Issue #635)。
+	// 失敗試行の user 発言も保存に残るため、範囲を絞らないと対象の質問が
+	// 履歴に入ったうえで末尾にもう一度足されて LLM に二重送信になる。
+	const history = await loadRecentSavedMessages(conv.id, target.userSequence);
 	const messages = buildRegionChatMessages({
 		system: managedPrompt.text,
 		history,
