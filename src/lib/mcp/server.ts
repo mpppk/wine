@@ -12,13 +12,21 @@ import { registerReadTools, registerWriteTools } from "./tools";
 // Build a per-request MCP server bound to the authenticated user. The SDK
 // forbids reusing a connected server across requests, and per-request
 // instances are what make the stateless transport safe on Workers.
-export function buildMcpServer(userId: string): McpServer {
+//
+// scopes はトークンの付与スコープ(スペース区切りを割ったもの)。wine スコープを
+// 含まないトークン(既存トークンのすべて)は従来どおり全ツールを登録する
+// (tool-registry.ts の互換規則)。wine スコープを1つでも含む場合は付与された
+// 範囲のツールだけを登録する(Issue #549)。
+export function buildMcpServer(
+	userId: string,
+	scopes?: readonly string[],
+): McpServer {
 	const server = new McpServer({ name: "wine", version: "1.0.0" });
 	// ツール登録より**前**に呼ぶ(以後の registerTool を包む形なので、後から呼んでも
 	// 既に登録されたツールには乗らない)。
 	traceToolCalls(server);
-	registerReadTools(server, userId);
-	registerWriteTools(server, userId);
+	registerReadTools(server, userId, scopes);
+	registerWriteTools(server, userId, scopes);
 	registerApps(server);
 	return server;
 }

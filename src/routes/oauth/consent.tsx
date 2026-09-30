@@ -11,8 +11,8 @@ import {
 } from "#/components/ui/card";
 import { authClient } from "#/lib/auth-client";
 import {
+	capabilitiesForRequestScopes,
 	describeOAuthScope,
-	MCP_TOKEN_CAPABILITIES,
 } from "#/lib/oauth/scope-description";
 import { getOAuthClientSummary } from "#/server/oauth";
 
@@ -29,14 +29,14 @@ type ConsentSearch = {
 // **同意フィッシング対策がこの画面の主目的**(#399)。動的クライアント登録(RFC 7591)を
 // 無認証で開放しているため、攻撃者は自前の redirect_uri でクライアントを登録し、
 // 被害者(あるいは MCP を扱う LLM エージェント)にこの画面のリンクを踏ませるだけでよい。
-// 承認されると MCP ツール全面 — 氏名/メールの読み出し・記録の読み書き・AIクレジットの
-// 消費 — のトークンが渡る。
+// 承認されると MCP ツール — 要求スコープに応じた範囲(範囲指定の無い既存の要求では
+// 氏名/メールの読み出し・記録の読み書き・AIクレジットの消費の全面) — のトークンが渡る。
 //
 // したがってこの画面は「利用者が"何が・どこへ"渡るのかを判断できる」ことに責任を持つ:
 //  - クライアント名と**認可コードの送り先ホスト**を出す
 //  - ただし**それらは攻撃者が自由に登録できる申告値**なので、検証済みに見せない
 //  - 「実際に何ができるようになるか」を先に出す。要求スコープの羅列では判断材料にならず、
-//    しかもこのアプリはスコープでツールを絞っていないため実態より狭く見える
+//    しかも wine スコープ無しのトークンは全ツールを使えるため実態より狭く見える
 export const Route = createFileRoute("/oauth/consent")({
 	validateSearch: (search: Record<string, unknown>): ConsentSearch => ({
 		consent_code:
@@ -64,6 +64,10 @@ function ConsentPage() {
 	const [submitting, setSubmitting] = useState<"accept" | "deny" | null>(null);
 
 	const scopes = (scope ?? "").split(" ").filter(Boolean);
+	// 要求スコープに対応する「実際にできること」だけを出す。wine スコープを
+	// 含まない要求(既存クライアントのすべて)には全件を出す——そのトークンは
+	// 従来どおり全ツールを使えるため、表示と実態が一致する(Issue #549)。
+	const capabilities = capabilitiesForRequestScopes(scopes);
 
 	const decide = async (accept: boolean) => {
 		setError("");
@@ -164,13 +168,15 @@ function ConsentPage() {
 						</div>
 					</div>
 
-					{/* **要求スコープではなく「実際にできること」を先に出す**。このアプリの MCP は
-					    スコープでツールを絞っていないので、スコープ一覧だけでは実際より狭い
-					    権限だと誤解させる(scope-description.ts のコメント参照) */}
+					{/* **要求スコープに対応する「実際にできること」を先に出す**。要求スコープの
+					    羅列だけでは判断材料にならず、しかも wine スコープ無しのトークンは
+					    全ツールを使えるため実態より狭く見える(scope-description.ts 参照)。
+					    表示する一覧は要求スコープで絞り込んだもので、登録ツールとの
+					    対応は tool-registry.ts が単一情報源 */}
 					<div>
 						<p className="mb-2 font-medium text-sm">許可すると、このアプリは</p>
 						<ul className="space-y-1 text-muted-foreground text-sm">
-							{MCP_TOKEN_CAPABILITIES.map((capability) => (
+							{capabilities.map((capability) => (
 								<li key={capability} className="flex gap-2">
 									<span aria-hidden>・</span>
 									<span>{capability}</span>

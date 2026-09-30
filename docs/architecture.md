@@ -222,8 +222,10 @@ grep で実測済みの規則: `#/db` を runtime import するのは `lib/servi
 
 ### MCP サーバー（`src/lib/mcp/`）
 
-- `/api/mcp` は Streamable HTTP・ステートレス・POST のみ。**リクエストごとに `buildMcpServer(userId)` と transport を新規生成**する（SDK が再利用を禁止）。OAuth 2.1 は better-auth の `mcp` プラグインが担い、ディスカバリは `src/routes/[.]well-known/` の 2 ルート（サイトルート直下必須）。
+- `/api/mcp` は Streamable HTTP・ステートレス・POST のみ。**リクエストごとに `buildMcpServer(userId, scopes)` と transport を新規生成**する（SDK が再利用を禁止）。`scopes` はトークンの付与スコープで、`tool-registry.ts` の許可集合で登録ツールを出し分ける。OAuth 2.1 は better-auth の `mcp` プラグインが担い、ディスカバリは `src/routes/[.]well-known/` の 2 ルート（サイトルート直下必須）。
 - ツール追加のルール: 入力スキーマは `schemas.ts` に zod の **raw shape**（`z.object()` で包まない）として置きランタイム非依存を保つ / ペイロードのキーは MCP 境界では snake_case（サービス層の camelCase との変換は `tools.ts` が単一情報源）/ ID 参照はサービス呼び出し前に静的マスタで存在検証 / 結果は `ok()` / `err()` ヘルパで統一 / URL は `env.BETTER_AUTH_URL` 起点の絶対 URL。
+- **ツール増減は `tool-registry.ts` が単一情報源**（Issue #549）: `{ name, scope, capabilityJa }` の1行が、ツール登録のスコープゲート・同意画面の `MCP_TOKEN_CAPABILITIES`・スナップショットテストの期待値のすべてに反映される。レジストリを経由せず `tools.ts` に `registerTool` を直書きしない（絞り込みの適用漏れ・同意画面とのドリフトになる）。スコープ名（`wine:read` / `wine:write` / `wine:ai`）の一覧もここが正で、`auth.ts` の `oidcConfig` は参照するだけ。
+- **既存トークン互換**: wine スコープを含まないトークンは従来どおり全ツールを登録する（スコープは後付けの opt-in）。`defaultScope` は変えない。
 - 埋め込み UI（`show_aop_map` / `register_drunk_wine`）は MCP Apps (SEP) と mcp-ui の**二重対応**。プライベートな ID は externalUrl に載せず rawHtml を使う（IDOR 防止）。ブリッジ HTML のセキュリティ規約（postMessage の送信元検証・origin 厳密比較）は `apps.test.ts` で固定されている。
 - **MCP 関連ファイルを変更したら `mcp-inspector-verify` skill による実機確認が必須**（CLAUDE.md 規定）。
 

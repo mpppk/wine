@@ -54,6 +54,7 @@ import {
 	showAopMapInput,
 	updateDrunkWineInput,
 } from "./schemas";
+import { grantedMcpToolNames, MCP_TOOL_NAMES } from "./tool-registry";
 
 // Serialize a result as both structured content and a text mirror; MCP clients
 // without structured-content support read the text form.
@@ -113,6 +114,39 @@ function err(
 	};
 }
 
+/**
+ * スコープによるツール登録の絞り込み(Issue #549)。
+ *
+ * 許可集合は `tool-registry.ts` の SSOT から導出する。互換時(wine スコープを
+ * 含まないトークン = 既存トークンのすべて)は何も包まず素通しする。
+ * `traceToolCalls`(tool-tracing.ts)と同じく `registerTool` の入口を包む形に
+ * するので、ツールごとの分岐は書かず、後から足したツールにも自動で適用される。
+ * ハンドラの引数・戻り値には一切触らない(素通しであることは
+ * server.workers.test.ts が実SDK経路で固定している)。
+ */
+function applyScopeGate(
+	server: McpServer,
+	scopes: readonly string[] | undefined,
+): void {
+	const allowed = grantedMcpToolNames(scopes);
+	// 全許可のときは包まない(ゲート自体が不要)
+	if (allowed.length === MCP_TOOL_NAMES.length) return;
+	const names = new Set<string>(allowed);
+	const register = server.registerTool.bind(server) as (
+		name: string,
+		config: unknown,
+		handler: (...args: unknown[]) => unknown,
+	) => unknown;
+	server.registerTool = ((
+		name: string,
+		config: unknown,
+		handler: (...args: unknown[]) => unknown,
+	) => {
+		// レジストリに無い名前は登録しない側に倒す(fail-closed)
+		if (names.has(name)) return register(name, config, handler);
+	}) as McpServer["registerTool"];
+}
+
 // list_aops はコンパクトな要約を返し、土壌・生産者などの詳細は get_aop に誘導する
 function toAopSummary(aop: Aop) {
 	return {
@@ -127,9 +161,16 @@ function toAopSummary(aop: Aop) {
 	};
 }
 
-export function registerReadTools(server: McpServer, userId: string) {
+export function registerReadTools(
+	server: McpServer,
+	userId: string,
+	scopes?: readonly string[],
+) {
 	// env 依存(アフィリエイトID)はここで1回だけ解決する。get_aop の購入リンク生成に使う。
 	const affiliateConfig = buildAffiliateConfig();
+	// スコープによる絞り込みは登録の入口で一括適用する(ツールごとの分岐は書かない)。
+	// 互換時(wine スコープ無し)は素通しになる。
+	applyScopeGate(server, scopes);
 	server.registerTool(
 		"get_current_user",
 		{
@@ -502,7 +543,13 @@ function decodePhotoArgs(args: {
 	};
 }
 
-export function registerWriteTools(server: McpServer, userId: string) {
+export function registerWriteTools(
+	server: McpServer,
+	userId: string,
+	scopes?: readonly string[],
+) {
+	// 読み取り系と同じく、絞り込みは入口で一括適用する。
+	applyScopeGate(server, scopes);
 	server.registerTool(
 		"register_drunk_wine",
 		{

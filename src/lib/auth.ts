@@ -25,6 +25,7 @@ import { authSecretProblem, authSecretProblemMessage } from "#/lib/auth-secret";
 import { PREMIUM_PLAN_NAME, PREMIUM_TRIAL_DAYS } from "#/lib/billing/plans";
 import { stripeClient } from "#/lib/billing/stripe-client";
 import { logError, logInfo, logWarn } from "#/lib/logger";
+import { MCP_WINE_SCOPE_LIST } from "#/lib/mcp/tool-registry";
 import {
 	cleanupAfterUserDelete,
 	cleanupBeforeUserDelete,
@@ -264,6 +265,23 @@ export const auth = betterAuth({
 				consentPage: "/oauth/consent",
 				// MCP clients register themselves via RFC 7591 dynamic registration.
 				allowDynamicClientRegistration: true,
+				// MCPツール絞り込み用の権限スコープ(Issue #549)。一覧の正は
+				// tool-registry.ts の MCP_WINE_SCOPE_LIST で、ここは参照するだけ
+				// (スコープ名の二重管理にしない)。scopes は認可時の要求検証
+				// (未知スコープは invalid_scope で発行自体されない)に、
+				// metadata.scopes_supported は protected-resource メタデータの
+				// 広告に使う。defaultScope は変えない(無要求の既存クライアントの
+				// 付与を変えないため。wine スコープ無しのトークンは従来どおり全許可)。
+				scopes: [...MCP_WINE_SCOPE_LIST],
+				metadata: {
+					scopes_supported: [
+						"openid",
+						"profile",
+						"email",
+						"offline_access",
+						...MCP_WINE_SCOPE_LIST,
+					],
+				},
 			},
 		}),
 		// 管理画面(ユーザ管理)用。role="admin" のユーザのみ管理APIを利用可能。
