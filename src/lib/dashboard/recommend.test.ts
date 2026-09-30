@@ -1,26 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { RegionId } from "#/lib/wine/types";
-import {
-	pickRecommendation,
-	type RegionStat,
-	STARTER_REGION_ID,
-} from "./recommend";
+import { pickRecommendation, STARTER_REGION_ID } from "./recommend";
+import { stubRegionStat as stat } from "./testing";
 
 // 実在する RegionId を使う(型が enum で固定のため)
+// パス順: A(ブルゴーニュ, 1) → B(ボジョレー, 2)
 const A: RegionId = "bourgogne";
 const B: RegionId = "beaujolais";
-
-function stat(
-	partial: Partial<RegionStat> & { regionId: RegionId },
-): RegionStat {
-	return {
-		candidateCount: 100,
-		seenCount: 0,
-		weakCount: 0,
-		masteredCount: 0,
-		...partial,
-	};
-}
 
 describe("pickRecommendation", () => {
 	it("候補が無ければempty", () => {
@@ -55,12 +41,12 @@ describe("pickRecommendation", () => {
 		expect(rec).toEqual({ regionId: B, reason: "unseen", count: 300 });
 	});
 
-	it("1問でも解いていればstarterにはしない", () => {
+	it("1問でも解いていればstarterにはせずパス上の現在地を返す", () => {
 		const rec = pickRecommendation([
 			stat({ regionId: A, candidateCount: 100, seenCount: 1 }),
 			stat({ regionId: B, candidateCount: 100, seenCount: 0 }),
 		]);
-		expect(rec).toEqual({ regionId: B, reason: "unseen", count: 100 });
+		expect(rec).toEqual({ regionId: A, reason: "unseen", count: 99 });
 	});
 
 	it("苦手が最も多い地域を最優先する", () => {
@@ -71,15 +57,37 @@ describe("pickRecommendation", () => {
 		expect(rec).toEqual({ regionId: B, reason: "weak", count: 5 });
 	});
 
-	it("苦手が無ければ未出題が最も多い地域", () => {
+	it("苦手があればパス上の現在地より苦手の復習を優先する(escape hatch)", () => {
+		const rec = pickRecommendation([
+			// A はパス上の現在地だが苦手なし
+			stat({ regionId: A, candidateCount: 100, seenCount: 50 }),
+			stat({ regionId: B, weakCount: 5, seenCount: 50 }),
+		]);
+		expect(rec).toEqual({ regionId: B, reason: "weak", count: 5 });
+	});
+
+	it("未出題は未出題数ではなくパス上の現在地を優先する", () => {
 		const rec = pickRecommendation([
 			stat({ regionId: A, candidateCount: 100, seenCount: 90 }), // unseen 10
 			stat({ regionId: B, candidateCount: 100, seenCount: 30 }), // unseen 70
 		]);
-		expect(rec).toEqual({ regionId: B, reason: "unseen", count: 70 });
+		expect(rec).toEqual({ regionId: A, reason: "unseen", count: 10 });
 	});
 
-	it("全問出題済みなら習得率が最も低い地域(mastery)", () => {
+	it("現在地が出題済みなら未出題の他地域より現在地の復習を優先する", () => {
+		const rec = pickRecommendation([
+			stat({
+				regionId: A,
+				candidateCount: 100,
+				seenCount: 100,
+				masteredCount: 40,
+			}),
+			stat({ regionId: B, candidateCount: 100, seenCount: 0 }),
+		]);
+		expect(rec).toEqual({ regionId: A, reason: "mastery", count: 0 });
+	});
+
+	it("パス完了時は全体で習熟度が最も低い地域(mastery)へフォールバックする", () => {
 		const rec = pickRecommendation([
 			stat({
 				regionId: A,
@@ -91,7 +99,7 @@ describe("pickRecommendation", () => {
 				regionId: B,
 				candidateCount: 100,
 				seenCount: 100,
-				masteredCount: 40,
+				masteredCount: 60,
 			}),
 		]);
 		expect(rec).toEqual({ regionId: B, reason: "mastery", count: 0 });
