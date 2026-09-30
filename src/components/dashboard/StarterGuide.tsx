@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { CheckIcon, MapIcon, PlayIcon, WineIcon, XIcon } from "lucide-react";
+import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { dismissStarterGuide } from "#/lib/dashboard/guide-dismissal";
@@ -33,12 +34,20 @@ export function StarterGuide({
 	regionId,
 	seen,
 	cellarTotalCount,
+	startCollapsed = false,
 }: {
 	/** おすすめの地域。地図・クイズの遷移先と学習の着目点に使う */
 	regionId: RegionId | null;
 	seen: number;
 	cellarTotalCount: number;
+	/**
+	 * ウェルカムフロー済みのユーザ向けに畳んで出すか。3ステップの説明は
+	 * `/welcome` で済んでいるため、ダッシュボードでは見出しだけ残す(#206)。
+	 */
+	startCollapsed?: boolean;
 }) {
+	// 畳んだ状態からの展開はこの場限り(再訪時は判定し直すので永続化しない)
+	const [open, setOpen] = useState(!startCollapsed);
 	const steps = buildStarterSteps({ seen, cellarTotalCount });
 	const regionName =
 		regionId != null ? (getRegion(regionId)?.nameJa ?? "") : "";
@@ -57,6 +66,32 @@ export function StarterGuide({
 		}
 		return "飲んだ1本も、気になっている1本も記録できます。覚えた知識と実際のワインがつながります。";
 	};
+
+	// ウェルカム済み向けの畳み表示。data-starter-guide 属性は残すので、
+	// 「閉じる」の CSS 非表示は畳み状態でも効く。
+	if (!open) {
+		return (
+			<Card
+				data-starter-guide
+				className="border-primary/40 bg-primary/5"
+				aria-labelledby="starter-guide-heading"
+			>
+				<CardContent className="flex items-center justify-between gap-2">
+					<p id="starter-guide-heading" className="font-medium">
+						まずはこの3ステップから
+					</p>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => setOpen(true)}
+					>
+						開く
+					</Button>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	return (
 		<Card
