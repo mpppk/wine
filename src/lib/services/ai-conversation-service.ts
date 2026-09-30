@@ -1,7 +1,12 @@
 import type { SQL } from "drizzle-orm";
 import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { aiChatMessage, aiChatRun, aiConversation } from "#/db/schema";
+import {
+	aiChatMessage,
+	aiChatRun,
+	aiConversation,
+	creditLedger,
+} from "#/db/schema";
 import {
 	AI_CHAT_RUN_TIMEOUT_MS,
 	buildChatTitle,
@@ -44,10 +49,8 @@ import {
 	runRegionQaTurn,
 } from "#/lib/services/ai-service";
 import { getBalance } from "#/lib/services/credit-service";
-import {
-	beginMeteredInference,
-	finishMeteredInference,
-} from "#/lib/services/metered-inference";
+import type { MeteredInferenceLogBase } from "#/lib/services/metered-inference";
+import * as meteredInference from "#/lib/services/metered-inference";
 
 // 地域Q&Aの会話の永続化(Issue #603)。Web の server function を薄い入口にし、
 // 一覧/取得/送信/再試行/削除をここに集約する。MCP の `ask_region`
@@ -439,6 +442,112 @@ async function releaseActiveRun(
 				eq(aiConversation.activeRunId, runId),
 			),
 		);
+}
+
+/**
+ * 試行を失敗で決着させ、会話の実行権を解放する(Issue #638)。
+ * 既に終端(期限切れ中断など)の試行は条件付き更新で触らない。
+ * 期限切れの遅延完了(conflict)は状態を上書きしない(中断への遷移を優先する)。
+ * set に undefined を渡すと列の扱いが不定になるため、オブジェクトを作り分ける。
+ */
+async function failChatRun(
+	userId: string,
+	conversationId: string,
+	runId: string,
+	kind: ChatRunErrorKind,
+): Promise<void> {
+	const failedPatch =
+		kind === "conflict"
+			? { errorKind: kind, finishedAt: new Date(), updatedAt: new Date() }
+			: {
+					status: "failed" as const,
+					errorKind: kind,
+					finishedAt: new Date(),
+					updatedAt: new Date(),
+				};
+	await db
+		.update(aiChatRun)
+		.set(failedPatch)
+		.where(and(eq(aiChatRun.id, runId), eq(aiChatRun.status, "running")));
+	await releaseActiveRun(userId, conversationId, runId);
+}
+
+/**
+ * beginMeteredInference 自体が throw したときの決着(Issue #638)。
+ * run 作成・実行権取得まで済んでいるため、予約の成否によらず run を failed にして
+ * 実行権を解放する。consume 行が残っていれば(予約が成立した直後の失敗)
+ * abandonMeteredInference で返却と failed の実行記録をセットにして閉じる。
+ * batch ロールバック時は行が無く no-op になる。
+ *
+ * 決着自体の失敗で元例外を隠さないよう、決着の失敗はログに留めて元例外の写像を投げる。
+ * 常に throw する(呼び出し側の begun を確定代入にする)。
+ */
+async function settleBeginFailure(args: {
+	userId: string;
+	conversationId: string;
+	runId: string;
+	billingRequestId: string;
+	estimateMicroUsd: number;
+	logBase: MeteredInferenceLogBase;
+	err: unknown;
+}): Promise<never> {
+	const {
+		userId,
+		conversationId,
+		runId,
+		billingRequestId,
+		estimateMicroUsd,
+		logBase,
+		err,
+	} = args;
+	try {
+		const [consume] = await db
+			.select({ amount: creditLedger.amount })
+			.from(creditLedger)
+			.where(eq(creditLedger.requestId, billingRequestId))
+			.limit(1);
+		if (consume) {
+			await meteredInference.abandonMeteredInference(
+				userId,
+				{
+					reservation: {
+						requestId: billingRequestId,
+						reservedCredits: -consume.amount,
+						reservedMicroUsd: estimateMicroUsd,
+					},
+					logBase,
+				},
+				err,
+			);
+		}
+	} catch (refundErr) {
+		logWarn("ai chat begin failed; refund attempt failed", {
+			userId,
+			conversationId,
+			runId,
+			err: refundErr,
+		});
+	}
+	const kind = toErrorKind(err);
+	try {
+		await failChatRun(userId, conversationId, runId, kind);
+	} catch (settleErr) {
+		logWarn("ai chat begin failed; run settlement failed", {
+			userId,
+			conversationId,
+			runId,
+			err: settleErr,
+		});
+	}
+	if (err instanceof ConflictError) throw err;
+	if (err instanceof HttpError) throw err;
+	logWarn("ai chat reservation failed", {
+		userId,
+		conversationId,
+		runId,
+		errorKind: kind,
+	});
+	throw new HttpError(500, toUserErrorMessage(kind));
 }
 
 function toErrorKind(e: unknown): ChatRunErrorKind {
@@ -844,13 +953,29 @@ export async function sendAiChatMessage(
 		}
 	}
 
-	// 永続化した課金requestIdで予約して推論を行う。ここから先の throw は
-	// finish/abandon の返却に届く(予約より前の throw は予約を作っていない)。
-	const begun = await beginMeteredInference(userId, {
-		estimate,
-		requestId: billingRequestId,
-		logBase,
-	});
+	// 永続化した課金requestIdで予約して推論を行う。予約後の await は
+	// finishMeteredInference の infer の中だけに置く(#245 #638)。
+	// ai_chat_run の reserved_* 列は読まれていないため書かない——予約と try の間に
+	// UPDATE を挟むと、そこでの throw が返却に届かず予約が宙に浮き、
+	// run が running のまま実行権(active_run_id)を10分掴む。
+	let begun: Awaited<ReturnType<typeof meteredInference.beginMeteredInference>>;
+	try {
+		begun = await meteredInference.beginMeteredInference(userId, {
+			estimate,
+			requestId: billingRequestId,
+			logBase,
+		});
+	} catch (e) {
+		return settleBeginFailure({
+			userId,
+			conversationId,
+			runId,
+			billingRequestId,
+			estimateMicroUsd: estimate.microUsd,
+			logBase,
+			err: e,
+		});
+	}
 	if (begun.blocked) {
 		// 予約が成立しなかった質問も再試行可能な状態で残す。
 		await db
@@ -866,16 +991,9 @@ export async function sendAiChatMessage(
 			required: begun.required,
 		};
 	}
-	await db
-		.update(aiChatRun)
-		.set({
-			reservedCredits: begun.reservation.reservedCredits,
-			reservedMicroUsd: begun.reservation.reservedMicroUsd,
-		})
-		.where(eq(aiChatRun.id, runId));
 
 	try {
-		const done = await finishMeteredInference(
+		const done = await meteredInference.finishMeteredInference(
 			userId,
 			{ reservation: begun.reservation, logBase },
 			async (ctx) => {
@@ -914,24 +1032,8 @@ export async function sendAiChatMessage(
 		};
 	} catch (e) {
 		// finish が予約の返却まで済ませている。ここでは試行を実行権ごと決着させる。
-		// 既に終端(期限切れ中断など)の試行は条件付き更新で触らない。
 		const kind = toErrorKind(e);
-		// 期限切れの遅延完了(conflict)は状態を上書きしない(中断への遷移を優先する)。
-		// set に undefined を渡すと列の扱いが不定になるため、オブジェクトを作り分ける。
-		const failedPatch =
-			kind === "conflict"
-				? { errorKind: kind, finishedAt: new Date(), updatedAt: new Date() }
-				: {
-						status: "failed" as const,
-						errorKind: kind,
-						finishedAt: new Date(),
-						updatedAt: new Date(),
-					};
-		await db
-			.update(aiChatRun)
-			.set(failedPatch)
-			.where(and(eq(aiChatRun.id, runId), eq(aiChatRun.status, "running")));
-		await releaseActiveRun(userId, conversationId, runId);
+		await failChatRun(userId, conversationId, runId, kind);
 		if (e instanceof ConflictError) throw e;
 		if (e instanceof HttpError) throw e;
 		logWarn("ai chat inference failed", {
@@ -1129,11 +1231,27 @@ export async function retryAiChatRun(
 		return replayOrConflict(userId, input.sendId, e);
 	}
 
-	const begun = await beginMeteredInference(userId, {
-		estimate,
-		requestId: billingRequestId,
-		logBase,
-	});
+	// 予約後の await は finishMeteredInference の infer の中だけに置く(#245 #638)。
+	// 送信経路と同じく reserved_* 列には書かない(読まれていない列への UPDATE が
+	// 返却を担う try の外の await になり、失敗時に予約と実行権が宙に浮く)。
+	let begun: Awaited<ReturnType<typeof meteredInference.beginMeteredInference>>;
+	try {
+		begun = await meteredInference.beginMeteredInference(userId, {
+			estimate,
+			requestId: billingRequestId,
+			logBase,
+		});
+	} catch (e) {
+		return settleBeginFailure({
+			userId,
+			conversationId: conv.id,
+			runId,
+			billingRequestId,
+			estimateMicroUsd: estimate.microUsd,
+			logBase,
+			err: e,
+		});
+	}
 	if (begun.blocked) {
 		await db
 			.update(aiChatRun)
@@ -1148,16 +1266,9 @@ export async function retryAiChatRun(
 			required: begun.required,
 		};
 	}
-	await db
-		.update(aiChatRun)
-		.set({
-			reservedCredits: begun.reservation.reservedCredits,
-			reservedMicroUsd: begun.reservation.reservedMicroUsd,
-		})
-		.where(eq(aiChatRun.id, runId));
 
 	try {
-		const done = await finishMeteredInference(
+		const done = await meteredInference.finishMeteredInference(
 			userId,
 			{ reservation: begun.reservation, logBase },
 			async (ctx) => {
@@ -1195,22 +1306,7 @@ export async function retryAiChatRun(
 		};
 	} catch (e) {
 		const kind = toErrorKind(e);
-		// 期限切れの遅延完了(conflict)は状態を上書きしない(中断への遷移を優先する)。
-		// set に undefined を渡すと列の扱いが不定になるため、オブジェクトを作り分ける。
-		const failedPatch =
-			kind === "conflict"
-				? { errorKind: kind, finishedAt: new Date(), updatedAt: new Date() }
-				: {
-						status: "failed" as const,
-						errorKind: kind,
-						finishedAt: new Date(),
-						updatedAt: new Date(),
-					};
-		await db
-			.update(aiChatRun)
-			.set(failedPatch)
-			.where(and(eq(aiChatRun.id, runId), eq(aiChatRun.status, "running")));
-		await releaseActiveRun(userId, conv.id, runId);
+		await failChatRun(userId, conv.id, runId, kind);
 		if (e instanceof ConflictError) throw e;
 		if (e instanceof HttpError) throw e;
 		logWarn("ai chat retry failed", {
