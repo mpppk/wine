@@ -18,6 +18,10 @@ export const user = sqliteTable("user", {
 	// ワイン分析の推論の深さのユーザ設定(drizzle/0037)。null は既定(low)。
 	// 許可リストは ai/config.ts の REASONING_EFFORT_KEYS。
 	preferredReasoningEffort: text("preferred_reasoning_effort"),
+	// 表示ロケールのユーザ設定(drizzle/0046)。null は既定(ja)。
+	// 許可リストは lib/locale.ts の LOCALES(書き込みは better-auth の
+	// additionalFields validator で検証)。
+	locale: text("locale"),
 	// better-auth admin プラグインのカラム(drizzle/0014_admin_role.sql)。
 	// role: "admin" のユーザのみ管理画面を利用可能。null は一般ユーザ扱い。
 	role: text("role"),
