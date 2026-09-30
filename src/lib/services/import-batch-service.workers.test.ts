@@ -12,7 +12,7 @@ import { db } from "#/db";
 import { user } from "#/db/auth-schema";
 import { drunkWine, importBatch, wineEncounter } from "#/db/schema";
 import { thumbKeyForPhotoKey } from "#/lib/drunk-wine/photo";
-import { BadRequestError, NotFoundError } from "#/lib/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
 import { imageKeyFromPath } from "#/lib/images/signed-url";
 import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 import {
@@ -29,6 +29,8 @@ import {
 import {
 	adoptImportBatchPhotoKeys,
 	bulkRegisterFromScan,
+	EDITED_BATCH_CONFLICT_MARKER,
+	type EditedBatchEntry,
 	getImportBatch,
 	getImportBatchDetail,
 	listImportBatches,
@@ -48,6 +50,34 @@ async function freshUser(): Promise<string> {
 		emailVerified: false,
 	});
 	return id;
+}
+
+/**
+ * 実時間を待たずに「登録後に編集された」状態を作る(updatedAt を未来へずらす)。
+ * updatedAt の既定値と同じ式で作られる createdAt との差は通常 1ms 未満なので、
+ * この閾値を跨がない限り実際の編集とは区別できる。
+ */
+async function markEdited(entryId: string): Promise<void> {
+	await db
+		.update(drunkWine)
+		.set({ updatedAt: new Date(Date.now() + 60_000) })
+		.where(eq(drunkWine.id, entryId));
+}
+
+/** 2件バッチを作り、うち1件を編集済みにする(#432 の force ガード用共通種)。 */
+async function seedEditedBatch(userId: string) {
+	const result = await bulkRegisterFromScan(userId, {
+		photoCount: 0,
+		items: [
+			{ wine: { name: "編集されるワイン" } },
+			{ wine: { name: "触らないワイン" } },
+		],
+	});
+	const { entries } = await listDrunkWines(userId);
+	await markEdited(
+		entries.find((e) => e.name === "編集されるワイン")?.id as string,
+	);
+	return result;
 }
 
 describe("bulkRegisterFromScan", () => {
@@ -719,6 +749,89 @@ describe("undoImportBatch", () => {
 			.where(eq(wineEncounter.userId, userId));
 		expect(leftover).toHaveLength(0);
 	});
+
+	// Issue #432 案1「force 必須化」。ガードは undoImportBatch 内の単一チョーク
+	// ポイントに置き、拒否時は**何も書かずに**409で返す(部分的な削除が残らない)。
+	it("編集済みを含むバッチを force 無しで取り消す → 409 かつ何も削除されない", async () => {
+		const userId = await freshUser();
+		const result = await seedEditedBatch(userId);
+
+		// UIは message の先頭(EDITED_BATCH_CONFLICT_MARKER)で409の種別を見分ける
+		// (#255と同じ流儀)。文言を変えたらUIの判定も追随すること。
+		const err = await undoImportBatch(userId, result.batchId).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(ConflictError);
+		expect(err.status).toBe(409);
+		expect(err.message.startsWith(EDITED_BATCH_CONFLICT_MARKER)).toBe(true);
+
+		// 銘柄・体験記録・バッチ行がすべて残る
+		expect((await listDrunkWines(userId)).entries).toHaveLength(2);
+		const [batch] = await db
+			.select()
+			.from(importBatch)
+			.where(eq(importBatch.id, result.batchId));
+		expect(batch).not.toBeUndefined();
+		const encounters = await db
+			.select()
+			.from(wineEncounter)
+			.where(eq(wineEncounter.userId, userId));
+		expect(encounters).toHaveLength(2);
+	});
+
+	it("force: true → 編集済みでも従来どおり削除される(試飲記録・写真含む)", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 1,
+			items: [
+				{
+					wine: { name: "編集済みでも消えるワイン" },
+					tasting: { drankOn: "2026-08-01", rating: 5 },
+					sighting: { photoIndex: 0 },
+				},
+			],
+		});
+		const batch = await saveImportBatchPhotos(userId, result.batchId, [
+			{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+		]);
+		const batchPhotoKey = imageKeyFromPath(batch.photoUrls[0] as string);
+		const entryId = (await listDrunkWines(userId)).entries[0]?.id as string;
+		await markEdited(entryId);
+		// バッチ写真の複製が銘柄に付いている(3段目のフォールバック)
+		const entryPhotoKey = imageKeyFromPath(
+			(await getDrunkWine(userId, entryId)).photoUrls[0] as string,
+		);
+
+		const undone = await undoImportBatch(userId, result.batchId, {
+			force: true,
+		});
+		expect(undone.deletedCount).toBe(1);
+
+		expect((await listDrunkWines(userId)).entries).toHaveLength(0);
+		// 試飲記録(drank=1)も残さない(#393 の退化チェック)
+		expect(
+			await db
+				.select()
+				.from(wineEncounter)
+				.where(eq(wineEncounter.userId, userId)),
+		).toHaveLength(0);
+		// 写真は wine_photo 子テーブル経由(#645)で掃除される
+		expect(await env.AVATARS.head(batchPhotoKey)).toBeNull();
+		expect(await env.AVATARS.head(entryPhotoKey)).toBeNull();
+	});
+
+	it("未編集バッチ → force 無しで通る", async () => {
+		const userId = await freshUser();
+		const result = await bulkRegisterFromScan(userId, {
+			photoCount: 0,
+			items: [{ wine: { name: "触らないワイン" } }],
+		});
+
+		const undone = await undoImportBatch(userId, result.batchId);
+		expect(undone.deletedCount).toBe(1);
+		expect((await listDrunkWines(userId)).entries).toHaveLength(0);
+	});
 });
 
 describe("getImportBatch", () => {
@@ -962,19 +1075,25 @@ describe("listImportBatches", () => {
 			items: [{ wine: { name: "後で編集される" } }],
 		});
 		const entryId = (await listDrunkWines(userId)).entries[0]?.id as string;
-		// 実時間を待たずに「作成からしばらく経って更新された」状態を直接作る
-		// (updatedAt の既定値と同じ式で作られる createdAt との差は通常 1ms 未満なので、
-		// この閾値を跨がない限り実際の編集とは区別できる)
-		await db
-			.update(drunkWine)
-			.set({ updatedAt: new Date(Date.now() + 60_000) })
-			.where(eq(drunkWine.id, entryId));
+		await markEdited(entryId);
 
 		const [summary] = await listImportBatches(userId);
 		expect(summary).toMatchObject({
 			id: result.batchId,
 			hasEditedEntries: true,
 		});
+	});
+
+	it("編集済みエントリの識別情報を返す(#432。確認ダイアログの判断材料)", async () => {
+		const userId = await freshUser();
+		const result = await seedEditedBatch(userId);
+
+		const [summary] = await listImportBatches(userId);
+		expect(summary?.id).toBe(result.batchId);
+		expect(summary?.hasEditedEntries).toBe(true);
+		const edited: EditedBatchEntry[] = summary?.editedEntries ?? [];
+		expect(edited).toHaveLength(1);
+		expect(edited[0]?.name).toBe("編集されるワイン");
 	});
 
 	it("全エントリが個別削除済みのバッチは0件のまま一覧に残る", async () => {

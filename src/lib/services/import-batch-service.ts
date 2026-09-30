@@ -458,15 +458,51 @@ export async function bulkRegisterFromScan(
 }
 
 /**
+ * 「登録後に編集された」の判定閾値。同一INSERT文内で created_at / updated_at に
+ * 付く誤差(通常1ms未満)を編集扱いしないための余白で、`listImportBatches` の
+ * editedEntries と `undoImportBatch` のガードが**同じ値**を見る(どちらかにしか
+ * 無いと「警告が出たのに通る/出ないのに弾かれる」になる)。
+ */
+const EDITED_ENTRY_THRESHOLD_MS = 1000;
+
+/** 編集済みと判定されたバッチ由来エントリの識別情報。 */
+export interface EditedBatchEntry {
+	id: string;
+	name: string;
+}
+
+/**
+ * 編集済み判定の単一チョークポイント(Issue #432)。`updated_at > created_at + 閾値` の
+ * 推定で、「編集していないのに警告が出る」方向の誤検知はありうる(集計キャッシュの
+ * 再計算でも updated_at は動く)。誤検知側に倒すのは「消してしまう」より「止める」
+ * ほうが害が小さいため。真の編集追跡(操作ログ)は要スキーマ変更なので採らない。
+ */
+function isEditedEntry(createdAt: Date, updatedAt: Date): boolean {
+	return updatedAt.getTime() > createdAt.getTime() + EDITED_ENTRY_THRESHOLD_MS;
+}
+
+/** 409 の message の先頭。UIが文言で種別を判定するための目印(#255と同じ流儀)。 */
+export const EDITED_BATCH_CONFLICT_MARKER = "登録後に編集された銘柄";
+
+/** `undoImportBatch` の追加入力。編集済みを含む取り消しへの明示的な同意。 */
+export interface UndoImportBatchOptions {
+	/**
+	 * 編集済みエントリを含むバッチを取り消すための明示的な同意。未指定/偽なら
+	 * 編集済みがある時点で409で拒否する。未編集バッチでは値は見ない。
+	 */
+	force?: boolean;
+}
+
+/**
  * 一括登録バッチの取り消し(Issue #363 案A)。
  *
  * **登録直後の完了導線からのみ呼ばれる、という前提はもう成立しない**。#385 が
  * 一括登録の履歴画面(`/cellar/import/history`)から**恒常的に**取り消せるようにした
  * ため、「取り消しが呼ばれる時点で他の操作が挟まっていない」とは限らない
  * (この JSDoc は以前その前提で「登録後にユーザが編集した銘柄をどう扱うか」の論点を
- * 回避していると書いていたが、実態と乖離していた。#393)。編集済みエントリの扱いは
- * 未決の論点のままで、現状の防波堤はクライアント側の確認ダイアログの警告だけ
- * (`ImportBatchSummary.hasEditedEntries` が材料)。サーバ側は無条件に削除する。
+ * 回避していると書いていたが、実態と乖離していた。#393)。Issue #432 で決着し、
+ * 編集済みエントリを含むバッチの取り消しは `force: true` が無ければ409で拒否する
+ * (下記の関門。材料は `ImportBatchSummary.editedEntries`)。
  *
  * 削除対象は **このバッチで新規作成されたエントリ**(drunk_wine.batch_id が
  * このバッチのもの)のみ。「既存エントリに体験記録が増えただけ」のものは
@@ -484,10 +520,17 @@ export async function bulkRegisterFromScan(
  * 不要ならユーザが deletePlace で個別に消せる)。バッチ写真
  * (import_batch.photo_keys)はエントリ写真とは別物でどの削除経路も掃除しない
  * ため、ここで明示的に消す(サムネイルは保存していないので thumb 分は不要)。
+ *
+ * **編集済みエントリを含むバッチは `force: true` が無ければ409で拒否する**
+ * (Issue #432 案1「force 必須化」の関門)。以前はサーバ側が無条件に削除し、
+ * 防波堤はクライアントの確認ダイアログの警告文だけだった。ガードは経路ごとに
+ * 書かずこの関数に置く——server fn(`src/server/place.ts`)からも直接呼ばれるため、
+ * ここが唯一のチョークポイントになる。
  */
 export async function undoImportBatch(
 	userId: string,
 	batchId: string,
+	options?: UndoImportBatchOptions,
 ): Promise<{ deletedCount: number }> {
 	const [batch] = await db
 		.select({ photoKeys: importBatch.photoKeys })
@@ -496,10 +539,38 @@ export async function undoImportBatch(
 	if (!batch) throw new NotFoundError("Batch not found");
 
 	const createdRows = await db
-		.select({ id: drunkWine.id, photoKeys: drunkWine.photoKeys })
+		.select({
+			id: drunkWine.id,
+			name: drunkWine.name,
+			photoKeys: drunkWine.photoKeys,
+			createdAt: drunkWine.createdAt,
+			updatedAt: drunkWine.updatedAt,
+		})
 		.from(drunkWine)
 		.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)));
 	const createdIds = new Set(createdRows.map((row) => row.id));
+
+	// force 必須化の関門(Issue #432)。削除文を積む前に判定し、拒否時は**何も
+	// 書かずに**409で返す(部分的な削除が残らない)。対象はこのバッチで新規作成
+	// されたエントリのみ——既存エントリへの体験記録の追加は「編集」ではない
+	// (取り消すと記録だけが消えて元の銘柄は残るため、force の対象外)。
+	const editedEntries: EditedBatchEntry[] = createdRows
+		.filter((row) => isEditedEntry(row.createdAt, row.updatedAt))
+		.map((row) => ({ id: row.id, name: row.name }));
+	if (editedEntries.length > 0 && !options?.force) {
+		logWarn("import batch undo blocked: edited entries", {
+			userId,
+			batchId,
+			editedCount: editedEntries.length,
+		});
+		throw new ConflictError(
+			`${EDITED_BATCH_CONFLICT_MARKER}(${editedEntries.length}件: ${editedEntries
+				.map((e) => e.name)
+				.join(
+					"、",
+				)})が含まれているため取り消せませんでした。取り消すと編集内容も失われます。破棄して取り消す場合は確認のうえ再実行してください(APIを直接利用している場合は force: true を付けてください)。`,
+		);
+	}
 
 	// バッチが足した体験記録の付き先を拾う。1項目=1行(drank は指定次第)なので、
 	// drank で分けず batch_id でまとめて拾う。**集計の再計算漏れは「取り消したのに数値が戻らない」という形で
@@ -631,8 +702,14 @@ export interface ImportBatchSummary {
 	 * 新規作成エントリのいずれかが登録後に編集されている(updatedAt が createdAt より
 	 * 1秒以上後。同一INSERT文内の誤差を編集扱いしないための閾値)。取り消すと編集内容も
 	 * 失われるため、一覧・確認ダイアログで警告する材料に使う(Issue #380 の未確定の論点)。
+	 * 判定は `isEditedEntry` が単一情報源で、`undoImportBatch` の409ガードと同じ定義。
 	 */
 	hasEditedEntries: boolean;
+	/**
+	 * 編集済みと判定された新規作成エントリの識別情報(Issue #432)。空配列なら編集済み
+	 * なし。確認ダイアログで「どの銘柄が編集済みか」を示す材料にする(最小限の表示)。
+	 */
+	editedEntries: EditedBatchEntry[];
 }
 
 const IMPORT_BATCH_HISTORY_LIMIT = 50;
@@ -667,16 +744,22 @@ export async function listImportBatches(
 	if (batches.length === 0) return [];
 
 	const ids = batches.map((b) => b.id);
-	const [createdStats, encounterStats] = await Promise.all([
+	// 新規作成エントリは行単位で引き、件数と編集済み一覧をJSで畳む。編集済み判定は
+	// `isEditedEntry` に寄せ、`undoImportBatch` の409ガードと定義を共有する
+	// (SQLのCASE式に別途書くと閾値がドリフトする)。
+	const [createdRows, encounterStats] = await Promise.all([
 		db
 			.select({
 				batchId: drunkWine.batchId,
-				createdCount: sql<number>`count(*)`,
-				editedCount: sql<number>`sum(case when ${drunkWine.updatedAt} > ${drunkWine.createdAt} + 1000 then 1 else 0 end)`,
+				id: drunkWine.id,
+				name: drunkWine.name,
+				createdAt: drunkWine.createdAt,
+				updatedAt: drunkWine.updatedAt,
 			})
 			.from(drunkWine)
-			.where(and(eq(drunkWine.userId, userId), inArray(drunkWine.batchId, ids)))
-			.groupBy(drunkWine.batchId),
+			.where(
+				and(eq(drunkWine.userId, userId), inArray(drunkWine.batchId, ids)),
+			),
 		// 項目ごとに体験記録が1件ずつある(1行化した統合後は drank によらず
 		// 1項目=1行)ので、絞らず数えると items 件数と同じ値になる。
 		db
@@ -694,11 +777,22 @@ export async function listImportBatches(
 			.groupBy(wineEncounter.batchId),
 	]);
 
-	const createdByBatch = new Map(
-		createdStats
-			.filter((r): r is typeof r & { batchId: string } => r.batchId != null)
-			.map((r) => [r.batchId, r]),
-	);
+	const createdByBatch = new Map<
+		string,
+		{ createdCount: number; editedEntries: EditedBatchEntry[] }
+	>();
+	for (const row of createdRows) {
+		if (row.batchId == null) continue;
+		const group = createdByBatch.get(row.batchId) ?? {
+			createdCount: 0,
+			editedEntries: [],
+		};
+		group.createdCount += 1;
+		if (isEditedEntry(row.createdAt, row.updatedAt)) {
+			group.editedEntries.push({ id: row.id, name: row.name });
+		}
+		createdByBatch.set(row.batchId, group);
+	}
 	const encounterByBatch = new Map(
 		encounterStats
 			.filter((r): r is typeof r & { batchId: string } => r.batchId != null)
@@ -707,7 +801,8 @@ export async function listImportBatches(
 
 	return batches.map((b) => {
 		const created = createdByBatch.get(b.id);
-		const createdCount = Number(created?.createdCount ?? 0);
+		const createdCount = created?.createdCount ?? 0;
+		const editedEntries = created?.editedEntries ?? [];
 		const encounterCount = encounterByBatch.get(b.id) ?? 0;
 		return {
 			id: b.id,
@@ -720,7 +815,8 @@ export async function listImportBatches(
 			createdCount,
 			matchedCount: Math.max(0, encounterCount - createdCount),
 			encounterCount,
-			hasEditedEntries: Number(created?.editedCount ?? 0) > 0,
+			hasEditedEntries: editedEntries.length > 0,
+			editedEntries,
 		};
 	});
 }
