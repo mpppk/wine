@@ -20,7 +20,10 @@ const mcpHandler = withMcpAuth(auth, async (req, session) => {
 		logWarn("mcp request from banned user", { userId: session.userId });
 		return bannedResponse();
 	}
-	const server = buildMcpServer(session.userId);
+	// トークンの付与スコープで登録ツールを出し分ける(Issue #549)。wine スコープを
+	// 含まない既存トークンは従来どおり全ツールを登録する(互換維持)。
+	const grantedScopes = (session.scopes ?? "").split(" ").filter(Boolean);
+	const server = buildMcpServer(session.userId, grantedScopes);
 	const transport = new WebStandardStreamableHTTPServerTransport({
 		sessionIdGenerator: undefined,
 		enableJsonResponse: true,

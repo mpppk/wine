@@ -15,6 +15,7 @@ import { getProducerPurchaseLinks } from "#/lib/wine/affiliate";
 import { listAops, listRegions } from "#/lib/wine/service";
 import type { Aop } from "#/lib/wine/types";
 import { AOP_MAP_RESOURCE_URI } from "./apps";
+import { MCP_TOOL_NAMES } from "./tool-registry";
 import { registerReadTools, registerWriteTools } from "./tools";
 
 // tools.ts はトップレベルで `cloudflare:workers` の env を評価する(get_aop の URL 生成・
@@ -40,7 +41,7 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<CallToolResult>;
 
 // registerTool(name, config, handler) を記録するスタブ McpServer。実トランスポートを
 // 立てずにハンドラを直接呼ぶ。get_current_user 等 DB を引くツールは呼ばない。
-function collectReadTools(userId = "tester") {
+function collectReadTools(userId = "tester", scopes?: readonly string[]) {
 	const tools = new Map<
 		string,
 		{ config: Record<string, unknown>; handler: ToolHandler }
@@ -54,12 +55,12 @@ function collectReadTools(userId = "tester") {
 			tools.set(name, { config, handler });
 		},
 	} as unknown as McpServer;
-	registerReadTools(server, userId);
+	registerReadTools(server, userId, scopes);
 	return tools;
 }
 
 /** 書き込みツール(D1を引く)を同じスタブで駆動する。 */
-function collectWriteTools(userId: string) {
+function collectWriteTools(userId: string, scopes?: readonly string[]) {
 	const tools = new Map<
 		string,
 		{ config: Record<string, unknown>; handler: ToolHandler }
@@ -73,12 +74,46 @@ function collectWriteTools(userId: string) {
 			tools.set(name, { config, handler });
 		},
 	} as unknown as McpServer;
-	registerWriteTools(server, userId);
+	registerWriteTools(server, userId, scopes);
 	return tools;
 }
 
 const tools = collectReadTools();
 const enabledRegions = listRegions().filter((r) => r.enabled);
+
+describe("ツール登録とレジストリの突き合わせ(Issue #549)", () => {
+	// 実登録(read+write、互換モード)の顔ぶれがレジストリと一致すること。
+	// tools.ts にだけ足したツール(同意画面に出ない)も、レジストリにだけ足した
+	// エントリ(実態の無い表示)も、どちらもここで落ちる。
+	it("登録済みツール名一覧のスナップショット(増減時は必ず落ちる)", () => {
+		const names = [
+			...collectReadTools().keys(),
+			...collectWriteTools("snapshot").keys(),
+		];
+		expect([...names].sort()).toEqual([...MCP_TOOL_NAMES].sort());
+	});
+
+	it("wine:read では ask_region・書き込みツールが登録されない", () => {
+		const scopes = ["openid", "wine:read"];
+		const readNames = [...collectReadTools("scoped-reader", scopes).keys()];
+		expect(readNames).toContain("list_aops");
+		expect(readNames).toContain("list_wine_regions");
+		expect(readNames).not.toContain("ask_region");
+		// list_drunk_wines は wine:read のため残る(書き込み関数の中にあっても
+		// 絞り込みはツール単位)。書き込み3つは落ちる。
+		expect([...collectWriteTools("scoped-reader", scopes).keys()]).toEqual([
+			"list_drunk_wines",
+		]);
+	});
+
+	it("wine:write では書き込みツールだけが登録される", () => {
+		expect(
+			[...collectWriteTools("scoped-writer", ["wine:write"]).keys()].sort(),
+		).toEqual(
+			["add_wine_tasting", "register_drunk_wine", "update_drunk_wine"].sort(),
+		);
+	});
+});
 const region = enabledRegions[0];
 if (!region) throw new Error("有効な地域が無い(テストデータ前提が崩れている)");
 
