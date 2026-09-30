@@ -26,6 +26,7 @@ import {
 	type QuizQuestion,
 	type QuizType,
 } from "#/lib/quiz/types";
+import { assertQuizQuotaForNewKey } from "#/lib/quotas";
 import { listRegions } from "#/lib/wine/service";
 import type { RegionId } from "#/lib/wine/types";
 
@@ -227,6 +228,9 @@ export async function recordAnswer(
 	}
 	// 更新直前の行を控えておき、リセット時にこの値へ復元できるようにする
 	const priorRow = await fetchQuestionStatRow(userId, questionKey);
+	// 新規行の作成はユーザあたり行数上限の対象(#397)。既存キーへの回答(更新)は
+	// 数えず、学習の継続を妨げない(クォータの SSOT は `#/lib/quotas`)。
+	if (!priorRow) await assertQuizQuotaForNewKey(userId);
 	const now = new Date();
 	const activityDay = jstDayKey(now);
 	const snapshot: AnswerSnapshot = priorRow

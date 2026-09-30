@@ -23,6 +23,7 @@ import type { PhotoKind } from "#/lib/ai/wine-list-extraction";
 import { appendWineNote, NOTE_SECTION_LABELS } from "#/lib/drunk-wine/note";
 import {
 	buildWinePhotoKey,
+	MAX_PHOTO_BYTES,
 	MAX_PHOTOS_PER_ENTRY,
 	photoExtForMime,
 	resolveStoredPhotoMime,
@@ -44,6 +45,7 @@ import {
 } from "#/lib/import-batch/schema";
 import { logInfo, logWarn } from "#/lib/logger";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
+import { assertEntryQuota, assertPhotoQuota } from "#/lib/quotas";
 import {
 	assertOwnsEncounterRefs,
 	assertValidRefs,
@@ -147,6 +149,13 @@ const WEB_PHOTO_FETCH_CONCURRENCY = 4;
  * キーは呼び出し側が採番済みの `drunkWineId` に紐づくので、**エントリの INSERT より前**に
  * 呼んで、返ったキーを `photo_keys` に載せる。
  *
+ * **ユーザあたり写真総バイト上限(#397)は fetch・put の前に数える**。取り込む枚数は
+ * ここで確定済みで、1枚の実バイトは `fetchRemotePhoto` が `MAX_PHOTO_BYTES` で
+ * 保証するため、枚数 × 1枚上限で保守的に見積もる(実サイズが小さくても超過側に
+ * 倒す。D1 の既存ぶんの見積もりと同じ流儀)。超過は 409 で登録全体を断り、
+ * fetch も put もしないので R2 に残骸は残らない。`bulkRegisterFromScan` の呼び出し側で
+ * 個別に足さず、この R2 put 層に寄せる(将来の呼び出し元が増えても漏れない)。
+ *
  * **失敗は握りつぶす**。写真が取れなかった銘柄は `saveImportBatchPhotos` が一括登録の
  * 写真へ退避する(要件の3段目)ので、ここで例外にすると「写真のせいで登録が失敗する」
  * ことになる。取得の検証(https のみ・実バイトのMIME判定・サイズ上限)は
@@ -161,6 +170,9 @@ async function adoptWebPhotos(
 ): Promise<Map<string, AdoptedWebPhoto>> {
 	const adopted = new Map<string, AdoptedWebPhoto>();
 	const targets = requests.slice(0, MAX_WEB_PHOTOS_PER_IMPORT);
+	if (targets.length > 0) {
+		await assertPhotoQuota(userId, targets.length * MAX_PHOTO_BYTES);
+	}
 	for (let i = 0; i < targets.length; i += WEB_PHOTO_FETCH_CONCURRENCY) {
 		const chunk = targets.slice(i, i + WEB_PHOTO_FETCH_CONCURRENCY);
 		const results = await Promise.all(
@@ -267,6 +279,9 @@ export async function bulkRegisterFromScan(
 	for (const [index, item] of input.items.entries()) {
 		if (item.wine) newWineIds.set(index, crypto.randomUUID());
 	}
+	// ユーザあたり件数上限(#397)。createDrunkWine と同じ関門を通す(一括登録は
+	// エントリを直接 INSERT するため、ここで抑えないと上限を素通りする)。
+	await assertEntryQuota(userId, newWineIds.size);
 	// 解析が見つけた web 画像を取り込む。D1 へ書く前に済ませて、取れたぶんだけ
 	// photo_keys に載せる(取れなかった銘柄は2段階目でバッチ写真へ退避する)。
 	const webPhotos = await adoptWebPhotos(
@@ -991,6 +1006,14 @@ export async function saveImportBatchPhotos(
 	// 受け入れ可否は**R2へ書く前**に確かめる(後で拒否すると孤児オブジェクトの掃除が要る)。
 	// 同じ検証を最後の attach でもう一度通るが、その往復1回より孤児の方が高く付く。
 	await assertImportBatchAcceptsPhotos(userId, batchId, photos.length);
+	// ユーザあたり写真総バイト上限(#397)の早期ゲート。バッチ写真も R2 に残るので
+	// 実バイトで数える(クォータの SSOT は `#/lib/quotas`)。権威ある判定は
+	// `attachImportBatchPhotoKeys` が両入口まとめて行うが、R2 へ書く前に弾ければ
+	// put と巻き戻しが要らない。
+	await assertPhotoQuota(
+		userId,
+		photos.reduce((total, photo) => total + photo.bytes.byteLength, 0),
+	);
 
 	const putKeys: string[] = [];
 	try {
@@ -1092,6 +1115,14 @@ async function assertImportBatchAcceptsPhotos(
  * (`saveImportBatchPhotos`)も、解析ジョブから引き継いだ回
  * (`adoptImportBatchPhotoKeys`)も、必ずここを通る。
  *
+ * **ユーザあたり写真総バイト上限(#397)の権威ある関門**でもある。載せるキーの実バイトは
+ * 経路によって未知(引き継ぎは既存R2オブジェクトの参照)のため、枚数 × 1枚上限で
+ * 保守的に見積もる(D1 の既存ぶんの見積もりと同じ流儀。載った後の見積もりと一致する
+ * ため、境界での拒否は誤爆ではなくモデルの一貫性)。`saveImportBatchPhotos` の R2
+ * 書き込み前検査(実バイト)は早期ゲートで、ここが両入口を束ねる最終判定になる。
+ * 超過は 409 で、D1 は更新しない。up 経路の put 済みキーは呼び出し側が巻き戻す
+ * (`saveImportBatchPhotos` の attach-failed 掃除)。
+ *
  * **銘柄への複製(#473 の3段目)をここに置くのが肝**。以前は写真のアップロード経路
  * だけが複製を呼んでいて、ジョブから引き継いだ回(手元に `File` が無い回)は
  * 銘柄の `photo_keys` が空のままだった——レビュー画面には写真が出ているのに、
@@ -1104,6 +1135,10 @@ async function attachImportBatchPhotoKeys(
 	keys: string[],
 ): Promise<ImportBatchEntry> {
 	await assertImportBatchAcceptsPhotos(userId, batchId, keys.length);
+	// ユーザあたり写真総バイト上限(#397)。バッチに写真が載る唯一の関門なので、
+	// ここで抑えれば引き継ぎ経路も素通りしない(クォータの SSOT は `#/lib/quotas`)。
+	// D1 更新の前なので、拒否しても R2 に残骸は残らない。
+	await assertPhotoQuota(userId, keys.length * MAX_PHOTO_BYTES);
 	const [row] = await db
 		.update(importBatch)
 		.set({ photoKeys: keys })
@@ -1197,6 +1232,10 @@ async function adoptBatchPhotosForWines(
 			return loaded;
 		};
 
+		// 複製の計画を先に立てる。1枚のバッチ写真が複数銘柄へ複製されるのが普通で、
+		// put の総バイトは `attachImportBatchPhotoKeys` の関門で数えたぶんを上回りうる
+		// ため、put の前に総バイトを確定させてクォータ判定を通す必要がある。
+		const plans: { rowId: string; sourceKey: string }[] = [];
 		for (const row of rows) {
 			// 既に写真がある = 適切な写真か web 画像で手当て済み(前2段)。触らない。
 			// 子テーブル・旧列のどちらかにあれば済みとみなす(二重化の両方を見る)。
@@ -1208,32 +1247,63 @@ async function adoptBatchPhotosForWines(
 				.map((index) => batchPhotoKeys[index])
 				.filter((key): key is string => !!key)
 				.slice(0, MAX_PHOTOS_PER_ENTRY);
-			if (sourceKeys.length === 0) continue;
-			const newKeys: string[] = [];
 			for (const sourceKey of sourceKeys) {
-				const source = await readSource(sourceKey);
-				if (!source) continue;
-				// **参照ではなく複製**を持たせる(理由はこの関数の JSDoc)。
-				const key = buildWinePhotoKey(
-					userId,
-					row.id,
-					crypto.randomUUID(),
-					source.contentType,
-				);
-				await env.AVATARS.put(key, source.bytes, {
-					httpMetadata: { contentType: source.contentType },
-				});
-				putKeys.push(key);
-				newKeys.push(key);
+				plans.push({ rowId: row.id, sourceKey });
 			}
-			if (newKeys.length === 0) continue;
+		}
+		if (plans.length === 0) return;
+		// 読み出せない写真(許可外の contentType・回収済み)は諦める。ここで落とすので
+		// 下の put 対象は実体のあるものだけになる。
+		await Promise.all(
+			[...new Set(plans.map((plan) => plan.sourceKey))].map((key) =>
+				readSource(key),
+			),
+		);
+		const copies: {
+			rowId: string;
+			source: { bytes: ArrayBuffer; contentType: string };
+		}[] = [];
+		for (const plan of plans) {
+			const source = sources.get(plan.sourceKey);
+			if (source) copies.push({ rowId: plan.rowId, source });
+		}
+		if (copies.length === 0) return;
+		// ユーザあたり写真総バイト上限(#397)。複製は新規の R2 put なので実バイトで
+		// 数える。put の前に弾けば残骸は残らない。超過は外側の catch が握りつぶし、
+		// バッチ写真の保存自体は成功として返す(この関数の JSDoc)。
+		await assertPhotoQuota(
+			userId,
+			copies.reduce((total, copy) => total + copy.source.bytes.byteLength, 0),
+		);
+
+		const newKeysByRow = new Map<string, string[]>();
+		for (const { rowId, source } of copies) {
+			// **参照ではなく複製**を持たせる(理由はこの関数の JSDoc)。
+			const key = buildWinePhotoKey(
+				userId,
+				rowId,
+				crypto.randomUUID(),
+				source.contentType,
+			);
+			await env.AVATARS.put(key, source.bytes, {
+				httpMetadata: { contentType: source.contentType },
+			});
+			putKeys.push(key);
+			const list = newKeysByRow.get(rowId);
+			if (list) {
+				list.push(key);
+			} else {
+				newKeysByRow.set(rowId, [key]);
+			}
+		}
+		for (const [rowId, newKeys] of newKeysByRow) {
 			updates.push(
 				// 子テーブルへの二重化(#645)。同じ batch なので D1 全失敗時は
 				// R2 の複製ごと巻き戻る(下の catch が putKeys を掃除する)。
 				db.insert(winePhoto).values(
 					buildWinePhotoValues(
 						userId,
-						row.id,
+						rowId,
 						newKeys.map((key) => ({ key, kind: "bottle" as PhotoKind })),
 					),
 				),
@@ -1246,7 +1316,7 @@ async function adoptBatchPhotosForWines(
 						photoKeys: newKeys,
 						photoKinds: newKeys.map(() => "bottle" as PhotoKind),
 					})
-					.where(and(eq(drunkWine.id, row.id), eq(drunkWine.userId, userId))),
+					.where(and(eq(drunkWine.id, rowId), eq(drunkWine.userId, userId))),
 			);
 		}
 		if (updates.length === 0) return;
