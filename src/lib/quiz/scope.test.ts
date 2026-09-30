@@ -5,6 +5,7 @@ import { parseKey } from "./keys";
 import {
 	countScopedQuestions,
 	expandScopeAopIds,
+	getQuizRedirectTargetId,
 	listScopedCandidates,
 } from "./scope";
 import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
@@ -42,22 +43,20 @@ describe("expandScopeAopIds", () => {
 	});
 
 	// 色・品種・地区が村と同一の独立AOC(シャンベルタン群・ヴォーヌのGC等)は設問が
-	// 村側の1問に集約され、固有の設問が1つも残らない。この場合だけ上位方向へ辿り、
-	// 集約先の設問を借りる(借りないと詳細パネルからクイズボタンが消える)。
-	it("集約されて固有の設問が0問になった畑は、集約先の村を含む", () => {
-		expect(expandScopeAopIds("chambertin")).toEqual(
-			new Set(["chambertin", "gevrey-chambertin"]),
-		);
+	// 村側の1問に集約され、固有の設問が1つも残らない(#485: C案)。借用はしないため
+	// スコープは自身のみ(0問)となり、ページでは村へのCTAを出す。
+	it("集約されて固有の設問が0問になった畑は、借用せず自身のみ(#485)", () => {
+		expect(expandScopeAopIds("chambertin")).toEqual(new Set(["chambertin"]));
 		expect(expandScopeAopIds("romanee-conti")).toEqual(
-			new Set(["romanee-conti", "vosne-romanee"]),
+			new Set(["romanee-conti"]),
 		);
 	});
 
-	it("集約先自身も集約されている場合は、設問を持つAOPまで辿る", () => {
+	it("集約先自身も集約されている場合も、借用せず自身のみ(#485)", () => {
 		// シャブリのクリマ → 傘AOC(シャブリ・グラン・クリュ) → シャブリ。
-		// 傘AOC自身もシャブリと同一内容で集約されるため、1ホップでは0問のまま。
+		// 傘AOC自身もシャブリと同一内容で集約されるが、借用はしない。
 		expect(expandScopeAopIds("chablis-gc-les-clos")).toEqual(
-			new Set(["chablis-gc-les-clos", "chablis-grand-cru", "chablis"]),
+			new Set(["chablis-gc-les-clos"]),
 		);
 	});
 
@@ -72,7 +71,7 @@ describe("expandScopeAopIds", () => {
 	// Issue #243: 個別クリマは villageAopIds ではなく parentAopId で親畑にぶら下がる。
 	// このエッジを辿らないと、傘AOC・村のどちらを選んでも配下クリマが1問も出ない
 	// (地域全体クイズには出るので、スコープ指定の時だけ出ない非対称になる)。
-	it("傘AOC(畑): 自身と内包する個別クリマを含む", () => {
+	it("傘AOC(畑): 自身と内包する個別クリマを含む(集約先の村は含まない #485)", () => {
 		const ids = expandScopeAopIds("chablis-grand-cru");
 		expect(ids).not.toBeNull();
 		expect(ids).toContain("chablis-grand-cru");
@@ -88,9 +87,9 @@ describe("expandScopeAopIds", () => {
 		]) {
 			expect(ids).toContain(climat);
 		}
-		// 自身 + 7クリマ + 集約先のシャブリ(傘AOC自身もシャブリと同一内容で集約される)
-		expect(ids?.size).toBe(9);
-		expect(ids).toContain("chablis");
+		// 自身 + 7クリマ。集約先のシャブリは借用しない(#485: C案)
+		expect(ids?.size).toBe(8);
+		expect(ids).not.toContain("chablis");
 	});
 
 	it("村: 傘AOC経由の2ホップで配下クリマまで含む", () => {
@@ -224,20 +223,18 @@ describe("listScopedCandidates", () => {
 		expect(climatKeys.length).toBeGreaterThan(0);
 	});
 
-	it("上位AOPと同一内容になる畑の設問は上位側の1問に集約される", () => {
+	it("上位AOPと同一内容になる畑の設問は上位側の1問に集約され、傘自体は0問(#485)", () => {
 		// シャブリ・グラン・クリュの7クリマは色・品種・地区が全て親と同じで、
 		// クリマごとに出すと名前だけ違う同一内容のクイズが7回並ぶ。
-		// クリマ主語のキーは列挙されず、集約先(シャブリ)の設問だけがスコープに残る。
+		// クリマ主語のキーは列挙されない。C案では傘AOC自体も借用しないため0問となり、
+		// ページではシャブリへのCTAを出す(集約ルール自体は変更しない)。
 		const scoped = listScopedCandidates(
 			"bourgogne",
 			ALL_TYPES,
 			"chablis-grand-cru",
 		);
 		expect(scoped).not.toBeNull();
-		expect(scoped).toContain("colors:chablis");
-		expect(
-			scoped!.filter((key) => parseKey(key)?.aopId.startsWith("chablis-gc-")),
-		).toEqual([]);
+		expect(scoped).toEqual([]);
 		expect(scoped).not.toContain("colors:chablis-grand-cru");
 	});
 
@@ -258,9 +255,9 @@ describe("listScopedCandidates", () => {
 		]);
 	});
 
-	it("集約された畑のスコープでは集約先の設問を共有する(#436)", () => {
-		// 固有の設問が0問になった畑は集約先の設問を借りる。設問キーが集約先のものなので
-		// 同じ村の畑同士・村自身と進捗もそのまま共有される。
+	it("集約された畑のスコープは0問で、村への誘導はリダイレクトで扱う(#485)", () => {
+		// 固有の設問が0問になった畑は集約先の設問を借りない。スコープは自身のみで
+		// 候補は0件になり、ページではクイズ導線の代わりに村へのCTAを出す。
 		const chambertin = listScopedCandidates(
 			"bourgogne",
 			ALL_TYPES,
@@ -271,12 +268,8 @@ describe("listScopedCandidates", () => {
 			ALL_TYPES,
 			"charmes-chambertin",
 		);
-		expect([...chambertin!].sort()).toEqual([
-			"aop-subregion:gevrey-chambertin",
-			"aop-variety:gevrey-chambertin",
-			"colors:gevrey-chambertin",
-		]);
-		expect([...charmes!].sort()).toEqual([...chambertin!].sort());
+		expect(chambertin).toEqual([]);
+		expect(charmes).toEqual([]);
 	});
 
 	it("複数村にまたがる畑は、値が全村と一致する形式だけ集約される(#436)", () => {
@@ -317,20 +310,20 @@ describe("countScopedQuestions", () => {
 		expect(countScopedQuestions("bourgogne", "no-such-aop")).toBe(0);
 	});
 
-	it("集約された畑も集約先の設問を借りるので0問にならない(#436)", () => {
-		// 借りる前は0問でクイズボタン自体が出なかった。
-		expect(countScopedQuestions("bourgogne", "chablis-gc-les-clos")).toBe(
-			countScopedQuestions("bourgogne", "chablis"),
-		);
-		expect(countScopedQuestions("bourgogne", "chambertin")).toBe(
-			countScopedQuestions("bourgogne", "gevrey-chambertin"),
-		);
-		expect(countScopedQuestions("bourgogne", "chambertin")).toBeGreaterThan(0);
+	it("集約された畑は借用しないため0問になり、クイズ導線は出ない(#485)", () => {
+		// C案: 固有0問の畑は村の設問を借りず、詳細パネルでは村へのCTAを出す。
+		expect(countScopedQuestions("bourgogne", "chablis-gc-les-clos")).toBe(0);
+		expect(countScopedQuestions("bourgogne", "chambertin")).toBe(0);
+		expect(countScopedQuestions("bourgogne", "romanee-conti")).toBe(0);
+		// 村側は従来どおり3問
+		expect(countScopedQuestions("bourgogne", "chablis")).toBeGreaterThan(0);
+		expect(countScopedQuestions("bourgogne", "gevrey-chambertin")).toBe(3);
+		expect(countScopedQuestions("bourgogne", "vosne-romanee")).toBe(3);
 	});
 
 	// リストの各行の進捗は AOP 単位の solved/total をスコープ集合で合算して出す
-	// (map.$regionId.tsx)。パネルの問題数とズレると分母が食い違うため、集約先の
-	// 設問を借りる仕組みを入れてもこの不変条件が保たれることを固定する。
+	// (map.$regionId.tsx)。パネルの問題数とズレると分母が食い違うため、
+	// 借用を廃止してもこの不変条件が保たれることを固定する。
 	it("スコープ集合の候補数合算が、パネルの問題数と全AOPで一致する", () => {
 		for (const aop of AOPS) {
 			const scope = expandScopeAopIds(aop.id);
@@ -339,6 +332,71 @@ describe("countScopedQuestions", () => {
 			let sum = 0;
 			for (const id of scope!) sum += counts.get(id) ?? 0;
 			expect(sum, aop.id).toBe(countScopedQuestions(aop.region, aop.id));
+		}
+	});
+});
+
+describe("getQuizRedirectTargetId (#485: C案)", () => {
+	it("固有の設問があるAOP・不明なslugは null", () => {
+		expect(getQuizRedirectTargetId("gevrey-chambertin")).toBeNull();
+		expect(getQuizRedirectTargetId("vosne-romanee")).toBeNull();
+		expect(getQuizRedirectTargetId("no-such-aop")).toBeNull();
+	});
+
+	it("ヴォーヌGCは村へ誘導する", () => {
+		expect(getQuizRedirectTargetId("romanee-conti")).toBe("vosne-romanee");
+		expect(getQuizRedirectTargetId("la-tache")).toBe("vosne-romanee");
+		expect(getQuizRedirectTargetId("richebourg")).toBe("vosne-romanee");
+	});
+
+	it("シャンベルタン群はジュヴレへ誘導する", () => {
+		expect(getQuizRedirectTargetId("chambertin")).toBe("gevrey-chambertin");
+		expect(getQuizRedirectTargetId("charmes-chambertin")).toBe(
+			"gevrey-chambertin",
+		);
+	});
+
+	it("シャブリのクリマは中間の傘(0問)を飛ばしてシャブリへ誘導する", () => {
+		expect(getQuizRedirectTargetId("chablis-gc-les-clos")).toBe("chablis");
+		expect(getQuizRedirectTargetId("chablis-grand-cru")).toBe("chablis");
+		expect(getQuizRedirectTargetId("chablis-1er-vaillons")).toBe("chablis");
+	});
+
+	it("誘導先が無い開かれた呼称は null(CTAも出さない)", () => {
+		expect(getQuizRedirectTargetId("toscana-igt")).toBeNull();
+		expect(getQuizRedirectTargetId("mosel")).toBeNull();
+		expect(getQuizRedirectTargetId("niederoesterreich")).toBeNull();
+	});
+
+	it("固有0問のAOPは機械的に列挙でき、顔ぶれを固定する", () => {
+		// ヴォーヌGCだけの特別扱いにしない。全該当AOPをSSOTで扱う。
+		// bourgogne 43 + toscana 1 + deutschland 13 + oesterreich 6 = 63
+		const zeros = AOPS.filter(
+			(aop) => (candidateCountsByAopId(aop.region).get(aop.id) ?? 0) === 0,
+		).map((aop) => aop.id);
+		expect(zeros.length).toBe(63);
+		// 代表例の顔ぶれ (数が合っていても銘柄が違うと誤った事実を教えるため固定)
+		for (const id of [
+			"romanee-conti",
+			"la-tache",
+			"richebourg",
+			"chambertin",
+			"chablis-gc-les-clos",
+			"chablis-grand-cru",
+		]) {
+			expect(zeros).toContain(id);
+		}
+		// bourgogne の固有0問は全て誘導先(設問を持つ村)を持つ
+		for (const target of AOPS.filter((a) => a.region === "bourgogne")) {
+			if ((candidateCountsByAopId(target.region).get(target.id) ?? 0) === 0) {
+				const redirectId = getQuizRedirectTargetId(target.id);
+				expect(redirectId, target.id).not.toBeNull();
+				if (redirectId === null) continue;
+				expect(
+					candidateCountsByAopId(target.region).get(redirectId) ?? 0,
+					`${target.id} -> ${redirectId}`,
+				).toBeGreaterThan(0);
+			}
 		}
 	});
 });

@@ -14,19 +14,20 @@ import { AOP_ANSWER_QUIZ_TYPES, QUIZ_TYPE_IDS, type QuizType } from "./types";
 // クリマは地域全体クイズには問題を供給しているので、辿らないとスコープ指定の時
 // だけ出ないという非対称になる。
 //
-// 親方向へは原則辿らない。子ごとに固有のクイズだけを出題し、複数の子が親のクイズを
-// 共有するのを避ける。村/地方AOPは配下があれば含み(例: Haut-Médoc配下のシャトー)、
+// 親方向へは辿らない。子ごとに固有のクイズだけを出題し、複数の子が親のクイズを
+// 共有するのを避ける(#485: C案)。村/地方AOPは配下があれば含み(例: Haut-Médoc配下のシャトー)、
 // 無ければ自身のみ(地域全体クイズとの重複を避ける)。
 //
-// 例外は「自身が主語の候補問題を1問も持たない畑」。色・品種・地区が上位AOPと同一の
-// 畑は設問が上位側の1問に集約される(aop-pool.ts)ため、シャンベルタンやロマネ・コンティの
-// ように固有の設問が1つも残らないことがある。この場合だけ上位方向へ辿り、集約先
-// (ジュヴレ・シャンベルタン等)の設問を借りる。設問キーは集約先のものなので、同じ村の
-// 畑同士・村自身とクイズと進捗をそのまま共有する。
+// 「自身が主語の候補問題を1問も持たない畑」(色・品種・地区が上位AOPと同一で
+// 設問が上位側の1問に集約される(aop-pool.ts)もの。シャンベルタンやロマネ・コンティ等)は、
+// スコープを自身のみとし、集約先(ジュヴレ・シャンベルタン等)の設問は借りない。
+// 借りると7GC+村の全8スコープが同一の3キーに潰れ、毎回同じ3問が出続ける(#485)。
+// 該当AOPのページではクイズ開始導線を出さず、母集団(村)のクイズへ誘導するCTAを出す
+// (getQuizRedirectTargetId)。集約(#437)の傘ルール自体は変更しない。
 //
-// 借りる条件を「固有の設問が0問」に限るのは、リストの各行の進捗(AOP単位の solved/total を
-// スコープ集合で合算)とパネルの問題数を一致させ続けるため。固有の設問を持つ畑まで上位の
-// 設問を借りると、合算した分母がパネルの問題数を上回る。
+// 借りない条件を「固有の設問が0問」に限るのではなく借用自体を廃止するのは、
+// リストの各行の進捗(AOP単位の solved/total をスコープ集合で合算)とパネルの問題数を
+// 一致させ続けるため。借用があると合算した分母がパネルの問題数と食い違う温床になる。
 
 /** 選択AOPを階層近傍のAOP集合へ展開する。不明なslugなら null */
 export function expandScopeAopIds(scopeAopId: string): Set<string> | null {
@@ -57,26 +58,29 @@ export function expandScopeAopIds(scopeAopId: string): Set<string> | null {
 			pending.push(climatId);
 		}
 	}
-	// 固有の設問が1問も無い畑だけ、集約先(上位AOP)の設問を借りる。上で入れた配下からは
-	// 辿らない(選択AOP自身の集約先だけを足す)ので、村を経由して兄弟の設問までは広がらない。
-	for (const umbrellaId of listShareableUmbrellaAopIds(aop))
-		ids.add(umbrellaId);
+	// 親方向へは辿らない(#485: C案)。固有の設問が0問の畑でも集約先の設問は借りず、
+	// スコープは自身のみ(0問)とする。該当ページではクイズ導線の代わりに
+	// getQuizRedirectTargetId() の母集団(村)へのCTAを出す。
 	return ids;
 }
 
-/** そのAOP自身が主語の候補問題数(進捗の分母と同じ定義) */
+/** そのAOP自身が主語の候補問題数(進捗の分母と同じ定義)。SSOT */
 function countOwnQuestions(aop: Aop): number {
 	return candidateCountsByAopId(aop.region).get(aop.id) ?? 0;
 }
 
 /**
- * 設問を借りる先の上位AOP。自身に固有の設問が無いときだけ、設問を持つ上位AOPに
- * 行き当たるまで階層エッジを上へ辿る。傘AOC自身も上位へ集約されていることがある
- * (シャブリ・グラン・クリュのクリマ → 傘AOC → シャブリ)ため、1ホップでは足りない。
+ * 固有の設問が0問のAOPに対する、クイズ誘導先の母集団(村/地区)AOP。
+ * 自身に固有の設問があるとき・不明なslugのときは null。
+ * 集約先を階層エッジで上へ辿り、設問を持つ上位AOPに行き当たった最初の1件を返す。
+ * 傘AOC自身も集約されていることがある(シャブリ・グラン・クリュのクリマ → 傘AOC →
+ * シャブリ)ため、1ホップでは足りない。上位に設問を持つAOPが無い
+ * (ドイツの広域・IGT等の開かれた呼称)ときは null。
  */
-function listShareableUmbrellaAopIds(aop: Aop): string[] {
-	if (countOwnQuestions(aop) > 0) return [];
-	const shared: string[] = [];
+export function getQuizRedirectTargetId(aopId: string): string | null {
+	const aop = getAop(aopId);
+	if (!aop) return null;
+	if (countOwnQuestions(aop) > 0) return null;
 	const seen = new Set<string>([aop.id]);
 	const pending: Aop[] = [aop];
 	while (pending.length > 0) {
@@ -90,12 +94,12 @@ function listShareableUmbrellaAopIds(aop: Aop): string[] {
 			seen.add(umbrellaId);
 			const umbrella = getAop(umbrellaId);
 			if (!umbrella) continue;
-			shared.push(umbrellaId);
+			if (countOwnQuestions(umbrella) > 0) return umbrellaId;
 			// 上位も集約されている(0問)なら、さらに上の集約先まで辿る
-			if (countOwnQuestions(umbrella) === 0) pending.push(umbrella);
+			pending.push(umbrella);
 		}
 	}
-	return shared;
+	return null;
 }
 
 /**

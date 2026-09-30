@@ -41,7 +41,11 @@ import { MapProgressLegend } from "#/components/wine/ProgressLegend";
 import { isQuizComplete } from "#/components/wine/QuizProgressIndicator";
 import { useAopKeyNav } from "#/components/wine/useAopKeyNav";
 import { useMapOverlayInset } from "#/components/wine/useMapOverlayInset";
-import { countScopedQuestions, expandScopeAopIds } from "#/lib/quiz/scope";
+import {
+	countScopedQuestions,
+	expandScopeAopIds,
+	getQuizRedirectTargetId,
+} from "#/lib/quiz/scope";
 import {
 	aopProgressState,
 	aopToken,
@@ -312,6 +316,16 @@ function MapPage() {
 		isAuthenticated && selectedAop
 			? scopedProgressByAopId[selectedAop.id]
 			: undefined;
+	// 固有の設問が0問のAOPではクイズ導線の代わりに母集団(村)へのCTAを出す(#485: C案)。
+	// 0問で誘導先が無い(ドイツの広域・IGT等)ときはCTAも出さない。
+	const selectedAopQuizRedirectTarget = useMemo(() => {
+		if (!selectedAop || selectedAopQuizCount !== 0) return undefined;
+		const targetId = getQuizRedirectTargetId(selectedAop.id);
+		if (!targetId) return undefined;
+		const target = aops.find((a) => a.id === targetId);
+		if (!target) return undefined;
+		return { id: target.id, nameJa: target.nameJa };
+	}, [selectedAop, selectedAopQuizCount, aops]);
 	const startAopQuiz = selectedAop
 		? () => setQuizScope({ kind: "aop", aopId: selectedAop.id })
 		: undefined;
@@ -677,6 +691,7 @@ function MapPage() {
 								quizQuestionCount={selectedAopQuizCount}
 								quizProgress={selectedAopQuizProgress}
 								onStartQuiz={startAopQuiz}
+								quizRedirectTarget={selectedAopQuizRedirectTarget}
 								affiliate={affiliate}
 								aops={aops}
 								regions={REGIONS}
@@ -711,6 +726,7 @@ function MapPage() {
 							quizQuestionCount={selectedAopQuizCount}
 							quizProgress={selectedAopQuizProgress}
 							onStartQuiz={startAopQuiz}
+							quizRedirectTarget={selectedAopQuizRedirectTarget}
 							affiliate={affiliate}
 							aops={aops}
 							regions={REGIONS}

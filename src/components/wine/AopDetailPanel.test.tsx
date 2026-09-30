@@ -164,4 +164,58 @@ describe("AopDetailPanel のクイズ導線", () => {
 		);
 		expect(screen.queryByRole("button", { name: /クイズ/ })).toBeNull();
 	});
+
+	it("固有0問で誘導先があるときは村のクイズへのCTAを出す(#485: C案)", () => {
+		render(
+			<AopDetailPanel
+				aop={AOP}
+				quizQuestionCount={0}
+				onStartQuiz={() => {}}
+				quizRedirectTarget={{ id: "vosne-romanee", nameJa: "ヴォーヌ=ロマネ" }}
+				onSelectAop={() => {}}
+			/>,
+		);
+		// クイズボタンは出さず、CTAだけ出す
+		expect(
+			screen.queryByRole("button", { name: /このAOPのクイズ/ }),
+		).toBeNull();
+		expect(
+			screen.getByText(
+				"この畑はヴォーヌ=ロマネと同じ問題のため、ヴォーヌ=ロマネのクイズで学べます",
+			),
+		).toBeTruthy();
+		expect(
+			screen.getByRole("button", { name: "ヴォーヌ=ロマネのクイズへ" }),
+		).toBeTruthy();
+		// 進捗 0/0 は出さない
+		expect(screen.queryByText("0/0")).toBeNull();
+	});
+
+	it("固有0問でも誘導先が無ければCTAも出さない(開かれた呼称)", () => {
+		render(
+			<AopDetailPanel
+				aop={AOP}
+				quizQuestionCount={0}
+				onStartQuiz={() => {}}
+				onSelectAop={() => {}}
+			/>,
+		);
+		expect(screen.queryByRole("button", { name: /クイズ/ })).toBeNull();
+	});
+
+	it("固有の問題があるときはCTAを出さない", () => {
+		render(
+			<AopDetailPanel
+				aop={AOP}
+				quizQuestionCount={3}
+				onStartQuiz={() => {}}
+				quizRedirectTarget={{ id: "vosne-romanee", nameJa: "ヴォーヌ=ロマネ" }}
+				onSelectAop={() => {}}
+			/>,
+		);
+		expect(screen.queryByRole("button", { name: /のクイズへ/ })).toBeNull();
+		expect(
+			screen.getByRole("button", { name: /このAOPのクイズに挑戦/ }),
+		).toBeTruthy();
+	});
 });
