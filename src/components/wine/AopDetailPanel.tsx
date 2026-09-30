@@ -120,6 +120,7 @@ export function AopDetailPanel({
 	quizQuestionCount,
 	quizProgress,
 	onStartQuiz,
+	quizRedirectTarget,
 	affiliate = EMPTY_AFFILIATE_CONFIG,
 	aops,
 	regions,
@@ -155,6 +156,12 @@ export function AopDetailPanel({
 	quizProgress?: AopProgress;
 	/** クイズ開始。未指定ならクイズボタンを出さない(embed等) */
 	onStartQuiz?: () => void;
+	/**
+	 * 固有の設問が0問のAOPに対する、クイズ誘導先の母集団(村/地区)。
+	 * quizQuestionCount が0で本指定・onSelectAop があるときだけ、
+	 * 村のクイズへ誘導するCTAを出す(#485: C案)。固有の設問があるAOPでは使わない。
+	 */
+	quizRedirectTarget?: { id: string; nameJa: string };
 	/** アフィリエイトID。購入リンクの計測用ラップに使う。未指定なら素の検索リンク */
 	affiliate?: AffiliateConfig;
 	/**
@@ -278,6 +285,13 @@ export function AopDetailPanel({
 				/>
 			)}
 
+			{onSelectAop && (quizQuestionCount ?? 0) === 0 && quizRedirectTarget && (
+				<QuizRedirectCta
+					targetNameJa={quizRedirectTarget.nameJa}
+					onGo={() => onSelectAop(quizRedirectTarget.id)}
+				/>
+			)}
+
 			{ancestry && (
 				<AncestrySection ancestry={ancestry} onSelectAop={onSelectAop} />
 			)}
@@ -388,6 +402,37 @@ function QuizStartButton({
 				className="ml-auto"
 			/>
 		</Button>
+	);
+}
+
+/**
+ * 固有の設問が0問のAOPに対する、母集団(村/地区)のクイズへの誘導CTA(#485: C案)。
+ * この畑自体にクイズボタンは出さず、同じ問題を持つ母集団のページへ遷移させる。
+ * 進捗は出さない(0/0で「達成済み」に見えないよう整合させる)。
+ */
+function QuizRedirectCta({
+	targetNameJa,
+	onGo,
+}: {
+	targetNameJa: string;
+	onGo: () => void;
+}) {
+	return (
+		<div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
+			<p className="text-xs leading-relaxed text-muted-foreground">
+				この畑は{targetNameJa}と同じ問題のため、{targetNameJa}のクイズで学べます
+			</p>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				onClick={onGo}
+				className="w-full"
+			>
+				<GraduationCapIcon className="size-4" aria-hidden />
+				{targetNameJa}のクイズへ
+			</Button>
+		</div>
 	);
 }
 
