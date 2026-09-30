@@ -206,7 +206,12 @@ export const drunkWine = sqliteTable(
 		 * JSON 配列。NULL = 取得していない(読み取りは空配列へ退避)。
 		 */
 		marketPrices: text("market_prices", { mode: "json" }).$type<LabelPrice[]>(),
-		/** R2キーの配列。表示順で、先頭が代表(サムネイル)。空配列=写真なし */
+		/** R2キーの配列。表示順で、先頭が代表(サムネイル)。空配列=写真なし
+		 *
+		 * **Issue #645 の移行中**: 読み取りの正本は `winePhoto` 子テーブルに移った。
+		 * この列は旧コードとの互換のために書き込みの二重化先として残し、子テーブルが
+		 * 空の行のフォールバックにだけ使う。DROP は次PR(expand-and-contract)。
+		 */
 		photoKeys: text("photo_keys", { mode: "json" })
 			.$type<string[]>()
 			.notNull()
@@ -214,6 +219,9 @@ export const drunkWine = sqliteTable(
 		/**
 		 * 写真ごとの由来(`photo_keys` と同じ順・同じ長さの `"bottle" | "web"` 配列。
 		 * PR #561 草案の適用・drizzle/0035)。
+		 *
+		 * **Issue #645 の移行中**: `photoKeys` と同じく二重化先・フォールバック専用。
+		 * 正本は `winePhoto.kind`。
 		 *
 		 * - `bottle`: 利用者自身が撮った写真(手元のボトル・解析ジョブ写真・
 		 *   バッチ写真の複製)。overlay を出さない
@@ -247,6 +255,60 @@ export const drunkWine = sqliteTable(
 	},
 	(table) => [
 		index("drunk_wine_user_created_idx").on(table.userId, table.createdAt),
+	],
+);
+
+/**
+ * 銘柄の写真1枚(Issue #645)。`drunk_wine.photo_keys` / `photo_kinds` の並列 JSON
+ * 配列を expand-and-contract で移す先(drizzle/0045)。
+ *
+ * 旧2列は「同じ順・同じ長さ」の不変条件をコードでしか守れず、更新が配列丸ごとの
+ * read-modify-write になるため並行更新で写真を失った(#637)。行単位になれば
+ * 追加・削除が1行の INSERT / DELETE になり、その競合は起きない。
+ *
+ * **移行中(このPR)の読み書き規則**:
+ * - 読み取りの正本はこの表(`listEntryPhotosBulk` が position 順で引く唯一の入口)。
+ *   子テーブルが空の行に限り旧列へフォールバックする
+ *   (デプロイ時の「新スキーマ×旧コード」の window で旧コードが書いた写真の
+ *   取りこぼし防止。`resolveEntryPhotos` が warn 付きで吸収する)。
+ * - 書き込みは旧列とこの表の両方へ二重化する(旧列の DROP は次PR)。
+ * - 写真の由来(kind)の値の定義は `src/lib/ai/wine-list-extraction.ts` の
+ *   PhotoKind が SSOT。未知値は読み取りで `"bottle"` に倒す。
+ *
+ * R2キーは `wines/{userId}/{drunkWineId}/{photoId}.{ext}` で、エントリ削除は
+ * ON DELETE CASCADE でこの表ごと消える。R2実体の掃除は削除経路が子テーブルの
+ * キーで行う(cleanupPhotoObjects)。
+ */
+export const winePhoto = sqliteTable(
+	"wine_photo",
+	{
+		/** crypto.randomUUID() */
+		id: text("id").primaryKey(),
+		drunkWineId: text("drunk_wine_id")
+			.notNull()
+			.references(() => drunkWine.id, { onDelete: "cascade" }),
+		/** 所有権チェックを JOIN 無しで行うため冗長に持つ(WHERE id AND user_id の規約) */
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** R2キー。サムネイルは原寸キーからの導出なので列を持たない */
+		r2Key: text("r2_key").notNull(),
+		/** 由来。値のSSOTは src/lib/ai/wine-list-extraction.ts の PhotoKind */
+		kind: text("kind").notNull().$type<PhotoKind>().default("bottle"),
+		/** 表示順(0始まり)。先頭=代表サムネイル */
+		position: integer("position").notNull().default(0),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		// 同じ写真キーの二重引き継ぎを制約で弾く(append の INSERT OR IGNORE の衝突先)
+		unique("wine_photo_entry_r2_key_uq").on(table.drunkWineId, table.r2Key),
+		// 「この銘柄の写真を position 順」で引くための複合index
+		index("wine_photo_entry_position_idx").on(
+			table.drunkWineId,
+			table.position,
+		),
 	],
 );
 

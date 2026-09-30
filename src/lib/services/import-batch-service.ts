@@ -11,12 +11,15 @@
 import { env } from "cloudflare:workers";
 import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { drunkWine, importBatch, place, wineEncounter } from "#/db/schema";
-import type { LabelPrice, LabelReferenceLink } from "#/lib/ai/label-extraction";
 import {
-	type PhotoKind,
-	resolveStoredPhotoKinds,
-} from "#/lib/ai/wine-list-extraction";
+	drunkWine,
+	importBatch,
+	place,
+	wineEncounter,
+	winePhoto,
+} from "#/db/schema";
+import type { LabelPrice, LabelReferenceLink } from "#/lib/ai/label-extraction";
+import type { PhotoKind } from "#/lib/ai/wine-list-extraction";
 import { appendWineNote, NOTE_SECTION_LABELS } from "#/lib/drunk-wine/note";
 import {
 	buildWinePhotoKey,
@@ -46,10 +49,15 @@ import {
 	assertValidRefs,
 	type BatchStatement,
 	buildEncounterValues,
+	buildWinePhotoValues,
 	cleanupPhotoObjects,
+	type EntryPhoto,
 	encounterPhotoIndexes,
+	listEntryPhotosBulk,
+	photoCleanupKeys,
 	provenanceInsertValues,
 	recomputeDrunkWineAggregatesBulk,
+	resolveEntryPhotos,
 	toSightingEntry,
 } from "#/lib/services/drunk-wine-service";
 import { prepareNewPlace } from "#/lib/services/place-service";
@@ -341,6 +349,19 @@ export async function bulkRegisterFromScan(
 					batchId,
 				}),
 			);
+			// web 由来の銘柄写真は子テーブルへも書く(#645 の二重化。旧列と
+			// 同じ batch なので、D1 が全失敗したらどちらも残らない)。
+			if (webPhoto) {
+				statements.push(
+					db
+						.insert(winePhoto)
+						.values(
+							buildWinePhotoValues(userId, drunkWineId, [
+								{ key: webPhoto.photoKey, kind: "web" },
+							]),
+						),
+				);
+			}
 		} else {
 			// refine 済みなので existingId は必ずある
 			drunkWineId = item.existingId as string;
@@ -515,6 +536,20 @@ export async function undoImportBatch(
 					eq(wineEncounter.userId, userId),
 				),
 			),
+		// 子テーブル行の明示削除(deleteDrunkWine と同じ理由)。親より前に置く。
+		...(createdRows.length > 0
+			? [
+					db.delete(winePhoto).where(
+						and(
+							inArray(
+								winePhoto.drunkWineId,
+								createdRows.map((row) => row.id),
+							),
+							eq(winePhoto.userId, userId),
+						),
+					),
+				]
+			: []),
 		db
 			.delete(drunkWine)
 			.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId))),
@@ -532,10 +567,19 @@ export async function undoImportBatch(
 	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
 
 	// D1の書き込みは既に確定しているので、R2掃除の失敗で「取り消せなかった」とは返さない(#249と同じ扱い)。
-	const entryPhotoKeys = createdRows.flatMap((row) =>
-		row.photoKeys.length > 0
-			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
-			: [],
+	// 子テーブル行はエントリ削除の cascade で消えるが、R2実体は残るので
+	// 二重化の両方の集合で掃除する(photoCleanupKeys)。
+	const childPhotoKeys = [
+		...(
+			await listEntryPhotosBulk(
+				userId,
+				createdRows.map((row) => row.id),
+			)
+		).values(),
+	].flatMap((photos) => photos.map((photo) => photo.key));
+	const entryPhotoKeys = photoCleanupKeys(
+		childPhotoKeys,
+		createdRows.flatMap((row) => row.photoKeys),
 	);
 	const photoKeys = [...batch.photoKeys, ...entryPhotoKeys];
 	await cleanupPhotoObjects(photoKeys, {
@@ -788,7 +832,11 @@ export interface ImportBatchDetail {
 
 function toBatchDetailEntry(
 	row: typeof drunkWine.$inferSelect,
+	photos: EntryPhoto[],
 ): Omit<ImportBatchDetailCreatedEntry, "sighting"> {
+	// 読み取りの正本は子テーブル。resolveEntryPhotos が旧列フォールバックも吸収する
+	// (drunk-wine-service.ts の toEntry と同じ)。
+	const entryPhotos = resolveEntryPhotos(row, photos);
 	return {
 		id: row.id,
 		name: row.name,
@@ -796,11 +844,11 @@ function toBatchDetailEntry(
 		vintage: row.vintage,
 		producer: row.producer,
 		note: row.note,
-		photoUrls: row.photoKeys.map(imagePathForKey),
-		thumbUrls: row.photoKeys.map((key) =>
+		photoUrls: entryPhotos.keys.map(imagePathForKey),
+		thumbUrls: entryPhotos.keys.map((key) =>
 			imagePathForKey(thumbKeyForPhotoKey(key)),
 		),
-		photoKinds: resolveStoredPhotoKinds(row.photoKeys, row.photoKinds),
+		photoKinds: entryPhotos.kinds,
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
@@ -858,6 +906,8 @@ export async function getImportBatchDetail(
 		.orderBy(desc(wineEncounter.createdAt));
 
 	const createdIds = new Set(entryRows.map((row) => row.id));
+	// 詳細の銘柄写真は子テーブルから引く(toBatchDetailEntry が旧列へ退避する)。
+	const photoMap = await listEntryPhotosBulk(userId, [...createdIds]);
 	const sightingByEntry = new Map<
 		string,
 		{
@@ -910,7 +960,7 @@ export async function getImportBatchDetail(
 		photoUrls: batchRow.batch.photoKeys.map(imagePathForKey),
 		createdAt: batchRow.batch.createdAt.getTime(),
 		createdEntries: entryRows.map((row) => ({
-			...toBatchDetailEntry(row),
+			...toBatchDetailEntry(row, photoMap.get(row.id) ?? []),
 			sighting: sightingByEntry.get(row.id) ?? null,
 		})),
 		matchedSightings,
@@ -1119,6 +1169,11 @@ async function adoptBatchPhotosForWines(
 			)
 			.where(and(eq(drunkWine.batchId, batchId), eq(drunkWine.userId, userId)));
 
+		// 二重化の両方を見る(adoptBatchPhotosForWines の手当て済み判定と同じ)。
+		const photoMap = await listEntryPhotosBulk(
+			userId,
+			rows.map((row) => row.id),
+		);
 		const updates: BatchStatement[] = [];
 		const putKeys: string[] = [];
 		// 同じ写真を指す銘柄が複数あるのが普通(1枚の棚写真に何本も写っている)。
@@ -1144,7 +1199,9 @@ async function adoptBatchPhotosForWines(
 
 		for (const row of rows) {
 			// 既に写真がある = 適切な写真か web 画像で手当て済み(前2段)。触らない。
-			if (row.photoKeys.length > 0) continue;
+			// 子テーブル・旧列のどちらかにあれば済みとみなす(二重化の両方を見る)。
+			if (row.photoKeys.length > 0 || (photoMap.get(row.id)?.length ?? 0) > 0)
+				continue;
 			// 対応写真のすべてを、エントリの上限まで複製する(#574)。範囲外の番号は
 			// 指す先が無いので落とす(読み取りの `toEncounterEntry` と同じ扱い)。
 			const sourceKeys = encounterPhotoIndexes(row)
@@ -1171,6 +1228,15 @@ async function adoptBatchPhotosForWines(
 			}
 			if (newKeys.length === 0) continue;
 			updates.push(
+				// 子テーブルへの二重化(#645)。同じ batch なので D1 全失敗時は
+				// R2 の複製ごと巻き戻る(下の catch が putKeys を掃除する)。
+				db.insert(winePhoto).values(
+					buildWinePhotoValues(
+						userId,
+						row.id,
+						newKeys.map((key) => ({ key, kind: "bottle" as PhotoKind })),
+					),
+				),
 				db
 					.update(drunkWine)
 					// バッチ写真の複製は利用者自身が撮った写真 = bottle。
