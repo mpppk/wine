@@ -9,6 +9,7 @@ import { requireAdminBeforeLoad } from "#/lib/admin/route-guard";
 import { totalPages } from "#/lib/admin/search";
 import { authClient } from "#/lib/auth-client";
 import type { AdminUserListItem } from "#/lib/services/admin-service";
+import { isDisplayableAvatarImage } from "#/lib/user-profile";
 import { adminListUsers } from "#/server/admin";
 
 interface AdminSearch {
@@ -51,7 +52,8 @@ function UserRow({ row, selfId }: { row: AdminUserListItem; selfId?: string }) {
 					params={{ userId: row.id }}
 					className="flex items-center gap-2 font-medium hover:underline"
 				>
-					{row.image ? (
+					{/* #636: 外部URLは描画しない(書き込み側の関門との多層防御) */}
+					{isDisplayableAvatarImage(row.image) ? (
 						<img
 							src={row.image}
 							alt=""

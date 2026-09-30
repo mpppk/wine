@@ -29,6 +29,7 @@ import {
 	cleanupAfterUserDelete,
 	cleanupBeforeUserDelete,
 } from "#/lib/services/user-deletion-service";
+import { isOwnAvatarImage, userNameSchema } from "#/lib/user-profile";
 
 // サブスク状態(status/periodEnd)の D1 同期は Stripe webhook(/api/auth/stripe/webhook)が
 // 唯一の経路。シークレット未設定だと全 webhook が署名検証で落ち続け、決済してもプレミアムが
@@ -132,7 +133,52 @@ export const auth = betterAuth({
 			if (!needsImpersonationCheck(ctx.method ?? "GET", ctx.path)) return;
 			// サインイン/サインアップ等の未認証 POST では null になり、そのまま通る。
 			const session = await getSessionFromCtx(ctx).catch(() => null);
-			if (!isImpersonatedSession(session)) return;
+			if (!isImpersonatedSession(session)) {
+				// #636: image/name はハンドラ直結でアプリ側 zod を通らないため、
+				// /update-user と /sign-up/email の body をここで検証する。
+				// 他パスは触らない(なりすまし判定の前段 needsImpersonationCheck が
+				// 書き込みPOSTだけを通すため、対象はPOSTの2経路に限られる)。
+				if (ctx.path === "/update-user" || ctx.path === "/sign-up/email") {
+					const body: unknown = (ctx as unknown as { body?: unknown }).body;
+					if (body && typeof body === "object") {
+						const record = body as Record<string, unknown>;
+						if ("name" in record) {
+							const parsed = userNameSchema.safeParse(record.name);
+							if (!parsed.success) {
+								throw new APIError("BAD_REQUEST", {
+									message:
+										parsed.error.issues[0]?.message ??
+										"名前を確認してください。",
+								});
+							}
+						}
+						if ("image" in record) {
+							const image = record.image;
+							if (image !== undefined && image !== null) {
+								if (ctx.path === "/sign-up/email") {
+									// 新規登録フォームは画像を送らない。外部URLの持ち込み口を塞ぐ。
+									throw new APIError("BAD_REQUEST", {
+										message: "プロフィール画像は登録後に設定してください。",
+									});
+								}
+								// /api/upload が返した自分のアバター配信パスだけを通す。
+								// session は上で取得済みのため取り直さない。
+								const userId = session?.user?.id;
+								if (
+									typeof userId !== "string" ||
+									!isOwnAvatarImage(image, userId)
+								) {
+									throw new APIError("BAD_REQUEST", {
+										message:
+											"プロフィール画像はアップロードした画像のみ設定できます。",
+									});
+								}
+							}
+						}
+					}
+				}
+				return;
+			}
 			throw new APIError("FORBIDDEN", {
 				message: IMPERSONATION_READONLY_MESSAGE,
 			});
