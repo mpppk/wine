@@ -23,10 +23,11 @@
       "automerge": false
     },
     {
-      "description": "バンドラ本体とそのプラグインは automerge から外す(#402)。#184(maplibre-gl v6 の worker を Vite が検出できず実行時404で地図が真っ白)が示すとおり、アセット解決の変更は typecheck/build/test が緑のままランタイムだけ壊れる。CI が検出できない以上、無人マージは「壊れたものが誰にも気付かれず main に乗る」と同義なので、人手でプレビュー実機を見てからマージする。",
+      "description": "バンドラ本体とそのプラグインは automerge から外す(#402)。#184(maplibre-gl v6 の worker を Vite が検出できず実行時404で地図が真っ白)が示すとおり、アセット解決の変更は typecheck/build/test が緑のままランタイムだけ壊れる。CI が検出できない以上、無人マージは「壊れたものが誰にも気付かれず main に乗る」と同義なので、人手でプレビュー実機を見てからマージする。Paraglide(@inlang/paraglide-js)もビルド時にメッセージをコンパイルする Vite プラグインで同じ類型のためここに含める(#536)。",
       "matchPackageNames": [
         "vite",
-        "@vitejs/plugin-react"
+        "@vitejs/plugin-react",
+        "@inlang/paraglide-js"
       ],
       "groupName": "vite build toolchain",
       "automerge": false

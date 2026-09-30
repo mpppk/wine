@@ -1,5 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import { UserIcon } from "lucide-react";
+import { LocaleSwitcher } from "#/components/LocaleSwitcher";
 import ThemeToggle from "#/components/ThemeToggle";
 import {
 	DropdownMenu,
@@ -9,6 +10,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
 import { authClient } from "#/lib/auth-client";
+import { m } from "#/paraglide/messages.js";
 
 export default function BetterAuthHeader() {
 	const { data: session, isPending } = authClient.useSession();
@@ -50,19 +52,23 @@ export default function BetterAuthHeader() {
 						<ThemeToggle />
 					</div>
 					<DropdownMenuSeparator />
+					{/* 表示言語の切替(i18n Phase 1 #536)。未ログインでもここから
+					    切り替えられる。 */}
+					<LocaleSwitcher />
+					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						onSelect={() => {
 							void router.navigate({ to: "/profile" });
 						}}
 					>
-						プロフィールを編集
+						{m.nav_profile()}
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onSelect={() => {
 							void router.navigate({ to: "/pricing" });
 						}}
 					>
-						料金プラン
+						{m.nav_pricing()}
 					</DropdownMenuItem>
 					{session.user.role === "admin" && (
 						<DropdownMenuItem
@@ -80,7 +86,7 @@ export default function BetterAuthHeader() {
 							void router.navigate({ to: "/login" });
 						}}
 					>
-						Sign out
+						{m.nav_sign_out()}
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
@@ -107,19 +113,21 @@ export default function BetterAuthHeader() {
 					<ThemeToggle />
 				</div>
 				<DropdownMenuSeparator />
+				<LocaleSwitcher />
+				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					onSelect={() => {
 						void router.navigate({ to: "/pricing" });
 					}}
 				>
-					料金プラン
+					{m.nav_pricing()}
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					onSelect={() => {
 						void router.navigate({ to: "/login" });
 					}}
 				>
-					Sign in
+					{m.nav_sign_in()}
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>

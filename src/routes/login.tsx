@@ -17,6 +17,7 @@ import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { authClient } from "#/lib/auth-client";
 import { getRouteSession } from "#/server/auth";
+import { syncLocaleCookie } from "#/server/locale";
 
 export const Route = createFileRoute("/login")({
 	beforeLoad: async () => {
@@ -44,6 +45,11 @@ function LoginPage() {
 		if (result.error) {
 			setError(result.error.message ?? "Sign in failed");
 		} else {
+			// 別ブラウザで付けた言語設定を引き継ぐ(i18n Phase 1 #536)。
+			// サーバが user.locale を Cookie へ書き戻した上で "/" へ遷移し、
+			// シェルが復元後のロケールで再描画される。setLocale() による
+			// リロードは要らない(書き戻し後の Cookie と一致して省略される)。
+			await syncLocaleCookie();
 			await router.navigate({ to: "/" });
 		}
 	};

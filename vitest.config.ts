@@ -143,7 +143,7 @@ export default defineConfig({
 			provider: "v8",
 			include: ["src/**"],
 			// 収集対象外(型定義・生成物・エントリ)。カバレッジは可視化目的で、しきい値は設けない。
-			exclude: ["src/**/*.d.ts", "src/routeTree.gen.ts"],
+			exclude: ["src/**/*.d.ts", "src/routeTree.gen.ts", "src/paraglide/**"],
 		},
 	},
 });
