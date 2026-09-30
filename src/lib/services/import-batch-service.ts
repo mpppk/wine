@@ -44,6 +44,7 @@ import {
 } from "#/lib/import-batch/schema";
 import { logInfo, logWarn } from "#/lib/logger";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
+import { assertEntryQuota, assertPhotoQuota } from "#/lib/quotas";
 import {
 	assertOwnsEncounterRefs,
 	assertValidRefs,
@@ -267,6 +268,9 @@ export async function bulkRegisterFromScan(
 	for (const [index, item] of input.items.entries()) {
 		if (item.wine) newWineIds.set(index, crypto.randomUUID());
 	}
+	// ユーザあたり件数上限(#397)。createDrunkWine と同じ関門を通す(一括登録は
+	// エントリを直接 INSERT するため、ここで抑えないと上限を素通りする)。
+	await assertEntryQuota(userId, newWineIds.size);
 	// 解析が見つけた web 画像を取り込む。D1 へ書く前に済ませて、取れたぶんだけ
 	// photo_keys に載せる(取れなかった銘柄は2段階目でバッチ写真へ退避する)。
 	const webPhotos = await adoptWebPhotos(
@@ -991,6 +995,12 @@ export async function saveImportBatchPhotos(
 	// 受け入れ可否は**R2へ書く前**に確かめる(後で拒否すると孤児オブジェクトの掃除が要る)。
 	// 同じ検証を最後の attach でもう一度通るが、その往復1回より孤児の方が高く付く。
 	await assertImportBatchAcceptsPhotos(userId, batchId, photos.length);
+	// ユーザあたり写真総バイト上限(#397)。バッチ写真も R2 に残るので数える
+	// (クォータの SSOT は `#/lib/quotas`)。
+	await assertPhotoQuota(
+		userId,
+		photos.reduce((total, photo) => total + photo.bytes.byteLength, 0),
+	);
 
 	const putKeys: string[] = [];
 	try {
