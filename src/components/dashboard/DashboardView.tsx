@@ -9,9 +9,11 @@ import {
 	TargetIcon,
 	WineIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent } from "#/components/ui/card";
 import { shouldShowStarterGuide } from "#/lib/dashboard/onboarding";
+import { isWelcomeDismissed } from "#/lib/dashboard/welcome";
 import type { DashboardData } from "#/lib/services/dashboard-service";
 import { cn } from "#/lib/utils";
 import { getRegion } from "#/lib/wine/service";
@@ -34,6 +36,17 @@ export function DashboardView({
 		seen: data.mastery.seen,
 		cellarTotalCount: data.cellar.totalCount,
 	});
+	// ウェルカム済みならガイドを畳んで出す(#206)。dismiss は localStorage
+	// (端末側)なのでマウント後に判定する。SSR と初回描画は展開状態で一致させ、
+	// 畳む必要があるときだけ key を変えてマウントし直す。
+	const [guideCollapsed, setGuideCollapsed] = useState(false);
+	const [guideKey, setGuideKey] = useState("ssr");
+	useEffect(() => {
+		if (isWelcomeDismissed()) {
+			setGuideCollapsed(true);
+			setGuideKey("collapsed");
+		}
+	}, []);
 
 	return (
 		<main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
@@ -48,9 +61,11 @@ export function DashboardView({
 
 			{showGuide && (
 				<StarterGuide
+					key={guideKey}
 					regionId={data.recommendation.regionId}
 					seen={data.mastery.seen}
 					cellarTotalCount={data.cellar.totalCount}
+					startCollapsed={guideCollapsed}
 				/>
 			)}
 			<RecommendationHero recommendation={data.recommendation} />

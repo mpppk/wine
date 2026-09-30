@@ -15,6 +15,7 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RegionsRouteImport } from './routes/regions'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
 import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -72,6 +73,11 @@ const RegionsRoute = RegionsRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotwellKnownOauthAuthorizationServerRoute =
@@ -225,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
+  '/welcome': typeof WelcomeRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
@@ -261,6 +268,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
+  '/welcome': typeof WelcomeRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
@@ -298,6 +306,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/regions': typeof RegionsRoute
   '/signup': typeof SignupRoute
+  '/welcome': typeof WelcomeRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRoute
   '/.well-known/oauth-protected-resource': typeof DotwellKnownOauthProtectedResourceRoute
   '/admin/$userId': typeof AdminUserIdRoute
@@ -336,6 +345,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/regions'
     | '/signup'
+    | '/welcome'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
@@ -372,6 +382,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/regions'
     | '/signup'
+    | '/welcome'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/regions'
     | '/signup'
+    | '/welcome'
     | '/.well-known/oauth-authorization-server'
     | '/.well-known/oauth-protected-resource'
     | '/admin/$userId'
@@ -445,6 +457,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   RegionsRoute: typeof RegionsRoute
   SignupRoute: typeof SignupRoute
+  WelcomeRoute: typeof WelcomeRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRoute
   DotwellKnownOauthProtectedResourceRoute: typeof DotwellKnownOauthProtectedResourceRoute
   AdminUserIdRoute: typeof AdminUserIdRoute
@@ -517,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-authorization-server': {
@@ -725,6 +745,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   RegionsRoute: RegionsRoute,
   SignupRoute: SignupRoute,
+  WelcomeRoute: WelcomeRoute,
   DotwellKnownOauthAuthorizationServerRoute:
     DotwellKnownOauthAuthorizationServerRoute,
   DotwellKnownOauthProtectedResourceRoute:

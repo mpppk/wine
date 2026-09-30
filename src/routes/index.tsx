@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { DashboardView } from "#/components/dashboard/DashboardView";
 import { Button } from "#/components/ui/button";
 import {
@@ -8,6 +9,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import {
+	isWelcomeDismissed,
+	shouldRedirectToWelcome,
+} from "#/lib/dashboard/welcome";
 import { getRouteSession } from "#/server/auth";
 import { getDashboard } from "#/server/dashboard";
 
@@ -25,6 +30,24 @@ export const Route = createFileRoute("/")({
 function HomePage() {
 	const data = Route.useLoaderData();
 	const { session } = Route.useRouteContext();
+	// サインアップ直後の初回ユーザを /welcome へ誘導する。メール/パスワードも
+	// OAuth もサインアップ後はここ(`/`)に着地するため、経路ごとの分岐を足さずに
+	// 両方を通せる。dismiss は localStorage(端末側)なのでサーバでは読めず、
+	// マウント後にクライアントで判定する(SSR と初回描画はダッシュボードで一致)。
+	const [goWelcome, setGoWelcome] = useState(false);
+	useEffect(() => {
+		if (!data || !session) return;
+		setGoWelcome(
+			shouldRedirectToWelcome({
+				seen: data.mastery.seen,
+				cellarTotalCount: data.cellar.totalCount,
+				welcomeDismissed: isWelcomeDismissed(),
+			}),
+		);
+	}, [data, session]);
+	if (goWelcome) {
+		return <Navigate to="/welcome" />;
+	}
 
 	if (data && session) {
 		return <DashboardView data={data} userName={session.userName} />;
