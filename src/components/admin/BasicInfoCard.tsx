@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import type { AdminUserDetail } from "#/lib/services/admin-service";
+import { isDisplayableAvatarImage } from "#/lib/user-profile";
 import { formatDateTime } from "./format";
 import { InfoRow } from "./InfoRow";
 
@@ -21,7 +22,8 @@ export function BasicInfoCard({ detail }: { detail: AdminUserDetail }) {
 					</div>
 				)}
 				<div className="mb-4 flex items-center gap-3">
-					{u.image ? (
+					{/* #636: 書き込み側をすり抜けた外部URL・既存行のOAuth由来URLを描画しない */}
+					{isDisplayableAvatarImage(u.image) ? (
 						<img
 							src={u.image}
 							alt=""

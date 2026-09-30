@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { parseUserInput } from "better-auth/db";
 import { beforeAll, describe, expect, it } from "vitest";
 import { auth } from "#/lib/auth";
+import { signUpTestUser, updateUserRequest } from "#/lib/auth-test-helpers";
 
 // preferredAiModel の書き込み経路の検証(#256)。
 //
@@ -21,7 +22,6 @@ import { auth } from "#/lib/auth";
 //
 // 単体テスト(config.test.ts)はスキーマ自体の正しさしか示せないため、こちらで配線を押さえる。
 
-const BASE_URL = "http://localhost:3000";
 const EMAIL = "preferred-ai-model@example.com";
 const PASSWORD = "test-password-256";
 
@@ -30,45 +30,16 @@ let userId = "";
 
 /** サインアップし、以降のリクエストで使うセッションクッキーを得る */
 beforeAll(async () => {
-	const res = await auth.handler(
-		new Request(`${BASE_URL}/api/auth/sign-up/email`, {
-			method: "POST",
-			headers: { "content-type": "application/json", origin: BASE_URL },
-			body: JSON.stringify({
-				name: "preferred ai model",
-				email: EMAIL,
-				password: PASSWORD,
-			}),
-		}),
-	);
-	expect(res.status).toBe(200);
-	// Set-Cookie は複数行になりうるため、name=value 部分だけを連結する
-	cookie = res.headers
-		.getSetCookie()
-		.map((c) => c.split(";")[0])
-		.join("; ");
-	expect(cookie).not.toBe("");
-
-	const row = await env.DB.prepare("SELECT id FROM user WHERE email = ?")
-		.bind(EMAIL)
-		.first<{ id: string }>();
-	userId = row?.id ?? "";
-	expect(userId).not.toBe("");
+	({ cookie, userId } = await signUpTestUser({
+		name: "preferred ai model",
+		email: EMAIL,
+		password: PASSWORD,
+	}));
 });
 
 /** update-user を叩く(プロフィール画面の authClient.updateUser と同じ経路) */
 function updateUser(body: Record<string, unknown>): Promise<Response> {
-	return auth.handler(
-		new Request(`${BASE_URL}/api/auth/update-user`, {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
-				origin: BASE_URL,
-				cookie,
-			},
-			body: JSON.stringify(body),
-		}),
-	);
+	return updateUserRequest(cookie, body);
 }
 
 /** D1 に保存されている preferredAiModel の生値 */
