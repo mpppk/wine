@@ -1,7 +1,13 @@
 import { env } from "cloudflare:workers";
-import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { drunkWine, importBatch, place, wineEncounter } from "#/db/schema";
+import {
+	drunkWine,
+	importBatch,
+	place,
+	wineEncounter,
+	winePhoto,
+} from "#/db/schema";
 import type { LabelPrice, LabelReferenceLink } from "#/lib/ai/label-extraction";
 import {
 	type PhotoKind,
@@ -29,7 +35,7 @@ import type {
 	UpdateWineTastingInput,
 } from "#/lib/drunk-wine/schema";
 import { DEFAULT_WINE_STATUS, type WineStatus } from "#/lib/drunk-wine/status";
-import { BadRequestError, ConflictError, NotFoundError } from "#/lib/errors";
+import { BadRequestError, NotFoundError } from "#/lib/errors";
 import { imagePathForKey } from "#/lib/images/signed-url";
 import { type LogFields, logError, logInfo, logWarn } from "#/lib/logger";
 import {
@@ -235,7 +241,7 @@ export type WineEncounterRow = typeof wineEncounter.$inferSelect & {
 	batchPhotoKeys: string[] | null;
 };
 
-function toEntry(row: DrunkWineRow): DrunkWineEntry {
+function toEntry(row: DrunkWineRow, photos: EntryPhoto[]): DrunkWineEntry {
 	const aop = row.aopId ? getAop(row.aopId) : undefined;
 	if (row.aopId && !aop) {
 		// 静的マスタから消えた ID を参照している行(#333)。ID の削除・改名は
@@ -264,6 +270,7 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 			countryId: row.countryId,
 		});
 	}
+	const entryPhotos = resolveEntryPhotos(row, photos);
 	return {
 		id: row.id,
 		name: row.name,
@@ -288,14 +295,199 @@ function toEntry(row: DrunkWineRow): DrunkWineEntry {
 		// 旧行・壊れた値は空配列へ退避する(保存時に正規化済みなので通常は素通し)。
 		referenceLinks: normalizeStoredReferenceLinks(row.referenceLinks),
 		prices: normalizeStoredMarketPrices(row.marketPrices),
-		photoUrls: row.photoKeys.map(imagePathForKey),
-		thumbUrls: row.photoKeys.map((key) =>
+		photoUrls: entryPhotos.keys.map(imagePathForKey),
+		thumbUrls: entryPhotos.keys.map((key) =>
 			imagePathForKey(thumbKeyForPhotoKey(key)),
 		),
-		photoKinds: resolveStoredPhotoKinds(row.photoKeys, row.photoKinds),
+		photoKinds: entryPhotos.kinds,
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
+}
+
+/**
+ * 銘柄の写真1枚の読み取り形。`winePhoto` 子テーブルの行に対応し、表示順
+ * (position 昇順)に並べたもの。R2キーと由来だけを持ち、URL組み立て・
+ * サムネイル導出は呼び出し側(toEntry・削除経路の掃除)が担う。
+ */
+export interface EntryPhoto {
+	key: string;
+	kind: PhotoKind;
+}
+
+/**
+ * 子テーブル行の由来を正規化する。kind 列は新コードだけが書くが D1 に CHECK が
+ * 無いため、未知値は bottle(overlay なし)に倒す(resolveStoredPhotoKinds と同じ方向)。
+ */
+function normalizeWinePhotoKind(value: unknown): PhotoKind {
+	return value === "web" ? "web" : "bottle";
+}
+
+/**
+ * 表示用の写真集合を決める(Issue #645 の読み取りの SSOT。写真を読む全経路が
+ * `listEntryPhotosBulk` で引いた行をここに通す)。
+ *
+ * 正本は子テーブル。子テーブルが空の行に限り旧列(`photo_keys` / `photo_kinds`)へ
+ * フォールバックする——デプロイ時の「新スキーマ×旧コード」の window で旧コードが
+ * 書いた写真は旧列にだけ載るため、そのまま子テーブルだけを読むと写真が消えたように
+ * 見える。フォールバックは warn を残すので、`bun run logs --grep` で取りこぼしを
+ * 棚卸しできる。子テーブルへは次の書き込み(sync / append)で寄る。
+ */
+export function resolveEntryPhotos(
+	row: Pick<DrunkWineRow, "id" | "photoKeys" | "photoKinds">,
+	child: EntryPhoto[],
+): { keys: string[]; kinds: PhotoKind[] } {
+	if (child.length > 0) {
+		return {
+			keys: child.map((photo) => photo.key),
+			kinds: child.map((photo) => photo.kind),
+		};
+	}
+	if (row.photoKeys.length > 0) {
+		logWarn("wine photo legacy fallback", {
+			drunkWineId: row.id,
+			legacyCount: row.photoKeys.length,
+		});
+		return {
+			keys: row.photoKeys,
+			kinds: resolveStoredPhotoKinds(row.photoKeys, row.photoKinds),
+		};
+	}
+	return { keys: [], kinds: [] };
+}
+
+/**
+ * 旧列だけに載っている写真キーを子テーブルへ寄せる(#645 の遅延バックフィル)。
+ *
+ * マイグレーション時のバックフィル以降に旧列だけが書かれた行(デプロイの
+ * 「新スキーマ×旧コード」の window で旧コードが書いた分)が対象で、通常の
+ * 二重化が保たれている行では読み直すだけで何も書かない。sync / append の先頭で
+ * 呼び、以降は子テーブルだけを見ればよい——repair 後の layout 検証は旧列だけの
+ * キーも通る(再アップロードを強いない)。
+ *
+ * INSERT OR IGNORE + unique 制約(`wine_photo_entry_r2_key_uq`)なので、
+ * 多重実行・並行実行でも行は増えない。
+ */
+async function repairLegacyPhotos(
+	userId: string,
+	id: string,
+	legacyKeys: string[],
+	legacyKinds: PhotoKind[],
+): Promise<{ id: string; r2Key: string; kind: PhotoKind; position: number }[]> {
+	const readChild = () =>
+		db
+			.select({
+				id: winePhoto.id,
+				r2Key: winePhoto.r2Key,
+				kind: winePhoto.kind,
+				position: winePhoto.position,
+			})
+			.from(winePhoto)
+			.where(and(eq(winePhoto.drunkWineId, id), eq(winePhoto.userId, userId)))
+			.orderBy(asc(winePhoto.position));
+	const base = await readChild();
+	const baseSet = new Set(base.map((row) => row.r2Key));
+	const missing = legacyKeys.filter((key) => !baseSet.has(key));
+	if (missing.length === 0) return base;
+	const kindByKey = new Map(
+		legacyKeys.map((key, index) => [
+			key,
+			legacyKinds[index] ?? ("bottle" as PhotoKind),
+		]),
+	);
+	const inserts = missing.map((key, index) => ({
+		id: crypto.randomUUID(),
+		drunkWineId: id,
+		userId,
+		r2Key: key,
+		kind: kindByKey.get(key) ?? "bottle",
+		position: base.length + index,
+	}));
+	// 1件ずつ INSERT OR IGNORE で書く(db.batch に載せるほどではなく、OR IGNORE が
+	// あるので途中まで書けても後の repair が残りを足す)。
+	for (const values of inserts) {
+		await db
+			.insert(winePhoto)
+			.values(values)
+			.onConflictDoNothing({
+				target: [winePhoto.drunkWineId, winePhoto.r2Key],
+			});
+	}
+	return readChild();
+}
+
+/**
+ * 複数エントリの写真を行単位で一括取得する(position 順)。
+ *
+ * 一覧・詳細のように N 件のエントリを組み立てる経路が、エントリごとに SELECT すると
+ * 件数ぶんラウンドトリップが増えるため、id の集合で1回(上限超過時は ID_CHUNK_SIZE
+ * で分割)引いて Map に畳む。D1 のバインド変数上限(1クエリ100個)に触れないよう
+ * `recomputeDrunkWineAggregatesBulk` と同じ単位で割る。
+ */
+export async function listEntryPhotosBulk(
+	userId: string,
+	ids: string[],
+): Promise<Map<string, EntryPhoto[]>> {
+	const out = new Map<string, EntryPhoto[]>();
+	const uniqueIds = [...new Set(ids)];
+	if (uniqueIds.length === 0) return out;
+	for (let i = 0; i < uniqueIds.length; i += ID_CHUNK_SIZE) {
+		const chunk = uniqueIds.slice(i, i + ID_CHUNK_SIZE);
+		const rows = await db
+			.select({
+				drunkWineId: winePhoto.drunkWineId,
+				r2Key: winePhoto.r2Key,
+				kind: winePhoto.kind,
+			})
+			.from(winePhoto)
+			.where(
+				and(
+					eq(winePhoto.userId, userId),
+					inArray(winePhoto.drunkWineId, chunk),
+				),
+			)
+			.orderBy(
+				asc(winePhoto.drunkWineId),
+				asc(winePhoto.position),
+				sql`${winePhoto}."rowid" asc`,
+			);
+		for (const row of rows) {
+			const list = out.get(row.drunkWineId) ?? [];
+			list.push({ key: row.r2Key, kind: normalizeWinePhotoKind(row.kind) });
+			out.set(row.drunkWineId, list);
+		}
+	}
+	return out;
+}
+
+/** 1エントリぶんの写真。`entryFromBatch`(単件の読み直し)が使う単件版。 */
+export async function listEntryPhotos(
+	userId: string,
+	id: string,
+): Promise<EntryPhoto[]> {
+	return (await listEntryPhotosBulk(userId, [id])).get(id) ?? [];
+}
+
+/**
+ * エントリ写真の INSERT 値を組み立てる(実行はしない。呼び出し側が db.batch に積む)。
+ * bulkRegisterFromScan / adoptBatchPhotosForWines が、銘柄の INSERT と同じ batch で
+ * 子テーブルへ書くために使う。position は startPosition からの連番(append が
+ * 既存行の末尾に足すため、先頭以外から始める必要がある)。
+ */
+export function buildWinePhotoValues(
+	userId: string,
+	drunkWineId: string,
+	photos: { key: string; kind: PhotoKind }[],
+	startPosition = 0,
+) {
+	return photos.map((photo, index) => ({
+		id: crypto.randomUUID(),
+		drunkWineId,
+		userId,
+		r2Key: photo.key,
+		kind: photo.kind,
+		position: startPosition + index,
+	}));
 }
 
 /**
@@ -467,10 +659,10 @@ function selectEntry(userId: string, id: string) {
 }
 
 /** db.batch の結果末尾(selectEntry)から1件取り出す。無ければ NotFound。 */
-function entryFromBatch(results: unknown[]): DrunkWineEntry {
+async function entryFromBatch(results: unknown[]): Promise<DrunkWineEntry> {
 	const row = (results.at(-1) as DrunkWineRow[] | undefined)?.[0];
 	if (!row) throw new NotFoundError("Entry not found");
-	return toEntry(row);
+	return toEntry(row, await listEntryPhotos(row.userId, row.id));
 }
 
 /** 所有権を確認して銘柄の存在を保証する。存在しない/他ユーザは同一エラー。 */
@@ -640,7 +832,8 @@ export async function createDrunkWine(
 		const [row] = await db.insert(drunkWine).values(values).returning();
 		if (!row) throw new Error("Failed to insert drunk wine");
 		// 飲用記録が無いので最新1件も無い。読み直さずに null で組み立てる。
-		return toEntry({ ...row, lastRating: null, lastMemo: null });
+		// 作りたての行に写真は無いので子テーブルは空。
+		return toEntry({ ...row, lastRating: null, lastMemo: null }, []);
 	}
 
 	// 場所: 既存の指定は所有権を確認し、新規は同じ batch で作る(一括登録と同じ形)。
@@ -1275,6 +1468,22 @@ export async function markWineDrunk(
 // ここでチャンク分割する(単体削除は常に1チャンクで収まるため挙動は変わらない)。
 const R2_DELETE_CHUNK_SIZE = 1000;
 
+/**
+ * R2掃除の対象キー(原寸+サムネイル)を組み立てる。子テーブルと旧列の**和集合**で見る。
+ *
+ * 二重化が保たれていれば両者は一致するが、デプロイの「新スキーマ×旧コード」の
+ * window では旧列にだけ載る写真がありうる。掃除漏れ(R2に孤児が残り続ける)より
+ * 余分に消そうとするほうが害が小さく、存在しないキーの delete はR2側が無視する。
+ * 削除経路(deleteDrunkWine / deleteDrunkWines / undoImportBatch)はすべてここを通す。
+ */
+export function photoCleanupKeys(
+	childKeys: string[],
+	legacyKeys: string[],
+): string[] {
+	const keys = [...new Set([...childKeys, ...legacyKeys])];
+	return keys.length > 0 ? [...keys, ...keys.map(thumbKeyForPhotoKey)] : [];
+}
+
 export async function cleanupPhotoObjects(
 	keys: string[],
 	fields: LogFields & { userId: string; entryId: string; phase: string },
@@ -1298,19 +1507,31 @@ export async function deleteDrunkWine(
 	userId: string,
 	id: string,
 ): Promise<void> {
-	const [row] = await db
-		.delete(drunkWine)
-		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
-		.returning({ photoKeys: drunkWine.photoKeys });
+	// 子テーブル行は消える前にキーを拾う(R2実体の掃除用)。旧列との和集合で
+	// 掃除する理由は photoCleanupKeys を参照。
+	const childKeys = (await listEntryPhotos(userId, id)).map(
+		(photo) => photo.key,
+	);
+	// 子テーブル行は ON DELETE CASCADE でも消えるが、明示削除も行う——掃除の対象を
+	// 確定させる読み取りと対にし、FK 強制の有無に依らず行を残さない。
+	const results = await db.batch([
+		db
+			.delete(winePhoto)
+			.where(and(eq(winePhoto.drunkWineId, id), eq(winePhoto.userId, userId))),
+		db
+			.delete(drunkWine)
+			.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)))
+			.returning({ photoKeys: drunkWine.photoKeys }),
+	]);
+	const [row] = results[1] as { photoKeys: string[] }[];
 	if (!row) throw new NotFoundError("Entry not found");
 	// R2は複数キー一括削除に対応(存在しないキーは無視される)。サムネイル(#237)も一緒に消す。
 	// D1の行は既に消えているので、掃除の失敗で「削除できなかった」と返さない(#249)。
-	await cleanupPhotoObjects(
-		row.photoKeys.length > 0
-			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
-			: [],
-		{ userId, entryId: id, phase: "entry-deleted" },
-	);
+	await cleanupPhotoObjects(photoCleanupKeys(childKeys, row.photoKeys), {
+		userId,
+		entryId: id,
+		phase: "entry-deleted",
+	});
 }
 
 /**
@@ -1338,28 +1559,40 @@ export async function deleteDrunkWines(
 	// 実害は無い。とはいえ上限判定と分割数が無駄に増えるので先に畳んでおく。
 	const uniqueIds = [...new Set(ids)];
 	if (uniqueIds.length === 0) return { deletedCount: 0 };
+	// deleteDrunkWine と同じく、cascade で消える前に子テーブルのキーを拾う。
+	const photoMap = await listEntryPhotosBulk(userId, uniqueIds);
 	const statements: BatchStatement[] = [];
 	for (let i = 0; i < uniqueIds.length; i += ID_CHUNK_SIZE) {
+		const chunk = uniqueIds.slice(i, i + ID_CHUNK_SIZE);
+		// 子テーブル行の明示削除(deleteDrunkWine と同じ理由)。親より前に積む。
+		statements.push(
+			db
+				.delete(winePhoto)
+				.where(
+					and(
+						inArray(winePhoto.drunkWineId, chunk),
+						eq(winePhoto.userId, userId),
+					),
+				),
+		);
 		statements.push(
 			db
 				.delete(drunkWine)
-				.where(
-					and(
-						inArray(drunkWine.id, uniqueIds.slice(i, i + ID_CHUNK_SIZE)),
-						eq(drunkWine.userId, userId),
-					),
-				)
+				.where(and(inArray(drunkWine.id, chunk), eq(drunkWine.userId, userId)))
 				.returning({ photoKeys: drunkWine.photoKeys }),
 		);
 	}
-	const rows = (
-		await db.batch(statements as [BatchStatement, ...BatchStatement[]])
-	).flat() as { photoKeys: string[] }[];
-	const keys = rows.flatMap((row) =>
-		row.photoKeys.length > 0
-			? [...row.photoKeys, ...row.photoKeys.map(thumbKeyForPhotoKey)]
-			: [],
+	const results = await db.batch(
+		statements as [BatchStatement, ...BatchStatement[]],
 	);
+	// 文は[子削除, 親削除(RETURNING)]の対で積んだので、奇数番目の結果だけが
+	// 実際に消えた行(旧列の R2 掃除用・deletedCount 用)。
+	const rows = results.filter((_, index) => index % 2 === 1).flat() as {
+		photoKeys: string[];
+	}[];
+	const childKeys = [...photoMap.values()].flat().map((photo) => photo.key);
+	const legacyKeys = rows.flatMap((row) => row.photoKeys);
+	const keys = photoCleanupKeys(childKeys, legacyKeys);
 	await cleanupPhotoObjects(keys, {
 		userId,
 		entryId: ids.join(","),
@@ -1499,7 +1732,11 @@ export async function listDrunkWines(
 
 	// +1件多く読んで「次があるか」を判定する(別途 COUNT を撃たない)
 	const rows = await (limit == null ? query : query.limit(limit + 1));
-	const entries = rows.map(toEntry);
+	const photoMap = await listEntryPhotosBulk(
+		userId,
+		rows.map((row) => row.id),
+	);
+	const entries = rows.map((row) => toEntry(row, photoMap.get(row.id) ?? []));
 	if (limit == null || entries.length <= limit) {
 		return { entries, nextCursor: null };
 	}
@@ -1539,7 +1776,11 @@ export async function listDrunkWinesByAop(
 			),
 		)
 		.orderBy(desc(drunkWine.createdAt), desc(drunkWine.id));
-	return rows.map(toEntry);
+	const photoMap = await listEntryPhotosBulk(
+		userId,
+		rows.map((row) => row.id),
+	);
+	return rows.map((row) => toEntry(row, photoMap.get(row.id) ?? []));
 }
 
 /**
@@ -1609,7 +1850,9 @@ export async function getCellarSummary(userId: string): Promise<{
 	return {
 		tastedCount: countRow?.tasted ?? 0,
 		totalCount: countRow?.total ?? 0,
-		latest: latestRow ? toEntry(latestRow) : null,
+		latest: latestRow
+			? toEntry(latestRow, await listEntryPhotos(userId, latestRow.id))
+			: null,
 	};
 }
 
@@ -1619,7 +1862,7 @@ export async function getDrunkWine(
 ): Promise<DrunkWineEntry> {
 	const [row] = await selectEntry(userId, id);
 	if (!row) throw new NotFoundError("Entry not found");
-	return toEntry(row);
+	return toEntry(row, await listEntryPhotos(userId, id));
 }
 
 /** syncDrunkWinePhotos に渡す最終並び順の1要素。既存キーの保持か、新規バイト列の追加。 */
@@ -1637,29 +1880,19 @@ export type PhotoLayoutItem =
 			thumbBytes?: Uint8Array | ArrayBuffer;
 	  };
 
-// ---- 写真集合の並行更新対策 (Issue #637) ------------------------------------
-// `photo_keys` / `photo_kinds` は並列 JSON 配列で、更新が read-modify-write のため
-// フォーム保存(sync)と解析ジョブの引き継ぎ(append)が並行すると後勝ちになり、
-// 片方が足した写真キーが集合から消える。ジョブ側は引き継ぎ時に所有を手放すので、
-// 消えたキーはどこからも参照されない R2 オブジェクトになる。
-//
-// つなぎとして写真更新2関数に楽観ロックを入れる: 読んだ `updated_at` と
-// `photo_keys` を WHERE に含め、0行なら読み直して再試行する。`updated_at`
-// だけだと同一ms内の連続更新で値が変わらず衝突を見逃すため、`photo_keys` の
-// 一致も併せて見る(写真に触らない更新での空振り再試行は1回で収束する)。
-// sync の再試行では layout 外で増えたキー(並行する引き継ぎの追加)を末尾に残し、
-// 並行して消された layout キーは蘇らせない(R2実体は既に消えている)。
-//
-// #406 の import-batch 分離後・#645 の子テーブル化前のつなぎ。子テーブル化で
-// 追加・削除が行単位になればこのロックは不要になる。
-
-/** 写真集合の楽観ロックが競合したときの再試行上限。 */
-const PHOTO_WRITE_MAX_RETRIES = 5;
+// ---- 写真集合の行単位更新 (Issue #645) ---------------------------------------
+// 写真は `winePhoto` 子テーブルの行で持ち、追加・削除は1行の INSERT / DELETE にする。
+// #637 のつなぎの楽観ロック(配列丸ごとの compare-and-swap)は外した:
+// 並行する引き継ぎ(append)が足した行を sync が消すことは、DELETE を「起点にあった
+// 行ID指定」にすることで起きない。append 同士も別行の INSERT なので失わない。
+// sync は書き込み直前に子テーブルを読み直し、起点以降に増えた行を末尾に残す
+// (UI の layout 外の追加を消さないため)。旧列への二重化だけが丸ごと書戻しだが、
+// 正本は子テーブルなので競合しても表示は壊れない。
 
 /**
  * エントリの写真集合を layout(最終並び順)へ全置換で同期する。追加・削除・並べ替え・
- * 差し替えを1回で反映する。新規はR2へ保存し、旧配列にあって残らないキーは削除して
- * 残骸を残さない。layout の existing キーは対象エントリの現在の集合に属するもののみ
+ * 差し替えを1回で反映する。新規はR2へ保存し、起点にあって残らない行は削除して
+ * 残骸を残さない。layout の existing キーは子テーブルの現在の集合に属するもののみ
  * 許可する(他エントリ/任意キーの注入を防ぐ)。Webルート・MCPツール共用。
  */
 export async function syncDrunkWinePhotos(
@@ -1670,26 +1903,32 @@ export async function syncDrunkWinePhotos(
 	if (layout.length > MAX_PHOTOS_PER_ENTRY) {
 		throw new BadRequestError(`写真は最大${MAX_PHOTOS_PER_ENTRY}枚までです`);
 	}
-	const [existing] = await db
+	const [parent] = await db
 		.select({
 			photoKeys: drunkWine.photoKeys,
 			photoKinds: drunkWine.photoKinds,
-			updatedAt: drunkWine.updatedAt,
 		})
 		.from(drunkWine)
 		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
-	if (!existing) throw new NotFoundError("Entry not found");
-
-	const baseKeys = existing.photoKeys;
-	const baseSet = new Set(baseKeys);
-	// 既存キーの由来は正規化して写す(長さ不一致・未知値は bottle に倒れる)。
-	// 新規追加は利用者自身の撮影 = bottle。
-	const baseKinds = resolveStoredPhotoKinds(baseKeys, existing.photoKinds);
+	if (!parent) throw new NotFoundError("Entry not found");
+	// 旧列だけのキーがあれば子テーブルへ寄せてから、以降低列を見ない。
+	const base = await repairLegacyPhotos(
+		userId,
+		id,
+		parent.photoKeys,
+		resolveStoredPhotoKinds(parent.photoKeys, parent.photoKinds),
+	);
+	const baseByKey = new Map(base.map((row) => [row.r2Key, row]));
 	for (const item of layout) {
-		if (item.kind === "existing" && !baseSet.has(item.key)) {
+		if (item.kind === "existing" && !baseByKey.has(item.key)) {
 			throw new BadRequestError("Unknown photo");
 		}
 	}
+	// 既存キーの由来は子テーブルから写す(未知値は bottle に倒れる)。
+	// 新規追加は利用者自身の撮影 = bottle。
+	const kindByKey = new Map(
+		base.map((row) => [row.r2Key, normalizeWinePhotoKind(row.kind)]),
+	);
 	// layout 順のスロット(既存キー or 今回putした新規キー)は後段で組み立てる。
 
 	// 新規をR2へ保存しつつ、layout 順のスロット(既存キー or 今回putした新規キー)を
@@ -1752,107 +1991,133 @@ export async function syncDrunkWinePhotos(
 		throw e;
 	}
 
-	// 楽観ロックの compare-and-swap(#637)。読んだ版と一致するときだけ書き込み、
-	// 並行更新に負けたら読み直して layout 外で増えたキー(並行する引き継ぎの追加)を
-	// 末尾に残して書き直す。初回は layout そのまま(従来どおり)なので、競合が無い
-	// 限り挙動は変わらない。
-	let writeBaseKeys = baseKeys;
-	let writeBaseKinds = baseKinds;
-	let writeBaseUpdatedAt = existing.updatedAt;
-	for (let attempt = 0; ; attempt++) {
-		const writeBaseSet = new Set(writeBaseKeys);
-		const writeKindByKey = new Map(
-			writeBaseKeys.map((key, i) => [key, writeBaseKinds[i] as PhotoKind]),
-		);
-		// 並行して消された layout キーは蘇らせない(R2実体は既に消えている)。
-		const keptSlots = layoutSlots.filter(
-			(key) => newSlotKeys.has(key) || writeBaseSet.has(key),
-		);
-		// layout の起点以降に増えたキー = 並行する引き継ぎの追加。末尾に残す。
-		const keptSet = new Set(keptSlots);
-		const mergedExtras = writeBaseKeys.filter(
-			(key) => !baseSet.has(key) && !keptSet.has(key),
-		);
-		const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - keptSlots.length);
-		if (mergedExtras.length > room) {
-			logWarn("drunk wine photo sync dropped concurrent additions", {
-				userId,
-				entryId: id,
-				droppedCount: mergedExtras.length - room,
-			});
-		}
-		const nextKeys = [...keptSlots, ...mergedExtras.slice(0, room)];
-		const nextKinds = nextKeys.map(
-			(key) => writeKindByKey.get(key) ?? "bottle",
-		);
-
-		const [row] = await db
-			.update(drunkWine)
-			.set({ photoKeys: nextKeys, photoKinds: nextKinds })
-			.where(
-				and(
-					eq(drunkWine.id, id),
-					eq(drunkWine.userId, userId),
-					eq(drunkWine.updatedAt, writeBaseUpdatedAt),
-					eq(drunkWine.photoKeys, writeBaseKeys),
-				),
-			)
-			.returning({ id: drunkWine.id });
-		if (row) {
-			// 旧配列にあって新配列に残らないキーを削除(削除・差し替え・並べ替えを一括反映)。
-			// サムネイルは原寸に追随させる(消し忘れるとR2に孤児が残り続ける)。
-			const nextSet = new Set(nextKeys);
-			const removed = writeBaseKeys.filter((key) => !nextSet.has(key));
-			await cleanupPhotoObjects(
-				removed.length > 0
-					? [...removed, ...removed.map(thumbKeyForPhotoKey)]
-					: [],
-				{ userId, entryId: id, phase: "orphan-sweep" },
-			);
-
-			// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
-			// 返却用に読み直す(R2 の後始末が済んでから)。
-			return getDrunkWine(userId, id);
-		}
-		// 0行 = 並行更新に負けたか、エントリが消えた。読み直して区別する。
-		const [fresh] = await db
-			.select({
-				photoKeys: drunkWine.photoKeys,
-				photoKinds: drunkWine.photoKinds,
-				updatedAt: drunkWine.updatedAt,
-			})
-			.from(drunkWine)
-			.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
-		// 存在確認とここまでの間にエントリが削除された場合、put分を掃除する
-		if (!fresh) {
-			await cleanupPhotoObjects(putKeys, {
-				userId,
-				entryId: id,
-				phase: "entry-deleted",
-			});
-			throw new NotFoundError("Entry not found");
-		}
-		if (attempt >= PHOTO_WRITE_MAX_RETRIES) {
-			// put分はどこからも参照されないので掃除し、競合として返す(黙って
-			// 上書きすると相手の追加を消す元の不具合に戻る)。
-			await cleanupPhotoObjects(putKeys, {
-				userId,
-				entryId: id,
-				phase: "conflict",
-			});
-			throw new ConflictError(
-				"写真の更新が競合しました。もう一度お試しください",
-			);
-		}
-		logInfo("drunk wine photo sync conflict; retrying", {
+	// R2へのputを挟んだ間に並行する引き継ぎ(append)が足した行を拾うため、
+	// 書き込む直前に子テーブルを読み直す。起点の読み直しと違い、ここは
+	// 「layout 外で増えた行」の検出が目的。
+	const fresh = await db
+		.select({
+			id: winePhoto.id,
+			r2Key: winePhoto.r2Key,
+			kind: winePhoto.kind,
+			position: winePhoto.position,
+		})
+		.from(winePhoto)
+		.where(and(eq(winePhoto.drunkWineId, id), eq(winePhoto.userId, userId)))
+		.orderBy(asc(winePhoto.position));
+	const freshSet = new Set(fresh.map((row) => row.r2Key));
+	const freshKindByKey = new Map(
+		fresh.map((row) => [row.r2Key, normalizeWinePhotoKind(row.kind)]),
+	);
+	// 並行して消された layout キーは蘇らせない(R2実体は既に消えている)。
+	const keptSlots = layoutSlots.filter(
+		(key) => newSlotKeys.has(key) || freshSet.has(key),
+	);
+	// layout の起点以降に増えたキー = 並行する引き継ぎの追加。末尾に残す。
+	const baseKeySet = new Set(base.map((row) => row.r2Key));
+	const keptSet = new Set(keptSlots);
+	const mergedExtras = fresh
+		.map((row) => row.r2Key)
+		.filter((key) => !baseKeySet.has(key) && !keptSet.has(key));
+	const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - keptSlots.length);
+	if (mergedExtras.length > room) {
+		logWarn("drunk wine photo sync dropped concurrent additions", {
 			userId,
 			entryId: id,
-			attempt: attempt + 1,
+			droppedCount: mergedExtras.length - room,
 		});
-		writeBaseKeys = fresh.photoKeys;
-		writeBaseKinds = resolveStoredPhotoKinds(fresh.photoKeys, fresh.photoKinds);
-		writeBaseUpdatedAt = fresh.updatedAt;
 	}
+	const nextKeys = [...keptSlots, ...mergedExtras.slice(0, room)];
+	for (const key of nextKeys) {
+		if (!kindByKey.has(key)) {
+			kindByKey.set(key, freshKindByKey.get(key) ?? "bottle");
+		}
+	}
+	const nextKinds = nextKeys.map((key) => kindByKey.get(key) ?? "bottle");
+
+	const freshIdByKey = new Map(fresh.map((row) => [row.r2Key, row.id]));
+	const freshPositionById = new Map(fresh.map((row) => [row.id, row.position]));
+	const nextSet = new Set(nextKeys);
+	const statements: BatchStatement[] = [];
+	// 起点にあって最終集合に残らない行だけを消す(削除・差し替えの反映)。
+	// 行ID指定なので、並行する引き継ぎが足した行には触れない。
+	const removedBase = base.filter((row) => !nextSet.has(row.r2Key));
+	for (let i = 0; i < removedBase.length; i += ID_CHUNK_SIZE) {
+		const chunk = removedBase.slice(i, i + ID_CHUNK_SIZE);
+		statements.push(
+			db.delete(winePhoto).where(
+				and(
+					eq(winePhoto.drunkWineId, id),
+					eq(winePhoto.userId, userId),
+					inArray(
+						winePhoto.id,
+						chunk.map((row) => row.id),
+					),
+				),
+			),
+		);
+	}
+	// 最終集合の順序を position へ書き戻す。新規putは INSERT、既存は変わった行だけ UPDATE。
+	for (const [index, key] of nextKeys.entries()) {
+		const existingId = freshIdByKey.get(key);
+		if (existingId) {
+			if (freshPositionById.get(existingId) !== index) {
+				statements.push(
+					db
+						.update(winePhoto)
+						.set({ position: index })
+						.where(
+							and(eq(winePhoto.id, existingId), eq(winePhoto.userId, userId)),
+						),
+				);
+			}
+			continue;
+		}
+		statements.push(
+			db.insert(winePhoto).values({
+				id: crypto.randomUUID(),
+				drunkWineId: id,
+				userId,
+				r2Key: key,
+				kind: kindByKey.get(key) ?? "bottle",
+				position: index,
+			}),
+		);
+	}
+	// 旧列への二重化(次PRでDROPするまでのつなぎ。正本は子テーブル)。
+	statements.push(
+		db
+			.update(drunkWine)
+			.set({ photoKeys: nextKeys, photoKinds: nextKinds })
+			.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId))),
+	);
+	try {
+		await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
+	} catch (e) {
+		// D1が書けなかった = 子テーブル・旧列のどちらも変わっていない。今回putした
+		// R2オブジェクトは誰からも参照されないので掃除し、元例外を通す。
+		// 存在確認とここまでの間にエントリが消えた場合は NotFound に倒す。
+		await cleanupPhotoObjects(putKeys, {
+			userId,
+			entryId: id,
+			phase: "sync-rollback",
+			originalErr: e,
+		});
+		await assertOwnsDrunkWine(userId, id);
+		throw e;
+	}
+	// 起点にあって最終集合に残らないキーのR2実体を掃除する(削除・差し替えを一括反映)。
+	// サムネイルは原寸に追随させる(消し忘れるとR2に孤児が残り続ける)。
+	const removedKeys = removedBase.map((row) => row.r2Key);
+	await cleanupPhotoObjects(
+		removedKeys.length > 0
+			? [...removedKeys, ...removedKeys.map(thumbKeyForPhotoKey)]
+			: [],
+		{ userId, entryId: id, phase: "orphan-sweep" },
+	);
+
+	// 写真の更新は飲用記録を変えないが、最新1件の評価・メモは列に持たないので
+	// 返却用に読み直す(R2 の後始末が済んでから)。
+	return getDrunkWine(userId, id);
 }
 
 /**
@@ -1880,72 +2145,64 @@ export async function appendDrunkWinePhotoKeys(
 	id: string,
 	keys: string[],
 ): Promise<{ entry: DrunkWineEntry; adopted: string[]; dropped: string[] }> {
-	// 楽観ロックの compare-and-swap(#637)。読んだ版と一致するときだけ足し、
-	// 0行なら並行更新に負けたので読み直して再試行する(丸ごと書戻しで相手の
-	// 追加を消さない)。上限・重複の判定は読み直した最新で毎回やり直す。
-	for (let attempt = 0; ; attempt++) {
-		const [existing] = await db
-			.select({
-				photoKeys: drunkWine.photoKeys,
-				photoKinds: drunkWine.photoKinds,
-				updatedAt: drunkWine.updatedAt,
-			})
-			.from(drunkWine)
-			.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
-		if (!existing) throw new NotFoundError("Entry not found");
+	const [parent] = await db
+		.select({
+			photoKeys: drunkWine.photoKeys,
+			photoKinds: drunkWine.photoKinds,
+		})
+		.from(drunkWine)
+		.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
+	if (!parent) throw new NotFoundError("Entry not found");
+	// 旧列だけのキーがあれば子テーブルへ寄せてから、以降旧列を見ない。
+	const current = await repairLegacyPhotos(
+		userId,
+		id,
+		parent.photoKeys,
+		resolveStoredPhotoKinds(parent.photoKeys, parent.photoKinds),
+	);
 
-		// 既に持っているキーは足さない(二重に開いた・再送された回で重複させない)。
-		const current = existing.photoKeys;
-		const currentSet = new Set(current);
-		const currentKinds = resolveStoredPhotoKinds(current, existing.photoKinds);
-		const incoming = keys.filter((key) => !currentSet.has(key));
-		const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - current.length);
-		const adopted = incoming.slice(0, room);
-		const dropped = incoming.slice(room);
+	// 既に持っているキーは足さない(二重に開いた・再送された回で重複させない)。
+	// unique 制約(`wine_photo_entry_r2_key_uq`)が最後の関門なので、読み直しと
+	// 書き込みの間に並行 append が割り込んでも行は増えない(INSERT OR IGNORE)。
+	const currentKeys = current.map((row) => row.r2Key);
+	const currentSet = new Set(currentKeys);
+	const currentKinds = current.map((row) => normalizeWinePhotoKind(row.kind));
+	const incoming = keys.filter((key) => !currentSet.has(key));
+	const room = Math.max(0, MAX_PHOTOS_PER_ENTRY - current.length);
+	const adopted = incoming.slice(0, room);
+	const dropped = incoming.slice(room);
 
-		if (adopted.length === 0) {
-			return { entry: await getDrunkWine(userId, id), adopted, dropped };
-		}
-		// 解析ジョブの引き継ぎは利用者自身が撮った写真 = bottle。
-		const [row] = await db
-			.update(drunkWine)
-			.set({
-				photoKeys: [...current, ...adopted],
-				photoKinds: [
-					...currentKinds,
-					...adopted.map(() => "bottle" as PhotoKind),
-				],
-			})
-			.where(
-				and(
-					eq(drunkWine.id, id),
-					eq(drunkWine.userId, userId),
-					eq(drunkWine.updatedAt, existing.updatedAt),
-					eq(drunkWine.photoKeys, current),
+	if (adopted.length === 0) {
+		return { entry: await getDrunkWine(userId, id), adopted, dropped };
+	}
+	// 解析ジョブの引き継ぎは利用者自身が撮った写真 = bottle。
+	// 旧列への二重化も子テーブル由来の集合そのまま(repair 済みなので旧列だけの
+	// キーは残っていない)。
+	const nextKeys = [...currentKeys, ...adopted];
+	const nextKinds: PhotoKind[] = [
+		...currentKinds,
+		...adopted.map(() => "bottle" as PhotoKind),
+	];
+	await db.batch([
+		db
+			.insert(winePhoto)
+			.values(
+				buildWinePhotoValues(
+					userId,
+					id,
+					adopted.map((key) => ({ key, kind: "bottle" as PhotoKind })),
+					current.length,
 				),
 			)
-			.returning({ id: drunkWine.id });
-		if (row) {
-			return { entry: await getDrunkWine(userId, id), adopted, dropped };
-		}
-		if (attempt >= PHOTO_WRITE_MAX_RETRIES) {
-			// 読み直しで消えていたら NotFound、残っていれば競合のまま返す(黙って
-			// 上書きすると相手の追加を消す元の不具合に戻る)。
-			const [gone] = await db
-				.select({ id: drunkWine.id })
-				.from(drunkWine)
-				.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId)));
-			if (!gone) throw new NotFoundError("Entry not found");
-			throw new ConflictError(
-				"写真の更新が競合しました。もう一度お試しください",
-			);
-		}
-		logInfo("drunk wine photo append conflict; retrying", {
-			userId,
-			entryId: id,
-			attempt: attempt + 1,
-		});
-	}
+			.onConflictDoNothing({
+				target: [winePhoto.drunkWineId, winePhoto.r2Key],
+			}),
+		db
+			.update(drunkWine)
+			.set({ photoKeys: nextKeys, photoKinds: nextKinds })
+			.where(and(eq(drunkWine.id, id), eq(drunkWine.userId, userId))),
+	]);
+	return { entry: await getDrunkWine(userId, id), adopted, dropped };
 }
 
 /**
