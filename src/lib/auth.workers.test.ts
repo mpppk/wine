@@ -114,8 +114,9 @@ describe("auth rate limiting keys by client IP (#197)", () => {
 //
 // 注意: authorize のリダイレクト(ctx.redirect の FOUND)や token の 400 は、
 // Response としては正しく返るが、better-auth が同じ APIError を unhandled rejection
-// としても吐く(上記の #31 コメントと同型)。テスト自体は status/location で判定し、
-// ノイズは許容する。
+// としても吐く(上記の #31 コメントと同型)。期待どおりの制御フロー分は
+// vitest.config.ts の onUnhandledError で握り(MCP プラグイン由来に限定)、
+// アサーション自体は status/location/body で判定するため検証は弱めない。
 
 // RFC 7636 Appendix B の既知ペア(verifier→challenge の対応が正しいことが保証される)。
 const MCP_PKCE_VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
@@ -151,7 +152,13 @@ function authorizeRequest(
 	clientId: string,
 	cookie: string,
 	clientIp: string,
-	args: { withPromptConsent?: boolean; withPkce?: boolean } = {},
+	args: {
+		withPromptConsent?: boolean;
+		withPkce?: boolean;
+		// 平文 challenge の拒否テスト用。既定は RFC 7636 の S256 ペア。
+		challenge?: string;
+		challengeMethod?: string;
+	} = {},
 ): Promise<Response> {
 	const params = new URLSearchParams({
 		client_id: clientId,
@@ -163,8 +170,8 @@ function authorizeRequest(
 	if (args.withPromptConsent) params.set("prompt", "consent");
 	// prompt 無しが既定。サーバ側の強制が無ければ、そのままコードが直接返る。
 	if (args.withPkce !== false) {
-		params.set("code_challenge", MCP_PKCE_CHALLENGE);
-		params.set("code_challenge_method", "S256");
+		params.set("code_challenge", args.challenge ?? MCP_PKCE_CHALLENGE);
+		params.set("code_challenge_method", args.challengeMethod ?? "S256");
 	}
 	return auth.handler(
 		new Request(`${BASE_URL}/api/auth/mcp/authorize?${params}`, {
@@ -330,6 +337,36 @@ describe("MCP OAuth の同意と PKCE はサーバ側で強制される (#633)",
 
 		const res = await tokenRequest({ code, clientId, clientIp: ip });
 		expect(res.status).toBe(400);
+		// body も消費して内容まで確かめる(verifier 無しが理由であること)。
+		const body = (await res.json()) as {
+			error?: string;
+			error_description?: string;
+		};
+		expect(body.error).toBe("invalid_request");
+		expect(body.error_description ?? "").toContain("code verifier");
+	});
+
+	it("平文 challenge(S256以外)は拒否される(allowPlain=false の回帰防止)", async () => {
+		const ip = "203.0.113.106";
+		const { cookie } = await signUpTestUser({
+			name: "mcp plain",
+			email: "mcp-plain-633@example.com",
+			password: "test-password-256",
+			clientIp: ip,
+		});
+		const clientId = await registerThirdPartyClient(ip);
+
+		// plain では challenge が verifier そのもの。S256 換算値は送らない。
+		const res = await authorizeRequest(clientId, cookie, ip, {
+			challenge: MCP_PKCE_VERIFIER,
+			challengeMethod: "plain",
+		});
+		expect(res.status).toBe(302);
+		const location = res.headers.get("location") ?? "";
+		// 既定でも plain は不許可だが、auth.ts で明示した設定の回帰防止として固定する。
+		expect(location.startsWith(MCP_TEST_REDIRECT_URI)).toBe(true);
+		expect(location).toContain("error=invalid_request");
+		expect(location).toContain("invalid code_challenge method");
 	});
 
 	it("PKCEありの正規のコード交換は通る(既存クライアントの回帰防止)", async () => {
