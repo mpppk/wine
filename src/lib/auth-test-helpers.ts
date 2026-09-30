@@ -3,7 +3,7 @@ import { expect } from "vitest";
 import { auth } from "#/lib/auth";
 
 /** workers テストで auth.handler を叩くときの起点。BETTER_AUTH_URL と合わせる。 */
-export const AUTH_TEST_BASE_URL = "http://localhost:3000";
+const AUTH_TEST_BASE_URL = "http://localhost:3000";
 
 /** auth エンドポイントへ JSON を POST する(サインアップ画面・プロフィール画面と同じ経路) */
 function postAuth(
