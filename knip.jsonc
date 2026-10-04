@@ -11,7 +11,16 @@
 	// 誤検知の除外:
 	//  - public/sw.js … push/client.ts が文字列定数("/sw.js")で参照するため knip に見えない
 	//  - scripts/geo-bands.d.mts … geo-bands.mjs の型宣言。JS からの型解決で使われる
-	"ignore": ["public/sw.js", "scripts/geo-bands.d.mts"],
+	//  - project.inlang/paraglide.config.js … paraglide CLI / vite プラグインが
+	//    プロジェクトディレクトリから読む設定で、import されないため knip に見えない
+	//  - src/paraglide/** … Paraglide の生成物(i18n Phase 1 #536)。routeTree.gen.ts /
+	//    worker-configuration.d.ts と同じく追跡外の生成物のため除外する
+	"ignore": [
+		"public/sw.js",
+		"scripts/geo-bands.d.mts",
+		"project.inlang/paraglide.config.js",
+		"src/paraglide/**",
+	],
 	// cloudflare:workers は Cloudflare ランタイムの仮想モジュール
 	"ignoreDependencies": ["cloudflare"],
 	// op は 1Password CLI(外部ツール)。`dev:vars` スクリプトで使うが npm パッケージ

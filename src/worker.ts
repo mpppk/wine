@@ -9,6 +9,7 @@ import { logError, logInfo } from "#/lib/logger";
 import { resolveServerEnvironment } from "#/lib/observability/sentry-envelope";
 import { withSpan } from "#/lib/observability/span";
 import { runLabelAnalysisJob } from "#/lib/services/label-job-service";
+import { paraglideMiddleware } from "#/paraglide/server.js";
 
 // Worker のエントリ(Issue #460)。
 //
@@ -38,10 +39,17 @@ const startFetch = createStartHandler(defaultStreamHandler);
 // メモリを圧迫できた。`enforceBodyLimit` が Content-Length の早期拒否 +
 // ストリームの打ち切りを行い、超過ならボディを読まずに 413 を返す。
 // フォーム系ルートは独自の上限(`readImageFormData`)を持つため対象外。
+// ロケール文脈は fetch 全体を paraglideMiddleware で1回だけ包んで共有する
+// (i18n Phase 1 #536)。SSR・server function・API が同じ AsyncLocalStorage の
+// 文脈を見るため、ここ以外で包まない。server function もこの経路を通るので、
+// Phase 4 でサーバ側が組むクイズ設問も同じロケールで解決される。
+// nodejs_compat(wrangler.jsonc)により AsyncLocalStorage が使える。
+// URL strategy は使わないため、元の request をそのまま渡す(TanStack 側の
+// rewrite と競合する delocalize は発生しない)。
 const fetch: ExportedHandlerFetchHandler<Cloudflare.Env> = async (request) => {
 	const limited = await enforceBodyLimit(request);
 	if (limited instanceof Response) return limited;
-	return startFetch(limited);
+	return paraglideMiddleware(request, () => startFetch(limited));
 };
 
 // サーバ側の予期しない例外を Sentry に自動送信する(Issue #486)。

@@ -16,6 +16,7 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { authClient } from "#/lib/auth-client";
+import { getLocale } from "#/paraglide/runtime.js";
 import { getRouteSession } from "#/server/auth";
 
 export const Route = createFileRoute("/signup")({
@@ -40,7 +41,14 @@ function SignUpPage() {
 		e.preventDefault();
 		setError("");
 		setIsPending(true);
-		const result = await authClient.signUp.email({ name, email, password });
+		// 新規登録時点の表示言語を保存する(i18n Phase 1 #536)。
+		// Cookie は既にその言語なので書き戻しは要らない。
+		const result = await authClient.signUp.email({
+			name,
+			email,
+			password,
+			locale: getLocale(),
+		});
 		setIsPending(false);
 		if (result.error) {
 			setError(result.error.message ?? "Sign up failed");

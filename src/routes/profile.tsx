@@ -55,9 +55,12 @@ import {
 	PHOTO_FORMATS_LABEL_JA,
 } from "#/lib/drunk-wine/photo";
 import { postImageForm } from "#/lib/images/form-client";
+import { LOCALES, type LocaleKey, toLocaleKey } from "#/lib/locale";
 import { requireAuthBeforeLoad } from "#/lib/route-guard";
+import { getLocale } from "#/paraglide/runtime.js";
 import { getLabelAnalysisPlan } from "#/server/ai";
 import { redeemExtensionCode } from "#/server/billing";
+import { setLocaleCookie } from "#/server/locale";
 
 interface ProfileSearch {
 	/** Stripe Checkout 成功時の戻りで付与される */
@@ -240,6 +243,7 @@ function ProfilePage() {
 			</Card>
 
 			<AiModelCard />
+			<LocaleCard />
 			<LabelEngineCard />
 			<ReasoningEffortCard />
 			<PushNotificationCard />
@@ -323,6 +327,96 @@ function AiModelCard() {
 					className="self-start"
 				>
 					{isPending ? "保存中..." : "モデルを保存"}
+				</Button>
+			</CardContent>
+		</Card>
+	);
+}
+
+/**
+ * 表示言語の選択。ユーザ設定として user.locale に保存し、別ブラウザでの
+ * ログイン時も引き継がれる(i18n Phase 1 #536)。
+ *
+ * 保存は `authClient.updateUser`(preferredAiModel と同じ経路)、Cookie の
+ * 書き戻しは server function が行い、最後に `setLocale()` でリロードする。
+ */
+function LocaleCard() {
+	const { data: session, refetch: refetchSession } = authClient.useSession();
+	const [locale, setLocaleState] = useState<LocaleKey>(() => getLocale());
+	const [error, setError] = useState("");
+	const [successMessage, setSuccessMessage] = useState("");
+
+	useEffect(() => {
+		const pref = toLocaleKey(
+			(session?.user as { locale?: unknown } | undefined)?.locale,
+		);
+		if (pref) setLocaleState(pref);
+	}, [session?.user]);
+
+	const { mutate: saveLocale, isPending } = useMutation({
+		mutationFn: async () => {
+			const result = await authClient.updateUser({ locale });
+			if (result.error)
+				throw new Error(result.error.message ?? "Update failed");
+			await setLocaleCookie({ data: { locale } });
+		},
+		onSuccess: async () => {
+			await refetchSession();
+			setSuccessMessage("言語設定を更新しました。");
+			setError("");
+			// setLocale() ではリロードが省略される(Cookie がサーバ書き戻しで
+			// 既に一致しているため。LocaleSwitcher のコメント参照)ので、
+			// 明示的にフルリロードする。
+			window.location.reload();
+		},
+		onError: (err: Error) => {
+			setError(err.message);
+			setSuccessMessage("");
+		},
+	});
+
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle>言語</CardTitle>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				<p className="text-sm text-muted-foreground">
+					アプリの表示言語を選べます。別のブラウザでログインしたときもこの設定が使われます。
+				</p>
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="locale">言語</Label>
+					<Select
+						value={locale}
+						onValueChange={(v) => setLocaleState(v as LocaleKey)}
+					>
+						<SelectTrigger id="locale" className="max-w-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{LOCALES.map((key) => (
+								<SelectItem key={key} value={key}>
+									{key === "ja" ? "日本語" : "English"}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+
+				{error && <p className="text-sm text-destructive">{error}</p>}
+				{successMessage && (
+					<p className="text-sm text-green-600 dark:text-green-400">
+						{successMessage}
+					</p>
+				)}
+
+				<Button
+					type="button"
+					disabled={isPending}
+					onClick={() => saveLocale()}
+					className="self-start"
+				>
+					{isPending ? "保存中..." : "言語を保存"}
 				</Button>
 			</CardContent>
 		</Card>

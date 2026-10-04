@@ -21,6 +21,8 @@ import {
 	THEME_INIT_SCRIPT,
 	type ThemeMode,
 } from "../lib/theme";
+import { m } from "../paraglide/messages.js";
+import { getLocale } from "../paraglide/runtime.js";
 import appCss from "../styles.css?url";
 
 interface MyRouterContext {
@@ -52,15 +54,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				content: "width=device-width, initial-scale=1, viewport-fit=cover",
 			},
 			{
-				title: "ワインAOP学習アプリ",
+				title: m.app_title(),
 			},
 			{
 				name: "description",
-				content: "ワインのAOP(原産地呼称)を地図で学ぶアプリ",
+				content: m.app_description(),
 			},
 			{
 				name: "application-name",
-				content: "ワインAOP学習アプリ",
+				content: m.app_title(),
 			},
 			{
 				name: "mobile-web-app-capable",
@@ -72,7 +74,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 			{
 				name: "apple-mobile-web-app-title",
-				content: "ワインAOP学習アプリ",
+				content: m.app_title(),
 			},
 		],
 		links: [
@@ -146,9 +148,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 	}, []);
 
 	// UI・meta description とも全編日本語なので lang も ja。en のままだと
-	// スクリーンリーダーが英語TTSで日本語を読もうとして破綻する(#236)
+	// スクリーンリーダーが英語TTSで日本語を読もうとして破綻する(#236)。
+	// i18n Phase 1(#536)で解決値へ連動させる: Cookie が en のリクエストでは
+	// SSR の時点で lang="en" になる(ハイドレーション後ではない)。
+	// manifest.json は静的ファイルのためこのPhaseでは据え置き(日本語のまま):
+	// ロケール別に出すには配信経路(Accept-Language / Cookie による出し分け)の
+	// 検討が要り、PWA のインストール名が変わる影響もある。Phase 5 で判断する。
 	return (
-		<html lang="ja" suppressHydrationWarning>
+		<html lang={getLocale()} suppressHydrationWarning>
 			<head>
 				{/* theme-color / status-bar-style は literal タグで出す(head() meta は
 				    TanStack Router が name で重複排除し2枚目の media 違いを落とす)。

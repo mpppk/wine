@@ -1,4 +1,5 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
@@ -27,6 +28,18 @@ const config = defineConfig({
 	plugins: [
 		devtools(),
 		cloudflare({ viteEnvironment: { name: "ssr" } }),
+		// ロケール解決の骨組み(i18n Phase 1 #536)。cloudflare() の後・
+		// tanstackStart() の前に置くこと: SSR バンドルへ組み込む順序が
+		// 決まっており、逆にすると workerd 上でロケール文脈が解決されない。
+		// strategy は cookie → baseLocale(URL は分けない)。cookie 名と
+		// strategy は project.inlang/paraglide.config.js と同じ値にする
+		// (あちらは CLI コンパイル用、こちらは dev/build 用。両方要る)。
+		paraglideVitePlugin({
+			project: "./project.inlang",
+			outdir: "./src/paraglide",
+			strategy: ["cookie", "baseLocale"],
+			cookieName: "wine_locale",
+		}),
 		tailwindcss(),
 		tanstackStart(),
 		viteReact(),

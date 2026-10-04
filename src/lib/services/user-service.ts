@@ -3,6 +3,7 @@ import { db } from "#/db";
 import * as authSchema from "#/db/auth-schema";
 import { isBanActive } from "#/lib/admin/moderation";
 import { NotFoundError } from "#/lib/errors";
+import { type LocaleKey, toLocaleKey } from "#/lib/locale";
 
 // User account lookups shared by server functions and MCP tools. Like the rest
 // of services/, this takes the acting userId explicitly.
@@ -22,6 +23,25 @@ export async function getCurrentUser(userId: string) {
 		.where(eq(authSchema.user.id, userId));
 	if (!user) throw new NotFoundError("User not found");
 	return user;
+}
+
+/**
+ * ユーザの表示ロケール(i18n Phase 1 #536)。ログイン時にサーバが Cookie
+ * (wine_locale)へ書き戻すための読み取り専用の入口。
+ *
+ * **実行時の解決には使わない**。SSR・server function の解決は Cookie だけを
+ * 見る(paraglide の cookie strategy)。ここを全リクエストで引くと D1 クエリが
+ * 1本増えるため、呼ぶのはログイン時・設定変更時の同期だけにする。
+ *
+ * 保存値が不正・未設定なら null(呼び出し側が既定 ja へ倒す)。
+ */
+export async function getUserLocale(userId: string): Promise<LocaleKey | null> {
+	const [row] = await db
+		.select({ locale: authSchema.user.locale })
+		.from(authSchema.user)
+		.where(eq(authSchema.user.id, userId));
+	if (!row) throw new NotFoundError("User not found");
+	return toLocaleKey(row.locale);
 }
 
 /**
