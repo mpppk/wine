@@ -10,6 +10,7 @@ function postAuth(
 	path: string,
 	body: Record<string, unknown>,
 	cookie?: string,
+	clientIp?: string,
 ): Promise<Response> {
 	return auth.handler(
 		new Request(`${AUTH_TEST_BASE_URL}${path}`, {
@@ -18,6 +19,9 @@ function postAuth(
 				"content-type": "application/json",
 				origin: AUTH_TEST_BASE_URL,
 				...(cookie ? { cookie } : {}),
+				// #197: レートリミットのバケットを IP ごとに分ける(同じIPを使い回すと
+				// 先行テストで消費済みのバケットを引く)。未指定なら従来どおりヘッダ無し。
+				...(clientIp ? { "cf-connecting-ip": clientIp } : {}),
 			},
 			body: JSON.stringify(body),
 		}),
@@ -27,8 +31,9 @@ function postAuth(
 /** sign-up/email を叩く(サインアップ画面の authClient.signUp.email と同じ経路) */
 export function signUpEmailRequest(
 	body: Record<string, unknown>,
+	clientIp?: string,
 ): Promise<Response> {
-	return postAuth("/api/auth/sign-up/email", body);
+	return postAuth("/api/auth/sign-up/email", body, undefined, clientIp);
 }
 
 /** update-user を叩く(プロフィール画面の authClient.updateUser と同じ経路) */
@@ -47,8 +52,10 @@ export async function signUpTestUser(args: {
 	name: string;
 	email: string;
 	password: string;
+	// #197 と同じ理由で、テストごとに別のIPを渡してバケットを分ける。
+	clientIp?: string;
 }): Promise<{ cookie: string; userId: string }> {
-	const res = await signUpEmailRequest(args);
+	const res = await signUpEmailRequest(args, args.clientIp);
 	expect(res.status).toBe(200);
 	const cookie = res.headers
 		.getSetCookie()

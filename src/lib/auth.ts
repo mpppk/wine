@@ -129,6 +129,28 @@ export const auth = betterAuth({
 	// 退会させることまでできてしまう。
 	hooks: {
 		before: createAuthMiddleware(async (ctx) => {
+			// #633: MCP の authorize は常に同意画面を経由させる。クライアントの
+			// prompt 申告に依存せずサーバ側で consent を強制する。未ログイン時は
+			// oidc_login_prompt Cookie にこの query がそのまま保存され、ログイン後の
+			// 再開も同じ query で動くため、authorize 時点での強制で両方に効く。
+			if (ctx.path === "/mcp/authorize") {
+				const query = ctx.query as Record<string, unknown> | null | undefined;
+				if (query && query.prompt !== "consent") {
+					const forced = { ...query, prompt: "consent" };
+					// before フックの query 書換は return { context: { query } } で
+					// 伝搬させる(dispatch が defu で internalContext へマージする)。
+					// 共有参照への直接代入も併せて行い、参照共有の有無に依存しない。
+					try {
+						(ctx as unknown as { query: unknown }).query = forced;
+					} catch {
+						// read-only の場合は return のマージに任せる。
+					}
+					return { context: { query: forced } };
+				}
+				// 既に consent の場合は何もしない(そのまま同意経路へ)。
+				// なりすまし判定は GET のため対象外なので、ここで抜ける。
+				return;
+			}
 			// 判定は #/lib/admin/impersonation に集約(3系統で条件をドリフトさせない)。
 			// 読み取り・許可パス(なりすまし終了/サインアウト)はセッションを引かずに抜ける。
 			if (!needsImpersonationCheck(ctx.method ?? "GET", ctx.path)) return;
@@ -311,6 +333,11 @@ export const auth = betterAuth({
 				consentPage: "/oauth/consent",
 				// MCP clients register themselves via RFC 7591 dynamic registration.
 				allowDynamicClientRegistration: true,
+				// #633: PKCE(S256)をサーバ側で必須にする。動的登録が無認証で開放
+				// されているため、PKCE 無しだと認可コード横取りでトークンを奪える。
+				// plain は許可しない(mcp プラグイン既定の false を明示)。
+				requirePKCE: true,
+				allowPlainCodeChallengeMethod: false,
 				// MCPツール絞り込み用の権限スコープ(Issue #549)。一覧の正は
 				// tool-registry.ts の MCP_WINE_SCOPE_LIST で、ここは参照するだけ
 				// (スコープ名の二重管理にしない)。scopes は認可時の要求検証
