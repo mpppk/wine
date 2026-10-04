@@ -21,6 +21,7 @@ import {
 import { DRUNK_WINE_MAX_PAGE_SIZE } from "#/lib/drunk-wine/pagination";
 import {
 	buildWinePhotoKey,
+	MAX_PHOTO_BYTES,
 	MAX_PHOTOS_PER_ENTRY,
 	resolveStoredPhotoMime,
 	stripImageMetadata,
@@ -49,6 +50,7 @@ import {
 	type UpdateWineSightingInput,
 	updateWineEncounterInput,
 } from "#/lib/place/schema";
+import { assertEntryQuota, assertPhotoQuota } from "#/lib/quotas";
 import { prepareNewPlace } from "#/lib/services/place-service";
 import { assertValidRefs, resolveAopIdOrThrow } from "#/lib/wine/assert";
 import { countryForRegion, getCountry } from "#/lib/wine/countries";
@@ -770,6 +772,9 @@ export async function createDrunkWine(
 	input: CreateDrunkWineWithSightingInput | CreateDrunkWineData,
 ): Promise<DrunkWineEntry> {
 	assertValidRefs(input);
+	// ユーザあたり件数上限(#397)。Web・MCP の両経路がここを通るため、ここで抑えれば
+	// 経路ごとの上限は要らない(クォータの SSOT は `#/lib/quotas`)。
+	await assertEntryQuota(userId, 1);
 	const id = crypto.randomUUID();
 	const status = input.status ?? DEFAULT_WINE_STATUS;
 	// 統合 UI が送る体験記録1件。旧2セクションの同時指定とは排他で、
@@ -1869,6 +1874,17 @@ export type PhotoLayoutItem =
 // (UI の layout 外の追加を消さないため)。旧列への二重化だけが丸ごと書戻しだが、
 // 正本は子テーブルなので競合しても表示は壊れない。
 
+/** layout 中の新規写真の実バイト合計(サムネイル含む)。クォータ判定用。 */
+function newPhotoBytes(layout: PhotoLayoutItem[]): number {
+	let total = 0;
+	for (const item of layout) {
+		if (item.kind !== "new") continue;
+		total += item.bytes.byteLength;
+		if (item.thumbBytes) total += item.thumbBytes.byteLength;
+	}
+	return total;
+}
+
 /**
  * エントリの写真集合を layout(最終並び順)へ全置換で同期する。追加・削除・並べ替え・
  * 差し替えを1回で反映する。新規はR2へ保存し、起点にあって残らない行は削除して
@@ -1899,6 +1915,10 @@ export async function syncDrunkWinePhotos(
 		resolveStoredPhotoKinds(parent.photoKeys, parent.photoKinds),
 	);
 	const baseByKey = new Map(base.map((row) => [row.r2Key, row]));
+
+	// ユーザあたり写真総バイト上限(#397)。R2 へ書く前に確かめる(後で拒否すると
+	// 孤児オブジェクトの掃除が要る)。クォータの SSOT は `#/lib/quotas`。
+	await assertPhotoQuota(userId, newPhotoBytes(layout));
 	for (const item of layout) {
 		if (item.kind === "existing" && !baseByKey.has(item.key)) {
 			throw new BadRequestError("Unknown photo");
@@ -2122,6 +2142,11 @@ export async function syncDrunkWinePhotos(
  * 上限(`MAX_PHOTOS_PER_ENTRY`)を超えるぶんは**足さずに捨てる**。引き継ぎは付随的な処理で、
  * ここで例外にすると「記録は出来たのに写真のせいで失敗した」ことになる。捨てたキーは
  * 呼び出し側が掃除できるよう返す。
+ *
+ * ただしユーザあたり写真総バイト上限(#397)は捨てずに 409 で断る。引き継ぐキーの実バイトは
+ * 未知のため、足す枚数 × 1枚上限で保守的に見積もる(D1 の既存ぶんの見積もりと同じ流儀)。
+ * D1 更新の前なので、拒否しても R2・D1 ともに不変。呼び出し側に個別に足さず、この
+ * 引き継ぎの関門に寄せる(クォータの SSOT は `#/lib/quotas`)。
  */
 
 export async function appendDrunkWinePhotoKeys(
@@ -2159,6 +2184,10 @@ export async function appendDrunkWinePhotoKeys(
 	if (adopted.length === 0) {
 		return { entry: await getDrunkWine(userId, id), adopted, dropped };
 	}
+	// ユーザあたり写真総バイト上限(#397)。引き継ぎは R2 への新規書き込みでは
+	// ないが、エントリの写真枚数が増えて見積もりが膨らむため、D1 更新の前に
+	// 断る(クォータの SSOT は `#/lib/quotas`)。
+	await assertPhotoQuota(userId, adopted.length * MAX_PHOTO_BYTES);
 	// 解析ジョブの引き継ぎは利用者自身が撮った写真 = bottle。
 	// 旧列への二重化も子テーブル由来の集合そのまま(repair 済みなので旧列だけの
 	// キーは残っていない)。

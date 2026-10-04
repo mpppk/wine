@@ -42,6 +42,11 @@ import { logWarn } from "#/lib/logger";
 // キーは **userId** を使う(IPはNAT等で多数の利用者に共有されるため、ドキュメントも
 // 安定した識別子を推奨している)。#397 の脅威モデルも「1アカウント作れば」なので、
 // アカウント単位で絞るのが正しい。
+//
+// **この `withinRateLimit` が全経路の共通入口**(SSOT)。server function 側の
+// `src/server/middleware.ts` と API ルート側の `requireApiSession` は既にここを通る。
+// MCP(`/api/mcp`)を足すとき(#546)は、ここに新しい用途を足してツール側から呼ぶ——
+// 経路ごとに判定を書き散らさない。
 
 /**
  * スロットルの用途。用途ごとに上限が違うため、バインディングも分ける
