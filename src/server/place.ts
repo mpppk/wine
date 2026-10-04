@@ -27,14 +27,22 @@ export const bulkRegisterFromScan = createServerFn({ method: "POST" })
 
 /**
  * 一括登録バッチの取り消し(Issue #363 案A)。`/cellar/import` の登録完了直後に加えて、
- * **一括登録の履歴画面(#385)からも恒常的に呼ばれる**。編集済みエントリの扱いは
- * 未決の論点で、警告はクライアント側の確認ダイアログに委ねている(サービス層のJSDoc参照)。
+ * **一括登録の履歴画面(#385)からも恒常的に呼ばれる**。編集済みエントリを含む
+ * バッチは `force: true` が無ければ409で拒否される(Issue #432)。判定の関門は
+ * サービス層の `undoImportBatch` に寄せ、ここでは入力の受け渡しだけをする。
  */
 export const undoImportBatch = createServerFn({ method: "POST" })
 	.middleware([authMiddleware])
-	.inputValidator(z.object({ batchId: z.string().min(1).max(80) }))
+	.inputValidator(
+		z.object({
+			batchId: z.string().min(1).max(80),
+			force: z.boolean().optional(),
+		}),
+	)
 	.handler(({ data, context }) =>
-		importBatchService.undoImportBatch(context.user.id, data.batchId),
+		importBatchService.undoImportBatch(context.user.id, data.batchId, {
+			force: data.force,
+		}),
 	);
 
 /**
