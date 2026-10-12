@@ -26,7 +26,7 @@ import { type LogFields, logError, logWarn } from "#/lib/logger";
 const CAPTURE_FAILED = "server exception capture failed";
 
 /** どの入口で握りつぶされたか。Sentry 側で `tags[source]` で絞る。 */
-export type ServerExceptionSource = "server_fn" | "api" | "mcp_tool" | "queue";
+type ServerExceptionSource = "server_fn" | "api" | "mcp_tool" | "queue";
 
 export interface ServerExceptionOptions {
 	source: ServerExceptionSource;
