@@ -7,6 +7,7 @@ import { labelJobMessageSchema } from "#/lib/ai/label-job";
 import { enforceBodyLimit } from "#/lib/http/body-limit";
 import { logError, logInfo } from "#/lib/logger";
 import { resolveServerEnvironment } from "#/lib/observability/sentry-envelope";
+import { reportServerException } from "#/lib/observability/server-exception";
 import { withSpan } from "#/lib/observability/span";
 import { runLabelAnalysisJob } from "#/lib/services/label-job-service";
 
@@ -121,10 +122,12 @@ export default Sentry.withSentry(
 					// runLabelAnalysisJob は失敗を行に書いて返る想定なので、ここに来るのは
 					// D1 障害などジョブ行にすら書けなかった場合。再配信は claim ガードで
 					// 空振りするため ack し、未終端のまま残った行は stale が決着させる。
-					logError("label job consumer failed", {
-						jobId: parsed.data.jobId,
-						err: e,
-					});
+					// ack で握りつぶすため `withSentry` には届かない。ここで明示的に送る。
+					reportServerException(
+						"label job consumer failed",
+						{ jobId: parsed.data.jobId, err: e },
+						{ source: "queue", tags: { queue: "label_jobs" } },
+					);
 				}
 				message.ack();
 			}

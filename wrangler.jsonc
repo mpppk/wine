@@ -93,6 +93,13 @@
 	"images": {
 		"binding": "IMAGES"
 	},
+	// デプロイのバージョンID。`@sentry/cloudflare` はこのバインディング名を自動で読み、
+	// サーバ側イベントの release に使う(`withSentry` の初期化に手を入れずに済む)。
+	// これが無いとサーバの例外が「どのデプロイから出始めたか」を Sentry 上で辿れない。
+	// **env ごとに再掲が必要**(バインディングは継承されない)。
+	"version_metadata": {
+		"binding": "CF_VERSION_METADATA"
+	},
 	// エチケット解析ジョブ(#460)。producer(投入API)と consumer(src/worker.ts の
 	// `queue`)を**同じワーカーに同居**させる。別ワーカーを立てないのは、コンシューマが
 	// 使うのが D1・R2・AI・画像変換とアプリ本体と同じバインディング群で、分けると
@@ -181,6 +188,10 @@
 			// 画像変換(zoom_photo)。本番と同じくアカウントレベルのリソース。
 			"images": {
 				"binding": "IMAGES"
+			},
+			// Sentry のサーバ側 release(本番と同じ。上記参照)。
+			"version_metadata": {
+				"binding": "CF_VERSION_METADATA"
 			},
 			// エチケット解析ジョブ(#460)。**キューは本番と別リソース**にする
 			// (プレビューの試行が本番のジョブを消費しない)。全プレビュー環境が共通の

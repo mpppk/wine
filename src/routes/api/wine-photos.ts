@@ -9,7 +9,7 @@ import {
 	requireApiSession,
 	validateDeclaredPhotoFiles,
 } from "#/lib/images/form-api";
-import { logError } from "#/lib/logger";
+import { reportServerException } from "#/lib/observability/server-exception";
 import {
 	type PhotoLayoutItem,
 	syncDrunkWinePhotos,
@@ -134,10 +134,14 @@ export const Route = createFileRoute("/api/wine-photos")({
 						return apiJsonError(e.message, e.status);
 					}
 					// 想定外の内部失敗は文脈付きで記録し、生メッセージは出さず500で返す(#156)。
-					logError("wine photo sync failed", {
-						userId: session.user.id,
-						err: e,
-					});
+					reportServerException(
+						"wine photo sync failed",
+						{
+							userId: session.user.id,
+							err: e,
+						},
+						{ source: "api", tags: { route: "/api/wine-photos" } },
+					);
 					return apiJsonError("写真の保存に失敗しました", 500);
 				}
 			},

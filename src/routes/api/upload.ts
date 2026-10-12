@@ -13,7 +13,7 @@ import {
 	validateDeclaredPhotoFile,
 } from "#/lib/images/form-api";
 import { deleteStaleAvatars, sanitizeAvatarImage } from "#/lib/images/sanitize";
-import { logError } from "#/lib/logger";
+import { reportServerException } from "#/lib/observability/server-exception";
 
 export const Route = createFileRoute("/api/upload")({
 	server: {
@@ -38,10 +38,14 @@ export const Route = createFileRoute("/api/upload")({
 				try {
 					buffer = await file.arrayBuffer();
 				} catch (e) {
-					logError("avatar upload: reading file body failed", {
-						userId: session.user.id,
-						err: e,
-					});
+					reportServerException(
+						"avatar upload: reading file body failed",
+						{
+							userId: session.user.id,
+							err: e,
+						},
+						{ source: "api", tags: { route: "/api/upload" } },
+					);
 					return apiJsonError("Upload failed", 500);
 				}
 
@@ -76,11 +80,15 @@ export const Route = createFileRoute("/api/upload")({
 						httpMetadata: { contentType: storedMime },
 					});
 				} catch (e) {
-					logError("avatar upload: R2 put failed", {
-						userId: session.user.id,
-						r2Key,
-						err: e,
-					});
+					reportServerException(
+						"avatar upload: R2 put failed",
+						{
+							userId: session.user.id,
+							r2Key,
+							err: e,
+						},
+						{ source: "api", tags: { route: "/api/upload" } },
+					);
 					return apiJsonError("Upload failed", 500);
 				}
 

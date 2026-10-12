@@ -685,15 +685,27 @@ Stripe リソースは Terraform 管理だが、**Sentry は当面ダッシュ�
 **運用者が手を動かさないと直らない事象**だけを、Workers から Sentry へ直接送る。クライアント側の
 収集（上記 `VITE_SENTRY_DSN`）とは投入先が別で、**サーバは `SENTRY_DSN` シークレット**を使う。
 
-| | クライアント | サーバ（operator-alert） | サーバ（withSentry） |
-|---|---|---|---|
-| 変数 | `VITE_SENTRY_DSN`（ビルド変数） | `SENTRY_DSN`（Worker シークレット） | `SENTRY_DSN`（Worker シークレット） |
-| 送信 | `@sentry/react`（動的 import） | `fetch` で envelope を1本（SDK なし） | `@sentry/cloudflare`（#486） |
-| 入口 | `reportClientError`（#381） | `alertOperator`（`src/lib/observability/operator-alert.ts`） | `withSentry` による自動計装（`src/worker.ts`） |
-| 対象 | クライアントの予期しない例外 | 意図して選んだ少数の事象（決済の宙吊り等） | サーバの予期しない例外（SSR / server function / キューコンシューマ） |
+| | クライアント | サーバ（operator-alert） | サーバ（server-exception） | サーバ（withSentry） |
+|---|---|---|---|---|
+| 変数 | `VITE_SENTRY_DSN`（ビルド変数） | `SENTRY_DSN`（Worker シークレット） | `SENTRY_DSN`（Worker シークレット） | `SENTRY_DSN`（Worker シークレット） |
+| 送信 | `@sentry/react`（動的 import） | `@sentry/cloudflare`（#649） | `@sentry/cloudflare` | `@sentry/cloudflare`（#486） |
+| 入口 | `reportClientError`（#381） | `alertOperator`（`src/lib/observability/operator-alert.ts`） | `reportServerException`（`src/lib/observability/server-exception.ts`） | `withSentry` による自動計装（`src/worker.ts`） |
+| 対象 | クライアントの予期しない例外 | 意図して選んだ少数の事象（決済の宙吊り等） | **catch して 5xx に変えた**サーバの想定外例外（server function / API ルート / MCP ツール / キューのコンシューマ） | ハンドラから throw が抜けた例外（SSR 等） |
 
 同じプロジェクトへ送ってよい。イベントには `logger: "worker"` と `runtime: "workers"` タグが付く
 ので、Sentry 側で `logger:worker` で絞れる。分けたければサーバ用プロジェクトを作って DSN を変える。
+
+> [!IMPORTANT]
+> **`withSentry` だけでは server function の失敗は届かない。** TanStack Start は server function の
+> 例外を catch して 500 の Response に直列化して**返す**ため、fetch ハンドラから throw が抜けない。
+> API ルート・MCP ツール・キューのコンシューマも、露出の抑止やリトライ停止のために自前で catch する。
+> これらの境界では `logError` ではなく `reportServerException` を呼ぶ（ログ行は `logError` と同一で、
+> 加えて**元の例外をそのまま** Sentry へ送る。包むと全経路が1つの Issue に潰れる）。Sentry 側は
+> `source:server_fn` / `api` / `mcp_tool` / `queue` タグで絞れる。送るのは `err` と `msg` だけで、
+> userId 等のフィールドはログ側に留める。**想定内の 4xx（`HttpError`）は通さない**。
+>
+> サーバ側イベントの release は `version_metadata` バインディング（`CF_VERSION_METADATA`）の
+> バージョンIDを SDK が自動で使う。「どのデプロイから出始めたか」はこれで辿る。
 
 > [!NOTE]
 > `withSentry`（#486）は fetch / scheduled / queue / email / tail を自動計装し、ハンドラが

@@ -10,7 +10,7 @@ import {
 	readPhotoFiles,
 	requireApiSession,
 } from "#/lib/images/form-api";
-import { logError } from "#/lib/logger";
+import { reportServerException } from "#/lib/observability/server-exception";
 import {
 	MAX_PHOTOS_PER_IMPORT_BATCH,
 	PLACE_NAME_MAX,
@@ -128,10 +128,14 @@ export const Route = createFileRoute("/api/label-analysis-jobs")({
 					if (e instanceof HttpError) {
 						return apiJsonError(e.message, e.status);
 					}
-					logError("label analysis job submit failed", {
-						userId: session.user.id,
-						err: e,
-					});
+					reportServerException(
+						"label analysis job submit failed",
+						{
+							userId: session.user.id,
+							err: e,
+						},
+						{ source: "api", tags: { route: "/api/label-analysis-jobs" } },
+					);
 					return apiJsonError("解析の受付に失敗しました", 500);
 				}
 			},
@@ -168,11 +172,15 @@ export const Route = createFileRoute("/api/label-analysis-jobs")({
 					if (e instanceof HttpError) {
 						return apiJsonError(e.message, e.status);
 					}
-					logError("label analysis job read failed", {
-						userId: session.user.id,
-						jobId,
-						err: e,
-					});
+					reportServerException(
+						"label analysis job read failed",
+						{
+							userId: session.user.id,
+							jobId,
+							err: e,
+						},
+						{ source: "api", tags: { route: "/api/label-analysis-jobs" } },
+					);
 					return apiJsonError("解析状況の取得に失敗しました", 500);
 				}
 			},
@@ -192,11 +200,15 @@ export const Route = createFileRoute("/api/label-analysis-jobs")({
 					if (e instanceof HttpError) {
 						return apiJsonError(e.message, e.status);
 					}
-					logError("label analysis job consume failed", {
-						userId: session.user.id,
-						jobId,
-						err: e,
-					});
+					reportServerException(
+						"label analysis job consume failed",
+						{
+							userId: session.user.id,
+							jobId,
+							err: e,
+						},
+						{ source: "api", tags: { route: "/api/label-analysis-jobs" } },
+					);
 					return apiJsonError("解析結果の取得に失敗しました", 500);
 				}
 			},
