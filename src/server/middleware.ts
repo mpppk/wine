@@ -16,7 +16,8 @@ import {
 	TooManyRequestsError,
 	UnauthorizedError,
 } from "#/lib/errors";
-import { logError, logInfo, logWarn } from "#/lib/logger";
+import { logInfo, logWarn } from "#/lib/logger";
+import { reportServerException } from "#/lib/observability/server-exception";
 import { withinRateLimit } from "#/lib/rate-limit";
 
 // server function が throw すると既定では HTTP 500 になる。認証切れ(正常系)や
@@ -58,13 +59,16 @@ async function runWithHttpStatus<T>(
 		// 並ぶだけになり、`bun run logs --level error` から障害箇所を切り分けられない
 		// (#332)。同ファイルの未認証ログ・書き込みブロックログは既に path を残して
 		// いたので、失敗ログだけドリフトしていた。
-		logError("server fn failed", {
-			userId: ctx?.userId,
-			path: ctx?.path,
-			err: e,
-		});
+		//
+		// Sentry へもここで送る。TanStack Start はこの throw を 500 の Response に直列化して
+		// **返す**ため、`withSentry` からは例外として見えない(server-exception.ts 参照)。
+		reportServerException(
+			"server fn failed",
+			{ userId: ctx?.userId, path: ctx?.path, err: e },
+			{ source: "server_fn", tags: { path: ctx?.path } },
+		);
 		// cause に元の例外を繋がない。繋ぐと直列化の実装次第で元の message が再び
-		// クライアントへ渡りうる(原因は直前の logError に残っている)。
+		// クライアントへ渡りうる(原因は直前のログと Sentry に残っている)。
 		throw new Error(INTERNAL_ERROR_MESSAGE);
 	}
 }

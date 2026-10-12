@@ -68,6 +68,17 @@ vi.mock("#/lib/rate-limit", () => ({
 	},
 }));
 
+// Sentry 送信の実体は server-exception.test.ts で見ている。ここでは「境界から
+// 想定外例外だけが送られるか」を見る(TanStack Start が 500 の Response に直列化して
+// 返すため、`withSentry` には届かない。送るのはこの境界の責務)。
+const { captureException } = vi.hoisted(() => ({
+	captureException: vi.fn(),
+}));
+vi.mock("@sentry/cloudflare", () => ({
+	captureException: (...args: unknown[]) =>
+		(captureException as (...a: unknown[]) => unknown)(...args),
+}));
+
 const {
 	adminMiddleware,
 	authMiddleware,
@@ -204,6 +215,39 @@ describe("authMiddleware", () => {
 			// `bun run logs --level error` から障害箇所を切り分けられない(#332)
 			path: "/_serverFn/quiz.saveAnswer",
 		});
+	});
+
+	it("想定外の例外は元の例外のまま Sentry へ送る", async () => {
+		hooks.session = sessionFor({ id: "u42" });
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		captureException.mockClear();
+		const boom = new TypeError("undefined is not a function");
+
+		await expect(runAuth({ next: throwingNext(boom) })).rejects.toThrow(
+			INTERNAL_ERROR_MESSAGE,
+		);
+
+		expect(captureException).toHaveBeenCalledTimes(1);
+		expect(captureException).toHaveBeenCalledWith(
+			boom,
+			expect.objectContaining({
+				tags: expect.objectContaining({
+					source: "server_fn",
+					path: "/_serverFn/quiz.saveAnswer",
+				}),
+			}),
+		);
+	});
+
+	it("想定内の 4xx は Sentry へ送らない", async () => {
+		hooks.session = sessionFor();
+		captureException.mockClear();
+
+		await expect(
+			runAuth({ next: throwingNext(new BadRequestError("bad input")) }),
+		).rejects.toBeInstanceOf(BadRequestError);
+
+		expect(captureException).not.toHaveBeenCalled();
 	});
 });
 

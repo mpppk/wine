@@ -7,7 +7,7 @@ import {
 	readPhotoFiles,
 	requireApiSession,
 } from "#/lib/images/form-api";
-import { logError } from "#/lib/logger";
+import { reportServerException } from "#/lib/observability/server-exception";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
 import { saveImportBatchPhotos } from "#/lib/services/import-batch-service";
 
@@ -63,11 +63,15 @@ export const Route = createFileRoute("/api/import-batch-photos")({
 					if (e instanceof HttpError) {
 						return apiJsonError(e.message, e.status);
 					}
-					logError("import batch photo save failed", {
-						userId: session.user.id,
-						batchId,
-						err: e,
-					});
+					reportServerException(
+						"import batch photo save failed",
+						{
+							userId: session.user.id,
+							batchId,
+							err: e,
+						},
+						{ source: "api", tags: { route: "/api/import-batch-photos" } },
+					);
 					return apiJsonError("写真の保存に失敗しました", 500);
 				}
 			},

@@ -19,6 +19,7 @@ import {
 import { getImageSigningKey } from "#/lib/images/signing-key";
 import { logError, logWarn } from "#/lib/logger";
 import type { McpDrunkWineEntry } from "#/lib/mcp-app/entry";
+import { reportServerException } from "#/lib/observability/server-exception";
 import * as aiService from "#/lib/services/ai-service";
 import type { DrunkWineEntry } from "#/lib/services/drunk-wine-service";
 import * as drunkWineService from "#/lib/services/drunk-wine-service";
@@ -97,7 +98,11 @@ function logToolFailure(
 	if (e instanceof HttpError) {
 		logWarn("mcp tool rejected", { ...fields, status: e.status });
 	} else {
-		logError("mcp tool failed", fields);
+		// 失敗は isError の結果として返すため `withSentry` には届かない。ここで送る。
+		reportServerException("mcp tool failed", fields, {
+			source: "mcp_tool",
+			tags: { tool: ctx.tool },
+		});
 	}
 }
 
