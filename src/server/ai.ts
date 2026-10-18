@@ -109,7 +109,7 @@ export const deleteAiConversation = createServerFn({ method: "POST" })
  * 環境では**導線ごと隠す**。解決の実体は ai-service 側と同じ関数で、UI の出し分けと
  * サーバの 503 が食い違わないようにする。
  *
- * 経路まで返すのは、解析前に必要クレジットを表示するため(#426)。GPT-5.6 Luna と
+ * 経路まで返すのは、解析前に必要クレジットを表示するため(#426)。GPT-6 Luna と
  * Claude Sonnet 5 では単価が桁で違い、経路はシークレットの設定状況とユーザ設定に
  * 依存するのでクライアントでは決められない(`getLabelAnalysisPlan` と同じ理由)。
  */

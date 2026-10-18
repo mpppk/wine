@@ -1,7 +1,7 @@
 import { buildAgentLabelPrompt, parseImageDataUrl } from "./label-extraction";
 import type { OpenRouterMessage, OpenRouterUserContent } from "./openrouter";
 
-// エチケット解析の高精度経路(GPT-5.6 Luna + web検索)の純ロジック。
+// エチケット解析の高精度経路(GPT-6 Luna + web検索)の純ロジック。
 // 入力組み立て・usage 変換を DB/env 非依存で切り出し、単体テスト可能に
 // する(API の実行とクレジット処理は ai-service 側)。
 //
