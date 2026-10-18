@@ -19,6 +19,7 @@ import {
 	AI_WINE_LIST_CLAUDE_MAX_SEARCHES_PER_REQUEST,
 	AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST,
 	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
+	AI_WINE_LIST_LOCATE_MAX_DIMENSION,
 	AI_WINE_LIST_LOCATE_MODEL,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_SEARCHES,
@@ -292,6 +293,16 @@ describe("estimate reserve usage の effort 倍率", () => {
 		);
 	});
 });
+describe("銘柄の位置の推定(Jev)に渡す写真の大きさ", () => {
+	it("Jev の受け付ける範囲(縦横 280〜1568px)に収める", () => {
+		// 範囲外はリクエストごと拒否される(400 "Invalid image dimensions.")。
+		// 2048 にしていた間、実機では全写真の位置の推定が失敗していた。
+		// @see https://docs.typesafe.ai/images
+		expect(AI_WINE_LIST_LOCATE_MAX_DIMENSION).toBeLessThanOrEqual(1568);
+		expect(AI_WINE_LIST_LOCATE_MAX_DIMENSION).toBeGreaterThanOrEqual(280);
+	});
+});
+
 describe("一括抽出の予約に銘柄の位置の推定(Jev。#693)を含める", () => {
 	it("抽出本体の見積に Jev のぶんを足し、上限でクランプする", () => {
 		for (const route of WINE_LIST_ROUTE_KEYS) {
