@@ -27,6 +27,12 @@ import {
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
 import {
+	normalizePhotoBox,
+	normalizePhotoBoxEntries,
+	type PhotoBox,
+	photoBoxForIndex,
+} from "#/lib/drunk-wine/photo-box";
+import {
 	normalizeStoredMarketPrices,
 	normalizeStoredReferenceLinks,
 } from "#/lib/drunk-wine/references";
@@ -140,6 +146,11 @@ export interface DrunkWineEntry {
 	 * 長さ不一致・未知値は `resolveStoredPhotoKinds` が `"bottle"` に倒す。
 	 */
 	photoKinds: PhotoKind[];
+	/**
+	 * 写真ごとに重ねる枠(photoUrls と同じ順・同じ長さ。#693)。一括登録の全体写真を
+	 * 複製した写真にだけ入り、それ以外は null。
+	 */
+	photoBoxes: (PhotoBox | null)[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -186,6 +197,8 @@ export interface WineEncounterEntry {
 	 * すべてで、順序は登録時の番号順。範囲外の番号は落とすので空にもなる。
 	 */
 	photoUrls: string[];
+	/** 写真ごとの、その銘柄があった枠(photoUrls と同じ順・同じ長さ。#693)。無ければ null */
+	photoBoxes: (PhotoBox | null)[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -212,6 +225,8 @@ export interface WineSightingEntry {
 	 * すべてで、順序は登録時の番号順。範囲外の番号は落とすので空にもなる。
 	 */
 	photoUrls: string[];
+	/** 写真ごとの、その銘柄があった枠(photoUrls と同じ順・同じ長さ。#693)。無ければ null */
+	photoBoxes: (PhotoBox | null)[];
 	seenOn: string | null;
 	price: number | null;
 	memo: string | null;
@@ -296,6 +311,7 @@ function toEntry(row: DrunkWineRow, photos: EntryPhoto[]): DrunkWineEntry {
 			imagePathForKey(thumbKeyForPhotoKey(key)),
 		),
 		photoKinds: entryPhotos.kinds,
+		photoBoxes: entryPhotos.boxes,
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
@@ -309,6 +325,8 @@ function toEntry(row: DrunkWineRow, photos: EntryPhoto[]): DrunkWineEntry {
 export interface EntryPhoto {
 	key: string;
 	kind: PhotoKind;
+	/** 写真に重ねる枠(#693)。無ければ null */
+	box: PhotoBox | null;
 }
 
 /**
@@ -332,11 +350,12 @@ function normalizeWinePhotoKind(value: unknown): PhotoKind {
 export function resolveEntryPhotos(
 	row: Pick<DrunkWineRow, "id" | "photoKeys" | "photoKinds">,
 	child: EntryPhoto[],
-): { keys: string[]; kinds: PhotoKind[] } {
+): { keys: string[]; kinds: PhotoKind[]; boxes: (PhotoBox | null)[] } {
 	if (child.length > 0) {
 		return {
 			keys: child.map((photo) => photo.key),
 			kinds: child.map((photo) => photo.kind),
+			boxes: child.map((photo) => photo.box),
 		};
 	}
 	if (row.photoKeys.length > 0) {
@@ -344,12 +363,14 @@ export function resolveEntryPhotos(
 			drunkWineId: row.id,
 			legacyCount: row.photoKeys.length,
 		});
+		// 枠(#693)は子テーブルにしか無いので、旧列の写真は枠なし。
 		return {
 			keys: row.photoKeys,
 			kinds: resolveStoredPhotoKinds(row.photoKeys, row.photoKinds),
+			boxes: row.photoKeys.map(() => null),
 		};
 	}
-	return { keys: [], kinds: [] };
+	return { keys: [], kinds: [], boxes: [] };
 }
 
 /**
@@ -434,6 +455,7 @@ export async function listEntryPhotosBulk(
 				drunkWineId: winePhoto.drunkWineId,
 				r2Key: winePhoto.r2Key,
 				kind: winePhoto.kind,
+				box: winePhoto.box,
 			})
 			.from(winePhoto)
 			.where(
@@ -449,7 +471,11 @@ export async function listEntryPhotosBulk(
 			);
 		for (const row of rows) {
 			const list = out.get(row.drunkWineId) ?? [];
-			list.push({ key: row.r2Key, kind: normalizeWinePhotoKind(row.kind) });
+			list.push({
+				key: row.r2Key,
+				kind: normalizeWinePhotoKind(row.kind),
+				box: normalizePhotoBox(row.box),
+			});
 			out.set(row.drunkWineId, list);
 		}
 	}
@@ -473,7 +499,7 @@ async function listEntryPhotos(
 export function buildWinePhotoValues(
 	userId: string,
 	drunkWineId: string,
-	photos: { key: string; kind: PhotoKind }[],
+	photos: { key: string; kind: PhotoKind; box?: PhotoBox | null }[],
 	startPosition = 0,
 ) {
 	return photos.map((photo, index) => ({
@@ -483,6 +509,8 @@ export function buildWinePhotoValues(
 		r2Key: photo.key,
 		kind: photo.kind,
 		position: startPosition + index,
+		// 写真に重ねる枠(#693)。一括登録の全体写真を複製した写真にだけ付く。
+		box: photo.box ?? null,
 	}));
 }
 
@@ -513,10 +541,17 @@ function toEncounterEntry(row: WineEncounterRow): WineEncounterEntry {
 	// 由来写真は「バッチの photoKeys の photoIndexes 番目」。バッチが無い(手で足した
 	// 体験記録)・写真をまだ保存していない・番号が範囲外のいずれでも、その写真は
 	// 落とす。`photoUrl` は先頭1枚の後方互換。
-	const photoUrls = encounterPhotoIndexes(row)
-		.map((index) => row.batchPhotoKeys?.[index])
-		.filter((key): key is string => !!key)
-		.map(imagePathForKey);
+	// 枠(#693)は写真番号で引くので、URL と同じ絞り込みを番号のまま通す。
+	const boxes = normalizePhotoBoxEntries(row.photoBoxes);
+	const photos = encounterPhotoIndexes(row)
+		.map((index) => ({
+			key: row.batchPhotoKeys?.[index],
+			box: photoBoxForIndex(boxes, index),
+		}))
+		.filter(
+			(photo): photo is { key: string; box: PhotoBox | null } => !!photo.key,
+		);
+	const photoUrls = photos.map((photo) => imagePathForKey(photo.key));
 	const photoUrl = photoUrls[0] ?? null;
 	return {
 		id: row.id,
@@ -531,6 +566,7 @@ function toEncounterEntry(row: WineEncounterRow): WineEncounterEntry {
 		photoIndex: row.photoIndex,
 		photoUrl,
 		photoUrls,
+		photoBoxes: photos.map((photo) => photo.box),
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
@@ -551,6 +587,7 @@ export function toSightingEntry(row: WineEncounterRow): WineSightingEntry {
 		photoIndex: encounter.photoIndex,
 		photoUrl: encounter.photoUrl,
 		photoUrls: encounter.photoUrls,
+		photoBoxes: encounter.photoBoxes,
 		seenOn: encounter.occurredOn,
 		price: encounter.price,
 		memo: encounter.memo,
@@ -1357,6 +1394,7 @@ export async function listWineSightings(
 		photoIndex: e.photoIndex,
 		photoUrl: e.photoUrl,
 		photoUrls: e.photoUrls,
+		photoBoxes: e.photoBoxes,
 		seenOn: e.occurredOn,
 		price: e.price,
 		memo: e.memo,

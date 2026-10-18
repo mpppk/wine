@@ -26,6 +26,7 @@ function encounter(
 		photoIndex: null,
 		photoUrl: null,
 		photoUrls: [],
+		photoBoxes: [],
 		createdAt: 0,
 		updatedAt: 0,
 		...partial,

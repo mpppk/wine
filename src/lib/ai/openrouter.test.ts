@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	chatCompletion,
+	decide,
 	OPENROUTER_API_URL,
 	OpenRouterError,
 	toOpenRouterUsage,
@@ -151,5 +152,75 @@ describe("chatCompletion", () => {
 		} finally {
 			vi.unstubAllGlobals();
 		}
+	});
+});
+
+describe("decide(Jev の decisions。#693)", () => {
+	it("decisions エンドポイントへ問いを送り、答えと使用量を返す", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (url: string, init: RequestInit) => {
+				expect(url).toBe("https://openrouter.ai/api/alpha/decisions");
+				expect(new Headers(init.headers).get("Authorization")).toBe("Bearer k");
+				const body = JSON.parse(init.body as string);
+				expect(body).toEqual({
+					model: "typesafe/jev-1.14",
+					state: [
+						"photo",
+						{
+							type: "image_url",
+							image_url: { url: "data:image/png;base64,AA" },
+						},
+					],
+					questions: { b0: { type: "box", instructions: "the wine" } },
+				});
+				return Response.json({
+					model: "typesafe/jev-1.14-20261014",
+					answers: {
+						b0: {
+							type: "box",
+							box: { top: 0.1, bottom: 0.2, left: 0.3, right: 0.4 },
+							confidence: 0.9,
+						},
+					},
+					usage: { input_tokens: 1234, output_tokens: 5, cost: 0.00005 },
+				});
+			}),
+		);
+		const result = await decide("k", {
+			model: "typesafe/jev-1.14",
+			state: [
+				"photo",
+				{ type: "image_url", image_url: { url: "data:image/png;base64,AA" } },
+			],
+			questions: { b0: { type: "box", instructions: "the wine" } },
+		});
+		expect(result.model).toBe("typesafe/jev-1.14-20261014");
+		expect(result.usage).toEqual({ inputTokens: 1234, outputTokens: 5 });
+		expect(result.answers.b0).toMatchObject({ confidence: 0.9 });
+		vi.unstubAllGlobals();
+	});
+
+	it("失敗は chatCompletion と同じ OpenRouterError に畳む", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json(
+					{ error: { message: "box needs 1.14" } },
+					{ status: 400 },
+				),
+			),
+		);
+		const err = await decide("k", {
+			model: "typesafe/jev-1.13",
+			state: [],
+			questions: {},
+		}).catch((e) => e);
+		expect(err).toBeInstanceOf(OpenRouterError);
+		expect(err.code).toBe("bad_request");
+		vi.unstubAllGlobals();
+		await expect(
+			decide(" ", { model: "m", state: [], questions: {} }),
+		).rejects.toMatchObject({ code: "auth" });
 	});
 });

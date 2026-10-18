@@ -1,5 +1,12 @@
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	SquareDashedIcon,
+	XIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
+import { BoxedPhoto } from "#/components/cellar/BoxedPhoto";
+import { PhotoBoxEditor } from "#/components/cellar/PhotoBoxEditor";
 import { Button } from "#/components/ui/button";
 import {
 	Dialog,
@@ -8,6 +15,7 @@ import {
 	DialogDescription,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import type { PhotoBox } from "#/lib/drunk-wine/photo-box";
 
 // 写真の拡大表示(ライトボックス)。マイセラーの閲覧画面で写真をタップすると開く。
 //
@@ -18,6 +26,10 @@ interface LightboxPhoto {
 	/** 原寸の画像URL(サムネイルではなく拡大用) */
 	src: string;
 	alt: string;
+	/** 写真に重ねる「その銘柄があった枠」(#693)。枠の外を暗くして示す */
+	box?: PhotoBox | null;
+	/** `boxEdit` があるとき、この写真の枠を編集できるか(web 画像は編集しない) */
+	boxEditable?: boolean;
 }
 
 export interface PhotoLightboxProps {
@@ -39,6 +51,13 @@ export interface PhotoLightboxProps {
 		/** 表示中の写真を代表にする */
 		onSelect: (index: number) => void;
 	};
+	/**
+	 * 枠の編集(任意。#693)。一括登録のレビュー画面だけが渡す。`boxEditable` の
+	 * 写真で「枠を編集」に切り替えられ、変更はダイアログの一覧の位置で返す。
+	 */
+	boxEdit?: {
+		onChange: (index: number, box: PhotoBox | null) => void;
+	};
 }
 
 export function PhotoLightbox({
@@ -47,12 +66,16 @@ export function PhotoLightbox({
 	onOpenChange,
 	title,
 	primarySelect,
+	boxEdit,
 }: PhotoLightboxProps) {
 	// 表示中の index はダイアログを開いている間だけ内部で動かす(前へ/次へ)。
 	// 開き直したときは呼び出し側が渡した index に必ず戻す。
 	const [index, setIndex] = useState(openIndex ?? 0);
+	// 枠の編集中か。写真を送る・開き直すと閲覧に戻す(別の写真の枠を誤って動かさない)。
+	const [editing, setEditing] = useState(false);
 	useEffect(() => {
 		if (openIndex !== null) setIndex(openIndex);
+		setEditing(false);
 	}, [openIndex]);
 
 	const open = openIndex !== null && photos.length > 0;
@@ -60,8 +83,11 @@ export function PhotoLightbox({
 	const clampedIndex = Math.min(index, photos.length - 1);
 	const current = photos[clampedIndex];
 	const multiple = photos.length > 1;
-	const step = (dir: -1 | 1) =>
+	const step = (dir: -1 | 1) => {
+		setEditing(false);
 		setIndex((i) => (i + dir + photos.length) % photos.length);
+	};
+	const canEditBox = !!boxEdit && !!current?.boxEditable;
 
 	return (
 		<Dialog open={open} onOpenChange={(next) => !next && onOpenChange(null)}>
@@ -99,14 +125,34 @@ export function PhotoLightbox({
 					<XIcon className="size-4" aria-hidden />
 				</DialogClose>
 
-				{current && (
-					<img
-						src={current.src}
-						alt={current.alt}
-						className="max-h-[75vh] w-full rounded-md object-contain"
-						decoding="async"
-					/>
-				)}
+				{current &&
+					(editing && canEditBox ? (
+						<PhotoBoxEditor
+							src={current.src}
+							alt={current.alt}
+							box={current.box ?? null}
+							onChange={(box) => boxEdit?.onChange(clampedIndex, box)}
+							imgClassName="max-h-[65vh] max-w-full rounded-md"
+						/>
+					) : current.box ? (
+						// 枠がある写真は全体写真に枠を重ね、枠の外を暗くする(#693)。
+						// 画像の表示寸法に枠を合わせるため、object-contain ではなく
+						// 自然な縦横比のまま画面内に収める。
+						<BoxedPhoto
+							src={current.src}
+							alt={current.alt}
+							box={current.box}
+							variant="full"
+							imgClassName="max-h-[75vh] max-w-full rounded-md"
+						/>
+					) : (
+						<img
+							src={current.src}
+							alt={current.alt}
+							className="max-h-[75vh] w-full rounded-md object-contain"
+							decoding="async"
+						/>
+					))}
 
 				{multiple && (
 					<div className="flex items-center justify-center gap-4">
@@ -130,6 +176,21 @@ export function PhotoLightbox({
 							onClick={() => step(1)}
 						>
 							<ChevronRightIcon className="size-4" />
+						</Button>
+					</div>
+				)}
+
+				{canEditBox && (
+					<div className="flex justify-center">
+						<Button
+							type="button"
+							variant={editing ? "secondary" : "outline"}
+							size="sm"
+							aria-pressed={editing}
+							onClick={() => setEditing((v) => !v)}
+						>
+							<SquareDashedIcon className="size-4" aria-hidden />
+							{editing ? "枠の編集を終える" : "枠を編集"}
 						</Button>
 					</div>
 				)}

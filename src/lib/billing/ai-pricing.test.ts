@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	AI_LABEL_ROUTE_MODELS,
 	AI_REGION_QA_MODELS,
+	AI_WINE_LIST_LOCATE_MODEL,
 	AI_WINE_LIST_ROUTE_MODELS,
 } from "#/lib/ai/config";
 import {
@@ -25,6 +26,7 @@ describe("AI_MODEL_PRICING", () => {
 			...Object.values(AI_LABEL_ROUTE_MODELS),
 			...Object.values(AI_REGION_QA_MODELS).map((m) => m.id),
 			...Object.values(AI_WINE_LIST_ROUTE_MODELS),
+			AI_WINE_LIST_LOCATE_MODEL,
 		];
 		for (const model of called) {
 			expect(getModelPricing(model), `単価未登録: ${model}`).not.toBeNull();
@@ -33,6 +35,8 @@ describe("AI_MODEL_PRICING", () => {
 
 	it("出力単価は入力単価以上(単価の取り違えを検出する)", () => {
 		for (const [model, p] of Object.entries(AI_MODEL_PRICING)) {
+			// 出力が無料のモデル(Jev。#693)は取り違えではなく価格体系そのもの。
+			if (p.outputUsdPerMTok === 0) continue;
 			expect(p.outputUsdPerMTok, model).toBeGreaterThanOrEqual(
 				p.inputUsdPerMTok,
 			);

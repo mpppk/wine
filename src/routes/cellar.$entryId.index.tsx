@@ -101,12 +101,13 @@ function EncounterSection({
 								// サムネイルは保存していないので原寸を読む
 								// (編集画面の体験記録と同じ扱い)
 								<div className="flex shrink-0 gap-1">
-									{encounter.photoUrls.map((photoUrl) => (
+									{encounter.photoUrls.map((photoUrl, i) => (
 										<ZoomablePhoto
 											key={photoUrl}
 											src={`${photoUrl}?v=${version}`}
 											alt={`${encounter.placeName ?? "場所未設定"}で出会ったときの写真`}
 											className="size-14"
+											box={encounter.photoBoxes[i]}
 										/>
 									))}
 								</div>
@@ -218,6 +219,7 @@ function CellarDetailPage() {
 				thumbUrls={entry.thumbUrls}
 				version={entry.updatedAt}
 				photoKinds={entry.photoKinds}
+				photoBoxes={entry.photoBoxes}
 			/>
 
 			<dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">

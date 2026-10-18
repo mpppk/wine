@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { PlusIcon, StoreIcon, Trash2Icon, WineIcon } from "lucide-react";
 import { useState } from "react";
+import { BoxedPhoto } from "#/components/cellar/BoxedPhoto";
 import { EncounterFields } from "#/components/cellar/EncounterFields";
 import {
 	buildAddEncounterInput,
@@ -152,16 +153,16 @@ export function EncounterList({
 										// サムネイルは保存していないので原寸を読む
 										// (配信ルートのフォールバックと同じ挙動)
 										<div className="flex shrink-0 gap-1">
-											{encounter.photoUrls.map((photoUrl) => (
-												<img
+											{encounter.photoUrls.map((photoUrl, i) => (
+												// 写真の中のその銘柄の枠(#693)があれば枠へ寄せる
+												<BoxedPhoto
 													key={photoUrl}
 													src={`${photoUrl}?v=${version}`}
 													alt="出会ったときの写真"
-													className="size-14 shrink-0 rounded-md border border-border object-cover"
+													box={encounter.photoBoxes[i]}
+													variant="tile"
+													className="size-14 shrink-0 rounded-md border border-border"
 													loading="lazy"
-													decoding="async"
-													width={56}
-													height={56}
 												/>
 											))}
 										</div>

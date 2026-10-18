@@ -1,8 +1,10 @@
 import { WineIcon } from "lucide-react";
 import { useState } from "react";
+import { BoxedPhoto } from "#/components/cellar/BoxedPhoto";
 import { PhotoLightbox } from "#/components/cellar/PhotoLightbox";
 import { WebPhotoBadge } from "#/components/cellar/WebPhotoBadge";
 import type { PhotoKind } from "#/lib/ai/wine-list-extraction";
+import type { PhotoBox } from "#/lib/drunk-wine/photo-box";
 import { cn } from "#/lib/utils";
 
 // マイセラー閲覧画面の写真一覧。タップすると PhotoLightbox で拡大する。
@@ -27,6 +29,12 @@ export interface WinePhotoGalleryProps {
 	 * を出さない。
 	 */
 	photoKinds?: readonly PhotoKind[];
+	/**
+	 * 写真ごとに重ねる「その銘柄があった枠」(photoUrls と同じ順・同じ長さ。#693)。
+	 * 一括登録の全体写真を複製した写真にだけ入る。タイルは枠へ寄せ、拡大では
+	 * 全体写真に枠を重ねる。省略・null の写真は従来どおり。
+	 */
+	photoBoxes?: readonly (PhotoBox | null)[];
 }
 
 export function WinePhotoGallery({
@@ -35,6 +43,7 @@ export function WinePhotoGallery({
 	thumbUrls,
 	version,
 	photoKinds,
+	photoBoxes,
 }: WinePhotoGalleryProps) {
 	const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -67,12 +76,13 @@ export function WinePhotoGallery({
 							aria-label={`${name}の写真${i + 1}${photoKinds?.[i] === "web" ? "(WEB画像)" : ""}を拡大`}
 							className="relative block w-full overflow-hidden rounded-md border border-border transition-opacity hover:opacity-80"
 						>
-							<img
+							<BoxedPhoto
 								src={`${thumbUrls[i] ?? url}?v=${version}`}
 								alt=""
-								className="aspect-square w-full object-cover"
+								box={photoBoxes?.[i]}
+								variant="tile"
+								className="aspect-square w-full"
 								loading="lazy"
-								decoding="async"
 							/>
 							{photoKinds?.[i] === "web" && <WebPhotoBadge variant="overlay" />}
 						</button>
@@ -84,6 +94,7 @@ export function WinePhotoGallery({
 				photos={photoUrls.map((url, i) => ({
 					src: `${url}?v=${version}`,
 					alt: `${name}の写真${i + 1}${photoKinds?.[i] === "web" ? "(WEB画像)" : ""}`,
+					box: photoBoxes?.[i] ?? null,
 				}))}
 				openIndex={openIndex}
 				onOpenChange={setOpenIndex}
@@ -108,12 +119,15 @@ export function ZoomablePhoto({
 	 * 取得先へ Referer を送らない。
 	 */
 	referrerPolicy,
+	/** 写真に重ねる「その銘柄があった枠」(#693)。サムネイルは枠へ寄せる */
+	box,
 }: {
 	src: string;
 	alt: string;
 	className?: string;
 	isWebPhoto?: boolean;
 	referrerPolicy?: "no-referrer";
+	box?: PhotoBox | null;
 }) {
 	const [openIndex, setOpenIndex] = useState<number | null>(null);
 	const label = isWebPhoto ? `${alt}(WEB画像)` : alt;
@@ -129,18 +143,19 @@ export function ZoomablePhoto({
 					className,
 				)}
 			>
-				<img
+				<BoxedPhoto
 					src={src}
 					alt=""
-					className="size-full object-cover"
+					box={box}
+					variant="tile"
+					className="size-full"
 					loading="lazy"
-					decoding="async"
 					{...(referrerPolicy ? { referrerPolicy } : {})}
 				/>
 				{isWebPhoto && <WebPhotoBadge variant="overlay" />}
 			</button>
 			<PhotoLightbox
-				photos={[{ src, alt: label }]}
+				photos={[{ src, alt: label, box: box ?? null }]}
 				openIndex={openIndex}
 				onOpenChange={setOpenIndex}
 				title={label}

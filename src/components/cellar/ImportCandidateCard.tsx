@@ -5,6 +5,7 @@ import {
 	LinkIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { BoxedPhoto } from "#/components/cellar/BoxedPhoto";
 import { DrunkWineFields } from "#/components/cellar/DrunkWineFields";
 import type {
 	DrunkWineFieldsValue,
@@ -14,6 +15,7 @@ import type { ImportCardState } from "#/components/cellar/import-candidates";
 import {
 	dialogIndexForDisplayPhoto,
 	displayPhotoForImportCard,
+	photoBoxesForDialogEdit,
 	photosForImportCardDialog,
 	primarySelectionForDialogIndex,
 } from "#/components/cellar/import-candidates";
@@ -116,13 +118,17 @@ export function ImportCandidateCard({
 								aria-label={thumbnailLabel}
 								className="relative size-16 shrink-0 overflow-hidden rounded-md border border-border transition-opacity hover:opacity-80"
 							>
-								<img
+								{/* 写真の中のこの銘柄の枠(#693)があれば枠へ寄せて見せる */}
+								<BoxedPhoto
 									src={displayPhoto.src}
 									alt=""
-									className="size-full object-cover"
+									box={displayPhoto.box}
+									variant="tile"
+									className="size-full"
 									loading="lazy"
-									decoding="async"
-									{...(showWebPhoto ? { referrerPolicy: "no-referrer" } : {})}
+									{...(showWebPhoto
+										? { referrerPolicy: "no-referrer" as const }
+										: {})}
 								/>
 								{showWebPhoto && <WebPhotoBadge variant="overlay" />}
 							</button>
@@ -131,7 +137,22 @@ export function ImportCandidateCard({
 									photos={dialogPhotos.map((photo) => ({
 										src: photo.src,
 										alt: `${title}の写真${photo.isWebPhoto ? "(WEB画像)" : ""}`,
+										box: photo.box,
+										// 枠を持てるのは手元のバッチ写真だけ(web 画像は複製しない)
+										boxEditable: !photo.isWebPhoto,
 									}))}
+									// 枠の手直し(#693)。移動・リサイズ・削除・新規作成ができる。
+									boxEdit={{
+										onChange: (dialogIndex, box) => {
+											const photoBoxes = photoBoxesForDialogEdit(
+												card,
+												photoPreviews,
+												dialogIndex,
+												box,
+											);
+											if (photoBoxes) onChange({ photoBoxes });
+										},
+									}}
 									openIndex={lightboxIndex}
 									onOpenChange={setLightboxIndex}
 									title={`${title}の写真`}

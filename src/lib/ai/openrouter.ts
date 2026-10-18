@@ -340,6 +340,99 @@ export async function chatCompletion(
 	return parseChatResult(raw);
 }
 
+// ---- 決定モデル(Jev。#693) ----
+//
+// TypeSafe の Jev は chat completions ではなく専用の decisions エンドポイントで
+// 呼ぶ(文章を生成せず、問いごとに型付きの答えと確率を返す)。接続先の集約という
+// このファイルの役割は変わらないので、transport はここに置き、問いの組み立てと
+// 答えの解釈は呼び出し側(`wine-list-locate.ts`)が持つ。
+
+/** OpenRouter の decisions エンドポイント(alpha)。 */
+const OPENROUTER_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions";
+
+/**
+ * decisions の1リクエストのタイムアウト(ms)。画像入力は長文モードで走るので余裕を
+ * 持たせつつ、付随的な処理(位置の推定)がジョブを引き延ばしすぎない値にする。
+ */
+const OPENROUTER_DECISIONS_TIMEOUT_MS = 45_000;
+
+/** decisions の `state` の1要素。文字列はテキスト、画像は data URI のパート。 */
+type OpenRouterDecisionStatePart = string | OpenRouterImagePart;
+
+/** decisions の問い。この経路が使う Box(位置)と Noul(真偽の確率)だけを型にする。 */
+export type OpenRouterDecisionQuestion =
+	| { type: "box"; instructions: string }
+	| { type: "noul"; instructions: string };
+
+export interface OpenRouterDecisionRequest {
+	model: string;
+	state: OpenRouterDecisionStatePart[];
+	/** 問いの名前 → 問い。名前はモデルへは送られない(答えの突き合わせ用)。 */
+	questions: Record<string, OpenRouterDecisionQuestion>;
+}
+
+export interface OpenRouterDecisionResult {
+	/** 問いの名前 → 答え(生の JSON)。解釈は呼び出し側が行う。 */
+	answers: Record<string, unknown>;
+	/** 課金用の使用量。出力は無料だが、入力と同じく畳まずに返す。 */
+	usage: AiUsage;
+	/** 実際に応答したスナップショット(例: `typesafe/jev-1.14-20261014`)。 */
+	model?: string;
+}
+
+/**
+ * decisions を1回呼ぶ。失敗は `chatCompletion` と同じ `OpenRouterError` に畳む
+ * (呼び出し側の既存の返却・表示処理に載せるため)。
+ */
+export async function decide(
+	apiKey: string,
+	request: OpenRouterDecisionRequest,
+): Promise<OpenRouterDecisionResult> {
+	if (!apiKey.trim()) {
+		throw new OpenRouterError("auth", "OpenRouter APIキーが設定されていません");
+	}
+	let response: Response;
+	try {
+		response = await fetch(OPENROUTER_DECISIONS_URL, {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+				"Content-Type": "application/json",
+				"HTTP-Referer": OPENROUTER_REFERER,
+				"X-Title": OPENROUTER_TITLE,
+			},
+			body: JSON.stringify({
+				model: request.model,
+				state: request.state,
+				questions: request.questions,
+			}),
+			signal: AbortSignal.timeout(OPENROUTER_DECISIONS_TIMEOUT_MS),
+		});
+	} catch (e) {
+		throw toNetworkError(e, OPENROUTER_DECISIONS_TIMEOUT_MS);
+	}
+	if (!response.ok) {
+		throw await toStatusError(response);
+	}
+	const raw = (await response.json()) as Record<string, unknown>;
+	const answers =
+		raw.answers && typeof raw.answers === "object"
+			? (raw.answers as Record<string, unknown>)
+			: {};
+	const usage =
+		raw.usage && typeof raw.usage === "object"
+			? (raw.usage as Record<string, unknown>)
+			: {};
+	return {
+		answers,
+		usage: {
+			inputTokens: asNonNegativeInt(usage.input_tokens),
+			outputTokens: asNonNegativeInt(usage.output_tokens),
+		},
+		...(typeof raw.model === "string" ? { model: raw.model } : {}),
+	};
+}
+
 /**
  * assistant メッセージのツール呼び出しを OpenAI の wire 形へ直す。
  * クライアント側は `{id, name, arguments}` の読みやすい形で持ち、
@@ -361,7 +454,10 @@ function serializeMessages(messages: OpenRouterMessage[]): unknown[] {
 }
 
 /** fetch 自体の失敗(タイムアウト・DNS・接続断)を `OpenRouterError` へ畳む。 */
-function toNetworkError(e: unknown): OpenRouterError {
+function toNetworkError(
+	e: unknown,
+	timeoutMs: number = OPENROUTER_TIMEOUT_MS,
+): OpenRouterError {
 	const name =
 		e && typeof e === "object" && "name" in e
 			? String((e as { name: unknown }).name)
@@ -369,7 +465,7 @@ function toNetworkError(e: unknown): OpenRouterError {
 	if (name === "TimeoutError") {
 		return new OpenRouterError(
 			"timeout",
-			`OpenRouterへのリクエストがタイムアウトしました(${OPENROUTER_TIMEOUT_MS}ms)`,
+			`OpenRouterへのリクエストがタイムアウトしました(${timeoutMs}ms)`,
 		);
 	}
 	return new OpenRouterError(

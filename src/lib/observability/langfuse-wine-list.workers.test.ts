@@ -149,6 +149,16 @@ function orChatResponse(fields: Record<string, unknown>): Response {
 	});
 }
 
+/** スタブ・鍵・isolate 内 singleton を元に戻す(各 describe の afterEach)。 */
+function resetStubs() {
+	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
+	delete (env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY;
+	setLangfuseKeys(undefined, undefined);
+	__resetLangfuseForTests();
+	__resetLangfusePromptForTests();
+}
+
 describe("一括抽出の Langfuse 計装 (#515)", () => {
 	let calls: FetchCall[] = [];
 
@@ -156,15 +166,7 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 		calls = [];
 	});
 
-	afterEach(() => {
-		vi.restoreAllMocks();
-		vi.unstubAllGlobals();
-		delete (env as unknown as { OPENROUTER_API_KEY?: string })
-			.OPENROUTER_API_KEY;
-		setLangfuseKeys(undefined, undefined);
-		__resetLangfuseForTests();
-		__resetLangfusePromptForTests();
-	});
+	afterEach(resetStubs);
 
 	it("GPT経路がgenerationを報告し、写真インベントリがメタデータに載る", async () => {
 		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
@@ -301,5 +303,172 @@ describe("一括抽出の Langfuse 計装 (#515)", () => {
 		for (const g of gens) {
 			expect(String(g.traceId ?? g.trace_id)).toBe(expectedTraceId);
 		}
+	});
+});
+
+describe("銘柄の位置の推定(Jev の Box。#693)", () => {
+	let calls: FetchCall[] = [];
+	let decisionBodies: Array<Record<string, unknown>> = [];
+
+	beforeEach(() => {
+		calls = [];
+		decisionBodies = [];
+	});
+
+	afterEach(resetStubs);
+
+	const BOX = { top: 0.1, bottom: 0.3, left: 0.2, right: 0.5 };
+
+	/** 抽出(chat)と位置(decisions)の応答を差し替える。decisions の応答は引数で決める。 */
+	function stubOpenRouter(
+		extraction: Record<string, unknown>,
+		decisions: (body: Record<string, unknown>) => Response,
+	) {
+		(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
+			"or-test";
+		vi.stubGlobal(
+			"fetch",
+			async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = String(input);
+				if (isPromptFetch(url)) return new Response("{}", { status: 404 });
+				if (isLangfuseCall({ url, body: "" })) {
+					calls.push({ url, body: bodyToString(init?.body) });
+					return new Response("{}", { status: 200 });
+				}
+				if (url === "https://openrouter.ai/api/alpha/decisions") {
+					const body = JSON.parse(bodyToString(init?.body)) as Record<
+						string,
+						unknown
+					>;
+					decisionBodies.push(body);
+					return decisions(body);
+				}
+				if (url.startsWith("https://openrouter.ai/api/v1/")) {
+					return orChatResponse(extraction);
+				}
+				throw new Error(`unexpected fetch: ${url}`);
+			},
+		);
+	}
+
+	async function runJob(photoCount: number) {
+		const userId = await seedUser();
+		const plan = await resolveWineListPlan(userId, photoCount);
+		const begun = await beginMeteredInference(userId, {
+			estimate: plan.estimate,
+			requestId: plan.requestId,
+			logBase: plan.logBase,
+		});
+		if (begun.blocked) throw new Error("unreachable");
+		return runWineListAnalysisForJob(userId, {
+			imageDataUrls: Array.from({ length: photoCount }, () => PHOTO),
+			plan,
+			reservation: begun.reservation,
+		});
+	}
+
+	it("写真ごとに Box と Noul を問い、写っている銘柄にだけ枠を付けて Jev の原価も計上する", async () => {
+		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
+		stubOpenRouter(
+			{
+				subject: "wine_list",
+				wines: [
+					wineJson({ wine_name: "Chablis", photo_indexes: [0] }),
+					wineJson({ wine_name: "Meursault", photo_indexes: [0, 1] }),
+				],
+				truncated: false,
+			},
+			(body) => {
+				const questions = body.questions as Record<
+					string,
+					{ instructions: string }
+				>;
+				// 写真0: Chablis(b0) は写っている、Meursault(b1) は写っていない
+				// 写真1: Meursault(b0) は写っている
+				const meursaultFirst = questions.b0?.instructions.includes("Meursault");
+				return Response.json({
+					model: "typesafe/jev-1.14-20261014",
+					answers: meursaultFirst
+						? {
+								b0: { type: "box", box: BOX, confidence: 0.9 },
+								p0: { noul: 0.95 },
+							}
+						: {
+								b0: { type: "box", box: BOX, confidence: 0.95 },
+								p0: { noul: 0.99 },
+								b1: { type: "box", box: BOX, confidence: 0.2 },
+								p1: { noul: 0.05 },
+							},
+					usage: { input_tokens: 200_000, output_tokens: 10 },
+				});
+			},
+		);
+
+		const done = await runJob(2);
+		await new Promise((r) => setTimeout(r, 50));
+
+		// 写真2枚 = 2リクエスト。画像は data URI のまま state に載る
+		expect(decisionBodies).toHaveLength(2);
+		expect(decisionBodies[0]?.model).toBe("typesafe/jev-1.14");
+		const [chablis, meursault] = done.value.candidates;
+		expect(chablis?.photoBoxes).toEqual([{ photoIndex: 0, box: BOX }]);
+		expect(meursault?.photoBoxes).toEqual([{ photoIndex: 1, box: BOX }]);
+
+		// Jev の入力(200k × 2 = 400k tok × $0.042/MTok = 16,800 µUSD)が確定額に乗る
+		expect(done.charge.microUsd).toBeGreaterThanOrEqual(16_800);
+
+		// generation として Langfuse へ報告し、写真の実体は載せない
+		const prefix = AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis;
+		const names = spansOfCalls(calls).map((s) => String(s.name));
+		expect(names).toContain(`${prefix}locate#1`);
+		expect(names).toContain(`${prefix}locate#2`);
+		const allBodies = calls
+			.filter(isLangfuseCall)
+			.map((c) => c.body)
+			.join("\n");
+		expect(allBodies).not.toContain("data:image/jpeg;base64");
+	});
+
+	it("Jev が失敗しても抽出結果は返す(枠なし)。失敗は ERROR の span として残す", async () => {
+		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
+		stubOpenRouter(
+			{
+				subject: "wine_list",
+				wines: [wineJson({ wine_name: "Chablis", photo_indexes: [0] })],
+				truncated: false,
+			},
+			() => Response.json({ error: { message: "down" } }, { status: 503 }),
+		);
+		const done = await runJob(1);
+		expect(decisionBodies).toHaveLength(1);
+		expect(done.value.candidates[0]?.suggestions.name).toBe("Chablis");
+		expect(done.value.candidates[0]?.photoBoxes).toBeUndefined();
+		// プレビューURLではログが見えないので、失敗の理由はトレースから辿る
+		await new Promise((r) => setTimeout(r, 50));
+		const prefix = AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis;
+		const failed = spansOfCalls(calls).find(
+			(s) => String(s.name) === `${prefix}locate#1`,
+		);
+		expect(failed).toBeDefined();
+		if (!failed) throw new Error("unreachable");
+		const attrs = attrsOf(failed);
+		expect(attrs["langfuse.observation.level"]).toBe("ERROR");
+		expect(attrs["langfuse.observation.status_message"]).toContain("503");
+	});
+
+	it("1本のワインと判定された回は問い合わせない(単体の登録へ案内され枠を使わない)", async () => {
+		stubOpenRouter(
+			{
+				subject: "single_wine",
+				wines: [wineJson({ wine_name: "Chablis", photo_indexes: [0] })],
+				truncated: false,
+			},
+			() => {
+				throw new Error("must not be called");
+			},
+		);
+		const done = await runJob(1);
+		expect(decisionBodies).toHaveLength(0);
+		expect(done.value.summary.subject).toBe("single_wine");
 	});
 });

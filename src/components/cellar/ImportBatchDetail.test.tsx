@@ -31,6 +31,7 @@ const DETAIL: ImportBatchDetail = {
 			photoUrls: ["/api/images/e1.jpg"],
 			thumbUrls: ["/api/images/e1-thumb.jpg"],
 			photoKinds: ["bottle"],
+			photoBoxes: [null],
 			createdAt: 1_786_000_000_000,
 			updatedAt: 1_786_000_000_000,
 			sighting: {
@@ -42,6 +43,7 @@ const DETAIL: ImportBatchDetail = {
 				memo: null,
 				photoUrl: "/api/images/batch-0.jpg",
 				photoUrls: ["/api/images/batch-0.jpg", "/api/images/batch-1.jpg"],
+				photoBoxes: [null, null],
 			},
 		},
 	],
@@ -58,6 +60,7 @@ const DETAIL: ImportBatchDetail = {
 			memo: null,
 			photoUrl: "/api/images/batch-1.jpg",
 			photoUrls: ["/api/images/batch-1.jpg"],
+			photoBoxes: [null],
 			photoIndex: 1,
 		},
 	],

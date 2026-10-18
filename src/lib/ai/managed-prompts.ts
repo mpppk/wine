@@ -245,6 +245,34 @@ export const WINE_LIST_RESEARCH_PROMPT: ManagedPromptDefinition = {
 };
 
 /**
+ * 一括抽出の銘柄の位置(#693)を Jev の Box で求めるときの指示文。`wine` は
+ * 「生産者 ワイン名 ヴィンテージ」を空白で連ねた銘柄の表示名
+ * (`locateWineLabel` が組み立てる)。
+ *
+ * **Jev は指示文の具体さで精度が大きく変わる**(公式の例では曖昧な指示で
+ * confidence 0.44、対象の外枠まで含めると書くと 0.95)。リスト写真なら「その行」、
+ * 棚写真なら「そのボトル(ラベルを含む)」を、どちらの写真でも通じる形で書く。
+ * 英語で書くのは Jev の公開例がすべて英語のため。
+ */
+export const WINE_LIST_LOCATE_BOX_PROMPT: ManagedPromptDefinition = {
+	name: "wine-list-locate-box",
+	template:
+		'the wine "{{wine}}" in this photo: on a wine list or menu, the printed entry for it including its name, vintage and price on the same line; on a shelf, table or display, that whole bottle including its label',
+	variables: ["wine"],
+};
+
+/**
+ * 同じく、その銘柄が写真に写っているかを Jev の Noul で問う指示文。Box は対象が
+ * 無くても4辺を返す(「見つからない」と答えない)ので、存在の判定はこちらに任せる。
+ */
+export const WINE_LIST_LOCATE_PRESENCE_PROMPT: ManagedPromptDefinition = {
+	name: "wine-list-locate-presence",
+	template:
+		'This photo shows the wine "{{wine}}", either as a printed entry on a wine list or menu, or as a bottle or label.',
+	variables: ["wine"],
+};
+
+/**
  * Langfuse 管理下のプロンプト全件。実行時・同期スクリプト・テストが同じ定義を読む。
  * **ここに載っていないプロンプトは Langfuse を見ない**(コードがそのまま正)。
  */
@@ -253,6 +281,8 @@ export const MANAGED_PROMPTS: readonly ManagedPromptDefinition[] = [
 	LABEL_WEB_RESEARCH_PROMPT,
 	LABEL_AGENT_RESEARCH_PROMPT,
 	WINE_LIST_RESEARCH_PROMPT,
+	WINE_LIST_LOCATE_BOX_PROMPT,
+	WINE_LIST_LOCATE_PRESENCE_PROMPT,
 ];
 
 /** `checkTemplateVariables` の結果。両方空なら、その版はコードが差し込める。 */

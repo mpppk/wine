@@ -101,6 +101,16 @@ export const AI_MODEL_PRICING: Record<string, ModelPricing> = {
 		inputUsdPerMTok: 0.1,
 		outputUsdPerMTok: 0.3,
 	},
+	/**
+	 * TypeSafe の決定モデル(一括抽出の銘柄の位置。#693)。**出力は無料**で、
+	 * 入力だけが課金される(2026-10-16 時点)。実際の請求は応答の `usage.cost` にも
+	 * 出るが、他の経路と同じくトークン×単価で計上する(見積と確定を同じ式に揃える)。
+	 * @see https://openrouter.ai/blog/insights/what-is-jev/
+	 */
+	"typesafe/jev-1.14": {
+		inputUsdPerMTok: 0.042,
+		outputUsdPerMTok: 0,
+	},
 
 	// ---- 直接接続時代の ID(履歴読み用。書き換えない) ----
 	// 値の確認日: 2026-08-02(一次情報は各エントリの @see)。
