@@ -297,6 +297,12 @@ export const winePhoto = sqliteTable(
 		kind: text("kind").notNull().$type<PhotoKind>().default("bottle"),
 		/** 表示順(0始まり)。先頭=代表サムネイル */
 		position: integer("position").notNull().default(0),
+		/**
+		 * 写真に重ねる枠(#693・drizzle/0046)。一括登録の全体写真を複製した写真にだけ
+		 * 入り、その銘柄が写真のどこにあったかを示す。NULL = 枠なし。**読み取りは必ず
+		 * `normalizePhotoBox` を通す**(JSON 列に CHECK は無い)。
+		 */
+		box: text("box", { mode: "json" }).$type<unknown>(),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
@@ -448,6 +454,13 @@ export const wineEncounter = sqliteTable(
 		 * 併存する。NULL = 先頭1枚だけの従来行(読み取りは `photoIndex` へ退避)。
 		 */
 		photoIndexes: text("photo_indexes", { mode: "json" }).$type<number[]>(),
+		/**
+		 * バッチ写真ごとの、その銘柄があった枠(#693・drizzle/0046)。解析ジョブが Jev で
+		 * 求め、レビュー画面で手直しされた値。銘柄写真の複製がここから枠を写す。
+		 * NULL = 枠なし。**読み取りは必ず `normalizePhotoBoxEntries` を通す**
+		 * (JSON 列に CHECK は無い)。
+		 */
+		photoBoxes: text("photo_boxes", { mode: "json" }).$type<unknown>(),
 		/** 出会った日 "YYYY-MM-DD"。覚えていない場合は null */
 		occurredOn: text("occurred_on"),
 		/** この回に飲んだか */

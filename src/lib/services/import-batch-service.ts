@@ -29,6 +29,12 @@ import {
 	thumbKeyForPhotoKey,
 } from "#/lib/drunk-wine/photo";
 import {
+	normalizePhotoBoxEntries,
+	type PhotoBox,
+	type PhotoBoxEntry,
+	photoBoxForIndex,
+} from "#/lib/drunk-wine/photo-box";
+import {
 	mergeStoredMarketPrices,
 	mergeStoredReferenceLinks,
 	normalizeStoredMarketPrices,
@@ -87,6 +93,23 @@ export async function adoptImportBatchPhotoKeys(
 		await attachImportBatchPhotoKeys(userId, batchId, adopted);
 	}
 	return { adopted, dropped };
+}
+
+/**
+ * 体験記録に保存する枠(#693)。**番号が体験記録の対応写真に含まれる枠だけ**残す
+ * ——対応しない写真の枠は、どの写真に重ねるかの意味を持たない。1つも残らなければ
+ * null(列は NULL =「枠なし」)。
+ */
+function sightingPhotoBoxes(
+	sighting: BulkRegisterFromScanInput["items"][number]["sighting"],
+): PhotoBoxEntry[] | null {
+	if (!sighting?.photoBoxes?.length) return null;
+	const indexes = new Set(sighting.photoIndexes ?? []);
+	if (sighting.photoIndex != null) indexes.add(sighting.photoIndex);
+	const kept = normalizePhotoBoxEntries(sighting.photoBoxes).filter((entry) =>
+		indexes.has(entry.photoIndex),
+	);
+	return kept.length > 0 ? kept : null;
 }
 
 // ---- 一括登録(写真からのスキャン。Issue #358) -----------------------------
@@ -406,8 +429,8 @@ export async function bulkRegisterFromScan(
 		// **batchId を必ず付ける**(#393)。既存エントリに足した体験記録も
 		// 取り消しの対象にするための唯一の手掛かり。
 		statements.push(
-			db.insert(wineEncounter).values(
-				buildEncounterValues(userId, drunkWineId, {
+			db.insert(wineEncounter).values({
+				...buildEncounterValues(userId, drunkWineId, {
 					drank: item.tasting != null,
 					occurredOn: item.tasting?.drankOn ?? input.seenOn,
 					rating: item.tasting?.rating,
@@ -418,7 +441,10 @@ export async function bulkRegisterFromScan(
 					photoIndex: item.sighting?.photoIndex,
 					photoIndexes: item.sighting?.photoIndexes,
 				}),
-			),
+				// 写真ごとの枠(#693)。一括登録にしか無い属性なので、手動追加と共有する
+				// buildEncounterValues の入力には足さずここで載せる。
+				photoBoxes: sightingPhotoBoxes(item.sighting),
+			}),
 		);
 
 		if (item.tasting) drankCount += 1;
@@ -780,6 +806,8 @@ interface ImportBatchDetailCreatedEntry {
 	photoUrls: string[];
 	thumbUrls: string[];
 	photoKinds: PhotoKind[];
+	/** 写真ごとに重ねる枠(photoUrls と同じ順・同じ長さ。#693) */
+	photoBoxes: (PhotoBox | null)[];
 	createdAt: number;
 	/**
 	 * 写真のキャッシュバスタ。バッチ後に写真を足し直すと R2 キーが同じでも
@@ -797,6 +825,8 @@ interface ImportBatchDetailCreatedEntry {
 		photoUrl: string | null;
 		/** そのワインが写っていた写真の相対URLの一覧(#574) */
 		photoUrls: string[];
+		/** 写真ごとの、その銘柄があった枠(photoUrls と同じ順。#693) */
+		photoBoxes: (PhotoBox | null)[];
 	} | null;
 }
 
@@ -815,6 +845,8 @@ interface ImportBatchDetailMatchedSighting {
 	photoUrl: string | null;
 	/** そのワインが写っていた写真の相対URLの一覧(#574) */
 	photoUrls: string[];
+	/** 写真ごとの、その銘柄があった枠(photoUrls と同じ順。#693) */
+	photoBoxes: (PhotoBox | null)[];
 	photoIndex: number | null;
 }
 
@@ -849,6 +881,7 @@ function toBatchDetailEntry(
 			imagePathForKey(thumbKeyForPhotoKey(key)),
 		),
 		photoKinds: entryPhotos.kinds,
+		photoBoxes: entryPhotos.boxes,
 		createdAt: row.createdAt.getTime(),
 		updatedAt: row.updatedAt.getTime(),
 	};
@@ -919,6 +952,7 @@ export async function getImportBatchDetail(
 			memo: string | null;
 			photoUrl: string | null;
 			photoUrls: string[];
+			photoBoxes: (PhotoBox | null)[];
 		}
 	>();
 	const matchedSightings: ImportBatchDetailMatchedSighting[] = [];
@@ -934,6 +968,7 @@ export async function getImportBatchDetail(
 				memo: sighting.memo,
 				photoUrl: sighting.photoUrl,
 				photoUrls: sighting.photoUrls,
+				photoBoxes: sighting.photoBoxes,
 			});
 		} else {
 			matchedSightings.push({
@@ -948,6 +983,7 @@ export async function getImportBatchDetail(
 				memo: sighting.memo,
 				photoUrl: sighting.photoUrl,
 				photoUrls: sighting.photoUrls,
+				photoBoxes: sighting.photoBoxes,
 				photoIndex: sighting.photoIndex,
 			});
 		}
@@ -1158,6 +1194,7 @@ async function adoptBatchPhotosForWines(
 				photoKeys: drunkWine.photoKeys,
 				photoIndex: wineEncounter.photoIndex,
 				photoIndexes: wineEncounter.photoIndexes,
+				photoBoxes: wineEncounter.photoBoxes,
 			})
 			.from(drunkWine)
 			.innerJoin(
@@ -1204,13 +1241,25 @@ async function adoptBatchPhotosForWines(
 				continue;
 			// 対応写真のすべてを、エントリの上限まで複製する(#574)。範囲外の番号は
 			// 指す先が無いので落とす(読み取りの `toEncounterEntry` と同じ扱い)。
-			const sourceKeys = encounterPhotoIndexes(row)
-				.map((index) => batchPhotoKeys[index])
-				.filter((key): key is string => !!key)
+			// 枠(#693)は写真番号で引く。複製先の写真1枚ごとに、その写真の中の枠を写す
+			// (無ければ枠なし = 従来どおりの全体写真)。
+			const boxes = normalizePhotoBoxEntries(
+				row.photoBoxes,
+				batchPhotoKeys.length,
+			);
+			const sources = encounterPhotoIndexes(row)
+				.map((index) => ({
+					key: batchPhotoKeys[index],
+					box: photoBoxForIndex(boxes, index),
+				}))
+				.filter(
+					(source): source is { key: string; box: PhotoBox | null } =>
+						!!source.key,
+				)
 				.slice(0, MAX_PHOTOS_PER_ENTRY);
-			if (sourceKeys.length === 0) continue;
-			const newKeys: string[] = [];
-			for (const sourceKey of sourceKeys) {
+			if (sources.length === 0) continue;
+			const newPhotos: { key: string; box: PhotoBox | null }[] = [];
+			for (const { key: sourceKey, box } of sources) {
 				const source = await readSource(sourceKey);
 				if (!source) continue;
 				// **参照ではなく複製**を持たせる(理由はこの関数の JSDoc)。
@@ -1224,17 +1273,23 @@ async function adoptBatchPhotosForWines(
 					httpMetadata: { contentType: source.contentType },
 				});
 				putKeys.push(key);
-				newKeys.push(key);
+				newPhotos.push({ key, box });
 			}
-			if (newKeys.length === 0) continue;
+			if (newPhotos.length === 0) continue;
+			const newKeys = newPhotos.map((photo) => photo.key);
 			updates.push(
 				// 子テーブルへの二重化(#645)。同じ batch なので D1 全失敗時は
 				// R2 の複製ごと巻き戻る(下の catch が putKeys を掃除する)。
+				// 枠(#693)は子テーブルにだけ持つ(旧列は移行のフォールバック専用)。
 				db.insert(winePhoto).values(
 					buildWinePhotoValues(
 						userId,
 						row.id,
-						newKeys.map((key) => ({ key, kind: "bottle" as PhotoKind })),
+						newPhotos.map((photo) => ({
+							key: photo.key,
+							kind: "bottle" as PhotoKind,
+							box: photo.box,
+						})),
 					),
 				),
 				db

@@ -19,6 +19,9 @@ import {
 	AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST,
 	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_GPT_SEARCH_CONTEXT_SIZE,
+	AI_WINE_LIST_LOCATE_BUDGET_MS,
+	AI_WINE_LIST_LOCATE_MAX_DIMENSION,
+	AI_WINE_LIST_LOCATE_MODEL,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_ROUTE_MODELS,
 	anthropicReasoningForEffort,
@@ -55,6 +58,7 @@ import {
 	type LabelFieldSources,
 	type LabelSuggestions,
 	mergeExtractions,
+	parseImageDataUrl,
 	parseLabelResponse,
 	parseLabelSources,
 } from "#/lib/ai/label-extraction";
@@ -74,10 +78,13 @@ import {
 	LABEL_AGENT_RESEARCH_PROMPT,
 	LABEL_WEB_RESEARCH_PROMPT,
 	REGION_QA_SYSTEM_PROMPT,
+	WINE_LIST_LOCATE_BOX_PROMPT,
+	WINE_LIST_LOCATE_PRESENCE_PROMPT,
 	WINE_LIST_RESEARCH_PROMPT,
 } from "#/lib/ai/managed-prompts";
 import {
 	chatCompletion,
+	decide,
 	type OpenRouterChatResult,
 	type OpenRouterFunctionTool,
 	type OpenRouterMessage,
@@ -115,6 +122,15 @@ import {
 	buildWineListGptTextFormat,
 } from "#/lib/ai/wine-list-gpt";
 import {
+	attachPhotoBoxes,
+	buildLocateRequest,
+	LOCATE_WINE_SLOT,
+	type LocateAnswer,
+	type LocateInstructions,
+	parseLocateAnswers,
+	planLocateRequests,
+} from "#/lib/ai/wine-list-locate";
+import {
 	type AiUsage,
 	addUsage,
 	type CreditCharge,
@@ -133,7 +149,7 @@ import {
 	downscaleImage,
 	isImageTransformAvailable,
 } from "#/lib/images/transform";
-import { logWarn } from "#/lib/logger";
+import { logInfo, logWarn } from "#/lib/logger";
 import type {
 	LangfuseGenerationInput,
 	LangfuseSpanInput,
@@ -629,6 +645,32 @@ async function resolveWineListResearchPrompt(
 			photo_count: String(photoCount),
 		}),
 	);
+}
+
+/** 位置の推定(#693)の指示文。版の追跡は Box の版で代表させる。 */
+interface ResolvedLocateInstructions extends LocateInstructions {
+	prompt: ResolvedPrompt;
+	presenceSource: ResolvedPrompt["source"];
+}
+
+/**
+ * 位置の推定の指示文を Langfuse 管理下から引く。銘柄名は `LOCATE_WINE_SLOT` を
+ * 1回だけ差し込んで取得し、問いを組むときに銘柄ごとに置き換える(理由は
+ * `LOCATE_WINE_SLOT` の JSDoc)。`getManagedPrompt` は throw しない。
+ */
+async function resolveWineListLocateInstructions(): Promise<ResolvedLocateInstructions> {
+	const [box, presence] = await Promise.all([
+		getManagedPrompt(WINE_LIST_LOCATE_BOX_PROMPT, { wine: LOCATE_WINE_SLOT }),
+		getManagedPrompt(WINE_LIST_LOCATE_PRESENCE_PROMPT, {
+			wine: LOCATE_WINE_SLOT,
+		}),
+	]);
+	return {
+		box: box.text,
+		presence: presence.text,
+		prompt: toResolvedPrompt(box),
+		presenceSource: presence.source,
+	};
 }
 
 /**
@@ -1719,6 +1761,127 @@ async function extractWineListWithGpt(
 	return { parsed, usage };
 }
 
+/**
+ * Jev へ渡す版の写真を作る(#693)。Jev は PNG / JPEG しか受けないので、変換が
+ * 使える環境では長辺を縮めて JPEG に揃える(枠は比率で返るので縮めても位置は
+ * 変わらない)。変換が使えず PNG / JPEG でもない写真は諦める(null)。
+ */
+async function prepareLocatePhoto(dataUrl: string): Promise<string | null> {
+	if (isImageTransformAvailable()) {
+		return downscaleImage(dataUrl, AI_WINE_LIST_LOCATE_MAX_DIMENSION);
+	}
+	const { mediaType } = parseImageDataUrl(dataUrl);
+	return mediaType === "image/jpeg" || mediaType === "image/png"
+		? dataUrl
+		: null;
+}
+
+/** 写真の問い合わせを同時に何本まで投げるか。外向き fetch の並列を抑える。 */
+const LOCATE_CONCURRENCY = 3;
+
+/**
+ * 抽出した候補が写真のどこにあったかを Jev の Box で求め、候補に `photoBoxes` を
+ * 載せる(#693)。**付随的な処理なので失敗しても抽出結果は返す**——写真1枚ぶんの
+ * 失敗はその写真の枠なし、指示文の解決の失敗は全候補の枠なし(枠なしで複製する
+ * のは従来どおりの挙動)。使用量は呼び出し側が抽出本体と合わせて確定する。
+ *
+ * 呼び出し1回 = generation 1件として Langfuse へ報告する(`recordGeneration` が
+ * 唯一の入口。写真は要約へ置き換える)。
+ */
+async function locateWineListCandidates(
+	apiKey: string,
+	imageDataUrls: string[],
+	candidates: WineListCandidate[],
+	obs: InferenceObserver,
+	resolveInstructions: () => Promise<ResolvedLocateInstructions>,
+): Promise<{ candidates: WineListCandidate[]; usage: AiUsage }> {
+	const plans = planLocateRequests(candidates, imageDataUrls.length);
+	if (plans.length === 0) return { candidates, usage: {} };
+	const instructions = await resolveInstructions();
+	const locateObs = withPromptAttribution(obs, instructions.prompt);
+	const photoSummaries = await describePhotoSummaries(imageDataUrls);
+	// 同じ写真を複数の問い合わせ(銘柄が多い写真の分割)で使い回す。
+	const prepared = new Map<number, Promise<string | null>>();
+	const preparePhoto = (photoIndex: number) => {
+		let pending = prepared.get(photoIndex);
+		if (!pending) {
+			const source = imageDataUrls[photoIndex];
+			pending = source ? prepareLocatePhoto(source) : Promise.resolve(null);
+			prepared.set(photoIndex, pending);
+		}
+		return pending;
+	};
+	let usage: AiUsage = {};
+	const results: { photoIndex: number; answers: LocateAnswer[] }[] = [];
+	let failures = 0;
+	let skipped = 0;
+	const deadline = Date.now() + AI_WINE_LIST_LOCATE_BUDGET_MS;
+	const runPlan = async (plan: (typeof plans)[number], order: number) => {
+		try {
+			const image = await preparePhoto(plan.photoIndex);
+			if (!image) return;
+			const request = buildLocateRequest(plan, image, instructions);
+			const response = await decide(apiKey, request);
+			usage = addUsage(usage, response.usage);
+			const answers = parseLocateAnswers(plan, response.answers);
+			locateObs.recordGeneration({
+				name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}locate#${order + 1}`,
+				model: response.model ?? AI_WINE_LIST_LOCATE_MODEL,
+				// 写真の実体は載せない(写真の方針。要約は metadata.photo)。
+				input: {
+					photoIndex: plan.photoIndex,
+					questions: request.questions,
+				},
+				output: answers.map((answer) => ({
+					wine: plan.targets.find(
+						(target) => target.candidateIndex === answer.candidateIndex,
+					)?.label,
+					box: answer.box,
+					presence: answer.presence,
+					confidence: answer.confidence,
+				})),
+				metadata: {
+					photo: photoSummaries[plan.photoIndex],
+					presencePromptSource: instructions.presenceSource,
+				},
+				usage: {
+					inputTokens: response.usage.inputTokens,
+					outputTokens: response.usage.outputTokens,
+					totalTokens: totalTokens(response.usage),
+				},
+			});
+			results.push({ photoIndex: plan.photoIndex, answers });
+		} catch (e) {
+			failures += 1;
+			logWarn("wine list locate failed; continuing without boxes", {
+				photoIndex: plan.photoIndex,
+				wines: plan.targets.length,
+				err: e,
+			});
+		}
+	};
+	for (let i = 0; i < plans.length; i += LOCATE_CONCURRENCY) {
+		// 時間の上限を過ぎたら残りは枠なし(`AI_WINE_LIST_LOCATE_BUDGET_MS` の JSDoc)。
+		if (Date.now() > deadline) {
+			skipped = plans.length - i;
+			break;
+		}
+		await Promise.all(
+			plans
+				.slice(i, i + LOCATE_CONCURRENCY)
+				.map((plan, offset) => runPlan(plan, i + offset)),
+		);
+	}
+	const located = attachPhotoBoxes(candidates, results);
+	logInfo("wine list locate finished", {
+		requests: plans.length,
+		failures,
+		skipped,
+		boxes: located.reduce((n, c) => n + (c.photoBoxes?.length ?? 0), 0),
+	});
+	return { candidates: located, usage };
+}
+
 /** 一括抽出の結果。ジョブ行にもこの形で載る(#474)。 */
 export interface WineListAnalysisOutcome {
 	candidates: WineListCandidate[];
@@ -1750,6 +1913,8 @@ async function runWineListInference(
 		 * 寄せ、ここで `LangfuseClient` を直書きしない。
 		 */
 		resolvePrompt: (photoCount: number) => Promise<ResolvedPrompt>;
+		/** 位置の推定(#693)の指示文の解決。`resolvePrompt` と同じく推論の直前に引く。 */
+		resolveLocateInstructions: () => Promise<ResolvedLocateInstructions>;
 	},
 	ctx: MeteredInferenceContext,
 ): Promise<MeteredInferenceOutput<WineListAnalysisOutcome>> {
@@ -1780,10 +1945,31 @@ async function runWineListInference(
 					input.effort,
 				);
 	const deduped = dedupeWineListItems(parsed.wines);
-	const candidates = matchExistingEntries(
+	const matched = matchExistingEntries(
 		buildWineListCandidates(deduped.items),
 		input.entries,
 	);
+	// 銘柄の位置(#693)は抽出の後に求める。抽出本体の結果は失敗しても失わない
+	// (`locateWineListCandidates` は写真単位で失敗を吸収する)。1本のワインと判定
+	// された回は単体の登録へ案内され枠を使わないので、問い合わせない。
+	const located =
+		parsed.subject === "single_wine"
+			? { candidates: matched, usage: {} }
+			: await locateWineListCandidates(
+					input.apiKey,
+					input.imageDataUrls,
+					matched,
+					obs,
+					input.resolveLocateInstructions,
+				).catch((e: unknown) => {
+					// 写真単位の失敗は中で吸収している。ここに来るのは想定外の例外だけで、
+					// それでも抽出結果は失わない(付随的な処理で推論を失敗させない)。
+					logWarn("wine list locate crashed; returning without boxes", {
+						err: e,
+					});
+					return { candidates: matched, usage: {} };
+				});
+	const candidates = located.candidates;
 	const summary: WineListAnalysisSummary = {
 		detected: candidates.length,
 		subject: parsed.subject,
@@ -1795,11 +1981,23 @@ async function runWineListInference(
 	// **経路間のフォールバックが無い**(#426)ので、予約はこの推論を実行した経路の
 	// 見積そのものであり、そのまま「実行された経路の見積」でもある(#404)。
 	const measured = chargeFor(AI_WINE_LIST_ROUTE_MODELS[input.route], usage);
+	// 位置の推定(#693)は別モデル(Jev)なので単価を分けて足す。実測が取れなかった回
+	// (抽出本体の usage が空)は予約全量で確定するので、そちらに含まれる。
+	const locateCharge = chargeFor(AI_WINE_LIST_LOCATE_MODEL, located.usage);
 	const charge =
-		measured.microUsd > 0 ? measured : fallbackCharge(ctx.reservedMicroUsd);
+		measured.microUsd > 0
+			? {
+					microUsd: measured.microUsd + locateCharge.microUsd,
+					tokens: measured.tokens + locateCharge.tokens,
+				}
+			: fallbackCharge(ctx.reservedMicroUsd);
 	// フォールバックが無いので実行経路は常に選択経路と一致する。
 	ctx.addLogFields({ executedBy: input.route });
-	return { value: { candidates, summary }, charge, usage };
+	return {
+		value: { candidates, summary },
+		charge,
+		usage: addUsage(usage, located.usage),
+	};
 }
 
 /** 一括抽出ジョブの実行計画(#474)。`LabelPlan` と同じ役割・同じ使われ方。 */
@@ -1928,6 +2126,7 @@ export async function runWineListAnalysisForJob(
 					// なく解決関数を渡し、各チャンクの実枚数で引く。
 					resolvePrompt: (photoCount: number) =>
 						resolveWineListResearchPrompt(photoCount),
+					resolveLocateInstructions: resolveWineListLocateInstructions,
 				},
 				ctx,
 			),

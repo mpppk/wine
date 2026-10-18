@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AI_WINE_LIST_MAX_WINES } from "#/lib/ai/config";
 import { calendarDateSchema } from "#/lib/date/calendar-date";
+import { photoBoxEntriesSchema } from "#/lib/drunk-wine/photo-box";
 import { drunkWineReferenceInputs } from "#/lib/drunk-wine/reference-inputs";
 import {
 	createWineTastingInput,
@@ -66,6 +67,14 @@ const importItemInput = z
 				 * 取得元にもなる(サーバが対応写真をすべて複製する)。
 				 */
 				photoIndexes: wineSightingFields.photoIndexes,
+				/**
+				 * 写真ごとの、その銘柄があった枠(#693)。解析が Jev で求め、レビュー画面で
+				 * 手直しされた値。体験記録に保存し、銘柄写真の複製へ写す。番号が
+				 * `photoIndexes` / `photoIndex` に無い枠はサーバが落とす。
+				 */
+				photoBoxes: photoBoxEntriesSchema(
+					MAX_PHOTOS_PER_IMPORT_BATCH - 1,
+				).optional(),
 				price: wineSightingFields.price,
 				memo: wineSightingFields.memo,
 			})
@@ -144,6 +153,9 @@ export const bulkRegisterFromScanInput = z
 						i.sighting.photoIndex < v.photoCount) &&
 					(i.sighting?.photoIndexes ?? []).every(
 						(photo) => photo < v.photoCount,
+					) &&
+					(i.sighting?.photoBoxes ?? []).every(
+						(entry) => entry.photoIndex < v.photoCount,
 					),
 			),
 		{ error: "写真の番号が、送信する写真の枚数を超えています" },

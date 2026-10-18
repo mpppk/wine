@@ -8,6 +8,7 @@ import {
 	dialogIndexForDisplayPhoto,
 	displayPhotoForImportCard,
 	type ImportCardState,
+	photoBoxesForDialogEdit,
 	photosForImportCardDialog,
 	primarySelectionForDialogIndex,
 	registrationPhotoIndexes,
@@ -439,7 +440,11 @@ describe("displayPhotoForImportCard", () => {
 				}),
 				[],
 			),
-		).toEqual({ src: "https://example.com/barolo.jpg", isWebPhoto: true });
+		).toEqual({
+			src: "https://example.com/barolo.jpg",
+			isWebPhoto: true,
+			box: null,
+		});
 	});
 
 	it("bottle_photo_index があればそれを出す(複数関連時の自動選択)", () => {
@@ -448,7 +453,7 @@ describe("displayPhotoForImportCard", () => {
 				card({ photoIndexes: [0, 2], bottlePhotoIndex: 2 }),
 				PREVIEWS,
 			),
-		).toEqual({ src: "blob:photo-2", isWebPhoto: false });
+		).toEqual({ src: "blob:photo-2", isWebPhoto: false, box: null });
 	});
 
 	it("無ければ関連写真の先頭を出す(目撃記録の写真番号と同じ)", () => {
@@ -456,6 +461,7 @@ describe("displayPhotoForImportCard", () => {
 		expect(displayPhotoForImportCard(state, PREVIEWS)).toEqual({
 			src: "blob:photo-1",
 			isWebPhoto: false,
+			box: null,
 		});
 		// 登録側の番号と一致すること(表示と登録で違う写真を指さない)
 		const input = buildBulkRegisterInput([state], { photoCount: 3 });
@@ -478,7 +484,7 @@ describe("displayPhotoForImportCard", () => {
 				}),
 				PREVIEWS,
 			),
-		).toEqual({ src: "blob:photo-0", isWebPhoto: false });
+		).toEqual({ src: "blob:photo-0", isWebPhoto: false, box: null });
 	});
 
 	it("既存一致の手元写真は目撃記録の写真を出す", () => {
@@ -495,7 +501,7 @@ describe("displayPhotoForImportCard", () => {
 				}),
 				PREVIEWS,
 			),
-		).toEqual({ src: "blob:photo-2", isWebPhoto: false });
+		).toEqual({ src: "blob:photo-2", isWebPhoto: false, box: null });
 	});
 
 	it("該当のプレビューが無ければ null(サムネイルを出さない)", () => {
@@ -537,7 +543,11 @@ describe("resolveReviewPhotoPreviews", () => {
 				card({ photoIndexes: [1] }),
 				resolveReviewPhotoPreviews([], jobUrls),
 			),
-		).toEqual({ src: "/api/images/wines/u/job/p1.jpg", isWebPhoto: false });
+		).toEqual({
+			src: "/api/images/wines/u/job/p1.jpg",
+			isWebPhoto: false,
+			box: null,
+		});
 	});
 
 	it("どちらも無ければ空（サムネイルなし）", () => {
@@ -564,7 +574,7 @@ describe("primaryPhoto による代表画像の上書き", () => {
 				}),
 				PREVIEWS,
 			),
-		).toEqual({ src: "blob:photo-0", isWebPhoto: false });
+		).toEqual({ src: "blob:photo-0", isWebPhoto: false, box: null });
 	});
 
 	it("web 由来の新規銘柄は web への上書きができる", () => {
@@ -578,7 +588,11 @@ describe("primaryPhoto による代表画像の上書き", () => {
 				}),
 				PREVIEWS,
 			),
-		).toEqual({ src: "https://example.com/barolo.jpg", isWebPhoto: true });
+		).toEqual({
+			src: "https://example.com/barolo.jpg",
+			isWebPhoto: true,
+			box: null,
+		});
 	});
 
 	it("範囲外の番号の上書きは自動選択へ落とす(サムネイルを消さない)", () => {
@@ -590,7 +604,7 @@ describe("primaryPhoto による代表画像の上書き", () => {
 				}),
 				PREVIEWS,
 			),
-		).toEqual({ src: "blob:photo-1", isWebPhoto: false });
+		).toEqual({ src: "blob:photo-1", isWebPhoto: false, box: null });
 	});
 
 	it("既存一致の web への上書きは手元写真へ落とす(取り込まないため)", () => {
@@ -610,7 +624,7 @@ describe("primaryPhoto による代表画像の上書き", () => {
 				}),
 				PREVIEWS,
 			),
-		).toEqual({ src: "blob:photo-0", isWebPhoto: false });
+		).toEqual({ src: "blob:photo-0", isWebPhoto: false, box: null });
 	});
 
 	it("上書きしても登録ペイロードの目撃写真番号は変わらない(表示専用)", () => {
@@ -737,5 +751,109 @@ describe("dialogIndexForDisplayPhoto / primarySelectionForDialogIndex", () => {
 	it("一覧に無い位置は null(押せないボタンにしない)", () => {
 		const state = card({ photoIndexes: [0] });
 		expect(primarySelectionForDialogIndex(state, PREVIEWS, 9)).toBeNull();
+	});
+});
+
+describe("写真の中の枠(#693)", () => {
+	const BOX = { top: 0.1, bottom: 0.3, left: 0.2, right: 0.5 };
+	const PREVIEWS = ["blob:photo-0", "blob:photo-1", "blob:photo-2"];
+
+	it("候補の枠を正規化してカードに持たせる(ジョブ結果の JSON を信用しない)", () => {
+		const [state] = buildImportCards([
+			candidate({
+				photoIndexes: [0, 1],
+				photoBoxes: [
+					{ photoIndex: 1, box: BOX },
+					// 壊れた枠は落とす
+					{ photoIndex: 0, box: { top: 2, bottom: 2, left: 0, right: 0 } },
+				],
+			}),
+		]);
+		expect(state?.photoBoxes).toEqual([{ photoIndex: 1, box: BOX }]);
+		const [none] = buildImportCards([candidate()]);
+		expect(none?.photoBoxes).toEqual([]);
+	});
+
+	it("サムネイルとダイアログに、その写真の枠を出す", () => {
+		const state = card({
+			photoIndexes: [1, 2],
+			photoBoxes: [{ photoIndex: 1, box: BOX }],
+		});
+		expect(displayPhotoForImportCard(state, PREVIEWS)?.box).toEqual(BOX);
+		expect(
+			photosForImportCardDialog(state, PREVIEWS).map((p) => p.box),
+		).toEqual([BOX, null]);
+	});
+
+	it("ダイアログでの編集は写真番号の枠を差し替える。web 画像は枠を持てない", () => {
+		const state = card({
+			photoKind: "web",
+			imageUrl: "https://example.com/a.jpg",
+			photoIndexes: [1, 2],
+			photoBoxes: [{ photoIndex: 1, box: BOX }],
+		});
+		// 一覧は web → 写真1 → 写真2
+		expect(photoBoxesForDialogEdit(state, PREVIEWS, 0, BOX)).toBeNull();
+		expect(photoBoxesForDialogEdit(state, PREVIEWS, 2, BOX)).toEqual([
+			{ photoIndex: 1, box: BOX },
+			{ photoIndex: 2, box: BOX },
+		]);
+		expect(photoBoxesForDialogEdit(state, PREVIEWS, 1, null)).toEqual([]);
+	});
+
+	it("登録時は目撃記録が参照する写真の枠だけを送る", () => {
+		const state = card({
+			photoIndexes: [0],
+			bottlePhotoIndex: 2,
+			photoBoxes: [
+				{ photoIndex: 0, box: BOX },
+				{ photoIndex: 1, box: BOX },
+				{ photoIndex: 2, box: BOX },
+			],
+		});
+		const input = buildBulkRegisterInput([state], { photoCount: 3 });
+		expect(input.items[0]?.sighting?.photoBoxes).toEqual([
+			{ photoIndex: 0, box: BOX },
+			{ photoIndex: 2, box: BOX },
+		]);
+		// サーバの入力スキーマを通る(枚数の範囲外は弾かれる)
+		expect(bulkRegisterFromScanInput.safeParse(input).success).toBe(true);
+		expect(
+			bulkRegisterFromScanInput.safeParse({ ...input, photoCount: 2 }).success,
+		).toBe(false);
+		// 枠が無ければ送らない
+		const plain = buildBulkRegisterInput([card()], { photoCount: 1 });
+		expect(plain.items[0]?.sighting).not.toHaveProperty("photoBoxes");
+	});
+
+	it("サーバの入力スキーマは枚数の範囲外を指す枠を弾く", () => {
+		const input = {
+			photoCount: 1,
+			items: [
+				{
+					wine: { name: "A" },
+					sighting: {
+						photoIndexes: [0],
+						photoBoxes: [{ photoIndex: 1, box: BOX }],
+					},
+				},
+			],
+		};
+		expect(bulkRegisterFromScanInput.safeParse(input).success).toBe(false);
+		expect(
+			bulkRegisterFromScanInput.safeParse({ ...input, photoCount: 2 }).success,
+		).toBe(true);
+	});
+
+	it("既存一致のカードも枠を送る(体験記録のバッチ写真に重ねるため)", () => {
+		const state = card({
+			existing: { id: "x", name: "A", vintage: null, status: "spotted" },
+			photoIndexes: [0],
+			photoBoxes: [{ photoIndex: 0, box: BOX }],
+		});
+		const input = buildBulkRegisterInput([state], { photoCount: 1 });
+		expect(input.items[0]?.sighting?.photoBoxes).toEqual([
+			{ photoIndex: 0, box: BOX },
+		]);
 	});
 });

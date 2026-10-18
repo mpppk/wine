@@ -7,6 +7,7 @@ import {
 } from "#/components/cellar/WinePhotoGallery";
 import { Button } from "#/components/ui/button";
 import { formatDateTimeJst } from "#/lib/date/display";
+import type { PhotoBox } from "#/lib/drunk-wine/photo-box";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
 import type { ImportBatchDetail } from "#/lib/services/import-batch-service";
 
@@ -31,6 +32,7 @@ function SightingLine({
 	memo,
 	photoUrl,
 	photoUrls,
+	photoBoxes,
 	version,
 }: {
 	/** この回に飲んだか */
@@ -43,6 +45,8 @@ function SightingLine({
 	photoUrl: string | null;
 	/** そのワインが写っていた写真の相対URLの一覧。未指定なら photoUrl の1枚 */
 	photoUrls?: string[];
+	/** 写真ごとの、その銘柄があった枠(photoUrls と同じ順。#693) */
+	photoBoxes?: (PhotoBox | null)[];
 	/** 写真のキャッシュバスタ。バッチの createdAt を渡す */
 	version: number;
 }) {
@@ -52,12 +56,13 @@ function SightingLine({
 		<div className="flex items-start gap-3 text-sm">
 			{photos.length > 0 && (
 				<div className="flex shrink-0 gap-1">
-					{photos.map((url) => (
+					{photos.map((url, i) => (
 						<ZoomablePhoto
 							key={url}
 							src={`${url}?v=${version}`}
 							alt={`${placeName ?? "場所未設定"}で見かけたときの写真`}
 							className="size-14"
+							box={photoBoxes?.[i]}
 						/>
 					))}
 				</div>
@@ -183,6 +188,7 @@ export function ImportBatchDetailView({
 										thumbUrls={entry.thumbUrls}
 										version={entry.updatedAt}
 										photoKinds={entry.photoKinds}
+										photoBoxes={entry.photoBoxes}
 									/>
 								)}
 								{entry.sighting && (
@@ -199,6 +205,7 @@ export function ImportBatchDetailView({
 											memo={entry.sighting.memo}
 											photoUrl={entry.sighting.photoUrl}
 											photoUrls={entry.sighting.photoUrls}
+											photoBoxes={entry.sighting.photoBoxes}
 											version={detail.createdAt}
 										/>
 									</div>
@@ -246,6 +253,7 @@ export function ImportBatchDetailView({
 									memo={sighting.memo}
 									photoUrl={sighting.photoUrl}
 									photoUrls={sighting.photoUrls}
+									photoBoxes={sighting.photoBoxes}
 									version={detail.createdAt}
 								/>
 							</li>

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+	AI_MAX_ESTIMATE_MICRO_USD,
 	type AiUsage,
 	type CreditCharge,
 	toEstimateCharge,
@@ -792,16 +793,98 @@ export function estimateWineListReserveUsage(
 	};
 }
 
-/** 一括抽出の予約計上量。上限で必ずクランプする。 */
+/**
+ * 一括抽出の予約計上量。上限で必ずクランプする。
+ *
+ * 銘柄の位置の推定(Jev の Box。#693)も同じジョブの中で走り同じ予約で確定するので、
+ * そのぶんを足しておく。Jev は入力 $0.042/MTok・出力無料で、抽出本体の1%に満たない。
+ */
 export function estimateWineListReserveCharge(
 	route: WineListRoute,
 	imageCount: number,
 	effort: ReasoningEffortKey = DEFAULT_REASONING_EFFORT,
 ): CreditCharge {
-	return toEstimateCharge(
+	const extraction = toEstimateCharge(
 		AI_WINE_LIST_ROUTE_MODELS[route],
 		estimateWineListReserveUsage(route, imageCount, effort),
 	);
+	const locate = toEstimateCharge(
+		AI_WINE_LIST_LOCATE_MODEL,
+		estimateWineListLocateUsage(imageCount),
+	);
+	// 予約上限のクランプは合算後にもう一度かける(toEstimateCharge と同じ上限)。
+	return {
+		microUsd: Math.min(
+			extraction.microUsd + locate.microUsd,
+			AI_MAX_ESTIMATE_MICRO_USD,
+		),
+		tokens: extraction.tokens + locate.tokens,
+	};
+}
+
+// ---- 一括抽出の銘柄の位置(Issue #693) ----
+// 抽出した銘柄が写真のどこにあったかを、TypeSafe の決定モデル Jev の Box で求める。
+// 結果は枠の座標として保存し、表示時に重ねる(`src/lib/drunk-wine/photo-box.ts`)。
+
+/**
+ * 位置の推定に使うモデル。Box は 1.14 から(1.13 は 400 を返す)なので**版を固定する**
+ * (`~typesafe/jev-latest` は形式が変わりうる早期機能を黙って差し替えるため使わない)。
+ * @see https://openrouter.ai/docs/guides/community/jev
+ */
+export const AI_WINE_LIST_LOCATE_MODEL = "typesafe/jev-1.14";
+
+/**
+ * Jev の1リクエストに載せる銘柄の上限。銘柄1件につき Box と Noul の2問を載せる。
+ * 問いの数に上限は無いが、1リクエストは `state` + 1問で 32k(長文モードで 262k)に
+ * 収める必要があり、写真1枚に数十銘柄が並ぶリストでも余裕を持たせて割る。
+ */
+export const AI_WINE_LIST_LOCATE_WINES_PER_REQUEST = 30;
+
+/**
+ * 「写っている」とみなす Noul の下限。これ未満の銘柄は枠を付けない(枠なしで複製)。
+ * Box は対象が無くても4辺を返すため、存在の判定は Noul に任せる。
+ */
+export const AI_WINE_LIST_LOCATE_MIN_PRESENCE = 0.5;
+
+/** 枠を採用する Box の confidence の下限。これ未満は枠を付けない。 */
+export const AI_WINE_LIST_LOCATE_MIN_CONFIDENCE = 0.5;
+
+/**
+ * Jev へ渡す写真の長辺上限(px)。枠は比率で返るので縮めても位置は変わらない。
+ * Jev は PNG / JPEG しか受けないため、WebP 等はこの縮小で JPEG に揃える。
+ */
+export const AI_WINE_LIST_LOCATE_MAX_DIMENSION = 2048;
+
+/**
+ * 位置の推定に使ってよい時間の上限(ms)。これを過ぎたら残りの写真は問い合わせずに
+ * 枠なしで返す。抽出本体(Claude 経路はチャンクごとに最大180秒)の後に直列で走り、
+ * ジョブは `LABEL_JOB_STALE_MS`(15分)で失敗扱いになるため、付随的な処理が
+ * ジョブ全体を落とさないよう頭打ちにする。最悪値は「上限 + 1リクエストのタイムアウト」。
+ */
+export const AI_WINE_LIST_LOCATE_BUDGET_MS = 90_000;
+
+/** 写真1枚の入力トークンの中心値(長辺2048pxの JPEG を想定)。 */
+const AI_WINE_LIST_LOCATE_IMAGE_TOKEN_ESTIMATE = 1_600;
+/** 問い1件の指示文の入力トークン。 */
+const AI_WINE_LIST_LOCATE_QUESTION_TOKEN_ESTIMATE = 60;
+/** 写真1枚に写る銘柄数の中心値(リスト写真で10行前後)。 */
+const AI_WINE_LIST_LOCATE_WINES_PER_PHOTO_ESTIMATE = 10;
+
+/**
+ * 位置の推定の中心値使用量。**`state`(写真)は問いごとに評価される前提で見積る**
+ * (公開情報では課金の内訳が分からないので、高い側に倒す)。出力は無料。
+ */
+export function estimateWineListLocateUsage(imageCount: number): AiUsage {
+	const photos = Math.min(Math.max(1, imageCount), MAX_PHOTOS_PER_IMPORT_BATCH);
+	const questionsPerPhoto = AI_WINE_LIST_LOCATE_WINES_PER_PHOTO_ESTIMATE * 2;
+	return {
+		inputTokens:
+			photos *
+			questionsPerPhoto *
+			(AI_WINE_LIST_LOCATE_IMAGE_TOKEN_ESTIMATE +
+				AI_WINE_LIST_LOCATE_QUESTION_TOKEN_ESTIMATE),
+		outputTokens: 0,
+	};
 }
 
 /**

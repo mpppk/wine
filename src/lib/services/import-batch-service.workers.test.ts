@@ -484,6 +484,127 @@ describe("一括登録の銘柄写真", () => {
 		);
 	});
 
+	describe("写真の中の枠(#693)", () => {
+		const BOX = { top: 0.1, bottom: 0.3, left: 0.2, right: 0.5 };
+		const BOX2 = { top: 0.5, bottom: 0.9, left: 0.1, right: 0.4 };
+
+		it("体験記録に枠を保存し、銘柄写真の複製へ写真ごとに写す", async () => {
+			const userId = await freshUser();
+			const result = await bulkRegisterFromScan(userId, {
+				photoCount: 3,
+				items: [
+					{
+						wine: { name: "棚の1本" },
+						sighting: {
+							photoIndex: 0,
+							photoIndexes: [0, 1, 2],
+							photoBoxes: [
+								{ photoIndex: 0, box: BOX },
+								{ photoIndex: 2, box: BOX2 },
+							],
+						},
+					},
+				],
+			});
+			await saveImportBatchPhotos(userId, result.batchId, [
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			]);
+
+			const { entries } = await listDrunkWines(userId);
+			const entry = entries[0];
+			expect(entry?.photoUrls).toHaveLength(3);
+			// 枠の無い写真1は枠なし(全体写真のまま)
+			expect(entry?.photoBoxes).toEqual([BOX, null, BOX2]);
+
+			// 体験記録のバッチ写真にも同じ枠を重ねられる
+			const [encounter] = await listWineEncounters(userId, entry?.id as string);
+			expect(encounter?.photoBoxes).toEqual([BOX, null, BOX2]);
+
+			// 一括登録の履歴の詳細にも出る
+			const detail = await getImportBatchDetail(userId, result.batchId);
+			expect(detail.createdEntries[0]?.photoBoxes).toEqual([BOX, null, BOX2]);
+			expect(detail.createdEntries[0]?.sighting?.photoBoxes).toEqual([
+				BOX,
+				null,
+				BOX2,
+			]);
+		});
+
+		it("写真の並べ替えでも枠は写真に付いたまま残る", async () => {
+			const userId = await freshUser();
+			const result = await bulkRegisterFromScan(userId, {
+				photoCount: 2,
+				items: [
+					{
+						wine: { name: "並べ替え" },
+						sighting: {
+							photoIndex: 0,
+							photoIndexes: [0, 1],
+							photoBoxes: [{ photoIndex: 1, box: BOX }],
+						},
+					},
+				],
+			});
+			await saveImportBatchPhotos(userId, result.batchId, [
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			]);
+			const entry = (await listDrunkWines(userId)).entries[0];
+			const keys = (entry?.photoUrls ?? []).map((url) => imageKeyFromPath(url));
+			const saved = await syncDrunkWinePhotos(userId, entry?.id as string, [
+				{ kind: "existing", key: keys[1] as string },
+				{ kind: "existing", key: keys[0] as string },
+			]);
+			expect(saved.photoBoxes).toEqual([BOX, null]);
+		});
+
+		it("目撃記録の対応写真に無い枠は保存しない", async () => {
+			const userId = await freshUser();
+			const result = await bulkRegisterFromScan(userId, {
+				photoCount: 2,
+				items: [
+					{
+						wine: { name: "対応外" },
+						sighting: {
+							photoIndex: 0,
+							photoIndexes: [0],
+							photoBoxes: [
+								{ photoIndex: 0, box: BOX },
+								{ photoIndex: 1, box: BOX2 },
+							],
+						},
+					},
+				],
+			});
+			const [row] = await db
+				.select({ photoBoxes: wineEncounter.photoBoxes })
+				.from(wineEncounter)
+				.where(eq(wineEncounter.batchId, result.batchId));
+			expect(row?.photoBoxes).toEqual([{ photoIndex: 0, box: BOX }]);
+		});
+
+		it("枠を送らない登録は従来どおり(列は NULL・写真は枠なし)", async () => {
+			const userId = await freshUser();
+			const result = await bulkRegisterFromScan(userId, {
+				photoCount: 1,
+				items: [{ wine: { name: "枠なし" }, sighting: { photoIndex: 0 } }],
+			});
+			await saveImportBatchPhotos(userId, result.batchId, [
+				{ bytes: JPEG_1X1_BYTES, mimeType: "image/jpeg" },
+			]);
+			const [row] = await db
+				.select({ photoBoxes: wineEncounter.photoBoxes })
+				.from(wineEncounter)
+				.where(eq(wineEncounter.batchId, result.batchId));
+			expect(row?.photoBoxes).toBeNull();
+			expect((await listDrunkWines(userId)).entries[0]?.photoBoxes).toEqual([
+				null,
+			]);
+		});
+	});
+
 	it("既存エントリに目撃を足しただけの銘柄には写真を足さない", async () => {
 		const userId = await freshUser();
 		const existing = await createDrunkWine(userId, {

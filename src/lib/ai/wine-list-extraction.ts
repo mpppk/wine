@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PhotoBoxEntry } from "#/lib/drunk-wine/photo-box";
 import { PRICE_MAX, PRICE_MIN } from "#/lib/drunk-wine/schema";
 import type { WineStatus } from "#/lib/drunk-wine/status";
 import { parseRemotePhotoUrl } from "#/lib/images/remote-photo";
@@ -798,6 +799,12 @@ export interface WineListCandidate {
 	 * 取りに行くかの表示に使う。判定は `photoKindForPhotoHints` の結果を写すだけ。
 	 */
 	photoKind: PhotoKind;
+	/**
+	 * 写真の中でこの銘柄があった枠(#693)。解析ジョブが Jev の Box で求め、写っている
+	 * と判定できた写真の分だけ持つ(写真番号順)。レビュー画面で手直しされ、登録時に
+	 * 体験記録へ、銘柄写真の複製へと受け渡される。1つも無ければ持たない。
+	 */
+	photoBoxes?: PhotoBoxEntry[];
 	/**
 	 * 既存セラーの同一銘柄。**ある場合は新規作成せず、この銘柄に目撃記録を追加する**
 	 * 候補として提示する(distinct の第2段)。

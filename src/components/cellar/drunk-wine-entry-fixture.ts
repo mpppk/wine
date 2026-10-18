@@ -30,6 +30,7 @@ export function makeDrunkWineEntry(
 		photoUrls: [],
 		thumbUrls: [],
 		photoKinds: [],
+		photoBoxes: [],
 		createdAt: 0,
 		updatedAt: 0,
 		...overrides,

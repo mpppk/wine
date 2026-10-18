@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { LogInIcon, PlusIcon, WineIcon } from "lucide-react";
 import { useState } from "react";
+import { BoxedPhoto } from "#/components/cellar/BoxedPhoto";
 import { RatingStars } from "#/components/cellar/RatingStars";
 import { Button } from "#/components/ui/button";
 import { WINE_STATUS_LABELS_JA } from "#/lib/drunk-wine/status";
@@ -168,16 +169,15 @@ function CellarWineRow({ entry }: { entry: DrunkWineEntry }) {
 			className="flex items-center gap-2 rounded-md py-1.5 hover:bg-muted/60"
 		>
 			{entry.thumbUrls[0] ? (
-				<img
+				<BoxedPhoto
 					// 写真差し替え時にR2キーが同じでも再取得させるキャッシュバスタ
-					// (マイセラー一覧と同じ扱い)
+					// (マイセラー一覧と同じ扱い。一括登録の枠へ寄せるのも同じ #693)
 					src={`${entry.thumbUrls[0]}?v=${entry.updatedAt}`}
 					alt=""
-					className="size-9 shrink-0 rounded object-cover"
+					box={entry.photoBoxes[0]}
+					variant="tile"
+					className="size-9 shrink-0 rounded"
 					loading="lazy"
-					decoding="async"
-					width={36}
-					height={36}
 				/>
 			) : (
 				<span className="flex size-9 shrink-0 items-center justify-center rounded bg-muted">

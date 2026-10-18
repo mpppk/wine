@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { AI_MAX_ESTIMATE_MICRO_USD } from "#/lib/billing/ai-pricing";
+import {
+	AI_MAX_ESTIMATE_MICRO_USD,
+	toEstimateCharge,
+} from "#/lib/billing/ai-pricing";
 import { MONTHLY_CREDITS_FREE } from "#/lib/billing/plans";
 import { costToCredits } from "#/lib/credit/credit-math";
 import { MAX_PHOTOS_PER_IMPORT_BATCH } from "#/lib/place/schema";
@@ -16,8 +19,10 @@ import {
 	AI_WINE_LIST_CLAUDE_MAX_SEARCHES_PER_REQUEST,
 	AI_WINE_LIST_CLAUDE_PHOTOS_PER_REQUEST,
 	AI_WINE_LIST_GPT_MAX_OUTPUT_TOKENS,
+	AI_WINE_LIST_LOCATE_MODEL,
 	AI_WINE_LIST_MAX_OUTPUT_TOKENS,
 	AI_WINE_LIST_MAX_SEARCHES,
+	AI_WINE_LIST_ROUTE_MODELS,
 	anthropicReasoningForEffort,
 	chatHistorySchema,
 	DEFAULT_LABEL_ENGINE,
@@ -26,6 +31,8 @@ import {
 	estimateLabelReserveCharge,
 	estimateLabelReserveUsage,
 	estimateRegionQaReserveCharge,
+	estimateWineListLocateUsage,
+	estimateWineListReserveCharge,
 	estimateWineListReserveUsage,
 	LABEL_ENGINE_KEYS,
 	type LabelRoute,
@@ -285,6 +292,35 @@ describe("estimate reserve usage の effort 倍率", () => {
 		);
 	});
 });
+describe("一括抽出の予約に銘柄の位置の推定(Jev。#693)を含める", () => {
+	it("抽出本体の見積に Jev のぶんを足し、上限でクランプする", () => {
+		for (const route of WINE_LIST_ROUTE_KEYS) {
+			const extraction = toEstimateCharge(
+				AI_WINE_LIST_ROUTE_MODELS[route],
+				estimateWineListReserveUsage(route, 3),
+			);
+			const locate = toEstimateCharge(
+				AI_WINE_LIST_LOCATE_MODEL,
+				estimateWineListLocateUsage(3),
+			);
+			const charge = estimateWineListReserveCharge(route, 3);
+			expect(locate.microUsd).toBeGreaterThan(0);
+			expect(charge.microUsd).toBe(
+				Math.min(
+					extraction.microUsd + locate.microUsd,
+					AI_MAX_ESTIMATE_MICRO_USD,
+				),
+			);
+			// Jev は抽出本体の1%に満たない(出力無料・入力 $0.042/MTok)
+			expect(locate.microUsd).toBeLessThan(extraction.microUsd * 0.05);
+		}
+		expect(
+			estimateWineListReserveCharge("web-research", MAX_PHOTOS_PER_IMPORT_BATCH)
+				.microUsd,
+		).toBeLessThanOrEqual(AI_MAX_ESTIMATE_MICRO_USD);
+	});
+});
+
 // 選択されたエンジンと実際に走る経路の対応づけ。#602 で接続先を OpenRouter に
 // 集約したため、キーがあるかないかの二択になった。キー未設定時は null を返し、
 // 別モデルへの自動フォールバックはしない。表示と予約が食い違わないよう、ここが SSOT。

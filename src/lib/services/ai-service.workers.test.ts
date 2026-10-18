@@ -89,6 +89,17 @@ async function seedPremiumUser(): Promise<string> {
  * OPENROUTER_API_KEY を立て、OpenRouter への outbound fetch をスタブする。
  * **接続先は OpenRouter だけ**(直接接続の残存はここで throw して検出する)。
  */
+
+/** 銘柄の位置の推定(Jev の decisions。#693)へのリクエストか。 */
+function isDecisionsRequest(input: unknown): boolean {
+	return String(input).includes("/api/alpha/decisions");
+}
+
+/** 答えの無い decisions 応答(枠なし扱いになる)。 */
+function emptyDecisions(): Response {
+	return Response.json({ answers: {}, usage: { input_tokens: 0 } });
+}
+
 function stubOpenRouter(respond: () => Promise<Response>): void {
 	(env as unknown as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY =
 		"or-test";
@@ -436,7 +447,9 @@ describe("plan の effort 解決", () => {
 		await setEffort(userId, "high");
 		const bodies: string[] = [];
 		stubOpenRouterKey();
-		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+		vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+			// 銘柄の位置の推定(Jev。#693)は抽出の後に走る別リクエスト。ここでは見ない。
+			if (isDecisionsRequest(input)) return emptyDecisions();
 			if (typeof init?.body === "string") bodies.push(init.body);
 			return orChatMessage(
 				{
@@ -480,7 +493,9 @@ describe("plan の effort 解決", () => {
 			.run();
 		const bodies: string[] = [];
 		stubOpenRouterKey();
-		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+		vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+			// 銘柄の位置の推定(Jev。#693)は抽出の後に走る別リクエスト。ここでは見ない。
+			if (isDecisionsRequest(input)) return emptyDecisions();
 			if (typeof init?.body === "string") bodies.push(init.body);
 			return orChatMessage(
 				{ wine_name: "Chablis" },
@@ -1072,7 +1087,8 @@ describe("一括抽出の予約 → 確定/返却", () => {
 			.run();
 		const requests: string[] = [];
 		stubOpenRouterKey();
-		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+		vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+			if (isDecisionsRequest(input)) return emptyDecisions();
 			requests.push(typeof init?.body === "string" ? init.body : "");
 			return orChatMessage(
 				{
@@ -1168,7 +1184,9 @@ describe("一括抽出の予約 → 確定/返却", () => {
 			.run();
 		const bodies: string[] = [];
 		stubOpenRouterKey();
-		vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+		vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+			// 銘柄の位置の推定(Jev。#693)は抽出の後に走る別リクエスト。ここでは見ない。
+			if (isDecisionsRequest(input)) return emptyDecisions();
 			if (typeof init?.body === "string") bodies.push(init.body);
 			return orChatMessage(
 				{ wines: [wineJson({ wine_name: "Chablis" })], truncated: false },
@@ -1367,7 +1385,9 @@ describe("一括抽出の予約 → 確定/返却", () => {
 			const bodies: string[] = [];
 			let call = 0;
 			stubOpenRouterKey();
-			vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+			vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
+				// 銘柄の位置の推定(Jev。#693)は呼び出し回数に数えない。
+				if (isDecisionsRequest(input)) return emptyDecisions();
 				if (typeof init?.body === "string") bodies.push(init.body);
 				call += 1;
 				return call === 1

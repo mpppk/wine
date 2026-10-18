@@ -10,6 +10,13 @@ import type {
 	PhotoKind,
 	WineListCandidate,
 } from "#/lib/ai/wine-list-extraction";
+import {
+	normalizePhotoBoxEntries,
+	type PhotoBox,
+	type PhotoBoxEntry,
+	photoBoxForIndex,
+	setPhotoBoxForIndex,
+} from "#/lib/drunk-wine/photo-box";
 import type { WineStatus } from "#/lib/drunk-wine/status";
 import type { BulkRegisterFromScanInput } from "#/lib/import-batch/schema";
 
@@ -63,6 +70,12 @@ export interface ImportCardState {
 	photoKind: PhotoKind;
 	/** 既存セラーの同一銘柄。ある場合は新規作成せず目撃記録だけを足す */
 	existing?: WineListCandidate["existing"];
+	/**
+	 * 写真ごとの、この銘柄があった枠(#693)。解析が Jev で求めた値で始まり、
+	 * タップダイアログの枠エディタで直せる。登録時に目撃記録へ送る(銘柄写真の
+	 * 複製がここから枠を写す)。
+	 */
+	photoBoxes: PhotoBoxEntry[];
 	/**
 	 * タップダイアログで選んだ「代表画像」の上書き。未指定なら自動選択
 	 * (`displayPhotoForImportCard` の既存規則)。**表示専用**で、登録ペイロード
@@ -152,6 +165,8 @@ export function buildImportCards(
 		// 1箇所。ここで有無判定を書き直すと表示と登録で食い違う)。
 		photoKind: candidate.photoKind,
 		existing: candidate.existing,
+		// 枠(#693)はジョブ結果の JSON から来るので、形を信用せず正規化してから持つ。
+		photoBoxes: normalizePhotoBoxEntries(candidate.photoBoxes),
 	}));
 }
 
@@ -175,6 +190,8 @@ export interface ImportCardDisplayPhoto {
 	src: string;
 	/** WEB由来なら overlay を出す(IMPL-4) */
 	isWebPhoto: boolean;
+	/** 写真の中のこの銘柄の枠(#693)。web 画像・枠の無い写真は null */
+	box: PhotoBox | null;
 }
 
 /**
@@ -200,6 +217,7 @@ export function displayPhotoForImportCard(
 		| "photoIndexes"
 		| "existing"
 		| "primaryPhoto"
+		| "photoBoxes"
 	>,
 	photoPreviews: readonly string[],
 ): ImportCardDisplayPhoto | null {
@@ -207,11 +225,12 @@ export function displayPhotoForImportCard(
 	if (!selection) return null;
 	if (selection.kind === "web") {
 		// resolve が web を返すのは取り込めるカードだけなので imageUrl はある
-		return { src: card.imageUrl as string, isWebPhoto: true };
+		return { src: card.imageUrl as string, isWebPhoto: true, box: null };
 	}
 	return {
 		src: photoPreviews[selection.previewIndex] as string,
 		isWebPhoto: false,
+		box: photoBoxForIndex(card.photoBoxes, selection.previewIndex),
 	};
 }
 
@@ -263,6 +282,8 @@ export interface ImportCardDialogPhoto {
 	isWebPhoto: boolean;
 	/** この写真を代表に選んだときにカードへ載せる値 */
 	selection: PrimaryPhotoSelection;
+	/** 写真の中のこの銘柄の枠(#693)。web 画像・枠の無い写真は null */
+	box: PhotoBox | null;
 }
 
 /**
@@ -275,7 +296,12 @@ export interface ImportCardDialogPhoto {
 export function photosForImportCardDialog(
 	card: Pick<
 		ImportCardState,
-		"photoKind" | "imageUrl" | "bottlePhotoIndex" | "photoIndexes" | "existing"
+		| "photoKind"
+		| "imageUrl"
+		| "bottlePhotoIndex"
+		| "photoIndexes"
+		| "existing"
+		| "photoBoxes"
 	>,
 	photoPreviews: readonly string[],
 ): ImportCardDialogPhoto[] {
@@ -285,6 +311,7 @@ export function photosForImportCardDialog(
 			src: card.imageUrl,
 			isWebPhoto: true,
 			selection: { kind: "web" },
+			box: null,
 		});
 	}
 	const seen = new Set<number>();
@@ -297,6 +324,7 @@ export function photosForImportCardDialog(
 				src,
 				isWebPhoto: false,
 				selection: { kind: "preview", previewIndex },
+				box: photoBoxForIndex(card.photoBoxes, previewIndex),
 			});
 		}
 	};
@@ -321,6 +349,7 @@ export function dialogIndexForDisplayPhoto(
 		| "photoIndexes"
 		| "existing"
 		| "primaryPhoto"
+		| "photoBoxes"
 	>,
 	photoPreviews: readonly string[],
 ): number {
@@ -344,7 +373,12 @@ export function dialogIndexForDisplayPhoto(
 export function primarySelectionForDialogIndex(
 	card: Pick<
 		ImportCardState,
-		"photoKind" | "imageUrl" | "bottlePhotoIndex" | "photoIndexes" | "existing"
+		| "photoKind"
+		| "imageUrl"
+		| "bottlePhotoIndex"
+		| "photoIndexes"
+		| "existing"
+		| "photoBoxes"
 	>,
 	photoPreviews: readonly string[],
 	dialogIndex: number,
@@ -353,6 +387,33 @@ export function primarySelectionForDialogIndex(
 		photosForImportCardDialog(card, photoPreviews)[dialogIndex]?.selection ??
 		null
 	);
+}
+
+/**
+ * ダイアログの位置の写真の枠を差し替えた `photoBoxes` を返す(#693)。web 画像・
+ * 一覧に無い位置は枠を持てないので null(呼び出し側は無視する)。
+ */
+export function photoBoxesForDialogEdit(
+	card: Pick<
+		ImportCardState,
+		| "photoKind"
+		| "imageUrl"
+		| "bottlePhotoIndex"
+		| "photoIndexes"
+		| "existing"
+		| "photoBoxes"
+	>,
+	photoPreviews: readonly string[],
+	dialogIndex: number,
+	box: PhotoBox | null,
+): PhotoBoxEntry[] | null {
+	const selection = primarySelectionForDialogIndex(
+		card,
+		photoPreviews,
+		dialogIndex,
+	);
+	if (selection?.kind !== "preview") return null;
+	return setPhotoBoxForIndex(card.photoBoxes, selection.previewIndex, box);
 }
 
 /**
@@ -460,9 +521,14 @@ export function buildBulkRegisterInput(
 			// 先頭1枚の後方互換として残す(デプロイ窓の旧コードが読む)。
 			const photoIndexes = registrationPhotoIndexes(card);
 			const photoIndex = card.bottlePhotoIndex ?? card.photoIndexes[0];
+			// 枠(#693)は目撃記録が参照する写真の分だけ送る(サーバも同じ条件で落とす)。
+			const photoBoxes = card.photoBoxes.filter((entry) =>
+				photoIndexes.includes(entry.photoIndex),
+			);
 			const sighting = {
 				...(photoIndex != null ? { photoIndex } : {}),
 				...(photoIndexes.length > 0 ? { photoIndexes } : {}),
+				...(photoBoxes.length > 0 ? { photoBoxes } : {}),
 				...(sightingPrice != null ? { price: sightingPrice } : {}),
 			};
 			const tasting = card.drunk ? buildTastingInput(card.tasting) : undefined;
