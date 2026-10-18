@@ -227,7 +227,7 @@ bun run logs --grep "ai inference" --level warn        # 失敗のみ
 | `route` | **実際に走る**経路（キー未設定なら `null` で予約前に利用不可） |
 | `executedBy` | **実際に結果を出した**経路（フォールバック廃止後は `route` と一致） |
 | `fellBack` | 上記 2 つから導出。`true` なら高精度経路が落ちて拾われた |
-| `model` | 実際に呼んだモデル ID（`openai/gpt-5.6-luna` 等。OpenRouter 形式） |
+| `model` | 実際に呼んだモデル ID（`openai/gpt-6-luna` 等。OpenRouter 形式） |
 | `actualTokens` / `reservedTokens` | 実測と予約。見積の妥当性の評価に使う |
 | `requestId` | `credit_ledger.request_id` と同値。台帳と突き合わせられる |
 | `webResearch` | 高精度エチケット解析の**検索の軌跡**。下記参照 |
@@ -580,7 +580,7 @@ Provider は **OpenAI**、Advanced Settings の Base URL に
 
 1. Langfuse の Project Settings → LLM Connections → Add new LLM API key
 2. Provider は **OpenAI**、Base URL に `https://openrouter.ai/api/v1`
-3. モデル名は `openai/gpt-5.6-luna` の形で指定する（`src/lib/ai/config.ts` の ID と同じ）
+3. モデル名は `openai/gpt-6-luna` の形で指定する（`src/lib/ai/config.ts` の ID と同じ）
 
 Dataset は既存トレースから作れる（Traces の一覧で選択 → Add to dataset）。地域Q&Aの実リクエストを
 数十件拾って回帰用にしておくと、プロンプトを変えたときに Experiments で前後比較できる。
@@ -798,7 +798,7 @@ npx wrangler versions secret put OPENROUTER_API_KEY --env preview  # プレビ�
 ```
 
 ローカルは `.dev.vars` に記載（`.dev.vars.example` 参照）。
-使うモデル（`openai/gpt-5.6-luna` / `anthropic/claude-opus-5` /
+使うモデル（`openai/gpt-6-luna` / `anthropic/claude-opus-5` /
 `anthropic/claude-sonnet-5` / `google/gemma-4-26b-a4b-it` /
 `meta-llama/llama-4-scout`）と単価は `src/lib/ai/config.ts` /
 `src/lib/billing/ai-pricing.ts` に集約してある。web検索は

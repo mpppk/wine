@@ -92,7 +92,7 @@ export interface AiInferenceLog {
 	 * 「GPTで成功した」と「GPTが落ちた」が区別できない。
 	 */
 	executedBy?: string;
-	/** 実際に呼んだモデルID(例: gpt-5.6-luna)。 */
+	/** 実際に呼んだモデルID(例: openai/gpt-6-luna)。 */
 	model?: string;
 	photoCount?: number;
 	/** 実測トークン(観測値。課金の根拠ではない)。 */

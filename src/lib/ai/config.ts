@@ -94,7 +94,7 @@ export const AI_MAX_OUTPUT_TOKENS = 512;
  * 画像は OpenAI chat 形式の image_url(data URI)として渡す(HTTP URLは不可)。
  * 地域Q&AのGemma 4は画像入力を受けないため、ここだけ別モデルにする。
  */
-export const AI_LABEL_MODEL = "openai/gpt-5.6-luna";
+export const AI_LABEL_MODEL = "openai/gpt-6-luna";
 
 /** エチケット解析1回で生成する最大トークン(構造化JSONのみなので小さめ)。 */
 export const AI_LABEL_MAX_OUTPUT_TOKENS = 512;
@@ -128,7 +128,7 @@ export const AI_LABEL_PROMPT_TOKEN_ESTIMATE = 8_000;
  * エチケット解析エンジンの許可リスト。ユーザがプロフィール画面で選択できる。
  * クライアントにはキーだけを送らせ、サーバ側で経路に解決する(地域Q&Aの
  * REGION_QA_MODEL_KEYS と同じ流儀)。
- *  - gpt-luna: GPT-5.6 Luna のエージェントループ + web検索の高精度経路。
+ *  - gpt-luna: GPT-6 Luna のエージェントループ + web検索の高精度経路。
  *  - web-research: Claude Opus + web検索の高精度経路。
  *  - standard: 単発の構造化抽出(web検索なし)。消費が小さい。
  *
@@ -154,7 +154,7 @@ export const AI_LABEL_ENGINES: Record<
 	{ label: string; description: string }
 > = {
 	"gpt-luna": {
-		label: "高精度(GPT-5.6 Luna + web検索)",
+		label: "高精度(GPT-6 Luna + web検索)",
 		description:
 			"AIがweb検索で生産者・呼称・品種を裏取りします。OpenRouterの接続が無い環境では利用できません。",
 	},
@@ -172,7 +172,7 @@ export const AI_LABEL_ENGINES: Record<
 
 /**
  * 未設定・不正値のときの既定エンジン。高精度経路を既定にする方針は #354 から変えず、
- * 担い手を GPT-5.6 Luna にする(同等の裏取り精度をより低い原価で得るため)。
+ * 担い手を GPT-6 Luna にする(同等の裏取り精度をより低い原価で得るため)。
  * OPENROUTER_API_KEY 未設定の環境では resolveLabelRoute が null を返し、
  * 予約の前に利用不可として扱う(別モデルへの自動フォールバックはしない。#602)。
  */
@@ -267,9 +267,9 @@ const AI_LABEL_WEB_SEARCH_ESTIMATE = 6;
  * 高精度エチケット解析に使う OpenAI のモデルID(OpenRouter 経由)。マルチモーダル +
  * サーバーサイドweb検索 + structured outputs を1リクエストで使える世代であること。
  * #602 で直接接続から OpenRouter 経由へ移した同一モデル。上位が必要なら
- * "openai/gpt-5.6-terra" / "openai/gpt-5.6-sol" へ数値だけ差し替える。
+ * "openai/gpt-6-sol" / "openai/gpt-6-astra" へ数値だけ差し替える。
  */
-export const AI_LABEL_GPT_MODEL = "openai/gpt-5.6-luna";
+export const AI_LABEL_GPT_MODEL = "openai/gpt-6-luna";
 
 /**
  * 1レスポンスの最大出力トークン(OpenRouter の max_tokens)。
@@ -292,7 +292,7 @@ export const AI_LABEL_GPT_SEARCH_CONTEXT_SIZE = "medium";
 /**
  * GPT経路の予約見積の基礎入力トークン(プロンプト + 呼称/品種マスタのリスト +
  * web検索結果)。トークン数の見込みは Claude経路と同水準だが、**原価は単価表で
- * 決まる**ので消費クレジットは大きく違う(Luna の入力単価は Opus 5 の 1/25)。
+ * 決まる**ので消費クレジットは大きく違う(Luna の入力単価は Opus 5 の 1/50)。
  */
 
 /** GPT経路の画像1枚あたりの入力トークン見積(長辺1280px前提)。 */
@@ -576,12 +576,12 @@ const AI_WINE_LIST_CLAUDE_MODEL = "anthropic/claude-sonnet-5";
  * 「小さな文字が数十行並ぶリスト写真の読み取り」で選ぶので、差し替えたい理由が独立している。
  *
  * Sonnet 5 に対する利点は2つ:
- *  - 原価が桁で下がる($0.2/$1.2 per MTok)。一括抽出は写真枚数に比例して伸びるので、
+ *  - 原価が桁で下がる($0.1/$0.5 per MTok)。一括抽出は写真枚数に比例して伸びるので、
  *    ここが無料会員の月次付与を圧迫していた。
  *  - structured outputs(response_format)で出力形式を強制できる。Claude 経路は形を
  *    `buildWineListPrompt` の指示文でしか担保できず、銘柄配列は壊れると全滅する。
  */
-const AI_WINE_LIST_GPT_MODEL = "openai/gpt-5.6-luna";
+const AI_WINE_LIST_GPT_MODEL = "openai/gpt-6-luna";
 
 /**
  * 経路 → 実際に呼ぶモデルID。**予約見積・実測換算・実行記録のログがすべてここを引く**
@@ -599,7 +599,7 @@ export const AI_WINE_LIST_ROUTE_MODELS: Record<WineListRoute, string> = {
  * 消費が読み取りだけの頃より大きいことが名前からも分かるようにする。
  */
 export const AI_WINE_LIST_ROUTE_LABELS: Record<WineListRoute, string> = {
-	"gpt-luna": "GPT-5.6 Luna + web検索",
+	"gpt-luna": "GPT-6 Luna + web検索",
 	"web-research": "Claude Sonnet 5 + web検索",
 };
 

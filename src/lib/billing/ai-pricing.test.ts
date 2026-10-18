@@ -92,7 +92,7 @@ describe("usageToMicroUsd", () => {
 	});
 
 	it("web検索を回数課金として加算する(トークンでは表現できない項目)", () => {
-		expect(usageToMicroUsd("gpt-5.6-luna", { webSearches: 3 })).toBe(
+		expect(usageToMicroUsd("openai/gpt-6-luna", { webSearches: 3 })).toBe(
 			3 * WEB_SEARCH_MICRO_USD_PER_CALL,
 		);
 	});
@@ -100,7 +100,7 @@ describe("usageToMicroUsd", () => {
 	it("経路ごとの実費差が単価に反映される", () => {
 		const usage = { inputTokens: 30_000, outputTokens: 2_000 };
 		const opus = usageToMicroUsd("claude-opus-5", usage);
-		const luna = usageToMicroUsd("gpt-5.6-luna", usage);
+		const luna = usageToMicroUsd("openai/gpt-6-luna", usage);
 		const workersAi = usageToMicroUsd(
 			"@cf/meta/llama-4-scout-17b-16e-instruct",
 			usage,

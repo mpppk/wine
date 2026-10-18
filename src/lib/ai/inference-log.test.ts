@@ -76,7 +76,7 @@ describe("buildAiInferenceFields", () => {
 			outcome: "ok",
 			route: "gpt-luna",
 			executedBy: "gpt-luna",
-			model: "gpt-5.6-luna",
+			model: "openai/gpt-6-luna",
 			photoCount: 2,
 			actualTokens: 14324,
 			costMicroUsd: 38400,
@@ -179,7 +179,7 @@ describe("logAiInference", () => {
 				outcome: "ok",
 				route: "gpt-luna",
 				executedBy: "gpt-luna",
-				model: "gpt-5.6-luna",
+				model: "openai/gpt-6-luna",
 				actualTokens: 14324,
 			});
 			expect(spy).toHaveBeenCalledTimes(1);
@@ -190,7 +190,7 @@ describe("logAiInference", () => {
 				feature: "label_analysis",
 				outcome: "ok",
 				executedBy: "gpt-luna",
-				model: "gpt-5.6-luna",
+				model: "openai/gpt-6-luna",
 				fellBack: false,
 				actualTokens: 14324,
 			});
