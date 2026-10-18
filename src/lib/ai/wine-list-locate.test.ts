@@ -51,6 +51,25 @@ describe("locateWineLabel", () => {
 		).toBe("Château Margaux");
 	});
 
+	it("呼称の日本語名で補われた名前は原語の呼称名にする(写真に印字されているのは原語)", () => {
+		expect(
+			locateWineLabel({ name: "シャブリ", aopId: "chablis", vintage: 2019 }),
+		).toBe("Chablis 2019");
+	});
+
+	it("キュヴェ名だけの銘柄には原語の呼称を添える(重複はさせない)", () => {
+		expect(
+			locateWineLabel({
+				name: "Les Clos",
+				producer: "Dauvissat",
+				aopId: "chablis",
+			}),
+		).toBe("Dauvissat Les Clos Chablis");
+		expect(
+			locateWineLabel({ name: "Chablis Les Clos", aopId: "chablis" }),
+		).toBe("Chablis Les Clos");
+	});
+
 	it("指示文の引用符を壊さない", () => {
 		expect(locateWineLabel({ name: 'Cuvée "X"' })).toBe("Cuvée 'X'");
 	});

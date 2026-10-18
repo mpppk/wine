@@ -429,7 +429,8 @@ describe("銘柄の位置の推定(Jev の Box。#693)", () => {
 		expect(allBodies).not.toContain("data:image/jpeg;base64");
 	});
 
-	it("Jev が失敗しても抽出結果は返す(枠なし)", async () => {
+	it("Jev が失敗しても抽出結果は返す(枠なし)。失敗は ERROR の span として残す", async () => {
+		setLangfuseKeys(PUBLIC_KEY, SECRET_KEY);
 		stubOpenRouter(
 			{
 				subject: "wine_list",
@@ -442,6 +443,17 @@ describe("銘柄の位置の推定(Jev の Box。#693)", () => {
 		expect(decisionBodies).toHaveLength(1);
 		expect(done.value.candidates[0]?.suggestions.name).toBe("Chablis");
 		expect(done.value.candidates[0]?.photoBoxes).toBeUndefined();
+		// プレビューURLではログが見えないので、失敗の理由はトレースから辿る
+		await new Promise((r) => setTimeout(r, 50));
+		const prefix = AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis;
+		const failed = spansOfCalls(calls).find(
+			(s) => String(s.name) === `${prefix}locate#1`,
+		);
+		expect(failed).toBeDefined();
+		if (!failed) throw new Error("unreachable");
+		const attrs = attrsOf(failed);
+		expect(attrs["langfuse.observation.level"]).toBe("ERROR");
+		expect(attrs["langfuse.observation.status_message"]).toContain("503");
 	});
 
 	it("1本のワインと判定された回は問い合わせない(単体の登録へ案内され枠を使わない)", async () => {

@@ -1816,16 +1816,31 @@ async function locateWineListCandidates(
 	let failures = 0;
 	let skipped = 0;
 	const deadline = Date.now() + AI_WINE_LIST_LOCATE_BUDGET_MS;
+	const generationName = (order: number) =>
+		`${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}locate#${order + 1}`;
 	const runPlan = async (plan: (typeof plans)[number], order: number) => {
+		// どこで失敗したか。プレビューURLではログが見えない(CLAUDE.md)ので、失敗も
+		// Langfuse に span として残し、トレースから原因を辿れるようにする。
+		let stage: "prepare" | "decide" | "parse" = "prepare";
 		try {
 			const image = await preparePhoto(plan.photoIndex);
-			if (!image) return;
+			if (!image) {
+				locateObs.recordSpan({
+					name: generationName(order),
+					level: "WARNING",
+					statusMessage: "Jev に渡せる形式の写真ではないため問い合わせない",
+					input: { photoIndex: plan.photoIndex, wines: plan.targets.length },
+				});
+				return;
+			}
 			const request = buildLocateRequest(plan, image, instructions);
+			stage = "decide";
 			const response = await decide(apiKey, request);
+			stage = "parse";
 			usage = addUsage(usage, response.usage);
 			const answers = parseLocateAnswers(plan, response.answers);
 			locateObs.recordGeneration({
-				name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}locate#${order + 1}`,
+				name: generationName(order),
 				model: response.model ?? AI_WINE_LIST_LOCATE_MODEL,
 				// 写真の実体は載せない(写真の方針。要約は metadata.photo)。
 				input: {
@@ -1856,7 +1871,15 @@ async function locateWineListCandidates(
 			logWarn("wine list locate failed; continuing without boxes", {
 				photoIndex: plan.photoIndex,
 				wines: plan.targets.length,
+				stage,
 				err: e,
+			});
+			locateObs.recordSpan({
+				name: generationName(order),
+				level: "ERROR",
+				statusMessage: e instanceof Error ? e.message : String(e),
+				input: { photoIndex: plan.photoIndex, wines: plan.targets.length },
+				metadata: { stage },
 			});
 		}
 	};
@@ -1864,6 +1887,12 @@ async function locateWineListCandidates(
 		// 時間の上限を過ぎたら残りは枠なし(`AI_WINE_LIST_LOCATE_BUDGET_MS` の JSDoc)。
 		if (Date.now() > deadline) {
 			skipped = plans.length - i;
+			locateObs.recordSpan({
+				name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}locate`,
+				level: "WARNING",
+				statusMessage: `時間の上限(${AI_WINE_LIST_LOCATE_BUDGET_MS}ms)を超えたため残りを問い合わせない`,
+				input: { skipped },
+			});
 			break;
 		}
 		await Promise.all(
@@ -1966,6 +1995,11 @@ async function runWineListInference(
 					// それでも抽出結果は失わない(付随的な処理で推論を失敗させない)。
 					logWarn("wine list locate crashed; returning without boxes", {
 						err: e,
+					});
+					obs.recordSpan({
+						name: `${AI_FEATURE_GENERATION_PREFIXES.wine_list_analysis}locate`,
+						level: "ERROR",
+						statusMessage: e instanceof Error ? e.message : String(e),
 					});
 					return { candidates: matched, usage: {} };
 				});

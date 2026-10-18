@@ -3,6 +3,7 @@ import {
 	type PhotoBox,
 	type PhotoBoxEntry,
 } from "#/lib/drunk-wine/photo-box";
+import { getAop } from "#/lib/wine/service";
 import {
 	AI_WINE_LIST_LOCATE_MIN_CONFIDENCE,
 	AI_WINE_LIST_LOCATE_MIN_PRESENCE,
@@ -46,20 +47,31 @@ export function fillLocateInstruction(template: string, wine: string): string {
 }
 
 /**
- * 指示文に入れる銘柄の表示名。生産者・ワイン名・ヴィンテージを空白で連ねる
+ * 指示文に入れる銘柄の表示名。生産者・ワイン名・呼称・ヴィンテージを空白で連ねる
  * (リストの行は「生産者 キュヴェ 年」の並びが多く、そのまま照合の手掛かりになる)。
  * 名前も生産者も無い候補は null(問いを立てない)。
+ *
+ * **呼称は原語で入れる**。キュヴェ名が読めなかった銘柄は `suggestions.name` が
+ * 呼称の**日本語名**(「シャブリ」)で補われるが、写真に印字されているのは原語
+ * (「CHABLIS」)なので、日本語名のままでは照合の手掛かりにならない。
  */
 export function locateWineLabel(
 	suggestions: WineListCandidate["suggestions"],
 ): string | null {
-	const name = suggestions.name?.trim();
+	const aop = suggestions.aopId ? getAop(suggestions.aopId) : undefined;
+	const rawName = suggestions.name?.trim();
+	// 呼称の日本語名で補われた名前は、原語の呼称名に置き換える。
+	const name = aop && rawName === aop.nameJa ? aop.name : rawName;
 	const producer = suggestions.producer?.trim();
 	if (!name && !producer) return null;
 	const parts: string[] = [];
 	if (producer) parts.push(producer);
 	// 名前が生産者名をそのまま含む(シャトー名=ワイン名)ときは重ねない。
 	if (name && !(producer && name.includes(producer))) parts.push(name);
+	// キュヴェ名だけの銘柄にも呼称を添える(リストは呼称の見出しの下に並ぶことが多い)。
+	if (aop && !parts.some((part) => part.includes(aop.name))) {
+		parts.push(aop.name);
+	}
 	if (suggestions.vintage != null) parts.push(String(suggestions.vintage));
 	// 指示文の引用符を壊さない。
 	return parts.join(" ").replace(/"/g, "'");
