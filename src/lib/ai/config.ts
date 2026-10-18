@@ -852,8 +852,15 @@ export const AI_WINE_LIST_LOCATE_MIN_CONFIDENCE = 0.5;
 /**
  * Jev へ渡す写真の長辺上限(px)。枠は比率で返るので縮めても位置は変わらない。
  * Jev は PNG / JPEG しか受けないため、WebP 等はこの縮小で JPEG に揃える。
+ *
+ * **Jev の受け付ける上限(縦横とも 1568px・総画素 1568²)を超えてはいけない**。
+ * 範囲外の画像は縮小されずにリクエストごと拒否される(400 "Invalid image
+ * dimensions.")。当初 2048 にしていて、実機では全写真の位置の推定が失敗していた。
+ * 下限(縦横とも 280px)は、長辺を 1568 に縮めた結果で短辺が 280 を割る極端な
+ * 横長写真(5.6:1 超)でだけ問題になり、その写真は枠なしになる。
+ * @see https://docs.typesafe.ai/images
  */
-export const AI_WINE_LIST_LOCATE_MAX_DIMENSION = 2048;
+export const AI_WINE_LIST_LOCATE_MAX_DIMENSION = 1568;
 
 /**
  * 位置の推定に使ってよい時間の上限(ms)。これを過ぎたら残りの写真は問い合わせずに
@@ -863,7 +870,7 @@ export const AI_WINE_LIST_LOCATE_MAX_DIMENSION = 2048;
  */
 export const AI_WINE_LIST_LOCATE_BUDGET_MS = 90_000;
 
-/** 写真1枚の入力トークンの中心値(長辺2048pxの JPEG を想定)。 */
+/** 写真1枚の入力トークンの中心値(長辺1568pxの JPEG を想定)。 */
 const AI_WINE_LIST_LOCATE_IMAGE_TOKEN_ESTIMATE = 1_600;
 /** 問い1件の指示文の入力トークン。 */
 const AI_WINE_LIST_LOCATE_QUESTION_TOKEN_ESTIMATE = 60;
