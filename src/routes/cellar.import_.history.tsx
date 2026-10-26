@@ -40,18 +40,30 @@ function CellarImportHistoryPage() {
 	const router = useRouter();
 	const [batches, setBatches] = useState(initialBatches);
 	const [target, setTarget] = useState<ImportBatchSummary | null>(null);
+	// 409で拒否された後に立つ。ダイアログを開き直したら倒す。
+	const [needsForce, setNeedsForce] = useState(false);
 	const [undoError, setUndoError] = useState("");
 
 	const { mutate: undoBatch, isPending: isUndoing } = useMutation({
-		mutationFn: (batchId: string) => undoImportBatch({ data: { batchId } }),
-		onSuccess: (_, batchId) => {
+		mutationFn: ({ batchId, force }: { batchId: string; force: boolean }) =>
+			undoImportBatch({ data: { batchId, ...(force ? { force: true } : {}) } }),
+		onSuccess: (_, { batchId }) => {
 			setBatches((prev) => prev.filter((b) => b.id !== batchId));
 			setTarget(null);
+			setNeedsForce(false);
 			setUndoError("");
 			// 一覧に居ないマイセラー側(件数チップ等)の表示を合わせる
 			router.invalidate();
 		},
-		onError: (e: Error) => setUndoError(e.message || "取り消しに失敗しました"),
+		onError: (e: Error) => {
+			// サーバの409ガード(Issue #432。文言の目印は
+			// import-batch-service.ts の EDITED_BATCH_CONFLICT_MARKER。
+			// 値のimportはサーバ実装をバンドルに引き込むため文言で見る)。
+			if (e.message.includes("登録後に編集された銘柄")) {
+				setNeedsForce(true);
+			}
+			setUndoError(e.message || "取り消しに失敗しました");
+		},
 	});
 
 	return (
@@ -132,6 +144,7 @@ function CellarImportHistoryPage() {
 										size="sm"
 										onClick={() => {
 											setUndoError("");
+											setNeedsForce(false);
 											setTarget(batch);
 										}}
 									>
@@ -176,8 +189,19 @@ function CellarImportHistoryPage() {
 						<DialogDescription>
 							{target &&
 								`新規作成した${target.createdCount}件の銘柄と、既存の銘柄に追加した記録を取り消します。写真も削除されます。`}
-							{target?.hasEditedEntries &&
-								" 登録後に編集した内容も失われます。"}
+							{target?.hasEditedEntries && (
+								<>
+									{" 登録後に編集した内容も失われます。"}
+									{target.editedEntries.length > 0 && (
+										<>
+											<br />
+											{`編集済み: ${target.editedEntries.map((e) => e.name).join("、")}`}
+										</>
+									)}
+								</>
+							)}
+							{needsForce &&
+								" サーバが編集済みのため取り消しを拒否しました。編集内容を破棄して取り消す場合のみ、もう一度押してください。"}
 							{" この操作は取り消せません。"}
 						</DialogDescription>
 					</DialogHeader>
@@ -195,9 +219,15 @@ function CellarImportHistoryPage() {
 							type="button"
 							variant="destructive"
 							disabled={isUndoing}
-							onClick={() => target && undoBatch(target.id)}
+							onClick={() =>
+								target && undoBatch({ batchId: target.id, force: needsForce })
+							}
 						>
-							{isUndoing ? "取り消し中…" : "取り消す"}
+							{isUndoing
+								? "取り消し中…"
+								: needsForce
+									? "編集内容を破棄して取り消す"
+									: "取り消す"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
