@@ -11,7 +11,7 @@ import type { OpenRouterMessage, OpenRouterUserContent } from "./openrouter";
 //  - リクエストは OpenAI chat 形式のメッセージ + ツール群(`openrouter:web_search` +
 //    `submit_answer` 等)で組み立てる。web検索はサーバーツールとして OpenRouter 側で
 //    実行され、1リクエストの中で完走する(使用回数は応答の
-//    `usage.server_tool_use.web_search_requests` に出る)。
+//    `usage.server_tool_use_details.web_search_requests` に出る)。
 //  - 回答は `submit_answer` の呼び出しでのみ受け取る。本文にJSONを書かせない
 //    (`buildAgentLabelPrompt` が `buildWebLabelPrompt` の「JSONだけを出力」指示を持たないのはこのため)
 //  - usage は `toOpenRouterUsage` が変換する。
