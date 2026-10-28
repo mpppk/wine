@@ -773,7 +773,7 @@ async function analyzeLabelWithWebResearch(
 }
 
 /**
- * 高精度経路: GPT-5.6 Luna を**エージェントループ**で回し、全写真を総合解析する。
+ * 高精度経路: GPT-6 Luna を**エージェントループ**で回し、全写真を総合解析する。
  * Claude経路と同じ契約(env 非依存・失敗は throw)で、返す形も揃える。
  *
  * #602 で OpenAI 直結 + AI SDK から OpenRouter の chat completions へ移した。

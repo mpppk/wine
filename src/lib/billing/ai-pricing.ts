@@ -87,10 +87,11 @@ export const AI_MODEL_PRICING: Record<string, ModelPricing> = {
 	},
 	// OpenAI ネイティブ検索の回数課金も $10/1000回で同額。
 	// キャッシュは「cached input」の割引のみで、書き込み側の課金は無い。
-	"openai/gpt-5.6-luna": {
-		inputUsdPerMTok: 0.2,
-		outputUsdPerMTok: 1.2,
-		cacheReadUsdPerMTok: 0.02,
+	// GPT-6 Luna の単価は 2026-10-18 確認。旧 GPT-5.6 Luna($0.2/$1.2)から置き換えた。
+	"openai/gpt-6-luna": {
+		inputUsdPerMTok: 0.1,
+		outputUsdPerMTok: 0.5,
+		cacheReadUsdPerMTok: 0.01,
 	},
 	"google/gemma-4-26b-a4b-it": {
 		inputUsdPerMTok: 0.09,

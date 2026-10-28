@@ -92,7 +92,7 @@ describe("chatCompletion", () => {
 				expect(headers.get("Authorization")).toBe("Bearer k");
 				expect(headers.get("HTTP-Referer")).toBeTruthy();
 				const body = JSON.parse(init.body as string);
-				expect(body.model).toBe("openai/gpt-5.6-luna");
+				expect(body.model).toBe("openai/gpt-6-luna");
 				expect(body.provider).toEqual({ allow_fallbacks: true });
 				expect(body.tools).toEqual([
 					{ type: "openrouter:web_search", parameters: { engine: "native" } },
@@ -132,7 +132,7 @@ describe("chatCompletion", () => {
 		);
 		try {
 			const result = await chatCompletion("k", {
-				model: "openai/gpt-5.6-luna",
+				model: "openai/gpt-6-luna",
 				messages: [{ role: "user", content: "hi" }],
 				tools: [
 					{ type: "openrouter:web_search", parameters: { engine: "native" } },

@@ -749,9 +749,9 @@ describe("エチケット解析の予約 → 返却", () => {
 	// 「予約せずに弾く」の回帰は label-job-service.workers.test.ts が見ている。
 });
 
-// GPT-5.6 Luna 経路(OpenRouter)。既定エンジンなので「キーがあれば黙って走る」ことと、
+// GPT-6 Luna 経路(OpenRouter)。既定エンジンなので「キーがあれば黙って走る」ことと、
 // 「キーが無いときに利用不可になる」ことの両方を固定する。
-describe("エチケット解析のGPT-5.6 Luna経路", () => {
+describe("エチケット解析のGPT-6 Luna経路", () => {
 	it("OPENROUTER_API_KEY 設定時はGPT経路で解析し、usage内訳とweb検索回数で確定する", async () => {
 		const userId = await seedPremiumUser();
 		stubOpenRouter(async () =>
@@ -1644,7 +1644,7 @@ describe("エチケット解析の実行記録ログ", () => {
 				outcome: "ok",
 				route: "gpt-luna",
 				executedBy: "gpt-luna",
-				model: "openai/gpt-5.6-luna",
+				model: "openai/gpt-6-luna",
 				actualTokens: 1234,
 				photoCount: 1,
 			});
@@ -1686,7 +1686,7 @@ describe("エチケット解析の実行記録ログ", () => {
 				outcome: "ok",
 				route: "standard",
 				executedBy: "standard",
-				model: "openai/gpt-5.6-luna",
+				model: "openai/gpt-6-luna",
 				actualTokens: 1200,
 			});
 		} finally {

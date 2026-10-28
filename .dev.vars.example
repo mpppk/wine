@@ -32,7 +32,7 @@ STRIPE_PRICE_ID_ANNUAL=
 # 全AI機能(地域Q&A・エチケット解析・ワインリスト解析)のLLM呼び出しは
 # OpenRouter 経由で実行する(#602)。このキーが無い環境ではAI機能は予約の前に
 # 利用不可として扱う(503 / blocked)。OpenAI / Anthropic への個別接続は廃止した。
-# 既定の解析エンジンは GPT-5.6 Luna で、ユーザはプロフィール画面で切り替えられる。
+# 既定の解析エンジンは GPT-6 Luna で、ユーザはプロフィール画面で切り替えられる。
 # 1Password 利用時は wine vault の "OpenRouter API Key - wine" から展開される
 # (`bun run dev:vars`)。手動運用なら 1Password 参照を実値に置換する。
 # 本番/プレビューは `wrangler secret put OPENROUTER_API_KEY`(プレビューは --env preview)。
