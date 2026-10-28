@@ -14,7 +14,7 @@ describe("toOpenRouterUsage", () => {
 				prompt_tokens: 10_000,
 				completion_tokens: 2_000,
 				prompt_tokens_details: { cached_tokens: 6_000 },
-				server_tool_use: { web_search_requests: 3 },
+				server_tool_use_details: { web_search_requests: 3 },
 			}),
 		).toEqual({
 			inputTokens: 4_000,
@@ -22,6 +22,64 @@ describe("toOpenRouterUsage", () => {
 			cacheReadTokens: 6_000,
 			webSearches: 3,
 		});
+	});
+
+	// 実応答(2026-10 に openai/gpt-6-luna で採取)をそのまま通す。web検索の回数は
+	// `server_tool_use_details` に載って返る。ここを旧名 `server_tool_use` で読んで
+	// いたため、検索の回数課金がどの経路でもまったく計上されていなかった。
+	it("実応答の形(server_tool_use_details)から web検索回数を拾う", () => {
+		expect(
+			toOpenRouterUsage({
+				prompt_tokens: 8697,
+				completion_tokens: 200,
+				total_tokens: 8897,
+				cost: 0.011081425,
+				is_byok: false,
+				prompt_tokens_details: {
+					cached_tokens: 0,
+					cache_write_tokens: 4469,
+					audio_tokens: 0,
+					video_tokens: 0,
+				},
+				cost_details: {
+					upstream_inference_cost: 0.011081425,
+					upstream_inference_prompt_cost: 0.000981425,
+					upstream_inference_completions_cost: 0.0001,
+				},
+				completion_tokens_details: {
+					reasoning_tokens: 67,
+					image_tokens: 0,
+					audio_tokens: 0,
+				},
+				server_tool_use_details: { web_search_requests: 1 },
+			}),
+		).toEqual({
+			inputTokens: 8697,
+			outputTokens: 200,
+			cacheReadTokens: 0,
+			webSearches: 1,
+		});
+	});
+
+	it("旧名 server_tool_use で来ても web検索回数を拾う", () => {
+		expect(
+			toOpenRouterUsage({
+				prompt_tokens: 100,
+				completion_tokens: 10,
+				server_tool_use: { web_search_requests: 2 },
+			}).webSearches,
+		).toBe(2);
+	});
+
+	it("両方の名前に載っていても二重計上しない", () => {
+		expect(
+			toOpenRouterUsage({
+				prompt_tokens: 100,
+				completion_tokens: 10,
+				server_tool_use: { web_search_requests: 2 },
+				server_tool_use_details: { web_search_requests: 2 },
+			}).webSearches,
+		).toBe(2);
 	});
 
 	it("reasoning_tokensは二重加算しない(completionの内数として扱う)", () => {
@@ -125,7 +183,7 @@ describe("chatCompletion", () => {
 					usage: {
 						prompt_tokens: 100,
 						completion_tokens: 10,
-						server_tool_use: { web_search_requests: 2 },
+						server_tool_use_details: { web_search_requests: 2 },
 					},
 				});
 			}),
