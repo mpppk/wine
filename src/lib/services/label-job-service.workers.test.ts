@@ -122,7 +122,7 @@ function orChat(options: {
 	usage?: {
 		prompt_tokens?: number;
 		completion_tokens?: number;
-		server_tool_use?: { web_search_requests?: number };
+		server_tool_use_details?: { web_search_requests?: number };
 	};
 	finishReason?: string;
 }): Response {
@@ -1222,7 +1222,7 @@ describe("一括抽出のジョブ (#474)", () => {
 				usage: {
 					prompt_tokens: 3000,
 					completion_tokens: 500,
-					server_tool_use: { web_search_requests: 2 },
+					server_tool_use_details: { web_search_requests: 2 },
 				},
 			});
 		});

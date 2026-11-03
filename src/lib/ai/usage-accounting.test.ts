@@ -68,19 +68,21 @@ interface RouteAccounting {
  * #602 で全経路を OpenRouter の chat completions へ集約した。usage は OpenRouter が
  * 正規化した共通形で返る。トークン数は旧・直接接続時代の実応答から採った値
  * (scripts/spike-label-usage.ts)。web検索の回数は応答の
- * `usage.server_tool_use.web_search_requests` に出る(旧 GPT 経路のように
- * ツール呼び出しを数える必要は無い)。
+ * `usage.server_tool_use_details.web_search_requests` に出る(旧 GPT 経路のように
+ * ツール呼び出しを数える必要は無い)。**フィクスチャは実応答と同じキー名にする**——
+ * 旧名 `server_tool_use` で書いていたため、マッパーが実応答の回数を拾えていない
+ * 欠落をこのテストが素通しした。
  */
 const OR_AGENT_LOOP_USAGE = {
 	prompt_tokens: 23_247,
 	completion_tokens: 746,
 	prompt_tokens_details: { cached_tokens: 12_225 },
 	completion_tokens_details: { reasoning_tokens: 400 },
-	server_tool_use: { web_search_requests: 2 },
+	server_tool_use_details: { web_search_requests: 2 },
 } as const;
 
 /**
- * Claude経路。`server_tool_use.web_search_requests` に web検索の回数が載る。
+ * Claude経路。`server_tool_use_details.web_search_requests` に web検索の回数が載る。
  * プロンプトキャッシュの書き込みはこちらからは使わない(cache_control を付けない)
  * ので、書き込みトークンが来ても計上しない(下の専用テスト参照)。
  */
@@ -89,7 +91,7 @@ const OR_CLAUDE_RAW_USAGE = {
 	completion_tokens: 2_100,
 	prompt_tokens_details: { cached_tokens: 11_800 },
 	cache_creation_input_tokens: 6_200,
-	server_tool_use: { web_search_requests: 6 },
+	server_tool_use_details: { web_search_requests: 6 },
 } as const;
 
 /** 単発の構造化抽出(web検索なし)。 */
@@ -130,7 +132,7 @@ const ROUTE_ACCOUNTING: readonly RouteAccounting[] = [
 		model: AI_WINE_LIST_ROUTE_MODELS["gpt-luna"],
 		usage: toOpenRouterUsage({
 			...OR_AGENT_LOOP_USAGE,
-			server_tool_use: { web_search_requests: 4 },
+			server_tool_use_details: { web_search_requests: 4 },
 		}),
 		billed: ["inputTokens", "outputTokens", "cacheReadTokens", "webSearches"],
 	},
@@ -139,7 +141,7 @@ const ROUTE_ACCOUNTING: readonly RouteAccounting[] = [
 		model: AI_WINE_LIST_ROUTE_MODELS["web-research"],
 		usage: toOpenRouterUsage({
 			...OR_CLAUDE_RAW_USAGE,
-			server_tool_use: { web_search_requests: 4 },
+			server_tool_use_details: { web_search_requests: 4 },
 		}),
 		billed: ["inputTokens", "outputTokens", "cacheReadTokens", "webSearches"],
 	},

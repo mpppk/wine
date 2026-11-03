@@ -103,7 +103,7 @@ function asText(value: unknown): string | undefined {
  *
  * サーバーツールとして実行された検索は検索語クエリを応答に残さないため、参照 URL
  * だけを拾う。引用の裏取り検証(`verifyLabelAnswer`)はホスト単位で照合するので、
- * URL があれば足りる。検索語が要る分析は `usage.server_tool_use` の回数と
+ * URL があれば足りる。検索語が要る分析は `usage.server_tool_use_details` の回数と
  * 併せて読む。
  */
 export function extractOpenRouterTrace(

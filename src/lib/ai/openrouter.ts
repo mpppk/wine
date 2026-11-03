@@ -11,7 +11,7 @@
 //  - web検索は `openrouter:web_search` サーバーツールでモデルに実行させる
 //    (engine native = プロバイダのネイティブ検索へ転送。Anthropic には
 //    `max_uses` がそのまま渡る)。回数課金ぶんは応答の
-//    `usage.server_tool_use.web_search_requests` から取る。
+//    `usage.server_tool_use_details.web_search_requests` から取る。
 //  - reasoning/thinking は OpenRouter の統一 `reasoning` パラメータで渡す
 //    (effort 形式も max_tokens 形式も OpenRouter 側で各プロバイダへ分配される)。
 //  - 認証失敗・残高不足・429・5xx・タイムアウト時は**他プロバイダへ直接
@@ -187,7 +187,7 @@ export interface OpenRouterChatResult {
 	finishReason: string;
 	/** プロバイダ固有の生の終了理由(切り分け用)。 */
 	nativeFinishReason?: string;
-	/** 課金計上用の使用量。web検索回数は server_tool_use から取る。 */
+	/** 課金計上用の使用量。web検索回数は server_tool_use_details から取る。 */
 	usage: AiUsage;
 	/** 引用アノテーション(web検索を使った回のみ付く)。 */
 	annotations: OpenRouterAnnotation[];
@@ -247,8 +247,11 @@ export class OpenRouterError extends HttpError {
  *   `cached_tokens` を差し引いて非キャッシュ入力とする(二重計上を避ける)。
  * - reasoning トークンは `completion_tokens` の内数として課金される。別建てで
  *   足すと二重加算になるので、`reasoning_tokens` は**読まない**。
- * - web検索回数は `server_tool_use.web_search_requests` から取る。Anthropic
- *   ネイティブ経由でも同じ場所に出る(OpenRouter が正規化する)。
+ * - web検索回数は `server_tool_use_details.web_search_requests` から取る。
+ *   OpenAI・Anthropic のどちらのネイティブ検索でも同じ場所に出る(OpenRouter が
+ *   正規化する)。**旧名の `server_tool_use` は読むだけでは足りない**——実装当初は
+ *   こちらを読んでいたが、実応答は `server_tool_use_details` で返っており、検索の
+ *   回数課金がまったく計上されていなかった。旧名で来ても数え漏れないよう両方を見る。
  * - プロンプトキャッシュの書き込みはこちらからは使わない(cache_control を
  *   付けない)ので、書き込みトークンが来ても計上しない(無料のトークンに課金
  *   しない。旧 `toGptUsage` と同じ判断)。
@@ -273,16 +276,23 @@ export function toOpenRouterUsage(usage: unknown): AiUsage {
 			details?.cache_read_input_tokens,
 	);
 	const cacheRead = Math.max(cached, nativeCacheRead);
-	const serverToolUse =
-		u.server_tool_use && typeof u.server_tool_use === "object"
-			? (u.server_tool_use as Record<string, unknown>)
-			: undefined;
+	// 同じ回数が両方に載っても二重計上しないよう、足さずに大きい方を取る。
+	const webSearches = Math.max(
+		asNonNegativeInt(asRecord(u.server_tool_use_details)?.web_search_requests),
+		asNonNegativeInt(asRecord(u.server_tool_use)?.web_search_requests),
+	);
 	return {
 		inputTokens: Math.max(0, prompt - cacheRead),
 		outputTokens: completion,
 		cacheReadTokens: cacheRead,
-		webSearches: asNonNegativeInt(serverToolUse?.web_search_requests),
+		webSearches,
 	};
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object"
+		? (value as Record<string, unknown>)
+		: undefined;
 }
 
 function asNonNegativeInt(value: unknown): number {
