@@ -139,6 +139,32 @@ export default defineConfig({
 		// passWithNoTests は付けない。include グロブの変更ミスや tsconfigPaths の
 		// 解決失敗でテストが0件収集になっても緑になってしまうため(常在するテストが
 		// あるリポジトリなので0件は常に異常)。既定の false のまま0件を失敗として検出する。
+		// better-auth は認可リダイレクト(ctx.redirect の FOUND)やトークン拒否(400)を
+		// APIError の throw で制御フローとして実現し、router が正規の Response に変換する。
+		// workerd 上では同じ APIError が unhandled rejection としても報告され、
+		// アサーション自体は通るのに vitest が exit 1 になる(#633)。
+		// 期待どおりの制御フロー分だけを握り(MCP プラグイン由来の authorize の 302 と
+		// token の PKCE 系 400 に限定)、それ以外は従来どおり落とす。
+		// 握った分も Location/status/body のアサーションは残るため検証は弱めない。
+		onUnhandledError: (error) => {
+			const err = error as {
+				status?: unknown;
+				statusCode?: unknown;
+				body?: { error?: unknown; error_description?: unknown };
+				errorStack?: unknown;
+			};
+			const stack = typeof err.errorStack === "string" ? err.errorStack : "";
+			if (!stack.includes("/plugins/mcp/")) return;
+			if (err.status === "FOUND" && err.statusCode === 302) return false;
+			if (
+				err.status === "BAD_REQUEST" &&
+				err.statusCode === 400 &&
+				err.body?.error === "invalid_request" &&
+				typeof err.body?.error_description === "string" &&
+				/code verifier|pkce/i.test(err.body.error_description)
+			)
+				return false;
+		},
 		coverage: {
 			provider: "v8",
 			include: ["src/**"],
