@@ -161,7 +161,14 @@ export function buildLocateRequest(
 /** 1銘柄ぶんの答え。採否の理由は観測(Langfuse の output)に残す。 */
 export interface LocateAnswer {
 	candidateIndex: number;
+	/** 採用した枠。閾値を満たさなければ null(候補へ載せ、保存・表示に使うのはこちら)。 */
 	box: PhotoBox | null;
+	/**
+	 * 採否に関わらず Jev が返した枠(正規化済み。読めなければ null)。観測専用で、
+	 * 保存・表示には使わない。閾値で捨てた枠の位置が合っていたかを後から写真に
+	 * 重ねて確かめ、閾値を決めるために Langfuse へ残す(#704)。
+	 */
+	rawBox: PhotoBox | null;
 	presence: number | null;
 	confidence: number | null;
 }
@@ -207,6 +214,7 @@ export function parseLocateAnswers(
 		return {
 			candidateIndex: target.candidateIndex,
 			box: accepted ? box : null,
+			rawBox: box,
 			presence,
 			confidence,
 		};

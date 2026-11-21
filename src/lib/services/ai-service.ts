@@ -1852,6 +1852,8 @@ async function locateWineListCandidates(
 						(target) => target.candidateIndex === answer.candidateIndex,
 					)?.label,
 					box: answer.box,
+					// 閾値で捨てた枠も位置を確かめられるよう残す(#704)
+					rawBox: answer.rawBox,
 					presence: answer.presence,
 					confidence: answer.confidence,
 				})),

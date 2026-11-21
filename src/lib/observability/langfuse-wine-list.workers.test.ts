@@ -422,6 +422,20 @@ describe("銘柄の位置の推定(Jev の Box。#693)", () => {
 		const names = spansOfCalls(calls).map((s) => String(s.name));
 		expect(names).toContain(`${prefix}locate#1`);
 		expect(names).toContain(`${prefix}locate#2`);
+		// 閾値で捨てた枠(写真0の Meursault)も座標を output に残す(#704)
+		const photo0 = spansOfCalls(calls)
+			.filter((s) => String(s.name).startsWith(`${prefix}locate#`))
+			.map((s) => attrsOf(s)["langfuse.observation.output"] ?? "")
+			.find((output) => output.includes("Chablis"));
+		if (!photo0) throw new Error("locate output for photo 0 missing");
+		const photo0Answers = JSON.parse(photo0) as Array<{
+			wine: string;
+			box: unknown;
+			rawBox: unknown;
+		}>;
+		const rejected = photo0Answers.find((a) => a.wine.includes("Meursault"));
+		expect(rejected?.box).toBeNull();
+		expect(rejected?.rawBox).toEqual(BOX);
 		const allBodies = calls
 			.filter(isLangfuseCall)
 			.map((c) => c.body)
