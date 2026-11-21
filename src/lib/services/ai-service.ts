@@ -697,7 +697,7 @@ function toSafeToolCalls(
  * `openrouter:web_search` サーバーツール(engine native → Anthropic ネイティブ検索)
  * で、1リクエストの中で完結する。pause_turn の継続ループは要らない
  * (回数上限は max_uses が Anthropic へ転送される)。使用回数は応答の
- * `usage.server_tool_use.web_search_requests` に出る。
+ * `usage.server_tool_use_details.web_search_requests` に出る。
  */
 async function analyzeLabelWithWebResearch(
 	apiKey: string,
@@ -1694,7 +1694,7 @@ async function extractWineListWithClaude(
  *  - サーバー側ツールループを OpenRouter が回すので継続処理が要らない
  *    (`openrouter:web_search` はサーバーツールで、1リクエストの中で完結する)
  *
- * **web検索の回数は応答の `usage.server_tool_use.web_search_requests` に出る**
+ * **web検索の回数は応答の `usage.server_tool_use_details.web_search_requests` に出る**
  * ($10/1000回 の回数課金)。トークンとは別建てのため、`toOpenRouterUsage` が
  * 拾う——ここを落とすと、この経路の原価の大きい部分が静かに漏れる。
  */

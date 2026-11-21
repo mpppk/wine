@@ -9,7 +9,7 @@ import {
 // 高精度経路の裏取りを観測するための軌跡抽出。#602 で全経路を OpenRouter の
 // chat completions へ集約したため、応答メッセージの `annotations`(url_citation)
 // から参照 URL を拾って同じ型へ落とす。検索語クエリは応答に出ない(回数は
-// `usage.server_tool_use.web_search_requests` で別に数える)。
+// `usage.server_tool_use_details.web_search_requests` で別に数える)。
 
 describe("extractOpenRouterTrace", () => {
 	it("url_citation の URL を検索ステップとして拾う", () => {

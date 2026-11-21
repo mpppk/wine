@@ -121,7 +121,7 @@ function stubOpenRouterKey(): void {
 interface OrChatUsage {
 	prompt_tokens?: number;
 	completion_tokens?: number;
-	server_tool_use?: { web_search_requests?: number };
+	server_tool_use_details?: { web_search_requests?: number };
 }
 
 /** OpenRouter chat completion の成功レスポンス(本文テキスト + usage)を組み立てる。 */
@@ -767,7 +767,7 @@ describe("エチケット解析のGPT-6 Luna経路", () => {
 				{
 					prompt_tokens: 1300,
 					completion_tokens: 200,
-					server_tool_use: { web_search_requests: 3 },
+					server_tool_use_details: { web_search_requests: 3 },
 				},
 			),
 		);
@@ -1063,7 +1063,7 @@ describe("一括抽出の予約 → 確定/返却", () => {
 					outputTokens: 500,
 					cacheWriteTokens: 0,
 					cacheReadTokens: 0,
-					// スタブの応答に server_tool_use が無い = このケースは検索0回。
+					// スタブの応答に server_tool_use_details が無い = このケースは検索0回。
 					// 実測どおり計上されることは usage-accounting.test.ts が見ている。
 					webSearches: 0,
 				},
