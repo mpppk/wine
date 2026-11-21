@@ -172,8 +172,20 @@ describe("parseLocateAnswers", () => {
 			p1: { noul: 0.1 },
 		});
 		expect(answers).toEqual([
-			{ candidateIndex: 4, box: BOX, presence: 0.97, confidence: 0.9 },
-			{ candidateIndex: 7, box: null, presence: 0.1, confidence: 0.9 },
+			{
+				candidateIndex: 4,
+				box: BOX,
+				rawBox: BOX,
+				presence: 0.97,
+				confidence: 0.9,
+			},
+			{
+				candidateIndex: 7,
+				box: null,
+				rawBox: BOX,
+				presence: 0.1,
+				confidence: 0.9,
+			},
 		]);
 	});
 
@@ -183,6 +195,8 @@ describe("parseLocateAnswers", () => {
 			p0: { noul: 1 },
 		});
 		expect(answer?.box).toBeNull();
+		// 捨てた枠も位置を確かめられるよう rawBox に残る(#704)
+		expect(answer?.rawBox).toEqual(BOX);
 	});
 
 	it("欠けた答え・壊れた枠は枠なし(読めない答えを「写っている」に倒さない)", () => {
@@ -193,6 +207,8 @@ describe("parseLocateAnswers", () => {
 			p1: { noul: 1 },
 		});
 		expect(answers.map((a) => a.box)).toEqual([null, null]);
+		// 読めた枠は確信度が欠けていても rawBox に残し、壊れた枠は残さない
+		expect(answers.map((a) => a.rawBox)).toEqual([BOX, null]);
 		expect(parseLocateAnswers(PLAN, {}).map((a) => a.box)).toEqual([
 			null,
 			null,
@@ -207,13 +223,33 @@ describe("attachPhotoBoxes", () => {
 			{
 				photoIndex: 2,
 				answers: [
-					{ candidateIndex: 0, box: BOX, presence: 1, confidence: 1 },
-					{ candidateIndex: 1, box: null, presence: 0, confidence: 1 },
+					{
+						candidateIndex: 0,
+						box: BOX,
+						rawBox: BOX,
+						presence: 1,
+						confidence: 1,
+					},
+					{
+						candidateIndex: 1,
+						box: null,
+						rawBox: BOX,
+						presence: 0,
+						confidence: 1,
+					},
 				],
 			},
 			{
 				photoIndex: 0,
-				answers: [{ candidateIndex: 0, box: BOX, presence: 1, confidence: 1 }],
+				answers: [
+					{
+						candidateIndex: 0,
+						box: BOX,
+						rawBox: BOX,
+						presence: 1,
+						confidence: 1,
+					},
+				],
 			},
 		]);
 		expect(result[0]).toEqual({
